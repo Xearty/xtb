@@ -1,0 +1,33 @@
+{
+    "widget": {
+        "debug": "on",
+        "window": {
+            "title": "Sample Konfabulator Widget",
+            "name": "main_window",
+            "width": 500,
+            "height": 500
+        },
+        "image": {
+            "src": "Images/Sun.png",
+            "name": "sun1",
+            "hOffset": 250,
+            "vOffset": 250,
+            "alignment": "center"
+        },
+        "text": {
+            "data": "Click Here",
+            "size": 36,
+            "style": "bold",
+            "name": "text1",
+            "hOffset": 250,
+            "vOffset": 100,
+            "alignment": "center",
+            "onMouseUp": "sun1.opacity = (sun1.opacity / 100) * 90;",
+            "array": ["1", "2", "3", 512, 25125, null, false],
+            "array2": [{"key1": "stoinost"}, "2", "3"],
+            "array3": [[1, 2, 3], "2", "3"],
+            "Empty Object": {},
+            "Empty Array": []
+        }
+    }
+}

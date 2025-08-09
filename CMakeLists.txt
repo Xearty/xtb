@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.16)
+project(xtb C)
+
+add_subdirectory(libs/xtb_da)
+add_subdirectory(libs/xtb_bmp)
+add_subdirectory(libs/xtb_json)
+add_subdirectory(libs/xtb_allocator)
+add_subdirectory(libs/xtbm)
+add_subdirectory(libs/xtb_os)
+add_subdirectory(libs/xtb_ansi)
+add_subdirectory(libs/xtb_core)
+
+add_subdirectory(apps/bmp_test)
+add_subdirectory(apps/da_test)
+add_subdirectory(apps/json_test)
