@@ -11,6 +11,7 @@ typedef struct XTB_Logger
 {
     XTB_Log_Callback cb;
     void *user_data;
+    XTB_Log_Level level_filter_threshold;
 } XTB_Logger;
 
 XTB_Logger g_logger;
@@ -21,8 +22,15 @@ void xtb_set_log_callback(XTB_Log_Callback cb, void *user_data)
     g_logger.user_data = user_data;
 }
 
+void xtb_set_trace_log_level(int log_level)
+{
+    g_logger.level_filter_threshold = log_level;
+}
+
 void xtb_log(XTB_Log_Level level, const char *fmt, ...)
 {
+    if (level < g_logger.level_filter_threshold) return;
+
     const char *level_str[] = { "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };
     const char *level_style[] = { HMAG, WHT, HGRN, HYEL, HRED, REDHB };
 

@@ -34,6 +34,7 @@ typedef enum XTB_Log_Level
 typedef void (*XTB_Log_Callback)(XTB_Log_Level level, const char *message, void *user_data);
 
 void xtb_set_log_callback(XTB_Log_Callback cb, void *user_data);
+void xtb_set_trace_log_level(int log_level);
 void xtb_log(XTB_Log_Level level, const char *fmt, ...);
 
 #define XTB_LOG_TRACE(fmt, ...) xtb_log(XTB_LOG_TRACE, fmt, ##__VA_ARGS__)
