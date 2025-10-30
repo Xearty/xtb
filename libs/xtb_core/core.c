@@ -32,7 +32,7 @@ void xtb_log(XTB_Log_Level level, const char *fmt, ...)
     if (level < g_logger.level_filter_threshold) return;
 
     const char *level_str[] = { "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };
-    const char *level_style[] = { HMAG, WHT, HGRN, HYEL, HRED, REDHB };
+    const char *level_style[] = { HMAG, WHT, HGRN, HYEL, HRED, BHRED };
 
     char buffer[1024];
 
