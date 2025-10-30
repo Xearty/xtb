@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <xtb_ansi/ansi.h>
 
 /****************************************************************
  * Logging
@@ -23,6 +24,7 @@ void xtb_set_log_callback(XTB_Log_Callback cb, void *user_data)
 void xtb_log(XTB_Log_Level level, const char *fmt, ...)
 {
     const char *level_str[] = { "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };
+    const char *level_style[] = { HMAG, WHT, HGRN, HYEL, HRED, REDHB };
 
     char buffer[1024];
 
@@ -37,7 +39,8 @@ void xtb_log(XTB_Log_Level level, const char *fmt, ...)
     }
     else
     {
-        fprintf(stderr, "[%s] %s\n", level_str[level], buffer);
+        xtb_ansi_print_style(stderr, level_style[level], "[%s] %s", level_str[level], buffer);
+        fputs("\n", stderr);
     }
 }
 
