@@ -3,6 +3,7 @@
 
 #include "escape_codes.h"
 #include <stdio.h>
+#include <stdarg.h>
 
 #define ANSI_COLOR_LIST(MACRO)              \
     MACRO(black, BLK)                       \
@@ -72,6 +73,9 @@
     void xtb_ansi_print_##COLOR(FILE *stream, const char *fmt, ...);
 
 ANSI_COLOR_LIST(DEC_PRINT_COLOR_FUNC);
+
+void xtb_ansi_print_style(FILE *stream, const char *ansi_seq, const char *fmt, ...);
+void xtb_ansi_vprint_style(FILE *stream, const char *ansi_seq, const char *fmt, va_list va_args);
 
 #undef DEC_PRINT_COLOR_FUNC
 
