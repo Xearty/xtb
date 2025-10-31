@@ -24,6 +24,12 @@ void xtb_init(int argc, const char **argv);
 #define XTB_TERABYTES(N) (1024 * XTB_GIGABYTES(N))
 
 /****************************************************************
+ * Function Attributes
+****************************************************************/
+#define XTB_NOINLINE __attribute__((noinline))
+#define XTB_NORETURN __attribute__((noreturn))
+
+/****************************************************************
  * Logging
 ****************************************************************/
 typedef enum XTB_Log_Level
