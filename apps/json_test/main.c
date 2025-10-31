@@ -29,6 +29,8 @@ char* trim_cstring(XTB_Arena *arena, const char *cstr)
 
 int main(int argc, char **argv)
 {
+    xtb_init(argc, argv);
+
     if (argc > 2)
     {
         fprintf(stderr, "Usage: %s <file>\n", argv[0]);

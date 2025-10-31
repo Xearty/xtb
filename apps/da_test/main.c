@@ -1,10 +1,13 @@
+#include <xtb_core/core.h>
 #include "xtb_da/da.h"
 #include <stdio.h>
 
 XTB_DA_DEFINE_TYPE(Ints, int);
 
-int main()
+int main(int argc, char **argv)
 {
+    xtb_init(argc, argv);
+
     Ints ints = {};
     xtb_da_append(&ints, 1);
     xtb_da_append(&ints, 5);

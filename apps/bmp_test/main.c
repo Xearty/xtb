@@ -5,6 +5,7 @@
 
 #include <xtbm/xtbm.h>
 #include <xtb_os/os.h>
+#include <xtb_core/core.h>
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -217,6 +218,8 @@ bmp_single_file_viewer_app(int argc, char **argv, const char *filepath)
 
 int main(int argc, char **argv)
 {
+    xtb_init(argc, argv);
+
     SetTraceLogLevel(LOG_ERROR);
 
     xtb_bmp_set_global_allocator(xtb_malloc_allocator());
