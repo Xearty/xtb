@@ -1,10 +1,17 @@
 #include "core.h"
+#include "platform_defines.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <xtb_ansi/ansi.h>
 #include <backtrace.h>
+
+#ifdef XTB_PLATFORM_LINUX
+#include "linux_signal_handlers.c"
+#else
+#define register_signal_handlers(...)
+#endif
 
 /****************************************************************
  * Stack Trace
@@ -168,4 +175,6 @@ void xtb_init(int argc, char **argv)
 {
     const char *exe_path = argv[0];
     g_backtrace.state = backtrace_create_state(exe_path, 0, xtb_backtrace_error_callback, NULL);
+
+    register_signal_handlers();
 }

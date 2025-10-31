@@ -97,4 +97,10 @@ void xtb_print_full_stack_trace(void);
 ****************************************************************/
 #define XTB_ARRLEN(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
 
+/****************************************************************
+ * Control-Flow Macros
+****************************************************************/
+#define XTB_SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
+    do { switch (VALUE) { ITERATOR(MACRO) } } while (0)
+
 #endif // _XTB_CORE_H_
