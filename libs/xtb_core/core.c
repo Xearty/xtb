@@ -164,6 +164,7 @@ void xtb_panic(const char *fmt, ...)
         g_panic.handler(buffer, g_panic.user_data);
     }
 
+    fflush(stdout);
     fflush(stderr);
     abort();
 }
