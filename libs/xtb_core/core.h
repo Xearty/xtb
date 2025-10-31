@@ -10,6 +10,11 @@
 #define XTB_CORE_VERSION_STRING "0.0.1"
 
 /****************************************************************
+ * Initialization
+****************************************************************/
+void xtb_init(int argc, const char **argv);
+
+/****************************************************************
  * Memory Utilities
 ****************************************************************/
 #define XTB_BYTES(N) (N)
@@ -69,7 +74,9 @@ void xtb_panic(const char *fmt, ...);
     typedef char static_assertion_##msg[(cond) ? 1 : -1]
 
 /****************************************************************
- * Function Attributes
+ * Stack Trace
 ****************************************************************/
+void xtb_print_stack_trace(int skip_frames_count);
+void xtb_print_full_stack_trace(void);
 
 #endif // _XTB_CORE_H_

@@ -1,8 +1,80 @@
 #include "core.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <xtb_ansi/ansi.h>
+#include <backtrace.h>
+
+/****************************************************************
+ * Stack Trace
+****************************************************************/
+typedef struct XTB_Backtrace
+{
+    struct backtrace_state *state;
+    bool should_print_next_unknown_frame;
+} XTB_Backtrace;
+
+XTB_Backtrace g_backtrace;
+
+void xtb_backtrace_error_callback(void *data, const char *msg, int errnum)
+{
+    xtb_ansi_print_bold_red(stderr, "BACKTRACE ERROR: %s", msg);
+    fputs("\n", stderr);
+}
+
+int xtb_backtrace_full_callback(void *data,
+                                 uintptr_t pc,
+                                 const char *filename,
+                                 int lineno,
+                                 const char *function)
+{
+    if (filename == NULL)
+    {
+        if (g_backtrace.should_print_next_unknown_frame)
+        {
+            xtb_ansi_print_bright_black(stderr, "    <missing debug info>");
+            fputs("\n", stderr);
+            g_backtrace.should_print_next_unknown_frame = false;
+        }
+    }
+    else
+    {
+        // main (<path>:<lineno>)
+        fputs("    ", stderr);
+        xtb_ansi_print_bold_blue(stderr, "%s", function);
+        fputs(" (", stderr);
+        xtb_ansi_print_underlined_green(stderr, "%s", filename);
+        fputs(":", stderr);
+        xtb_ansi_print_red(stderr, "%d", lineno);
+        fputs(")", stderr);
+        fputs("\n", stderr);
+
+        g_backtrace.should_print_next_unknown_frame = true;
+    }
+
+    return 0;
+}
+
+void xtb_print_stack_trace(int skip_frames_count)
+{
+    XTB_ASSERT(g_backtrace.state != NULL);
+
+    xtb_ansi_print_bold_white(stderr, "Stack Trace:");
+    fputs("\n", stderr);
+
+    g_backtrace.should_print_next_unknown_frame = true;
+    backtrace_full(g_backtrace.state,
+                   skip_frames_count,
+                   xtb_backtrace_full_callback,
+                   xtb_backtrace_error_callback,
+                   NULL);
+}
+
+void xtb_print_full_stack_trace(void)
+{
+    xtb_print_stack_trace(0);
+}
 
 /****************************************************************
  * Logging
@@ -79,6 +151,7 @@ void xtb_panic(const char *fmt, ...)
     va_end(args);
 
     xtb_log(XTB_LOG_FATAL, "%s", buffer);
+    xtb_print_stack_trace(1);
 
     if (g_panic.handler)
     {
@@ -87,4 +160,13 @@ void xtb_panic(const char *fmt, ...)
 
     fflush(stderr);
     abort();
+}
+
+/****************************************************************
+ * Initialization
+****************************************************************/
+void xtb_init(int argc, const char **argv)
+{
+    const char *exe_path = argv[0];
+    g_backtrace.state = backtrace_create_state(exe_path, 0, xtb_backtrace_error_callback, NULL);
 }

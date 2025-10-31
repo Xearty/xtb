@@ -20,6 +20,7 @@
             just
             bear
             readline
+            libbacktrace
           ];
         };
       });
