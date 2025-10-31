@@ -165,7 +165,7 @@ void xtb_panic(const char *fmt, ...)
 /****************************************************************
  * Initialization
 ****************************************************************/
-void xtb_init(int argc, const char **argv)
+void xtb_init(int argc, char **argv)
 {
     const char *exe_path = argv[0];
     g_backtrace.state = backtrace_create_state(exe_path, 0, xtb_backtrace_error_callback, NULL);
