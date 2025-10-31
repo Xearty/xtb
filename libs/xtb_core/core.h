@@ -72,8 +72,15 @@ void xtb_panic(const char *fmt, ...);
                 xtb_panic("Assertion failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
             }                                                                         \
         } while (0)
+
+#   define XTB_UNREACHABLE                                                      \
+        do                                                                      \
+        {                                                                       \
+            xtb_panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
+        } while (0)
 #else
 #   define XTB_ASSERT(cond) (void)(cond)
+#   define XTB_UNREACHABLE
 #endif
 
 #define XTB_STATIC_ASSERT(cond, msg) \
