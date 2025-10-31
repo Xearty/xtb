@@ -58,7 +58,7 @@ int xtb_backtrace_full_callback(void *data,
 
 void xtb_print_stack_trace(int skip_frames_count)
 {
-    XTB_ASSERT(g_backtrace.state != NULL);
+    if (g_backtrace.state == NULL) return;
 
     xtb_ansi_print_bold_white(stderr, "Stack Trace:");
     fputs("\n", stderr);
