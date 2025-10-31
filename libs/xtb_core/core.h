@@ -85,4 +85,9 @@ void xtb_panic(const char *fmt, ...);
 void xtb_print_stack_trace(int skip_frames_count);
 void xtb_print_full_stack_trace(void);
 
+/****************************************************************
+ * Miscellaneous Macros
+****************************************************************/
+#define XTB_ARRLEN(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
+
 #endif // _XTB_CORE_H_
