@@ -44,7 +44,7 @@ int xtb_backtrace_full_callback(void *data,
         fputs("    ", stderr);
         xtb_ansi_print_bold_blue(stderr, "%s", function);
         fputs(" (", stderr);
-        xtb_ansi_print_underlined_green(stderr, "%s", filename);
+        xtb_ansi_print_green(stderr, "%s", filename);
         fputs(":", stderr);
         xtb_ansi_print_red(stderr, "%d", lineno);
         fputs(")", stderr);
