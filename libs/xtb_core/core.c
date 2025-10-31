@@ -60,10 +60,9 @@ void xtb_print_stack_trace(int skip_frames_count)
 {
     if (g_backtrace.state == NULL) return;
 
-    xtb_ansi_print_bold_white(stderr, "Stack Trace:");
-    fputs("\n", stderr);
-
     g_backtrace.should_print_next_unknown_frame = true;
+
+    fputs("Stack Trace:\n", stderr);
     backtrace_full(g_backtrace.state,
                    skip_frames_count,
                    xtb_backtrace_full_callback,
