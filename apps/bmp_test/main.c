@@ -1,4 +1,3 @@
-#define XTB_ALLOCATOR_MALLOC_IMPLEMENTATION
 #include <xtb_allocator/arena.h>
 
 #include <xtb_bmp/bmp.h>
