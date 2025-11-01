@@ -422,7 +422,7 @@ XTB_JSON_Value *xtb_json_parse(const char *input)
 
 XTB_JSON_Value *xtb_json_parse_file(const char *filepath)
 {
-    char *content = xtb_os_read_entire_text_file(filepath);
+    char *content = xtb_os_read_entire_file(filepath, NULL);
     if (!content) return NULL;
 
     XTB_JSON_Value *value = xtb_json_parse(content);

@@ -65,7 +65,7 @@ setup_window_for_bmp(XTB_BMP_Bitmap *bitmap, const char *path)
 
     // Load bitmap
     #if 1
-    char *content = xtb_os_read_entire_binary_file(path);
+    char *content = xtb_os_read_entire_file(path, NULL);
 
     #ifdef USE_DIB
     XTB_BMP_DIB dib = xtb_bmp_dib_load_galloc(result.content);
