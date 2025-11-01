@@ -92,5 +92,8 @@ int main(int argc, char **argv)
     printf("file type: %d\n", xtb_os_get_file_type_nofollow(path2));
     printf("file type follow: %d\n", xtb_os_get_file_type(path2));
 
+    char *real_path = xtb_os_real_path(path2);
+    printf("real path: %s\n", real_path);
+
     return 0;
 }

@@ -96,3 +96,8 @@ bool xtb_os_delete_file(const char *filepath)
     return remove(filepath) == 0;
 }
 
+char *xtb_os_real_path(const char *filepath)
+{
+    return realpath(filepath, NULL);
+}
+

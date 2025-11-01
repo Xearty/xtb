@@ -49,4 +49,6 @@ bool xtb_os_is_symbolic_link(const char *filepath);
 XTB_File_Type xtb_os_get_file_type_nofollow(const char *filepath);
 XTB_File_Type xtb_os_get_file_type(const char *filepath);
 
+char *xtb_os_real_path(const char *filepath);
+
 #endif // _XTB_OS_H_
