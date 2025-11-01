@@ -31,4 +31,11 @@ bool xtb_os_file_has_read_permission(const char *filepath);
 bool xtb_os_file_has_write_permission(const char *filepath);
 bool xtb_os_file_has_execute_permission(const char *filepath);
 
+bool xtb_os_is_regular_file(const char *filepath);
+bool xtb_os_is_directory(const char *filepath);
+
+bool xtb_os_is_regular_file_nofollow(const char *filepath);
+bool xtb_os_is_directory_nofollow(const char *filepath);
+bool xtb_os_is_symbolic_link(const char *filepath);
+
 #endif // _XTB_OS_H_

@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 bool xtb_os_file_exists(const char *filepath)
 {
@@ -19,5 +20,40 @@ bool xtb_os_file_has_write_permission(const char *filepath)
 bool xtb_os_file_has_execute_permission(const char *filepath)
 {
     return access(filepath, X_OK) == 0;
+}
+
+bool xtb_os_is_regular_file(const char *filepath)
+{
+    struct stat path_stat;
+    if (stat(filepath, &path_stat) != 0) return false;
+    return S_ISREG(path_stat.st_mode);
+}
+
+bool xtb_os_is_directory(const char *filepath)
+{
+    struct stat path_stat;
+    if (stat(filepath, &path_stat) != 0) return false;
+    return S_ISDIR(path_stat.st_mode);
+}
+
+bool xtb_os_is_regular_file_nofollow(const char *filepath)
+{
+    struct stat path_stat;
+    if (lstat(filepath, &path_stat) != 0) return false;
+    return S_ISREG(path_stat.st_mode);
+}
+
+bool xtb_os_is_directory_nofollow(const char *filepath)
+{
+    struct stat path_stat;
+    if (lstat(filepath, &path_stat) != 0) return false;
+    return S_ISDIR(path_stat.st_mode);
+}
+
+bool xtb_os_is_symbolic_link(const char *filepath)
+{
+    struct stat path_stat;
+    if (lstat(filepath, &path_stat) != 0) return false;
+    return S_ISLNK(path_stat.st_mode);
 }
 
