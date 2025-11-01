@@ -1,7 +1,7 @@
 #ifndef _XTB_ALLOCATOR_ARENA_H_
 #define _XTB_ALLOCATOR_ARENA_H_
 
-#include "allocator.h"
+#include <xtb_core/core.h>
 
 #include <stdio.h>
 #include <stdlib.h>

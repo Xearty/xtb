@@ -1,18 +1,7 @@
 #ifndef _XTB_ALLOCATOR_H_
 #define _XTB_ALLOCATOR_H_
 
-#include <stddef.h>
-
-typedef void*(*XTB_Allocate)(void*, size_t);
-typedef void(*XTB_Deallocate)(void*, void*);
-
-typedef struct XTB_Allocator XTB_Allocator;
-struct XTB_Allocator
-{
-    void *context;
-    XTB_Allocate allocate;
-    XTB_Deallocate deallocate;
-};
+#include <xtb_core/core.h>
 
 #ifdef XTB_ALLOCATOR_MALLOC_IMPLEMENTATION
 #include <stdlib.h>

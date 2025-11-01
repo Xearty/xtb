@@ -1,6 +1,8 @@
 #ifndef _XTB_CORE_H_
 #define _XTB_CORE_H_
 
+#include <stddef.h>
+
 /****************************************************************
  * Versioning
 ****************************************************************/
@@ -8,6 +10,19 @@
 #define XTB_CORE_VERSION_MINOR 0
 #define XTB_CORE_VERSION_PATCH 1
 #define XTB_CORE_VERSION_STRING "0.0.1"
+
+/****************************************************************
+  Allocator Interface
+****************************************************************/
+typedef void*(*XTB_Allocate)(void*, size_t);
+typedef void(*XTB_Deallocate)(void*, void*);
+
+typedef struct XTB_Allocator
+{
+    void *context;
+    XTB_Allocate allocate;
+    XTB_Deallocate deallocate;
+} XTB_Allocator;
 
 /****************************************************************
  * Initialization
