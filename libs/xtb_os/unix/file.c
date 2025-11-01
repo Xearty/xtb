@@ -1,6 +1,12 @@
+#define _XOPEN_SOURCE 500
+#define __USE_XOPEN_EXTENDED
 #include <xtb_os/os.h>
+
 #include <stdbool.h>
+#include <stdio.h>
+
 #include <unistd.h>
+#include <ftw.h>
 #include <sys/stat.h>
 
 bool xtb_os_file_exists(const char *filepath)
@@ -88,5 +94,15 @@ XTB_File_Type xtb_os_get_file_type(const char *filepath)
     }
 
     return XTB_FT_UNKNOWN;
+}
+
+static int unlink_cb(const char *filepath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+    return remove(filepath);
+}
+
+bool xtb_os_delete_directory(const char *filepath)
+{
+    return nftw(filepath, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
 }
 

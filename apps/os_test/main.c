@@ -26,6 +26,28 @@ int main(int argc, char **argv)
     //     puts("Deleted file successfully");
     // }
 
+    if (xtb_os_delete_directory("libs2"))
+    {
+        puts("Deleted");
+    }
+    else
+    {
+        puts("Could not delete");
+    }
+
+    return 0;
+
+    if (xtb_os_move_file("edno", "dve"))
+    {
+        puts("File moved successfully");
+    }
+    else
+    {
+        puts("File couldn't be moved");
+    }
+
+    return 0;
+
     if (xtb_os_file_exists(out_file))
     {
         puts("File exists");
