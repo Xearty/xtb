@@ -75,3 +75,18 @@ char *xtb_os_read_entire_file(const char *filepath, size_t *out_size)
     }
 }
 
+size_t xtb_os_write_file(XTB_File_Handle *handle, const char *buffer, size_t size)
+{
+    return fwrite(buffer, sizeof(char), size, (FILE*)handle);
+}
+
+size_t xtb_os_write_entire_file(const char *filepath, const char *buffer, size_t size)
+{
+    XTB_File_Handle *handle = xtb_os_open_file(filepath, XTB_WRITE | XTB_BINARY);
+    if (handle == NULL) return 0;
+
+    size_t bytes_written = xtb_os_write_file(handle, buffer, size);
+    xtb_os_close_file(handle);
+
+    return bytes_written;
+}

@@ -14,5 +14,9 @@ int main(int argc, char **argv)
     }
     free(content);
 
+    char buffer[] = "Tova e text";
+    int bytes_written = xtb_os_write_entire_file("./test2", buffer, sizeof(buffer) - 1);
+    printf("bytes_written = %d\n", bytes_written);
+
     return 0;
 }

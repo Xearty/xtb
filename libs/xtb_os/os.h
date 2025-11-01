@@ -14,8 +14,13 @@ typedef enum XTB_File_Mode
 
 XTB_File_Handle *xtb_os_open_file(const char *filepath, XTB_File_Mode mode);
 void xtb_os_close_file(XTB_File_Handle *handle);
-size_t xtb_os_read_file(XTB_File_Handle *handle, char *buffer, size_t size);
+
 size_t xtb_os_get_file_size(XTB_File_Handle *handle);
+
+size_t xtb_os_read_file(XTB_File_Handle *handle, char *buffer, size_t size);
 char *xtb_os_read_entire_file(const char *filepath, size_t *out_size);
+
+size_t xtb_os_write_file(XTB_File_Handle *handle, const char *buffer, size_t size);
+size_t xtb_os_write_entire_file(const char *filepath, const char *buffer, size_t size);
 
 #endif // _XTB_OS_H_
