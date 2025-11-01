@@ -90,3 +90,9 @@ size_t xtb_os_write_entire_file(const char *filepath, const char *buffer, size_t
 
     return bytes_written;
 }
+
+bool xtb_os_delete_file(const char *filepath)
+{
+    return remove(filepath) == 0;
+}
+

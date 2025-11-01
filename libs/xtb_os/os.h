@@ -2,6 +2,7 @@
 #define _XTB_OS_H_
 
 #include <stddef.h>
+#include <stdbool.h>
 
 typedef struct XTB_File_Handle XTB_File_Handle;
 
@@ -22,5 +23,12 @@ char *xtb_os_read_entire_file(const char *filepath, size_t *out_size);
 
 size_t xtb_os_write_file(XTB_File_Handle *handle, const char *buffer, size_t size);
 size_t xtb_os_write_entire_file(const char *filepath, const char *buffer, size_t size);
+
+bool xtb_os_file_exists(const char *filepath);
+bool xtb_os_delete_file(const char *filepath);
+
+bool xtb_os_file_has_read_permission(const char *filepath);
+bool xtb_os_file_has_write_permission(const char *filepath);
+bool xtb_os_file_has_execute_permission(const char *filepath);
 
 #endif // _XTB_OS_H_
