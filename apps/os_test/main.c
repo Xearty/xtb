@@ -89,5 +89,8 @@ int main(int argc, char **argv)
         puts("File is regular file no follow");
     }
 
+    printf("file type: %d\n", xtb_os_get_file_type_nofollow(path2));
+    printf("file type follow: %d\n", xtb_os_get_file_type(path2));
+
     return 0;
 }

@@ -13,6 +13,14 @@ typedef enum XTB_File_Mode
     XTB_BINARY = 0b100
 } XTB_File_Mode;
 
+typedef enum XTB_File_Type
+{
+    XTB_FT_REGULAR = 0,
+    XTB_FT_DIRECTORY,
+    XTB_FT_SYMLINK,
+    XTB_FT_UNKNOWN
+} XTB_File_Type;
+
 XTB_File_Handle *xtb_os_open_file(const char *filepath, XTB_File_Mode mode);
 void xtb_os_close_file(XTB_File_Handle *handle);
 
@@ -37,5 +45,8 @@ bool xtb_os_is_directory(const char *filepath);
 bool xtb_os_is_regular_file_nofollow(const char *filepath);
 bool xtb_os_is_directory_nofollow(const char *filepath);
 bool xtb_os_is_symbolic_link(const char *filepath);
+
+XTB_File_Type xtb_os_get_file_type_nofollow(const char *filepath);
+XTB_File_Type xtb_os_get_file_type(const char *filepath);
 
 #endif // _XTB_OS_H_
