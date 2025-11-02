@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define XTB_PATH_BUFFER_SIZE 256
+#define XTB_FILE_NAME_BUFFER_SIZE 256
 
 typedef struct XTB_File_Handle XTB_File_Handle;
 
@@ -23,12 +23,6 @@ typedef enum XTB_File_Type
     XTB_FT_SYMLINK,
     XTB_FT_UNKNOWN
 } XTB_File_Type;
-
-typedef enum XTB_Graph_Traversal_type
-{
-    XTB_BFS = 0,
-    XTB_DFS
-} XTB_Graph_Traversal_Type;
 
 XTB_File_Handle *xtb_os_open_file(const char *filepath, XTB_File_Mode mode);
 void xtb_os_close_file(XTB_File_Handle *handle);
@@ -64,10 +58,16 @@ char *xtb_os_real_path(const char *filepath);
 
 typedef struct XTB_Directory_Listing_Node {
     XTB_File_Type type;;
-    char path[XTB_PATH_BUFFER_SIZE];
+    char *path;
     struct XTB_Directory_Listing_Node* prev;
     struct XTB_Directory_Listing_Node* next;
 } XTB_Directory_Listing_Node;
+
+typedef struct XTB_Directory_List
+{
+    XTB_Directory_Listing_Node *head;
+    XTB_Directory_Listing_Node *tail;
+} XTB_Directory_List;
 
 typedef enum XTB_Directory_Listing_Flags
 {
@@ -77,8 +77,8 @@ typedef enum XTB_Directory_Listing_Flags
     XTB_DIR_LIST_CURR_AND_PREV = 0b011,
 } XTB_Directory_Listing_Flags;
 
-XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags);
-XTB_Directory_Listing_Node* xtb_os_iterate_directory(XTB_Allocator allocator, const char *filepath);
-XTB_Directory_Listing_Node* xtb_os_iterate_directory_recursively(XTB_Allocator allocator, const char *filepath, XTB_Graph_Traversal_Type traversal_type);
+XTB_Directory_List xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags);
+XTB_Directory_List xtb_os_iterate_directory(XTB_Allocator allocator, const char *filepath);
+XTB_Directory_List xtb_os_iterate_directory_recursively(XTB_Allocator allocator, const char *filepath);
 
 #endif // _XTB_OS_H_

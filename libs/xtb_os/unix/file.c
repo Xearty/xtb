@@ -117,7 +117,7 @@ static bool should_skip_file_in_listing(const char *filepath, XTB_Directory_List
 {
     if (!(flags & XTB_DIR_LIST_CURR))
     {
-        if (strncmp(filepath, ".", XTB_PATH_BUFFER_SIZE - 1) == 0)
+        if (strncmp(filepath, ".", XTB_FILE_NAME_BUFFER_SIZE - 1) == 0)
         {
             return true;;
         }
@@ -125,7 +125,7 @@ static bool should_skip_file_in_listing(const char *filepath, XTB_Directory_List
 
     if (!(flags & XTB_DIR_LIST_PREV))
     {
-        if (strncmp(filepath, "..", XTB_PATH_BUFFER_SIZE - 1) == 0)
+        if (strncmp(filepath, "..", XTB_FILE_NAME_BUFFER_SIZE - 1) == 0)
         {
             return true;
         }
@@ -145,12 +145,18 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
     }
 }
 
-XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags)
+XTB_Directory_List xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags)
 {
-    DIR *dir = opendir(filepath);
+    XTB_Directory_List list = {0};
 
-    XTB_Directory_Listing_Node *begin = NULL;
-    XTB_Directory_Listing_Node *end = NULL;
+    DIR *dir = opendir(filepath);
+    if (dir == NULL)
+    {
+        perror("opendir failed");
+        return list;
+    }
+
+    size_t dir_path_len = strlen(filepath);
 
     struct dirent *entry;
     while ((entry = readdir(dir)))
@@ -158,23 +164,60 @@ XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator alloca
         if (should_skip_file_in_listing(entry->d_name, flags)) continue;
 
         XTB_Directory_Listing_Node *node = XTB_Allocate(allocator, XTB_Directory_Listing_Node);
-        strncpy(node->path, entry->d_name, sizeof(node->path));
+
+        size_t filename_len = strlen(entry->d_name);
+        size_t child_path_len = dir_path_len + 1 + filename_len + 1;
+
         node->type = dirent_ft_to_xtb_ft(entry->d_type);
-        DLLPushBack(begin, end, node);
+        node->path = XTB_AllocateArray(allocator, char, child_path_len);
+
+        // Copy directory path
+        strncpy(node->path, filepath, dir_path_len);
+
+        // Append a slash to the directory path
+        if (node->path[dir_path_len - 1] != '/')
+        {
+            node->path[dir_path_len] = '/';
+            node->path[dir_path_len + 1] = '\0';
+        }
+
+        // Append the file name to the directory path
+        strncat(node->path, entry->d_name, filename_len);
+
+        DLLPushBack(list.head, list.tail, node);
     }
 
     closedir(dir);
-
-    return begin;
+    return list;
 }
 
-XTB_Directory_Listing_Node* xtb_os_iterate_directory(XTB_Allocator allocator, const char *filepath)
+XTB_Directory_List xtb_os_iterate_directory(XTB_Allocator allocator, const char *filepath)
 {
     return xtb_os_iterate_directory_custom(allocator, filepath, XTB_DIR_LIST_NONE);
 }
 
-XTB_Directory_Listing_Node* xtb_os_iterate_directory_recursively(XTB_Allocator allocator, const char *filepath, XTB_Graph_Traversal_Type traversal_type)
+XTB_Directory_List xtb_os_iterate_directory_recursively(XTB_Allocator allocator, const char *filepath)
 {
-    return NULL;
+
+    XTB_Directory_List entries = xtb_os_iterate_directory(allocator, filepath);
+    XTB_Directory_List accumulator = entries;
+
+    for (XTB_Directory_Listing_Node *entry = entries.head;
+         DLLIterBoundedCond(entry, entries.tail);
+         entry = entry->next)
+    {
+        if (entry->type == XTB_FT_DIRECTORY)
+        {
+            XTB_Directory_List children =
+                xtb_os_iterate_directory_recursively(allocator, entry->path);
+
+            if (children.head != NULL)
+            {
+                DLLConcat(accumulator, children);
+            }
+        }
+    }
+
+    return accumulator;
 }
 

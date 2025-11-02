@@ -66,4 +66,15 @@ CheckNil(nil,p) ? \
 #define SLLStackPush(f,n) SLLStackPush_N(f,n,next)
 #define SLLStackPop(f) SLLStackPop_N(f,next)
 
+//- xearty: doubly-linked list helpers
+#define DLLIterNullTerminatedCond(iter) (iter) != NULL
+#define DLLIterBoundedCond(iter, last) ((iter) != NULL && ((iter)->prev != (last)))
+
+#define DLLConcatHT(first, second, head, tail) \
+    (first.tail->next = second.head, \
+    second.head->prev = first.tail, \
+    first.tail = second.tail, first)
+
+#define DLLConcat(first, second) DLLConcatHT(first, second, head, tail)
+
 #endif // _XTB_LINKED_LIST_H_

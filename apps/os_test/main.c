@@ -1,3 +1,4 @@
+#include <xtb_core/linked_list.h>
 #include <xtb_core/core.h>
 #include <xtb_os/os.h>
 #include <stdio.h>
@@ -23,10 +24,11 @@ int main(int argc, char **argv)
     XTB_Arena *arena = xtb_arena_new(XTB_MEGABYTES(4));
     XTB_Allocator arena_allocator = xtb_arena_allocator(arena);
 
-    XTB_Directory_Listing_Node *entries = xtb_os_iterate_directory(arena_allocator, ".");
-    for (XTB_Directory_Listing_Node *node = entries; node != NULL; node = node->next)
+    XTB_Directory_List list = xtb_os_iterate_directory_recursively(arena_allocator, "./libs");
+
+    for (XTB_Directory_Listing_Node *entry = list.head; entry != NULL; entry = entry->next)
     {
-        printf("[%s] %s\n", ft_to_str(node->type), node->path);
+        printf("[%s] %s\n", ft_to_str(entry->type), entry->path);
     }
 
     xtb_arena_drop(arena);
