@@ -19,7 +19,7 @@ int main(int argc, char **argv)
     XTB_Arena *arena = xtb_arena_new(XTB_MEGABYTES(4));
     XTB_Allocator arena_allocator = xtb_arena_allocator(arena);
 
-    XTB_Directory_Listing_Node *entries = xtb_iterate_directory(arena_allocator, ".");
+    XTB_Directory_Listing_Node *entries = xtb_os_iterate_directory(arena_allocator, ".");
     for (XTB_Directory_Listing_Node *node = entries; node != NULL; node = node->next)
     {
         puts(node->value);
