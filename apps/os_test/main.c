@@ -6,6 +6,20 @@
 
 #include <xtb_allocator/allocator.h>
 
+typedef struct PermissionsBuffer
+{
+    char buf[10];
+} PermissionsBuffer;
+
+PermissionsBuffer get_permissions_str(const char *filepath)
+{
+    PermissionsBuffer perm = {};
+    perm.buf[0] = xtb_os_file_has_execute_permission(filepath) ? 'x' : '-';
+    perm.buf[1] = xtb_os_file_has_read_permission(filepath) ? 'r' : '-';
+    perm.buf[2] = xtb_os_file_has_write_permission(filepath) ? 'w' : '-';
+    return perm;
+}
+
 const char *ft_to_str(XTB_File_Type ft)
 {
     switch (ft)
@@ -27,7 +41,7 @@ int main(int argc, char **argv)
 
     for (XTB_Directory_Listing_Node *entry = list.head; entry != NULL; entry = entry->next)
     {
-        printf("[%s] %s\n", ft_to_str(entry->type), entry->path);
+        printf("[%s] [%s] %s\n", get_permissions_str(entry->path).buf, ft_to_str(entry->type), entry->path);
     }
 
     xtb_os_free_directory_list(allocator, &list);
