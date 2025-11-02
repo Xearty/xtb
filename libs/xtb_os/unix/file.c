@@ -1,13 +1,16 @@
 #define _XOPEN_SOURCE 500
 #define __USE_XOPEN_EXTENDED
 #include <xtb_os/os.h>
+#include <xtb_core/linked_list.h>
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <unistd.h>
 #include <ftw.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 bool xtb_os_file_exists(const char *filepath)
 {
@@ -104,5 +107,51 @@ static int unlink_cb(const char *filepath, const struct stat *sb, int typeflag, 
 bool xtb_os_delete_directory(const char *filepath)
 {
     return nftw(filepath, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
+}
+
+XTB_Directory_Listing_Node* xtb_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags)
+{
+    DIR *dir = opendir(filepath);
+
+    XTB_Directory_Listing_Node *begin = NULL;
+    XTB_Directory_Listing_Node *end = NULL;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)))
+    {
+        if (!(flags & XTB_DIR_LIST_CURR))
+        {
+            if (strncmp(entry->d_name, ".", 256) == 0)
+            {
+                continue;
+            }
+        }
+
+        if (!(flags & XTB_DIR_LIST_PREV))
+        {
+            if (strncmp(entry->d_name, "..", 256) == 0)
+            {
+                continue;
+            }
+        }
+
+        XTB_Directory_Listing_Node *node = XTB_Allocate(allocator, XTB_Directory_Listing_Node);
+        strncpy(node->value, entry->d_name, sizeof(node->value));
+        DLLPushBack(begin, end, node);
+    }
+
+    closedir(dir);
+
+    return begin;
+}
+
+XTB_Directory_Listing_Node* xtb_iterate_directory(XTB_Allocator allocator, const char *filepath)
+{
+    return xtb_iterate_directory_custom(allocator, filepath, XTB_DIR_LIST_NONE);
+}
+
+XTB_Directory_Listing_Node* xtb_iterate_directory_recursively(XTB_Allocator allocator, const char *filepath, XTB_Graph_Traversal_Type traversal_type)
+{
+    return NULL;
 }
 
