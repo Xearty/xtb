@@ -18,10 +18,10 @@ typedef enum XTB_File_Mode
 
 typedef enum XTB_File_Type
 {
-    XTB_FT_REGULAR = 0,
+    XTB_FT_UNKNOWN = 0,
+    XTB_FT_REGULAR,
     XTB_FT_DIRECTORY,
-    XTB_FT_SYMLINK,
-    XTB_FT_UNKNOWN
+    XTB_FT_SYMLINK
 } XTB_File_Type;
 
 XTB_File_Handle *xtb_os_open_file(const char *filepath, XTB_File_Mode mode);
