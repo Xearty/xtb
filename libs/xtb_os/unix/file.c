@@ -111,6 +111,27 @@ bool xtb_os_delete_directory(const char *filepath)
     return nftw(filepath, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
 }
 
+static bool should_skip_file_in_listing(const char *filepath, XTB_Directory_Listing_Flags flags)
+{
+    if (!(flags & XTB_DIR_LIST_CURR))
+    {
+        if (strncmp(filepath, ".", 256) == 0)
+        {
+            return true;;
+        }
+    }
+
+    if (!(flags & XTB_DIR_LIST_PREV))
+    {
+        if (strncmp(filepath, "..", 256) == 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags)
 {
     DIR *dir = opendir(filepath);
@@ -121,21 +142,7 @@ XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator alloca
     struct dirent *entry;
     while ((entry = readdir(dir)))
     {
-        if (!(flags & XTB_DIR_LIST_CURR))
-        {
-            if (strncmp(entry->d_name, ".", 256) == 0)
-            {
-                continue;
-            }
-        }
-
-        if (!(flags & XTB_DIR_LIST_PREV))
-        {
-            if (strncmp(entry->d_name, "..", 256) == 0)
-            {
-                continue;
-            }
-        }
+        if (should_skip_file_in_listing(entry->d_name, flags)) continue;
 
         XTB_Directory_Listing_Node *node = XTB_Allocate(allocator, XTB_Directory_Listing_Node);
         strncpy(node->path, entry->d_name, sizeof(node->path));
