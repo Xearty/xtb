@@ -145,7 +145,7 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
     }
 }
 
-XTB_Directory_List xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags)
+XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags)
 {
     XTB_Directory_List list = {0};
 
@@ -191,15 +191,14 @@ XTB_Directory_List xtb_os_iterate_directory_custom(XTB_Allocator allocator, cons
     return list;
 }
 
-XTB_Directory_List xtb_os_iterate_directory(XTB_Allocator allocator, const char *filepath)
+XTB_Directory_List xtb_os_list_directory(XTB_Allocator allocator, const char *filepath)
 {
-    return xtb_os_iterate_directory_custom(allocator, filepath, XTB_DIR_LIST_NONE);
+    return xtb_os_list_directory_custom(allocator, filepath, XTB_DIR_LIST_NONE);
 }
 
-XTB_Directory_List xtb_os_iterate_directory_recursively(XTB_Allocator allocator, const char *filepath)
+XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, const char *filepath)
 {
-
-    XTB_Directory_List entries = xtb_os_iterate_directory(allocator, filepath);
+    XTB_Directory_List entries = xtb_os_list_directory(allocator, filepath);
     XTB_Directory_List accumulator = entries;
 
     for (XTB_Directory_Listing_Node *entry = entries.head;
@@ -209,7 +208,7 @@ XTB_Directory_List xtb_os_iterate_directory_recursively(XTB_Allocator allocator,
         if (entry->type == XTB_FT_DIRECTORY)
         {
             XTB_Directory_List children =
-                xtb_os_iterate_directory_recursively(allocator, entry->path);
+                xtb_os_list_directory_recursively(allocator, entry->path);
 
             if (children.head != NULL)
             {

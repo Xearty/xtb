@@ -77,8 +77,8 @@ typedef enum XTB_Directory_Listing_Flags
     XTB_DIR_LIST_CURR_AND_PREV = 0b011,
 } XTB_Directory_Listing_Flags;
 
-XTB_Directory_List xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags);
-XTB_Directory_List xtb_os_iterate_directory(XTB_Allocator allocator, const char *filepath);
-XTB_Directory_List xtb_os_iterate_directory_recursively(XTB_Allocator allocator, const char *filepath);
+XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags);
+XTB_Directory_List xtb_os_list_directory(XTB_Allocator allocator, const char *filepath);
+XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, const char *filepath);
 
 #endif // _XTB_OS_H_

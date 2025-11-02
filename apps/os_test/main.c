@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     XTB_Arena *arena = xtb_arena_new(XTB_MEGABYTES(4));
     XTB_Allocator arena_allocator = xtb_arena_allocator(arena);
 
-    XTB_Directory_List list = xtb_os_iterate_directory_recursively(arena_allocator, "./libs");
+    XTB_Directory_List list = xtb_os_list_directory_recursively(arena_allocator, "./libs");
 
     for (XTB_Directory_Listing_Node *entry = list.head; entry != NULL; entry = entry->next)
     {
