@@ -220,3 +220,16 @@ XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, co
     return accumulator;
 }
 
+void xtb_os_free_directory_list(XTB_Allocator allocator, XTB_Directory_List *list)
+{
+    XTB_Directory_Listing_Node *head = list->head;
+
+    while (head != NULL)
+    {
+        XTB_Directory_Listing_Node *next = head->next;
+        XTB_Deallocate(allocator, head->path);
+        XTB_Deallocate(allocator, head);
+        head = next;
+    }
+}
+

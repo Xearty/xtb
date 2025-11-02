@@ -21,17 +21,16 @@ int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
-    XTB_Arena *arena = xtb_arena_new(XTB_MEGABYTES(4));
-    XTB_Allocator arena_allocator = xtb_arena_allocator(arena);
+    XTB_Allocator allocator = xtb_malloc_allocator();
 
-    XTB_Directory_List list = xtb_os_list_directory_recursively(arena_allocator, "./libs");
+    XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, "./libs");
 
     for (XTB_Directory_Listing_Node *entry = list.head; entry != NULL; entry = entry->next)
     {
         printf("[%s] %s\n", ft_to_str(entry->type), entry->path);
     }
 
-    xtb_arena_drop(arena);
+    xtb_os_free_directory_list(allocator, &list);
 
     return 0;
 }

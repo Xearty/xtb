@@ -80,5 +80,6 @@ typedef enum XTB_Directory_Listing_Flags
 XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags);
 XTB_Directory_List xtb_os_list_directory(XTB_Allocator allocator, const char *filepath);
 XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, const char *filepath);
+void xtb_os_free_directory_list(XTB_Allocator allocator, XTB_Directory_List *list);
 
 #endif // _XTB_OS_H_
