@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <ftw.h>
 #include <sys/stat.h>
+
+#define __USE_MISC
 #include <dirent.h>
 
 bool xtb_os_file_exists(const char *filepath)
@@ -136,7 +138,16 @@ XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator alloca
         }
 
         XTB_Directory_Listing_Node *node = XTB_Allocate(allocator, XTB_Directory_Listing_Node);
-        strncpy(node->value, entry->d_name, sizeof(node->value));
+        strncpy(node->path, entry->d_name, sizeof(node->path));
+
+        switch (entry->d_type)
+        {
+            case DT_REG: node->type = XTB_FT_REGULAR; break;
+            case DT_DIR: node->type = XTB_FT_DIRECTORY; break;
+            case DT_LNK: node->type = XTB_FT_SYMLINK; break;
+            default: node->type = XTB_FT_UNKNOWN; break;
+        }
+
         DLLPushBack(begin, end, node);
     }
 

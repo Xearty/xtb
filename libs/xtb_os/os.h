@@ -61,7 +61,8 @@ XTB_File_Type xtb_os_get_file_type(const char *filepath);
 char *xtb_os_real_path(const char *filepath);
 
 typedef struct XTB_Directory_Listing_Node {
-    char value[256];
+    XTB_File_Type type;;
+    char path[256];
     struct XTB_Directory_Listing_Node* prev;
     struct XTB_Directory_Listing_Node* next;
 } XTB_Directory_Listing_Node;
