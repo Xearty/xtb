@@ -134,6 +134,17 @@ static bool should_skip_file_in_listing(const char *filepath, XTB_Directory_List
     return false;
 }
 
+XTB_File_Type dirent_ft_to_xtb_ft(int ft)
+{
+    switch (ft)
+    {
+        case DT_REG: return XTB_FT_REGULAR;
+        case DT_DIR: return XTB_FT_DIRECTORY;
+        case DT_LNK: return XTB_FT_SYMLINK;
+        default: return XTB_FT_UNKNOWN;
+    }
+}
+
 XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator allocator, const char *filepath, XTB_Directory_Listing_Flags flags)
 {
     DIR *dir = opendir(filepath);
@@ -148,15 +159,7 @@ XTB_Directory_Listing_Node* xtb_os_iterate_directory_custom(XTB_Allocator alloca
 
         XTB_Directory_Listing_Node *node = XTB_Allocate(allocator, XTB_Directory_Listing_Node);
         strncpy(node->path, entry->d_name, sizeof(node->path));
-
-        switch (entry->d_type)
-        {
-            case DT_REG: node->type = XTB_FT_REGULAR; break;
-            case DT_DIR: node->type = XTB_FT_DIRECTORY; break;
-            case DT_LNK: node->type = XTB_FT_SYMLINK; break;
-            default: node->type = XTB_FT_UNKNOWN; break;
-        }
-
+        node->type = dirent_ft_to_xtb_ft(entry->d_type);
         DLLPushBack(begin, end, node);
     }
 
