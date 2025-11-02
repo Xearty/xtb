@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define XTB_PATH_BUFFER_SIZE 256
+
 typedef struct XTB_File_Handle XTB_File_Handle;
 
 typedef enum XTB_File_Mode
@@ -62,7 +64,7 @@ char *xtb_os_real_path(const char *filepath);
 
 typedef struct XTB_Directory_Listing_Node {
     XTB_File_Type type;;
-    char path[256];
+    char path[XTB_PATH_BUFFER_SIZE];
     struct XTB_Directory_Listing_Node* prev;
     struct XTB_Directory_Listing_Node* next;
 } XTB_Directory_Listing_Node;

@@ -11,7 +11,9 @@
 #include <ftw.h>
 #include <sys/stat.h>
 
+#ifndef __USE_MISC
 #define __USE_MISC
+#endif
 #include <dirent.h>
 
 bool xtb_os_file_exists(const char *filepath)
@@ -115,7 +117,7 @@ static bool should_skip_file_in_listing(const char *filepath, XTB_Directory_List
 {
     if (!(flags & XTB_DIR_LIST_CURR))
     {
-        if (strncmp(filepath, ".", 256) == 0)
+        if (strncmp(filepath, ".", XTB_PATH_BUFFER_SIZE - 1) == 0)
         {
             return true;;
         }
@@ -123,7 +125,7 @@ static bool should_skip_file_in_listing(const char *filepath, XTB_Directory_List
 
     if (!(flags & XTB_DIR_LIST_PREV))
     {
-        if (strncmp(filepath, "..", 256) == 0)
+        if (strncmp(filepath, "..", XTB_PATH_BUFFER_SIZE - 1) == 0)
         {
             return true;
         }
