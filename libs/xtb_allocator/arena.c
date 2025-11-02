@@ -230,7 +230,7 @@ XTB_Allocator xtb_arena_allocator(XTB_Arena *arena)
 {
     XTB_Allocator allocator = {};
     allocator.context = arena;
-    allocator.allocate = (XTB_Allocate)xtb_arena_alloc;
+    allocator.allocate = (XTB_Allocate_Fn)xtb_arena_alloc;
     allocator.deallocate = do_nothing_free_stub;
     return allocator;
 }
