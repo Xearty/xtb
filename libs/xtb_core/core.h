@@ -31,6 +31,8 @@ void xtb_init(int argc, char **argv);
 #define XTB_MemoryZeroArray(a) XTB_MemoryZero((a), sizeof(a))
 #define XTB_MemoryZeroTyped(m, c) XTB_MemoryZero((m), sizeof(*(m)) * (c))
 
+#define XTB_MemoryCopy(s, d, c) memcpy((s), (d), (c));
+
 /****************************************************************
  * Compiler Specific Attributes
 ****************************************************************/

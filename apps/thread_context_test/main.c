@@ -47,5 +47,7 @@ int main(int argc, char **argv)
     some_function_that_does_not_take_allocator();
     some_function_that_does_not_take_allocator();
 
+    xtb_tctx_release();
+
     return 0;
 }

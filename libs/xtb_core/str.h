@@ -26,4 +26,20 @@ bool xtb_str8_is_valid(XTB_String8 string);
 
 #define xtb_str8_invalid xtb_str8(NULL, 0)
 
+typedef struct XTB_String8_List_Node
+{
+    XTB_String8 string;
+    struct XTB_String8_List_Node *prev;
+    struct XTB_String8_List_Node *next;
+} XTB_String8_List_Node;
+
+typedef struct XTB_String8_List
+{
+    XTB_String8_List_Node *head;
+    XTB_String8_List_Node *tail;
+} XTB_String8_List;
+
+size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list);
+XTB_String8 xtb_str8_list_join(XTB_Allocator allocator, XTB_String8_List str_list);
+
 #endif // _XTB_STR_H_
