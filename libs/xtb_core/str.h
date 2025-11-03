@@ -17,6 +17,7 @@ XTB_String8 xtb_str8_copy(XTB_Allocator allocator, XTB_String8 string);
 void xtb_str8_free(XTB_Allocator allocator, XTB_String8 str);
 bool xtb_str8_is_invalid(XTB_String8 string);
 bool xtb_str8_is_valid(XTB_String8 string);
+char xtb_str8_front(XTB_String8 string);
 char xtb_str8_back(XTB_String8 string);
 
 size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count);

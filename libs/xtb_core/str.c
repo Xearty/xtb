@@ -37,6 +37,11 @@ bool xtb_str8_is_valid(XTB_String8 string)
     return !xtb_str8_is_invalid(string);
 }
 
+char xtb_str8_front(XTB_String8 string)
+{
+    return string.str[0];
+}
+
 char xtb_str8_back(XTB_String8 string)
 {
     return string.str[string.len - 1];
