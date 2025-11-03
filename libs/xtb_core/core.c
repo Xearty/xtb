@@ -1,5 +1,4 @@
 #include "core.h"
-#include "platform_defines.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -7,7 +6,9 @@
 #include <xtb_ansi/ansi.h>
 #include <backtrace.h>
 
-#ifdef XTB_PLATFORM_LINUX
+#include "context_cracking.h"
+
+#if OS_LINUX
 #include "linux_signal_handlers.c"
 #else
 #define register_signal_handlers(...)

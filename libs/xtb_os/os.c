@@ -1,8 +1,8 @@
 #include "os.h"
-#include <xtb_core/platform_defines.h>
+#include <xtb_core/context_cracking.h>
 
 #include "libc_file.c"
 
-#ifdef XTB_PLATFORM_UNIX
+#if OS_LINUX
     #include "unix/file.c"
 #endif
