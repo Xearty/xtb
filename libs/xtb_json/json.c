@@ -6,6 +6,7 @@
 #include <xtb_os/os.h>
 #include <xtb_ansi/ansi.h>
 #include <xtb_core/core.h>
+#include <xtb_core/linked_list.h>
 
 /****************************************************************
  * Utilities (internal)
@@ -316,16 +317,7 @@ static const char *parse_object(const char *input, XTB_JSON_Value **out)
         if (value != NULL)
         {
             XTB_JSON_Pair *pair = make_pair(key, value);
-            if (last_pair == NULL)
-            {
-                first_pair = pair;
-                last_pair = pair;
-            }
-            else
-            {
-                last_pair->next = pair;
-                last_pair = pair;
-            }
+            SLLQueuePush(first_pair, last_pair, pair);
         }
 
         rest = skip_whitespace(rest);
