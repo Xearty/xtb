@@ -3,6 +3,6 @@
 
 #include "libc_file.c"
 
-#if OS_LINUX
+#if XTB_OS_LINUX
     #include "unix/file.c"
 #endif

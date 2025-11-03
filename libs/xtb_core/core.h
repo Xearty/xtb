@@ -37,15 +37,15 @@ void xtb_init(int argc, char **argv);
 #define XTB_NOINLINE __attribute__((noinline))
 #define XTB_NORETURN __attribute__((noreturn))
 
-#if COMPILER_MSVC
+#if XTB_COMPILER_MSVC
 #define XTB_THREAD_STATIC __declspec(thread)
-#elif COMPILER_CLANG || COMPILER_GCC
+#elif XTB_COMPILER_CLANG || XTB_COMPILER_GCC
 #define XTB_THREAD_STATIC __thread
 #else
 #error XTB_THREAD_STATIC not defined for this compiler.
 #endif
 
-#if LANG_CPP
+#if XTB_LANG_CPP
 #define XTB_C_LINKAGE_BEGIN \
     extern "C"              \
     {

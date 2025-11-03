@@ -8,7 +8,7 @@
 
 #include "context_cracking.h"
 
-#if OS_LINUX
+#if XTB_OS_LINUX
 #include "linux_signal_handlers.c"
 #else
 #define register_signal_handlers(...)
