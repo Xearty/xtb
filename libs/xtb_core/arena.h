@@ -1,7 +1,7 @@
 #ifndef _XTB_ALLOCATOR_ARENA_H_
 #define _XTB_ALLOCATOR_ARENA_H_
 
-#include <xtb_core/core.h>
+#include "allocator.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,11 +11,11 @@
 /****************************
  * Utility macros
  ***************************/
-#define PushArray(arena, type, count) (type *)xtb_arena_alloc((arena), sizeof(type) * (count))
-#define PushStruct(arena, type) PushArray((arena), type, 1)
+#define xtb_push_array(arena, type, count) (type *)xtb_arena_alloc((arena), sizeof(type) * (count))
+#define xtb_push_struct(arena, type) xtb_push_array((arena), type, 1)
 
-#define PushArrayZero(arena, type, count) (type *)xtb_arena_alloc_zero((arena), sizeof(type) * (count))
-#define PushStructZero(arena, type) PushArrayZero((arena), type, 1)
+#define xtb_push_array_zero(arena, type, count) (type *)xtb_arena_alloc_zero((arena), sizeof(type) * (count))
+#define xtb_push_struct_zero(arena, type) xtb_push_array_zero((arena), type, 1)
 
 #define XTB_ARENA_BOOTSTRAP_OVERHEAD (sizeof(XTB_Arena) + sizeof(XTB_Arena_Chunk_Header))
 

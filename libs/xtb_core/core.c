@@ -14,6 +14,10 @@
 #define register_signal_handlers(...)
 #endif
 
+#include "str.c"
+#include "arena.c"
+#include "thread_context.c"
+
 /****************************************************************
  * Stack Trace
 ****************************************************************/
@@ -180,3 +184,4 @@ void xtb_init(int argc, char **argv)
 
     register_signal_handlers();
 }
+

@@ -1,7 +1,7 @@
 #ifndef _XTB_STR_H_
 #define _XTB_STR_H_
 
-#include <xtb_core/core.h>
+#include "allocator.h"
 #include <stddef.h>
 #include <stdbool.h>
 

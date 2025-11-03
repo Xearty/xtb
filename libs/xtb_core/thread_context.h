@@ -1,0 +1,19 @@
+#ifndef _XTB_CORE_THREAD_CONTEXT_H_
+#define _XTB_CORE_THREAD_CONTEXT_H_
+
+#include "arena.h"
+
+typedef struct XTB_Thread_Context
+{
+    XTB_Arena *arenas[2];
+} XTB_Thread_Context;
+
+void xtb_tctx_init_and_equip(XTB_Thread_Context *tctx);
+void xtb_tctx_release(void);
+XTB_Thread_Context *xtb_tctx_get_equipped(void);
+XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
+
+#define xtb_scratch_begin(conflicts, count) xtb_temp_arena_new(xtb_tctx_get_scratch((conflicts), (count)))
+#define xtb_scratch_end(scratch) xtb_temp_arena_drop(scratch)
+
+#endif // _XTB_CORE_THREAD_CONTEXT_H_

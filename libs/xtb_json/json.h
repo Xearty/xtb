@@ -2,7 +2,7 @@
 #define _XTB_JSON_H_
 
 #include <xtb_da/da.h>
-#include <xtb_str/str.h>
+#include <xtb_core/str.h>
 #include <stdbool.h>
 #include <stdio.h>
 

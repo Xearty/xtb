@@ -2,6 +2,7 @@
 #define _XTB_CORE_H_
 
 #include <stddef.h>
+#include "context_cracking.h"
 
 /****************************************************************
  * Versioning
@@ -12,23 +13,6 @@
 #define XTB_CORE_VERSION_STRING "0.0.1"
 
 /****************************************************************
-  Allocator Interface
-****************************************************************/
-typedef void*(*XTB_Allocate_Fn)(void*, size_t);
-typedef void(*XTB_Deallocate_Fn)(void*, void*);
-
-typedef struct XTB_Allocator
-{
-    void *context;
-    XTB_Allocate_Fn allocate;
-    XTB_Deallocate_Fn deallocate;
-} XTB_Allocator;
-
-#define XTB_AllocateArray(allocator, type, count) (type*)(allocator.allocate(allocator.context, sizeof(type) * (count)))
-#define XTB_Allocate(allocator, type) XTB_AllocateArray(allocator, type, 1)
-#define XTB_Deallocate(allocator, ptr) allocator.deallocate(allocator.context, ptr)
-
-/****************************************************************
  * Initialization
 ****************************************************************/
 void xtb_init(int argc, char **argv);
@@ -36,17 +20,42 @@ void xtb_init(int argc, char **argv);
 /****************************************************************
  * Memory Utilities
 ****************************************************************/
-#define XTB_BYTES(N) (N)
-#define XTB_KILOBYTES(N) (1024 * XTB_BYTES(N))
-#define XTB_MEGABYTES(N) (1024 * XTB_KILOBYTES(N))
-#define XTB_GIGABYTES(N) (1024 * XTB_MEGABYTES(N))
-#define XTB_TERABYTES(N) (1024 * XTB_GIGABYTES(N))
+#define XTB_Bytes(N) (N)
+#define XTB_Kilobytes(N) (1024 * XTB_Bytes(N))
+#define XTB_Megabytes(N) (1024 * XTB_Kilobytes(N))
+#define XTB_Gigabytes(N) (1024 * XTB_Megabytes(N))
+#define XTB_Terabytes(N) (1024 * XTB_Gigabytes(N))
+
+#define XTB_MemoryZero(s, z) memset((s), 0, (z))
+#define XTB_MemoryZeroStruct(s) XTB_MemoryZero((s), sizeof(*(s)))
+#define XTB_MemoryZeroArray(a) XTB_MemoryZero((a), sizeof(a))
+#define XTB_MemoryZeroTyped(m, c) XTB_MemoryZero((m), sizeof(*(m)) * (c))
 
 /****************************************************************
- * Function Attributes
+ * Compiler Specific Attributes
 ****************************************************************/
 #define XTB_NOINLINE __attribute__((noinline))
 #define XTB_NORETURN __attribute__((noreturn))
+
+#if COMPILER_MSVC
+#define XTB_THREAD_STATIC __declspec(thread)
+#elif COMPILER_CLANG || COMPILER_GCC
+#define XTB_THREAD_STATIC __thread
+#else
+#error XTB_THREAD_STATIC not defined for this compiler.
+#endif
+
+#if LANG_CPP
+#define XTB_C_LINKAGE_BEGIN \
+    extern "C"              \
+    {
+#define XTB_C_LINKAGE_END }
+#define XTB_C_LINKAGE extern "C"
+#else
+#define XTB_C_LINKAGE_BEGIN
+#define XTB_C_LINKAGE_END
+#define XTB_C_LINKAGE
+#endif
 
 /****************************************************************
  * Logging
@@ -114,7 +123,7 @@ void xtb_print_full_stack_trace(void);
 /****************************************************************
  * Miscellaneous Macros
 ****************************************************************/
-#define XTB_ARRLEN(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
+#define XTB_ArrLen(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
 
 /****************************************************************
  * Control-Flow Macros

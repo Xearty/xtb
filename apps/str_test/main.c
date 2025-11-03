@@ -1,6 +1,6 @@
 #include "xtb_allocator/malloc.h"
 #include <xtb_core/core.h>
-#include <xtb_str/str.h>
+#include <xtb_core/str.h>
 
 #include <stdio.h>
 

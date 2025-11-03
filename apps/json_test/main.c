@@ -4,7 +4,7 @@
 #include <xtb_ansi/ansi.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-#include <xtb_allocator/arena.h>
+#include <xtb_core/arena.h>
 #include <xtb_core/core.h>
 
 bool starts_with(const char *str, const char *prefix) {
@@ -22,7 +22,7 @@ char* trim_cstring(XTB_Arena *arena, const char *cstr)
     end_ptr++;
 
     int len = end_ptr - begin_ptr;
-    char *buf = PushArray(arena, char, len + 1);
+    char *buf = xtb_push_array(arena, char, len + 1);
     strncpy(buf, begin_ptr, len);
     return buf;
 }
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     }
 
     XTB_JSON_Value *toplevel_value = xtb_json_parse_file(xtb_str8_cstring(json_filepath));
-    XTB_Arena *frame_arena = xtb_arena_new(XTB_MEGABYTES(4));
+    XTB_Arena *frame_arena = xtb_arena_new(XTB_Megabytes(4));
 
     char *input = NULL;
     size_t size = 0;

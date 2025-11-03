@@ -1,4 +1,4 @@
-#include <xtb_allocator/arena.h>
+#include <xtb_core/arena.h>
 
 #include <xtb_bmp/bmp.h>
 
