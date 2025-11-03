@@ -32,10 +32,10 @@ void xtb_os_close_file(XTB_File_Handle *handle)
     fclose((FILE*)handle);
 }
 
-size_t xtb_os_read_file(XTB_File_Handle *handle, char *buffer, size_t size)
+size_t xtb_os_read_file(XTB_File_Handle *handle, const XTB_Byte *buffer, size_t size)
 {
     FILE *thandle = (FILE*)handle;
-    return fread(buffer, sizeof(char), size, thandle);
+    return fread((char*)buffer, sizeof(char), size, thandle);
 }
 
 size_t xtb_os_get_file_size(XTB_File_Handle *handle)
@@ -59,7 +59,7 @@ XTB_String8 xtb_os_read_entire_file(XTB_String8 filepath)
     size_t file_size = xtb_os_get_file_size(handle);
     char *buffer = (char*)malloc(file_size);
 
-    size_t bytes_read = xtb_os_read_file(handle, buffer, file_size);
+    size_t bytes_read = xtb_os_read_file(handle, (XTB_Byte*)buffer, file_size);
     xtb_os_close_file(handle);
 
     if (bytes_read == file_size)
@@ -73,12 +73,12 @@ XTB_String8 xtb_os_read_entire_file(XTB_String8 filepath)
     }
 }
 
-size_t xtb_os_write_file(XTB_File_Handle *handle, const char *buffer, size_t size)
+size_t xtb_os_write_file(XTB_File_Handle *handle, const XTB_Byte *buffer, size_t size)
 {
     return fwrite(buffer, sizeof(char), size, (FILE*)handle);
 }
 
-size_t xtb_os_write_entire_file(XTB_String8 filepath, const char *buffer, size_t size)
+size_t xtb_os_write_entire_file(XTB_String8 filepath, const XTB_Byte *buffer, size_t size)
 {
     XTB_File_Handle *handle = xtb_os_open_file(filepath, XTB_WRITE | XTB_BINARY);
     if (handle == NULL) return 0;
@@ -104,7 +104,7 @@ bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path)
     XTB_String8 content = xtb_os_read_entire_file(filepath);
     if (xtb_str8_is_invalid(content)) return false;
 
-    bool succ = xtb_os_write_entire_file(new_path, content.str, content.len);
+    bool succ = xtb_os_write_entire_file(new_path, (XTB_Byte*)content.str, content.len);
 
     xtb_str8_free(xtb_malloc_allocator(), content);
     return succ;

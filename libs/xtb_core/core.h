@@ -122,4 +122,9 @@ void xtb_print_full_stack_trace(void);
 #define XTB_SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
     do { switch (VALUE) { ITERATOR(MACRO) } } while (0)
 
+/****************************************************************
+ * Type Aliases
+****************************************************************/
+typedef unsigned char XTB_Byte;
+
 #endif // _XTB_CORE_H_
