@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     puts(string.str);
     printf("length = %zu\n", string.len);
 
-    XTB_String8 dyn_string = xtb_str8_copy_lit(allocator, "hello there");
+    XTB_String8 dyn_string = xtb_str8_lit_copy(allocator, "hello there");
     printf("dyn_string = %s, length = %zu\n", dyn_string.str, dyn_string.len);
 
     XTB_String8_List str_list = {0};

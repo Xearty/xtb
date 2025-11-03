@@ -32,7 +32,7 @@ XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array,
 
 #define xtb_str8_empty xtb_str8_lit("")
 
-#define xtb_str8_copy_lit(allocator, cstring_literal) \
+#define xtb_str8_lit_copy(allocator, cstring_literal) \
     xtb_str8_copy(allocator, xtb_str8_lit(cstring_literal))
 
 #define xtb_str8_invalid xtb_str8(NULL, 0)
