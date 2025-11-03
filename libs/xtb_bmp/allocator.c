@@ -1,9 +1,9 @@
 XTB_Allocator xtb_bmp_global_allocator;
 
-const XTB_Allocator *
+XTB_Allocator
 xtb_bmp_get_global_allocator()
 {
-    return &xtb_bmp_global_allocator;
+    return xtb_bmp_global_allocator;
 }
 
 XTB_BMP_Bitmap

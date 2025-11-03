@@ -43,7 +43,7 @@ int main(int argc, char **argv)
         json_filepath = argv[1];
     }
 
-    XTB_JSON_Value *toplevel_value = xtb_json_parse_file(json_filepath);
+    XTB_JSON_Value *toplevel_value = xtb_json_parse_file(xtb_str8_cstring(json_filepath));
     XTB_Arena *frame_arena = xtb_arena_new(XTB_MEGABYTES(4));
 
     char *input = NULL;
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
             const char *filepath = input + strlen(":l ");
             char *trimmed = trim_cstring(frame_arena, filepath);
 
-            XTB_JSON_Value *value = xtb_json_parse_file(trimmed);
+            XTB_JSON_Value *value = xtb_json_parse_file(xtb_str8_cstring(trimmed));
             if (value)
             {
                 // Free the old value

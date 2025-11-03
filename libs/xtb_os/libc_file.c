@@ -1,5 +1,7 @@
 #include "os.h"
+#include "xtb_allocator/malloc.h"
 #include "xtb_core/core.h"
+#include "xtb_str/str.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -20,9 +22,9 @@ static const char *xtb_file_mode_to_stdio_mode(XTB_File_Mode mode)
     return NULL;
 }
 
-XTB_File_Handle *xtb_os_open_file(const char *filepath, XTB_File_Mode mode)
+XTB_File_Handle *xtb_os_open_file(XTB_String8 filepath, XTB_File_Mode mode)
 {
-    return (XTB_File_Handle*)fopen(filepath, xtb_file_mode_to_stdio_mode(mode));
+    return (XTB_File_Handle*)fopen(filepath.str, xtb_file_mode_to_stdio_mode(mode));
 }
 
 void xtb_os_close_file(XTB_File_Handle *handle)
@@ -49,10 +51,10 @@ size_t xtb_os_get_file_size(XTB_File_Handle *handle)
     return size;
 }
 
-char *xtb_os_read_entire_file(const char *filepath, size_t *out_size)
+XTB_String8 xtb_os_read_entire_file(XTB_String8 filepath)
 {
     XTB_File_Handle *handle = xtb_os_open_file(filepath, XTB_READ | XTB_BINARY);
-    if (handle == NULL) return NULL;
+    if (handle == NULL) return xtb_str8_invalid;
 
     size_t file_size = xtb_os_get_file_size(handle);
     char *buffer = (char*)malloc(file_size);
@@ -62,16 +64,12 @@ char *xtb_os_read_entire_file(const char *filepath, size_t *out_size)
 
     if (bytes_read == file_size)
     {
-        if (out_size != NULL)
-        {
-            *out_size = file_size;
-        }
-        return buffer;
+        return xtb_str8(buffer, file_size);
     }
     else
     {
         free(buffer);
-        return NULL;
+        return xtb_str8_invalid;
     }
 }
 
@@ -80,7 +78,7 @@ size_t xtb_os_write_file(XTB_File_Handle *handle, const char *buffer, size_t siz
     return fwrite(buffer, sizeof(char), size, (FILE*)handle);
 }
 
-size_t xtb_os_write_entire_file(const char *filepath, const char *buffer, size_t size)
+size_t xtb_os_write_entire_file(XTB_String8 filepath, const char *buffer, size_t size)
 {
     XTB_File_Handle *handle = xtb_os_open_file(filepath, XTB_WRITE | XTB_BINARY);
     if (handle == NULL) return 0;
@@ -91,30 +89,29 @@ size_t xtb_os_write_entire_file(const char *filepath, const char *buffer, size_t
     return bytes_written;
 }
 
-bool xtb_os_delete_file(const char *filepath)
+bool xtb_os_delete_file(XTB_String8 filepath)
 {
-    return remove(filepath) == 0;
+    return remove(filepath.str) == 0;
 }
 
-bool xtb_os_move_file(const char *old_path, const char *new_path)
+bool xtb_os_move_file(XTB_String8 old_path, XTB_String8 new_path)
 {
-    return rename(old_path, new_path) == 0;
+    return rename(old_path.str, new_path.str) == 0;
 }
 
-bool xtb_os_copy_file(const char *filepath, const char *new_path)
+bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path)
 {
-    size_t src_size = 0;
-    char *src_content = xtb_os_read_entire_file(filepath, &src_size);
-    if (!src_content) return false;
+    XTB_String8 content = xtb_os_read_entire_file(filepath);
+    if (xtb_str8_is_invalid(content)) return false;
 
-    bool succ = xtb_os_write_entire_file(new_path, src_content, src_size);
+    bool succ = xtb_os_write_entire_file(new_path, content.str, content.len);
 
-    free(src_content);
+    xtb_str8_free(xtb_malloc_allocator(), content);
     return succ;
 }
 
-char *xtb_os_real_path(const char *filepath)
+XTB_String8 xtb_os_real_path(XTB_String8 filepath)
 {
-    return realpath(filepath, NULL);
+    return xtb_str8_cstring(realpath(filepath.str, NULL));
 }
 

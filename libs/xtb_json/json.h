@@ -2,6 +2,7 @@
 #define _XTB_JSON_H_
 
 #include <xtb_da/da.h>
+#include <xtb_str/str.h>
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -42,7 +43,7 @@ struct XTB_JSON_Value
  * Parsing API
 ****************************************************************/
 XTB_JSON_Value *xtb_json_parse(const char *input);
-XTB_JSON_Value *xtb_json_parse_file(const char *filepath);
+XTB_JSON_Value *xtb_json_parse_file(XTB_String8 filepath);
 
 /****************************************************************
  * Getters

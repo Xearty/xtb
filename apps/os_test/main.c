@@ -11,7 +11,7 @@ typedef struct PermissionsBuffer
     char buf[10];
 } PermissionsBuffer;
 
-PermissionsBuffer get_permissions_str(const char *filepath)
+PermissionsBuffer get_permissions_str(XTB_String8 filepath)
 {
     PermissionsBuffer perm = {};
     perm.buf[0] = xtb_os_file_has_execute_permission(filepath) ? 'x' : '-';
@@ -37,12 +37,18 @@ int main(int argc, char **argv)
 
     XTB_Allocator allocator = xtb_malloc_allocator();
 
-    XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, "./libs");
+    XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, xtb_str8_lit("./libs"));
 
     for (XTB_Directory_Listing_Node *entry = list.head; entry != NULL; entry = entry->next)
     {
-        printf("[%s] [%s] %s\n", get_permissions_str(entry->path).buf, ft_to_str(entry->type), entry->path);
+        printf("[%s] [%s] %s\n", get_permissions_str(entry->path).buf, ft_to_str(entry->type), entry->path.str);
     }
+
+    // size_t filesize = 0;
+    // char *content = xtb_os_read_entire_file("maikati.txt", &filesize);
+    // xtb_os_write_entire_file("maikati2.txt", content, filesize);
+
+    xtb_os_copy_file(xtb_str8_lit("asd"), xtb_str8_lit("asd2"));
 
     xtb_os_free_directory_list(allocator, &list);
 

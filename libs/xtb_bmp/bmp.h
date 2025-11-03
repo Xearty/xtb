@@ -153,7 +153,7 @@ void           xtb_bmp_bitmap_dealloc(XTB_Allocator allocator, XTB_BMP_Bitmap *b
  * Global Allocator API
  *******************************/
 void xtb_bmp_set_global_allocator(XTB_Allocator allocator);
-const XTB_Allocator *xtb_bmp_get_global_allocator();
+XTB_Allocator xtb_bmp_get_global_allocator();
 
 XTB_BMP_DIB xtb_bmp_dib_load_galloc(const XTB_Byte *bytes);
 void        xtb_bmp_dib_gdealloc(XTB_BMP_DIB *dib);

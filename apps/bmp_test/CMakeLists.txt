@@ -7,4 +7,4 @@ target_include_directories(bmp_test
                            PRIVATE
 			   ${CMAKE_CURRENT_SOURCE_DIR}
 			   ${RAYLIB_INCLUDE_DIRS})
-target_link_libraries(bmp_test PRIVATE xtb_core xtb_bmp xtb_allocator xtbm xtb_os ${RAYLIB_LIBRARIES} m)
+target_link_libraries(bmp_test PRIVATE xtb_core xtb_bmp xtb_allocator xtbm xtb_os xtb_str ${RAYLIB_LIBRARIES} m)

@@ -1,4 +1,5 @@
 #include "json.h"
+#include "xtb_allocator/malloc.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -412,13 +413,13 @@ XTB_JSON_Value *xtb_json_parse(const char *input)
     return value;
 }
 
-XTB_JSON_Value *xtb_json_parse_file(const char *filepath)
+XTB_JSON_Value *xtb_json_parse_file(XTB_String8 filepath)
 {
-    char *content = xtb_os_read_entire_file(filepath, NULL);
-    if (!content) return NULL;
+    XTB_String8 content = xtb_os_read_entire_file(filepath);
+    if (xtb_str8_is_invalid(content)) return NULL;
 
-    XTB_JSON_Value *value = xtb_json_parse(content);
-    free(content);
+    XTB_JSON_Value *value = xtb_json_parse(content.str);
+    xtb_str8_free(xtb_malloc_allocator(), content);
 
     return value;
 }
