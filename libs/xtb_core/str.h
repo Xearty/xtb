@@ -17,9 +17,14 @@ XTB_String8 xtb_str8_copy(XTB_Allocator allocator, XTB_String8 string);
 void xtb_str8_free(XTB_Allocator allocator, XTB_String8 str);
 bool xtb_str8_is_invalid(XTB_String8 string);
 bool xtb_str8_is_valid(XTB_String8 string);
+char xtb_str8_back(XTB_String8 string);
+
+XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count);
 
 #define xtb_str8_lit(cstring_literal) \
     (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
+
+#define xtb_str8_empty xtb_str8_lit("")
 
 #define xtb_str8_copy_lit(allocator, cstring_literal) \
     xtb_str8_copy(allocator, xtb_str8_lit(cstring_literal))

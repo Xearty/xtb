@@ -1,3 +1,4 @@
+#include "xtb_core/str.h"
 #define _XOPEN_SOURCE 500
 #define __USE_XOPEN_EXTENDED
 #include <xtb_os/os.h>
@@ -163,32 +164,15 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
 
         if (should_skip_file_in_listing(entry_str, flags)) continue;
 
+        XTB_String8 path_parts[] = {
+            filepath,
+            (xtb_str8_back(filepath) == '/' ? xtb_str8_empty : xtb_str8_lit("/")),
+            entry_str
+        };
+
         XTB_Directory_Listing_Node *node = XTB_Allocate(allocator, XTB_Directory_Listing_Node);
-
-        size_t child_path_len = filepath.len + 1 + entry_str.len + 1;
-
         node->type = dirent_ft_to_xtb_ft(entry->d_type);
-        char *path_buffer = XTB_AllocateArray(allocator, char, child_path_len);
-        node->path = xtb_str8(path_buffer, 0);
-
-        // node->path = XTB_AllocateArray(allocator, char, child_path_len);
-
-        // Copy directory path
-        strncpy(node->path.str, filepath.str, filepath.len);
-        node->path.len += filepath.len;
-
-        // Append a slash to the directory path
-        if (node->path.str[filepath.len - 1] != '/')
-        {
-            node->path.str[filepath.len] = '/';
-            node->path.str[filepath.len + 1] = '\0';
-            node->path.len += 1;
-        }
-
-        // Append the file name to the directory path
-        strncat(node->path.str, entry->d_name, entry_str.len);
-        node->path.len += entry_str.len;
-
+        node->path = xtb_str8_array_join(allocator, path_parts, XTB_ArrLen(path_parts));
         DLLPushBack(list.head, list.tail, node);
     }
 

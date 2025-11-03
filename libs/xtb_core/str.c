@@ -37,6 +37,11 @@ bool xtb_str8_is_valid(XTB_String8 string)
     return !xtb_str8_is_invalid(string);
 }
 
+char xtb_str8_back(XTB_String8 string)
+{
+    return string.str[string.len - 1];
+}
+
 size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list)
 {
     size_t len = 0;
@@ -63,6 +68,22 @@ XTB_String8 xtb_str8_list_join(XTB_Allocator allocator, XTB_String8_List str_lis
         out_idx += node->string.len;
     });
     str_buf[len] = '\0';
+
+    return xtb_str8(str_buf, len);
+}
+
+XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count)
+{
+    size_t len = 0;
+    for (size_t i = 0; i < count; ++i) len += array[i].len;
+    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+
+    size_t out_idx = 0;
+    for (size_t i = 0; i < count; ++i)
+    {
+        XTB_MemoryCopy(str_buf + out_idx, array[i].str, array[i].len);
+        out_idx += array[i].len;
+    }
 
     return xtb_str8(str_buf, len);
 }
