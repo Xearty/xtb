@@ -138,4 +138,13 @@ void xtb_print_full_stack_trace(void);
 ****************************************************************/
 typedef unsigned char XTB_Byte;
 
+/****************************************************************
+ * Basic Math Macros
+****************************************************************/
+#define XTB_Min(A, B) ((A) < (B) ? (A) : (B))
+#define XTB_Max(A, B) ((A) > (B) ? (A) : (B))
+#define XTB_ClampTop(VALUE, MAX_VALUE) XTB_Min(VALUE, MAX_VALUE)
+#define XTB_ClampBot(VALUE, MIN_VALUE) XTB_Max(VALUE, MIN_VALUE)
+#define XTB_Clamp(VALUE, MIN_VALUE, MAX_VALUE) XTB_ClampBot(XTB_ClampTop(VALUE, MAX_VALUE), MIN_VALUE)
+
 #endif // _XTB_CORE_H_

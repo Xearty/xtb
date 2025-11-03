@@ -20,6 +20,9 @@ bool xtb_str8_is_valid(XTB_String8 string);
 char xtb_str8_front(XTB_String8 string);
 char xtb_str8_back(XTB_String8 string);
 
+XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len);
+XTB_String8 xtb_str8_substr_copy(XTB_Allocator allocator, XTB_String8 string, size_t begin_idx, size_t len);
+
 size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count);
 XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count);
 XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array, size_t count, XTB_String8 sep);

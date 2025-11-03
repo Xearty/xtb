@@ -126,3 +126,16 @@ xtb_str8_array_join_sep(XTB_Allocator allocator,
 
     return xtb_str8(str_buf, len);
 }
+
+XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len)
+{
+    size_t begin_idx_clamped = XTB_ClampTop(begin_idx, string.len);
+    size_t end_idx = XTB_ClampTop(begin_idx + len, string.len);
+    size_t actual_len = end_idx - begin_idx_clamped;
+    return xtb_str8(string.str + begin_idx_clamped, actual_len);
+}
+
+XTB_String8 xtb_str8_substr_copy(XTB_Allocator allocator, XTB_String8 string, size_t begin_idx, size_t len)
+{
+    return xtb_str8_copy(allocator, xtb_str8_substr(string, begin_idx, len));
+}
