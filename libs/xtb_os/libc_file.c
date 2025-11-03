@@ -101,6 +101,18 @@ bool xtb_os_move_file(const char *old_path, const char *new_path)
     return rename(old_path, new_path) == 0;
 }
 
+bool xtb_os_copy_file(const char *filepath, const char *new_path)
+{
+    size_t src_size = 0;
+    char *src_content = xtb_os_read_entire_file(filepath, &src_size);
+    if (!src_content) return false;
+
+    bool succ = xtb_os_write_entire_file(new_path, src_content, src_size);
+
+    free(src_content);
+    return succ;
+}
+
 char *xtb_os_real_path(const char *filepath)
 {
     return realpath(filepath, NULL);

@@ -39,6 +39,7 @@ bool xtb_os_file_exists(const char *filepath);
 bool xtb_os_delete_file(const char *filepath);
 bool xtb_os_delete_directory(const char *filepath);
 bool xtb_os_move_file(const char *old_path, const char *new_path);
+bool xtb_os_copy_file(const char *filepath, const char *new_path);
 
 bool xtb_os_file_has_read_permission(const char *filepath);
 bool xtb_os_file_has_write_permission(const char *filepath);
