@@ -72,10 +72,16 @@ XTB_String8 xtb_str8_list_join(XTB_Allocator allocator, XTB_String8_List str_lis
     return xtb_str8(str_buf, len);
 }
 
-XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count)
+size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count)
 {
     size_t len = 0;
     for (size_t i = 0; i < count; ++i) len += array[i].len;
+    return len;
+}
+
+XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count)
+{
+    size_t len = xtb_str8_array_accumulate_length(array, count);
     char *str_buf = XTB_AllocateBytes(allocator, len + 1);
 
     size_t out_idx = 0;
@@ -83,6 +89,34 @@ XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, siz
     {
         XTB_MemoryCopy(str_buf + out_idx, array[i].str, array[i].len);
         out_idx += array[i].len;
+    }
+
+    return xtb_str8(str_buf, len);
+}
+
+XTB_String8
+xtb_str8_array_join_sep(XTB_Allocator allocator,
+                        XTB_String8 *array,
+                        size_t count,
+                        XTB_String8 sep)
+{
+    size_t non_sep_len = xtb_str8_array_accumulate_length(array, count);
+    size_t sep_count = count - 1;
+    size_t len = non_sep_len + (sep_count * sep.len);
+
+    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+
+    size_t out_idx = 0;
+    for (size_t i = 0; i < count; ++i)
+    {
+        XTB_MemoryCopy(str_buf + out_idx, array[i].str, array[i].len);
+        out_idx += array[i].len;
+
+        if (i != count - 1)
+        {
+            XTB_MemoryCopy(str_buf + out_idx, sep.str, sep.len);
+            out_idx += sep.len;
+        }
     }
 
     return xtb_str8(str_buf, len);

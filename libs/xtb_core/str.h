@@ -19,7 +19,9 @@ bool xtb_str8_is_invalid(XTB_String8 string);
 bool xtb_str8_is_valid(XTB_String8 string);
 char xtb_str8_back(XTB_String8 string);
 
+size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count);
 XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count);
+XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array, size_t count, XTB_String8 sep);
 
 #define xtb_str8_lit(cstring_literal) \
     (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
