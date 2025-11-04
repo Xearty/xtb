@@ -170,7 +170,7 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
             entry_str
         };
 
-        XTB_Directory_Listing_Node *node = XTB_Allocate(allocator, XTB_Directory_Listing_Node);
+        XTB_Directory_Listing_Node *node = XTB_AllocateZero(allocator, XTB_Directory_Listing_Node);
         node->type = dirent_ft_to_xtb_ft(entry->d_type);
         node->path = xtb_str8_array_join(allocator, path_parts, XTB_ArrLen(path_parts));
         DLLPushBack(list.head, list.tail, node);
