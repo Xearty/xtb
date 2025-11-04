@@ -3,12 +3,16 @@
 #include <xtb_core/str.h>
 #include <xtb_core/linked_list.h>
 #include <xtb_core/arena.h>
+#include <xtb_core/thread_context.h>
 
 #include <stdio.h>
 
 int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
+
+    XTB_Thread_Context tctx;
+    xtb_tctx_init_and_equip(&tctx);
 
     XTB_Arena *arena = xtb_arena_new(XTB_Kilobytes(4));
     XTB_Allocator allocator = xtb_arena_allocator(arena);
@@ -34,7 +38,23 @@ int main(int argc, char **argv)
     XTB_String8 sub_test2 = xtb_str8_substr_copy(allocator, test2, 10, 5);
     printf("str = \"%s\", len = %zu\n", sub_test2.str, sub_test2.len);
 
+    XTB_Temp_Arena temp = xtb_scratch_begin(NULL, 0);
+    XTB_Allocator temp_allocator = xtb_arena_allocator(temp.arena);
+
+    XTB_String8_List list = {0};
+    xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("a"));
+    xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("b"));
+    xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("c"));
+    xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("d"));
+    xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("e"));
+
+    XTB_String8 joined = xtb_str8_list_join(allocator, list);
+    puts(joined.str);
+
+    xtb_scratch_end(temp);
+
     xtb_arena_drop(arena);
+    xtb_tctx_release();
 
     return 0;
 }

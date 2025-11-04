@@ -21,4 +21,9 @@ typedef struct XTB_Allocator
 #define XTB_Allocate(allocator, type) XTB_AllocateArray(allocator, type, 1)
 #define XTB_Deallocate(allocator, ptr) allocator.deallocate(allocator.context, ptr)
 
+#define XTB_AllocateArrayZero(allocator, type, count) \
+    XTB_MemoryZeroTyped(XTB_AllocateArray(allocator, type, count), count)
+#define XTB_AllocateBytesZero(allocator, count) XTB_AllocateArrayZero(allocator, char, count)
+#define XTB_AllocateZero(allocator, type) XTB_AllocateArrayZero(allocator, type, 1)
+
 #endif // XTB_CORE_ALLOCATOR_INTERFACE_H

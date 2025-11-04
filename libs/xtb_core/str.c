@@ -139,3 +139,16 @@ XTB_String8 xtb_str8_substr_copy(XTB_Allocator allocator, XTB_String8 string, si
 {
     return xtb_str8_copy(allocator, xtb_str8_substr(string, begin_idx, len));
 }
+
+XTB_String8_List_Node* xtb_str8_list_alloc_node(XTB_Allocator allocator, XTB_String8 string)
+{
+    XTB_String8_List_Node *node = XTB_AllocateZero(allocator, XTB_String8_List_Node);
+    node->string = string;
+    return node;
+}
+
+void xtb_str8_list_push(XTB_Allocator allocator, XTB_String8_List *str_list, XTB_String8 string)
+{
+    XTB_String8_List_Node *node = xtb_str8_list_alloc_node(allocator, string);
+    DLLPushBack(str_list->head, str_list->tail, node);
+}
