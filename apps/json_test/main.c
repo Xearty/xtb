@@ -1,3 +1,4 @@
+#include "xtb_allocator/malloc.h"
 #include "xtb_core/str.h"
 #include <stdio.h>
 #include <string.h>
@@ -7,21 +8,6 @@
 #include <readline/history.h>
 #include <xtb_core/arena.h>
 #include <xtb_core/core.h>
-
-char* trim_cstring(XTB_Arena *arena, const char *cstr)
-{
-    const char *begin_ptr = cstr;
-    while (isspace(*begin_ptr)) begin_ptr++;
-
-    const char *end_ptr = cstr + strlen(cstr);
-    while (begin_ptr < end_ptr && (isspace(*end_ptr) || *end_ptr == '\0')) end_ptr--;;
-    end_ptr++;
-
-    int len = end_ptr - begin_ptr;
-    char *buf = xtb_push_array(arena, char, len + 1);
-    strncpy(buf, begin_ptr, len);
-    return buf;
-}
 
 int main(int argc, char **argv)
 {
@@ -33,10 +19,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    XTB_String8 json_filepath = xtb_str8_lit("./apps/json_test/test.json");
+    XTB_Allocator gpa = xtb_malloc_allocator();
+
+    XTB_String8 json_filepath = xtb_str8_lit_copy(gpa, "./apps/json_test/test.json");
     if (argc == 2)
     {
-        json_filepath = xtb_str8_cstring(argv[1]);
+        json_filepath = xtb_str8_lit_copy(gpa, argv[1]);
     }
 
     XTB_JSON_Value *toplevel_value = xtb_json_parse_file(json_filepath);
@@ -94,19 +82,21 @@ int main(int argc, char **argv)
         else if (xtb_str8_starts_with_lit(input, ":l "))
         {
             XTB_String8 filepath = xtb_str8_trunc_left(input, 3);
-            char *trimmed = trim_cstring(frame_arena, filepath.str);
+            XTB_String8 trimmed_filepath = xtb_str8_trim(filepath);
 
-            XTB_JSON_Value *value = xtb_json_parse_file(xtb_str8_cstring(trimmed));
+            XTB_JSON_Value *value = xtb_json_parse_file(trimmed_filepath);
             if (value)
             {
-                // Free the old value
                 toplevel_value = value;
-                json_filepath = filepath;
-                xtb_ansi_print_bright_green(stderr, "Loaded \"%s\"\n", trimmed);
+                xtb_str8_free(gpa, json_filepath);
+                json_filepath = xtb_str8_copy(gpa, trimmed_filepath);
+                xtb_ansi_print_bright_green(stderr, "Loaded \"%s\"\n", trimmed_filepath.str);
             }
             else
             {
-                xtb_ansi_print_red(stderr, "Could not load \"%s\", \"%s\" is preserved\n", filepath, json_filepath);
+                xtb_ansi_print_red(stderr, "Could not load \"%.*s\", \"%.*s\" is preserved\n",
+                        trimmed_filepath.len, trimmed_filepath.str,
+                        json_filepath.len, json_filepath.str);
             }
         }
         else if (xtb_str8_starts_with_lit(input, ":c"))
