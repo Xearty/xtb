@@ -53,6 +53,15 @@ int main(int argc, char **argv)
 
     xtb_scratch_end(temp);
 
+    if (xtb_str8_eq_lit(joined, "a.b.c.d.e"))
+    {
+        puts("The strings are equal");
+    }
+    else
+    {
+        puts("The strings are different");
+    }
+
     xtb_arena_drop(arena);
     xtb_tctx_release();
 

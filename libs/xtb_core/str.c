@@ -47,6 +47,21 @@ char xtb_str8_back(XTB_String8 string)
     return string.str[string.len - 1];
 }
 
+int xtb_str8_compare(XTB_String8 f, XTB_String8 s)
+{
+    return strncmp(f.str, s.str, XTB_Max(f.len, s.len));
+}
+
+bool xtb_str8_eq(XTB_String8 f, XTB_String8 s)
+{
+    return xtb_str8_compare(f, s) == 0;
+}
+
+bool xtb_str8_eq_cstring(XTB_String8 f, const char *s)
+{
+    return xtb_str8_eq(f, xtb_str8_cstring(s));
+}
+
 size_t xtb_str8_list_length(XTB_String8_List str_list)
 {
     size_t len = 0;

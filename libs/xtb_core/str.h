@@ -19,6 +19,10 @@ bool xtb_str8_is_invalid(XTB_String8 string);
 bool xtb_str8_is_valid(XTB_String8 string);
 char xtb_str8_front(XTB_String8 string);
 char xtb_str8_back(XTB_String8 string);
+int xtb_str8_compare(XTB_String8 f, XTB_String8 s);
+bool xtb_str8_eq(XTB_String8 f, XTB_String8 s);
+bool xtb_str8_eq_cstring(XTB_String8 f, const char *s);
+#define xtb_str8_eq_lit(f, s) xtb_str8_eq((f), xtb_str8_lit(s))
 
 XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len);
 XTB_String8 xtb_str8_substr_copy(XTB_Allocator allocator, XTB_String8 string, size_t begin_idx, size_t len);
