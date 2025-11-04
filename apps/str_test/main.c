@@ -64,8 +64,18 @@ int main(int argc, char **argv)
     test3 = xtb_str8_trunc_left(test3, 3);
     test3 = xtb_str8_trunc_right(test3, 4);
     test3 = xtb_str8_copy(temp_allocator, test3);
-
     puts(test3.str);
+
+    XTB_String8 test4 = xtb_str8_lit("\t \n  First  \n \t  \t\t \r Second\n \t\t \r\n");
+    XTB_String8 test5 = test4;
+    test5 = xtb_str8_copy(temp_allocator, xtb_str8_trim_left(test4));
+    printf("Left trimmed: \"%s\"\n", test5.str);
+
+    test5 = xtb_str8_copy(temp_allocator, xtb_str8_trim_right(test4));
+    printf("Right trimmed: \"%s\"\n", test5.str);
+
+    test5 = xtb_str8_copy(temp_allocator, xtb_str8_trim(test4));
+    printf("Trimmed both ways: \"%s\"\n", test5.str);
 
     xtb_scratch_end(temp);
 

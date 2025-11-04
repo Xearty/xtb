@@ -3,6 +3,7 @@
 #include "linked_list.h"
 
 #include <string.h>
+#include <ctype.h>
 
 XTB_String8 xtb_str8(const char *str, size_t len)
 {
@@ -70,6 +71,32 @@ XTB_String8 xtb_str8_trunc_left(XTB_String8 string, size_t count)
 XTB_String8 xtb_str8_trunc_right(XTB_String8 string, size_t count)
 {
     return xtb_str8_substr(string, 0, string.len - count);
+}
+
+XTB_String8 xtb_str8_trim_left(XTB_String8 string)
+{
+    int i;
+    for (i = 0; i < string.len; ++i)
+    {
+        if (!isspace(string.str[i])) break;
+    }
+    return xtb_str8_trunc_left(string, i);
+}
+
+XTB_String8 xtb_str8_trim_right(XTB_String8 string)
+{
+    int i;
+    for (i = string.len - 1; i >= 0; --i)
+    {
+        if (!isspace(string.str[i])) break;
+    }
+    int count = (int)string.len - 1 - i;
+    return xtb_str8_trunc_right(string, count);
+}
+
+XTB_String8 xtb_str8_trim(XTB_String8 string)
+{
+    return xtb_str8_trim_left(xtb_str8_trim_right(string));
 }
 
 size_t xtb_str8_list_length(XTB_String8_List str_list)
