@@ -90,6 +90,11 @@ int main(int argc, char **argv)
     XTB_String8 str_joined = xtb_str8_list_join_sep(temp_allocator, str_split_list, xtb_str8_lit("---"));
     puts(str_joined.str);
 
+    XTB_String8 space_split_str = xtb_str8_lit("\t\n\r Very \t long  \rstring\r\rthat contains \r \nmultiple \n\r\r\n\ttokens\t\n\t");
+    XTB_String8_List space_split_list = xtb_str8_list_split_by_whitespace(temp_allocator, space_split_str);
+    XTB_String8 space_joined = xtb_str8_list_join_sep(temp_allocator, space_split_list, xtb_str8_lit("-"));
+    puts(space_joined.str);
+
     xtb_scratch_end(temp);
 
     xtb_arena_drop(arena);

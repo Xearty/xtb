@@ -286,3 +286,17 @@ XTB_String8_List xtb_str8_list_split_by_char(XTB_Allocator allocator, XTB_String
     return xtb_str8_list_split_pred(allocator, str, split_by_char_pred, &sep);
 }
 
+static int split_by_whitespace_pred(XTB_String8 rest, void *data)
+{
+    int i = 0;
+    for (i = 0; i < rest.len; ++i)
+    {
+        if (!isspace(rest.str[i])) break;
+    }
+    return i;
+}
+
+XTB_String8_List xtb_str8_list_split_by_whitespace(XTB_Allocator allocator, XTB_String8 str)
+{
+    return xtb_str8_list_split_pred(allocator, str, split_by_whitespace_pred, NULL);
+}
