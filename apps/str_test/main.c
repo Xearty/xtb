@@ -103,6 +103,23 @@ int main(int argc, char **argv)
     XTB_String8 formatted = xtb_str8_format(allocator, "The answer is %d", 42);
     xtb_str8_debug(formatted);
 
+    XTB_String8 head_tail = xtb_str8_lit("head<>tail");
+    XTB_String8 head = xtb_str8_head(head_tail, 4);
+    XTB_String8 tail = xtb_str8_tail(head_tail, 4);
+    xtb_str8_debug(head_tail);
+    xtb_str8_debug(head);
+    xtb_str8_debug(tail);
+
+    if (!xtb_str8_starts_with_lit(head_tail, "head"))
+    {
+        XTB_ASSERT(false);
+    }
+
+    if (!xtb_str8_ends_with_lit(head_tail, "tail"))
+    {
+        XTB_ASSERT(false);
+    }
+
     xtb_arena_drop(arena);
     xtb_tctx_release();
 

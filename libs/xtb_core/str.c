@@ -65,6 +65,27 @@ bool xtb_str8_eq_cstring(XTB_String8 f, const char *s)
     return xtb_str8_eq(f, xtb_str8_cstring(s));
 }
 
+XTB_String8 xtb_str8_head(XTB_String8 string, size_t count)
+{
+    return xtb_str8_substr(string, 0, count);
+}
+
+XTB_String8 xtb_str8_tail(XTB_String8 string, size_t count)
+{
+    int begin_idx = XTB_ClampBot((int)string.len - (int)count, 0);
+    return xtb_str8_substr(string, begin_idx, count);
+}
+
+bool xtb_str8_starts_with(XTB_String8 string, XTB_String8 prefix)
+{
+    return xtb_str8_eq(xtb_str8_head(string, prefix.len), prefix);
+}
+
+bool xtb_str8_ends_with(XTB_String8 string, XTB_String8 postfix)
+{
+    return xtb_str8_eq(xtb_str8_tail(string, postfix.len), postfix);
+}
+
 XTB_String8 xtb_str8_trunc_left(XTB_String8 string, size_t count)
 {
     return xtb_str8_substr(string, count, string.len - count);

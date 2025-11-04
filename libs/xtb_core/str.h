@@ -27,6 +27,14 @@ bool xtb_str8_eq(XTB_String8 f, XTB_String8 s);
 bool xtb_str8_eq_cstring(XTB_String8 f, const char *s);
 #define xtb_str8_eq_lit(f, s) xtb_str8_eq((f), xtb_str8_lit(s))
 
+bool xtb_str8_starts_with(XTB_String8 string, XTB_String8 prefix);
+#define xtb_str8_starts_with_lit(string, prefix) xtb_str8_starts_with((string), xtb_str8_lit(prefix))
+bool xtb_str8_ends_with(XTB_String8 string, XTB_String8 postfix);
+#define xtb_str8_ends_with_lit(string, postfix) xtb_str8_ends_with((string), xtb_str8_lit(postfix))
+
+XTB_String8 xtb_str8_head(XTB_String8 string, size_t count);
+XTB_String8 xtb_str8_tail(XTB_String8 string, size_t count);
+
 XTB_String8 xtb_str8_trunc_left(XTB_String8 string, size_t count);
 XTB_String8 xtb_str8_trunc_right(XTB_String8 string, size_t count);
 
