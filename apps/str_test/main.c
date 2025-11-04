@@ -80,6 +80,16 @@ int main(int argc, char **argv)
     XTB_String8 test6 = xtb_str8_trim_copy(temp_allocator, test4);
     printf("Trimmed both ways copy: \"%s\"\n", test6.str);
 
+    XTB_String8 char_split_str = xtb_str8_lit("Very long string that contains multiple tokens");
+    XTB_String8_List char_split_list = xtb_str8_list_split_by_char(temp_allocator, char_split_str, ' ');
+    XTB_String8 char_joined = xtb_str8_list_join_sep(temp_allocator, char_split_list, xtb_str8_lit("<sep>"));
+    puts(char_joined.str);
+
+    XTB_String8 str_split_str = xtb_str8_lit("Very long  string that contains  multiple tokens");
+    XTB_String8_List str_split_list = xtb_str8_list_split_by_str(temp_allocator, str_split_str, xtb_str8_lit("  "));
+    XTB_String8 str_joined = xtb_str8_list_join_sep(temp_allocator, str_split_list, xtb_str8_lit("---"));
+    puts(str_joined.str);
+
     xtb_scratch_end(temp);
 
     xtb_arena_drop(arena);

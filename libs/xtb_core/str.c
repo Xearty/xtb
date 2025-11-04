@@ -225,3 +225,63 @@ void xtb_str8_list_push(XTB_Allocator allocator, XTB_String8_List *str_list, XTB
     XTB_String8_List_Node *node = xtb_str8_list_alloc_node(allocator, string);
     DLLPushBack(str_list->head, str_list->tail, node);
 }
+
+XTB_String8_List
+xtb_str8_list_split_pred(XTB_Allocator allocator,
+                         XTB_String8 str,
+                         XTB_String8_Split_Pred_Fn pred,
+                         void *data)
+{
+    XTB_String8_List result = {0};
+
+    int token_begin_idx = 0;
+
+    for (int i = 0; i < str.len;)
+    {
+        XTB_String8 rest = xtb_str8_substr(str, i, str.len);
+
+        int skip = pred(rest, data);
+        if (skip != 0 || i == str.len - 1)
+        {
+            if (i == str.len - 1) i += 1; // We've reached the end, increment to meet
+                                          // the loop condition and get the correct length
+
+            size_t tok_len = i - token_begin_idx;
+            XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
+
+            xtb_str8_list_push(allocator, &result, token);
+
+            token_begin_idx = i + skip;
+            i += skip;
+        }
+        else
+        {
+            i += 1;
+        }
+    }
+
+    return result;
+}
+
+static int split_by_str_pred(XTB_String8 rest, void *data)
+{
+    XTB_String8 sep = *(XTB_String8 *)data;
+    XTB_String8 rest_substr = xtb_str8_substr(rest, 0, sep.len);
+    return xtb_str8_eq(rest_substr, sep) ? sep.len : 0;
+}
+
+XTB_String8_List xtb_str8_list_split_by_str(XTB_Allocator allocator, XTB_String8 str, XTB_String8 sep)
+{
+    return xtb_str8_list_split_pred(allocator, str, split_by_str_pred, &sep);
+}
+
+static int split_by_char_pred(XTB_String8 rest, void *data)
+{
+    return xtb_str8_front(rest) == *(char *)data ? 1 : 0;
+}
+
+XTB_String8_List xtb_str8_list_split_by_char(XTB_Allocator allocator, XTB_String8 str, char sep)
+{
+    return xtb_str8_list_split_pred(allocator, str, split_by_char_pred, &sep);
+}
+
