@@ -213,11 +213,6 @@ XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len)
     return xtb_str8(string.str + begin_idx_clamped, actual_len);
 }
 
-XTB_String8 xtb_str8_substr_copy(XTB_Allocator allocator, XTB_String8 string, size_t begin_idx, size_t len)
-{
-    return xtb_str8_copy(allocator, xtb_str8_substr(string, begin_idx, len));
-}
-
 XTB_String8_List_Node* xtb_str8_list_alloc_node(XTB_Allocator allocator, XTB_String8 string)
 {
     XTB_String8_List_Node *node = XTB_AllocateZero(allocator, XTB_String8_List_Node);
