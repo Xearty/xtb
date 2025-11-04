@@ -247,10 +247,11 @@ xtb_str8_list_split_pred(XTB_Allocator allocator,
                                           // the loop condition and get the correct length
 
             size_t tok_len = i - token_begin_idx;
-            XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
-
-            xtb_str8_list_push(allocator, &result, token);
-
+            if (tok_len > 0)
+            {
+                XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
+                xtb_str8_list_push(allocator, &result, token);
+            }
             token_begin_idx = i + skip;
             i += skip;
         }
