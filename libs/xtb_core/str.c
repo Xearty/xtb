@@ -56,6 +56,7 @@ int xtb_str8_compare(XTB_String8 f, XTB_String8 s)
 
 bool xtb_str8_eq(XTB_String8 f, XTB_String8 s)
 {
+    if (f.len != s.len) return false;
     return xtb_str8_compare(f, s) == 0;
 }
 
