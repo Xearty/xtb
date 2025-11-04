@@ -62,6 +62,9 @@ XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array,
 
 #define xtb_str8_debug(s) fprintf(stderr, "%.*s\n", (int)(s).len, (s).str)
 
+#define xtb_str8_assert_null_terminated(string) \
+    XTB_ASSERT((string).str[(string).len] == '\0')
+
 typedef struct XTB_String8_List_Node
 {
     XTB_String8 string;

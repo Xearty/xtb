@@ -19,26 +19,31 @@
 
 bool xtb_os_file_exists(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return access(filepath.str, F_OK) == 0;
 }
 
 bool xtb_os_file_has_read_permission(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return access(filepath.str, R_OK) == 0;
 }
 
 bool xtb_os_file_has_write_permission(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return access(filepath.str, W_OK) == 0;
 }
 
 bool xtb_os_file_has_execute_permission(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return access(filepath.str, X_OK) == 0;
 }
 
 bool xtb_os_is_regular_file(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     struct stat path_stat;
     if (stat(filepath.str, &path_stat) != 0) return false;
     return S_ISREG(path_stat.st_mode);
@@ -46,6 +51,7 @@ bool xtb_os_is_regular_file(XTB_String8 filepath)
 
 bool xtb_os_is_directory(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     struct stat path_stat;
     if (stat(filepath.str, &path_stat) != 0) return false;
     return S_ISDIR(path_stat.st_mode);
@@ -53,6 +59,7 @@ bool xtb_os_is_directory(XTB_String8 filepath)
 
 bool xtb_os_is_regular_file_nofollow(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     struct stat path_stat;
     if (lstat(filepath.str, &path_stat) != 0) return false;
     return S_ISREG(path_stat.st_mode);
@@ -60,6 +67,7 @@ bool xtb_os_is_regular_file_nofollow(XTB_String8 filepath)
 
 bool xtb_os_is_directory_nofollow(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     struct stat path_stat;
     if (lstat(filepath.str, &path_stat) != 0) return false;
     return S_ISDIR(path_stat.st_mode);
@@ -67,6 +75,7 @@ bool xtb_os_is_directory_nofollow(XTB_String8 filepath)
 
 bool xtb_os_is_symbolic_link(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     struct stat path_stat;
     if (lstat(filepath.str, &path_stat) != 0) return false;
     return S_ISLNK(path_stat.st_mode);
@@ -111,6 +120,7 @@ static int unlink_cb(const char *filepath, const struct stat *sb, int typeflag, 
 
 bool xtb_os_delete_directory(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return nftw(filepath.str, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
 }
 
@@ -134,6 +144,7 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
 
 XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
 {
+    xtb_str8_assert_null_terminated(filepath);
     XTB_Directory_List list = {0};
 
     DIR *dir = opendir(filepath.str);

@@ -29,6 +29,7 @@ int main(int argc, char **argv)
 
     XTB_JSON_Value *toplevel_value = xtb_json_parse_file(json_filepath);
     XTB_Arena *frame_arena = xtb_arena_new(XTB_Megabytes(4));
+    XTB_Allocator frame_allocator = xtb_arena_allocator(frame_arena);
 
     char *input_cstring = NULL;
     size_t size = 0;
@@ -83,6 +84,7 @@ int main(int argc, char **argv)
         {
             XTB_String8 filepath = xtb_str8_trunc_left(input, 3);
             XTB_String8 trimmed_filepath = xtb_str8_trim(filepath);
+            trimmed_filepath = xtb_str8_copy(frame_allocator, trimmed_filepath);
 
             XTB_JSON_Value *value = xtb_json_parse_file(trimmed_filepath);
             if (value)

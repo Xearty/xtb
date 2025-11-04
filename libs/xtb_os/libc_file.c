@@ -24,6 +24,7 @@ static const char *xtb_file_mode_to_stdio_mode(XTB_File_Mode mode)
 
 XTB_File_Handle *xtb_os_open_file(XTB_String8 filepath, XTB_File_Mode mode)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return (XTB_File_Handle*)fopen(filepath.str, xtb_file_mode_to_stdio_mode(mode));
 }
 
@@ -91,11 +92,14 @@ size_t xtb_os_write_entire_file(XTB_String8 filepath, const XTB_Byte *buffer, si
 
 bool xtb_os_delete_file(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return remove(filepath.str) == 0;
 }
 
 bool xtb_os_move_file(XTB_String8 old_path, XTB_String8 new_path)
 {
+    xtb_str8_assert_null_terminated(old_path);
+    xtb_str8_assert_null_terminated(new_path);
     return rename(old_path.str, new_path.str) == 0;
 }
 
@@ -112,6 +116,7 @@ bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path)
 
 XTB_String8 xtb_os_real_path(XTB_String8 filepath)
 {
+    xtb_str8_assert_null_terminated(filepath);
     return xtb_str8_cstring(realpath(filepath.str, NULL));
 }
 
