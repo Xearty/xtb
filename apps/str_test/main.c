@@ -100,6 +100,9 @@ int main(int argc, char **argv)
 
     xtb_scratch_end(temp);
 
+    XTB_String8 formatted = xtb_str8_format(allocator, "The answer is %d", 42);
+    xtb_str8_debug(formatted);
+
     xtb_arena_drop(arena);
     xtb_tctx_release();
 

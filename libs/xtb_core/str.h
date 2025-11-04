@@ -4,6 +4,7 @@
 #include "allocator.h"
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 typedef struct XTB_String8
 {
@@ -81,5 +82,8 @@ XTB_String8_List xtb_str8_list_split_pred(XTB_Allocator allocator, XTB_String8 s
 XTB_String8_List xtb_str8_list_split_by_str(XTB_Allocator allocator, XTB_String8 str, XTB_String8 sep);
 XTB_String8_List xtb_str8_list_split_by_char(XTB_Allocator allocator, XTB_String8 str, char sep);
 XTB_String8_List xtb_str8_list_split_by_whitespace(XTB_Allocator allocator, XTB_String8 str);
+
+XTB_String8 xtb_str8_formatv(XTB_Allocator allocator, const char *fmt, va_list args);
+XTB_String8 xtb_str8_format(XTB_Allocator allocator, const char *fmt, ...);
 
 #endif // _XTB_STR_H_

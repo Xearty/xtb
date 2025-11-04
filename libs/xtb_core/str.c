@@ -3,6 +3,7 @@
 #include "linked_list.h"
 
 #include <string.h>
+#include <stdio.h>
 #include <ctype.h>
 
 XTB_String8 xtb_str8(const char *str, size_t len)
@@ -294,3 +295,37 @@ XTB_String8_List xtb_str8_list_split_by_whitespace(XTB_Allocator allocator, XTB_
 {
     return xtb_str8_list_split_pred(allocator, str, split_by_whitespace_pred, NULL);
 }
+
+XTB_String8 xtb_str8_formatv(XTB_Allocator allocator, const char *fmt, va_list args)
+{
+    va_list args_copy;
+    va_copy(args_copy, args);
+
+    int len = vsnprintf(NULL, 0, fmt, args_copy);
+    va_end(args_copy);
+
+    if (len <= 0)
+    {
+        return xtb_str8_invalid;
+    }
+
+    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+    if (!str_buf)
+    {
+        return xtb_str8_invalid;
+    }
+
+    vsnprintf(str_buf, len + 1, fmt, args);
+
+    return xtb_str8(str_buf, len);
+}
+
+XTB_String8 xtb_str8_format(XTB_Allocator allocator, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    XTB_String8 result = xtb_str8_formatv(allocator, fmt, args);
+    va_end(args);
+    return result;
+}
+
