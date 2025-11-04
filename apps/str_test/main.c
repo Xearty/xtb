@@ -77,6 +77,9 @@ int main(int argc, char **argv)
     test5 = xtb_str8_copy(temp_allocator, xtb_str8_trim(test4));
     printf("Trimmed both ways: \"%s\"\n", test5.str);
 
+    XTB_String8 test6 = xtb_str8_trim_copy(temp_allocator, test4);
+    printf("Trimmed both ways copy: \"%s\"\n", test6.str);
+
     xtb_scratch_end(temp);
 
     xtb_arena_drop(arena);

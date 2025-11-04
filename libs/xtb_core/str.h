@@ -32,6 +32,7 @@ XTB_String8 xtb_str8_trunc_right(XTB_String8 string, size_t count);
 XTB_String8 xtb_str8_trim_left(XTB_String8 string);
 XTB_String8 xtb_str8_trim_right(XTB_String8 string);
 XTB_String8 xtb_str8_trim(XTB_String8 string);
+#define xtb_str8_trim_copy(allocator, string) xtb_str8_copy((allocator), xtb_str8_trim(string))
 
 XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len);
 XTB_String8 xtb_str8_substr_copy(XTB_Allocator allocator, XTB_String8 string, size_t begin_idx, size_t len);
