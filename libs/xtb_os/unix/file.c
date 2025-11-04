@@ -116,22 +116,8 @@ bool xtb_os_delete_directory(XTB_String8 filepath)
 
 static bool should_skip_file_in_listing(XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
 {
-    if (!(flags & XTB_DIR_LIST_CURR))
-    {
-        if (strncmp(filepath.str, ".", XTB_FILE_NAME_BUFFER_SIZE - 1) == 0)
-        {
-            return true;;
-        }
-    }
-
-    if (!(flags & XTB_DIR_LIST_PREV))
-    {
-        if (strncmp(filepath.str, "..", XTB_FILE_NAME_BUFFER_SIZE - 1) == 0)
-        {
-            return true;
-        }
-    }
-
+    if (!(flags & XTB_DIR_LIST_CURR) && xtb_str8_eq_lit(filepath, ".")) return true;;
+    if (!(flags & XTB_DIR_LIST_PREV) && xtb_str8_eq_lit(filepath, "..")) return true;
     return false;
 }
 
