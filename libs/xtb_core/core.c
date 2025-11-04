@@ -162,7 +162,6 @@ void xtb_panic(const char *fmt, ...)
     va_end(args);
 
     xtb_log(XTB_LOG_FATAL, "%s", buffer);
-    xtb_print_stack_trace(1);
 
     if (g_panic.handler)
     {
