@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("e"));
 
     XTB_String8 sep = xtb_str8_lit(".");
-    XTB_String8 joined = xtb_str8_list_join_sep(allocator, list, sep);
+    XTB_String8 joined = xtb_str8_list_join_str_sep(allocator, list, sep);
     puts(joined.str);
 
     if (xtb_str8_eq_lit(joined, "a.b.c.d.e"))
@@ -82,18 +82,21 @@ int main(int argc, char **argv)
 
     XTB_String8 char_split_str = xtb_str8_lit("Very long string that contains multiple tokens");
     XTB_String8_List char_split_list = xtb_str8_list_split_by_char(temp_allocator, char_split_str, ' ');
-    XTB_String8 char_joined = xtb_str8_list_join_sep(temp_allocator, char_split_list, xtb_str8_lit("<sep>"));
+    XTB_String8 char_joined = xtb_str8_list_join_str_sep(temp_allocator, char_split_list, xtb_str8_lit("<sep>"));
     puts(char_joined.str);
 
     XTB_String8 str_split_str = xtb_str8_lit("Very long  string that contains  multiple tokens");
     XTB_String8_List str_split_list = xtb_str8_list_split_by_str(temp_allocator, str_split_str, xtb_str8_lit("  "));
-    XTB_String8 str_joined = xtb_str8_list_join_sep(temp_allocator, str_split_list, xtb_str8_lit("---"));
+    XTB_String8 str_joined = xtb_str8_list_join_str_sep(temp_allocator, str_split_list, xtb_str8_lit("---"));
     puts(str_joined.str);
 
     XTB_String8 space_split_str = xtb_str8_lit("\t\n\r Very \t long  \rstring\r\rthat contains \r \nmultiple \n\r\r\n\ttokens\t\n\t");
     XTB_String8_List space_split_list = xtb_str8_list_split_by_whitespace(temp_allocator, space_split_str);
-    XTB_String8 space_joined = xtb_str8_list_join_sep(temp_allocator, space_split_list, xtb_str8_lit("-"));
+    XTB_String8 space_joined = xtb_str8_list_join_char_sep(temp_allocator, space_split_list, '-');
     puts(space_joined.str);
+
+    XTB_String8 concatenated2 = xtb_str8_list_join(temp_allocator, space_split_list);
+    puts(concatenated2.str);
 
     xtb_scratch_end(temp);
 

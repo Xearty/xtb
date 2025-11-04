@@ -69,7 +69,8 @@ void xtb_str8_list_push(XTB_Allocator allocator, XTB_String8_List *str_list, XTB
 size_t xtb_str8_list_length(XTB_String8_List str_list);
 size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list);
 XTB_String8 xtb_str8_list_join(XTB_Allocator allocator, XTB_String8_List str_list);
-XTB_String8 xtb_str8_list_join_sep(XTB_Allocator allocator, XTB_String8_List str_list, XTB_String8 sep);
+XTB_String8 xtb_str8_list_join_str_sep(XTB_Allocator allocator, XTB_String8_List str_list, XTB_String8 sep);
+XTB_String8 xtb_str8_list_join_char_sep(XTB_Allocator allocator, XTB_String8_List str_list, char sep);
 
 // NOTE: Return types tells you how many bytes to skip
 typedef int(*XTB_String8_Split_Pred_Fn)(XTB_String8 rest, void *data);

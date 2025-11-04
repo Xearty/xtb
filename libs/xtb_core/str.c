@@ -115,21 +115,10 @@ size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list)
 
 XTB_String8 xtb_str8_list_join(XTB_Allocator allocator, XTB_String8_List str_list)
 {
-    size_t len = xtb_str8_list_accumulate_length(str_list);
-    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
-
-    size_t out_idx = 0;
-    XTB_IterateList(str_list, XTB_String8_List_Node, node,
-    {
-        XTB_MemoryCopy(str_buf + out_idx, node->string.str, node->string.len);
-        out_idx += node->string.len;
-    });
-    str_buf[len] = '\0';
-
-    return xtb_str8(str_buf, len);
+    return xtb_str8_list_join_str_sep(allocator, str_list, xtb_str8_empty);
 }
 
-XTB_String8 xtb_str8_list_join_sep(XTB_Allocator allocator, XTB_String8_List str_list, XTB_String8 sep)
+XTB_String8 xtb_str8_list_join_str_sep(XTB_Allocator allocator, XTB_String8_List str_list, XTB_String8 sep)
 {
     // TODO(xearty): Do these two in one pass
     size_t non_sep_len = xtb_str8_list_accumulate_length(str_list);
@@ -153,6 +142,11 @@ XTB_String8 xtb_str8_list_join_sep(XTB_Allocator allocator, XTB_String8_List str
     });
 
     return xtb_str8(str_buf, len);
+}
+
+XTB_String8 xtb_str8_list_join_char_sep(XTB_Allocator allocator, XTB_String8_List str_list, char sep)
+{
+    return xtb_str8_list_join_str_sep(allocator, str_list, xtb_str8(&sep, 1));
 }
 
 size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count)
