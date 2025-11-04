@@ -80,6 +80,6 @@ CheckNil(nil,p) ? \
 #define XTB_IterateList(list, type, iter, body) \
     for (type *iter = list.head; \
          DLLIterBoundedCond(iter, list.tail); \
-         iter = iter->next) body
+         iter = iter->next) { body; }
 
 #endif // _XTB_LINKED_LIST_H_

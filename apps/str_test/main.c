@@ -1,4 +1,3 @@
-#include "xtb_allocator/malloc.h"
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
 #include <xtb_core/linked_list.h>
@@ -48,7 +47,8 @@ int main(int argc, char **argv)
     xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("d"));
     xtb_str8_list_push(temp_allocator, &list, xtb_str8_lit("e"));
 
-    XTB_String8 joined = xtb_str8_list_join(allocator, list);
+    XTB_String8 sep = xtb_str8_lit(".");
+    XTB_String8 joined = xtb_str8_list_join_sep(allocator, list, sep);
     puts(joined.str);
 
     xtb_scratch_end(temp);

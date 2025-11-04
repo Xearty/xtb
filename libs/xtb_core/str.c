@@ -47,17 +47,17 @@ char xtb_str8_back(XTB_String8 string)
     return string.str[string.len - 1];
 }
 
+size_t xtb_str8_list_length(XTB_String8_List str_list)
+{
+    size_t len = 0;
+    XTB_IterateList(str_list, XTB_String8_List_Node, node, len += 1);
+    return len;
+}
+
 size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list)
 {
     size_t len = 0;
-
-    for (XTB_String8_List_Node *node = str_list.head;
-         DLLIterBoundedCond(node, str_list.tail);
-         node = node->next)
-    {
-        len += node->string.len;
-    }
-
+    XTB_IterateList(str_list, XTB_String8_List_Node, node, len += node->string.len);
     return len;
 }
 
@@ -73,6 +73,32 @@ XTB_String8 xtb_str8_list_join(XTB_Allocator allocator, XTB_String8_List str_lis
         out_idx += node->string.len;
     });
     str_buf[len] = '\0';
+
+    return xtb_str8(str_buf, len);
+}
+
+XTB_String8 xtb_str8_list_join_sep(XTB_Allocator allocator, XTB_String8_List str_list, XTB_String8 sep)
+{
+    // TODO(xearty): Do these two in one pass
+    size_t non_sep_len = xtb_str8_list_accumulate_length(str_list);
+    size_t count = xtb_str8_list_length(str_list);
+    size_t sep_count = count - 1;
+    size_t len = non_sep_len + (sep_count * sep.len);
+
+    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+
+    size_t out_idx = 0;
+    XTB_IterateList(str_list, XTB_String8_List_Node, node,
+    {
+        XTB_MemoryCopy(str_buf + out_idx, node->string.str, node->string.len);
+        out_idx += node->string.len;
+
+        if (node != str_list.tail)
+        {
+            XTB_MemoryCopy(str_buf + out_idx, sep.str, sep.len);
+            out_idx += sep.len;
+        }
+    });
 
     return xtb_str8(str_buf, len);
 }
