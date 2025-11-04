@@ -47,6 +47,9 @@ XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len);
 #define xtb_str8_substr_copy(allocator, string, begin_idx, len) \
     xtb_str8_copy((allocator), xtb_str8_substr((string), (begin_idx), (len)))
 
+XTB_String8 xtb_str8_concat(XTB_Allocator allocator, XTB_String8 f, XTB_String8 s);
+#define xtb_str8_concat_lit(allocator, f, s) xtb_str8_concat((allocator), (f), xtb_str8_lit(s))
+
 size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count);
 XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count);
 XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array, size_t count, XTB_String8 sep);

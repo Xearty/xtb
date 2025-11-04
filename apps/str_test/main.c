@@ -120,6 +120,9 @@ int main(int argc, char **argv)
         XTB_ASSERT(false);
     }
 
+    XTB_String8 concat = xtb_str8_concat_lit(allocator, xtb_str8_lit("hello "), "world");
+    xtb_str8_debug(concat);
+
     xtb_arena_drop(arena);
     xtb_tctx_release();
 
