@@ -22,7 +22,7 @@ XTB_DA_DEFINE_TYPE(XTB_JSON_Array, XTB_JSON_Value*);
 
 typedef struct XTB_JSON_Pair
 {
-    const char *key;
+    XTB_String8 key;
     XTB_JSON_Value *value;
     struct XTB_JSON_Pair *next;
 } XTB_JSON_Pair;
@@ -33,7 +33,7 @@ struct XTB_JSON_Value
     union {
         double number;
         bool boolean;
-        char *string;
+        XTB_String8 string;
         XTB_JSON_Array array;
         XTB_JSON_Pair* object; // TODO: think if this should be pointer
     } as;

@@ -32,13 +32,13 @@ static bool is_digit(char ch)
     return (ch >= '0' && ch <= '9');
 }
 
-static char *parse_string_literal(const char *input, size_t *length)
+static XTB_String8 parse_string_literal(const char *input)
 {
     const char *rest = input;
 
     if (rest[0] != '\"')
     {
-        return NULL;
+        return xtb_str8_invalid;
     }
     rest += 1;
 
@@ -49,30 +49,8 @@ static char *parse_string_literal(const char *input, size_t *length)
 
     const char *string_end = rest;
     int string_len = string_end - string_begin;
-
-    char *string_buf = (char*)malloc((string_len + 1) * sizeof(char));
-    strncpy(string_buf, string_begin, string_len);
-    string_buf[string_len] = '\0';
-
-    *length = string_len + 2;
-    return string_buf;
-}
-
-// Compares `substr` and the first `substr_len` bytes of `string`
-static bool substr_compare(const char *string, int substr_len, const char *substr)
-{
-    if (strlen(substr) != substr_len) return false;
-
-    const char *string_iter = string;
-    const char *substr_iter = substr;
-
-    while (*string_iter && *substr_iter && *string_iter == *substr_iter)
-    {
-        string_iter++;
-        substr_iter++;
-    }
-
-    return (*substr_iter == '\0');
+    XTB_String8 substr = xtb_str8(string_begin, string_len);
+    return xtb_str8_copy(xtb_malloc_allocator(), substr);
 }
 
 static void indent(int indentation, int level, FILE *stream)
@@ -110,10 +88,10 @@ static XTB_JSON_Value *make_number(double number)
     return value;
 }
 
-static XTB_JSON_Value *make_string(char *buffer)
+static XTB_JSON_Value *make_string(XTB_String8 string)
 {
     XTB_JSON_Value *value = make_value(XTB_JSON_STRING);
-    value->as.string = buffer;
+    value->as.string = string;
     return value;
 }
 
@@ -132,7 +110,7 @@ static XTB_JSON_Value *make_object(XTB_JSON_Pair *first_pair)
 }
 
 // steals the buffers
-static XTB_JSON_Pair *make_pair(char *key, XTB_JSON_Value *value)
+static XTB_JSON_Pair *make_pair(XTB_String8 key, XTB_JSON_Value *value)
 {
     XTB_JSON_Pair *pair = (XTB_JSON_Pair*)calloc(1, sizeof(XTB_JSON_Pair));
     pair->key = key;
@@ -197,12 +175,11 @@ static const char *parse_string(const char *input, XTB_JSON_Value **out)
     const char *rest = input;
     rest = skip_whitespace(rest);
 
-    size_t string_len = 0;
-    char *string = parse_string_literal(rest, &string_len);
-    if (string != NULL)
+    XTB_String8 string = parse_string_literal(rest);
+    if (xtb_str8_is_valid(string))
     {
         *out = make_string(string);
-        return rest + string_len;
+        return rest + string.len + 2; // 2 for the quotes
     }
 
     return input;
@@ -293,14 +270,13 @@ static const char *parse_object(const char *input, XTB_JSON_Value **out)
         if (rest[0] == '}') break;
 
         // key
-        size_t key_len = 0;
-        char *key = parse_string_literal(rest, &key_len);
-        if (key == NULL)
+        XTB_String8 key = parse_string_literal(rest);
+        if (xtb_str8_is_invalid(key))
         {
             printf("ERROR while parsing object: key is not a string\n");
             return input;
         }
-        rest += key_len;
+        rest += key.len + 2; // 2 for the quotes
 
         // in-between
         rest = skip_whitespace(rest);
@@ -432,7 +408,7 @@ XTB_JSON_Value *xtb_json_object_get_key(XTB_JSON_Value *value, const char *key)
     XTB_ASSERT(xtb_json_value_is_object(value));
     for (XTB_JSON_Pair *pair = value->as.object; pair != NULL; pair = pair->next)
     {
-        if (strcmp(pair->key, key) == 0)
+        if (xtb_str8_eq_cstring(pair->key, key))
         {
             return pair->value;
         }
@@ -447,7 +423,7 @@ XTB_JSON_Value *xtb_json_object_get_key_lt(XTB_JSON_Value *value, const char *ke
     XTB_ASSERT(xtb_json_value_is_object(value));
     for (XTB_JSON_Pair *pair = value->as.object; pair != NULL; pair = pair->next)
     {
-        if (substr_compare(key, length, pair->key))
+        if (xtb_str8_eq(pair->key, xtb_str8(key, length)))
         {
             return pair->value;
         }
@@ -753,7 +729,7 @@ void xtb_json_print_value(const XTB_JSON_Value *value, FILE *stream)
 
         case XTB_JSON_STRING:
         {
-            fprintf(stream, "\"%s\"", value->as.string);
+            fprintf(stream, "\"%s\"", value->as.string.str);
         } break;
 
         case XTB_JSON_ARRAY:
@@ -775,7 +751,7 @@ void xtb_json_print_value(const XTB_JSON_Value *value, FILE *stream)
             fprintf(stream, "{");
             for (XTB_JSON_Pair *pair = value->as.object; pair != NULL; pair = pair->next)
             {
-                fprintf(stream, "\"%s\": ", pair->key);
+                fprintf(stream, "\"%s\": ", pair->key.str);
                 xtb_json_print_value(pair->value, stream);
 
                 if (pair->next != NULL)
