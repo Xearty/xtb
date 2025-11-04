@@ -255,7 +255,7 @@ xtb_str8_list_split_pred(XTB_Allocator allocator,
 
     for (int i = 0; i < str.len;)
     {
-        XTB_String8 rest = xtb_str8_substr(str, i, str.len);
+        XTB_String8 rest = xtb_str8_trunc_left(str, i);
 
         int skip = pred(rest, data);
         if (skip != 0 || i == str.len - 1)
