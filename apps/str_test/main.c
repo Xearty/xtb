@@ -51,8 +51,6 @@ int main(int argc, char **argv)
     XTB_String8 joined = xtb_str8_list_join_sep(allocator, list, sep);
     puts(joined.str);
 
-    xtb_scratch_end(temp);
-
     if (xtb_str8_eq_lit(joined, "a.b.c.d.e"))
     {
         puts("The strings are equal");
@@ -61,6 +59,15 @@ int main(int argc, char **argv)
     {
         puts("The strings are different");
     }
+
+    XTB_String8 test3 = xtb_str8_lit("Hello world");
+    test3 = xtb_str8_trunc_left(test3, 3);
+    test3 = xtb_str8_trunc_right(test3, 4);
+    test3 = xtb_str8_copy(temp_allocator, test3);
+
+    puts(test3.str);
+
+    xtb_scratch_end(temp);
 
     xtb_arena_drop(arena);
     xtb_tctx_release();

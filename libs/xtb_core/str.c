@@ -62,6 +62,16 @@ bool xtb_str8_eq_cstring(XTB_String8 f, const char *s)
     return xtb_str8_eq(f, xtb_str8_cstring(s));
 }
 
+XTB_String8 xtb_str8_trunc_left(XTB_String8 string, size_t count)
+{
+    return xtb_str8_substr(string, count, string.len - count);
+}
+
+XTB_String8 xtb_str8_trunc_right(XTB_String8 string, size_t count)
+{
+    return xtb_str8_substr(string, 0, string.len - count);
+}
+
 size_t xtb_str8_list_length(XTB_String8_List str_list)
 {
     size_t len = 0;
