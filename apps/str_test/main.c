@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     puts(space_joined.str);
 
     XTB_String8 concatenated2 = xtb_str8_list_join(temp_allocator, space_split_list);
-    puts(concatenated2.str);
+    xtb_str8_debug(concatenated2);
 
     xtb_scratch_end(temp);
 

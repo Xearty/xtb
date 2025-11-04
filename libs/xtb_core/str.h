@@ -51,6 +51,8 @@ XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array,
 
 #define xtb_str8_invalid xtb_str8(NULL, 0)
 
+#define xtb_str8_debug(s) fprintf(stderr, "%.*s\n", (int)(s).len, (s).str)
+
 typedef struct XTB_String8_List_Node
 {
     XTB_String8 string;
