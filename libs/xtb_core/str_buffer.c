@@ -55,3 +55,12 @@ XTB_String8 xtb_str8_buffer_view(XTB_String8_Buffer *str_buffer)
     return xtb_str8(str_buffer->buffer, str_buffer->size);
 }
 
+XTB_String8 xtb_str8_buffer_detach(XTB_String8_Buffer *str_buffer)
+{
+    XTB_String8 str = xtb_str8(str_buffer->buffer, str_buffer->size);
+    str_buffer->buffer = NULL;
+    str_buffer->size = 0;
+    str_buffer->capacity = 0;
+    return str;
+}
+
