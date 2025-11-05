@@ -98,7 +98,7 @@ XTB_String8 xtb_str8_format(XTB_Allocator allocator, const char *fmt, ...);
 #define xtb_str8_assert_null_terminated(string) \
     XTB_ASSERT((string).str[(string).len] == '\0')
 
-#ifdef XTB_STR_SHORTHAND
+#ifdef XTB_STR_SHORTHANDS
 typedef XTB_String8 String8;
 typedef XTB_String8_List String8_List;
 typedef XTB_String8_List_Node String8_List_Node;

@@ -16,7 +16,7 @@ XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
 #define xtb_scratch_begin(conflicts, count) xtb_temp_arena_new(xtb_tctx_get_scratch((conflicts), (count)))
 #define xtb_scratch_end(scratch) xtb_temp_arena_drop(scratch)
 
-#ifdef XTB_THREAD_CONTEXT_SHORTHAND
+#ifdef XTB_THREAD_CONTEXT_SHORTHANDS
 typedef XTB_Thread_Context Thread_Context;
 
 #define tctx_init_and_equip xtb_tctx_init_and_equip

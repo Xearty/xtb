@@ -79,7 +79,7 @@ size_t xtb_arena_dump_memory_usage_pp(XTB_Arena *arena, char *buffer, size_t buf
  ***************************/
 XTB_Allocator xtb_arena_allocator(XTB_Arena *arena);
 
-#ifdef XTB_ARENA_SHORTHAND
+#ifdef XTB_ARENA_SHORTHANDS
 typedef XTB_Arena Arena;
 
 #define arena_new xtb_arena_new
