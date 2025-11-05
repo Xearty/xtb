@@ -163,9 +163,9 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
     }
 }
 
-XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
+XTB_Directory_List xtb_os_list_directory_custom(XTB_Arena *arena, XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin(&arena, 1);
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     xtb_scratch_end(scratch);
 
@@ -187,9 +187,9 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
 
         XTB_String8 path_parts[] = { filepath, entry_str };
 
-        XTB_Directory_Listing_Node *node = XTB_AllocateZero(allocator, XTB_Directory_Listing_Node);
+        XTB_Directory_Listing_Node *node = xtb_push_struct_zero(arena, XTB_Directory_Listing_Node);
         node->type = dirent_ft_to_xtb_ft(entry->d_type);
-        node->path = xtb_os_path_join(allocator, path_parts, XTB_ArrLen(path_parts));
+        node->path = xtb_os_path_join(arena, path_parts, XTB_ArrLen(path_parts));
         DLLPushBack(list.head, list.tail, node);
     }
 
@@ -197,14 +197,14 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
     return list;
 }
 
-XTB_Directory_List xtb_os_list_directory(XTB_Allocator allocator, XTB_String8 filepath)
+XTB_Directory_List xtb_os_list_directory(XTB_Arena *arena, XTB_String8 filepath)
 {
-    return xtb_os_list_directory_custom(allocator, filepath, XTB_DIR_LIST_NONE);
+    return xtb_os_list_directory_custom(arena, filepath, XTB_DIR_LIST_NONE);
 }
 
-XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, XTB_String8 filepath)
+XTB_Directory_List xtb_os_list_directory_recursively(XTB_Arena *arena, XTB_String8 filepath)
 {
-    XTB_Directory_List entries = xtb_os_list_directory(allocator, filepath);
+    XTB_Directory_List entries = xtb_os_list_directory(arena, filepath);
     XTB_Directory_List accumulator = entries;
 
     for (XTB_Directory_Listing_Node *entry = entries.head;
@@ -214,7 +214,7 @@ XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, XT
         if (entry->type == XTB_FT_DIRECTORY)
         {
             XTB_Directory_List children =
-                xtb_os_list_directory_recursively(allocator, entry->path);
+                xtb_os_list_directory_recursively(arena, entry->path);
 
             if (children.head != NULL)
             {
@@ -225,17 +225,3 @@ XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, XT
 
     return accumulator;
 }
-
-void xtb_os_free_directory_list(XTB_Allocator allocator, XTB_Directory_List *list)
-{
-    XTB_Directory_Listing_Node *head = list->head;
-
-    while (head != NULL)
-    {
-        XTB_Directory_Listing_Node *next = head->next;
-        xtb_str8_free(allocator, head->path);
-        XTB_Deallocate(allocator, head);
-        head = next;
-    }
-}
-
