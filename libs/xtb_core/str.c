@@ -24,6 +24,11 @@ XTB_String8 xtb_str8_copy(XTB_Allocator allocator, XTB_String8 string)
     return xtb_str8(buf, string.len);
 }
 
+XTB_String8 xtb_str8_push_copy(XTB_Arena *arena, XTB_String8 string)
+{
+    return xtb_str8_copy(xtb_arena_allocator(arena), string);
+}
+
 void xtb_str8_free(XTB_Allocator allocator, XTB_String8 str)
 {
     XTB_Deallocate(allocator, str.str);

@@ -1,6 +1,7 @@
 #ifndef _XTB_STR_H_
 #define _XTB_STR_H_
 
+#include "arena.h"
 #include "allocator.h"
 #include <stddef.h>
 #include <stdbool.h>
@@ -17,6 +18,7 @@ XTB_String8 xtb_str8_cstring(const char *cstring);
 #define xtb_str8_lit(cstring_literal) (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
 XTB_String8 xtb_str8_copy(XTB_Allocator allocator, XTB_String8 string);
 #define xtb_str8_lit_copy(allocator, cstring_literal) xtb_str8_copy((allocator), xtb_str8_lit(cstring_literal))
+XTB_String8 xtb_str8_push_copy(XTB_Arena *arena, XTB_String8 string);
 void xtb_str8_free(XTB_Allocator allocator, XTB_String8 str);
 #define xtb_str8_empty xtb_str8_lit("")
 #define xtb_str8_invalid xtb_str8(NULL, 0)
