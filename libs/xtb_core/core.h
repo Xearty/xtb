@@ -33,6 +33,8 @@ void xtb_init(int argc, char **argv);
 
 #define XTB_MemoryCopy(s, d, c) memcpy((s), (d), (c));
 
+#define XTB_GrowGeometric(old, need) ((old) ? ((old) * 2 >= (need) ? (old) * 2 : (need)) : (need))
+
 /****************************************************************
  * Compiler Specific Attributes
 ****************************************************************/
