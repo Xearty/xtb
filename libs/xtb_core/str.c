@@ -290,6 +290,53 @@ xtb_str8_list_split_pred(XTB_Allocator allocator,
     return result;
 }
 
+XTB_String8_List
+xtb_str8_list_split_tokens_pred(XTB_Allocator allocator,
+                                XTB_String8 str,
+                                XTB_String8_Split_Pred_Fn pred,
+                                void *data)
+{
+    XTB_String8_List result = {0};
+
+    size_t token_begin_idx = 0;
+    size_t i = 0;
+
+    while (i < str.len)
+    {
+        XTB_String8 rest = xtb_str8_trunc_left(str, i);
+        int skip = pred(rest, data);
+
+        if (skip > 0) // delimiter hit
+        {
+            size_t tok_len = i - token_begin_idx;
+            if (tok_len > 0)
+            {
+                XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
+                xtb_str8_list_push(allocator, &result, token);
+            }
+
+            i += skip;
+            token_begin_idx = i;
+        }
+        else
+        {
+            i++;
+        }
+    }
+
+    if (token_begin_idx <= str.len) // just in case the predicate returns nonsense
+    {
+        size_t tok_len = str.len - token_begin_idx;
+        if (tok_len > 0)
+        {
+            XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
+            xtb_str8_list_push(allocator, &result, token);
+        }
+    }
+
+    return result;
+}
+
 static int split_by_str_pred(XTB_String8 rest, void *data)
 {
     XTB_String8 sep = *(XTB_String8 *)data;
@@ -324,7 +371,7 @@ static int split_by_whitespace_pred(XTB_String8 rest, void *data)
 
 XTB_String8_List xtb_str8_list_split_by_whitespace(XTB_Allocator allocator, XTB_String8 str)
 {
-    return xtb_str8_list_split_pred(allocator, str, split_by_whitespace_pred, NULL);
+    return xtb_str8_list_split_tokens_pred(allocator, str, split_by_whitespace_pred, NULL);
 }
 
 XTB_String8_List xtb_str8_list_split_by_lines(XTB_Allocator allocator, XTB_String8 str)

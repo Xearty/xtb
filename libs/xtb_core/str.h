@@ -93,6 +93,7 @@ XTB_String8 xtb_str8_list_join_char_sep(XTB_Allocator allocator, XTB_String8_Lis
 typedef int(*XTB_String8_Split_Pred_Fn)(XTB_String8 rest, void *data);
 
 XTB_String8_List xtb_str8_list_split_pred(XTB_Allocator allocator, XTB_String8 str, XTB_String8_Split_Pred_Fn pred, void *data);
+XTB_String8_List xtb_str8_list_split_tokens_pred(XTB_Allocator allocator, XTB_String8 str, XTB_String8_Split_Pred_Fn pred, void *data);
 XTB_String8_List xtb_str8_list_split_by_str(XTB_Allocator allocator, XTB_String8 str, XTB_String8 sep);
 XTB_String8_List xtb_str8_list_split_by_char(XTB_Allocator allocator, XTB_String8 str, char sep);
 XTB_String8_List xtb_str8_list_split_by_whitespace(XTB_Allocator allocator, XTB_String8 str);

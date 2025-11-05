@@ -57,7 +57,9 @@ int main(int argc, char **argv)
     XTB_String8_List lines = xtb_str8_list_split_by_lines(allocator, file_content);
 
     XTB_IterateList(lines, XTB_String8_List_Node, line, {
-        printf("----%.*s----\n", (int)line->string.len, line->string.str);
+        XTB_String8_List tokens = xtb_str8_list_split_by_whitespace(allocator, line->string);
+        XTB_String8 joined = xtb_str8_list_join_char_sep(allocator, tokens, '&');
+        xtb_str8_debug(joined);
     });
 
     xtb_arena_drop(arena);
