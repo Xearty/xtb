@@ -74,14 +74,17 @@ int main(int argc, char **argv)
     {
         Allocator scratch_allocator = arena_allocator(scratch.arena);
 
-        String8 path = str8_lit("apps");
+        String8 path = str8_lit("apps ");
+        path = str8_trunc_right(path, 1);
+
         XTB_Directory_List list = xtb_os_list_directory(allocator, path);
-        XTB_IterateList(list, XTB_Directory_Listing_Node, node, {
+        XTB_IterateList(list, XTB_Directory_Listing_Node, node)
+        {
             XTB_File_Type ft = xtb_os_get_file_type(node->path);
             const char *ft_str = ft_to_str(ft);
             bool is_directory = xtb_os_is_directory(node->path);
             printf("%s %s %s\n", ft_str, node->path.str, is_directory ? "true" : "false");
-        });
+        }
     }
 
     xtb_arena_drop(arena);
