@@ -54,10 +54,10 @@ int main(int argc, char **argv)
     XTB_String8 filepath = xtb_str8_lit("./apps/os_test/main.c");
     XTB_String8 file_content = xtb_os_read_entire_file(filepath);
 
-    XTB_String8_List lines = xtb_str8_list_split_by_lines(allocator, file_content);
+    XTB_String8_List lines = xtb_str8_split_by_lines(allocator, file_content);
 
     XTB_IterateList(lines, XTB_String8_List_Node, line, {
-        XTB_String8_List tokens = xtb_str8_list_split_by_whitespace(allocator, line->string);
+        XTB_String8_List tokens = xtb_str8_split_by_whitespace(allocator, line->string);
         XTB_String8 joined = xtb_str8_list_join_char_sep(allocator, tokens, '&');
         xtb_str8_debug(joined);
     });

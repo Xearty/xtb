@@ -81,17 +81,17 @@ int main(int argc, char **argv)
     printf("Trimmed both ways copy: \"%s\"\n", test6.str);
 
     XTB_String8 char_split_str = xtb_str8_lit("Very long string that contains multiple tokens");
-    XTB_String8_List char_split_list = xtb_str8_list_split_by_char(temp_allocator, char_split_str, ' ');
+    XTB_String8_List char_split_list = xtb_str8_split_by_char(temp_allocator, char_split_str, ' ');
     XTB_String8 char_joined = xtb_str8_list_join_str_sep(temp_allocator, char_split_list, xtb_str8_lit("<sep>"));
     puts(char_joined.str);
 
     XTB_String8 str_split_str = xtb_str8_lit("Very long  string that contains  multiple tokens");
-    XTB_String8_List str_split_list = xtb_str8_list_split_by_str(temp_allocator, str_split_str, xtb_str8_lit("  "));
+    XTB_String8_List str_split_list = xtb_str8_split_by_str(temp_allocator, str_split_str, xtb_str8_lit("  "));
     XTB_String8 str_joined = xtb_str8_list_join_str_sep(temp_allocator, str_split_list, xtb_str8_lit("---"));
     puts(str_joined.str);
 
     XTB_String8 space_split_str = xtb_str8_lit("\t\n\r\r\n Very \t long  \rstring\r\rthat contains \r \nmultiple \n\r\r\n\ttokens\t\n\t");
-    XTB_String8_List space_split_list = xtb_str8_list_split_by_whitespace(temp_allocator, space_split_str);
+    XTB_String8_List space_split_list = xtb_str8_split_by_whitespace(temp_allocator, space_split_str);
     XTB_String8 space_joined = xtb_str8_list_join_char_sep(temp_allocator, space_split_list, '-');
     puts(space_joined.str);
 

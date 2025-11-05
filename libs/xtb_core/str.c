@@ -255,7 +255,7 @@ void xtb_str8_list_push(XTB_Allocator allocator, XTB_String8_List *str_list, XTB
 }
 
 XTB_String8_List
-xtb_str8_list_split_pred(XTB_Allocator allocator,
+xtb_str8_split_pred(XTB_Allocator allocator,
                          XTB_String8 str,
                          XTB_String8_Split_Pred_Fn pred,
                          void *data)
@@ -296,7 +296,7 @@ xtb_str8_list_split_pred(XTB_Allocator allocator,
 }
 
 XTB_String8_List
-xtb_str8_list_split_tokens_pred(XTB_Allocator allocator,
+xtb_str8_split_tokens_pred(XTB_Allocator allocator,
                                 XTB_String8 str,
                                 XTB_String8_Split_Pred_Fn pred,
                                 void *data)
@@ -349,9 +349,9 @@ static int split_by_str_pred(XTB_String8 rest, void *data)
     return xtb_str8_eq(rest_substr, sep) ? sep.len : 0;
 }
 
-XTB_String8_List xtb_str8_list_split_by_str(XTB_Allocator allocator, XTB_String8 str, XTB_String8 sep)
+XTB_String8_List xtb_str8_split_by_str(XTB_Allocator allocator, XTB_String8 str, XTB_String8 sep)
 {
-    return xtb_str8_list_split_pred(allocator, str, split_by_str_pred, &sep);
+    return xtb_str8_split_pred(allocator, str, split_by_str_pred, &sep);
 }
 
 static int split_by_char_pred(XTB_String8 rest, void *data)
@@ -359,9 +359,9 @@ static int split_by_char_pred(XTB_String8 rest, void *data)
     return xtb_str8_front(rest) == *(char *)data ? 1 : 0;
 }
 
-XTB_String8_List xtb_str8_list_split_by_char(XTB_Allocator allocator, XTB_String8 str, char sep)
+XTB_String8_List xtb_str8_split_by_char(XTB_Allocator allocator, XTB_String8 str, char sep)
 {
-    return xtb_str8_list_split_pred(allocator, str, split_by_char_pred, &sep);
+    return xtb_str8_split_pred(allocator, str, split_by_char_pred, &sep);
 }
 
 static int split_by_whitespace_pred(XTB_String8 rest, void *data)
@@ -374,14 +374,14 @@ static int split_by_whitespace_pred(XTB_String8 rest, void *data)
     return i;
 }
 
-XTB_String8_List xtb_str8_list_split_by_whitespace(XTB_Allocator allocator, XTB_String8 str)
+XTB_String8_List xtb_str8_split_by_whitespace(XTB_Allocator allocator, XTB_String8 str)
 {
-    return xtb_str8_list_split_tokens_pred(allocator, str, split_by_whitespace_pred, NULL);
+    return xtb_str8_split_tokens_pred(allocator, str, split_by_whitespace_pred, NULL);
 }
 
-XTB_String8_List xtb_str8_list_split_by_lines(XTB_Allocator allocator, XTB_String8 str)
+XTB_String8_List xtb_str8_split_by_lines(XTB_Allocator allocator, XTB_String8 str)
 {
-    return xtb_str8_list_split_by_char(allocator, str, '\n');
+    return xtb_str8_split_by_char(allocator, str, '\n');
 }
 
 XTB_String8 xtb_str8_formatv(XTB_Allocator allocator, const char *fmt, va_list args)
