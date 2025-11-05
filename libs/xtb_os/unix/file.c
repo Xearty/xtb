@@ -135,7 +135,9 @@ static int unlink_cb(const char *filepath, const struct stat *sb, int typeflag, 
 
 bool xtb_os_delete_directory(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
+    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    xtb_scratch_end(scratch);
     return nftw(filepath.str, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
 }
 
@@ -163,7 +165,10 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
 
 XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
 {
-    xtb_str8_assert_null_terminated(filepath);
+    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    xtb_scratch_end(scratch);
+
     XTB_Directory_List list = {0};
 
     DIR *dir = opendir(filepath.str);
