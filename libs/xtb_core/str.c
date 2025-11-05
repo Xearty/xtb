@@ -257,31 +257,34 @@ xtb_str8_list_split_pred(XTB_Allocator allocator,
 {
     XTB_String8_List result = {0};
 
-    int token_begin_idx = 0;
+    size_t token_begin_idx = 0;
+    size_t i = 0;
 
-    for (int i = 0; i < str.len;)
+    while (i < str.len)
     {
         XTB_String8 rest = xtb_str8_trunc_left(str, i);
-
         int skip = pred(rest, data);
-        if (skip != 0 || i == str.len - 1)
-        {
-            if (i == str.len - 1) i += 1; // We've reached the end, increment to meet
-                                          // the loop condition and get the correct length
 
+        if (skip > 0) // delimiter hit
+        {
             size_t tok_len = i - token_begin_idx;
-            if (tok_len > 0)
-            {
-                XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
-                xtb_str8_list_push(allocator, &result, token);
-            }
-            token_begin_idx = i + skip;
+            XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
+            xtb_str8_list_push(allocator, &result, token);
+
             i += skip;
+            token_begin_idx = i;
         }
         else
         {
-            i += 1;
+            i++;
         }
+    }
+
+    if (token_begin_idx <= str.len) // just in case the predicate returns nonsense
+    {
+        size_t tok_len = str.len - token_begin_idx;
+        XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
+        xtb_str8_list_push(allocator, &result, token);
     }
 
     return result;
