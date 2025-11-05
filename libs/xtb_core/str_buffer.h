@@ -25,6 +25,7 @@ void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 strin
     xtb_str8_buffer_push_back((str_buffer), xtb_str8_cstring(cstring))
 
 XTB_String8 xtb_str8_buffer_view(XTB_String8_Buffer *str_buffer);
-
+#define xtb_str8_buffer_view_copy(allocator, str_buffer) \
+    xtb_str8_copy((allocator), xtb_str8_buffer_view((str_buffer)))
 
 #endif // _XTB_STR_BUFFER_H_

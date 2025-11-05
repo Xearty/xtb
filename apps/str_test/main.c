@@ -132,7 +132,11 @@ int main(int argc, char **argv)
 
     puts("----------------------String Buffer------------------------");
     {
-        XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(allocator, 0);
+        XTB_Temp_Arena scratch = xtb_scratch_begin(0, 0);
+        XTB_Allocator scratch_allocator = xtb_arena_allocator(scratch.arena);
+
+        // This will be allocated on the scratch arena
+        XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(scratch_allocator, 0);
         for (int i = 0; i < 10; ++i)
         {
             XTB_String8 hello = xtb_str8_lit("hello");
@@ -141,8 +145,13 @@ int main(int argc, char **argv)
             xtb_str8_buffer_push_back_lit(&str_buffer, "world");
             xtb_str8_buffer_push_back_cstring(&str_buffer, "!");
         }
-        String8 str_view = xtb_str8_buffer_view(&str_buffer);
-        str8_debug(str_view);
+
+        // This is allocated on the persistent arena
+        String8 owned_str = xtb_str8_buffer_view_copy(allocator, &str_buffer);
+
+        xtb_scratch_end(scratch);
+
+        str8_debug(owned_str);
     }
     puts("-----------------------------------------------------------");
 
