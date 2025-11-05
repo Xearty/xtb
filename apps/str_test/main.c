@@ -1,7 +1,4 @@
-#define XTB_STR_SHORTHAND
-#define XTB_ALLOCATOR_SHORTHAND
-#define XTB_ARENA_SHORTHAND
-#define XTB_THREAD_CONTEXT_SHORTHAND
+#include <xtb_core/shorthands.h>
 
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
