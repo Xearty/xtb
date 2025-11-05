@@ -3,6 +3,7 @@
 #define __USE_XOPEN_EXTENDED
 #include <xtb_os/os.h>
 #include <xtb_core/linked_list.h>
+#include <xtb_core/thread_context.h>
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -43,74 +44,83 @@ bool xtb_os_file_has_execute_permission(XTB_String8 filepath)
 
 bool xtb_os_is_regular_file(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    struct stat path_stat;
-    if (stat(filepath.str, &path_stat) != 0) return false;
-    return S_ISREG(path_stat.st_mode);
+    return xtb_os_get_file_type(filepath) == XTB_FT_REGULAR;
 }
 
 bool xtb_os_is_directory(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    struct stat path_stat;
-    if (stat(filepath.str, &path_stat) != 0) return false;
-    return S_ISDIR(path_stat.st_mode);
+    return xtb_os_get_file_type(filepath) == XTB_FT_DIRECTORY;
 }
 
 bool xtb_os_is_regular_file_nofollow(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    struct stat path_stat;
-    if (lstat(filepath.str, &path_stat) != 0) return false;
-    return S_ISREG(path_stat.st_mode);
+    return xtb_os_get_file_type_nofollow(filepath) == XTB_FT_REGULAR;
 }
 
 bool xtb_os_is_directory_nofollow(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    struct stat path_stat;
-    if (lstat(filepath.str, &path_stat) != 0) return false;
-    return S_ISDIR(path_stat.st_mode);
+    return xtb_os_get_file_type_nofollow(filepath) == XTB_FT_DIRECTORY;
 }
 
 bool xtb_os_is_symbolic_link(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    struct stat path_stat;
-    if (lstat(filepath.str, &path_stat) != 0) return false;
-    return S_ISLNK(path_stat.st_mode);
-}
-
-XTB_File_Type xtb_os_get_file_type_nofollow(XTB_String8 filepath)
-{
-    if (xtb_os_is_regular_file_nofollow(filepath))
-    {
-        return XTB_FT_REGULAR;
-    }
-    else if (xtb_os_is_directory_nofollow(filepath))
-    {
-        return XTB_FT_DIRECTORY;
-    }
-    else if (xtb_os_is_symbolic_link(filepath))
-    {
-        return XTB_FT_SYMLINK;
-    }
-
-    return XTB_FT_UNKNOWN;
+    return xtb_os_get_file_type_nofollow(filepath) == XTB_FT_SYMLINK;
 }
 
 XTB_File_Type xtb_os_get_file_type(XTB_String8 filepath)
 {
-    if (xtb_os_is_regular_file(filepath))
+    struct stat st;
+
+    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    filepath = xtb_str8_push_copy(scratch.arena, filepath);
+
+    if (stat(filepath.str, &st) != 0)
     {
-        return XTB_FT_REGULAR;
-    }
-    else if (xtb_os_is_directory(filepath))
-    {
-        return XTB_FT_DIRECTORY;
+        xtb_scratch_end(scratch);
+        return XTB_FT_UNKNOWN;
     }
 
-    return XTB_FT_UNKNOWN;
+    xtb_scratch_end(scratch);
+
+    switch (st.st_mode & S_IFMT)
+    {
+        case S_IFREG:  return XTB_FT_REGULAR;
+        case S_IFDIR:  return XTB_FT_DIRECTORY;
+        case S_IFLNK:  return XTB_FT_SYMLINK;
+        case S_IFCHR:  return XTB_FT_CHAR_DEVICE;
+        case S_IFBLK:  return XTB_FT_BLOCK_DEVICE;
+        case S_IFIFO:  return XTB_FT_FIFO;
+        case S_IFSOCK: return XTB_FT_SOCKET;
+        default:       return XTB_FT_UNKNOWN;
+    }
+}
+
+XTB_File_Type xtb_os_get_file_type_nofollow(XTB_String8 filepath)
+{
+    struct stat st;
+
+    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    filepath = xtb_str8_push_copy(scratch.arena, filepath);
+
+    if (lstat(filepath.str, &st) != 0)
+    {
+        xtb_scratch_end(scratch);
+        return XTB_FT_UNKNOWN;
+    }
+
+    xtb_scratch_end(scratch);
+
+    switch (st.st_mode & S_IFMT)
+    {
+        case S_IFREG:  return XTB_FT_REGULAR;
+        case S_IFDIR:  return XTB_FT_DIRECTORY;
+        case S_IFLNK:  return XTB_FT_SYMLINK;
+        case S_IFCHR:  return XTB_FT_CHAR_DEVICE;
+        case S_IFBLK:  return XTB_FT_BLOCK_DEVICE;
+        case S_IFIFO:  return XTB_FT_FIFO;
+        case S_IFSOCK: return XTB_FT_SOCKET;
+        default:       return XTB_FT_UNKNOWN;
+    }
 }
 
 static int unlink_cb(const char *filepath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
@@ -170,7 +180,6 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
         XTB_Directory_Listing_Node *node = XTB_AllocateZero(allocator, XTB_Directory_Listing_Node);
         node->type = dirent_ft_to_xtb_ft(entry->d_type);
         node->path = xtb_os_path_join(allocator, path_parts, XTB_ArrLen(path_parts));
-        xtb_str8_debug(node->path);
         DLLPushBack(list.head, list.tail, node);
     }
 
