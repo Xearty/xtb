@@ -22,7 +22,11 @@ typedef enum XTB_File_Type
     XTB_FT_UNKNOWN = 0,
     XTB_FT_REGULAR,
     XTB_FT_DIRECTORY,
-    XTB_FT_SYMLINK
+    XTB_FT_SYMLINK,
+    XTB_FT_CHAR_DEVICE,
+    XTB_FT_BLOCK_DEVICE,
+    XTB_FT_FIFO,
+    XTB_FT_SOCKET,
 } XTB_File_Type;
 
 XTB_File_Handle *xtb_os_open_file(XTB_String8 filepath, XTB_File_Mode mode);
