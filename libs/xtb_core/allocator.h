@@ -26,4 +26,16 @@ typedef struct XTB_Allocator
 #define XTB_AllocateBytesZero(allocator, count) XTB_AllocateArrayZero(allocator, char, count)
 #define XTB_AllocateZero(allocator, type) XTB_AllocateArrayZero(allocator, type, 1)
 
+#ifdef XTB_ALLOCATOR_SHORTHAND
+typedef XTB_Allocator Allocator;
+
+#define AllocateArray XTB_AllocateArray
+#define AllocateBytes XTB_AllocateBytes
+#define Allocate XTB_Allocate
+#define Deallocate XTB_Deallocate
+#define AllocateArrayZero XTB_AllocateArrayZero
+#define AllocateBytesZero XTB_AllocateBytesZero
+#define AllocateZero XTB_AllocateZero
+#endif
+
 #endif // XTB_CORE_ALLOCATOR_INTERFACE_H
