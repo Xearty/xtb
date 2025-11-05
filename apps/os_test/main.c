@@ -7,6 +7,7 @@
 #include <xtb_allocator/allocator.h>
 #include <xtb_core/arena.h>
 #include <xtb_core/linked_list.h>
+#include <xtb_core/thread_context.h>
 
 typedef struct PermissionsBuffer
 {
@@ -37,6 +38,9 @@ int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
+    Thread_Context tctx;
+    tctx_init_and_equip(&tctx);
+
     XTB_Arena *arena = xtb_arena_new(XTB_Kilobytes(4));
     XTB_Allocator allocator = xtb_arena_allocator(arena);
 
@@ -63,6 +67,8 @@ int main(int argc, char **argv)
     });
 
     xtb_arena_drop(arena);
+
+    tctx_release();
 
     return 0;
 }

@@ -161,15 +161,12 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
 
         if (should_skip_file_in_listing(entry_str, flags)) continue;
 
-        XTB_String8 path_parts[] = {
-            filepath,
-            (xtb_str8_back(filepath) == '/' ? xtb_str8_empty : xtb_str8_lit("/")),
-            entry_str
-        };
+        XTB_String8 path_parts[] = { filepath, entry_str };
 
         XTB_Directory_Listing_Node *node = XTB_AllocateZero(allocator, XTB_Directory_Listing_Node);
         node->type = dirent_ft_to_xtb_ft(entry->d_type);
-        node->path = xtb_str8_array_join(allocator, path_parts, XTB_ArrLen(path_parts));
+        node->path = xtb_os_path_join(allocator, path_parts, XTB_ArrLen(path_parts));
+        xtb_str8_debug(node->path);
         DLLPushBack(list.head, list.tail, node);
     }
 

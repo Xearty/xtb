@@ -2,6 +2,8 @@
 #include "xtb_allocator/malloc.h"
 #include "xtb_core/core.h"
 #include "xtb_core/str.h"
+#include <xtb_core/str_buffer.h>
+#include <xtb_core/thread_context.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -118,5 +120,35 @@ XTB_String8 xtb_os_real_path(XTB_String8 filepath)
 {
     xtb_str8_assert_null_terminated(filepath);
     return xtb_str8_cstring(realpath(filepath.str, NULL));
+}
+
+XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count)
+{
+    XTB_Temp_Arena temp = xtb_scratch_begin(NULL, 0);
+    XTB_Allocator temp_allocator = xtb_arena_allocator(temp.arena);
+
+    XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(temp_allocator, 0);
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        XTB_String8 str = parts[i];
+
+        if (xtb_str8_back(str) == '/')
+        {
+            str = xtb_str8_trunc_right(str, 1);
+        }
+
+        xtb_str8_buffer_push_back(&str_buffer, str);
+
+        if (i != count - 1)
+        {
+            xtb_str8_buffer_push_back_lit(&str_buffer, "/");
+        }
+    }
+
+    XTB_String8 path = xtb_str8_buffer_view_copy(allocator, &str_buffer);
+    xtb_scratch_end(temp);
+
+    return path;
 }
 

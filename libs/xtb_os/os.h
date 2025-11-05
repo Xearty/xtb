@@ -84,4 +84,6 @@ XTB_Directory_List xtb_os_list_directory(XTB_Allocator allocator, XTB_String8 fi
 XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, XTB_String8 filepath);
 void xtb_os_free_directory_list(XTB_Allocator allocator, XTB_Directory_List *list);
 
+XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count);
+
 #endif // _XTB_OS_H_
