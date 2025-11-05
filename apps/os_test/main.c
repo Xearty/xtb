@@ -5,6 +5,8 @@
 #include <stdlib.h>
 
 #include <xtb_allocator/allocator.h>
+#include <xtb_core/arena.h>
+#include <xtb_core/linked_list.h>
 
 typedef struct PermissionsBuffer
 {
@@ -35,7 +37,8 @@ int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
-    XTB_Allocator allocator = xtb_malloc_allocator();
+    XTB_Arena *arena = xtb_arena_new(XTB_Kilobytes(4));
+    XTB_Allocator allocator = xtb_arena_allocator(arena);
 
     XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, xtb_str8_lit("./libs/"));
 
@@ -47,6 +50,17 @@ int main(int argc, char **argv)
     xtb_os_copy_file(xtb_str8_lit("asd"), xtb_str8_lit("asd2"));
 
     xtb_os_free_directory_list(allocator, &list);
+
+    XTB_String8 filepath = xtb_str8_lit("./apps/os_test/main.c");
+    XTB_String8 file_content = xtb_os_read_entire_file(filepath);
+
+    XTB_String8_List lines = xtb_str8_list_split_by_lines(allocator, file_content);
+
+    XTB_IterateList(lines, XTB_String8_List_Node, line, {
+        printf("----%.*s----\n", (int)line->string.len, line->string.str);
+    });
+
+    xtb_arena_drop(arena);
 
     return 0;
 }

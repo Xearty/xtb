@@ -324,6 +324,11 @@ XTB_String8_List xtb_str8_list_split_by_whitespace(XTB_Allocator allocator, XTB_
     return xtb_str8_list_split_pred(allocator, str, split_by_whitespace_pred, NULL);
 }
 
+XTB_String8_List xtb_str8_list_split_by_lines(XTB_Allocator allocator, XTB_String8 str)
+{
+    return xtb_str8_list_split_by_char(allocator, str, '\n');
+}
+
 XTB_String8 xtb_str8_formatv(XTB_Allocator allocator, const char *fmt, va_list args)
 {
     va_list args_copy;
