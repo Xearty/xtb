@@ -15,6 +15,12 @@ XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
 
 #define xtb_scratch_begin(conflicts, count) xtb_temp_arena_new(xtb_tctx_get_scratch((conflicts), (count)))
 #define xtb_scratch_end(scratch) xtb_temp_arena_drop(scratch)
+#define xtb_scratch_scope(name, conflicts, conflicts_count)                      \
+    for (XTB_Temp_Arena name = xtb_scratch_begin((conflicts), (conflicts_count)) \
+             , name##_counter = {0};                                             \
+         name##_counter.snapshot.offset == 0;                                    \
+         name##_counter.snapshot.offset += 1,                                    \
+         xtb_scratch_end(name))
 
 #ifdef XTB_THREAD_CONTEXT_SHORTHANDS
 typedef XTB_Thread_Context Thread_Context;
