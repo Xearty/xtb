@@ -5,6 +5,7 @@
 #include <xtb_core/linked_list.h>
 #include <xtb_core/arena.h>
 #include <xtb_core/thread_context.h>
+#include <xtb_core/str_buffer.h>
 
 #include <stdio.h>
 
@@ -128,6 +129,22 @@ int main(int argc, char **argv)
     String8 str = str8_lit("hello");
     str = str8_concat(allocator, str, str8_lit(" world"));
     str8_debug(str);
+
+    puts("----------------------String Buffer------------------------");
+    {
+        XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(allocator, 0);
+        for (int i = 0; i < 10; ++i)
+        {
+            XTB_String8 hello = xtb_str8_lit("hello");
+            xtb_str8_buffer_push_back(&str_buffer, hello);
+            xtb_str8_buffer_push_back_cstring(&str_buffer, " ");
+            xtb_str8_buffer_push_back_lit(&str_buffer, "world");
+            xtb_str8_buffer_push_back_cstring(&str_buffer, "!");
+        }
+        String8 str_view = xtb_str8_buffer_view(&str_buffer);
+        str8_debug(str_view);
+    }
+    puts("-----------------------------------------------------------");
 
     xtb_arena_drop(arena);
     xtb_tctx_release();

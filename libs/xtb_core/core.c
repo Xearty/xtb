@@ -15,6 +15,7 @@
 #endif
 
 #include "str.c"
+#include "str_buffer.c"
 #include "arena.c"
 #include "thread_context.c"
 
