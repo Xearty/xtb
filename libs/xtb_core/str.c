@@ -243,10 +243,15 @@ XTB_String8_List_Node* xtb_str8_list_alloc_node(XTB_Allocator allocator, XTB_Str
     return node;
 }
 
+void xtb_str8_list_push_explicit(XTB_Allocator allocator, XTB_String8_List *str_list, XTB_String8_List_Node *node)
+{
+    DLLPushBack(str_list->head, str_list->tail, node);
+}
+
 void xtb_str8_list_push(XTB_Allocator allocator, XTB_String8_List *str_list, XTB_String8 string)
 {
     XTB_String8_List_Node *node = xtb_str8_list_alloc_node(allocator, string);
-    DLLPushBack(str_list->head, str_list->tail, node);
+    xtb_str8_list_push_explicit(allocator, str_list, node);
 }
 
 XTB_String8_List

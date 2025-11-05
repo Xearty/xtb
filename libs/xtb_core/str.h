@@ -82,6 +82,7 @@ typedef struct XTB_String8_List
 } XTB_String8_List;
 
 XTB_String8_List_Node *xtb_str8_list_alloc_node(XTB_Allocator allocator, XTB_String8 string);
+void xtb_str8_list_push_explicit(XTB_Allocator allocator, XTB_String8_List *str_list, XTB_String8_List_Node *node);
 void xtb_str8_list_push(XTB_Allocator allocator, XTB_String8_List *str_list, XTB_String8 string);
 size_t xtb_str8_list_length(XTB_String8_List str_list);
 size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list);
