@@ -79,4 +79,26 @@ size_t xtb_arena_dump_memory_usage_pp(XTB_Arena *arena, char *buffer, size_t buf
  ***************************/
 XTB_Allocator xtb_arena_allocator(XTB_Arena *arena);
 
+#ifdef XTB_ARENA_SHORTHAND
+typedef XTB_Arena Arena;
+
+#define arena_new xtb_arena_new
+#define arena_new_exact_size xtb_arena_new_exact_size
+#define arena_drop xtb_arena_drop
+#define arena_alloc xtb_arena_alloc
+#define arena_alloc_zero xtb_arena_alloc_zero
+#define arena_clear xtb_arena_clear
+
+typedef XTB_Temp_Arena Temp_Arena;
+#define temp_arena_new xtb_temp_arena_new
+#define temp_arena_drop xtb_temp_arena_drop
+
+#define push_array xtb_push_array
+#define push_struct xtb_push_struct
+#define push_array_zero xtb_push_array_zero
+#define push_struct_zero xtb_push_struct_zero
+
+#define arena_allocator xtb_arena_allocator
+#endif
+
 #endif // _XTB_ALLOCATOR_ARENA_H_

@@ -1,5 +1,6 @@
 #define XTB_STR_SHORTHAND
 #define XTB_ALLOCATOR_SHORTHAND
+#define XTB_ARENA_SHORTHAND
 
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
@@ -17,8 +18,8 @@ int main(int argc, char **argv)
     XTB_Thread_Context tctx;
     xtb_tctx_init_and_equip(&tctx);
 
-    XTB_Arena *arena = xtb_arena_new(XTB_Kilobytes(4));
-    Allocator allocator = xtb_arena_allocator(arena);
+    Arena *arena = arena_new(XTB_Kilobytes(4));
+    Allocator allocator = arena_allocator(arena);
 
     String8 string = str8_lit("hello");
     puts(string.str);
@@ -41,8 +42,8 @@ int main(int argc, char **argv)
     String8 sub_test2 = str8_substr_copy(allocator, test2, 10, 5);
     printf("str = \"%s\", len = %zu\n", sub_test2.str, sub_test2.len);
 
-    XTB_Temp_Arena temp = xtb_scratch_begin(NULL, 0);
-    Allocator temp_allocator = xtb_arena_allocator(temp.arena);
+    Temp_Arena temp = xtb_scratch_begin(NULL, 0);
+    Allocator temp_allocator = arena_allocator(temp.arena);
 
     String8_List list = {0};
     str8_list_push(temp_allocator, &list, str8_lit("a"));
@@ -133,14 +134,14 @@ int main(int argc, char **argv)
 
     puts("----------------------String Buffer------------------------");
     {
-        XTB_Temp_Arena scratch = xtb_scratch_begin(0, 0);
-        Allocator scratch_allocator = xtb_arena_allocator(scratch.arena);
+        Temp_Arena scratch = xtb_scratch_begin(0, 0);
+        Allocator scratch_allocator = arena_allocator(scratch.arena);
 
         // This will be allocated on the scratch arena
         XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(scratch_allocator, 0);
         for (int i = 0; i < 10; ++i)
         {
-            XTB_String8 hello = xtb_str8_lit("hello");
+            String8 hello = str8_lit("hello");
             xtb_str8_buffer_push_back(&str_buffer, hello);
             xtb_str8_buffer_push_back_cstring(&str_buffer, " ");
             xtb_str8_buffer_push_front_lit(&str_buffer, "not ");
@@ -157,7 +158,7 @@ int main(int argc, char **argv)
     }
     puts("-----------------------------------------------------------");
 
-    xtb_arena_drop(arena);
+    arena_drop(arena);
     xtb_tctx_release();
 
     return 0;
