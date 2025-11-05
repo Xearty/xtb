@@ -45,7 +45,7 @@ bool xtb_arena_chunk_has_enough_capacity(XTB_Arena_Chunk_Header *chunk, size_t a
 
 // TODO: deal with alignment
 void *xtb_arena_alloc(XTB_Arena *arena, size_t allocation_size);
-static void *xtb_arena_alloc_zero(XTB_Arena *arena, size_t allocation_size);
+void *xtb_arena_alloc_zero(XTB_Arena *arena, size_t allocation_size);
 void xtb_arena_clear(XTB_Arena *arena);
 
 /****************************
