@@ -17,12 +17,10 @@ XTB_String8_Buffer xtb_str8_buffer_new(XTB_Allocator allocator, size_t cap_hint)
     return str_buffer;
 }
 
-void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 string)
+static void buffer_ensure_capacity(XTB_String8_Buffer *str_buffer, size_t needed)
 {
-    if (RemainingCapacity(str_buffer) < string.len)
+    if (str_buffer->capacity < needed)
     {
-        // need to grow
-        size_t needed = str_buffer->size + string.len;
         size_t new_cap = XTB_GrowGeometric(str_buffer->size, needed);
         char *new_buffer = XTB_AllocateBytes(str_buffer->allocator, new_cap);
 
@@ -33,8 +31,22 @@ void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 strin
         str_buffer->capacity = new_cap;
         str_buffer->buffer = new_buffer;
     }
+}
 
+void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 string)
+{
+    buffer_ensure_capacity(str_buffer, str_buffer->size + string.len);
     XTB_MemoryCopy(BufferAppendLocation(str_buffer), string.str, string.len);
+    str_buffer->size += string.len;
+}
+
+void xtb_str8_buffer_push_front(XTB_String8_Buffer *str_buffer, XTB_String8 string)
+{
+    // TODO: This can be optimized. If we need to grow anyway, we can insert the old content
+    // in the correct place and avoid shifting afterwards
+    buffer_ensure_capacity(str_buffer, str_buffer->size + string.len);
+    XTB_MemoryMove(str_buffer->buffer + string.len, str_buffer->buffer, str_buffer->size);
+    XTB_MemoryCopy(str_buffer->buffer, string.str, string.len);
     str_buffer->size += string.len;
 }
 

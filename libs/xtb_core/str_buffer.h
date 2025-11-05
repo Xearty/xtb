@@ -24,6 +24,12 @@ void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 strin
 #define xtb_str8_buffer_push_back_cstring(str_buffer, cstring) \
     xtb_str8_buffer_push_back((str_buffer), xtb_str8_cstring(cstring))
 
+void xtb_str8_buffer_push_front(XTB_String8_Buffer *str_buffer, XTB_String8 string);
+#define xtb_str8_buffer_push_front_lit(str_buffer, lit) \
+    xtb_str8_buffer_push_front((str_buffer), xtb_str8_lit(lit))
+#define xtb_str8_buffer_push_front_cstring(str_buffer, cstring) \
+    xtb_str8_buffer_push_front((str_buffer), xtb_str8_cstring(cstring))
+
 XTB_String8 xtb_str8_buffer_view(XTB_String8_Buffer *str_buffer);
 #define xtb_str8_buffer_view_copy(allocator, str_buffer) \
     xtb_str8_copy((allocator), xtb_str8_buffer_view((str_buffer)))

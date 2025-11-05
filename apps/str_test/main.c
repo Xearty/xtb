@@ -142,6 +142,7 @@ int main(int argc, char **argv)
             XTB_String8 hello = xtb_str8_lit("hello");
             xtb_str8_buffer_push_back(&str_buffer, hello);
             xtb_str8_buffer_push_back_cstring(&str_buffer, " ");
+            xtb_str8_buffer_push_front_lit(&str_buffer, "not ");
             xtb_str8_buffer_push_back_lit(&str_buffer, "world");
             xtb_str8_buffer_push_back_cstring(&str_buffer, "!");
         }

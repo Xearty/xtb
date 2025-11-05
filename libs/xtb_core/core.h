@@ -32,6 +32,7 @@ void xtb_init(int argc, char **argv);
 #define XTB_MemoryZeroTyped(m, c) XTB_MemoryZero((m), sizeof(*(m)) * (c))
 
 #define XTB_MemoryCopy(s, d, c) memcpy((s), (d), (c));
+#define XTB_MemoryMove(s, d, c) memmove((s), (d), (c));
 
 #define XTB_GrowGeometric(old, need) ((old) ? ((old) * 2 >= (need) ? (old) * 2 : (need)) : (need))
 
