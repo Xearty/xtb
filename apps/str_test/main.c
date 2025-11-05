@@ -1,6 +1,7 @@
 #define XTB_STR_SHORTHAND
 #define XTB_ALLOCATOR_SHORTHAND
 #define XTB_ARENA_SHORTHAND
+#define XTB_THREAD_CONTEXT_SHORTHAND
 
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
@@ -15,8 +16,8 @@ int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
-    XTB_Thread_Context tctx;
-    xtb_tctx_init_and_equip(&tctx);
+    Thread_Context tctx;
+    tctx_init_and_equip(&tctx);
 
     Arena *arena = arena_new(XTB_Kilobytes(4));
     Allocator allocator = arena_allocator(arena);
@@ -42,7 +43,7 @@ int main(int argc, char **argv)
     String8 sub_test2 = str8_substr_copy(allocator, test2, 10, 5);
     printf("str = \"%s\", len = %zu\n", sub_test2.str, sub_test2.len);
 
-    Temp_Arena temp = xtb_scratch_begin(NULL, 0);
+    Temp_Arena temp = scratch_begin(NULL, 0);
     Allocator temp_allocator = arena_allocator(temp.arena);
 
     String8_List list = {0};
@@ -103,7 +104,7 @@ int main(int argc, char **argv)
     String8 concatenated2 = str8_list_join(temp_allocator, space_split_list);
     str8_debug(concatenated2);
 
-    xtb_scratch_end(temp);
+    scratch_end(temp);
 
     String8 formatted = str8_format(allocator, "The answer is %d", 42);
     str8_debug(formatted);
@@ -134,7 +135,7 @@ int main(int argc, char **argv)
 
     puts("----------------------String Buffer------------------------");
     {
-        Temp_Arena scratch = xtb_scratch_begin(0, 0);
+        Temp_Arena scratch = scratch_begin(0, 0);
         Allocator scratch_allocator = arena_allocator(scratch.arena);
 
         // This will be allocated on the scratch arena
@@ -152,14 +153,14 @@ int main(int argc, char **argv)
         // This is allocated on the persistent arena
         String8 owned_str = xtb_str8_buffer_view_copy(allocator, &str_buffer);
 
-        xtb_scratch_end(scratch);
+        scratch_end(scratch);
 
         str8_debug(owned_str);
     }
     puts("-----------------------------------------------------------");
 
     arena_drop(arena);
-    xtb_tctx_release();
+    tctx_release();
 
     return 0;
 }
