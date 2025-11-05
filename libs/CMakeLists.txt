@@ -1,0 +1,8 @@
+add_subdirectory(xtb_da)
+add_subdirectory(xtb_bmp)
+add_subdirectory(xtb_json)
+add_subdirectory(xtb_allocator)
+add_subdirectory(xtbm)
+add_subdirectory(xtb_os)
+add_subdirectory(xtb_ansi)
+add_subdirectory(xtb_core)
