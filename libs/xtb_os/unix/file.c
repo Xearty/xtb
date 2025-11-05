@@ -207,9 +207,7 @@ XTB_Directory_List xtb_os_list_directory_recursively(XTB_Arena *arena, XTB_Strin
     XTB_Directory_List entries = xtb_os_list_directory(arena, filepath);
     XTB_Directory_List accumulator = entries;
 
-    for (XTB_Directory_Listing_Node *entry = entries.head;
-         DLLIterBoundedCond(entry, entries.tail);
-         entry = entry->next)
+    XTB_IterateList(entries, XTB_Directory_Listing_Node, entry)
     {
         if (entry->type == XTB_FT_DIRECTORY)
         {
