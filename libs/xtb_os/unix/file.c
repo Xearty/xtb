@@ -18,28 +18,33 @@
 #endif
 #include <dirent.h>
 
+static bool access_helper(XTB_String8 filepath, int check_value)
+{
+    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    bool result = access(filepath.str, check_value) == 0;
+    xtb_scratch_end(scratch);
+    return result;
+}
+
 bool xtb_os_file_exists(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    return access(filepath.str, F_OK) == 0;
+    return access_helper(filepath, F_OK);
 }
 
 bool xtb_os_file_has_read_permission(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    return access(filepath.str, R_OK) == 0;
+    return access_helper(filepath, R_OK);
 }
 
 bool xtb_os_file_has_write_permission(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    return access(filepath.str, W_OK) == 0;
+    return access_helper(filepath, W_OK);
 }
 
 bool xtb_os_file_has_execute_permission(XTB_String8 filepath)
 {
-    xtb_str8_assert_null_terminated(filepath);
-    return access(filepath.str, X_OK) == 0;
+    return access_helper(filepath, X_OK);
 }
 
 bool xtb_os_is_regular_file(XTB_String8 filepath)
