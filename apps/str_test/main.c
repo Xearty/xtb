@@ -1,3 +1,5 @@
+#define XTB_STR_SHORTHAND
+
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
 #include <xtb_core/linked_list.h>
@@ -122,6 +124,10 @@ int main(int argc, char **argv)
 
     XTB_String8 concat = xtb_str8_concat_lit(allocator, xtb_str8_lit("hello "), "world");
     xtb_str8_debug(concat);
+
+    String8 str = str8_lit("hello");
+    str = str8_concat(allocator, str, str8_lit(" world"));
+    str8_debug(str);
 
     xtb_arena_drop(arena);
     xtb_tctx_release();

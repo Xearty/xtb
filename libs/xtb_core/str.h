@@ -14,8 +14,12 @@ typedef struct XTB_String8
 
 XTB_String8 xtb_str8(const char *str, size_t len);
 XTB_String8 xtb_str8_cstring(const char *cstring);
+#define xtb_str8_lit(cstring_literal) (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
 XTB_String8 xtb_str8_copy(XTB_Allocator allocator, XTB_String8 string);
+#define xtb_str8_lit_copy(allocator, cstring_literal) xtb_str8_copy((allocator), xtb_str8_lit(cstring_literal))
 void xtb_str8_free(XTB_Allocator allocator, XTB_String8 str);
+#define xtb_str8_empty xtb_str8_lit("")
+#define xtb_str8_invalid xtb_str8(NULL, 0)
 bool xtb_str8_is_invalid(XTB_String8 string);
 bool xtb_str8_is_valid(XTB_String8 string);
 
@@ -54,20 +58,6 @@ size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count);
 XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count);
 XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array, size_t count, XTB_String8 sep);
 
-#define xtb_str8_lit(cstring_literal) \
-    (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
-
-#define xtb_str8_empty xtb_str8_lit("")
-
-#define xtb_str8_lit_copy(allocator, cstring_literal) xtb_str8_copy((allocator), xtb_str8_lit(cstring_literal))
-
-#define xtb_str8_invalid xtb_str8(NULL, 0)
-
-#define xtb_str8_debug(s) fprintf(stderr, "%.*s\n", (int)(s).len, (s).str)
-
-#define xtb_str8_assert_null_terminated(string) \
-    XTB_ASSERT((string).str[(string).len] == '\0')
-
 typedef struct XTB_String8_List_Node
 {
     XTB_String8 string;
@@ -102,5 +92,69 @@ XTB_String8_List xtb_str8_split_by_lines(XTB_Allocator allocator, XTB_String8 st
 
 XTB_String8 xtb_str8_formatv(XTB_Allocator allocator, const char *fmt, va_list args);
 XTB_String8 xtb_str8_format(XTB_Allocator allocator, const char *fmt, ...);
+
+#define xtb_str8_debug(s) fprintf(stderr, "%.*s\n", (int)(s).len, (s).str)
+
+#define xtb_str8_assert_null_terminated(string) \
+    XTB_ASSERT((string).str[(string).len] == '\0')
+
+#ifdef XTB_STR_SHORTHAND
+#define String8                      XTB_String8
+#define str8                         xtb_str8
+#define str8_cstring                 xtb_str8_cstring
+#define str8_lit                     xtb_str8_lit
+#define str8_copy                    xtb_str8_copy
+#define str8_lit_copy                xtb_str8_lit_copy
+#define str8_free                    xtb_str8_free
+#define str8_empty                   xtb_str8_empty
+#define str8_invalid                 xtb_str8_invalid
+#define str8_is_invalid              xtb_str8_is_invalid
+#define str8_is_valid                xtb_str8_is_valid
+#define str8_front                   xtb_str8_front
+#define str8_back                    xtb_str8_back
+#define str8_compare                 xtb_str8_compare
+#define str8_eq                      xtb_str8_eq
+#define str8_eq_cstring              xtb_str8_eq_cstring
+#define str8_eq_lit                  xtb_str8_eq_lit
+#define str8_starts_with             xtb_str8_starts_with
+#define str8_starts_with_lit         xtb_str8_starts_with_lit
+#define str8_ends_with               xtb_str8_ends_with
+#define str8_ends_with_lit           xtb_str8_ends_with_lit
+#define str8_head                    xtb_str8_head
+#define str8_tail                    xtb_str8_tail
+#define str8_trunc_left              xtb_str8_trunc_left
+#define str8_trunc_right             xtb_str8_trunc_right
+#define str8_trim_left               xtb_str8_trim_left
+#define str8_trim_right              xtb_str8_trim_right
+#define str8_trim                    xtb_str8_trim
+#define str8_trim_copy               xtb_str8_trim_copy
+#define str8_substr                  xtb_str8_substr
+#define str8_substr_copy             xtb_str8_substr_copy
+#define str8_concat                  xtb_str8_concat
+#define str8_concat_lit              xtb_str8_concat_lit
+#define str8_array_accumulate_length xtb_str8_array_accumulate_length
+#define str8_array_join              xtb_str8_array_join
+#define str8_array_join_sep          xtb_str8_array_join_sep
+#define String8_List_Node            XTB_String8_List_Node
+#define String8_List                 XTB_String8_List
+#define str8_list_alloc_node         xtb_str8_list_alloc_node
+#define str8_list_push_explicit      xtb_str8_list_push_explicit
+#define str8_list_push               xtb_str8_list_push
+#define str8_list_length             xtb_str8_list_length
+#define str8_list_accumulate_length  xtb_str8_list_accumulate_length
+#define str8_list_join               xtb_str8_list_join
+#define str8_list_join_str_sep       xtb_str8_list_join_str_sep
+#define str8_list_join_char_sep      xtb_str8_list_join_char_sep
+#define str8_split_pred              xtb_str8_split_pred
+#define str8_split_tokens_pred       xtb_str8_split_tokens_pred
+#define str8_split_by_str            xtb_str8_split_by_str
+#define str8_split_by_char           xtb_str8_split_by_char
+#define str8_split_by_whitespace     xtb_str8_split_by_whitespace
+#define str8_split_by_lines          xtb_str8_split_by_lines
+#define str8_formatv                 xtb_str8_formatv
+#define str8_format                  xtb_str8_format
+#define str8_debug                   xtb_str8_debug
+#define str8_assert_null_terminated  xtb_str8_assert_null_terminated
+#endif
 
 #endif // _XTB_STR_H_
