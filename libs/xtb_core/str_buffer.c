@@ -6,6 +6,7 @@
 
 #define RemainingCapacity(str_buffer) ((str_buffer)->capacity - (str_buffer)->size)
 #define BufferAppendLocation(str_buffer) ((str_buffer->buffer) + (str_buffer)->size)
+#define AssertOwnsMemory(str_buffer) XTB_ASSERT((str_buffer)->buffer != NULL)
 
 XTB_String8_Buffer xtb_str8_buffer_new(XTB_Allocator allocator, size_t cap_hint)
 {
@@ -19,6 +20,8 @@ XTB_String8_Buffer xtb_str8_buffer_new(XTB_Allocator allocator, size_t cap_hint)
 
 static void buffer_ensure_capacity(XTB_String8_Buffer *str_buffer, size_t needed)
 {
+    AssertOwnsMemory(str_buffer);
+
     if (str_buffer->capacity < needed)
     {
         size_t new_cap = XTB_GrowGeometric(str_buffer->size, needed);
@@ -35,6 +38,8 @@ static void buffer_ensure_capacity(XTB_String8_Buffer *str_buffer, size_t needed
 
 void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 string)
 {
+    AssertOwnsMemory(str_buffer);
+
     buffer_ensure_capacity(str_buffer, str_buffer->size + string.len);
     XTB_MemoryCopy(BufferAppendLocation(str_buffer), string.str, string.len);
     str_buffer->size += string.len;
@@ -42,6 +47,8 @@ void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 strin
 
 void xtb_str8_buffer_push_front(XTB_String8_Buffer *str_buffer, XTB_String8 string)
 {
+    AssertOwnsMemory(str_buffer);
+
     // TODO: This can be optimized. If we need to grow anyway, we can insert the old content
     // in the correct place and avoid shifting afterwards
     buffer_ensure_capacity(str_buffer, str_buffer->size + string.len);
@@ -52,11 +59,15 @@ void xtb_str8_buffer_push_front(XTB_String8_Buffer *str_buffer, XTB_String8 stri
 
 XTB_String8 xtb_str8_buffer_view(XTB_String8_Buffer *str_buffer)
 {
+    AssertOwnsMemory(str_buffer);
+
     return xtb_str8(str_buffer->buffer, str_buffer->size);
 }
 
 XTB_String8 xtb_str8_buffer_detach(XTB_String8_Buffer *str_buffer)
 {
+    AssertOwnsMemory(str_buffer);
+
     XTB_String8 str = xtb_str8(str_buffer->buffer, str_buffer->size);
     str_buffer->buffer = NULL;
     str_buffer->size = 0;
