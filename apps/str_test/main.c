@@ -1,5 +1,3 @@
-#include <xtb_core/shorthands.h>
-
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
 #include <xtb_core/linked_list.h>

@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include "context_cracking.h"
 
+#ifdef XTB_SHORTHANDS
+#include "shorthands.h"
+#endif
+
 /****************************************************************
  * Versioning
 ****************************************************************/
