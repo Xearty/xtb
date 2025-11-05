@@ -99,7 +99,10 @@ XTB_String8 xtb_str8_format(XTB_Allocator allocator, const char *fmt, ...);
     XTB_ASSERT((string).str[(string).len] == '\0')
 
 #ifdef XTB_STR_SHORTHAND
-#define String8                      XTB_String8
+typedef XTB_String8 String8;
+typedef XTB_String8_List String8_List;
+typedef XTB_String8_List_Node String8_List_Node;
+
 #define str8                         xtb_str8
 #define str8_cstring                 xtb_str8_cstring
 #define str8_lit                     xtb_str8_lit
@@ -135,8 +138,6 @@ XTB_String8 xtb_str8_format(XTB_Allocator allocator, const char *fmt, ...);
 #define str8_array_accumulate_length xtb_str8_array_accumulate_length
 #define str8_array_join              xtb_str8_array_join
 #define str8_array_join_sep          xtb_str8_array_join_sep
-#define String8_List_Node            XTB_String8_List_Node
-#define String8_List                 XTB_String8_List
 #define str8_list_alloc_node         xtb_str8_list_alloc_node
 #define str8_list_push_explicit      xtb_str8_list_push_explicit
 #define str8_list_push               xtb_str8_list_push
