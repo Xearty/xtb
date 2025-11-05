@@ -135,10 +135,14 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
 {
     switch (ft)
     {
-        case DT_REG: return XTB_FT_REGULAR;
-        case DT_DIR: return XTB_FT_DIRECTORY;
-        case DT_LNK: return XTB_FT_SYMLINK;
-        default: return XTB_FT_UNKNOWN;
+        case DT_REG:  return XTB_FT_REGULAR;
+        case DT_DIR:  return XTB_FT_DIRECTORY;
+        case DT_LNK:  return XTB_FT_SYMLINK;
+        case DT_CHR:  return XTB_FT_CHAR_DEVICE;
+        case DT_BLK:  return XTB_FT_BLOCK_DEVICE;
+        case DT_FIFO: return XTB_FT_FIFO;
+        case DT_SOCK: return XTB_FT_SOCKET;
+        default:      return XTB_FT_UNKNOWN;
     }
 }
 
