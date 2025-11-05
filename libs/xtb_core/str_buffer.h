@@ -9,7 +9,7 @@
 
 typedef struct XTB_String8_Buffer
 {
-    char *buffer;
+    char *data;
     size_t size;
     size_t capacity;
     XTB_Allocator allocator;
