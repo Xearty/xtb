@@ -18,7 +18,7 @@ void xtb_tctx_release(void)
 {
     for (size_t i = 0; i < XTB_ArrLen(g_tctx->arenas); i += 1)
     {
-        xtb_arena_drop(g_tctx->arenas[i]);
+        xtb_arena_release(g_tctx->arenas[i]);
     }
 }
 

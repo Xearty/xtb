@@ -101,7 +101,7 @@ XTB_Arena *xtb_arena_new_exact_size(size_t arena_size)
     return xtb_arena_new(arena_size - XTB_ARENA_BOOTSTRAP_OVERHEAD);
 }
 
-void xtb_arena_drop(XTB_Arena *arena)
+void xtb_arena_release(XTB_Arena *arena)
 {
     arena_free_chunks_after(arena->current_chunk);
     free(arena);
@@ -164,7 +164,7 @@ XTB_Temp_Arena xtb_temp_arena_new(XTB_Arena *arena)
     return temp;
 }
 
-void xtb_temp_arena_drop(XTB_Temp_Arena temp)
+void xtb_temp_arena_release(XTB_Temp_Arena temp)
 {
     XTB_Arena *arena = temp.arena;
     arena->current_chunk = temp.snapshot.chunk;

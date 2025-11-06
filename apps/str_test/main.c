@@ -154,7 +154,7 @@ int main(int argc, char **argv)
     }
     puts("-----------------------------------------------------------");
 
-    arena_drop(arena);
+    arena_release(arena);
     tctx_release();
 
     return 0;

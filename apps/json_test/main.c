@@ -141,7 +141,7 @@ int main(int argc, char **argv)
         free(input.str);
     }
 
-    xtb_arena_drop(frame_arena);
+    arena_release(frame_arena);
 
     tctx_release();
 

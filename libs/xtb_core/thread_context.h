@@ -19,7 +19,7 @@ XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
 #define xtb_scratch_begin_conflict(allocator) xtb_scratch_begin((XTB_Arena**)&(allocator).context, 1)
 #define xtb_scratch_begin_no_conflicts() xtb_scratch_begin(NULL, 0)
 
-#define xtb_scratch_end(scratch) xtb_temp_arena_drop(scratch)
+#define xtb_scratch_end(scratch) xtb_temp_arena_release(scratch)
 
 #define xtb_scratch_scope(name, conflicts, conflicts_count)                      \
     for (XTB_Temp_Arena name = xtb_scratch_begin((conflicts), (conflicts_count)) \

@@ -45,8 +45,8 @@ int main(int argc, char **argv)
     Thread_Context tctx;
     tctx_init_and_equip(&tctx);
 
-    XTB_Arena *arena = xtb_arena_new(XTB_Kilobytes(4));
-    XTB_Allocator allocator = xtb_arena_allocator(arena);
+    Arena *arena = xtb_arena_new(XTB_Kilobytes(4));
+    Allocator allocator = xtb_arena_allocator(arena);
 
     // XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, xtb_str8_lit("./libs/"));
     //
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
         close_file(handle);
     }
 
-    xtb_arena_drop(arena);
+    xtb_arena_release(arena);
 
     tctx_release();
 

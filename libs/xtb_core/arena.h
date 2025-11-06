@@ -41,7 +41,7 @@ struct XTB_Arena
 
 XTB_Arena *xtb_arena_new(size_t buffer_size);
 XTB_Arena *xtb_arena_new_exact_size(size_t arena_size);
-void xtb_arena_drop(XTB_Arena *arena);
+void xtb_arena_release(XTB_Arena *arena);
 bool xtb_arena_chunk_has_enough_capacity(XTB_Arena_Chunk_Header *chunk, size_t allocation_size);
 
 // TODO: deal with alignment
@@ -67,7 +67,7 @@ struct XTB_Temp_Arena
 };
 
 XTB_Temp_Arena xtb_temp_arena_new(XTB_Arena *arena);
-void xtb_temp_arena_drop(XTB_Temp_Arena temp);
+void xtb_temp_arena_release(XTB_Temp_Arena temp);
 
 /****************************
  * Memory Usage Utilities
@@ -85,14 +85,14 @@ typedef XTB_Arena Arena;
 
 #define arena_new xtb_arena_new
 #define arena_new_exact_size xtb_arena_new_exact_size
-#define arena_drop xtb_arena_drop
+#define arena_release xtb_arena_release
 #define arena_alloc xtb_arena_alloc
 #define arena_alloc_zero xtb_arena_alloc_zero
 #define arena_clear xtb_arena_clear
 
 typedef XTB_Temp_Arena Temp_Arena;
 #define temp_arena_new xtb_temp_arena_new
-#define temp_arena_drop xtb_temp_arena_drop
+#define temp_arena_release xtb_temp_arena_release
 
 #define push_array xtb_push_array
 #define push_struct xtb_push_struct
