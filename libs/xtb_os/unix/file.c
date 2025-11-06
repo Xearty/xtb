@@ -47,27 +47,27 @@ bool xtb_os_file_has_execute_permission(XTB_String8 filepath)
     return access_helper(filepath, X_OK);
 }
 
-bool xtb_os_is_regular_file(XTB_String8 filepath)
+bool xtb_os_file_is_regular(XTB_String8 filepath)
 {
     return xtb_os_get_file_type(filepath) == XTB_FT_REGULAR;
 }
 
-bool xtb_os_is_directory(XTB_String8 filepath)
+bool xtb_os_file_is_directory(XTB_String8 filepath)
 {
     return xtb_os_get_file_type(filepath) == XTB_FT_DIRECTORY;
 }
 
-bool xtb_os_is_regular_file_nofollow(XTB_String8 filepath)
+bool xtb_os_file_is_regular_nofollow(XTB_String8 filepath)
 {
     return xtb_os_get_file_type_nofollow(filepath) == XTB_FT_REGULAR;
 }
 
-bool xtb_os_is_directory_nofollow(XTB_String8 filepath)
+bool xtb_os_file_is_directory_nofollow(XTB_String8 filepath)
 {
     return xtb_os_get_file_type_nofollow(filepath) == XTB_FT_DIRECTORY;
 }
 
-bool xtb_os_is_symbolic_link(XTB_String8 filepath)
+bool xtb_os_file_is_symbolic_link(XTB_String8 filepath)
 {
     return xtb_os_get_file_type_nofollow(filepath) == XTB_FT_SYMLINK;
 }

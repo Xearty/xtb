@@ -52,12 +52,12 @@ bool xtb_os_file_has_read_permission(XTB_String8 filepath);
 bool xtb_os_file_has_write_permission(XTB_String8 filepath);
 bool xtb_os_file_has_execute_permission(XTB_String8 filepath);
 
-bool xtb_os_is_regular_file(XTB_String8 filepath);
-bool xtb_os_is_directory(XTB_String8 filepath);
+bool xtb_os_file_is_regular(XTB_String8 filepath);
+bool xtb_os_file_is_directory(XTB_String8 filepath);
 
-bool xtb_os_is_regular_file_nofollow(XTB_String8 filepath);
-bool xtb_os_is_directory_nofollow(XTB_String8 filepath);
-bool xtb_os_is_symbolic_link(XTB_String8 filepath);
+bool xtb_os_file_is_regular_nofollow(XTB_String8 filepath);
+bool xtb_os_file_is_directory_nofollow(XTB_String8 filepath);
+bool xtb_os_file_is_symbolic_link(XTB_String8 filepath);
 
 XTB_File_Type xtb_os_get_file_type_nofollow(XTB_String8 filepath);
 XTB_File_Type xtb_os_get_file_type(XTB_String8 filepath);
@@ -111,11 +111,11 @@ typedef XTB_File_Type   File_Type;
 #define os_file_has_read_permission    xtb_os_file_has_read_permission
 #define os_file_has_write_permission   xtb_os_file_has_write_permission
 #define os_file_has_execute_permission xtb_os_file_has_execute_permission
-#define os_is_regular_file             xtb_os_is_regular_file
-#define os_is_directory                xtb_os_is_directory
-#define os_is_regular_file_nofollow    xtb_os_is_regular_file_nofollow
-#define os_is_directory_nofollow       xtb_os_is_directory_nofollow
-#define os_is_symbolic_link            xtb_os_is_symbolic_link
+#define os_file_is_regular             xtb_os_file_is_regular
+#define os_file_is_directory           xtb_os_file_is_directory
+#define os_file_is_regular_nofollow    xtb_os_file_is_regular_nofollow
+#define os_file_is_directory_nofollow  xtb_os_file_is_directory_nofollow
+#define os_file_is_symbolic_link       xtb_os_file_is_symbolic_link
 #define os_get_file_type_nofollow      xtb_os_get_file_type_nofollow
 #define os_get_file_type               xtb_os_get_file_type
 #define os_real_path                   xtb_os_real_path
