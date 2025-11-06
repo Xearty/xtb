@@ -3,7 +3,10 @@
 
 #include "shorthands.h"
 
+#include "core.h"
 #include <stddef.h>
+
+XTB_C_LINKAGE_BEGIN
 
 /****************************************************************
   Allocator Interface
@@ -39,5 +42,7 @@ typedef XTB_Allocator Allocator;
 #define AllocateBytesZero XTB_AllocateBytesZero
 #define AllocateZero XTB_AllocateZero
 #endif
+
+XTB_C_LINKAGE_END
 
 #endif // XTB_CORE_ALLOCATOR_INTERFACE_H

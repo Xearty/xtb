@@ -3,11 +3,14 @@
 
 #include "shorthands.h"
 
+#include "core.h"
 #include "allocator.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+
+XTB_C_LINKAGE_BEGIN
 
 /****************************
  * Utility macros
@@ -101,5 +104,7 @@ typedef XTB_Temp_Arena Temp_Arena;
 
 #define arena_allocator xtb_arena_allocator
 #endif
+
+XTB_C_LINKAGE_END
 
 #endif // _XTB_ALLOCATOR_ARENA_H_

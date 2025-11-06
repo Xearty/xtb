@@ -1,9 +1,12 @@
 #ifndef _XTB_STR_BUFFER_H_
 #define _XTB_STR_BUFFER_H_
 
+#include "core.h"
+#include "str.h"
+
 #include <stddef.h>
 
-#include "str.h"
+XTB_C_LINKAGE_BEGIN
 
 #define XTB_STR8_BUFFER_MIN_CAP 64
 
@@ -35,5 +38,7 @@ XTB_String8 xtb_str8_buffer_view(XTB_String8_Buffer *str_buffer);
     xtb_str8_copy((allocator), xtb_str8_buffer_view((str_buffer)))
 
 XTB_String8 xtb_str8_buffer_detach(XTB_String8_Buffer *str_buffer);
+
+XTB_C_LINKAGE_END
 
 #endif // _XTB_STR_BUFFER_H_

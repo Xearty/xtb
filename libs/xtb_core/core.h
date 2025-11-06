@@ -15,11 +15,6 @@
 #define XTB_CORE_VERSION_STRING "0.0.1"
 
 /****************************************************************
- * Initialization
-****************************************************************/
-void xtb_init(int argc, char **argv);
-
-/****************************************************************
  * Memory Utilities
 ****************************************************************/
 #define XTB_Bytes(N) (N)
@@ -63,6 +58,39 @@ void xtb_init(int argc, char **argv);
 #define XTB_C_LINKAGE_END
 #define XTB_C_LINKAGE
 #endif
+
+/****************************************************************
+ * Miscellaneous Macros
+****************************************************************/
+#define XTB_ArrLen(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
+#define XTB_Unused(X) (void)(X)
+
+/****************************************************************
+ * Control-Flow Macros
+****************************************************************/
+#define XTB_SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
+    do { switch (VALUE) { ITERATOR(MACRO) } } while (0)
+
+/****************************************************************
+ * Type Aliases
+****************************************************************/
+typedef unsigned char XTB_Byte;
+
+/****************************************************************
+ * Basic Math Macros
+****************************************************************/
+#define XTB_Min(A, B) ((A) < (B) ? (A) : (B))
+#define XTB_Max(A, B) ((A) > (B) ? (A) : (B))
+#define XTB_ClampTop(VALUE, MAX_VALUE) XTB_Min(VALUE, MAX_VALUE)
+#define XTB_ClampBot(VALUE, MIN_VALUE) XTB_Max(VALUE, MIN_VALUE)
+#define XTB_Clamp(VALUE, MIN_VALUE, MAX_VALUE) XTB_ClampBot(XTB_ClampTop(VALUE, MAX_VALUE), MIN_VALUE)
+
+XTB_C_LINKAGE_BEGIN
+
+/****************************************************************
+ * Initialization
+****************************************************************/
+void xtb_init(int argc, char **argv);
 
 /****************************************************************
  * Logging
@@ -127,30 +155,6 @@ void xtb_panic(const char *fmt, ...);
 void xtb_print_stack_trace(int skip_frames_count);
 void xtb_print_full_stack_trace(void);
 
-/****************************************************************
- * Miscellaneous Macros
-****************************************************************/
-#define XTB_ArrLen(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
-#define XTB_Unused(X) (void)(X)
-
-/****************************************************************
- * Control-Flow Macros
-****************************************************************/
-#define XTB_SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
-    do { switch (VALUE) { ITERATOR(MACRO) } } while (0)
-
-/****************************************************************
- * Type Aliases
-****************************************************************/
-typedef unsigned char XTB_Byte;
-
-/****************************************************************
- * Basic Math Macros
-****************************************************************/
-#define XTB_Min(A, B) ((A) < (B) ? (A) : (B))
-#define XTB_Max(A, B) ((A) > (B) ? (A) : (B))
-#define XTB_ClampTop(VALUE, MAX_VALUE) XTB_Min(VALUE, MAX_VALUE)
-#define XTB_ClampBot(VALUE, MIN_VALUE) XTB_Max(VALUE, MIN_VALUE)
-#define XTB_Clamp(VALUE, MIN_VALUE, MAX_VALUE) XTB_ClampBot(XTB_ClampTop(VALUE, MAX_VALUE), MIN_VALUE)
+XTB_C_LINKAGE_END
 
 #endif // _XTB_CORE_H_

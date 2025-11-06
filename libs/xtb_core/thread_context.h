@@ -3,7 +3,10 @@
 
 #include "shorthands.h"
 
+#include "core.h"
 #include "arena.h"
+
+XTB_C_LINKAGE_BEGIN
 
 typedef struct XTB_Thread_Context
 {
@@ -42,5 +45,7 @@ typedef XTB_Thread_Context Thread_Context;
 #define scratch_begin xtb_scratch_begin
 #define scratch_end xtb_scratch_end
 #endif
+
+XTB_C_LINKAGE_END
 
 #endif // _XTB_CORE_THREAD_CONTEXT_H_

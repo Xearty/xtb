@@ -3,11 +3,14 @@
 
 #include "shorthands.h"
 
+#include "core.h"
 #include "arena.h"
 #include "allocator.h"
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdarg.h>
+
+XTB_C_LINKAGE_BEGIN
 
 typedef struct XTB_String8
 {
@@ -163,5 +166,7 @@ typedef XTB_String8_List_Node String8_List_Node;
 #define str8_debug                   xtb_str8_debug
 #define str8_assert_null_terminated  xtb_str8_assert_null_terminated
 #endif
+
+XTB_C_LINKAGE_END
 
 #endif // _XTB_STR_H_
