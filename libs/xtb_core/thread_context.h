@@ -14,13 +14,20 @@ XTB_Thread_Context *xtb_tctx_get_equipped(void);
 XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
 
 #define xtb_scratch_begin(conflicts, count) xtb_temp_arena_new(xtb_tctx_get_scratch((conflicts), (count)))
+#define xtb_scratch_begin_conflict(allocator) xtb_scratch_begin((XTB_Arena**)&(allocator).context, 1)
+#define xtb_scratch_begin_no_conflicts() xtb_scratch_begin(NULL, 0)
+
 #define xtb_scratch_end(scratch) xtb_temp_arena_drop(scratch)
+
 #define xtb_scratch_scope(name, conflicts, conflicts_count)                      \
     for (XTB_Temp_Arena name = xtb_scratch_begin((conflicts), (conflicts_count)) \
              , name##_counter = {0};                                             \
          name##_counter.snapshot.offset == 0;                                    \
          name##_counter.snapshot.offset += 1,                                    \
          xtb_scratch_end(name))
+
+#define xtb_scratch_scope_no_conflicts(name) xtb_scratch_scope(name, NULL, 0)
+#define xtb_scratch_scope_conflict(name, allocator) xtb_scratch_scope(name, (XTB_Arena**)&(allocator).context, 1)
 
 #ifdef XTB_THREAD_CONTEXT_SHORTHANDS
 typedef XTB_Thread_Context Thread_Context;

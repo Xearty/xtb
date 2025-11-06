@@ -20,7 +20,7 @@
 
 static bool access_helper(XTB_String8 filepath, int check_value)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     bool result = access(filepath.str, check_value) == 0;
     xtb_scratch_end(scratch);
@@ -76,7 +76,7 @@ XTB_File_Type xtb_os_get_file_type(XTB_String8 filepath)
 {
     struct stat st;
 
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
 
     if (stat(filepath.str, &st) != 0)
@@ -104,7 +104,7 @@ XTB_File_Type xtb_os_get_file_type_nofollow(XTB_String8 filepath)
 {
     struct stat st;
 
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
 
     if (lstat(filepath.str, &st) != 0)
@@ -135,7 +135,7 @@ static int unlink_cb(const char *filepath, const struct stat *sb, int typeflag, 
 
 bool xtb_os_delete_directory(XTB_String8 filepath)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     xtb_scratch_end(scratch);
     return nftw(filepath.str, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
@@ -165,7 +165,7 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
 
 XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin((XTB_Arena**)&allocator.context, 1);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_conflict(allocator);
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     xtb_scratch_end(scratch);
 

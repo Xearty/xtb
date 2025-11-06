@@ -26,7 +26,7 @@ static const char *xtb_file_mode_to_stdio_mode(XTB_File_Mode mode)
 
 XTB_File_Handle *xtb_os_open_file(XTB_String8 filepath, XTB_File_Mode mode)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     xtb_scratch_end(scratch);
     return (XTB_File_Handle*)fopen(filepath.str, xtb_file_mode_to_stdio_mode(mode));
@@ -96,7 +96,7 @@ size_t xtb_os_write_entire_file(XTB_String8 filepath, const XTB_Byte *buffer, si
 
 bool xtb_os_delete_file(XTB_String8 filepath)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     xtb_scratch_end(scratch);
     return remove(filepath.str) == 0;
@@ -104,7 +104,7 @@ bool xtb_os_delete_file(XTB_String8 filepath)
 
 bool xtb_os_move_file(XTB_String8 old_path, XTB_String8 new_path)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     old_path = xtb_str8_push_copy(scratch.arena, old_path);
     new_path = xtb_str8_push_copy(scratch.arena, new_path);
     xtb_scratch_end(scratch);
@@ -124,7 +124,7 @@ bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path)
 
 XTB_String8 xtb_os_real_path(XTB_String8 filepath)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin(NULL, 0);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     xtb_scratch_end(scratch);
     return xtb_str8_cstring(realpath(filepath.str, NULL));
@@ -132,10 +132,10 @@ XTB_String8 xtb_os_real_path(XTB_String8 filepath)
 
 XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count)
 {
-    XTB_Temp_Arena temp = xtb_scratch_begin((XTB_Arena**)&allocator.context, 1);
-    XTB_Allocator temp_allocator = xtb_arena_allocator(temp.arena);
+    XTB_Temp_Arena scratch = xtb_scratch_begin_conflict(allocator);
+    XTB_Allocator scratch_allocator = xtb_arena_allocator(scratch.arena);
 
-    XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(temp_allocator, 0);
+    XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(scratch_allocator, 0);
 
     for (size_t i = 0; i < count; ++i)
     {
@@ -155,7 +155,7 @@ XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t
     }
 
     XTB_String8 path = xtb_str8_buffer_view_copy(allocator, &str_buffer);
-    xtb_scratch_end(temp);
+    xtb_scratch_end(scratch);
 
     return path;
 }
