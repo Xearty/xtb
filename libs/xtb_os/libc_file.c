@@ -28,8 +28,9 @@ XTB_File_Handle *xtb_os_open_file(XTB_String8 filepath, XTB_File_Mode mode)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    XTB_File_Handle *handle = (XTB_File_Handle*)fopen(filepath.str, xtb_file_mode_to_stdio_mode(mode));
     xtb_scratch_end(scratch);
-    return (XTB_File_Handle*)fopen(filepath.str, xtb_file_mode_to_stdio_mode(mode));
+    return handle;
 }
 
 void xtb_os_close_file(XTB_File_Handle *handle)
@@ -98,8 +99,9 @@ bool xtb_os_delete_file(XTB_String8 filepath)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    bool result = remove(filepath.str) == 0;
     xtb_scratch_end(scratch);
-    return remove(filepath.str) == 0;
+    return result;
 }
 
 bool xtb_os_move_file(XTB_String8 old_path, XTB_String8 new_path)
@@ -126,8 +128,9 @@ XTB_String8 xtb_os_real_path(XTB_String8 filepath)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    char *realpath_result = realpath(filepath.str, NULL);
     xtb_scratch_end(scratch);
-    return xtb_str8_cstring(realpath(filepath.str, NULL));
+    return xtb_str8_cstring(realpath_result);
 }
 
 XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count)

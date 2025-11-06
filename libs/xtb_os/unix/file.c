@@ -137,8 +137,9 @@ bool xtb_os_delete_directory(XTB_String8 filepath)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    bool success = nftw(filepath.str, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
     xtb_scratch_end(scratch);
-    return nftw(filepath.str, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
+    return success;
 }
 
 static bool should_skip_file_in_listing(XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
@@ -167,11 +168,11 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_conflict(allocator);
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
+    DIR *dir = opendir(filepath.str);
     xtb_scratch_end(scratch);
 
     XTB_Directory_List list = {0};
 
-    DIR *dir = opendir(filepath.str);
     if (dir == NULL)
     {
         perror("opendir failed");
