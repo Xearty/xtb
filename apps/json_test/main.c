@@ -8,10 +8,14 @@
 #include <readline/history.h>
 #include <xtb_core/arena.h>
 #include <xtb_core/core.h>
+#include <xtb_core/thread_context.h>
 
 int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
+
+    Thread_Context tctx;
+    xtb_tctx_init_and_equip(&tctx);
 
     if (argc > 2)
     {
@@ -83,21 +87,20 @@ int main(int argc, char **argv)
         else if (xtb_str8_starts_with_lit(input, ":l "))
         {
             XTB_String8 filepath = xtb_str8_trunc_left(input, 3);
-            XTB_String8 trimmed_filepath = xtb_str8_trim(filepath);
-            trimmed_filepath = xtb_str8_copy(frame_allocator, trimmed_filepath);
+            filepath = str8_trim(filepath);
 
-            XTB_JSON_Value *value = xtb_json_parse_file(trimmed_filepath);
+            XTB_JSON_Value *value = xtb_json_parse_file(filepath);
             if (value)
             {
                 toplevel_value = value;
                 xtb_str8_free(gpa, json_filepath);
-                json_filepath = xtb_str8_copy(gpa, trimmed_filepath);
-                xtb_ansi_print_bright_green(stderr, "Loaded \"%s\"\n", trimmed_filepath.str);
+                json_filepath = xtb_str8_copy(gpa, filepath);
+                xtb_ansi_print_bright_green(stderr, "Loaded \"%s\"\n", filepath.str);
             }
             else
             {
                 xtb_ansi_print_red(stderr, "Could not load \"%.*s\", \"%.*s\" is preserved\n",
-                        trimmed_filepath.len, trimmed_filepath.str,
+                        filepath.len, filepath.str,
                         json_filepath.len, json_filepath.str);
             }
         }
@@ -139,6 +142,8 @@ int main(int argc, char **argv)
     }
 
     xtb_arena_drop(frame_arena);
+
+    tctx_release();
 
     return 0;
 }
