@@ -1,4 +1,5 @@
 #include <xtb_core/arena.h>
+#include <xtb_core/thread_context.h>
 
 #include <xtb_bmp/bmp.h>
 
@@ -218,6 +219,8 @@ bmp_single_file_viewer_app(int argc, char **argv, const char *filepath)
 int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
+    XTB_Thread_Context tctx;
+    xtb_tctx_init_and_equip(&tctx);
 
     SetTraceLogLevel(LOG_ERROR);
 
@@ -228,6 +231,8 @@ int main(int argc, char **argv)
 
     // bmp_single_file_viewer_app(argc, argv, NULL);
     bmp_directory_viewer_app("./apps/bmp_test/tests/valid");
+
+    xtb_tctx_release();
 
     return 0;
 }
