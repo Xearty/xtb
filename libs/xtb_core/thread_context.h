@@ -1,8 +1,6 @@
 #ifndef _XTB_CORE_THREAD_CONTEXT_H_
 #define _XTB_CORE_THREAD_CONTEXT_H_
 
-#include "shorthands.h"
-
 #include "core.h"
 #include "arena.h"
 

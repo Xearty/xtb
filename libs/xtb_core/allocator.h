@@ -1,8 +1,6 @@
 #ifndef XTB_CORE_ALLOCATOR_INTERFACE_H
 #define XTB_CORE_ALLOCATOR_INTERFACE_H
 
-#include "shorthands.h"
-
 #include "core.h"
 #include <stddef.h>
 

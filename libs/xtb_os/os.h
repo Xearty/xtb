@@ -1,8 +1,6 @@
 #ifndef _XTB_OS_H_
 #define _XTB_OS_H_
 
-#include <xtb_core/shorthands.h>
-
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
 #include <stddef.h>
