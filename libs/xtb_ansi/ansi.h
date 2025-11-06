@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define ANSI_COLOR_LIST(MACRO)              \
     MACRO(black, BLK)                       \
     MACRO(red, RED)                         \
@@ -78,5 +82,9 @@ void xtb_ansi_print_style(FILE *stream, const char *ansi_seq, const char *fmt, .
 void xtb_ansi_vprint_style(FILE *stream, const char *ansi_seq, const char *fmt, va_list va_args);
 
 #undef DEC_PRINT_COLOR_FUNC
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _XTB_ANSI_H_
