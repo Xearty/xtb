@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+XTB_C_LINKAGE_BEGIN
+
 #define XTB_FILE_NAME_BUFFER_SIZE 256
 
 typedef struct XTB_File_Handle XTB_File_Handle;
@@ -122,5 +124,7 @@ typedef XTB_File_Type   File_Type;
 #define os_list_directory_recursively  xtb_os_list_directory_recursively
 #define os_path_join                   xtb_os_path_join
 #endif
+
+XTB_C_LINKAGE_END
 
 #endif // _XTB_OS_H_
