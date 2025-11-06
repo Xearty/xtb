@@ -89,8 +89,8 @@ int main(int argc, char **argv)
 
     {
         String8 path = str8_lit("apps/CMakeLists.txt");
-        File_Handle *handle = open_file(path, XTB_READ);
-        close_file(handle);
+        String8 real = real_path(allocator, path);
+        str8_debug(real);
     }
 
     xtb_arena_release(arena);

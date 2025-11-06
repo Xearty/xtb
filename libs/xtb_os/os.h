@@ -62,7 +62,7 @@ bool xtb_os_is_symbolic_link(XTB_String8 filepath);
 XTB_File_Type xtb_os_get_file_type_nofollow(XTB_String8 filepath);
 XTB_File_Type xtb_os_get_file_type(XTB_String8 filepath);
 
-XTB_String8 xtb_os_real_path(XTB_String8 filepath);
+XTB_String8 xtb_os_real_path(XTB_Allocator allocator, XTB_String8 filepath);
 
 typedef struct XTB_Directory_Listing_Node {
     XTB_File_Type type;;

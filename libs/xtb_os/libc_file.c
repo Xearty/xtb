@@ -124,13 +124,17 @@ bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path)
     return succ;
 }
 
-XTB_String8 xtb_os_real_path(XTB_String8 filepath)
+XTB_String8 xtb_os_real_path(XTB_Allocator allocator, XTB_String8 filepath)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
     char *realpath_result = realpath(filepath.str, NULL);
     xtb_scratch_end(scratch);
-    return xtb_str8_cstring(realpath_result);
+
+    XTB_String8 copy = xtb_str8_cstring_copy(allocator, realpath_result);
+    free(realpath_result);
+
+    return copy;
 }
 
 XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count)
