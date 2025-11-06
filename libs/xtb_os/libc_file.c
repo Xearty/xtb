@@ -130,9 +130,9 @@ XTB_String8 xtb_os_real_path(XTB_String8 filepath)
     return xtb_str8_cstring(realpath(filepath.str, NULL));
 }
 
-XTB_String8 xtb_os_path_join(XTB_Arena *arena, XTB_String8 *parts, size_t count)
+XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count)
 {
-    XTB_Temp_Arena temp = xtb_scratch_begin(&arena, 1);
+    XTB_Temp_Arena temp = xtb_scratch_begin((XTB_Arena**)&allocator.context, 1);
     XTB_Allocator temp_allocator = xtb_arena_allocator(temp.arena);
 
     XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(temp_allocator, 0);
@@ -154,7 +154,7 @@ XTB_String8 xtb_os_path_join(XTB_Arena *arena, XTB_String8 *parts, size_t count)
         }
     }
 
-    XTB_String8 path = xtb_str8_buffer_view_copy(xtb_arena_allocator(arena), &str_buffer);
+    XTB_String8 path = xtb_str8_buffer_view_copy(allocator, &str_buffer);
     xtb_scratch_end(temp);
 
     return path;

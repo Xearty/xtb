@@ -83,11 +83,11 @@ typedef enum XTB_Directory_Listing_Flags
     XTB_DIR_LIST_CURR_AND_PREV = 0b011,
 } XTB_Directory_Listing_Flags;
 
-XTB_Directory_List xtb_os_list_directory_custom(XTB_Arena *arena, XTB_String8 filepath, XTB_Directory_Listing_Flags flags);
-XTB_Directory_List xtb_os_list_directory(XTB_Arena *arena, XTB_String8 filepath);
-XTB_Directory_List xtb_os_list_directory_recursively(XTB_Arena *arena, XTB_String8 filepath);
+XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags);
+XTB_Directory_List xtb_os_list_directory(XTB_Allocator allocator, XTB_String8 filepath);
+XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, XTB_String8 filepath);
 
-XTB_String8 xtb_os_path_join(XTB_Arena *arena, XTB_String8 *parts, size_t count);
+XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count);
 
 #ifdef XTB_OS_SHORTHANDS
 typedef XTB_File_Handle File_Handle;

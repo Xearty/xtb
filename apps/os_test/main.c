@@ -77,14 +77,20 @@ int main(int argc, char **argv)
         String8 path = str8_lit("apps ");
         path = str8_trunc_right(path, 1);
 
-        XTB_Directory_List list = xtb_os_list_directory(scratch.arena, path);
+        XTB_Directory_List list = xtb_os_list_directory(scratch_allocator, path);
         XTB_IterateList(list, XTB_Directory_Listing_Node, node)
         {
             XTB_File_Type ft = xtb_os_get_file_type(node->path);
             const char *ft_str = ft_to_str(ft);
-            bool is_directory = xtb_os_is_directory(node->path);
-            printf("%s %s %s\n", ft_str, node->path.str, is_directory ? "true" : "false");
+            bool is_dir = xtb_os_is_directory(node->path);
+            printf("%s %s %s\n", ft_str, node->path.str, is_dir ? "true" : "false");
         }
+    }
+
+    {
+        String8 path = str8_lit("apps/CMakeLists.txt");
+        File_Handle *handle = open_file(path, XTB_READ);
+        close_file(handle);
     }
 
     xtb_arena_drop(arena);
