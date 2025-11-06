@@ -16,8 +16,9 @@ typedef struct XTB_String8
 } XTB_String8;
 
 XTB_String8 xtb_str8(const char *str, size_t len);
-XTB_String8 xtb_str8_cstring(const char *cstring);
 #define xtb_str8_lit(cstring_literal) (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
+XTB_String8 xtb_str8_cstring(const char *cstring);
+#define xtb_str8_cstring_copy(allocator, cstr) xtb_str8_copy((allocator), xtb_str8_cstring((cstr)))
 XTB_String8 xtb_str8_copy(XTB_Allocator allocator, XTB_String8 string);
 #define xtb_str8_lit_copy(allocator, cstring_literal) xtb_str8_copy((allocator), xtb_str8_lit(cstring_literal))
 XTB_String8 xtb_str8_push_copy(XTB_Arena *arena, XTB_String8 string);
@@ -109,6 +110,7 @@ typedef XTB_String8_List_Node String8_List_Node;
 
 #define str8                         xtb_str8
 #define str8_cstring                 xtb_str8_cstring
+#define str8_cstring_copy            xtb_str8_cstring_copy
 #define str8_lit                     xtb_str8_lit
 #define str8_copy                    xtb_str8_copy
 #define str8_lit_copy                xtb_str8_lit_copy
