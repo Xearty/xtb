@@ -1,12 +1,10 @@
 #ifndef _XTB_CORE_H_
 #define _XTB_CORE_H_
 
+#include "shorthands.h"
+
 #include <stddef.h>
 #include "context_cracking.h"
-
-#ifdef XTB_SHORTHANDS
-#include "shorthands.h"
-#endif
 
 /****************************************************************
  * Versioning

@@ -1,6 +1,8 @@
 #ifndef _XTB_CORE_THREAD_CONTEXT_H_
 #define _XTB_CORE_THREAD_CONTEXT_H_
 
+#include "shorthands.h"
+
 #include "arena.h"
 
 typedef struct XTB_Thread_Context

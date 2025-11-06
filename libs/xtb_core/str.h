@@ -1,6 +1,8 @@
 #ifndef _XTB_STR_H_
 #define _XTB_STR_H_
 
+#include "shorthands.h"
+
 #include "arena.h"
 #include "allocator.h"
 #include <stddef.h>
