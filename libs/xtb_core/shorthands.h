@@ -17,4 +17,8 @@
 #define XTB_THREAD_CONTEXT_SHORTHANDS
 #endif
 
+#ifndef XTB_OS_SHORTHANDS
+#define XTB_OS_SHORTHANDS
+#endif
+
 #endif // _XTB_SHORTHANDS_H_

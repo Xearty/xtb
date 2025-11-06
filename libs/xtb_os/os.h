@@ -89,4 +89,39 @@ XTB_Directory_List xtb_os_list_directory_recursively(XTB_Arena *arena, XTB_Strin
 
 XTB_String8 xtb_os_path_join(XTB_Arena *arena, XTB_String8 *parts, size_t count);
 
+#ifdef XTB_OS_SHORTHANDS
+typedef XTB_File_Handle File_Handle;
+typedef XTB_File_Mode   File_Mode;
+typedef XTB_File_Type   File_Type;
+
+
+#define open_file                   xtb_os_open_file
+#define close_file                  xtb_os_close_file
+#define get_file_size               xtb_os_get_file_size
+#define read_file                   xtb_os_read_file
+#define read_entire_file            xtb_os_read_entire_file
+#define write_file                  xtb_os_write_file
+#define write_entire_file           xtb_os_write_entire_file
+#define file_exists                 xtb_os_file_exists
+#define delete_file                 xtb_os_delete_file
+#define delete_directory            xtb_os_delete_directory
+#define move_file                   xtb_os_move_file
+#define copy_file                   xtb_os_copy_file
+#define file_has_read_permission    xtb_os_file_has_read_permission
+#define file_has_write_permission   xtb_os_file_has_write_permission
+#define file_has_execute_permission xtb_os_file_has_execute_permission
+#define is_regular_file             xtb_os_is_regular_file
+#define is_directory                xtb_os_is_directory
+#define is_regular_file_nofollow    xtb_os_is_regular_file_nofollow
+#define is_directory_nofollow       xtb_os_is_directory_nofollow
+#define is_symbolic_link            xtb_os_is_symbolic_link
+#define get_file_type_nofollow      xtb_os_get_file_type_nofollow
+#define get_file_type               xtb_os_get_file_type
+#define real_path                   xtb_os_real_path
+#define list_directory_custom       xtb_os_list_directory_custom
+#define list_directory              xtb_os_list_directory
+#define list_directory_recursively  xtb_os_list_directory_recursively
+#define path_join                   xtb_os_path_join
+#endif
+
 #endif // _XTB_OS_H_
