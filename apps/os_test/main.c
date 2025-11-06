@@ -14,16 +14,16 @@ typedef struct PermissionsBuffer
     char buf[10];
 } PermissionsBuffer;
 
-PermissionsBuffer get_permissions_str(XTB_String8 filepath)
+PermissionsBuffer get_permissions_str(String8 filepath)
 {
     PermissionsBuffer perm = {};
-    perm.buf[0] = xtb_os_file_has_execute_permission(filepath) ? 'x' : '-';
-    perm.buf[1] = xtb_os_file_has_read_permission(filepath) ? 'r' : '-';
-    perm.buf[2] = xtb_os_file_has_write_permission(filepath) ? 'w' : '-';
+    perm.buf[0] = os_file_has_execute_permission(filepath) ? 'x' : '-';
+    perm.buf[1] = os_file_has_read_permission(filepath) ? 'r' : '-';
+    perm.buf[2] = os_file_has_write_permission(filepath) ? 'w' : '-';
     return perm;
 }
 
-const char *ft_to_str(XTB_File_Type ft)
+const char *ft_to_str(File_Type ft)
 {
     switch (ft)
     {
@@ -45,8 +45,8 @@ int main(int argc, char **argv)
     Thread_Context tctx;
     tctx_init_and_equip(&tctx);
 
-    Arena *arena = xtb_arena_new(XTB_Kilobytes(4));
-    Allocator allocator = xtb_arena_allocator(arena);
+    Arena *arena = arena_new(XTB_Kilobytes(4));
+    Allocator allocator = arena_allocator(arena);
 
     // XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, xtb_str8_lit("./libs/"));
     //
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     //     xtb_str8_debug(joined);
     // });
 
-    xtb_scratch_scope(scratch, NULL, 0)
+    xtb_scratch_scope_no_conflicts(scratch)
     {
         Allocator scratch_allocator = arena_allocator(scratch.arena);
 
@@ -82,18 +82,18 @@ int main(int argc, char **argv)
         {
             XTB_File_Type ft = xtb_os_get_file_type(node->path);
             const char *ft_str = ft_to_str(ft);
-            bool is_dir = xtb_os_is_directory(node->path);
+            bool is_dir = os_is_directory(node->path);
             printf("%s %s %s\n", ft_str, node->path.str, is_dir ? "true" : "false");
         }
     }
 
     {
         String8 path = str8_lit("apps/CMakeLists.txt");
-        String8 real = real_path(allocator, path);
+        String8 real = os_real_path(allocator, path);
         str8_debug(real);
     }
 
-    xtb_arena_release(arena);
+    arena_release(arena);
 
     tctx_release();
 
