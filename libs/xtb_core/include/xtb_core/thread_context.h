@@ -1,8 +1,8 @@
 #ifndef _XTB_CORE_THREAD_CONTEXT_H_
 #define _XTB_CORE_THREAD_CONTEXT_H_
 
-#include "core.h"
-#include "arena.h"
+#include <xtb_core/core.h>
+#include <xtb_core/arena.h>
 
 XTB_C_LINKAGE_BEGIN
 

@@ -1,6 +1,5 @@
-#include "str_buffer.h"
-
-#include "core.h"
+#include <xtb_core/core.h>
+#include <xtb_core/str_buffer.h>
 
 #include <string.h>
 

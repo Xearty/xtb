@@ -1,7 +1,7 @@
 #ifndef XTB_CORE_ALLOCATOR_INTERFACE_H
 #define XTB_CORE_ALLOCATOR_INTERFACE_H
 
-#include "core.h"
+#include <xtb_core/core.h>
 #include <stddef.h>
 
 XTB_C_LINKAGE_BEGIN

@@ -4,7 +4,7 @@
 #include "shorthands.h"
 
 #include <stddef.h>
-#include "context_cracking.h"
+#include <xtb_core/context_cracking.h>
 
 /****************************************************************
  * Versioning

@@ -1,8 +1,8 @@
 #ifndef _XTB_STR_BUFFER_H_
 #define _XTB_STR_BUFFER_H_
 
-#include "core.h"
-#include "str.h"
+#include <xtb_core/core.h>
+#include <xtb_core/str.h>
 
 #include <stddef.h>
 

@@ -1,5 +1,4 @@
-#include "thread_context.h"
-#include "core.h"
+#include <xtb_core/thread_context.h>
 
 XTB_C_LINKAGE XTB_THREAD_STATIC XTB_Thread_Context *g_tctx;
 

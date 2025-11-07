@@ -1,6 +1,5 @@
-#include "str.h"
-#include "core.h"
-#include "linked_list.h"
+#include <xtb_core/str.h>
+#include <xtb_core/linked_list.h>
 
 #include <string.h>
 #include <stdio.h>

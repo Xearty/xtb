@@ -1,9 +1,9 @@
 #ifndef _XTB_STR_H_
 #define _XTB_STR_H_
 
-#include "core.h"
-#include "arena.h"
-#include "allocator.h"
+#include <xtb_core/core.h>
+#include <xtb_core/arena.h>
+#include <xtb_core/allocator.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdarg.h>

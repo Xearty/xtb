@@ -1,4 +1,4 @@
-add_library(xtb_core core.c)
+add_library(xtb_core src/core.c)
 
-target_include_directories(xtb_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(xtb_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(xtb_core PUBLIC xtb_ansi backtrace)

@@ -1,4 +1,4 @@
-#include "arena.h"
+#include <xtb_core/arena.h>
 
 #include <stdio.h>
 #include <stdlib.h>

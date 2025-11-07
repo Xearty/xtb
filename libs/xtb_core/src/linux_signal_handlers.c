@@ -1,4 +1,4 @@
-#include "core.h"
+#include <xtb_core/core.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
