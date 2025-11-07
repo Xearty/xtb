@@ -1,8 +1,9 @@
 #ifndef _XTB_DA_H_
 #define _XTB_DA_H_
 
-#include <stddef.h>
 #include <xtb_core/core.h>
+
+#include <stddef.h>
 
 #ifndef XTB_REALLOC
 #include <stdlib.h>
