@@ -78,14 +78,10 @@ XTB_File_Type xtb_os_get_file_type(XTB_String8 filepath)
 
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
-
-    if (stat(filepath.str, &st) != 0)
-    {
-        xtb_scratch_end(scratch);
-        return XTB_FT_UNKNOWN;
-    }
-
+    int state = stat(filepath.str, &st);
     xtb_scratch_end(scratch);
+
+    if (state != 0) return XTB_FT_UNKNOWN;
 
     switch (st.st_mode & S_IFMT)
     {
@@ -106,14 +102,10 @@ XTB_File_Type xtb_os_get_file_type_nofollow(XTB_String8 filepath)
 
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
-
-    if (lstat(filepath.str, &st) != 0)
-    {
-        xtb_scratch_end(scratch);
-        return XTB_FT_UNKNOWN;
-    }
-
+    int state = lstat(filepath.str, &st);
     xtb_scratch_end(scratch);
+
+    if (state != 0) return XTB_FT_UNKNOWN;
 
     switch (st.st_mode & S_IFMT)
     {
