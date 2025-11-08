@@ -2,7 +2,7 @@
 
 #include <GLFW/glfw3.h>
 
-u32 g_key_states[XTB_KEY_LAST + 1];
+u32 g_keyboard_key_states[XTB_KEY_LAST + 1];
 u32 g_prev_cursor_position[2];
 u32 g_cursor_position[2];
 
@@ -32,12 +32,12 @@ static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int act
     {
         case GLFW_PRESS:
         {
-            g_key_states[key] = XTB_KEY_STATE_PRESSED;
+            g_keyboard_key_states[key] = XTB_KEY_STATE_PRESSED;
         } break;
 
         case GLFW_RELEASE:
         {
-            g_key_states[key] = XTB_KEY_STATE_RELEASED;
+            g_keyboard_key_states[key] = XTB_KEY_STATE_RELEASED;
         } break;
     }
 }
@@ -51,17 +51,17 @@ static void glfw_cursor_callback(GLFWwindow *window, double xposd, double yposd)
     g_cursor_position[1] = (float)yposd;
 }
 
-static void update_key_states(void)
+static void update_keyboard_key_states(void)
 {
     for (int key = 0; key <= XTB_KEY_LAST; ++key)
     {
-        if (g_key_states[key] == XTB_KEY_STATE_PRESSED)
+        if (g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED)
         {
-            g_key_states[key] = XTB_KEY_STATE_DOWN;
+            g_keyboard_key_states[key] = XTB_KEY_STATE_DOWN;
         }
-        else if (g_key_states[key] == XTB_KEY_STATE_RELEASED)
+        else if (g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED)
         {
-            g_key_states[key] = XTB_KEY_STATE_UP;
+            g_keyboard_key_states[key] = XTB_KEY_STATE_UP;
         }
     }
 }
@@ -101,7 +101,7 @@ bool window_should_close(XTB_Window *window)
 
 void window_poll_events(XTB_Window *window)
 {
-    update_key_states();
+    update_keyboard_key_states();
     glfwPollEvents();
 }
 
@@ -117,24 +117,24 @@ void window_make_context_current(XTB_Window *window)
 
 bool window_key_is_pressed(u32 key)
 {
-    return g_key_states[key] == XTB_KEY_STATE_PRESSED;
+    return g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
 }
 
 bool window_key_is_released(u32 key)
 {
-    return g_key_states[key] == XTB_KEY_STATE_RELEASED;
+    return g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
 }
 
 bool window_key_is_down(u32 key)
 {
-    return g_key_states[key] == XTB_KEY_STATE_DOWN
-        || g_key_states[key] == XTB_KEY_STATE_PRESSED;
+    return g_keyboard_key_states[key] == XTB_KEY_STATE_DOWN
+        || g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
 }
 
 bool window_key_is_up(u32 key)
 {
-    return g_key_states[key] == XTB_KEY_STATE_UP
-        || g_key_states[key] == XTB_KEY_STATE_RELEASED;
+    return g_keyboard_key_states[key] == XTB_KEY_STATE_UP
+        || g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
 }
 
 void *window_get_proc_address(const char *name)
