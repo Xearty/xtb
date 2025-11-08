@@ -1,5 +1,5 @@
 #include "json.h"
-#include "xtb_core/allocator.h"
+#include <xtb_core/allocator.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -62,49 +62,49 @@ static void indent(int indentation, int level, FILE *stream)
 /****************************************************************
  * Value initializers (internal)
 ****************************************************************/
-static XTB_JSON_Value* make_value(XTB_JSON_Type type)
+static XTB_JSON_Value* make_json_value(XTB_JSON_Type type)
 {
     XTB_JSON_Value *value = calloc(1, sizeof(XTB_JSON_Value));
     value->type = type;
     return value;
 }
 
-static XTB_JSON_Value* make_null()
+static XTB_JSON_Value* make_json_null()
 {
-    return make_value(XTB_JSON_NULL);
+    return make_json_value(XTB_JSON_NULL);
 }
 
-static XTB_JSON_Value* make_bool(bool boolean_value)
+static XTB_JSON_Value* make_json_bool(bool boolean_value)
 {
-    XTB_JSON_Value *value = make_value(XTB_JSON_BOOL);
+    XTB_JSON_Value *value = make_json_value(XTB_JSON_BOOL);
     value->as.boolean = boolean_value;
     return value;
 }
 
-static XTB_JSON_Value *make_number(double number)
+static XTB_JSON_Value *make_json_number(double number)
 {
-    XTB_JSON_Value *value = make_value(XTB_JSON_NUMBER);
+    XTB_JSON_Value *value = make_json_value(XTB_JSON_NUMBER);
     value->as.number = number;
     return value;
 }
 
-static XTB_JSON_Value *make_string(XTB_String8 string)
+static XTB_JSON_Value *make_json_string(XTB_String8 string)
 {
-    XTB_JSON_Value *value = make_value(XTB_JSON_STRING);
+    XTB_JSON_Value *value = make_json_value(XTB_JSON_STRING);
     value->as.string = string;
     return value;
 }
 
-static XTB_JSON_Value* make_array(XTB_JSON_Array array)
+static XTB_JSON_Value* make_json_array(XTB_JSON_Array array)
 {
-    XTB_JSON_Value *value = make_value(XTB_JSON_ARRAY);
+    XTB_JSON_Value *value = make_json_value(XTB_JSON_ARRAY);
     value->as.array = array;
     return value;
 }
 
 static XTB_JSON_Value *make_object(XTB_JSON_Pair *first_pair)
 {
-    XTB_JSON_Value *value = make_value(XTB_JSON_OBJECT);
+    XTB_JSON_Value *value = make_json_value(XTB_JSON_OBJECT);
     value->as.object = first_pair;
     return value;
 }
@@ -131,7 +131,7 @@ static const char* parse_null(const char *input, XTB_JSON_Value **out)
     if (strncmp(input, "null", 4) == 0)
     {
         input += 4;
-        *out = make_null();
+        *out = make_json_null();
     }
 
     return input;
@@ -144,12 +144,12 @@ static const char* parse_boolean(const char *input, XTB_JSON_Value **out)
     if (strncmp(input, "true", 4) == 0)
     {
         input += 4;
-        *out = make_bool(true);
+        *out = make_json_bool(true);
     }
     else if (strncmp(input, "false", 5) == 0)
     {
         input += 5;
-        *out = make_bool(false);
+        *out = make_json_bool(false);
     }
 
     return input;
@@ -163,7 +163,7 @@ static const char* parse_number(const char *input, XTB_JSON_Value **out)
     double number = strtod(input, &end);
     if (end != input)
     {
-        *out = make_number(number);
+        *out = make_json_number(number);
         input = end;
     }
 
@@ -178,7 +178,7 @@ static const char *parse_string(const char *input, XTB_JSON_Value **out)
     XTB_String8 string = parse_string_literal(rest);
     if (xtb_str8_is_valid(string))
     {
-        *out = make_string(string);
+        *out = make_json_string(string);
         return rest + string.len + 2; // 2 for the quotes
     }
 
@@ -198,7 +198,8 @@ static const char *parse_array(const char *input, XTB_JSON_Value **out)
 
     rest += 1; // skip [
 
-    XTB_JSON_Array array = {};
+    XTB_JSON_Array array = make_array(allocator_get_heap());
+
     while (true)
     {
         rest = skip_whitespace(rest);
@@ -209,12 +210,12 @@ static const char *parse_array(const char *input, XTB_JSON_Value **out)
 
         if (value == NULL)
         {
-            xtb_da_free(array);
+            array_deinit(&array);
             return input;
         }
         else
         {
-            xtb_da_append(&array, value);
+            array_push(&array, value);
             rest = end_of_value;
             rest = skip_whitespace(rest);
             if (rest[0] == ',')
@@ -245,7 +246,7 @@ static const char *parse_array(const char *input, XTB_JSON_Value **out)
     // We parsed the array successfully and the next character is ]
     XTB_ASSERT(rest[0] == ']');
     rest += 1; // skip ]
-    *out = make_array(array);
+    *out = make_json_array(array);
 
     return rest;
 }
@@ -439,7 +440,7 @@ XTB_JSON_Value *xtb_json_array_get_index(XTB_JSON_Value *value, size_t index)
     XTB_ASSERT(xtb_json_value_is_array(value));
     if (index < value->as.array.count)
     {
-        return value->as.array.items[index];
+        return value->as.array.data[index];
     }
     else
     {
@@ -628,7 +629,7 @@ bool xtb_json_array_is_homogeneous(XTB_JSON_Value *value)
 
     for (int i = 0; i < value->as.array.count - 1; ++i)
     {
-        if (value->as.array.items[i]->type != value->as.array.items[i + 1]->type)
+        if (value->as.array.data[i]->type != value->as.array.data[i + 1]->type)
         {
             return false;
         }
@@ -682,7 +683,7 @@ bool xtb_json_array_contains_array(const XTB_JSON_Value *value)
 
     for (int i = 0; i < value->as.array.count; ++i)
     {
-        if (xtb_json_value_is_array(value->as.array.items[i]))
+        if (xtb_json_value_is_array(value->as.array.data[i]))
         {
             return true;
         }
@@ -698,7 +699,7 @@ bool xtb_json_array_contains_object(const XTB_JSON_Value *value)
 
     for (int i = 0; i < value->as.array.count; ++i)
     {
-        if (xtb_json_value_is_object(value->as.array.items[i]))
+        if (xtb_json_value_is_object(value->as.array.data[i]))
         {
             return true;
         }
@@ -739,7 +740,7 @@ void xtb_json_print_value(const XTB_JSON_Value *value, FILE *stream)
             fprintf(stream, "[");
             for (int i = 0; i < value->as.array.count; ++i)
             {
-                xtb_json_print_value(value->as.array.items[i], stream);
+                xtb_json_print_value(value->as.array.data[i], stream);
                 if (i != value->as.array.count - 1)
                 {
                     fprintf(stream, ", ");
@@ -806,7 +807,7 @@ static void pretty_print_value_recursive(const XTB_JSON_Value *value, int indent
                 fprintf(stream, "[");
                 for (int i = 0; i < value->as.array.count; ++i)
                 {
-                    const XTB_JSON_Value *item = value->as.array.items[i];
+                    const XTB_JSON_Value *item = value->as.array.data[i];
 
                     fprintf(stream, "\n");
                     indent(indent_spaces, indent_level + 1, stream);
@@ -829,7 +830,7 @@ static void pretty_print_value_recursive(const XTB_JSON_Value *value, int indent
                 fprintf(stream, "[");
                 for (int i = 0; i < value->as.array.count; ++i)
                 {
-                    const XTB_JSON_Value *item = value->as.array.items[i];
+                    const XTB_JSON_Value *item = value->as.array.data[i];
 
                     pretty_print_value_recursive(item, indent_spaces, indent_level + 1, stream);
 

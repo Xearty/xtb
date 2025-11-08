@@ -5,7 +5,6 @@ option(XTB_BUILD_OS "Build the os module" ON)
 option(XTB_BUILD_ALLOCATOR "Build the allocator module" ON)
 option(XTB_BUILD_JSON "Build the json module" ON)
 option(XTB_BUILD_BMP "Build the bmp module" ON)
-option(XTB_BUILD_DA "Build the dynamic array module" ON)
 option(XTB_BUILD_XTBM "Build the math module" ON)
 option(XTB_BUILD_OGL "Build the opengl module" ON)
 
@@ -31,10 +30,6 @@ endif()
 
 if(XTB_BUILD_BMP)
     add_subdirectory(xtb_bmp)
-endif()
-
-if(XTB_BUILD_DA)
-    add_subdirectory(xtb_da)
 endif()
 
 if(XTB_BUILD_XTBM)

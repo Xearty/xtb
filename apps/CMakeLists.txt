@@ -1,7 +1,6 @@
 add_compile_definitions(XTB_SHORTHANDS)
 
 add_subdirectory(bmp_test)
-add_subdirectory(da_test)
 add_subdirectory(json_test)
 add_subdirectory(os_test)
 add_subdirectory(str_test)

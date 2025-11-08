@@ -1,8 +1,8 @@
 #ifndef _XTB_JSON_H_
 #define _XTB_JSON_H_
 
-#include <xtb_da/da.h>
 #include <xtb_core/str.h>
+#include <xtb_core/array.h>
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -18,7 +18,7 @@ typedef enum
 
 typedef struct XTB_JSON_Value XTB_JSON_Value;
 
-XTB_DA_DEFINE_TYPE(XTB_JSON_Array, XTB_JSON_Value*);
+typedef Array(XTB_JSON_Value*) XTB_JSON_Array;
 
 typedef struct XTB_JSON_Pair
 {
