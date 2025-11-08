@@ -1,5 +1,6 @@
 #include <xtb_core/core.h>
 #include <xtb_core/str_buffer.h>
+#include <xtb_core/contract.h>
 
 #include <string.h>
 

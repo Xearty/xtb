@@ -1,13 +1,4 @@
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <backtrace.h>
-
 #include <xtb_core/core.h>
-#include <xtb_core/context_cracking.h>
-#include <xtb_core/logger.h>
-#include <xtb_ansi/ansi.h>
 
 #if XTB_OS_LINUX
 #include "linux_signal_handlers.c"
