@@ -18,6 +18,7 @@
 #include "str_buffer.c"
 #include "arena.c"
 #include "thread_context.c"
+#include "allocator.c"
 
 /****************************************************************
  * Stack Trace
@@ -181,6 +182,8 @@ void xtb_init(int argc, char **argv)
 {
     const char *exe_path = argv[0];
     g_backtrace.state = backtrace_create_state(exe_path, 0, xtb_backtrace_error_callback, NULL);
+
+    xtb_init_allocator_set();
 
     register_signal_handlers();
 }

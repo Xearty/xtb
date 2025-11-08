@@ -29,23 +29,24 @@ xtb_bmp_bitmap_load(XTB_BMP_Prepass_Result prepass_result,
 }
 
 XTB_BMP_Bitmap
-xtb_bmp_bitmap_load_alloc(XTB_Allocator allocator, const XTB_Byte *bytes)
+xtb_bmp_bitmap_load_alloc(Allocator* allocator, const XTB_Byte *bytes)
 {
     XTB_BMP_Prepass_Result prepass_result = xtb_bmp_prepass(bytes);
     XTB_BMP_Memory_Requirements mr = prepass_result.memory_requirements;
     printf("allocation size: %lu\n", mr.bitmap_buffer_size);
-    void *bitmap_buffer = allocator.allocate(allocator.context, mr.bitmap_buffer_size);
+    void *bitmap_buffer = XTB_AllocateBytes(allocator, mr.bitmap_buffer_size);
     return xtb_bmp_bitmap_load(prepass_result, bytes, bitmap_buffer);
 }
 
 void
-xtb_bmp_bitmap_dealloc(XTB_Allocator allocator, XTB_BMP_Bitmap *bitmap)
+xtb_bmp_bitmap_dealloc(Allocator* allocator, XTB_BMP_Bitmap *bitmap)
 {
-    allocator.deallocate(allocator.context, bitmap->pixel_data);
+    // TODO: This has a fake size passed into it
+    XTB_Deallocate(allocator, bitmap->pixel_data, 1, char);
 }
 
 void
-xtb_bmp_set_global_allocator(XTB_Allocator allocator)
+xtb_bmp_set_global_allocator(Allocator* allocator)
 {
     xtb_bmp_global_allocator = allocator;
 }
@@ -53,18 +54,19 @@ xtb_bmp_set_global_allocator(XTB_Allocator allocator)
 void
 xtb_bmp_bitmap_gdealloc(XTB_BMP_Bitmap *bitmap)
 {
+    puts("KUR");
     xtb_bmp_bitmap_dealloc(xtb_bmp_global_allocator, bitmap);
 }
 
 XTB_BMP_Bitmap
 xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream,
-                                XTB_Allocator allocator)
+                                Allocator* allocator)
 {
     stream.seek(stream.context, 0, XTB_BMP_IO_SEEK_END);
     int size = stream.tell(stream.context);
     stream.seek(stream.context, 0, XTB_BMP_IO_SEEK_SET);
 
-    char *buffer = (char*)allocator.allocate(allocator.context, size + 1);
+    char *buffer = XTB_AllocateBytes(allocator, size + 1);
     int bytes_read = stream.read(stream.context, buffer, size);
 
     if (bytes_read == size)
@@ -75,7 +77,7 @@ xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream,
     else
     {
         puts("Could not read stream");
-        allocator.deallocate(allocator.context, buffer);
+        XTB_Deallocate(allocator, buffer, 1, char); // TODO: Fake size passed into dealloc
     }
 
     return xtb_bmp_bitmap_load_alloc(allocator, buffer);

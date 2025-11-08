@@ -224,7 +224,7 @@ int main(int argc, char **argv)
 
     SetTraceLogLevel(LOG_ERROR);
 
-    xtb_bmp_set_global_allocator(xtb_malloc_allocator());
+    xtb_bmp_set_global_allocator(allocator_get_malloc());
 
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     EnableEventWaiting();

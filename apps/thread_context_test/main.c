@@ -27,8 +27,7 @@ void some_function_that_does_not_take_allocator()
     XTB_Temp_Arena second_temp = xtb_scratch_begin(&temp.arena, 1);
     // Here I have another scratch space that is independent from the other
 
-    XTB_Allocator allocator = xtb_arena_allocator(second_temp.arena);
-    XTB_String8 codetracer = xtb_str8_copy(allocator, xtb_str8_lit("codetracer"));
+    XTB_String8 codetracer = xtb_str8_copy(&second_temp.arena->allocator, xtb_str8_lit("codetracer"));
     puts(codetracer.str);
     printf("Second arena offset = %zu\n", second_temp.arena->current_chunk->offset);
 

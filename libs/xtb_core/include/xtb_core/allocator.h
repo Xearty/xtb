@@ -3,34 +3,37 @@
 
 #include <xtb_core/core.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 XTB_C_LINKAGE_BEGIN
 
-/****************************************************************
-  Allocator Interface
-****************************************************************/
-typedef void*(*XTB_Allocate_Fn)(void*, size_t);
-typedef void(*XTB_Deallocate_Fn)(void*, void*);
+typedef void* (*Allocator)(void* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align);
 
-typedef struct XTB_Allocator
+void allocator_deallocate(Allocator* alloc, void* old_ptr, int64_t old_size, int64_t align);
+void* allocator_allocate(Allocator* alloc, int64_t new_size, int64_t align);
+void* allocator_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align);
+void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align);
+
+typedef struct Allocator_Set
 {
-    void *context;
-    XTB_Allocate_Fn allocate;
-    XTB_Deallocate_Fn deallocate;
-} XTB_Allocator;
+    Allocator malloc_allocator;
+} Allocator_Set;
 
-#define XTB_AllocateArray(allocator, type, count) (type*)(allocator.allocate(allocator.context, sizeof(type) * (count)))
-#define XTB_AllocateBytes(allocator, count) XTB_AllocateArray(allocator, char, count)
-#define XTB_Allocate(allocator, type) XTB_AllocateArray(allocator, type, 1)
-#define XTB_Deallocate(allocator, ptr) allocator.deallocate(allocator.context, ptr)
+Allocator *allocator_get_malloc();
 
-#define XTB_AllocateArrayZero(allocator, type, count) \
-    XTB_MemoryZeroTyped(XTB_AllocateArray(allocator, type, count), count)
-#define XTB_AllocateBytesZero(allocator, count) XTB_AllocateArrayZero(allocator, char, count)
-#define XTB_AllocateZero(allocator, type) XTB_AllocateArrayZero(allocator, type, 1)
+void xtb_init_allocator_set();
+
+#define XTB_AllocateArray(alloc, new_count, T) (T*)  allocator_allocate((alloc), (new_count)*sizeof(T), __alignof(T))
+#define XTB_AllocateBytes(alloc, new_count)          XTB_AllocateArray(alloc, new_count, char)
+#define XTB_Allocate(alloc, T)                       XTB_AllocateArray(alloc, 1, T)
+#define XTB_Deallocate(alloc, old_ptr, old_count, T) allocator_deallocate((alloc), (old_ptr), (old_count)*sizeof(T), __alignof(T))
+
+#define XTB_AllocateArrayZero(alloc, new_count, T)   XTB_MemoryZeroTyped(XTB_AllocateArray(alloc, new_count, T), new_count)
+#define XTB_AllocateBytesZero(alloc, new_count)      XTB_AllocateArrayZero(alloc, new_count, char)
+#define XTB_AllocateZero(alloc, T)                   XTB_AllocateArrayZero(alloc, 1, T)
 
 #ifdef XTB_ALLOCATOR_SHORTHANDS
-typedef XTB_Allocator Allocator;
 
 #define AllocateArray XTB_AllocateArray
 #define AllocateBytes XTB_AllocateBytes

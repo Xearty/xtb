@@ -1,5 +1,5 @@
 #include "json.h"
-#include "xtb_allocator/malloc.h"
+#include "xtb_core/allocator.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -50,7 +50,7 @@ static XTB_String8 parse_string_literal(const char *input)
     const char *string_end = rest;
     int string_len = string_end - string_begin;
     XTB_String8 substr = xtb_str8(string_begin, string_len);
-    return xtb_str8_copy(xtb_malloc_allocator(), substr);
+    return xtb_str8_copy(allocator_get_malloc(), substr);
 }
 
 static void indent(int indentation, int level, FILE *stream)
@@ -395,7 +395,7 @@ XTB_JSON_Value *xtb_json_parse_file(XTB_String8 filepath)
     if (xtb_str8_is_invalid(content)) return NULL;
 
     XTB_JSON_Value *value = xtb_json_parse(content.str);
-    xtb_str8_free(xtb_malloc_allocator(), content);
+    xtb_str8_free(allocator_get_malloc(), content);
 
     return value;
 }

@@ -7,7 +7,7 @@
 #define BufferAppendLocation(str_buffer) ((str_buffer->data) + (str_buffer)->size)
 #define AssertOwnsMemory(str_buffer) XTB_ASSERT((str_buffer)->data != NULL)
 
-XTB_String8_Buffer xtb_str8_buffer_new(XTB_Allocator allocator, size_t cap_hint)
+XTB_String8_Buffer xtb_str8_buffer_new(Allocator* allocator, size_t cap_hint)
 {
     XTB_String8_Buffer str_buffer;
     str_buffer.allocator = allocator;
@@ -28,7 +28,7 @@ static void buffer_ensure_capacity(XTB_String8_Buffer *str_buffer, size_t needed
 
         // TODO: Add realloc to the allocator interface
         XTB_MemoryCopy(new_buffer, str_buffer->data, str_buffer->size);
-        XTB_Deallocate(str_buffer->allocator, str_buffer->data);
+        XTB_Deallocate(str_buffer->allocator, str_buffer->data, str_buffer->capacity, char);
 
         str_buffer->capacity = new_cap;
         str_buffer->data = new_buffer;

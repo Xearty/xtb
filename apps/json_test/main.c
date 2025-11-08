@@ -23,7 +23,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    XTB_Allocator gpa = xtb_malloc_allocator();
+    Allocator* gpa = allocator_get_malloc();
 
     XTB_String8 json_filepath = xtb_str8_lit_copy(gpa, "./apps/json_test/test.json");
     if (argc == 2)
@@ -33,7 +33,6 @@ int main(int argc, char **argv)
 
     XTB_JSON_Value *toplevel_value = xtb_json_parse_file(json_filepath);
     XTB_Arena *frame_arena = xtb_arena_new(XTB_Megabytes(4));
-    XTB_Allocator frame_allocator = xtb_arena_allocator(frame_arena);
 
     char *input_cstring = NULL;
     size_t size = 0;

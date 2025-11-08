@@ -8,6 +8,22 @@
 /****************************
  * Internals
  ***************************/
+void* arena_allocator_procedure(void* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
+{
+    XTB_ASSERT(new_size >= 0 && old_size >= 0 && align >= 0);
+
+    XTB_Arena *arena = (XTB_Arena*)alloc;
+
+    void* new_ptr = NULL;
+
+    if (new_size != 0)
+    {
+        new_ptr = xtb_arena_alloc(arena, new_size);
+    }
+
+    return new_ptr;
+}
+
 static void arena_free_chunks_after(XTB_Arena_Chunk_Header *chunk)
 {
     XTB_Arena_Chunk_Header *chunk_iter = chunk->next;
@@ -92,6 +108,7 @@ XTB_Arena *xtb_arena_new(size_t buffer_size)
     arena->base_chunk = chunk_header;
     arena->current_chunk = chunk_header;
     arena->base_size = buffer_size;
+    arena->allocator = arena_allocator_procedure;
 
     return arena;
 }
@@ -219,18 +236,3 @@ size_t xtb_arena_dump_memory_usage_pp(XTB_Arena *arena, char *buffer, size_t buf
     return usage;
 }
 
-/****************************
- * Allocator Interface
- ***************************/
-static void do_nothing_free_stub(void *context, void *pointer)
-{
-}
-
-XTB_Allocator xtb_arena_allocator(XTB_Arena *arena)
-{
-    XTB_Allocator allocator = {};
-    allocator.context = arena;
-    allocator.allocate = (XTB_Allocate_Fn)xtb_arena_alloc;
-    allocator.deallocate = do_nothing_free_stub;
-    return allocator;
-}

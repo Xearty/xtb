@@ -15,13 +15,12 @@ int main(int argc, char **argv)
     tctx_init_and_equip(&tctx);
 
     Arena *arena = arena_new(XTB_Kilobytes(4));
-    Allocator allocator = arena_allocator(arena);
 
     String8 string = str8_lit("hello");
     puts(string.str);
     printf("length = %zu\n", string.len);
 
-    String8 dyn_string = str8_lit_copy(allocator, "hello there");
+    String8 dyn_string = str8_lit_copy(&arena->allocator, "hello there");
     printf("dyn_string = %s, length = %zu\n", dyn_string.str, dyn_string.len);
 
     String8_List str_list = {0};
@@ -31,25 +30,24 @@ int main(int argc, char **argv)
     SLLQueuePush(str_list.head, str_list.tail, &node1);
     SLLQueuePush(str_list.head, str_list.tail, &node2);
 
-    String8 concatenated = str8_list_join(allocator, str_list);
+    String8 concatenated = str8_list_join(&arena->allocator, str_list);
     puts(concatenated.str);
 
     String8 test2 = str8_lit("Nqkakuv dulug string");
-    String8 sub_test2 = str8_substr_copy(allocator, test2, 10, 5);
+    String8 sub_test2 = str8_substr_copy(&arena->allocator, test2, 10, 5);
     printf("str = \"%s\", len = %zu\n", sub_test2.str, sub_test2.len);
 
     Temp_Arena temp = scratch_begin(NULL, 0);
-    Allocator temp_allocator = arena_allocator(temp.arena);
 
     String8_List list = {0};
-    str8_list_push(temp_allocator, &list, str8_lit("a"));
-    str8_list_push(temp_allocator, &list, str8_lit("b"));
-    str8_list_push(temp_allocator, &list, str8_lit("c"));
-    str8_list_push(temp_allocator, &list, str8_lit("d"));
-    str8_list_push(temp_allocator, &list, str8_lit("e"));
+    str8_list_push(&temp.arena->allocator, &list, str8_lit("a"));
+    str8_list_push(&temp.arena->allocator, &list, str8_lit("b"));
+    str8_list_push(&temp.arena->allocator, &list, str8_lit("c"));
+    str8_list_push(&temp.arena->allocator, &list, str8_lit("d"));
+    str8_list_push(&temp.arena->allocator, &list, str8_lit("e"));
 
     String8 sep = str8_lit(".");
-    String8 joined = str8_list_join_str_sep(allocator, list, sep);
+    String8 joined = str8_list_join_str_sep(&arena->allocator, list, sep);
     puts(joined.str);
 
     if (str8_eq_lit(joined, "a.b.c.d.e"))
@@ -64,44 +62,44 @@ int main(int argc, char **argv)
     String8 test3 = str8_lit("Hello world");
     test3 = str8_trunc_left(test3, 3);
     test3 = str8_trunc_right(test3, 4);
-    test3 = str8_copy(temp_allocator, test3);
+    test3 = str8_copy(&temp.arena->allocator, test3);
     puts(test3.str);
 
     String8 test4 = str8_lit("\t \n  First  \n \t  \t\t \r Second\n \t\t \r\n");
     String8 test5 = test4;
-    test5 = str8_copy(temp_allocator, str8_trim_left(test4));
+    test5 = str8_copy(&temp.arena->allocator, str8_trim_left(test4));
     printf("Left trimmed: \"%s\"\n", test5.str);
 
-    test5 = str8_copy(temp_allocator, str8_trim_right(test4));
+    test5 = str8_copy(&temp.arena->allocator, str8_trim_right(test4));
     printf("Right trimmed: \"%s\"\n", test5.str);
 
-    test5 = str8_copy(temp_allocator, str8_trim(test4));
+    test5 = str8_copy(&temp.arena->allocator, str8_trim(test4));
     printf("Trimmed both ways: \"%s\"\n", test5.str);
 
-    String8 test6 = str8_trim_copy(temp_allocator, test4);
+    String8 test6 = str8_trim_copy(&temp.arena->allocator, test4);
     printf("Trimmed both ways copy: \"%s\"\n", test6.str);
 
     String8 char_split_str = str8_lit("Very long string that contains multiple tokens");
-    String8_List char_split_list = str8_split_by_char(temp_allocator, char_split_str, ' ');
-    String8 char_joined = str8_list_join_str_sep(temp_allocator, char_split_list, str8_lit("<sep>"));
+    String8_List char_split_list = str8_split_by_char(&temp.arena->allocator, char_split_str, ' ');
+    String8 char_joined = str8_list_join_str_sep(&temp.arena->allocator, char_split_list, str8_lit("<sep>"));
     puts(char_joined.str);
 
     String8 str_split_str = str8_lit("Very long  string that contains  multiple tokens");
-    String8_List str_split_list = str8_split_by_str(temp_allocator, str_split_str, str8_lit("  "));
-    String8 str_joined = str8_list_join_str_sep(temp_allocator, str_split_list, str8_lit("---"));
+    String8_List str_split_list = str8_split_by_str(&temp.arena->allocator, str_split_str, str8_lit("  "));
+    String8 str_joined = str8_list_join_str_sep(&temp.arena->allocator, str_split_list, str8_lit("---"));
     puts(str_joined.str);
 
     String8 space_split_str = str8_lit("\t\n\r\r\n Very \t long  \rstring\r\rthat contains \r \nmultiple \n\r\r\n\ttokens\t\n\t");
-    String8_List space_split_list = str8_split_by_whitespace(temp_allocator, space_split_str);
-    String8 space_joined = str8_list_join_char_sep(temp_allocator, space_split_list, '-');
+    String8_List space_split_list = str8_split_by_whitespace(&temp.arena->allocator, space_split_str);
+    String8 space_joined = str8_list_join_char_sep(&temp.arena->allocator, space_split_list, '-');
     puts(space_joined.str);
 
-    String8 concatenated2 = str8_list_join(temp_allocator, space_split_list);
+    String8 concatenated2 = str8_list_join(&temp.arena->allocator, space_split_list);
     str8_debug(concatenated2);
 
     scratch_end(temp);
 
-    String8 formatted = str8_format(allocator, "The answer is %d", 42);
+    String8 formatted = str8_format(&arena->allocator, "The answer is %d", 42);
     str8_debug(formatted);
 
     String8 head_tail = str8_lit("head<>tail");
@@ -121,20 +119,19 @@ int main(int argc, char **argv)
         XTB_ASSERT(false);
     }
 
-    String8 concat = str8_concat_lit(allocator, str8_lit("hello "), "world");
+    String8 concat = str8_concat_lit(&arena->allocator, str8_lit("hello "), "world");
     str8_debug(concat);
 
     String8 str = str8_lit("hello");
-    str = str8_concat(allocator, str, str8_lit(" world"));
+    str = str8_concat(&arena->allocator, str, str8_lit(" world"));
     str8_debug(str);
 
     puts("----------------------String Buffer------------------------");
     {
         Temp_Arena scratch = scratch_begin(0, 0);
-        Allocator scratch_allocator = arena_allocator(scratch.arena);
 
         // This will be allocated on the scratch arena
-        XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(scratch_allocator, 0);
+        XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(&scratch.arena->allocator, 0);
         for (int i = 0; i < 10; ++i)
         {
             String8 hello = str8_lit("hello");
@@ -146,7 +143,7 @@ int main(int argc, char **argv)
         }
 
         // This is allocated on the persistent arena
-        String8 owned_str = xtb_str8_buffer_view_copy(allocator, &str_buffer);
+        String8 owned_str = xtb_str8_buffer_view_copy(&arena->allocator, &str_buffer);
 
         scratch_end(scratch);
 

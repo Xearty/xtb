@@ -2,7 +2,6 @@
 #include <xtb_core/core.h>
 #include <xtb_os/os.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #include <xtb_allocator/allocator.h>
 #include <xtb_core/arena.h>
@@ -46,7 +45,6 @@ int main(int argc, char **argv)
     tctx_init_and_equip(&tctx);
 
     Arena *arena = arena_new(XTB_Kilobytes(4));
-    Allocator allocator = arena_allocator(arena);
 
     // XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, xtb_str8_lit("./libs/"));
     //
@@ -72,12 +70,10 @@ int main(int argc, char **argv)
 
     xtb_scratch_scope_no_conflicts(scratch)
     {
-        Allocator scratch_allocator = arena_allocator(scratch.arena);
-
         String8 path = str8_lit("apps ");
         path = str8_trunc_right(path, 1);
 
-        XTB_Directory_List list = os_list_directory(scratch_allocator, path);
+        XTB_Directory_List list = os_list_directory(&scratch.arena->allocator, path);
         XTB_IterateList(list, XTB_Directory_Listing_Node, node)
         {
             XTB_File_Type ft = os_get_file_type(node->path);
@@ -89,7 +85,7 @@ int main(int argc, char **argv)
 
     {
         String8 path = str8_lit("apps/CMakeLists.txt");
-        String8 real = os_real_path(allocator, path);
+        String8 real = os_real_path(&arena->allocator, path);
         str8_debug(real);
     }
 

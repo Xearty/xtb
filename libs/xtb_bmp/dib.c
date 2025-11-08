@@ -25,20 +25,21 @@ xtb_bmp_dib_load(XTB_BMP_Prepass_Result prepass_result,
 }
 
 XTB_BMP_DIB
-xtb_bmp_dib_load_alloc(XTB_Allocator allocator, const XTB_Byte *bytes)
+xtb_bmp_dib_load_alloc(Allocator* allocator, const XTB_Byte *bytes)
 {
     XTB_BMP_Prepass_Result prepass_result = xtb_bmp_prepass(bytes);
     XTB_BMP_Memory_Requirements mr = prepass_result.memory_requirements;
-    void *color_table_buffer = allocator.allocate(allocator.context, mr.color_table_buffer_size);
-    void *pixel_data_buffer = allocator.allocate(allocator.context, mr.pixel_data_buffer_size);
+    void *color_table_buffer = XTB_AllocateBytes(allocator, mr.color_table_buffer_size);
+    void *pixel_data_buffer = XTB_AllocateBytes(allocator, mr.pixel_data_buffer_size);
     return xtb_bmp_dib_load(prepass_result, bytes, color_table_buffer, pixel_data_buffer);
 }
 
 void
-xtb_bmp_dib_dealloc(XTB_Allocator allocator, XTB_BMP_DIB *dib)
+xtb_bmp_dib_dealloc(Allocator* allocator, XTB_BMP_DIB *dib)
 {
-    allocator.deallocate(allocator.context, dib->color_table);
-    allocator.deallocate(allocator.context, dib->pixel_data);
+    // TODO: These have a fake sizes passed into them (1)
+    XTB_Deallocate(allocator, dib->color_table, 1, char);
+    XTB_Deallocate(allocator, dib->pixel_data, 1, char);
 }
 
 XTB_BMP_DIB
@@ -62,8 +63,8 @@ xtb_bmp_bitmap_create_from_dib_galloc(const XTB_BMP_DIB *dib)
     result.stride = result.width * sizeof(XTB_BMP_Color); // TODO(xearty): I think this is unused at the moment (but should not be)
 
     size_t bitmap_buffer_size = 4 * result.width * result.height;
-    void *bitmap_buffer = xtb_bmp_global_allocator.allocate(xtb_bmp_global_allocator.context,
-                                                            bitmap_buffer_size);
+    void *bitmap_buffer = XTB_AllocateBytes(xtb_bmp_global_allocator, bitmap_buffer_size);
+
     parse_pixel_data(dib->pixel_data,
                      dib->color_table,
                      &dib->info_header,

@@ -143,17 +143,17 @@ XTB_BMP_Bitmap xtb_bmp_load_bitmap(XTB_BMP_Prepass_Result prepass_result, const 
 /*******************************
  * Allocator API
  *******************************/
-XTB_BMP_DIB xtb_bmp_dib_load_alloc(XTB_Allocator allocator, const XTB_Byte *bytes);
-void        xtb_bmp_dib_dealloc(XTB_Allocator allocator, XTB_BMP_DIB *dib);
-XTB_BMP_Bitmap xtb_bmp_bitmap_load_alloc(XTB_Allocator allocator, const XTB_Byte *bytes);
-XTB_BMP_Bitmap xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream, XTB_Allocator allocator);
-void           xtb_bmp_bitmap_dealloc(XTB_Allocator allocator, XTB_BMP_Bitmap *bitmap);
+XTB_BMP_DIB xtb_bmp_dib_load_alloc(Allocator* allocator, const XTB_Byte *bytes);
+void        xtb_bmp_dib_dealloc(Allocator* allocator, XTB_BMP_DIB *dib);
+XTB_BMP_Bitmap xtb_bmp_bitmap_load_alloc(Allocator* allocator, const XTB_Byte *bytes);
+XTB_BMP_Bitmap xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream, Allocator* allocator);
+void           xtb_bmp_bitmap_dealloc(Allocator* allocator, XTB_BMP_Bitmap *bitmap);
 
 /*******************************
  * Global Allocator API
  *******************************/
-void xtb_bmp_set_global_allocator(XTB_Allocator allocator);
-XTB_Allocator xtb_bmp_get_global_allocator();
+void xtb_bmp_set_global_allocator(Allocator* allocator);
+Allocator* xtb_bmp_get_global_allocator();
 
 XTB_BMP_DIB xtb_bmp_dib_load_galloc(const XTB_Byte *bytes);
 void        xtb_bmp_dib_gdealloc(XTB_BMP_DIB *dib);

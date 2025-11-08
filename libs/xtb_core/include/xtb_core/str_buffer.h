@@ -12,14 +12,14 @@ XTB_C_LINKAGE_BEGIN
 
 typedef struct XTB_String8_Buffer
 {
+    Allocator* allocator;
     char *data;
     size_t size;
     size_t capacity;
-    XTB_Allocator allocator;
 } XTB_String8_Buffer;
 
-XTB_String8_Buffer xtb_str8_buffer_new(XTB_Allocator allocator, size_t cap_hint);
-XTB_String8_Buffer xtb_str8_buffer_from(XTB_Allocator allocator, XTB_String8 init);
+XTB_String8_Buffer xtb_str8_buffer_new(Allocator* allocator, size_t cap_hint);
+XTB_String8_Buffer xtb_str8_buffer_from(Allocator* allocator, XTB_String8 init);
 
 void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 string);
 #define xtb_str8_buffer_push_back_lit(str_buffer, lit) \

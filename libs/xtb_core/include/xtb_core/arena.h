@@ -35,6 +35,7 @@ struct XTB_Arena_Chunk_Header
 typedef struct XTB_Arena XTB_Arena;
 struct XTB_Arena
 {
+    Allocator allocator;
     XTB_Arena_Chunk_Header *base_chunk;
     XTB_Arena_Chunk_Header *current_chunk;
     size_t base_size;
@@ -79,8 +80,6 @@ size_t xtb_arena_dump_memory_usage_pp(XTB_Arena *arena, char *buffer, size_t buf
 /****************************
  * Allocator Interface
  ***************************/
-XTB_Allocator xtb_arena_allocator(XTB_Arena *arena);
-
 #ifdef XTB_ARENA_SHORTHANDS
 typedef XTB_Arena Arena;
 

@@ -17,7 +17,7 @@ XTB_Thread_Context *xtb_tctx_get_equipped(void);
 XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
 
 #define xtb_scratch_begin(conflicts, count) xtb_temp_arena_new(xtb_tctx_get_scratch((conflicts), (count)))
-#define xtb_scratch_begin_conflict(allocator) xtb_scratch_begin((XTB_Arena**)&(allocator).context, 1)
+#define xtb_scratch_begin_conflict(alloc) xtb_scratch_begin((XTB_Arena**)(&alloc), 1)
 #define xtb_scratch_begin_no_conflicts() xtb_scratch_begin(NULL, 0)
 
 #define xtb_scratch_end(scratch) xtb_temp_arena_release(scratch)

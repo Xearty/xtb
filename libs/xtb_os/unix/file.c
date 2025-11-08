@@ -156,7 +156,7 @@ XTB_File_Type dirent_ft_to_xtb_ft(int ft)
     }
 }
 
-XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
+XTB_Directory_List xtb_os_list_directory_custom(Allocator* allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_conflict(allocator);
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
@@ -190,12 +190,12 @@ XTB_Directory_List xtb_os_list_directory_custom(XTB_Allocator allocator, XTB_Str
     return list;
 }
 
-XTB_Directory_List xtb_os_list_directory(XTB_Allocator allocator, XTB_String8 filepath)
+XTB_Directory_List xtb_os_list_directory(Allocator* allocator, XTB_String8 filepath)
 {
     return xtb_os_list_directory_custom(allocator, filepath, XTB_DIR_LIST_NONE);
 }
 
-XTB_Directory_List xtb_os_list_directory_recursively(XTB_Allocator allocator, XTB_String8 filepath)
+XTB_Directory_List xtb_os_list_directory_recursively(Allocator* allocator, XTB_String8 filepath)
 {
     XTB_Directory_List entries = xtb_os_list_directory(allocator, filepath);
     XTB_Directory_List accumulator = entries;

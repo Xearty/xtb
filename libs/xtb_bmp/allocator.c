@@ -1,6 +1,6 @@
-XTB_Allocator xtb_bmp_global_allocator;
+Allocator* xtb_bmp_global_allocator;
 
-XTB_Allocator
+Allocator*
 xtb_bmp_get_global_allocator()
 {
     return xtb_bmp_global_allocator;

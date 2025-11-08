@@ -1,5 +1,4 @@
 #include "os.h"
-#include "xtb_allocator/malloc.h"
 #include "xtb_core/core.h"
 #include "xtb_core/str.h"
 #include <xtb_core/str_buffer.h>
@@ -120,11 +119,11 @@ bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path)
 
     bool succ = xtb_os_write_entire_file(new_path, (XTB_Byte*)content.str, content.len);
 
-    xtb_str8_free(xtb_malloc_allocator(), content);
+    xtb_str8_free(allocator_get_malloc(), content);
     return succ;
 }
 
-XTB_String8 xtb_os_real_path(XTB_Allocator allocator, XTB_String8 filepath)
+XTB_String8 xtb_os_real_path(Allocator* allocator, XTB_String8 filepath)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     filepath = xtb_str8_push_copy(scratch.arena, filepath);
@@ -137,12 +136,11 @@ XTB_String8 xtb_os_real_path(XTB_Allocator allocator, XTB_String8 filepath)
     return copy;
 }
 
-XTB_String8 xtb_os_path_join(XTB_Allocator allocator, XTB_String8 *parts, size_t count)
+XTB_String8 xtb_os_path_join(Allocator* allocator, XTB_String8 *parts, size_t count)
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_conflict(allocator);
-    XTB_Allocator scratch_allocator = xtb_arena_allocator(scratch.arena);
 
-    XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(scratch_allocator, 0);
+    XTB_String8_Buffer str_buffer = xtb_str8_buffer_new(&scratch.arena->allocator, 0);
 
     for (size_t i = 0; i < count; ++i)
     {

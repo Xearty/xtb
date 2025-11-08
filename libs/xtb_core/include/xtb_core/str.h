@@ -20,10 +20,10 @@ XTB_String8 xtb_str8(const char *str, size_t len);
 #define xtb_str8_lit(cstring_literal) (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
 XTB_String8 xtb_str8_cstring(const char *cstring);
 #define xtb_str8_cstring_copy(allocator, cstr) xtb_str8_copy((allocator), xtb_str8_cstring((cstr)))
-XTB_String8 xtb_str8_copy(XTB_Allocator allocator, XTB_String8 string);
+XTB_String8 xtb_str8_copy(Allocator* allocator, XTB_String8 string);
 #define xtb_str8_lit_copy(allocator, cstring_literal) xtb_str8_copy((allocator), xtb_str8_lit(cstring_literal))
 XTB_String8 xtb_str8_push_copy(XTB_Arena *arena, XTB_String8 string);
-void xtb_str8_free(XTB_Allocator allocator, XTB_String8 str);
+void xtb_str8_free(Allocator* allocator, XTB_String8 str);
 #define xtb_str8_empty xtb_str8_lit("")
 #define xtb_str8_invalid xtb_str8(NULL, 0)
 bool xtb_str8_is_invalid(XTB_String8 string);
@@ -57,12 +57,12 @@ XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len);
 #define xtb_str8_substr_copy(allocator, string, begin_idx, len) \
     xtb_str8_copy((allocator), xtb_str8_substr((string), (begin_idx), (len)))
 
-XTB_String8 xtb_str8_concat(XTB_Allocator allocator, XTB_String8 f, XTB_String8 s);
+XTB_String8 xtb_str8_concat(Allocator* allocator, XTB_String8 f, XTB_String8 s);
 #define xtb_str8_concat_lit(allocator, f, s) xtb_str8_concat((allocator), (f), xtb_str8_lit(s))
 
 size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count);
-XTB_String8 xtb_str8_array_join(XTB_Allocator allocator, XTB_String8 *array, size_t count);
-XTB_String8 xtb_str8_array_join_sep(XTB_Allocator allocator, XTB_String8 *array, size_t count, XTB_String8 sep);
+XTB_String8 xtb_str8_array_join(Allocator* allocator, XTB_String8 *array, size_t count);
+XTB_String8 xtb_str8_array_join_sep(Allocator* allocator, XTB_String8 *array, size_t count, XTB_String8 sep);
 
 typedef struct XTB_String8_List_Node
 {
@@ -77,27 +77,27 @@ typedef struct XTB_String8_List
     XTB_String8_List_Node *tail;
 } XTB_String8_List;
 
-XTB_String8_List_Node *xtb_str8_list_alloc_node(XTB_Allocator allocator, XTB_String8 string);
-void xtb_str8_list_push_explicit(XTB_Allocator allocator, XTB_String8_List *str_list, XTB_String8_List_Node *node);
-void xtb_str8_list_push(XTB_Allocator allocator, XTB_String8_List *str_list, XTB_String8 string);
+XTB_String8_List_Node *xtb_str8_list_alloc_node(Allocator* allocator, XTB_String8 string);
+void xtb_str8_list_push_explicit(Allocator* allocator, XTB_String8_List *str_list, XTB_String8_List_Node *node);
+void xtb_str8_list_push(Allocator* allocator, XTB_String8_List *str_list, XTB_String8 string);
 size_t xtb_str8_list_length(XTB_String8_List str_list);
 size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list);
-XTB_String8 xtb_str8_list_join(XTB_Allocator allocator, XTB_String8_List str_list);
-XTB_String8 xtb_str8_list_join_str_sep(XTB_Allocator allocator, XTB_String8_List str_list, XTB_String8 sep);
-XTB_String8 xtb_str8_list_join_char_sep(XTB_Allocator allocator, XTB_String8_List str_list, char sep);
+XTB_String8 xtb_str8_list_join(Allocator* allocator, XTB_String8_List str_list);
+XTB_String8 xtb_str8_list_join_str_sep(Allocator* allocator, XTB_String8_List str_list, XTB_String8 sep);
+XTB_String8 xtb_str8_list_join_char_sep(Allocator* allocator, XTB_String8_List str_list, char sep);
 
 // NOTE: Return types tells you how many bytes to skip
 typedef int(*XTB_String8_Split_Pred_Fn)(XTB_String8 rest, void *data);
 
-XTB_String8_List xtb_str8_split_pred(XTB_Allocator allocator, XTB_String8 str, XTB_String8_Split_Pred_Fn pred, void *data);
-XTB_String8_List xtb_str8_split_tokens_pred(XTB_Allocator allocator, XTB_String8 str, XTB_String8_Split_Pred_Fn pred, void *data);
-XTB_String8_List xtb_str8_split_by_str(XTB_Allocator allocator, XTB_String8 str, XTB_String8 sep);
-XTB_String8_List xtb_str8_split_by_char(XTB_Allocator allocator, XTB_String8 str, char sep);
-XTB_String8_List xtb_str8_split_by_whitespace(XTB_Allocator allocator, XTB_String8 str);
-XTB_String8_List xtb_str8_split_by_lines(XTB_Allocator allocator, XTB_String8 str);
+XTB_String8_List xtb_str8_split_pred(Allocator* allocator, XTB_String8 str, XTB_String8_Split_Pred_Fn pred, void *data);
+XTB_String8_List xtb_str8_split_tokens_pred(Allocator* allocator, XTB_String8 str, XTB_String8_Split_Pred_Fn pred, void *data);
+XTB_String8_List xtb_str8_split_by_str(Allocator* allocator, XTB_String8 str, XTB_String8 sep);
+XTB_String8_List xtb_str8_split_by_char(Allocator* allocator, XTB_String8 str, char sep);
+XTB_String8_List xtb_str8_split_by_whitespace(Allocator* allocator, XTB_String8 str);
+XTB_String8_List xtb_str8_split_by_lines(Allocator* allocator, XTB_String8 str);
 
-XTB_String8 xtb_str8_formatv(XTB_Allocator allocator, const char *fmt, va_list args);
-XTB_String8 xtb_str8_format(XTB_Allocator allocator, const char *fmt, ...);
+XTB_String8 xtb_str8_formatv(Allocator* allocator, const char *fmt, va_list args);
+XTB_String8 xtb_str8_format(Allocator* allocator, const char *fmt, ...);
 
 #define xtb_str8_debug(s) fprintf(stderr, "%.*s\n", (int)(s).len, (s).str)
 
