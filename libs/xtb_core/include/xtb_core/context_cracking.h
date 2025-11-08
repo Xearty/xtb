@@ -187,4 +187,16 @@
 # error You tried to build with an unsupported architecture. Currently, only building in x64 mode is supported.
 #endif
 
+#if XTB_LANG_CPP
+#define XTB_C_LINKAGE_BEGIN \
+    extern "C"              \
+    {
+#define XTB_C_LINKAGE_END }
+#define XTB_C_LINKAGE extern "C"
+#else
+#define XTB_C_LINKAGE_BEGIN
+#define XTB_C_LINKAGE_END
+#define XTB_C_LINKAGE
+#endif
+
 #endif // BASE_CONTEXT_CRACKING_H

@@ -6,6 +6,7 @@
 
 #include <xtb_os/os.h>
 #include <xtb_core/thread_context.h>
+#include <xtb_core/contract.h>
 
 #include "glad/src/glad.c"
 

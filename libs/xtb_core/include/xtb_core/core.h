@@ -36,40 +36,6 @@
 #define XTB_GrowGeometric(old, need) ((old) ? ((old) * 2 >= (need) ? (old) * 2 : (need)) : (need))
 
 /****************************************************************
- * Compiler Specific Attributes
-****************************************************************/
-#define XTB_NOINLINE __attribute__((noinline))
-#define XTB_NORETURN __attribute__((noreturn))
-
-#if XTB_COMPILER_MSVC
-#define XTB_THREAD_STATIC __declspec(thread)
-#elif XTB_COMPILER_CLANG || XTB_COMPILER_GCC
-#define XTB_THREAD_STATIC __thread
-#else
-#error XTB_THREAD_STATIC not defined for this compiler.
-#endif
-
-#ifdef XTB_COMPILER_GC
-#define XTB_Likely(x)      __builtin_expect(!!(x), 1)
-#define XTB_Unlikely(x)    __builtin_expect(!!(x), 0)
-#else
-#define XTB_Likely(x)      (x)
-#define XTB_Unlikely(x)    (x)
-#endif
-
-#if XTB_LANG_CPP
-#define XTB_C_LINKAGE_BEGIN \
-    extern "C"              \
-    {
-#define XTB_C_LINKAGE_END }
-#define XTB_C_LINKAGE extern "C"
-#else
-#define XTB_C_LINKAGE_BEGIN
-#define XTB_C_LINKAGE_END
-#define XTB_C_LINKAGE
-#endif
-
-/****************************************************************
  * Miscellaneous Macros
 ****************************************************************/
 #define XTB_ArrLen(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
@@ -150,40 +116,6 @@ void xtb_log(XTB_Log_Level level, const char *fmt, ...);
 #define XTB_LOG_WARN(fmt, ...)  xtb_log(XTB_LOG_WARN,  fmt, ##__VA_ARGS__)
 #define XTB_LOG_ERROR(fmt, ...) xtb_log(XTB_LOG_ERROR, fmt, ##__VA_ARGS__)
 #define XTB_LOG_FATAL(fmt, ...) xtb_log(XTB_LOG_FATAL, fmt, ##__VA_ARGS__)
-
-/****************************************************************
- * Assertions and Panic System
-****************************************************************/
-typedef void (*XTB_Panic_Handler)(const char *message, void *user_data);
-
-void xtb_set_panic_handler(XTB_Panic_Handler handler, void *user_data);
-XTB_NORETURN void xtb_panic(const char *fmt, ...);
-
-#ifndef NDEBUG
-#   define XTB_ASSERT(cond)                                                           \
-        do                                                                            \
-        {                                                                             \
-            if (XTB_Unlikely(!(cond)))                                                \
-            {                                                                         \
-                xtb_panic("Assertion failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
-            }                                                                         \
-        } while (0)
-
-#   define XTB_UNREACHABLE                                                      \
-        do                                                                      \
-        {                                                                       \
-            xtb_panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
-        } while (0)
-
-#define XTB_CheckBounds(i, count, ...) XTB_ASSERT(0 <= (i) && (i) <= count)
-
-#else
-#   define XTB_ASSERT(cond) (void)(cond)
-#   define XTB_UNREACHABLE
-#endif
-
-#define XTB_STATIC_ASSERT(cond, msg) \
-    typedef char static_assertion_##msg[(cond) ? 1 : -1]
 
 /****************************************************************
  * Stack Trace

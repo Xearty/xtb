@@ -3,6 +3,7 @@
 #include "xtb_core/str.h"
 #include <xtb_core/str_buffer.h>
 #include <xtb_core/thread_context.h>
+#include <xtb_core/contract.h>
 #include <stdio.h>
 #include <stdlib.h>
 

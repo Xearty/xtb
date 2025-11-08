@@ -4,6 +4,7 @@
 #include <xtb_core/arena.h>
 #include <xtb_core/thread_context.h>
 #include <xtb_core/str_buffer.h>
+#include <xtb_core/contract.h>
 
 #include <stdio.h>
 
