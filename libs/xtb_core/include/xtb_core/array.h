@@ -26,6 +26,7 @@
 
 #include <xtb_core/core.h>
 #include <xtb_core/allocator.h>
+#include <xtb_core/contract.h>
 
 #include <stdint.h>
 #include <stdbool.h>

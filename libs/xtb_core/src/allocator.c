@@ -1,4 +1,5 @@
 #include <xtb_core/allocator.h>
+#include <xtb_core/contract.h>
 #include <string.h>
 #include <stdlib.h>
 

@@ -1,4 +1,3 @@
-#include "xtb_allocator/malloc.h"
 #include "xtb_core/str.h"
 #include <stdio.h>
 #include <string.h>
