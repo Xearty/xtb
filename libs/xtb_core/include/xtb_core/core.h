@@ -49,6 +49,14 @@
 #error XTB_THREAD_STATIC not defined for this compiler.
 #endif
 
+#ifdef XTB_COMPILER_GC
+#define XTB_Likely(x)      __builtin_expect(!!(x), 1)
+#define XTB_Unlikely(x)    __builtin_expect(!!(x), 0)
+#else
+#define XTB_Likely(x)      (x)
+#define XTB_Unlikely(x)    (x)
+#endif
+
 #if XTB_LANG_CPP
 #define XTB_C_LINKAGE_BEGIN \
     extern "C"              \
@@ -155,7 +163,7 @@ void xtb_panic(const char *fmt, ...);
 #   define XTB_ASSERT(cond)                                                           \
         do                                                                            \
         {                                                                             \
-            if (!(cond))                                                              \
+            if (XTB_Unlikely(!(cond)))                                                \
             {                                                                         \
                 xtb_panic("Assertion failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
             }                                                                         \
