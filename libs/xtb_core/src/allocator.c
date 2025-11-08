@@ -52,24 +52,24 @@ static void* malloc_allocator_procedure(void* alloc, int64_t new_size, void* old
     return new_ptr;
 }
 
-static void init_allocator_set()
+static void init_allocator_set(void)
 {
     g_allocators.heap_allocator = &g_malloc_allocator;
     g_allocators.static_allocator = &g_malloc_allocator;
 }
 
-void allocators_init()
+void allocators_init(void)
 {
     g_malloc_allocator = malloc_allocator_procedure;
     init_allocator_set();
 }
 
-Allocator *allocator_get_heap()
+Allocator *allocator_get_heap(void)
 {
     return g_allocators.heap_allocator;
 }
 
-Allocator *allocator_get_static()
+Allocator *allocator_get_static(void)
 {
     return g_allocators.static_allocator;
 }

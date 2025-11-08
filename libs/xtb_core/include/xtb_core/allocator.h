@@ -21,8 +21,8 @@ typedef struct Allocator_Set
     Allocator *static_allocator;
 } Allocator_Set;
 
-Allocator *allocator_get_heap();
-Allocator *allocator_get_static();
+Allocator *allocator_get_heap(void);
+Allocator *allocator_get_static(void);
 
 Allocator_Set allocator_set_heap(Allocator *allocator);
 Allocator_Set allocator_set_static(Allocator *allocator);
