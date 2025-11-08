@@ -7,6 +7,7 @@ option(XTB_BUILD_JSON "Build the json module" ON)
 option(XTB_BUILD_BMP "Build the bmp module" ON)
 option(XTB_BUILD_DA "Build the dynamic array module" ON)
 option(XTB_BUILD_XTBM "Build the math module" ON)
+option(XTB_BUILD_OGL "Build the opengl module" ON)
 
 if(XTB_BUILD_CORE)
     add_subdirectory(xtb_core)
@@ -38,4 +39,8 @@ endif()
 
 if(XTB_BUILD_XTBM)
     add_subdirectory(xtbm)
+endif()
+
+if(XTB_BUILD_OGL)
+    add_subdirectory(xtb_ogl)
 endif()
