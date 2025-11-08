@@ -19,6 +19,7 @@
 #include "arena.c"
 #include "thread_context.c"
 #include "allocator.c"
+#include "array.c"
 
 /****************************************************************
  * Stack Trace

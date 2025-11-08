@@ -1,10 +1,11 @@
 #ifndef _XTB_CORE_H_
 #define _XTB_CORE_H_
 
-#include "shorthands.h"
+#include <xtb_core/shorthands.h>
+#include <xtb_core/context_cracking.h>
 
 #include <stddef.h>
-#include <xtb_core/context_cracking.h>
+#include <stdint.h>
 
 /****************************************************************
  * Versioning
@@ -75,6 +76,7 @@
  * Type Aliases
 ****************************************************************/
 typedef unsigned char XTB_Byte;
+typedef int64_t isize;
 
 /****************************************************************
  * Basic Math Macros
@@ -141,6 +143,9 @@ void xtb_panic(const char *fmt, ...);
         {                                                                       \
             xtb_panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
         } while (0)
+
+#define XTB_CheckBounds(i, count, ...) XTB_ASSERT(0 <= (i) && (i) <= count)
+
 #else
 #   define XTB_ASSERT(cond) (void)(cond)
 #   define XTB_UNREACHABLE
