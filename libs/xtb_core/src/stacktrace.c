@@ -71,3 +71,8 @@ void xtb_print_full_stack_trace(void)
 {
     xtb_print_stack_trace(0);
 }
+
+void xtb_stacktrace_init(const char *exe_path)
+{
+    g_backtrace.state = backtrace_create_state(exe_path, 0, xtb_backtrace_error_callback, NULL);
+}

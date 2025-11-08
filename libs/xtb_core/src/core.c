@@ -1,4 +1,6 @@
 #include <xtb_core/core.h>
+#include <xtb_core/allocator.h>
+#include <xtb_core/stacktrace.h>
 
 #if XTB_OS_LINUX
 #include "linux_signal_handlers.c"
@@ -19,10 +21,9 @@
 void xtb_init(int argc, char **argv)
 {
     const char *exe_path = argv[0];
-    g_backtrace.state = backtrace_create_state(exe_path, 0, xtb_backtrace_error_callback, NULL);
 
     allocators_init();
-
+    xtb_stacktrace_init(exe_path);
     register_signal_handlers();
 }
 
