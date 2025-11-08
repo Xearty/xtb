@@ -9,7 +9,9 @@ XTB_C_LINKAGE_BEGIN
 typedef unsigned int ShaderProgram;
 typedef unsigned int Shader;
 
-bool ogl_load_gl(void);
+typedef void* (* XTB_Load_Proc)(const char *name);
+
+bool ogl_load_gl(XTB_Load_Proc load_proc);
 
 Shader load_shader_from_file(const char *ns, XTB_String8 filepath, int shader_type);
 Shader load_vertex_shader_from_file(const char *ns, XTB_String8 filepath);

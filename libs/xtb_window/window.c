@@ -18,7 +18,6 @@ XTB_Window *window_create(XTB_Window_Config config)
     u32 window_height = config.height > 0 ? config.height : 800;
     const char *title = config.title != NULL ? config.title : "XTB Window";
 
-    glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
@@ -30,7 +29,6 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwWindowHint(GLFW_SAMPLES, config.samples);
 
     GLFWwindow *window = glfwCreateWindow(window_width, window_height, title, NULL, NULL);
-
     return (XTB_Window*)window;
 }
 
@@ -57,4 +55,9 @@ void window_swap_buffers(XTB_Window *window)
 void window_make_context_current(XTB_Window *window)
 {
     glfwMakeContextCurrent((GLFWwindow*)window);
+}
+
+void *window_get_proc_address(const char *name)
+{
+    return glfwGetProcAddress(name);
 }

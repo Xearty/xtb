@@ -31,4 +31,6 @@ void window_swap_buffers(XTB_Window *window);
 
 void window_make_context_current(XTB_Window *window);
 
+void *window_get_proc_address(const char *name);
+
 #endif // _XTB_WINDOW_H_

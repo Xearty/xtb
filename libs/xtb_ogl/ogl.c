@@ -10,9 +10,9 @@
 
 #include "glad/src/glad.c"
 
-bool ogl_load_gl()
+bool ogl_load_gl(XTB_Load_Proc load_proc)
 {
-    return gladLoadGL() != 0;
+    return gladLoadGLLoader(load_proc) != 0;
 }
 
 void log_shader_compile_errors(const char *ns, unsigned int id)
