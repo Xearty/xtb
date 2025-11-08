@@ -10,6 +10,11 @@
 
 #include "glad/src/glad.c"
 
+bool ogl_load_gl()
+{
+    return gladLoadGL() != 0;
+}
+
 void log_shader_compile_errors(const char *ns, unsigned int id)
 {
     int success;
