@@ -3,22 +3,21 @@
 
 #include <xtb_core/panic.h>
 #include <xtb_core/intrinsics.h>
+#include <xtb_core/macro_helpers.h>
 
 #ifndef NDEBUG
 #   define XTB_ASSERT(cond)                                                           \
-        do                                                                            \
-        {                                                                             \
+        XTB_Statement({                                                               \
             if (XTB_Unlikely(!(cond)))                                                \
             {                                                                         \
                 xtb_panic("Assertion failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
             }                                                                         \
-        } while (0)
+        })
 
 #   define XTB_UNREACHABLE                                                      \
-        do                                                                      \
-        {                                                                       \
+        XTB_Statement({                                                         \
             xtb_panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
-        } while (0)
+        })
 
 #define XTB_CheckBounds(i, count, ...) XTB_ASSERT(0 <= (i) && (i) <= count)
 

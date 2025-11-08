@@ -3,6 +3,7 @@
 
 #include <xtb_core/shorthands.h>
 #include <xtb_core/context_cracking.h>
+#include <xtb_core/macro_helpers.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -45,7 +46,7 @@
  * Control-Flow Macros
 ****************************************************************/
 #define XTB_SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
-    do { switch (VALUE) { ITERATOR(MACRO) } } while (0)
+    XTB_Statement(switch (VALUE) { ITERATOR(MACRO) })
 
 /****************************************************************
  * Type Aliases
