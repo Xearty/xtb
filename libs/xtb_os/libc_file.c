@@ -69,6 +69,7 @@ XTB_String8 xtb_os_read_entire_file(Allocator *allocator, XTB_String8 filepath)
 
     if (bytes_read == file_size)
     {
+        buffer[bytes_read - 1] = '\0';
         return xtb_str8(buffer, file_size);
     }
     else
