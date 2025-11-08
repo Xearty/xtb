@@ -118,12 +118,6 @@ void xtb_log(XTB_Log_Level level, const char *fmt, ...);
 #define XTB_LOG_ERROR(fmt, ...) xtb_log(XTB_LOG_ERROR, fmt, ##__VA_ARGS__)
 #define XTB_LOG_FATAL(fmt, ...) xtb_log(XTB_LOG_FATAL, fmt, ##__VA_ARGS__)
 
-/****************************************************************
- * Stack Trace
-****************************************************************/
-void xtb_print_stack_trace(int skip_frames_count);
-void xtb_print_full_stack_trace(void);
-
 XTB_C_LINKAGE_END
 
 #endif // _XTB_CORE_H_
