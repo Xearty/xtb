@@ -22,6 +22,23 @@ int main(int argc, char **argv)
     {
         window_poll_events(window);
 
+        if (window_key_is_down(XTB_KEY_SPACE))
+        {
+            puts("Space is down");
+        }
+        if (window_key_is_up(XTB_KEY_SPACE))
+        {
+            puts("Space is up");
+        }
+        if (window_key_is_pressed(XTB_KEY_SPACE))
+        {
+            puts("Space is pressed");
+        }
+        if (window_key_is_released(XTB_KEY_SPACE))
+        {
+            puts("Space is released");
+        }
+
         window_swap_buffers(window);
     }
 

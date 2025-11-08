@@ -31,6 +31,139 @@ void window_swap_buffers(XTB_Window *window);
 
 void window_make_context_current(XTB_Window *window);
 
+// TODO: Maybe pass in the window. That would require
+// to have key states on a per window basis
+bool window_key_is_pressed(u32 key);
+bool window_key_is_released(u32 key);
+bool window_key_is_down(u32 key);
+bool window_key_is_up(u32 key);
+
 void *window_get_proc_address(const char *name);
+
+/* Printable keys */
+#define XTB_KEY_SPACE              32
+#define XTB_KEY_APOSTROPHE         39  /* ' */
+#define XTB_KEY_COMMA              44  /* , */
+#define XTB_KEY_MINUS              45  /* - */
+#define XTB_KEY_PERIOD             46  /* . */
+#define XTB_KEY_SLASH              47  /* / */
+#define XTB_KEY_0                  48
+#define XTB_KEY_1                  49
+#define XTB_KEY_2                  50
+#define XTB_KEY_3                  51
+#define XTB_KEY_4                  52
+#define XTB_KEY_5                  53
+#define XTB_KEY_6                  54
+#define XTB_KEY_7                  55
+#define XTB_KEY_8                  56
+#define XTB_KEY_9                  57
+#define XTB_KEY_SEMICOLON          59  /* ; */
+#define XTB_KEY_EQUAL              61  /* = */
+#define XTB_KEY_A                  65
+#define XTB_KEY_B                  66
+#define XTB_KEY_C                  67
+#define XTB_KEY_D                  68
+#define XTB_KEY_E                  69
+#define XTB_KEY_F                  70
+#define XTB_KEY_G                  71
+#define XTB_KEY_H                  72
+#define XTB_KEY_I                  73
+#define XTB_KEY_J                  74
+#define XTB_KEY_K                  75
+#define XTB_KEY_L                  76
+#define XTB_KEY_M                  77
+#define XTB_KEY_N                  78
+#define XTB_KEY_O                  79
+#define XTB_KEY_P                  80
+#define XTB_KEY_Q                  81
+#define XTB_KEY_R                  82
+#define XTB_KEY_S                  83
+#define XTB_KEY_T                  84
+#define XTB_KEY_U                  85
+#define XTB_KEY_V                  86
+#define XTB_KEY_W                  87
+#define XTB_KEY_X                  88
+#define XTB_KEY_Y                  89
+#define XTB_KEY_Z                  90
+#define XTB_KEY_LEFT_BRACKET       91  /* [ */
+#define XTB_KEY_BACKSLASH          92  /* \ */
+#define XTB_KEY_RIGHT_BRACKET      93  /* ] */
+#define XTB_KEY_GRAVE_ACCENT       96  /* ` */
+#define XTB_KEY_WORLD_1            161 /* non-US #1 */
+#define XTB_KEY_WORLD_2            162 /* non-US #2 */
+
+/* Function keys */
+#define XTB_KEY_ESCAPE             256
+#define XTB_KEY_ENTER              257
+#define XTB_KEY_TAB                258
+#define XTB_KEY_BACKSPACE          259
+#define XTB_KEY_INSERT             260
+#define XTB_KEY_DELETE             261
+#define XTB_KEY_RIGHT              262
+#define XTB_KEY_LEFT               263
+#define XTB_KEY_DOWN               264
+#define XTB_KEY_UP                 265
+#define XTB_KEY_PAGE_UP            266
+#define XTB_KEY_PAGE_DOWN          267
+#define XTB_KEY_HOME               268
+#define XTB_KEY_END                269
+#define XTB_KEY_CAPS_LOCK          280
+#define XTB_KEY_SCROLL_LOCK        281
+#define XTB_KEY_NUM_LOCK           282
+#define XTB_KEY_PRINT_SCREEN       283
+#define XTB_KEY_PAUSE              284
+#define XTB_KEY_F1                 290
+#define XTB_KEY_F2                 291
+#define XTB_KEY_F3                 292
+#define XTB_KEY_F4                 293
+#define XTB_KEY_F5                 294
+#define XTB_KEY_F6                 295
+#define XTB_KEY_F7                 296
+#define XTB_KEY_F8                 297
+#define XTB_KEY_F9                 298
+#define XTB_KEY_F10                299
+#define XTB_KEY_F11                300
+#define XTB_KEY_F12                301
+#define XTB_KEY_F13                302
+#define XTB_KEY_F14                303
+#define XTB_KEY_F15                304
+#define XTB_KEY_F16                305
+#define XTB_KEY_F17                306
+#define XTB_KEY_F18                307
+#define XTB_KEY_F19                308
+#define XTB_KEY_F20                309
+#define XTB_KEY_F21                310
+#define XTB_KEY_F22                311
+#define XTB_KEY_F23                312
+#define XTB_KEY_F24                313
+#define XTB_KEY_F25                314
+#define XTB_KEY_KP_0               320
+#define XTB_KEY_KP_1               321
+#define XTB_KEY_KP_2               322
+#define XTB_KEY_KP_3               323
+#define XTB_KEY_KP_4               324
+#define XTB_KEY_KP_5               325
+#define XTB_KEY_KP_6               326
+#define XTB_KEY_KP_7               327
+#define XTB_KEY_KP_8               328
+#define XTB_KEY_KP_9               329
+#define XTB_KEY_KP_DECIMAL         330
+#define XTB_KEY_KP_DIVIDE          331
+#define XTB_KEY_KP_MULTIPLY        332
+#define XTB_KEY_KP_SUBTRACT        333
+#define XTB_KEY_KP_ADD             334
+#define XTB_KEY_KP_ENTER           335
+#define XTB_KEY_KP_EQUAL           336
+#define XTB_KEY_LEFT_SHIFT         340
+#define XTB_KEY_LEFT_CONTROL       341
+#define XTB_KEY_LEFT_ALT           342
+#define XTB_KEY_LEFT_SUPER         343
+#define XTB_KEY_RIGHT_SHIFT        344
+#define XTB_KEY_RIGHT_CONTROL      345
+#define XTB_KEY_RIGHT_ALT          346
+#define XTB_KEY_RIGHT_SUPER        347
+#define XTB_KEY_MENU               348
+
+#define XTB_KEY_LAST               XTB_KEY_MENU
 
 #endif // _XTB_WINDOW_H_
