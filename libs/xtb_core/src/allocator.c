@@ -47,7 +47,7 @@ static void* malloc_allocate(int64_t new_size, void* old_ptr, int64_t old_size, 
 
 static void* malloc_allocator_procedure(void* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
 {
-    (void)alloc;
+    XTB_Unused(alloc);
     void* new_ptr = malloc_allocate(new_size, old_ptr, old_size, align);
     return new_ptr;
 }
