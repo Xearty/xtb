@@ -39,6 +39,11 @@ int main(int argc, char **argv)
             puts("Space is released");
         }
 
+        float delta_x, delta_y;
+        window_get_cursor_position(&delta_x, &delta_y);
+
+        printf("Delta = (%f, %f)\n", delta_x, delta_y);
+
         window_swap_buffers(window);
     }
 

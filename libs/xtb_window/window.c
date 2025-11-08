@@ -3,6 +3,8 @@
 #include <GLFW/glfw3.h>
 
 u32 g_key_states[XTB_KEY_LAST + 1];
+u32 g_prev_cursor_position[2];
+u32 g_cursor_position[2];
 
 void window_system_init(void)
 {
@@ -22,7 +24,7 @@ enum
     XTB_KEY_STATE_PRESSED = 3,
 };
 
-void glfw_key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
+static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     if (key < 0) return;
 
@@ -38,6 +40,15 @@ void glfw_key_callback(GLFWwindow *window, int key, int scancode, int action, in
             g_key_states[key] = XTB_KEY_STATE_RELEASED;
         } break;
     }
+}
+
+static void glfw_cursor_callback(GLFWwindow *window, double xposd, double yposd)
+{
+    g_prev_cursor_position[0] = g_cursor_position[0];
+    g_prev_cursor_position[1] = g_cursor_position[1];
+
+    g_cursor_position[0] = (float)xposd;
+    g_cursor_position[1] = (float)yposd;
 }
 
 static void update_key_states(void)
@@ -73,6 +84,7 @@ XTB_Window *window_create(XTB_Window_Config config)
 
     GLFWwindow *window = glfwCreateWindow(window_width, window_height, title, NULL, NULL);
     glfwSetKeyCallback(window, glfw_key_callback);
+    glfwSetCursorPosCallback(window, glfw_cursor_callback);
 
     return (XTB_Window*)window;
 }
@@ -129,3 +141,22 @@ void *window_get_proc_address(const char *name)
 {
     return glfwGetProcAddress(name);
 }
+
+void window_get_cursor_position(float *x, float *y)
+{
+    *x = g_cursor_position[0];
+    *y = g_cursor_position[1];
+}
+
+void window_get_previous_cursor_position(float *x, float *y)
+{
+    *x = g_prev_cursor_position[0];
+    *y = g_prev_cursor_position[1];
+}
+
+void window_get_cursor_delta(float *x, float *y)
+{
+    *x = g_cursor_position[0] - g_prev_cursor_position[0];
+    *y = g_cursor_position[1] - g_prev_cursor_position[1];
+}
+

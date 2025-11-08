@@ -38,6 +38,10 @@ bool window_key_is_released(u32 key);
 bool window_key_is_down(u32 key);
 bool window_key_is_up(u32 key);
 
+void window_get_cursor_position(float *x, float *y);
+void window_get_previous_cursor_position(float *x, float *y);
+void window_get_cursor_delta(float *x, float *y);
+
 void *window_get_proc_address(const char *name);
 
 /* Printable keys */
@@ -165,5 +169,19 @@ void *window_get_proc_address(const char *name);
 #define XTB_KEY_MENU               348
 
 #define XTB_KEY_LAST               XTB_KEY_MENU
+
+
+#define GLFW_MOUSE_BUTTON_1         0
+#define GLFW_MOUSE_BUTTON_2         1
+#define GLFW_MOUSE_BUTTON_3         2
+#define GLFW_MOUSE_BUTTON_4         3
+#define GLFW_MOUSE_BUTTON_5         4
+#define GLFW_MOUSE_BUTTON_6         5
+#define GLFW_MOUSE_BUTTON_7         6
+#define GLFW_MOUSE_BUTTON_8         7
+#define GLFW_MOUSE_BUTTON_LAST      GLFW_MOUSE_BUTTON_8
+#define GLFW_MOUSE_BUTTON_LEFT      GLFW_MOUSE_BUTTON_1
+#define GLFW_MOUSE_BUTTON_RIGHT     GLFW_MOUSE_BUTTON_2
+#define GLFW_MOUSE_BUTTON_MIDDLE    GLFW_MOUSE_BUTTON_3
 
 #endif // _XTB_WINDOW_H_
