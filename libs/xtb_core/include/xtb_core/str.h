@@ -17,7 +17,7 @@ typedef struct XTB_String8
 } XTB_String8;
 
 XTB_String8 xtb_str8(const char *str, size_t len);
-#define xtb_str8_lit(cstring_literal) (XTB_String8){ cstring_literal, sizeof(cstring_literal) - 1 }
+#define xtb_str8_lit(cstring_literal) (XTB_String8){ (char *)cstring_literal, sizeof(cstring_literal) - 1 }
 XTB_String8 xtb_str8_cstring(const char *cstring);
 #define xtb_str8_cstring_copy(allocator, cstr) xtb_str8_copy((allocator), xtb_str8_cstring((cstr)))
 XTB_String8 xtb_str8_copy(Allocator* allocator, XTB_String8 string);
