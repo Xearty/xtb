@@ -20,7 +20,6 @@ static const char *xtb_file_mode_to_stdio_mode(XTB_File_Mode mode)
     }
 
     XTB_UNREACHABLE;
-    return NULL;
 }
 
 XTB_File_Handle *xtb_os_open_file(XTB_String8 filepath, XTB_File_Mode mode)
