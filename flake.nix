@@ -21,6 +21,7 @@
             bear
             readline
             libbacktrace
+            glfw3
           ];
         };
       });

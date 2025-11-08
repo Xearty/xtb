@@ -7,5 +7,6 @@ add_subdirectory(str_test)
 add_subdirectory(thread_context_test)
 add_subdirectory(allocator_test)
 add_subdirectory(array_test)
+add_subdirectory(window_test)
 
 add_subdirectory(cpp_bindings_test)
