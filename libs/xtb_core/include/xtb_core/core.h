@@ -157,7 +157,7 @@ void xtb_log(XTB_Log_Level level, const char *fmt, ...);
 typedef void (*XTB_Panic_Handler)(const char *message, void *user_data);
 
 void xtb_set_panic_handler(XTB_Panic_Handler handler, void *user_data);
-void xtb_panic(const char *fmt, ...);
+XTB_NORETURN void xtb_panic(const char *fmt, ...);
 
 #ifndef NDEBUG
 #   define XTB_ASSERT(cond)                                                           \
