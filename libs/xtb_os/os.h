@@ -37,7 +37,7 @@ void xtb_os_close_file(XTB_File_Handle *handle);
 size_t xtb_os_get_file_size(XTB_File_Handle *handle);
 
 size_t xtb_os_read_file(XTB_File_Handle *handle, const XTB_Byte *buffer, size_t size);
-XTB_String8 xtb_os_read_entire_file(XTB_String8 filepath);
+XTB_String8 xtb_os_read_entire_file(Allocator *allcoator, XTB_String8 filepath);
 
 size_t xtb_os_write_file(XTB_File_Handle *handle, const XTB_Byte *buffer, size_t size);
 size_t xtb_os_write_entire_file(XTB_String8 filepath, const XTB_Byte *buffer, size_t size);

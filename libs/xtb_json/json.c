@@ -391,11 +391,13 @@ XTB_JSON_Value *xtb_json_parse(const char *input)
 
 XTB_JSON_Value *xtb_json_parse_file(XTB_String8 filepath)
 {
-    XTB_String8 content = xtb_os_read_entire_file(filepath);
+    Allocator *malloc_allocator = allocator_get_malloc();
+
+    XTB_String8 content = xtb_os_read_entire_file(malloc_allocator, filepath);
     if (xtb_str8_is_invalid(content)) return NULL;
 
     XTB_JSON_Value *value = xtb_json_parse(content.str);
-    xtb_str8_free(allocator_get_malloc(), content);
+    xtb_str8_free(malloc_allocator, content);
 
     return value;
 }

@@ -56,13 +56,13 @@ size_t xtb_os_get_file_size(XTB_File_Handle *handle)
     return size;
 }
 
-XTB_String8 xtb_os_read_entire_file(XTB_String8 filepath)
+XTB_String8 xtb_os_read_entire_file(Allocator *allocator, XTB_String8 filepath)
 {
     XTB_File_Handle *handle = xtb_os_open_file(filepath, XTB_READ | XTB_BINARY);
     if (handle == NULL) return xtb_str8_invalid;
 
     size_t file_size = xtb_os_get_file_size(handle);
-    char *buffer = (char*)malloc(file_size);
+    char *buffer = XTB_AllocateBytes(allocator, file_size + 1);
 
     size_t bytes_read = xtb_os_read_file(handle, (XTB_Byte*)buffer, file_size);
     xtb_os_close_file(handle);
@@ -114,12 +114,17 @@ bool xtb_os_move_file(XTB_String8 old_path, XTB_String8 new_path)
 
 bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path)
 {
-    XTB_String8 content = xtb_os_read_entire_file(filepath);
-    if (xtb_str8_is_invalid(content)) return false;
+    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
+
+    XTB_String8 content = xtb_os_read_entire_file(&scratch.arena->allocator, filepath);
+    if (xtb_str8_is_invalid(content))
+    {
+        xtb_scratch_end(scratch);
+        return false;
+    }
 
     bool succ = xtb_os_write_entire_file(new_path, (XTB_Byte*)content.str, content.len);
-
-    xtb_str8_free(allocator_get_malloc(), content);
+    xtb_scratch_end(scratch);
     return succ;
 }
 
