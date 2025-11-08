@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     Thread_Context tctx;
     tctx_init_and_equip(&tctx);
 
-    Allocator *allocator = allocator_get_malloc();
+    Allocator *allocator = allocator_get_heap();
 
     Test_Struct_Array array = make_array(allocator);
 

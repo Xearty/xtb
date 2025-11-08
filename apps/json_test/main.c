@@ -23,7 +23,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    Allocator* gpa = allocator_get_malloc();
+    Allocator* gpa = allocator_get_heap();
 
     XTB_String8 json_filepath = xtb_str8_lit_copy(gpa, "./apps/json_test/test.json");
     if (argc == 2)

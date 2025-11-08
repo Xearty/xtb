@@ -17,11 +17,11 @@ void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr
 
 typedef struct Allocator_Set
 {
-    Allocator malloc_allocator;
+    Allocator heap_allocator;
     Allocator static_allocator;
 } Allocator_Set;
 
-Allocator *allocator_get_malloc();
+Allocator *allocator_get_heap();
 Allocator *allocator_get_static();
 
 void xtb_init_allocator_set();

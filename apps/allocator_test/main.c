@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 
     XTB_String8 str = xtb_str8_lit("  fani mazakura f ");
 
-    Allocator *allocator = allocator_get_malloc();
+    Allocator *allocator = allocator_get_heap();
 
     XTB_String8_List list = str8_split_by_whitespace(allocator, str);
     XTB_IterateList(list, XTB_String8_List_Node, node)

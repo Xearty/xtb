@@ -52,13 +52,13 @@ static void* malloc_allocator_procedure(void* alloc, int64_t new_size, void* old
 
 void xtb_init_allocator_set()
 {
-    g_allocators.malloc_allocator = malloc_allocator_procedure;
+    g_allocators.heap_allocator = malloc_allocator_procedure;
     g_allocators.static_allocator =  malloc_allocator_procedure;
 }
 
-Allocator *allocator_get_malloc()
+Allocator *allocator_get_heap()
 {
-    return &g_allocators.malloc_allocator;
+    return &g_allocators.heap_allocator;
 }
 
 Allocator *allocator_get_static()

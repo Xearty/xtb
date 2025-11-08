@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     // xtb_os_free_directory_list(allocator, &list);
     //
     XTB_String8 filepath = xtb_str8_lit("./apps/os_test/main.c");
-    XTB_String8 file_content = xtb_os_read_entire_file(allocator_get_malloc(), filepath);
+    XTB_String8 file_content = xtb_os_read_entire_file(allocator_get_heap(), filepath);
     str8_debug(file_content);
 
     // XTB_String8_List lines = xtb_str8_split_by_lines(allocator, file_content);

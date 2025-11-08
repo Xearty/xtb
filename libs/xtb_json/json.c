@@ -50,7 +50,7 @@ static XTB_String8 parse_string_literal(const char *input)
     const char *string_end = rest;
     int string_len = string_end - string_begin;
     XTB_String8 substr = xtb_str8(string_begin, string_len);
-    return xtb_str8_copy(allocator_get_malloc(), substr);
+    return xtb_str8_copy(allocator_get_heap(), substr);
 }
 
 static void indent(int indentation, int level, FILE *stream)
@@ -391,13 +391,13 @@ XTB_JSON_Value *xtb_json_parse(const char *input)
 
 XTB_JSON_Value *xtb_json_parse_file(XTB_String8 filepath)
 {
-    Allocator *malloc_allocator = allocator_get_malloc();
+    Allocator *heap_allocator = allocator_get_heap();
 
-    XTB_String8 content = xtb_os_read_entire_file(malloc_allocator, filepath);
+    XTB_String8 content = xtb_os_read_entire_file(heap_allocator, filepath);
     if (xtb_str8_is_invalid(content)) return NULL;
 
     XTB_JSON_Value *value = xtb_json_parse(content.str);
-    xtb_str8_free(malloc_allocator, content);
+    xtb_str8_free(heap_allocator, content);
 
     return value;
 }
