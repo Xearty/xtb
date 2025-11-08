@@ -5,6 +5,7 @@
 
 #include <xtb_core/contract.h>
 #include <xtb_core/stacktrace.h>
+#include <xtb_core/logger.h>
 
 #define XTB_BACKTRACE_HANDLER_SIGNAL_LIST(MACRO)                     \
     MACRO(SIGABRT, "usually caused by an abort() or assert()")       \

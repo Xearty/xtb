@@ -6,6 +6,7 @@
 
 #include <xtb_core/core.h>
 #include <xtb_core/context_cracking.h>
+#include <xtb_core/logger.h>
 #include <xtb_ansi/ansi.h>
 
 #if XTB_OS_LINUX
