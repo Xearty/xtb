@@ -53,11 +53,17 @@ static void* malloc_allocator_procedure(void* alloc, int64_t new_size, void* old
 void xtb_init_allocator_set()
 {
     g_allocators.malloc_allocator = malloc_allocator_procedure;
+    g_allocators.static_allocator =  malloc_allocator_procedure;
 }
 
 Allocator *allocator_get_malloc()
 {
     return &g_allocators.malloc_allocator;
+}
+
+Allocator *allocator_get_static()
+{
+    return &g_allocators.static_allocator;
 }
 
 void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
