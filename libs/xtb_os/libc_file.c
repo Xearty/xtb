@@ -73,7 +73,7 @@ XTB_String8 xtb_os_read_entire_file(Allocator *allocator, XTB_String8 filepath)
     }
     else
     {
-        free(buffer);
+        XTB_Deallocate(allocator, buffer, file_size + 1, char);
         return xtb_str8_invalid;
     }
 }
