@@ -17,14 +17,17 @@ void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr
 
 typedef struct Allocator_Set
 {
-    Allocator heap_allocator;
-    Allocator static_allocator;
+    Allocator *heap_allocator;
+    Allocator *static_allocator;
 } Allocator_Set;
 
 Allocator *allocator_get_heap();
 Allocator *allocator_get_static();
 
-void xtb_init_allocator_set();
+Allocator_Set allocator_set_heap(Allocator *allocator);
+Allocator_Set allocator_set_static(Allocator *allocator);
+
+void allocators_init();
 
 #define XTB_AllocateArray(alloc, new_count, T) (T*)  allocator_allocate((alloc), (new_count)*sizeof(T), __alignof(T))
 #define XTB_AllocateBytes(alloc, new_count)          XTB_AllocateArray(alloc, new_count, char)

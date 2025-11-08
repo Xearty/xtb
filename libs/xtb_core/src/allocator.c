@@ -4,6 +4,8 @@
 
 Allocator_Set g_allocators;
 
+Allocator g_malloc_allocator;
+
 static bool is_power_of_two_or_zero(int64_t num)
 {
     uint64_t n = (uint64_t)num;
@@ -50,20 +52,40 @@ static void* malloc_allocator_procedure(void* alloc, int64_t new_size, void* old
     return new_ptr;
 }
 
-void xtb_init_allocator_set()
+static void init_allocator_set()
 {
-    g_allocators.heap_allocator = malloc_allocator_procedure;
-    g_allocators.static_allocator =  malloc_allocator_procedure;
+    g_allocators.heap_allocator = &g_malloc_allocator;
+    g_allocators.static_allocator = &g_malloc_allocator;
+}
+
+void allocators_init()
+{
+    g_malloc_allocator = malloc_allocator_procedure;
+    init_allocator_set();
 }
 
 Allocator *allocator_get_heap()
 {
-    return &g_allocators.heap_allocator;
+    return g_allocators.heap_allocator;
 }
 
 Allocator *allocator_get_static()
 {
-    return &g_allocators.static_allocator;
+    return g_allocators.static_allocator;
+}
+
+Allocator_Set allocator_set_heap(Allocator *allocator)
+{
+    Allocator_Set prev_allocators = g_allocators;
+    g_allocators.heap_allocator = allocator;
+    return prev_allocators;
+}
+
+Allocator_Set allocator_set_static(Allocator *allocator)
+{
+    Allocator_Set prev_allocators = g_allocators;
+    g_allocators.static_allocator = allocator;
+    return prev_allocators;
 }
 
 void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
