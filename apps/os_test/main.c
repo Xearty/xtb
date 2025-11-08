@@ -3,7 +3,6 @@
 #include <xtb_os/os.h>
 #include <stdio.h>
 
-#include <xtb_allocator/allocator.h>
 #include <xtb_core/arena.h>
 #include <xtb_core/linked_list.h>
 #include <xtb_core/thread_context.h>

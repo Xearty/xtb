@@ -2,7 +2,6 @@
 option(XTB_BUILD_CORE "Build the core module" ON)
 option(XTB_BUILD_ANSI "Build the ansi module" ON)
 option(XTB_BUILD_OS "Build the os module" ON)
-option(XTB_BUILD_ALLOCATOR "Build the allocator module" ON)
 option(XTB_BUILD_JSON "Build the json module" ON)
 option(XTB_BUILD_BMP "Build the bmp module" ON)
 option(XTB_BUILD_XTBM "Build the math module" ON)
@@ -18,10 +17,6 @@ endif()
 
 if(XTB_BUILD_OS)
 add_subdirectory(xtb_os)
-endif()
-
-if(XTB_BUILD_ALLOCATOR)
-    add_subdirectory(xtb_allocator)
 endif()
 
 if(XTB_BUILD_JSON)

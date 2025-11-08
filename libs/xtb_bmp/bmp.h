@@ -1,7 +1,7 @@
 #ifndef _XTB_BMP_H_
 #define _XTB_BMP_H_
 
-#include <xtb_allocator/allocator.h>
+#include <xtb_core/allocator.h>
 
 #include <stddef.h>
 
