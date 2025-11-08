@@ -1,4 +1,5 @@
 #include <xtb_core/arena.h>
+#include <xtb_core/contract.h>
 
 #include <stdio.h>
 #include <stdlib.h>
