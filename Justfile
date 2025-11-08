@@ -13,6 +13,9 @@ build target mode="Debug": (gen-build-system mode)
     make -C {{build-dir}} {{target}}
 
 # Run actions
+run target *args:
+    just run-debug {{target}} {{args}}
+
 run-mode mode target *args: (build target mode)
     {{build-dir}}/apps/{{target}}/{{target}} {{args}}
 
