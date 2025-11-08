@@ -39,16 +39,14 @@ Shader load_shader_from_file(const char *ns, XTB_String8 filepath, int shader_ty
 {
     XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
     XTB_String8 shader_content = xtb_os_read_entire_file(&scratch.arena->allocator, filepath);
-
     XTB_ASSERT(xtb_str8_is_valid(shader_content));
 
     Shader id = glCreateShader(shader_type);
     glShaderSource(id, 1, (const char * const *)&shader_content.str, NULL);
-
-    xtb_scratch_end(scratch);
-
     glCompileShader(id);
     log_shader_compile_errors(ns, id);
+
+    xtb_scratch_end(scratch);
 
     return id;
 }
