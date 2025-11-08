@@ -41,8 +41,7 @@ xtb_bmp_bitmap_load_alloc(Allocator* allocator, const XTB_Byte *bytes)
 void
 xtb_bmp_bitmap_dealloc(Allocator* allocator, XTB_BMP_Bitmap *bitmap)
 {
-    // TODO: This has a fake size passed into it
-    XTB_Deallocate(allocator, bitmap->pixel_data, 1, char);
+    XTB_Deallocate(allocator, bitmap->pixel_data);
 }
 
 void
@@ -76,7 +75,7 @@ xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream,
     else
     {
         puts("Could not read stream");
-        XTB_Deallocate(allocator, buffer, 1, char); // TODO: Fake size passed into dealloc
+        XTB_Deallocate(allocator, buffer);
     }
 
     return xtb_bmp_bitmap_load_alloc(allocator, buffer);

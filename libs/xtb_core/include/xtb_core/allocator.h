@@ -32,7 +32,7 @@ void allocators_init();
 #define XTB_AllocateArray(alloc, new_count, T) (T*)  allocator_allocate((alloc), (new_count)*sizeof(T), __alignof(T))
 #define XTB_AllocateBytes(alloc, new_count)          XTB_AllocateArray(alloc, new_count, char)
 #define XTB_Allocate(alloc, T)                       XTB_AllocateArray(alloc, 1, T)
-#define XTB_Deallocate(alloc, old_ptr, old_count, T) allocator_deallocate((alloc), (old_ptr), (old_count)*sizeof(T), __alignof(T))
+#define XTB_Deallocate(alloc, old_ptr)               allocator_deallocate((alloc), (old_ptr), (1)*sizeof(char), __alignof(char))
 
 #define XTB_AllocateArrayZero(alloc, new_count, T)   XTB_MemoryZeroTyped(XTB_AllocateArray(alloc, new_count, T), new_count)
 #define XTB_AllocateBytesZero(alloc, new_count)      XTB_AllocateArrayZero(alloc, new_count, char)

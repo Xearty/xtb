@@ -29,7 +29,7 @@ static void buffer_ensure_capacity(XTB_String8_Buffer *str_buffer, size_t needed
 
         // TODO: Add realloc to the allocator interface
         XTB_MemoryCopy(new_buffer, str_buffer->data, str_buffer->size);
-        XTB_Deallocate(str_buffer->allocator, str_buffer->data, str_buffer->capacity, char);
+        XTB_Deallocate(str_buffer->allocator, str_buffer->data);
 
         str_buffer->capacity = new_cap;
         str_buffer->data = new_buffer;

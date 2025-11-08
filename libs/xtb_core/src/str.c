@@ -30,7 +30,7 @@ XTB_String8 xtb_str8_push_copy(XTB_Arena *arena, XTB_String8 string)
 
 void xtb_str8_free(Allocator* allocator, XTB_String8 str)
 {
-    XTB_Deallocate(allocator, str.str, str.len + 1, char);
+    XTB_Deallocate(allocator, str.str);
 }
 
 bool xtb_str8_is_invalid(XTB_String8 string)

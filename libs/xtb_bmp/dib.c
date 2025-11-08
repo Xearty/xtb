@@ -37,9 +37,8 @@ xtb_bmp_dib_load_alloc(Allocator* allocator, const XTB_Byte *bytes)
 void
 xtb_bmp_dib_dealloc(Allocator* allocator, XTB_BMP_DIB *dib)
 {
-    // TODO: These have a fake sizes passed into them (1)
-    XTB_Deallocate(allocator, dib->color_table, 1, char);
-    XTB_Deallocate(allocator, dib->pixel_data, 1, char);
+    XTB_Deallocate(allocator, dib->color_table);
+    XTB_Deallocate(allocator, dib->pixel_data);
 }
 
 XTB_BMP_DIB
