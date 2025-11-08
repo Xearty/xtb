@@ -21,75 +21,7 @@
 #include "thread_context.c"
 #include "allocator.c"
 #include "array.c"
-
-/****************************************************************
- * Stack Trace
-****************************************************************/
-typedef struct XTB_Backtrace
-{
-    struct backtrace_state *state;
-    bool should_print_next_unknown_frame;
-} XTB_Backtrace;
-
-XTB_Backtrace g_backtrace;
-
-void xtb_backtrace_error_callback(void *data, const char *msg, int errnum)
-{
-    xtb_ansi_print_bold_red(stderr, "BACKTRACE ERROR: %s", msg);
-    fputs("\n", stderr);
-}
-
-int xtb_backtrace_full_callback(void *data,
-                                 uintptr_t pc,
-                                 const char *filename,
-                                 int lineno,
-                                 const char *function)
-{
-    if (filename == NULL)
-    {
-        if (g_backtrace.should_print_next_unknown_frame)
-        {
-            xtb_ansi_print_bright_black(stderr, "    <missing debug info>");
-            fputs("\n", stderr);
-            g_backtrace.should_print_next_unknown_frame = false;
-        }
-    }
-    else
-    {
-        // main (<path>:<lineno>)
-        fputs("    ", stderr);
-        xtb_ansi_print_bold_blue(stderr, "%s", function);
-        fputs(" (", stderr);
-        xtb_ansi_print_green(stderr, "%s", filename);
-        fputs(":", stderr);
-        xtb_ansi_print_red(stderr, "%d", lineno);
-        fputs(")", stderr);
-        fputs("\n", stderr);
-
-        g_backtrace.should_print_next_unknown_frame = true;
-    }
-
-    return 0;
-}
-
-void xtb_print_stack_trace(int skip_frames_count)
-{
-    if (g_backtrace.state == NULL) return;
-
-    g_backtrace.should_print_next_unknown_frame = true;
-
-    fputs("Stack Trace:\n", stderr);
-    backtrace_full(g_backtrace.state,
-                   skip_frames_count,
-                   xtb_backtrace_full_callback,
-                   xtb_backtrace_error_callback,
-                   NULL);
-}
-
-void xtb_print_full_stack_trace(void)
-{
-    xtb_print_stack_trace(0);
-}
+#include "stacktrace.c"
 
 /****************************************************************
  * Logging
