@@ -54,7 +54,6 @@ xtb_bmp_set_global_allocator(Allocator* allocator)
 void
 xtb_bmp_bitmap_gdealloc(XTB_BMP_Bitmap *bitmap)
 {
-    puts("KUR");
     xtb_bmp_bitmap_dealloc(xtb_bmp_global_allocator, bitmap);
 }
 
