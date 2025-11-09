@@ -23,18 +23,27 @@ typedef struct XTB_Window_Config
     } opengl;
 } XTB_Window_Config;
 
+/****************************************************************
+ * Window System
+****************************************************************/
 void window_system_init(void);
 void window_system_deinit(void);
 
+/****************************************************************
+ * Window
+****************************************************************/
 XTB_Window *window_create(XTB_Window_Config config);
 void window_destroy(XTB_Window *window);
 
 bool window_should_close(XTB_Window *window);
 void window_poll_events(XTB_Window *window);
-void window_swap_buffers(XTB_Window *window);
 
 void window_make_context_current(XTB_Window *window);
+void window_swap_buffers(XTB_Window *window);
 
+/****************************************************************
+ * Keyboard Input
+****************************************************************/
 typedef enum XTB_Key_State
 {
     XTB_KEY_STATE_UP = 0,
@@ -51,6 +60,9 @@ bool window_key_is_down(u32 key);
 bool window_key_is_released(u32 key);
 bool window_key_is_pressed(u32 key);
 
+/****************************************************************
+ * Mouse Input
+****************************************************************/
 XTB_Key_State window_mouse_button_get_state(u32 button);
 bool window_mouse_button_is_up(u32 button);
 bool window_mouse_button_is_down(u32 button);
@@ -78,6 +90,9 @@ void window_scroll_get_delta(f32 *x, f32 *y);
 f32 window_scroll_delta_x(void);
 f32 window_scroll_delta_y(void);
 
+/****************************************************************
+ * Miscellaneous
+****************************************************************/
 void *window_get_proc_address(const char *name);
 
 /* Printable keys */

@@ -2,6 +2,9 @@
 
 #include <GLFW/glfw3.h>
 
+/****************************************************************
+ * Global State (Internal)
+****************************************************************/
 XTB_Key_State g_keyboard_key_states[XTB_KEY_LAST + 1];
 XTB_Key_State g_mouse_button_states[GLFW_MOUSE_BUTTON_LAST + 1];
 u32 g_prev_cursor_position[2];
@@ -9,16 +12,9 @@ u32 g_cursor_position[2];
 f32 g_scroll_offset[2];
 XTB_Cursor_Focus_State g_cursor_focus_state;
 
-void window_system_init(void)
-{
-    glfwInit();
-}
-
-void window_system_deinit(void)
-{
-    glfwTerminate();
-}
-
+/****************************************************************
+ * GLFW Callbacks (Internal)
+****************************************************************/
 static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     if (key < 0) return;
@@ -37,7 +33,7 @@ static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int act
     }
 }
 
-static void glfw_cursor_callback(GLFWwindow *window, double xpos, double ypos)
+static void glfw_cursor_pos_callback(GLFWwindow *window, double xpos, double ypos)
 {
     g_prev_cursor_position[0] = g_cursor_position[0];
     g_prev_cursor_position[1] = g_cursor_position[1];
@@ -77,6 +73,9 @@ static void glfw_scroll_callback(GLFWwindow *window, double xoffset, double yoff
     g_scroll_offset[1] = (f32)yoffset;
 }
 
+/****************************************************************
+ * State Update (Internal)
+****************************************************************/
 static void update_keyboard_key_states(void)
 {
     for (int key = 0; key <= XTB_KEY_LAST; ++key)
@@ -119,6 +118,22 @@ static void update_cursor_focus_state(void)
     }
 }
 
+/****************************************************************
+ * Window System
+****************************************************************/
+void window_system_init(void)
+{
+    glfwInit();
+}
+
+void window_system_deinit(void)
+{
+    glfwTerminate();
+}
+
+/****************************************************************
+ * Window
+****************************************************************/
 XTB_Window *window_create(XTB_Window_Config config)
 {
     u32 window_width = config.width > 0 ? config.width : 800;
@@ -139,7 +154,7 @@ XTB_Window *window_create(XTB_Window_Config config)
 
     GLFWwindow *window = glfwCreateWindow(window_width, window_height, title, NULL, NULL);
     glfwSetKeyCallback(window, glfw_key_callback);
-    glfwSetCursorPosCallback(window, glfw_cursor_callback);
+    glfwSetCursorPosCallback(window, glfw_cursor_pos_callback);
     glfwSetMouseButtonCallback(window, glfw_mouse_button_callback);
     glfwSetCursorEnterCallback(window, glfw_cursor_enter_callback);
     glfwSetScrollCallback(window, glfw_scroll_callback);
@@ -169,35 +184,22 @@ void window_poll_events(XTB_Window *window)
     glfwPollEvents();
 }
 
-void window_swap_buffers(XTB_Window *window)
-{
-    glfwSwapBuffers((GLFWwindow*)window);
-}
-
 void window_make_context_current(XTB_Window *window)
 {
     glfwMakeContextCurrent((GLFWwindow*)window);
 }
 
+void window_swap_buffers(XTB_Window *window)
+{
+    glfwSwapBuffers((GLFWwindow*)window);
+}
+
+/****************************************************************
+ * Keyboard Input
+****************************************************************/
 XTB_Key_State window_key_get_state(u32 key)
 {
     return g_keyboard_key_states[key];
-}
-
-bool window_key_is_pressed(u32 key)
-{
-    return g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
-}
-
-bool window_key_is_released(u32 key)
-{
-    return g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
-}
-
-bool window_key_is_down(u32 key)
-{
-    return g_keyboard_key_states[key] == XTB_KEY_STATE_DOWN
-        || g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
 }
 
 bool window_key_is_up(u32 key)
@@ -206,25 +208,28 @@ bool window_key_is_up(u32 key)
         || g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
 }
 
+bool window_key_is_down(u32 key)
+{
+    return g_keyboard_key_states[key] == XTB_KEY_STATE_DOWN
+        || g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
+}
+
+bool window_key_is_released(u32 key)
+{
+    return g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
+}
+
+bool window_key_is_pressed(u32 key)
+{
+    return g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
+}
+
+/****************************************************************
+ * Mouse Input
+****************************************************************/
 XTB_Key_State window_mouse_button_get_state(u32 button)
 {
     return g_mouse_button_states[button];
-}
-
-bool window_mouse_button_is_pressed(u32 button)
-{
-    return g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
-}
-
-bool window_mouse_button_is_released(u32 button)
-{
-    return g_mouse_button_states[button] == XTB_KEY_STATE_RELEASED;
-}
-
-bool window_mouse_button_is_down(u32 button)
-{
-    return g_mouse_button_states[button] == XTB_KEY_STATE_DOWN
-        || g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
 }
 
 bool window_mouse_button_is_up(u32 button)
@@ -233,9 +238,20 @@ bool window_mouse_button_is_up(u32 button)
         || g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
 }
 
-void *window_get_proc_address(const char *name)
+bool window_mouse_button_is_down(u32 button)
 {
-    return glfwGetProcAddress(name);
+    return g_mouse_button_states[button] == XTB_KEY_STATE_DOWN
+        || g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
+}
+
+bool window_mouse_button_is_released(u32 button)
+{
+    return g_mouse_button_states[button] == XTB_KEY_STATE_RELEASED;
+}
+
+bool window_mouse_button_is_pressed(u32 button)
+{
+    return g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
 }
 
 void window_cursor_get_position(f32 *x, f32 *y)
@@ -299,3 +315,10 @@ f32 window_scroll_delta_y(void)
     return g_scroll_offset[1];
 }
 
+/****************************************************************
+ * Miscellaneous
+****************************************************************/
+void *window_get_proc_address(const char *name)
+{
+    return glfwGetProcAddress(name);
+}
