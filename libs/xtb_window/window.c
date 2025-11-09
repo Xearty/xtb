@@ -325,6 +325,11 @@ f32 window_scroll_delta_y(void)
     return g_scroll_offset[1];
 }
 
+bool window_scroll_this_frame(void)
+{
+    return g_scroll_offset[0] != 0.0f && g_scroll_offset[1] != 0.0f;
+}
+
 /****************************************************************
  * Miscellaneous
 ****************************************************************/

@@ -94,6 +94,7 @@ bool window_cursor_just_left_window(void);
 void window_scroll_get_delta(f32 *x, f32 *y);
 f32 window_scroll_delta_x(void);
 f32 window_scroll_delta_y(void);
+bool window_scroll_this_frame(void);
 
 /****************************************************************
  * Miscellaneous
