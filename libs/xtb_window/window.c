@@ -12,6 +12,8 @@ typedef struct XTB_Window_Callbacks
     XTB_Window_Cursor_Position_Callback cursor_position_callback;
     XTB_Window_Scroll_Callback scroll_callback;
     XTB_Window_Cursor_Enter_Callback cursor_enter_callback;
+
+    XTB_Window_Size_Callback window_size_callback;
 } XTB_Window_Callbacks;
 
 /****************************************************************
@@ -147,6 +149,18 @@ static void glfw_cursor_enter_callback(GLFWwindow *glfw_window, int entered)
     }
 }
 
+static void glfw_window_size_callback(GLFWwindow *glfw_window, int width, int height)
+{
+    // TODO(xearty): Maybe get the window size from this callback
+
+    XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
+
+    if (window->callbacks.window_size_callback)
+    {
+        window->callbacks.window_size_callback(window, width, height);
+    }
+}
+
 /****************************************************************
  * State Update (Internal)
 ****************************************************************/
@@ -246,11 +260,15 @@ XTB_Window *window_create(Allocator *allocator, XTB_Window_Config cfg)
         return NULL;
     }
 
+    // Input Callbacks
     glfwSetKeyCallback(glfw_window, glfw_key_callback);
     glfwSetMouseButtonCallback(glfw_window, glfw_mouse_button_callback);
     glfwSetCursorPosCallback(glfw_window, glfw_cursor_pos_callback);
     glfwSetScrollCallback(glfw_window, glfw_scroll_callback);
     glfwSetCursorEnterCallback(glfw_window, glfw_cursor_enter_callback);
+
+    // Window State Callbacks
+    glfwSetWindowSizeCallback(glfw_window, glfw_window_size_callback);
 
     XTB_Window *window = XTB_AllocateZero(allocator, XTB_Window);
     glfwSetWindowUserPointer(glfw_window, window);
@@ -424,6 +442,11 @@ void window_set_scroll_callback(XTB_Window *window, XTB_Window_Scroll_Callback c
 void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Enter_Callback callback)
 {
     window->callbacks.cursor_enter_callback = callback;
+}
+
+void window_set_window_size_callback(XTB_Window *window, XTB_Window_Size_Callback callback)
+{
+    window->callbacks.window_size_callback = callback;
 }
 
 void window_set_user_pointer(XTB_Window *window, void *user_pointer)
