@@ -9,159 +9,167 @@ XTB_C_LINKAGE_BEGIN
 /****************************************************************
  * Window System
 ****************************************************************/
-void window_system_init(void);
-void window_system_deinit(void);
+void xtb_window_system_init(void);
+void xtb_window_system_shutdown(void);
 
 /****************************************************************
- * Window Creation Config
+ * Window Configuration
 ****************************************************************/
-typedef enum XTB_Window_Flags
+typedef enum XTB_WindowFlags
 {
     XTB_WINDOW_VSYNC      = 0b0001,
     XTB_WINDOW_FULLSCREEN = 0b0010,
-} XTB_Window_Flags;
+} XTB_WindowFlags;
 
-typedef enum XTB_Window_Backend
+typedef enum XTB_WindowBackend
 {
     XTB_WINDOW_BACKEND_OPENGL = 0,
-} XTB_Window_Backend;
+} XTB_WindowBackend;
 
-typedef struct XTB_Window_Config
+typedef struct XTB_WindowConfig
 {
     u32 width;
     u32 height;
     const char *title;
 
-    XTB_Window_Backend backend;
+    XTB_WindowBackend backend;
     Flags32 flags;
     u32 samples;
 
     struct { u32 version_major; u32 version_minor; } opengl;
-} XTB_Window_Config;
+} XTB_WindowConfig;
 
-XTB_Window_Config window_config_default(void);
+XTB_WindowConfig xtb_window_config_default(void);
 
 /****************************************************************
  * Window
 ****************************************************************/
 typedef struct XTB_Window XTB_Window;
 
-XTB_Window *window_create(Allocator *allocator, XTB_Window_Config cfg);
-XTB_Window *window_create_default(Allocator *allocator);
-void window_destroy(XTB_Window *window);
+XTB_Window* xtb_window_create(Allocator *allocator, XTB_WindowConfig cfg);
+XTB_Window* xtb_window_create_default(Allocator *allocator);
+void        xtb_window_destroy(XTB_Window *window);
 
-bool window_should_close(XTB_Window *window);
-void window_poll_events(XTB_Window *window);
+bool xtb_window_should_close(XTB_Window *window);
+void xtb_window_request_close(XTB_Window *window);
 
-void window_make_context_current(XTB_Window *window);
-void window_swap_buffers(XTB_Window *window);
+void xtb_window_poll_events(XTB_Window *window);
 
-void window_request_close(XTB_Window *window);
-void window_set_title(XTB_Window *window, const char *title);
+void xtb_window_make_context_current(XTB_Window *window);
+void xtb_window_swap_buffers(XTB_Window *window);
 
-void window_set_vsync(XTB_Window *window, bool enabled);
-bool window_vsync_enabled(XTB_Window *window);
+void xtb_window_title_set(XTB_Window *window, const char *title);
 
-void window_go_fullscreen(XTB_Window *window);
-void window_go_windowed(XTB_Window *window);
-void window_toggle_fullscreen(XTB_Window *window);
-bool window_is_fullscreen(XTB_Window *window);
+/****************************************************************
+ * Vsync
+****************************************************************/
+void xtb_window_vsync_set(XTB_Window *window, bool enabled);
+bool xtb_window_vsync_enabled(XTB_Window *window);
 
-void window_get_position(XTB_Window *window, i32 *x, i32 *y);
-void window_get_size(XTB_Window *window, i32 *width, i32 *height);
+/****************************************************************
+ * Fullscreen
+****************************************************************/
+void xtb_window_fullscreen_set(XTB_Window *window, bool fullscreen);
+void xtb_window_fullscreen_toggle(XTB_Window *window);
+bool xtb_window_is_fullscreen(XTB_Window *window);
+
+/****************************************************************
+ * Window Geometry
+****************************************************************/
+void xtb_window_position_get(XTB_Window *window, i32 *x, i32 *y);
+void xtb_window_size_get(XTB_Window *window, i32 *width, i32 *height);
 
 /****************************************************************
  * Monitor
 ****************************************************************/
 typedef struct XTB_Monitor XTB_Monitor;
 
-XTB_Monitor *window_get_primary_monitor(void);
-XTB_Monitor *window_get_monitor(XTB_Window *window);
+XTB_Monitor* xtb_monitor_primary_get(void);
+XTB_Monitor* xtb_window_monitor_get(XTB_Window *window);
 
 /****************************************************************
- * Window Callbacks
+ * Callbacks
 ****************************************************************/
-typedef void (*XTB_Window_Key_Callback)(XTB_Window *window, i32 key, i32 scancode, i32 action, i32 mods);
-typedef void (*XTB_Window_Mouse_Button_Callback)(XTB_Window *window, i32 button, i32 action, i32 mods);
-typedef void (*XTB_Window_Cursor_Position_Callback)(XTB_Window *window, f64 xpos, f64 ypos);
-typedef void (*XTB_Window_Scroll_Callback)(XTB_Window *window, f64 xoffset, f64 yoffset);
-typedef void (*XTB_Window_Cursor_Enter_Callback)(XTB_Window *window, i32 entered);
+typedef void (*XTB_KeyCallback)(XTB_Window *window, i32 key, i32 scancode, i32 action, i32 mods);
+typedef void (*XTB_MouseButtonCallback)(XTB_Window *window, i32 button, i32 action, i32 mods);
+typedef void (*XTB_CursorPositionCallback)(XTB_Window *window, f64 xpos, f64 ypos);
+typedef void (*XTB_ScrollCallback)(XTB_Window *window, f64 xoffset, f64 yoffset);
+typedef void (*XTB_CursorEnterCallback)(XTB_Window *window, i32 entered);
+typedef void (*XTB_WindowSizeCallback)(XTB_Window *window, i32 width, i32 height);
+typedef void (*XTB_FramebufferSizeCallback)(XTB_Window *window, i32 width, i32 height);
 
-typedef void (*XTB_Window_Size_Callback)(XTB_Window *window, i32 width, i32 height);
-typedef void (*XTB_Window_Framebuffer_Size_Callback)(XTB_Window *window, i32 width, i32 height);
+void xtb_window_set_key_callback(XTB_Window *window, XTB_KeyCallback callback);
+void xtb_window_set_mouse_button_callback(XTB_Window *window, XTB_MouseButtonCallback callback);
+void xtb_window_set_cursor_position_callback(XTB_Window *window, XTB_CursorPositionCallback callback);
+void xtb_window_set_scroll_callback(XTB_Window *window, XTB_ScrollCallback callback);
+void xtb_window_set_cursor_enter_callback(XTB_Window *window, XTB_CursorEnterCallback callback);
+void xtb_window_set_window_size_callback(XTB_Window *window, XTB_WindowSizeCallback callback);
+void xtb_window_set_framebuffer_size_callback(XTB_Window *window, XTB_FramebufferSizeCallback callback);
 
-void window_set_key_callback(XTB_Window *window, XTB_Window_Key_Callback callback);
-void window_set_mouse_button_callback(XTB_Window *window, XTB_Window_Mouse_Button_Callback callback);
-void window_set_cursor_position_callback(XTB_Window *window, XTB_Window_Cursor_Position_Callback callback);
-void window_set_scroll_callback(XTB_Window *window, XTB_Window_Scroll_Callback callback);
-void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Enter_Callback callback);
-void window_set_window_size_callback(XTB_Window *window, XTB_Window_Size_Callback callback);
-void window_set_framebuffer_size_callback(XTB_Window *window, XTB_Window_Framebuffer_Size_Callback callback);
-
-void window_set_user_pointer(XTB_Window *window, void *user_pointer);
-void *window_get_user_pointer(XTB_Window *window);
+void  xtb_window_user_pointer_set(XTB_Window *window, void *user_pointer);
+void* xtb_window_user_pointer_get(XTB_Window *window);
 
 /****************************************************************
  * Keyboard Input
 ****************************************************************/
-typedef enum XTB_Key_State
+typedef enum XTB_KeyState
 {
-    XTB_KEY_STATE_UP = 0,
-    XTB_KEY_STATE_DOWN,
-    XTB_KEY_STATE_RELEASED,
-    XTB_KEY_STATE_PRESSED,
-} XTB_Key_State;
+    XTB_KEY_UP = 0,
+    XTB_KEY_DOWN,
+    XTB_KEY_RELEASED,
+    XTB_KEY_PRESSED,
+} XTB_KeyState;
 
-XTB_Key_State window_key_get_state(XTB_Window *window, u32 key);
-bool window_key_is_up(XTB_Window *window, u32 key);
-bool window_key_is_down(XTB_Window *window, u32 key);
-bool window_key_is_released(XTB_Window *window, u32 key);
-bool window_key_is_pressed(XTB_Window *window, u32 key);
+XTB_KeyState xtb_key_state_get(XTB_Window *window, u32 key);
+bool         xtb_key_is_down(XTB_Window *window, u32 key);
+bool         xtb_key_is_up(XTB_Window *window, u32 key);
+bool         xtb_key_is_pressed(XTB_Window *window, u32 key);
+bool         xtb_key_is_released(XTB_Window *window, u32 key);
 
 /****************************************************************
  * Mouse Input
 ****************************************************************/
-XTB_Key_State window_mouse_button_get_state(XTB_Window *window, u32 button);
-bool window_mouse_button_is_up(XTB_Window *window, u32 button);
-bool window_mouse_button_is_down(XTB_Window *window, u32 button);
-bool window_mouse_button_is_released(XTB_Window *window, u32 button);
-bool window_mouse_button_is_pressed(XTB_Window *window, u32 button);
+XTB_KeyState xtb_mouse_button_state_get(XTB_Window *window, u32 button);
+bool         xtb_mouse_button_is_down(XTB_Window *window, u32 button);
+bool         xtb_mouse_button_is_up(XTB_Window *window, u32 button);
+bool         xtb_mouse_button_is_pressed(XTB_Window *window, u32 button);
+bool         xtb_mouse_button_is_released(XTB_Window *window, u32 button);
 
-void window_cursor_get_position(XTB_Window *window, f32 *x, f32 *y);
-void window_cursor_get_previous_position(XTB_Window *window, f32 *x, f32 *y);
-void window_cursor_get_delta(XTB_Window *window, f32 *x, f32 *y);
+void xtb_cursor_pos_get(XTB_Window *window, f32 *x, f32 *y);
+void xtb_cursor_pos_prev_get(XTB_Window *window, f32 *x, f32 *y);
+void xtb_cursor_delta_get(XTB_Window *window, f32 *x, f32 *y);
 
-typedef enum XTB_Cursor_Focus_State {
-    XTB_CURSOR_FOCUS_INSIDE = 0,
-    XTB_CURSOR_FOCUS_OUTSIDE,
-    XTB_CURSOR_FOCUS_JUST_ENTERED,
-    XTB_CURSOR_FOCUS_JUST_LEFT
-} XTB_Cursor_Focus_State;
+typedef enum XTB_CursorFocus {
+    XTB_CURSOR_INSIDE = 0,
+    XTB_CURSOR_OUTSIDE,
+    XTB_CURSOR_ENTERED,
+    XTB_CURSOR_LEFT
+} XTB_CursorFocus;
 
-XTB_Cursor_Focus_State window_cursor_get_focus(XTB_Window *window);
-bool window_cursor_is_inside_window(XTB_Window *window);
-bool window_cursor_is_outside_window(XTB_Window *window);
-bool window_cursor_just_entered_window(XTB_Window *window);
-bool window_cursor_just_left_window(XTB_Window *window);
+XTB_CursorFocus xtb_cursor_focus_get(XTB_Window *window);
+bool            xtb_cursor_is_inside(XTB_Window *window);
+bool            xtb_cursor_is_outside(XTB_Window *window);
+bool            xtb_cursor_entered(XTB_Window *window);
+bool            xtb_cursor_left(XTB_Window *window);
 
-void window_scroll_get_delta(XTB_Window *window, f32 *x, f32 *y);
-f32 window_scroll_delta_x(XTB_Window *window);
-f32 window_scroll_delta_y(XTB_Window *window);
-bool window_scroll_this_frame(XTB_Window *window);
+void xtb_scroll_delta_get(XTB_Window *window, f32 *x, f32 *y);
+f32  xtb_scroll_delta_x(XTB_Window *window);
+f32  xtb_scroll_delta_y(XTB_Window *window);
+bool xtb_scroll_happened(XTB_Window *window);
 
-void window_cursor_show(XTB_Window *window);
-void window_cursor_hide(XTB_Window *window);
-bool window_cursor_is_visible(XTB_Window *window);
+void xtb_cursor_show(XTB_Window *window);
+void xtb_cursor_hide(XTB_Window *window);
+bool xtb_cursor_is_visible(XTB_Window *window);
 
-void window_cursor_capture(XTB_Window *window);
-void window_cursor_release(XTB_Window *window);
-bool window_cursor_is_captured(XTB_Window *window);
+void xtb_cursor_capture(XTB_Window *window);
+void xtb_cursor_release(XTB_Window *window);
+bool xtb_cursor_is_captured(XTB_Window *window);
 
 /****************************************************************
  * Miscellaneous
 ****************************************************************/
-void *window_get_proc_address(const char *name);
-double window_get_time(void);
+void*  xtb_proc_address_get(const char *name);
+double xtb_time_get(void);
 
 /* Printable keys */
 #define XTB_KEY_SPACE              32
