@@ -7,8 +7,8 @@
 ****************************************************************/
 XTB_Key_State g_keyboard_key_states[XTB_KEY_LAST + 1];
 XTB_Key_State g_mouse_button_states[GLFW_MOUSE_BUTTON_LAST + 1];
-u32 g_prev_cursor_position[2];
-u32 g_cursor_position[2];
+f32 g_prev_cursor_position[2];
+f32 g_cursor_position[2];
 f32 g_scroll_offset[2];
 XTB_Cursor_Focus_State g_cursor_focus_state;
 bool g_cursor_visible;

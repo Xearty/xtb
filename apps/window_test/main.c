@@ -59,10 +59,16 @@ int main(int argc, char **argv)
             puts("Cursor is outside window");
         }
 
-        float delta_x, delta_y;
-        window_scroll_get_delta(&delta_x, &delta_y);
+        f32 delta_x, delta_y;
+        window_cursor_get_delta(&delta_x, &delta_y);
 
-        printf("Delta = (%f, %f)\n", delta_x, delta_y);
+        f32 x, y;
+        window_cursor_get_position(&x, &y);
+
+        f32 prev_x, prev_y;
+        window_cursor_get_previous_position(&prev_x, &prev_y);
+
+        printf("Delta = (%f, %f) = (%f - %f, %f - %f)\n", delta_x, delta_y, x, prev_x, y, prev_y);
 
         window_swap_buffers(window);
     }
