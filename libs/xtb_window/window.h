@@ -10,20 +10,27 @@ typedef struct XTB_Window XTB_Window;
 
 typedef enum XTB_Window_Flags
 {
-    XTB_WINDOW_OPENGL_CONTEXT = 0b0001,
-    XTB_WINDOW_VSYNC          = 0b0010,
+    XTB_WINDOW_VSYNC          = 0b0001,
 } XTB_Window_Flags;
+
+typedef enum XTB_Window_Backend
+{
+    XTB_WINDOW_BACKEND_OPENGL = 0
+} XTB_Window_Backend;
 
 typedef struct XTB_Window_Config
 {
     u32 width;
     u32 height;
     const char *title;
+
+    XTB_Window_Backend backend;
     Flags32 flags;
     u32 samples;
+
     struct {
-        u32 major_version;
-        u32 minor_version;
+        u32 version_major;
+        u32 version_minor;
     } opengl;
 } XTB_Window_Config;
 
@@ -34,9 +41,15 @@ void window_system_init(void);
 void window_system_deinit(void);
 
 /****************************************************************
+ * Window Creation Config
+****************************************************************/
+XTB_Window_Config window_config_default(void);
+
+/****************************************************************
  * Window
 ****************************************************************/
-XTB_Window *window_create(Allocator *allocator, XTB_Window_Config config);
+XTB_Window *window_create(Allocator *allocator, XTB_Window_Config cfg);
+XTB_Window *window_create_default(Allocator *allocator);
 void window_destroy(XTB_Window *window);
 
 bool window_should_close(XTB_Window *window);

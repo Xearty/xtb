@@ -161,27 +161,40 @@ void window_system_deinit(void)
 }
 
 /****************************************************************
+ * Window Creation Config
+****************************************************************/
+XTB_Window_Config window_config_default(void)
+{
+    XTB_Window_Config cfg = {};
+    cfg.width = 800;
+    cfg.height = 800;
+    cfg.title = "XTB Window";
+
+    cfg.backend = XTB_WINDOW_BACKEND_OPENGL;
+    cfg.flags = XTB_WINDOW_VSYNC;
+    cfg.samples = 1;
+
+    cfg.opengl.version_major = 3;
+    cfg.opengl.version_minor = 3;
+
+    return cfg;
+}
+
+/****************************************************************
  * Window
 ****************************************************************/
-XTB_Window *window_create(Allocator *allocator, XTB_Window_Config config)
+XTB_Window *window_create(Allocator *allocator, XTB_Window_Config cfg)
 {
-    u32 window_width = config.width > 0 ? config.width : 800;
-    u32 window_height = config.height > 0 ? config.height : 800;
-    const char *title = config.title != NULL ? config.title : "XTB Window";
-
-    if (config.flags & XTB_WINDOW_OPENGL_CONTEXT)
+    if (cfg.backend == XTB_WINDOW_BACKEND_OPENGL)
     {
-        u32 major = config.opengl.major_version ? config.opengl.major_version : 3;
-        u32 minor = config.opengl.minor_version ? config.opengl.minor_version : 3;
-
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, cfg.opengl.version_major);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, cfg.opengl.version_minor);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     }
 
-    glfwWindowHint(GLFW_SAMPLES, config.samples);
+    glfwWindowHint(GLFW_SAMPLES, cfg.samples);
 
-    GLFWwindow *glfw_window = glfwCreateWindow(window_width, window_height, title, NULL, NULL);
+    GLFWwindow *glfw_window = glfwCreateWindow(cfg.width, cfg.height, cfg.title, NULL, NULL);
 
     if (glfw_window == NULL)
     {
@@ -204,9 +217,14 @@ XTB_Window *window_create(Allocator *allocator, XTB_Window_Config config)
     window->cursor_visible = (cursor_mode == GLFW_CURSOR_NORMAL);
     window->cursor_captured = (cursor_mode == GLFW_CURSOR_NORMAL);
 
-    window_set_vsync(window, !!(config.flags & XTB_WINDOW_VSYNC));
+    window_set_vsync(window, !!(cfg.flags & XTB_WINDOW_VSYNC));
 
     return window;
+}
+
+XTB_Window *window_create_default(Allocator *allocator)
+{
+    return window_create(allocator, window_config_default());
 }
 
 void window_destroy(XTB_Window *window)

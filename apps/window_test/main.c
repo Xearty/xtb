@@ -12,10 +12,7 @@ int main(int argc, char **argv)
     Thread_Context tctx;
     tctx_init_and_equip(&tctx);
 
-    XTB_Window_Config window_config = {};
-    window_config.flags |= XTB_WINDOW_OPENGL_CONTEXT;
-
-    XTB_Window *window = window_create(allocator_get_static(), window_config);
+    XTB_Window *window = window_create_default(allocator_get_static());
     if (!window)
     {
         fputs("Could not create window", stderr);
