@@ -46,6 +46,9 @@ void window_swap_buffers(XTB_Window *window);
 void window_request_close(XTB_Window *window);
 void window_set_title(XTB_Window *window, const char *title);
 
+void window_set_vsync(XTB_Window *window, bool enabled);
+bool window_vsync_enabled(const XTB_Window *window);
+
 /****************************************************************
  * Keyboard Input
 ****************************************************************/

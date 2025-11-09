@@ -13,6 +13,7 @@ f32 g_scroll_offset[2];
 XTB_Cursor_Focus_State g_cursor_focus_state;
 bool g_cursor_visible;
 bool g_cursor_captured;
+bool g_vsync_enabled;
 
 /****************************************************************
  * GLFW Callbacks (Internal)
@@ -162,6 +163,8 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwSetScrollCallback(window, glfw_scroll_callback);
 
     g_cursor_visible = true;
+    g_cursor_captured = false;
+    g_vsync_enabled = true;
 
     return (XTB_Window*)window;
 }
@@ -209,6 +212,18 @@ void window_request_close(XTB_Window *window)
 void window_set_title(XTB_Window *window, const char *title)
 {
     glfwSetWindowTitle((GLFWwindow*)window, title);
+}
+
+void window_set_vsync(XTB_Window *window, bool enabled)
+{
+    window_make_context_current(window);
+    glfwSwapInterval(enabled ? 1 : 0);
+    g_vsync_enabled = enabled;
+}
+
+bool window_vsync_enabled(const XTB_Window *window)
+{
+    return g_vsync_enabled;
 }
 
 /****************************************************************
