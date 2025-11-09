@@ -1,14 +1,24 @@
 #include <xtb_window/window.h>
+#include <xtb_core/thread_context.h>
 #include <xtb_ogl/ogl.h>
 
 int main(int argc, char **argv)
 {
+    xtb_init(argc, argv);
+
     window_system_init();
+
+    Thread_Context tctx;
+    tctx_init_and_equip(&tctx);
 
     XTB_Window_Config window_config = {};
     window_config.flags |= XTB_WIN_OPENGL_CONTEXT ;
 
     XTB_Window *window = window_create(window_config);
+    if (!window)
+    {
+        fputs("Could not create window", stderr);
+    }
 
     window_make_context_current(window);
 
@@ -49,24 +59,24 @@ int main(int argc, char **argv)
         //     puts("Left mouse button was just released");
         // }
 
-        if (window_cursor_just_entered_window())
+        if (window_cursor_just_entered_window(window))
         {
             puts("Cursor is inside window");
         }
 
-        if (window_cursor_just_left_window())
+        if (window_cursor_just_left_window(window))
         {
             puts("Cursor is outside window");
         }
 
         f32 delta_x, delta_y;
-        window_cursor_get_delta(&delta_x, &delta_y);
+        window_cursor_get_delta(window, &delta_x, &delta_y);
 
         f32 x, y;
-        window_cursor_get_position(&x, &y);
+        window_cursor_get_position(window, &x, &y);
 
         f32 prev_x, prev_y;
-        window_cursor_get_previous_position(&prev_x, &prev_y);
+        window_cursor_get_previous_position(window, &prev_x, &prev_y);
 
         printf("Delta = (%f, %f) = (%f - %f, %f - %f)\n", delta_x, delta_y, x, prev_x, y, prev_y);
 
@@ -76,6 +86,8 @@ int main(int argc, char **argv)
     window_destroy(window);
 
     window_system_deinit();
+
+    tctx_release();
 
     return 0;
 }

@@ -47,7 +47,7 @@ void window_request_close(XTB_Window *window);
 void window_set_title(XTB_Window *window, const char *title);
 
 void window_set_vsync(XTB_Window *window, bool enabled);
-bool window_vsync_enabled(const XTB_Window *window);
+bool window_vsync_enabled(XTB_Window *window);
 
 /****************************************************************
  * Keyboard Input
@@ -60,26 +60,24 @@ typedef enum XTB_Key_State
     XTB_KEY_STATE_PRESSED,
 } XTB_Key_State;
 
-// TODO: Maybe pass in the window. That would require
-// to have key states on a per window basis
-XTB_Key_State window_key_get_state(u32 key);
-bool window_key_is_up(u32 key);
-bool window_key_is_down(u32 key);
-bool window_key_is_released(u32 key);
-bool window_key_is_pressed(u32 key);
+XTB_Key_State window_key_get_state(XTB_Window *window, u32 key);
+bool window_key_is_up(XTB_Window *window, u32 key);
+bool window_key_is_down(XTB_Window *window, u32 key);
+bool window_key_is_released(XTB_Window *window, u32 key);
+bool window_key_is_pressed(XTB_Window *window, u32 key);
 
 /****************************************************************
  * Mouse Input
 ****************************************************************/
-XTB_Key_State window_mouse_button_get_state(u32 button);
-bool window_mouse_button_is_up(u32 button);
-bool window_mouse_button_is_down(u32 button);
-bool window_mouse_button_is_released(u32 button);
-bool window_mouse_button_is_pressed(u32 button);
+XTB_Key_State window_mouse_button_get_state(XTB_Window *window, u32 button);
+bool window_mouse_button_is_up(XTB_Window *window, u32 button);
+bool window_mouse_button_is_down(XTB_Window *window, u32 button);
+bool window_mouse_button_is_released(XTB_Window *window, u32 button);
+bool window_mouse_button_is_pressed(XTB_Window *window, u32 button);
 
-void window_cursor_get_position(f32 *x, f32 *y);
-void window_cursor_get_previous_position(f32 *x, f32 *y);
-void window_cursor_get_delta(f32 *x, f32 *y);
+void window_cursor_get_position(XTB_Window *window, f32 *x, f32 *y);
+void window_cursor_get_previous_position(XTB_Window *window, f32 *x, f32 *y);
+void window_cursor_get_delta(XTB_Window *window, f32 *x, f32 *y);
 
 typedef enum XTB_Cursor_Focus_State {
     XTB_CURSOR_FOCUS_INSIDE = 0,
@@ -88,24 +86,24 @@ typedef enum XTB_Cursor_Focus_State {
     XTB_CURSOR_FOCUS_JUST_LEFT
 } XTB_Cursor_Focus_State;
 
-XTB_Cursor_Focus_State window_cursor_get_focus(void);
-bool window_cursor_is_inside_window(void);
-bool window_cursor_is_outside_window(void);
-bool window_cursor_just_entered_window(void);
-bool window_cursor_just_left_window(void);
+XTB_Cursor_Focus_State window_cursor_get_focus(XTB_Window *window);
+bool window_cursor_is_inside_window(XTB_Window *window);
+bool window_cursor_is_outside_window(XTB_Window *window);
+bool window_cursor_just_entered_window(XTB_Window *window);
+bool window_cursor_just_left_window(XTB_Window *window);
 
-void window_scroll_get_delta(f32 *x, f32 *y);
-f32 window_scroll_delta_x(void);
-f32 window_scroll_delta_y(void);
-bool window_scroll_this_frame(void);
+void window_scroll_get_delta(XTB_Window *window, f32 *x, f32 *y);
+f32 window_scroll_delta_x(XTB_Window *window);
+f32 window_scroll_delta_y(XTB_Window *window);
+bool window_scroll_this_frame(XTB_Window *window);
 
 void window_cursor_show(XTB_Window *window);
 void window_cursor_hide(XTB_Window *window);
-bool window_cursor_is_visible(const XTB_Window *window);
+bool window_cursor_is_visible(XTB_Window *window);
 
 void window_cursor_capture(XTB_Window *window);
 void window_cursor_release(XTB_Window *window);
-bool window_cursor_is_captured(const XTB_Window *window);
+bool window_cursor_is_captured(XTB_Window *window);
 
 /****************************************************************
  * Miscellaneous
