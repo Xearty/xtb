@@ -96,6 +96,10 @@ f32 window_scroll_delta_x(void);
 f32 window_scroll_delta_y(void);
 bool window_scroll_this_frame(void);
 
+void window_cursor_show(XTB_Window *window);
+void window_cursor_hide(XTB_Window *window);
+bool window_cursor_is_visible(const XTB_Window *window);
+
 /****************************************************************
  * Miscellaneous
 ****************************************************************/

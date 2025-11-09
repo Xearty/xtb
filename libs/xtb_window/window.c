@@ -11,6 +11,7 @@ u32 g_prev_cursor_position[2];
 u32 g_cursor_position[2];
 f32 g_scroll_offset[2];
 XTB_Cursor_Focus_State g_cursor_focus_state;
+bool g_cursor_visible;
 
 /****************************************************************
  * GLFW Callbacks (Internal)
@@ -158,6 +159,8 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwSetMouseButtonCallback(window, glfw_mouse_button_callback);
     glfwSetCursorEnterCallback(window, glfw_cursor_enter_callback);
     glfwSetScrollCallback(window, glfw_scroll_callback);
+
+    g_cursor_visible = true;
 
     return (XTB_Window*)window;
 }
@@ -328,6 +331,23 @@ f32 window_scroll_delta_y(void)
 bool window_scroll_this_frame(void)
 {
     return g_scroll_offset[0] != 0.0f && g_scroll_offset[1] != 0.0f;
+}
+
+void window_cursor_show(XTB_Window *window)
+{
+    glfwSetInputMode((GLFWwindow*)window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    g_cursor_visible = true;
+}
+
+void window_cursor_hide(XTB_Window *window)
+{
+    glfwSetInputMode((GLFWwindow*)window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    g_cursor_visible = false;
+}
+
+bool window_cursor_is_visible(const XTB_Window *window)
+{
+    return g_cursor_visible;
 }
 
 /****************************************************************
