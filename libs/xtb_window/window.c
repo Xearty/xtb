@@ -6,6 +6,7 @@ XTB_Key_State g_keyboard_key_states[XTB_KEY_LAST + 1];
 XTB_Key_State g_mouse_button_states[GLFW_MOUSE_BUTTON_LAST + 1];
 u32 g_prev_cursor_position[2];
 u32 g_cursor_position[2];
+XTB_Cursor_Focus_State g_cursor_focus_state;
 
 void window_system_init(void)
 {
@@ -62,6 +63,13 @@ static void glfw_mouse_button_callback(GLFWwindow *window, int button, int actio
     }
 }
 
+static void glfw_cursor_enter_callback(GLFWwindow *window, int entered)
+{
+    g_cursor_focus_state = entered
+        ? XTB_CURSOR_FOCUS_JUST_ENTERED
+        : XTB_CURSOR_FOCUS_JUST_LEFT;
+}
+
 static void update_keyboard_key_states(void)
 {
     for (int key = 0; key <= XTB_KEY_LAST; ++key)
@@ -92,6 +100,18 @@ static void update_mouse_button_states(void)
     }
 }
 
+static void update_cursor_focus_state(void)
+{
+    if (g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_ENTERED)
+    {
+        g_cursor_focus_state = XTB_CURSOR_FOCUS_INSIDE;
+    }
+    else if (g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_LEFT)
+    {
+        g_cursor_focus_state = XTB_CURSOR_FOCUS_OUTSIDE;
+    }
+}
+
 XTB_Window *window_create(XTB_Window_Config config)
 {
     u32 window_width = config.width > 0 ? config.width : 800;
@@ -114,6 +134,7 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetCursorPosCallback(window, glfw_cursor_callback);
     glfwSetMouseButtonCallback(window, glfw_mouse_button_callback);
+    glfwSetCursorEnterCallback(window, glfw_cursor_enter_callback);
 
     return (XTB_Window*)window;
 }
@@ -132,6 +153,7 @@ void window_poll_events(XTB_Window *window)
 {
     update_keyboard_key_states();
     update_mouse_button_states();
+    update_cursor_focus_state();
     glfwPollEvents();
 }
 
@@ -222,3 +244,29 @@ void window_get_cursor_delta(float *x, float *y)
     *y = g_cursor_position[1] - g_prev_cursor_position[1];
 }
 
+XTB_Cursor_Focus_State window_cursor_get_focus(void)
+{
+    return g_cursor_focus_state;
+}
+
+bool window_cursor_is_inside_window(void)
+{
+    return g_cursor_focus_state == XTB_CURSOR_FOCUS_INSIDE
+        || g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_ENTERED;
+}
+
+bool window_cursor_is_outside_window(void)
+{
+    return g_cursor_focus_state == XTB_CURSOR_FOCUS_OUTSIDE
+        || g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_LEFT;
+}
+
+bool window_cursor_just_entered_window(void)
+{
+    return g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_ENTERED;
+}
+
+bool window_cursor_just_left_window(void)
+{
+    return g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_LEFT;
+}

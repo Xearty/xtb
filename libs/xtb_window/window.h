@@ -61,6 +61,19 @@ void window_get_cursor_position(float *x, float *y);
 void window_get_previous_cursor_position(float *x, float *y);
 void window_get_cursor_delta(float *x, float *y);
 
+typedef enum XTB_Cursor_Focus_State {
+    XTB_CURSOR_FOCUS_INSIDE,
+    XTB_CURSOR_FOCUS_OUTSIDE,
+    XTB_CURSOR_FOCUS_JUST_ENTERED,
+    XTB_CURSOR_FOCUS_JUST_LEFT
+} XTB_Cursor_Focus_State;
+
+XTB_Cursor_Focus_State window_cursor_get_focus(void);
+bool window_cursor_is_inside_window(void);
+bool window_cursor_is_outside_window(void);
+bool window_cursor_just_entered_window(void);
+bool window_cursor_just_left_window(void);
+
 void *window_get_proc_address(const char *name);
 
 /* Printable keys */

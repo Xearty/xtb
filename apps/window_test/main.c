@@ -22,38 +22,47 @@ int main(int argc, char **argv)
     {
         window_poll_events(window);
 
-        if (window_key_is_down(XTB_KEY_SPACE))
+        // if (window_key_is_down(XTB_KEY_SPACE))
+        // {
+        //     puts("Space is down");
+        // }
+        // if (window_key_is_up(XTB_KEY_SPACE))
+        // {
+        //     puts("Space is up");
+        // }
+        // if (window_key_is_pressed(XTB_KEY_SPACE))
+        // {
+        //     puts("Space is pressed");
+        // }
+        // if (window_key_is_released(XTB_KEY_SPACE))
+        // {
+        //     puts("Space is released");
+        // }
+        //
+        // if (window_mouse_button_is_down(XTB_MOUSE_BUTTON_LEFT))
+        // {
+        //     puts("Left mouse button is held down");
+        // }
+        //
+        // if (window_mouse_button_is_released(XTB_MOUSE_BUTTON_LEFT))
+        // {
+        //     puts("Left mouse button was just released");
+        // }
+
+        if (window_cursor_just_entered_window())
         {
-            puts("Space is down");
-        }
-        if (window_key_is_up(XTB_KEY_SPACE))
-        {
-            puts("Space is up");
-        }
-        if (window_key_is_pressed(XTB_KEY_SPACE))
-        {
-            puts("Space is pressed");
-        }
-        if (window_key_is_released(XTB_KEY_SPACE))
-        {
-            puts("Space is released");
+            puts("Cursor is inside window");
         }
 
-        if (window_mouse_button_is_down(XTB_MOUSE_BUTTON_LEFT))
+        if (window_cursor_just_left_window())
         {
-            puts("Left mouse button is held down");
+            puts("Cursor is outside window");
         }
-
-        if (window_mouse_button_is_released(XTB_MOUSE_BUTTON_LEFT))
-        {
-            puts("Left mouse button was just released");
-        }
-
 
         float delta_x, delta_y;
         window_get_cursor_position(&delta_x, &delta_y);
 
-        printf("Delta = (%f, %f)\n", delta_x, delta_y);
+        // printf("Delta = (%f, %f)\n", delta_x, delta_y);
 
         window_swap_buffers(window);
     }
