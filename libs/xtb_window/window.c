@@ -182,6 +182,9 @@ void window_poll_events(XTB_Window *window)
     // we poll so it only persists for a single frame
     g_scroll_offset[0] = g_scroll_offset[1] = 0.0f;
 
+    g_prev_cursor_position[0] = g_cursor_position[0];
+    g_prev_cursor_position[1] = g_cursor_position[1];
+
     update_keyboard_key_states();
     update_mouse_button_states();
     update_cursor_focus_state();
