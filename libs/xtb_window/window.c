@@ -10,6 +10,7 @@
 struct XTB_Window
 {
     GLFWwindow *handle;
+    Allocator *allocator;
 
     XTB_Key_State keyboard_state[XTB_KEY_LAST + 1];
     XTB_Key_State mouse_buttons[XTB_MOUSE_BUTTON_LAST + 1];
@@ -162,7 +163,7 @@ void window_system_deinit(void)
 /****************************************************************
  * Window
 ****************************************************************/
-XTB_Window *window_create(XTB_Window_Config config)
+XTB_Window *window_create(Allocator *allocator, XTB_Window_Config config)
 {
     u32 window_width = config.width > 0 ? config.width : 800;
     u32 window_height = config.height > 0 ? config.height : 800;
@@ -193,10 +194,11 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwSetScrollCallback(glfw_window, glfw_scroll_callback);
     glfwSetCursorEnterCallback(glfw_window, glfw_cursor_enter_callback);
 
-    XTB_Window *window = XTB_AllocateZero(allocator_get_heap(), XTB_Window);
+    XTB_Window *window = XTB_AllocateZero(allocator, XTB_Window);
     glfwSetWindowUserPointer(glfw_window, window);
 
     window->handle = glfw_window;
+    window->allocator = allocator;
 
     int cursor_mode = glfwGetInputMode(window->handle, GLFW_CURSOR);
     window->cursor_visible = (cursor_mode == GLFW_CURSOR_NORMAL);
@@ -210,6 +212,7 @@ XTB_Window *window_create(XTB_Window_Config config)
 void window_destroy(XTB_Window *window)
 {
     glfwDestroyWindow(window->handle);
+    XTB_Deallocate(window->allocator, window);
 }
 
 bool window_should_close(XTB_Window *window)

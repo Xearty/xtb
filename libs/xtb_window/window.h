@@ -2,6 +2,7 @@
 #define _XTB_WINDOW_H_
 
 #include <xtb_core/core.h>
+#include <xtb_core/allocator.h>
 
 XTB_C_LINKAGE_BEGIN
 
@@ -35,7 +36,7 @@ void window_system_deinit(void);
 /****************************************************************
  * Window
 ****************************************************************/
-XTB_Window *window_create(XTB_Window_Config config);
+XTB_Window *window_create(Allocator *allocator, XTB_Window_Config config);
 void window_destroy(XTB_Window *window);
 
 bool window_should_close(XTB_Window *window);

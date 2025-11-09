@@ -1,3 +1,4 @@
+#include "xtb_core/allocator.h"
 #include <xtb_window/window.h>
 #include <xtb_core/thread_context.h>
 #include <xtb_ogl/ogl.h>
@@ -14,7 +15,7 @@ int main(int argc, char **argv)
     XTB_Window_Config window_config = {};
     window_config.flags |= XTB_WINDOW_OPENGL_CONTEXT;
 
-    XTB_Window *window = window_create(window_config);
+    XTB_Window *window = window_create(allocator_get_static(), window_config);
     if (!window)
     {
         fputs("Could not create window", stderr);
