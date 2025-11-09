@@ -22,7 +22,12 @@ int main(int argc, char **argv)
     Thread_Context tctx;
     tctx_init_and_equip(&tctx);
 
-    XTB_Window *window = window_create_default(allocator_get_static());
+    XTB_Window_Config cfg = window_config_default();
+    cfg.fullscreen.monitor = window_get_primary_monitor();
+    // cfg.flags |= XTB_WINDOW_FULLSCREEN;
+    // window_config_fullscreen(&cfg, window_get_primary_monitor());
+
+    XTB_Window *window = window_create(allocator_get_static(), cfg);
     if (!window)
     {
         fputs("Could not create window", stderr);
@@ -49,6 +54,12 @@ int main(int argc, char **argv)
         {
             window_request_close(window);
             continue;
+        }
+
+        if (window_key_is_pressed(window, XTB_KEY_F))
+        {
+            // window_go_windowed(window);
+            window_toggle_fullscreen(window);
         }
 
         // if (window_key_is_down(XTB_KEY_SPACE))

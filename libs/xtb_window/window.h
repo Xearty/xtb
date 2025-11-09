@@ -6,8 +6,6 @@
 
 XTB_C_LINKAGE_BEGIN
 
-typedef struct XTB_Window XTB_Window;
-
 /****************************************************************
  * Window System
 ****************************************************************/
@@ -19,7 +17,8 @@ void window_system_deinit(void);
 ****************************************************************/
 typedef enum XTB_Window_Flags
 {
-    XTB_WINDOW_VSYNC = 0b0001,
+    XTB_WINDOW_VSYNC      = 0b0001,
+    XTB_WINDOW_FULLSCREEN = 0b0010,
 } XTB_Window_Flags;
 
 typedef enum XTB_Window_Backend
@@ -37,10 +36,8 @@ typedef struct XTB_Window_Config
     Flags32 flags;
     u32 samples;
 
-    struct {
-        u32 version_major;
-        u32 version_minor;
-    } opengl;
+    struct { u32 version_major; u32 version_minor; } opengl;
+    struct { struct XTB_Monitor *monitor; } fullscreen;
 } XTB_Window_Config;
 
 XTB_Window_Config window_config_default(void);
@@ -48,6 +45,8 @@ XTB_Window_Config window_config_default(void);
 /****************************************************************
  * Window
 ****************************************************************/
+typedef struct XTB_Window XTB_Window;
+
 XTB_Window *window_create(Allocator *allocator, XTB_Window_Config cfg);
 XTB_Window *window_create_default(Allocator *allocator);
 void window_destroy(XTB_Window *window);
@@ -63,6 +62,21 @@ void window_set_title(XTB_Window *window, const char *title);
 
 void window_set_vsync(XTB_Window *window, bool enabled);
 bool window_vsync_enabled(XTB_Window *window);
+
+void window_go_fullscreen(XTB_Window *window);
+void window_go_windowed(XTB_Window *window);
+void window_toggle_fullscreen(XTB_Window *window);
+bool window_is_fullscreen(XTB_Window *window);
+
+void window_get_position(XTB_Window *window, i32 *x, i32 *y);
+void window_get_size(XTB_Window *window, i32 *width, i32 *height);
+
+/****************************************************************
+ * Monitor
+****************************************************************/
+typedef struct XTB_Monitor XTB_Monitor;
+
+XTB_Monitor *window_get_primary_monitor(void);
 
 /****************************************************************
  * Window Callbacks

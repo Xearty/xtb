@@ -1,6 +1,7 @@
 #include "window.h"
 
 #include <xtb_core/allocator.h>
+#include <xtb_core/contract.h>
 #include <GLFW/glfw3.h>
 #include <string.h>
 
@@ -24,6 +25,12 @@ struct XTB_Window
     XTB_Window_Callbacks callbacks;
     void *user_pointer;
 
+    XTB_Monitor *monitor;
+    i32 fullscreen_stored_x;
+    i32 fullscreen_stored_y;
+    i32 fullscreen_stored_width;
+    i32 fullscreen_stored_height;
+
     XTB_Key_State keyboard_state[XTB_KEY_LAST + 1];
     XTB_Key_State mouse_buttons[XTB_MOUSE_BUTTON_LAST + 1];
 
@@ -41,6 +48,7 @@ struct XTB_Window
     bool cursor_visible;
     bool cursor_captured;
     bool vsync_enabled;
+    bool is_fullscreen;
 };
 
 /****************************************************************
@@ -256,6 +264,13 @@ XTB_Window *window_create(Allocator *allocator, XTB_Window_Config cfg)
 
     window_set_vsync(window, !!(cfg.flags & XTB_WINDOW_VSYNC));
 
+    window->monitor = cfg.fullscreen.monitor;
+
+    if (cfg.flags & XTB_WINDOW_FULLSCREEN)
+    {
+        window_go_fullscreen(window);
+    }
+
     return window;
 }
 
@@ -323,6 +338,67 @@ void window_set_vsync(XTB_Window *window, bool enabled)
 bool window_vsync_enabled(XTB_Window *window)
 {
     return window->vsync_enabled;
+}
+
+void window_go_fullscreen(XTB_Window *window)
+{
+    XTB_ASSERT(window->monitor != NULL);
+
+    window->is_fullscreen = true;
+
+    window_get_position(window, &window->fullscreen_stored_y, &window->fullscreen_stored_y);
+    window_get_size(window, &window->fullscreen_stored_width, &window->fullscreen_stored_height);
+
+    const GLFWvidmode *mode = glfwGetVideoMode((GLFWmonitor*)window->monitor);
+    glfwSetWindowMonitor(window->handle, (GLFWmonitor*)window->monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+}
+
+void window_go_windowed(XTB_Window *window)
+{
+    window->is_fullscreen = false;
+
+    glfwSetWindowMonitor(window->handle,
+                         NULL,
+                         window->fullscreen_stored_x,
+                         window->fullscreen_stored_y,
+                         window->fullscreen_stored_width,
+                         window->fullscreen_stored_height,
+                         0);
+}
+
+void window_toggle_fullscreen(XTB_Window *window)
+{
+    if (window->is_fullscreen)
+    {
+        window_go_windowed(window);
+    }
+    else
+    {
+        window_go_fullscreen(window);
+    }
+}
+
+bool window_is_fullscreen(XTB_Window *window)
+{
+    return window->is_fullscreen;
+}
+
+void window_get_position(XTB_Window *window, i32 *x, i32 *y)
+{
+    glfwGetWindowPos(window->handle, x, y);
+}
+
+void window_get_size(XTB_Window *window, i32 *width, i32 *height)
+{
+    glfwGetWindowSize(window->handle, width, height);
+}
+
+/****************************************************************
+ * Monitor
+****************************************************************/
+XTB_Monitor *window_get_primary_monitor(void)
+{
+    return (XTB_Monitor*)glfwGetPrimaryMonitor();
 }
 
 /****************************************************************
