@@ -194,6 +194,11 @@ void window_swap_buffers(XTB_Window *window)
     glfwSwapBuffers((GLFWwindow*)window);
 }
 
+void window_request_close(XTB_Window *window)
+{
+    glfwSetWindowShouldClose((GLFWwindow*)window, GLFW_TRUE);
+}
+
 void window_set_title(XTB_Window *window, const char *title)
 {
     glfwSetWindowTitle((GLFWwindow*)window, title);
