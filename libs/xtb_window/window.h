@@ -8,14 +8,23 @@ XTB_C_LINKAGE_BEGIN
 
 typedef struct XTB_Window XTB_Window;
 
+/****************************************************************
+ * Window System
+****************************************************************/
+void window_system_init(void);
+void window_system_deinit(void);
+
+/****************************************************************
+ * Window Creation Config
+****************************************************************/
 typedef enum XTB_Window_Flags
 {
-    XTB_WINDOW_VSYNC          = 0b0001,
+    XTB_WINDOW_VSYNC = 0b0001,
 } XTB_Window_Flags;
 
 typedef enum XTB_Window_Backend
 {
-    XTB_WINDOW_BACKEND_OPENGL = 0
+    XTB_WINDOW_BACKEND_OPENGL = 0,
 } XTB_Window_Backend;
 
 typedef struct XTB_Window_Config
@@ -34,15 +43,6 @@ typedef struct XTB_Window_Config
     } opengl;
 } XTB_Window_Config;
 
-/****************************************************************
- * Window System
-****************************************************************/
-void window_system_init(void);
-void window_system_deinit(void);
-
-/****************************************************************
- * Window Creation Config
-****************************************************************/
 XTB_Window_Config window_config_default(void);
 
 /****************************************************************
