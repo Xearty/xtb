@@ -39,6 +39,17 @@ int main(int argc, char **argv)
             puts("Space is released");
         }
 
+        if (window_mouse_button_is_down(XTB_MOUSE_BUTTON_LEFT))
+        {
+            puts("Left mouse button is held down");
+        }
+
+        if (window_mouse_button_is_released(XTB_MOUSE_BUTTON_LEFT))
+        {
+            puts("Left mouse button was just released");
+        }
+
+
         float delta_x, delta_y;
         window_get_cursor_position(&delta_x, &delta_y);
 

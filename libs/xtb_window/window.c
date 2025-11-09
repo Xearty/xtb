@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 u32 g_keyboard_key_states[XTB_KEY_LAST + 1];
+u32 g_mouse_button_states[GLFW_MOUSE_BUTTON_LAST + 1];
 u32 g_prev_cursor_position[2];
 u32 g_cursor_position[2];
 
@@ -51,6 +52,24 @@ static void glfw_cursor_callback(GLFWwindow *window, double xposd, double yposd)
     g_cursor_position[1] = (float)yposd;
 }
 
+static void glfw_mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
+{
+    if (button < 0) return;
+
+    switch (action)
+    {
+        case GLFW_PRESS:
+        {
+            g_mouse_button_states[button] = XTB_KEY_STATE_PRESSED;
+        } break;
+
+        case GLFW_RELEASE:
+        {
+            g_mouse_button_states[button] = XTB_KEY_STATE_RELEASED;
+        } break;
+    }
+}
+
 static void update_keyboard_key_states(void)
 {
     for (int key = 0; key <= XTB_KEY_LAST; ++key)
@@ -62,6 +81,21 @@ static void update_keyboard_key_states(void)
         else if (g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED)
         {
             g_keyboard_key_states[key] = XTB_KEY_STATE_UP;
+        }
+    }
+}
+
+static void update_mouse_button_states(void)
+{
+    for (int button = 0; button <= XTB_MOUSE_BUTTON_LAST; ++button)
+    {
+        if (g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED)
+        {
+            g_mouse_button_states[button] = XTB_KEY_STATE_DOWN;
+        }
+        else if (g_mouse_button_states[button] == XTB_KEY_STATE_RELEASED)
+        {
+            g_mouse_button_states[button] = XTB_KEY_STATE_UP;
         }
     }
 }
@@ -85,6 +119,7 @@ XTB_Window *window_create(XTB_Window_Config config)
     GLFWwindow *window = glfwCreateWindow(window_width, window_height, title, NULL, NULL);
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetCursorPosCallback(window, glfw_cursor_callback);
+    glfwSetMouseButtonCallback(window, glfw_mouse_button_callback);
 
     return (XTB_Window*)window;
 }
@@ -102,6 +137,7 @@ bool window_should_close(XTB_Window *window)
 void window_poll_events(XTB_Window *window)
 {
     update_keyboard_key_states();
+    update_mouse_button_states();
     glfwPollEvents();
 }
 
@@ -135,6 +171,33 @@ bool window_key_is_up(u32 key)
 {
     return g_keyboard_key_states[key] == XTB_KEY_STATE_UP
         || g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
+}
+
+bool window_mouse_button_state(u32 button)
+{
+    return g_mouse_button_states[button];
+}
+
+bool window_mouse_button_is_pressed(u32 button)
+{
+    return g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
+}
+
+bool window_mouse_button_is_released(u32 button)
+{
+    return g_mouse_button_states[button] == XTB_KEY_STATE_RELEASED;
+}
+
+bool window_mouse_button_is_down(u32 button)
+{
+    return g_mouse_button_states[button] == XTB_KEY_STATE_DOWN
+        || g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
+}
+
+bool window_mouse_button_is_up(u32 button)
+{
+    return g_mouse_button_states[button] == XTB_KEY_STATE_UP
+        || g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
 }
 
 void *window_get_proc_address(const char *name)
