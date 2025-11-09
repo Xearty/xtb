@@ -2,10 +2,15 @@
 #include <xtb_window/window.h>
 #include <xtb_core/thread_context.h>
 #include <xtb_ogl/ogl.h>
+#include <xtb_core/str.h>
 
-static void key_callback(XTB_Window *glfw_window, int key, int scancode, int action, int mods)
+static void key_callback(XTB_Window *window, i32 key, i32 scancode, i32 action, i32 mods)
 {
-    puts("pressed a key");
+    XTB_String8 *user_pointer_str = (XTB_String8*)window_get_user_pointer(window);
+
+    printf("pressed a key. User pointer string is \"%.*s\"\n",
+            (i32)user_pointer_str->len,
+            user_pointer_str->str);
 }
 
 int main(int argc, char **argv)
@@ -23,7 +28,10 @@ int main(int argc, char **argv)
         fputs("Could not create window", stderr);
     }
 
+    XTB_String8 user_pointer_str = xtb_str8_lit("Tova e string");
+
     window_set_key_callback(window, key_callback);
+    window_set_user_pointer(window, &user_pointer_str);
 
     window_make_context_current(window);
 

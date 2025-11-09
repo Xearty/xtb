@@ -22,6 +22,7 @@ struct XTB_Window
     Allocator *allocator;
 
     XTB_Window_Callbacks callbacks;
+    void *user_pointer;
 
     XTB_Key_State keyboard_state[XTB_KEY_LAST + 1];
     XTB_Key_State mouse_buttons[XTB_MOUSE_BUTTON_LAST + 1];
@@ -324,6 +325,9 @@ bool window_vsync_enabled(XTB_Window *window)
     return window->vsync_enabled;
 }
 
+/****************************************************************
+ * Window Callbacks
+****************************************************************/
 void window_set_key_callback(XTB_Window *window, XTB_Window_Key_Callback callback)
 {
     window->callbacks.key_callback = callback;
@@ -344,6 +348,16 @@ void window_set_scroll_callback(XTB_Window *window, XTB_Window_Scroll_Callback c
 void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Enter_Callback callback)
 {
     window->callbacks.cursor_enter_callback = callback;
+}
+
+void window_set_user_pointer(XTB_Window *window, void *user_pointer)
+{
+    window->user_pointer = user_pointer;
+}
+
+void *window_get_user_pointer(XTB_Window *window)
+{
+    return window->user_pointer;
 }
 
 /****************************************************************

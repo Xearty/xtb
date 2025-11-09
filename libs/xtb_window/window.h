@@ -79,6 +79,9 @@ void window_set_cursor_position_callback(XTB_Window *window, XTB_Window_Cursor_P
 void window_set_scroll_callback(XTB_Window *window, XTB_Window_Scroll_Callback callback);
 void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Enter_Callback callback);
 
+void window_set_user_pointer(XTB_Window *window, void *user_pointer);
+void *window_get_user_pointer(XTB_Window *window);
+
 /****************************************************************
  * Keyboard Input
 ****************************************************************/
