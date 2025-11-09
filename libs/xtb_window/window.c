@@ -5,21 +5,29 @@
 #include <string.h>
 
 /****************************************************************
- * Global State (Internal)
+ * Per Window State
 ****************************************************************/
 struct XTB_Window
 {
     GLFWwindow *handle;
 
-    XTB_Key_State g_keyboard_key_states[XTB_KEY_LAST + 1];
-    XTB_Key_State g_mouse_button_states[GLFW_MOUSE_BUTTON_LAST + 1];
-    f32 g_prev_cursor_position[2];
-    f32 g_cursor_position[2];
-    f32 g_scroll_offset[2];
-    XTB_Cursor_Focus_State g_cursor_focus_state;
-    bool g_cursor_visible;
-    bool g_cursor_captured;
-    bool g_vsync_enabled;
+    XTB_Key_State keyboard_state[XTB_KEY_LAST + 1];
+    XTB_Key_State mouse_buttons[GLFW_MOUSE_BUTTON_LAST + 1];
+
+    f32 cursor_prev_x;
+    f32 cursor_prev_y;
+
+    f32 cursor_x;
+    f32 cursor_y;
+
+    f32 scroll_delta_x;
+    f32 scroll_delta_y;
+
+    XTB_Cursor_Focus_State cursor_focus;
+
+    bool cursor_visible;
+    bool cursor_captured;
+    bool vsync_enabled;
 };
 
 /****************************************************************
@@ -35,12 +43,12 @@ static void glfw_key_callback(GLFWwindow *glfw_window, int key, int scancode, in
     {
         case GLFW_PRESS:
         {
-            window->g_keyboard_key_states[key] = XTB_KEY_STATE_PRESSED;
+            window->keyboard_state[key] = XTB_KEY_STATE_PRESSED;
         } break;
 
         case GLFW_RELEASE:
         {
-            window->g_keyboard_key_states[key] = XTB_KEY_STATE_RELEASED;
+            window->keyboard_state[key] = XTB_KEY_STATE_RELEASED;
         } break;
     }
 }
@@ -49,11 +57,11 @@ static void glfw_cursor_pos_callback(GLFWwindow *glfw_window, double xpos, doubl
 {
     XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
 
-    window->g_prev_cursor_position[0] = window->g_cursor_position[0];
-    window->g_prev_cursor_position[1] = window->g_cursor_position[1];
+    window->cursor_prev_x = window->cursor_x;
+    window->cursor_prev_y = window->cursor_y;
 
-    window->g_cursor_position[0] = (f32)xpos;
-    window->g_cursor_position[1] = (f32)ypos;
+    window->cursor_x = (f32)xpos;
+    window->cursor_y = (f32)ypos;
 }
 
 static void glfw_mouse_button_callback(GLFWwindow *glfw_window, int button, int action, int mods)
@@ -66,12 +74,12 @@ static void glfw_mouse_button_callback(GLFWwindow *glfw_window, int button, int 
     {
         case GLFW_PRESS:
         {
-            window->g_mouse_button_states[button] = XTB_KEY_STATE_PRESSED;
+            window->mouse_buttons[button] = XTB_KEY_STATE_PRESSED;
         } break;
 
         case GLFW_RELEASE:
         {
-            window->g_mouse_button_states[button] = XTB_KEY_STATE_RELEASED;
+            window->mouse_buttons[button] = XTB_KEY_STATE_RELEASED;
         } break;
     }
 }
@@ -80,7 +88,7 @@ static void glfw_cursor_enter_callback(GLFWwindow *glfw_window, int entered)
 {
     XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
 
-    window->g_cursor_focus_state = entered
+    window->cursor_focus = entered
         ? XTB_CURSOR_FOCUS_JUST_ENTERED
         : XTB_CURSOR_FOCUS_JUST_LEFT;
 }
@@ -89,8 +97,8 @@ static void glfw_scroll_callback(GLFWwindow *glfw_window, double xoffset, double
 {
     XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
 
-    window->g_scroll_offset[0] = (f32)xoffset;
-    window->g_scroll_offset[1] = (f32)yoffset;
+    window->scroll_delta_x = (f32)xoffset;
+    window->scroll_delta_y = (f32)yoffset;
 }
 
 /****************************************************************
@@ -100,13 +108,13 @@ static void update_keyboard_key_states(XTB_Window *window)
 {
     for (int key = 0; key <= XTB_KEY_LAST; ++key)
     {
-        if (window->g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED)
+        if (window->keyboard_state[key] == XTB_KEY_STATE_PRESSED)
         {
-            window->g_keyboard_key_states[key] = XTB_KEY_STATE_DOWN;
+            window->keyboard_state[key] = XTB_KEY_STATE_DOWN;
         }
-        else if (window->g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED)
+        else if (window->keyboard_state[key] == XTB_KEY_STATE_RELEASED)
         {
-            window->g_keyboard_key_states[key] = XTB_KEY_STATE_UP;
+            window->keyboard_state[key] = XTB_KEY_STATE_UP;
         }
     }
 }
@@ -115,26 +123,26 @@ static void update_mouse_button_states(XTB_Window *window)
 {
     for (int button = 0; button <= XTB_MOUSE_BUTTON_LAST; ++button)
     {
-        if (window->g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED)
+        if (window->mouse_buttons[button] == XTB_KEY_STATE_PRESSED)
         {
-            window->g_mouse_button_states[button] = XTB_KEY_STATE_DOWN;
+            window->mouse_buttons[button] = XTB_KEY_STATE_DOWN;
         }
-        else if (window->g_mouse_button_states[button] == XTB_KEY_STATE_RELEASED)
+        else if (window->mouse_buttons[button] == XTB_KEY_STATE_RELEASED)
         {
-            window->g_mouse_button_states[button] = XTB_KEY_STATE_UP;
+            window->mouse_buttons[button] = XTB_KEY_STATE_UP;
         }
     }
 }
 
 static void update_cursor_focus_state(XTB_Window *window)
 {
-    if (window->g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_ENTERED)
+    if (window->cursor_focus == XTB_CURSOR_FOCUS_JUST_ENTERED)
     {
-        window->g_cursor_focus_state = XTB_CURSOR_FOCUS_INSIDE;
+        window->cursor_focus = XTB_CURSOR_FOCUS_INSIDE;
     }
-    else if (window->g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_LEFT)
+    else if (window->cursor_focus == XTB_CURSOR_FOCUS_JUST_LEFT)
     {
-        window->g_cursor_focus_state = XTB_CURSOR_FOCUS_OUTSIDE;
+        window->cursor_focus = XTB_CURSOR_FOCUS_OUTSIDE;
     }
 }
 
@@ -189,9 +197,9 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwSetWindowUserPointer(glfw_window, window);
 
     window->handle = glfw_window;
-    window->g_cursor_visible = true;
-    window->g_cursor_captured = false;
-    window->g_vsync_enabled = true;
+    window->cursor_visible = true;
+    window->cursor_captured = false;
+    window->vsync_enabled = true;
 
     return window;
 }
@@ -210,10 +218,10 @@ void window_poll_events(XTB_Window *window)
 {
     // NOTE(xearty): Clear the scroll offset before
     // we poll so it only persists for a single frame
-    window->g_scroll_offset[0] = window->g_scroll_offset[1] = 0.0f;
+    window->scroll_delta_x = window->scroll_delta_y = 0.0f;
 
-    window->g_prev_cursor_position[0] = window->g_cursor_position[0];
-    window->g_prev_cursor_position[1] = window->g_cursor_position[1];
+    window->cursor_prev_x = window->cursor_x;
+    window->cursor_prev_y = window->cursor_y;
 
     update_keyboard_key_states(window);
     update_mouse_button_states(window);
@@ -246,12 +254,12 @@ void window_set_vsync(XTB_Window *window, bool enabled)
 {
     window_make_context_current(window);
     glfwSwapInterval(enabled ? 1 : 0);
-    window->g_vsync_enabled = enabled;
+    window->vsync_enabled = enabled;
 }
 
 bool window_vsync_enabled(XTB_Window *window)
 {
-    return window->g_vsync_enabled;
+    return window->vsync_enabled;
 }
 
 /****************************************************************
@@ -259,29 +267,29 @@ bool window_vsync_enabled(XTB_Window *window)
 ****************************************************************/
 XTB_Key_State window_key_get_state(XTB_Window *window, u32 key)
 {
-    return window->g_keyboard_key_states[key];
+    return window->keyboard_state[key];
 }
 
 bool window_key_is_up(XTB_Window *window, u32 key)
 {
-    return window->g_keyboard_key_states[key] == XTB_KEY_STATE_UP
-        || window->g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
+    return window->keyboard_state[key] == XTB_KEY_STATE_UP
+        || window->keyboard_state[key] == XTB_KEY_STATE_RELEASED;
 }
 
 bool window_key_is_down(XTB_Window *window, u32 key)
 {
-    return window->g_keyboard_key_states[key] == XTB_KEY_STATE_DOWN
-        || window->g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
+    return window->keyboard_state[key] == XTB_KEY_STATE_DOWN
+        || window->keyboard_state[key] == XTB_KEY_STATE_PRESSED;
 }
 
 bool window_key_is_released(XTB_Window *window, u32 key)
 {
-    return window->g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
+    return window->keyboard_state[key] == XTB_KEY_STATE_RELEASED;
 }
 
 bool window_key_is_pressed(XTB_Window *window, u32 key)
 {
-    return window->g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
+    return window->keyboard_state[key] == XTB_KEY_STATE_PRESSED;
 }
 
 /****************************************************************
@@ -289,129 +297,129 @@ bool window_key_is_pressed(XTB_Window *window, u32 key)
 ****************************************************************/
 XTB_Key_State window_mouse_button_get_state(XTB_Window *window, u32 button)
 {
-    return window->g_mouse_button_states[button];
+    return window->mouse_buttons[button];
 }
 
 bool window_mouse_button_is_up(XTB_Window *window, u32 button)
 {
-    return window->g_mouse_button_states[button] == XTB_KEY_STATE_UP
-        || window->g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
+    return window->mouse_buttons[button] == XTB_KEY_STATE_UP
+        || window->mouse_buttons[button] == XTB_KEY_STATE_PRESSED;
 }
 
 bool window_mouse_button_is_down(XTB_Window *window, u32 button)
 {
-    return window->g_mouse_button_states[button] == XTB_KEY_STATE_DOWN
-        || window->g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
+    return window->mouse_buttons[button] == XTB_KEY_STATE_DOWN
+        || window->mouse_buttons[button] == XTB_KEY_STATE_PRESSED;
 }
 
 bool window_mouse_button_is_released(XTB_Window *window, u32 button)
 {
-    return window->g_mouse_button_states[button] == XTB_KEY_STATE_RELEASED;
+    return window->mouse_buttons[button] == XTB_KEY_STATE_RELEASED;
 }
 
 bool window_mouse_button_is_pressed(XTB_Window *window, u32 button)
 {
-    return window->g_mouse_button_states[button] == XTB_KEY_STATE_PRESSED;
+    return window->mouse_buttons[button] == XTB_KEY_STATE_PRESSED;
 }
 
 void window_cursor_get_position(XTB_Window *window, f32 *x, f32 *y)
 {
-    *x = window->g_cursor_position[0];
-    *y = window->g_cursor_position[1];
+    *x = window->cursor_x;
+    *y = window->cursor_y;
 }
 
 void window_cursor_get_previous_position(XTB_Window *window, f32 *x, f32 *y)
 {
-    *x = window->g_prev_cursor_position[0];
-    *y = window->g_prev_cursor_position[1];
+    *x = window->cursor_prev_x;
+    *y = window->cursor_prev_y;
 }
 
 void window_cursor_get_delta(XTB_Window *window, f32 *x, f32 *y)
 {
-    *x = window->g_cursor_position[0] - window->g_prev_cursor_position[0];
-    *y = window->g_cursor_position[1] - window->g_prev_cursor_position[1];
+    *x = window->cursor_x - window->cursor_prev_x;
+    *y = window->cursor_y - window->cursor_prev_y;
 }
 
 XTB_Cursor_Focus_State window_cursor_get_focus(XTB_Window *window)
 {
-    return window->g_cursor_focus_state;
+    return window->cursor_focus;
 }
 
 bool window_cursor_is_inside_window(XTB_Window *window)
 {
-    return window->g_cursor_focus_state == XTB_CURSOR_FOCUS_INSIDE
-        || window->g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_ENTERED;
+    return window->cursor_focus == XTB_CURSOR_FOCUS_INSIDE
+        || window->cursor_focus == XTB_CURSOR_FOCUS_JUST_ENTERED;
 }
 
 bool window_cursor_is_outside_window(XTB_Window *window)
 {
-    return window->g_cursor_focus_state == XTB_CURSOR_FOCUS_OUTSIDE
-        || window->g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_LEFT;
+    return window->cursor_focus == XTB_CURSOR_FOCUS_OUTSIDE
+        || window->cursor_focus == XTB_CURSOR_FOCUS_JUST_LEFT;
 }
 
 bool window_cursor_just_entered_window(XTB_Window *window)
 {
-    return window->g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_ENTERED;
+    return window->cursor_focus == XTB_CURSOR_FOCUS_JUST_ENTERED;
 }
 
 bool window_cursor_just_left_window(XTB_Window *window)
 {
-    return window->g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_LEFT;
+    return window->cursor_focus == XTB_CURSOR_FOCUS_JUST_LEFT;
 }
 
 void window_scroll_get_delta(XTB_Window *window, f32 *x, f32 *y)
 {
-    *x = window->g_scroll_offset[0];
-    *y = window->g_scroll_offset[1];
+    *x = window->scroll_delta_x;
+    *y = window->scroll_delta_y;
 }
 
 f32 window_scroll_delta_x(XTB_Window *window)
 {
-    return window->g_scroll_offset[0];
+    return window->scroll_delta_x;
 }
 
 f32 window_scroll_delta_y(XTB_Window *window)
 {
-    return window->g_scroll_offset[1];
+    return window->scroll_delta_y;
 }
 
 bool window_scroll_this_frame(XTB_Window *window)
 {
-    return window->g_scroll_offset[0] != 0.0f && window->g_scroll_offset[1] != 0.0f;
+    return window->scroll_delta_x != 0.0f && window->scroll_delta_y != 0.0f;
 }
 
 void window_cursor_show(XTB_Window *window)
 {
     glfwSetInputMode(window->handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    window->g_cursor_visible = true;
+    window->cursor_visible = true;
 }
 
 void window_cursor_hide(XTB_Window *window)
 {
     glfwSetInputMode(window->handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-    window->g_cursor_visible = false;
+    window->cursor_visible = false;
 }
 
 bool window_cursor_is_visible(XTB_Window *window)
 {
-    return window->g_cursor_visible;
+    return window->cursor_visible;
 }
 
 void window_cursor_capture(XTB_Window *window)
 {
     glfwSetInputMode(window->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    window->g_cursor_captured = true;
+    window->cursor_captured = true;
 }
 
 void window_cursor_release(XTB_Window *window)
 {
     glfwSetInputMode(window->handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    window->g_cursor_captured = false;
+    window->cursor_captured = false;
 }
 
 bool window_cursor_is_captured(XTB_Window *window)
 {
-    return window->g_cursor_captured;
+    return window->cursor_captured;
 }
 
 /****************************************************************
