@@ -3,6 +3,8 @@
 
 #include <xtb_core/core.h>
 
+XTB_C_LINKAGE_BEGIN
+
 typedef struct XTB_Window XTB_Window;
 
 typedef enum XTB_Window_Flags
@@ -234,5 +236,7 @@ void *window_get_proc_address(const char *name);
 #define XTB_MOUSE_BUTTON_LEFT      XTB_MOUSE_BUTTON_1
 #define XTB_MOUSE_BUTTON_RIGHT     XTB_MOUSE_BUTTON_2
 #define XTB_MOUSE_BUTTON_MIDDLE    XTB_MOUSE_BUTTON_3
+
+XTB_C_LINKAGE_END
 
 #endif // _XTB_WINDOW_H_
