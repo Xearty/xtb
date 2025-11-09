@@ -12,7 +12,7 @@ struct XTB_Window
     GLFWwindow *handle;
 
     XTB_Key_State keyboard_state[XTB_KEY_LAST + 1];
-    XTB_Key_State mouse_buttons[GLFW_MOUSE_BUTTON_LAST + 1];
+    XTB_Key_State mouse_buttons[XTB_MOUSE_BUTTON_LAST + 1];
 
     f32 cursor_prev_x;
     f32 cursor_prev_y;
