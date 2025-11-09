@@ -202,9 +202,7 @@ XTB_Window *window_create(XTB_Window_Config config)
     window->cursor_visible = (cursor_mode == GLFW_CURSOR_NORMAL);
     window->cursor_captured = (cursor_mode == GLFW_CURSOR_NORMAL);
 
-    bool vsync_enabled = (config.flags & XTB_WINDOW_VSYNC);
-    window_set_vsync(window, vsync_enabled);
-    window->vsync_enabled = vsync_enabled;
+    window_set_vsync(window, !!(config.flags & XTB_WINDOW_VSYNC));
 
     return window;
 }
