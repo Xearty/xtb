@@ -41,12 +41,13 @@ typedef enum XTB_Key_State
 
 // TODO: Maybe pass in the window. That would require
 // to have key states on a per window basis
+XTB_Key_State window_key_get_state(u32 key);
 bool window_key_is_pressed(u32 key);
 bool window_key_is_released(u32 key);
 bool window_key_is_down(u32 key);
 bool window_key_is_up(u32 key);
 
-bool window_mouse_button_state(u32 button);
+XTB_Key_State window_mouse_button_get_state(u32 button);
 bool window_mouse_button_is_pressed(u32 button);
 bool window_mouse_button_is_released(u32 button);
 bool window_mouse_button_is_down(u32 button);

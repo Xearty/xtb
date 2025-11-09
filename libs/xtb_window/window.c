@@ -143,6 +143,11 @@ void window_make_context_current(XTB_Window *window)
     glfwMakeContextCurrent((GLFWwindow*)window);
 }
 
+XTB_Key_State window_key_get_state(u32 key)
+{
+    return g_keyboard_key_states[key];
+}
+
 bool window_key_is_pressed(u32 key)
 {
     return g_keyboard_key_states[key] == XTB_KEY_STATE_PRESSED;
@@ -165,7 +170,7 @@ bool window_key_is_up(u32 key)
         || g_keyboard_key_states[key] == XTB_KEY_STATE_RELEASED;
 }
 
-bool window_mouse_button_state(u32 button)
+XTB_Key_State window_mouse_button_get_state(u32 button)
 {
     return g_mouse_button_states[button];
 }
