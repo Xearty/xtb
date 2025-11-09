@@ -168,7 +168,7 @@ XTB_Window *window_create(XTB_Window_Config config)
     u32 window_height = config.height > 0 ? config.height : 800;
     const char *title = config.title != NULL ? config.title : "XTB Window";
 
-    if (config.flags & XTB_WIN_OPENGL_CONTEXT)
+    if (config.flags & XTB_WINDOW_OPENGL_CONTEXT)
     {
         u32 major = config.opengl.major_version ? config.opengl.major_version : 3;
         u32 minor = config.opengl.minor_version ? config.opengl.minor_version : 3;
@@ -197,9 +197,14 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwSetWindowUserPointer(glfw_window, window);
 
     window->handle = glfw_window;
-    window->cursor_visible = true;
-    window->cursor_captured = false;
-    window->vsync_enabled = true;
+
+    int cursor_mode = glfwGetInputMode(window->handle, GLFW_CURSOR);
+    window->cursor_visible = (cursor_mode == GLFW_CURSOR_NORMAL);
+    window->cursor_captured = (cursor_mode == GLFW_CURSOR_NORMAL);
+
+    bool vsync_enabled = (config.flags & XTB_WINDOW_VSYNC);
+    window_set_vsync(window, vsync_enabled);
+    window->vsync_enabled = vsync_enabled;
 
     return window;
 }

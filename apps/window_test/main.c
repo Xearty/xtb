@@ -12,7 +12,7 @@ int main(int argc, char **argv)
     tctx_init_and_equip(&tctx);
 
     XTB_Window_Config window_config = {};
-    window_config.flags |= XTB_WIN_OPENGL_CONTEXT ;
+    window_config.flags |= XTB_WINDOW_OPENGL_CONTEXT;
 
     XTB_Window *window = window_create(window_config);
     if (!window)

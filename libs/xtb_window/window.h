@@ -9,7 +9,8 @@ typedef struct XTB_Window XTB_Window;
 
 typedef enum XTB_Window_Flags
 {
-    XTB_WIN_OPENGL_CONTEXT = 0b0001
+    XTB_WINDOW_OPENGL_CONTEXT = 0b0001,
+    XTB_WINDOW_VSYNC          = 0b0010,
 } XTB_Window_Flags;
 
 typedef struct XTB_Window_Config
