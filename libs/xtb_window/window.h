@@ -108,6 +108,7 @@ bool window_cursor_is_captured(const XTB_Window *window);
  * Miscellaneous
 ****************************************************************/
 void *window_get_proc_address(const char *name);
+double window_get_time(void);
 
 /* Printable keys */
 #define XTB_KEY_SPACE              32

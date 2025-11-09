@@ -375,3 +375,8 @@ void *window_get_proc_address(const char *name)
 {
     return glfwGetProcAddress(name);
 }
+
+double window_get_time(void)
+{
+    return glfwGetTime();
+}
