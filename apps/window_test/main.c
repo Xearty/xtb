@@ -60,9 +60,9 @@ int main(int argc, char **argv)
         }
 
         float delta_x, delta_y;
-        window_get_cursor_position(&delta_x, &delta_y);
+        window_scroll_get_delta(&delta_x, &delta_y);
 
-        // printf("Delta = (%f, %f)\n", delta_x, delta_y);
+        printf("Delta = (%f, %f)\n", delta_x, delta_y);
 
         window_swap_buffers(window);
     }

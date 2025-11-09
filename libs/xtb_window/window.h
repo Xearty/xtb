@@ -74,6 +74,10 @@ bool window_cursor_is_outside_window(void);
 bool window_cursor_just_entered_window(void);
 bool window_cursor_just_left_window(void);
 
+void window_scroll_get_delta(f32 *x, f32 *y);
+f32 window_scroll_delta_x(void);
+f32 window_scroll_delta_y(void);
+
 void *window_get_proc_address(const char *name);
 
 /* Printable keys */

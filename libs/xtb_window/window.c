@@ -6,6 +6,7 @@ XTB_Key_State g_keyboard_key_states[XTB_KEY_LAST + 1];
 XTB_Key_State g_mouse_button_states[GLFW_MOUSE_BUTTON_LAST + 1];
 u32 g_prev_cursor_position[2];
 u32 g_cursor_position[2];
+f32 g_scroll_offset[2];
 XTB_Cursor_Focus_State g_cursor_focus_state;
 
 void window_system_init(void)
@@ -36,13 +37,13 @@ static void glfw_key_callback(GLFWwindow *window, int key, int scancode, int act
     }
 }
 
-static void glfw_cursor_callback(GLFWwindow *window, double xposd, double yposd)
+static void glfw_cursor_callback(GLFWwindow *window, double xpos, double ypos)
 {
     g_prev_cursor_position[0] = g_cursor_position[0];
     g_prev_cursor_position[1] = g_cursor_position[1];
 
-    g_cursor_position[0] = (float)xposd;
-    g_cursor_position[1] = (float)yposd;
+    g_cursor_position[0] = (f32)xpos;
+    g_cursor_position[1] = (f32)ypos;
 }
 
 static void glfw_mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
@@ -68,6 +69,12 @@ static void glfw_cursor_enter_callback(GLFWwindow *window, int entered)
     g_cursor_focus_state = entered
         ? XTB_CURSOR_FOCUS_JUST_ENTERED
         : XTB_CURSOR_FOCUS_JUST_LEFT;
+}
+
+static void glfw_scroll_callback(GLFWwindow *window, double xoffset, double yoffset)
+{
+    g_scroll_offset[0] = (f32)xoffset;
+    g_scroll_offset[1] = (f32)yoffset;
 }
 
 static void update_keyboard_key_states(void)
@@ -135,6 +142,7 @@ XTB_Window *window_create(XTB_Window_Config config)
     glfwSetCursorPosCallback(window, glfw_cursor_callback);
     glfwSetMouseButtonCallback(window, glfw_mouse_button_callback);
     glfwSetCursorEnterCallback(window, glfw_cursor_enter_callback);
+    glfwSetScrollCallback(window, glfw_scroll_callback);
 
     return (XTB_Window*)window;
 }
@@ -151,6 +159,10 @@ bool window_should_close(XTB_Window *window)
 
 void window_poll_events(XTB_Window *window)
 {
+    // NOTE(xearty): Clear the scroll offset before
+    // we poll so it only persists for a single frame
+    g_scroll_offset[0] = g_scroll_offset[1] = 0.0f;
+
     update_keyboard_key_states();
     update_mouse_button_states();
     update_cursor_focus_state();
@@ -270,3 +282,20 @@ bool window_cursor_just_left_window(void)
 {
     return g_cursor_focus_state == XTB_CURSOR_FOCUS_JUST_LEFT;
 }
+
+void window_scroll_get_delta(f32 *x, f32 *y)
+{
+    *x = g_scroll_offset[0];
+    *y = g_scroll_offset[1];
+}
+
+f32 window_scroll_delta_x(void)
+{
+    return g_scroll_offset[0];
+}
+
+f32 window_scroll_delta_y(void)
+{
+    return g_scroll_offset[1];
+}
+
