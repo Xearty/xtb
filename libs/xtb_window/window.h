@@ -37,7 +37,6 @@ typedef struct XTB_Window_Config
     u32 samples;
 
     struct { u32 version_major; u32 version_minor; } opengl;
-    struct { struct XTB_Monitor *monitor; } fullscreen;
 } XTB_Window_Config;
 
 XTB_Window_Config window_config_default(void);
@@ -77,6 +76,7 @@ void window_get_size(XTB_Window *window, i32 *width, i32 *height);
 typedef struct XTB_Monitor XTB_Monitor;
 
 XTB_Monitor *window_get_primary_monitor(void);
+XTB_Monitor *window_get_monitor(XTB_Window *window);
 
 /****************************************************************
  * Window Callbacks

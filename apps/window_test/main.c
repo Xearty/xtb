@@ -23,9 +23,6 @@ int main(int argc, char **argv)
     tctx_init_and_equip(&tctx);
 
     XTB_Window_Config cfg = window_config_default();
-    cfg.fullscreen.monitor = window_get_primary_monitor();
-    // cfg.flags |= XTB_WINDOW_FULLSCREEN;
-    // window_config_fullscreen(&cfg, window_get_primary_monitor());
 
     XTB_Window *window = window_create(allocator_get_static(), cfg);
     if (!window)
