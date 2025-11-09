@@ -51,8 +51,6 @@
 /****************************************************************
  * Type Aliases
 ****************************************************************/
-typedef unsigned char XTB_Byte;
-
 typedef uint8_t     u8;
 typedef uint16_t    u16;
 typedef uint32_t    u32;
@@ -75,6 +73,18 @@ typedef double      f64;
 
 typedef long long int      lli;
 typedef unsigned long long llu;
+
+typedef u8  Flags8;
+typedef u16 Flags16;
+typedef u32 Flags32;
+typedef u64 Flags64;
+
+typedef u8  Mask8;
+typedef u16 Mask16;
+typedef u32 Mask32;
+typedef u64 Mask64;
+
+typedef u8 XTB_Byte;
 
 /****************************************************************
  * Basic Math Macros

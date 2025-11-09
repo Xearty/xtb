@@ -19,7 +19,7 @@ typedef struct XTB_Window_Config
     u32 width;
     u32 height;
     const char *title;
-    u32 flags;
+    Flags32 flags;
     u32 samples;
     struct {
         u32 major_version;
