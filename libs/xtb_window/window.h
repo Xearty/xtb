@@ -15,8 +15,12 @@ typedef struct XTB_Window_Config
     u32 width;
     u32 height;
     const char *title;
-    u32 samples;
     XTB_Window_Flags flags;
+    u32 samples;
+    struct {
+        u32 major_version;
+        u32 minor_version;
+    } opengl;
 } XTB_Window_Config;
 
 void window_system_init(void);

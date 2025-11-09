@@ -98,11 +98,13 @@ XTB_Window *window_create(XTB_Window_Config config)
     u32 window_height = config.height > 0 ? config.height : 800;
     const char *title = config.title != NULL ? config.title : "XTB Window";
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-
     if (config.flags & XTB_WIN_OPENGL_CONTEXT)
     {
+        u32 major = config.opengl.major_version ? config.opengl.major_version : 3;
+        u32 minor = config.opengl.minor_version ? config.opengl.minor_version : 3;
+
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     }
 
