@@ -31,6 +31,14 @@ void window_swap_buffers(XTB_Window *window);
 
 void window_make_context_current(XTB_Window *window);
 
+typedef enum XTB_Key_State
+{
+    XTB_KEY_STATE_UP = 0,
+    XTB_KEY_STATE_DOWN = 1,
+    XTB_KEY_STATE_RELEASED = 2,
+    XTB_KEY_STATE_PRESSED = 3,
+} XTB_Key_State;
+
 // TODO: Maybe pass in the window. That would require
 // to have key states on a per window basis
 bool window_key_is_pressed(u32 key);
