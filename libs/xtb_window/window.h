@@ -100,6 +100,10 @@ void window_cursor_show(XTB_Window *window);
 void window_cursor_hide(XTB_Window *window);
 bool window_cursor_is_visible(const XTB_Window *window);
 
+void window_cursor_capture(XTB_Window *window);
+void window_cursor_release(XTB_Window *window);
+bool window_cursor_is_captured(const XTB_Window *window);
+
 /****************************************************************
  * Miscellaneous
 ****************************************************************/

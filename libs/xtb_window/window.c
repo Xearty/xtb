@@ -12,6 +12,7 @@ u32 g_cursor_position[2];
 f32 g_scroll_offset[2];
 XTB_Cursor_Focus_State g_cursor_focus_state;
 bool g_cursor_visible;
+bool g_cursor_captured;
 
 /****************************************************************
  * GLFW Callbacks (Internal)
@@ -348,6 +349,23 @@ void window_cursor_hide(XTB_Window *window)
 bool window_cursor_is_visible(const XTB_Window *window)
 {
     return g_cursor_visible;
+}
+
+void window_cursor_capture(XTB_Window *window)
+{
+    glfwSetInputMode((GLFWwindow*)window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    g_cursor_captured = true;
+}
+
+void window_cursor_release(XTB_Window *window)
+{
+    glfwSetInputMode((GLFWwindow*)window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    g_cursor_captured = false;
+}
+
+bool window_cursor_is_captured(const XTB_Window *window)
+{
+    return g_cursor_captured;
 }
 
 /****************************************************************
