@@ -194,6 +194,11 @@ void window_swap_buffers(XTB_Window *window)
     glfwSwapBuffers((GLFWwindow*)window);
 }
 
+void window_set_title(XTB_Window *window, const char *title)
+{
+    glfwSetWindowTitle((GLFWwindow*)window, title);
+}
+
 /****************************************************************
  * Keyboard Input
 ****************************************************************/

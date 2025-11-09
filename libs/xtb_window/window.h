@@ -43,6 +43,8 @@ void window_poll_events(XTB_Window *window);
 void window_make_context_current(XTB_Window *window);
 void window_swap_buffers(XTB_Window *window);
 
+void window_set_title(XTB_Window *window, const char *title);
+
 /****************************************************************
  * Keyboard Input
 ****************************************************************/
