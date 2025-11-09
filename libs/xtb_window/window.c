@@ -14,6 +14,7 @@ typedef struct XTB_Window_Callbacks
     XTB_Window_Cursor_Enter_Callback cursor_enter_callback;
 
     XTB_Window_Size_Callback window_size_callback;
+    XTB_Window_Framebuffer_Size_Callback framebuffer_size_callback;
 } XTB_Window_Callbacks;
 
 /****************************************************************
@@ -161,6 +162,16 @@ static void glfw_window_size_callback(GLFWwindow *glfw_window, int width, int he
     }
 }
 
+static void glfw_framebuffer_size_callback(GLFWwindow *glfw_window, int width, int height)
+{
+    XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
+
+    if (window->callbacks.framebuffer_size_callback)
+    {
+        window->callbacks.framebuffer_size_callback(window, width, height);
+    }
+}
+
 /****************************************************************
  * State Update (Internal)
 ****************************************************************/
@@ -269,6 +280,7 @@ XTB_Window *window_create(Allocator *allocator, XTB_Window_Config cfg)
 
     // Window State Callbacks
     glfwSetWindowSizeCallback(glfw_window, glfw_window_size_callback);
+    glfwSetFramebufferSizeCallback(glfw_window, glfw_framebuffer_size_callback);
 
     XTB_Window *window = XTB_AllocateZero(allocator, XTB_Window);
     glfwSetWindowUserPointer(glfw_window, window);
@@ -447,6 +459,11 @@ void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Ente
 void window_set_window_size_callback(XTB_Window *window, XTB_Window_Size_Callback callback)
 {
     window->callbacks.window_size_callback = callback;
+}
+
+void window_set_framebuffer_size_callback(XTB_Window *window, XTB_Window_Framebuffer_Size_Callback callback)
+{
+    window->callbacks.framebuffer_size_callback = callback;
 }
 
 void window_set_user_pointer(XTB_Window *window, void *user_pointer)

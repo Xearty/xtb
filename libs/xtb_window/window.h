@@ -88,6 +88,7 @@ typedef void (*XTB_Window_Scroll_Callback)(XTB_Window *window, f64 xoffset, f64 
 typedef void (*XTB_Window_Cursor_Enter_Callback)(XTB_Window *window, i32 entered);
 
 typedef void (*XTB_Window_Size_Callback)(XTB_Window *window, i32 width, i32 height);
+typedef void (*XTB_Window_Framebuffer_Size_Callback)(XTB_Window *window, i32 width, i32 height);
 
 void window_set_key_callback(XTB_Window *window, XTB_Window_Key_Callback callback);
 void window_set_mouse_button_callback(XTB_Window *window, XTB_Window_Mouse_Button_Callback callback);
@@ -95,6 +96,7 @@ void window_set_cursor_position_callback(XTB_Window *window, XTB_Window_Cursor_P
 void window_set_scroll_callback(XTB_Window *window, XTB_Window_Scroll_Callback callback);
 void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Enter_Callback callback);
 void window_set_window_size_callback(XTB_Window *window, XTB_Window_Size_Callback callback);
+void window_set_framebuffer_size_callback(XTB_Window *window, XTB_Window_Framebuffer_Size_Callback callback);
 
 void window_set_user_pointer(XTB_Window *window, void *user_pointer);
 void *window_get_user_pointer(XTB_Window *window);
