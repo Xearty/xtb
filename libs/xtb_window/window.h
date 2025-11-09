@@ -65,6 +65,21 @@ void window_set_vsync(XTB_Window *window, bool enabled);
 bool window_vsync_enabled(XTB_Window *window);
 
 /****************************************************************
+ * Window Callbacks
+****************************************************************/
+typedef void (*XTB_Window_Key_Callback)(XTB_Window *window, i32 key, i32 scancode, i32 action, i32 mods);
+typedef void (*XTB_Window_Mouse_Button_Callback)(XTB_Window *window, i32 button, i32 action, i32 mods);
+typedef void (*XTB_Window_Cursor_Position_Callback)(XTB_Window *window, f64 xpos, f64 ypos);
+typedef void (*XTB_Window_Scroll_Callback)(XTB_Window *window, f64 xoffset, f64 yoffset);
+typedef void (*XTB_Window_Cursor_Enter_Callback)(XTB_Window *window, i32 entered);
+
+void window_set_key_callback(XTB_Window *window, XTB_Window_Key_Callback callback);
+void window_set_mouse_button_callback(XTB_Window *window, XTB_Window_Mouse_Button_Callback callback);
+void window_set_cursor_position_callback(XTB_Window *window, XTB_Window_Cursor_Position_Callback callback);
+void window_set_scroll_callback(XTB_Window *window, XTB_Window_Scroll_Callback callback);
+void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Enter_Callback callback);
+
+/****************************************************************
  * Keyboard Input
 ****************************************************************/
 typedef enum XTB_Key_State

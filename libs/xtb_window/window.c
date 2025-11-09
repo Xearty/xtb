@@ -4,6 +4,15 @@
 #include <GLFW/glfw3.h>
 #include <string.h>
 
+typedef struct XTB_Window_Callbacks
+{
+    XTB_Window_Key_Callback key_callback;
+    XTB_Window_Mouse_Button_Callback mouse_button_callback;
+    XTB_Window_Cursor_Position_Callback cursor_position_callback;
+    XTB_Window_Scroll_Callback scroll_callback;
+    XTB_Window_Cursor_Enter_Callback cursor_enter_callback;
+} XTB_Window_Callbacks;
+
 /****************************************************************
  * Per Window State
 ****************************************************************/
@@ -11,6 +20,8 @@ struct XTB_Window
 {
     GLFWwindow *handle;
     Allocator *allocator;
+
+    XTB_Window_Callbacks callbacks;
 
     XTB_Key_State keyboard_state[XTB_KEY_LAST + 1];
     XTB_Key_State mouse_buttons[XTB_MOUSE_BUTTON_LAST + 1];
@@ -52,6 +63,11 @@ static void glfw_key_callback(GLFWwindow *glfw_window, int key, int scancode, in
             window->keyboard_state[key] = XTB_KEY_STATE_RELEASED;
         } break;
     }
+
+    if (window->callbacks.key_callback)
+    {
+        window->callbacks.key_callback(window, key, scancode, action, mods);
+    }
 }
 
 static void glfw_mouse_button_callback(GLFWwindow *glfw_window, int button, int action, int mods)
@@ -72,6 +88,11 @@ static void glfw_mouse_button_callback(GLFWwindow *glfw_window, int button, int 
             window->mouse_buttons[button] = XTB_KEY_STATE_RELEASED;
         } break;
     }
+
+    if (window->callbacks.mouse_button_callback)
+    {
+        window->callbacks.mouse_button_callback(window, button, action,  mods);
+    }
 }
 
 static void glfw_cursor_pos_callback(GLFWwindow *glfw_window, double xpos, double ypos)
@@ -83,6 +104,11 @@ static void glfw_cursor_pos_callback(GLFWwindow *glfw_window, double xpos, doubl
 
     window->cursor_x = (f32)xpos;
     window->cursor_y = (f32)ypos;
+
+    if (window->callbacks.cursor_position_callback)
+    {
+        window->callbacks.cursor_position_callback(window, xpos, ypos);
+    }
 }
 
 static void glfw_scroll_callback(GLFWwindow *glfw_window, double xoffset, double yoffset)
@@ -91,6 +117,11 @@ static void glfw_scroll_callback(GLFWwindow *glfw_window, double xoffset, double
 
     window->scroll_delta_x = (f32)xoffset;
     window->scroll_delta_y = (f32)yoffset;
+
+    if (window->callbacks.scroll_callback)
+    {
+        window->callbacks.scroll_callback(window, xoffset, yoffset);
+    }
 }
 
 static void glfw_cursor_enter_callback(GLFWwindow *glfw_window, int entered)
@@ -100,6 +131,11 @@ static void glfw_cursor_enter_callback(GLFWwindow *glfw_window, int entered)
     window->cursor_focus = entered
         ? XTB_CURSOR_FOCUS_JUST_ENTERED
         : XTB_CURSOR_FOCUS_JUST_LEFT;
+
+    if (window->callbacks.cursor_enter_callback)
+    {
+        window->callbacks.cursor_enter_callback(window, entered);
+    }
 }
 
 /****************************************************************
@@ -286,6 +322,28 @@ void window_set_vsync(XTB_Window *window, bool enabled)
 bool window_vsync_enabled(XTB_Window *window)
 {
     return window->vsync_enabled;
+}
+
+void window_set_key_callback(XTB_Window *window, XTB_Window_Key_Callback callback)
+{
+    window->callbacks.key_callback = callback;
+}
+
+void window_set_mouse_button_callback(XTB_Window *window, XTB_Window_Mouse_Button_Callback callback)
+{
+    window->callbacks.mouse_button_callback = callback;
+}
+void window_set_cursor_position_callback(XTB_Window *window, XTB_Window_Cursor_Position_Callback callback)
+{
+    window->callbacks.cursor_position_callback = callback;
+}
+void window_set_scroll_callback(XTB_Window *window, XTB_Window_Scroll_Callback callback)
+{
+    window->callbacks.scroll_callback = callback;
+}
+void window_set_cursor_enter_callback(XTB_Window *window, XTB_Window_Cursor_Enter_Callback callback)
+{
+    window->callbacks.cursor_enter_callback = callback;
 }
 
 /****************************************************************

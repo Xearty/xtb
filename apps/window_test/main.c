@@ -3,6 +3,11 @@
 #include <xtb_core/thread_context.h>
 #include <xtb_ogl/ogl.h>
 
+static void key_callback(XTB_Window *glfw_window, int key, int scancode, int action, int mods)
+{
+    puts("pressed a key");
+}
+
 int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
@@ -17,6 +22,8 @@ int main(int argc, char **argv)
     {
         fputs("Could not create window", stderr);
     }
+
+    window_set_key_callback(window, key_callback);
 
     window_make_context_current(window);
 
@@ -82,7 +89,7 @@ int main(int argc, char **argv)
         f32 prev_x, prev_y;
         window_cursor_get_previous_position(window, &prev_x, &prev_y);
 
-        printf("Delta = (%f, %f) = (%f - %f, %f - %f)\n", delta_x, delta_y, x, prev_x, y, prev_y);
+        // printf("Delta = (%f, %f) = (%f - %f, %f - %f)\n", delta_x, delta_y, x, prev_x, y, prev_y);
 
         window_swap_buffers(window);
     }
