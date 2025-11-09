@@ -53,17 +53,6 @@ static void glfw_key_callback(GLFWwindow *glfw_window, int key, int scancode, in
     }
 }
 
-static void glfw_cursor_pos_callback(GLFWwindow *glfw_window, double xpos, double ypos)
-{
-    XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
-
-    window->cursor_prev_x = window->cursor_x;
-    window->cursor_prev_y = window->cursor_y;
-
-    window->cursor_x = (f32)xpos;
-    window->cursor_y = (f32)ypos;
-}
-
 static void glfw_mouse_button_callback(GLFWwindow *glfw_window, int button, int action, int mods)
 {
     if (button < 0) return;
@@ -84,13 +73,15 @@ static void glfw_mouse_button_callback(GLFWwindow *glfw_window, int button, int 
     }
 }
 
-static void glfw_cursor_enter_callback(GLFWwindow *glfw_window, int entered)
+static void glfw_cursor_pos_callback(GLFWwindow *glfw_window, double xpos, double ypos)
 {
     XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
 
-    window->cursor_focus = entered
-        ? XTB_CURSOR_FOCUS_JUST_ENTERED
-        : XTB_CURSOR_FOCUS_JUST_LEFT;
+    window->cursor_prev_x = window->cursor_x;
+    window->cursor_prev_y = window->cursor_y;
+
+    window->cursor_x = (f32)xpos;
+    window->cursor_y = (f32)ypos;
 }
 
 static void glfw_scroll_callback(GLFWwindow *glfw_window, double xoffset, double yoffset)
@@ -99,6 +90,15 @@ static void glfw_scroll_callback(GLFWwindow *glfw_window, double xoffset, double
 
     window->scroll_delta_x = (f32)xoffset;
     window->scroll_delta_y = (f32)yoffset;
+}
+
+static void glfw_cursor_enter_callback(GLFWwindow *glfw_window, int entered)
+{
+    XTB_Window *window = glfwGetWindowUserPointer(glfw_window);
+
+    window->cursor_focus = entered
+        ? XTB_CURSOR_FOCUS_JUST_ENTERED
+        : XTB_CURSOR_FOCUS_JUST_LEFT;
 }
 
 /****************************************************************
@@ -188,10 +188,10 @@ XTB_Window *window_create(XTB_Window_Config config)
     }
 
     glfwSetKeyCallback(glfw_window, glfw_key_callback);
-    glfwSetCursorPosCallback(glfw_window, glfw_cursor_pos_callback);
     glfwSetMouseButtonCallback(glfw_window, glfw_mouse_button_callback);
-    glfwSetCursorEnterCallback(glfw_window, glfw_cursor_enter_callback);
+    glfwSetCursorPosCallback(glfw_window, glfw_cursor_pos_callback);
     glfwSetScrollCallback(glfw_window, glfw_scroll_callback);
+    glfwSetCursorEnterCallback(glfw_window, glfw_cursor_enter_callback);
 
     XTB_Window *window = XTB_AllocateZero(allocator_get_heap(), XTB_Window);
     glfwSetWindowUserPointer(glfw_window, window);
@@ -221,8 +221,10 @@ void window_poll_events(XTB_Window *window)
 {
     // NOTE(xearty): Clear the scroll offset before
     // we poll so it only persists for a single frame
-    window->scroll_delta_x = window->scroll_delta_y = 0.0f;
+    window->scroll_delta_x = 0.0f;
+    window->scroll_delta_y = 0.0f;
 
+    // NOTE(xearty): Clear the mouse position delta
     window->cursor_prev_x = window->cursor_x;
     window->cursor_prev_y = window->cursor_y;
 

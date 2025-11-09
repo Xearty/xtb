@@ -32,6 +32,12 @@ int main(int argc, char **argv)
     {
         window_poll_events(window);
 
+        if (window_key_is_pressed(window, XTB_KEY_ESCAPE))
+        {
+            window_request_close(window);
+            continue;
+        }
+
         // if (window_key_is_down(XTB_KEY_SPACE))
         // {
         //     puts("Space is down");
