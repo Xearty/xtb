@@ -238,19 +238,19 @@ void *window_get_proc_address(const char *name)
     return glfwGetProcAddress(name);
 }
 
-void window_get_cursor_position(float *x, float *y)
+void window_cursor_get_position(f32 *x, f32 *y)
 {
     *x = g_cursor_position[0];
     *y = g_cursor_position[1];
 }
 
-void window_get_previous_cursor_position(float *x, float *y)
+void window_cursor_get_previous_position(f32 *x, f32 *y)
 {
     *x = g_prev_cursor_position[0];
     *y = g_prev_cursor_position[1];
 }
 
-void window_get_cursor_delta(float *x, float *y)
+void window_cursor_get_delta(f32 *x, f32 *y)
 {
     *x = g_cursor_position[0] - g_prev_cursor_position[0];
     *y = g_cursor_position[1] - g_prev_cursor_position[1];

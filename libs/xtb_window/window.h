@@ -38,31 +38,31 @@ void window_make_context_current(XTB_Window *window);
 typedef enum XTB_Key_State
 {
     XTB_KEY_STATE_UP = 0,
-    XTB_KEY_STATE_DOWN = 1,
-    XTB_KEY_STATE_RELEASED = 2,
-    XTB_KEY_STATE_PRESSED = 3,
+    XTB_KEY_STATE_DOWN,
+    XTB_KEY_STATE_RELEASED,
+    XTB_KEY_STATE_PRESSED,
 } XTB_Key_State;
 
 // TODO: Maybe pass in the window. That would require
 // to have key states on a per window basis
 XTB_Key_State window_key_get_state(u32 key);
-bool window_key_is_pressed(u32 key);
-bool window_key_is_released(u32 key);
-bool window_key_is_down(u32 key);
 bool window_key_is_up(u32 key);
+bool window_key_is_down(u32 key);
+bool window_key_is_released(u32 key);
+bool window_key_is_pressed(u32 key);
 
 XTB_Key_State window_mouse_button_get_state(u32 button);
-bool window_mouse_button_is_pressed(u32 button);
-bool window_mouse_button_is_released(u32 button);
-bool window_mouse_button_is_down(u32 button);
 bool window_mouse_button_is_up(u32 button);
+bool window_mouse_button_is_down(u32 button);
+bool window_mouse_button_is_released(u32 button);
+bool window_mouse_button_is_pressed(u32 button);
 
-void window_get_cursor_position(float *x, float *y);
-void window_get_previous_cursor_position(float *x, float *y);
-void window_get_cursor_delta(float *x, float *y);
+void window_cursor_get_position(f32 *x, f32 *y);
+void window_cursor_get_previous_position(f32 *x, f32 *y);
+void window_cursor_get_delta(f32 *x, f32 *y);
 
 typedef enum XTB_Cursor_Focus_State {
-    XTB_CURSOR_FOCUS_INSIDE,
+    XTB_CURSOR_FOCUS_INSIDE = 0,
     XTB_CURSOR_FOCUS_OUTSIDE,
     XTB_CURSOR_FOCUS_JUST_ENTERED,
     XTB_CURSOR_FOCUS_JUST_LEFT
