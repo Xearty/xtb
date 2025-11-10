@@ -6,6 +6,7 @@ option(XTB_BUILD_BMP "Build the bmp module" ON)
 option(XTB_BUILD_XTBM "Build the math module" ON)
 option(XTB_BUILD_OGL "Build the opengl module" ON)
 option(XTB_BUILD_WINDOW "Build the window module" ON)
+option(XTB_BUILD_RENDERER "Build the renderer module" ON)
 
 if(XTB_BUILD_CORE)
     add_subdirectory(xtb_core)
@@ -37,4 +38,8 @@ endif()
 
 if(XTB_BUILD_WINDOW)
     add_subdirectory(xtb_window)
+endif()
+
+if(XTB_BUILD_RENDERER)
+    add_subdirectory(xtb_renderer)
 endif()
