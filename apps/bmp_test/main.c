@@ -12,19 +12,17 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <raylib.h>
-#include <math.h>
 
 #include "window_state.c"
 #include "rect_selection.c"
-#include "libc_file_stream.c"
 #include "filters.c"
 
 void
-render_bitmap(XTB_BMP_Bitmap bitmap, const RectangleSelections* selections)
+render_bitmap(BMP_Bitmap bitmap, const RectangleSelections* selections)
 {
-    XTB_BMP_Color bright_maroon = xtb_bmp_color_create(72, 33, 195, 255);
-    XTB_BMP_Color mauve  = xtb_bmp_color_create(255, 175, 224, 255);
-    XTB_BMP_Color red  = xtb_bmp_color_create(0, 0, 255, 255);
+    BMP_Color bright_maroon = bmp_color_create(72, 33, 195, 255);
+    BMP_Color mauve  = bmp_color_create(255, 175, 224, 255);
+    BMP_Color red  = bmp_color_create(0, 0, 255, 255);
 
     static Rainbow_State rainbow_state;
     static bool initialized = false;
@@ -39,11 +37,11 @@ render_bitmap(XTB_BMP_Bitmap bitmap, const RectangleSelections* selections)
         for (int w = 0; w < bitmap.width; ++w)
         {
             int index = h * bitmap.width + w;
-            XTB_BMP_Color color = bitmap.pixel_data[index];
+            BMP_Color color = bitmap.pixel_data[index];
 
             if (is_inside_selection(selections, w, h))
             {
-                XTB_BMP_Color pixel = bitmap.pixel_data[h * bitmap.width + w];
+                BMP_Color pixel = bitmap.pixel_data[h * bitmap.width + w];
                 color = layer_filter_negative(color);
                 color = layer_filter_rainbow(color, 1, rainbow_state);
             }
@@ -57,9 +55,9 @@ render_bitmap(XTB_BMP_Bitmap bitmap, const RectangleSelections* selections)
 }
 
 void
-setup_window_for_bmp(XTB_BMP_Bitmap *bitmap, const char *path)
+setup_window_for_bmp(BMP_Bitmap *bitmap, const char *path)
 {
-    xtb_bmp_bitmap_gdealloc(bitmap);
+    bmp_bitmap_gdealloc(bitmap);
 
     printf("Loading %s...\n", path);
 
@@ -72,10 +70,10 @@ setup_window_for_bmp(XTB_BMP_Bitmap *bitmap, const char *path)
     xtb_bmp_dib_write(&dib, "test_write.bmp");
     *bitmap = xtb_bmp_bitmap_create_from_dib_galloc(&dib);
     #else
-    *bitmap = xtb_bmp_bitmap_load_galloc((XTB_Byte*)content.str);
+    *bitmap = bmp_bitmap_load_galloc((u8*)content.str);
     #endif
 
-    str_free(xtb_bmp_get_global_allocator(), content);
+    str_free(bmp_get_global_allocator(), content);
     #else
     XTB_BMP_IO_Stream stream = libc_file_read_binary_stream_open(path);
     /* XTB_BMP_IO_Stream stream = libc_file_read_text_stream_open(path); */
@@ -120,7 +118,7 @@ bmp_directory_viewer_app(const char *dirpath)
         exit(2);
     }
 
-    XTB_BMP_Bitmap bitmap = {};
+    BMP_Bitmap bitmap = {};
     setup_window_for_bmp(&bitmap, path_list.paths[0]);
 
     while (!WindowShouldClose())
@@ -159,7 +157,7 @@ bmp_directory_viewer_app(const char *dirpath)
     }
     CloseWindow();
     UnloadDirectoryFiles(path_list);
-    xtb_bmp_bitmap_gdealloc(&bitmap);
+    bmp_bitmap_gdealloc(&bitmap);
 }
 
 void
@@ -178,7 +176,7 @@ bmp_single_file_viewer_app(int argc, char **argv, const char *filepath)
     /* setup_bmp_for_drawing_into_window(&bm, filepath); */
 
     // Working
-    XTB_BMP_Bitmap bitmap = {};
+    BMP_Bitmap bitmap = {};
     if (filepath)
     {
         setup_window_for_bmp(&bitmap, filepath);
@@ -213,7 +211,7 @@ bmp_single_file_viewer_app(int argc, char **argv, const char *filepath)
         EndDrawing();
     }
     CloseWindow();
-    xtb_bmp_bitmap_gdealloc(&bitmap);
+    bmp_bitmap_gdealloc(&bitmap);
 }
 
 int main(int argc, char **argv)
@@ -224,7 +222,7 @@ int main(int argc, char **argv)
 
     SetTraceLogLevel(LOG_ERROR);
 
-    xtb_bmp_set_global_allocator(allocator_get_heap());
+    bmp_set_global_allocator(allocator_get_heap());
 
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     EnableEventWaiting();

@@ -1,7 +1,11 @@
-XTB_BMP_Color
-layer_filter_accent_color(XTB_BMP_Color color, int factor, XTB_BMP_Color filter_color)
+#include <xtb_bmp/bmp.h>
+#include <raylib.h>
+#include <math.h>
+
+BMP_Color
+layer_filter_accent_color(BMP_Color color, int factor, BMP_Color filter_color)
 {
-    XTB_BMP_Color out_color = color;
+    BMP_Color out_color = color;
 
     int threshold = 255 / factor;
 
@@ -11,7 +15,7 @@ layer_filter_accent_color(XTB_BMP_Color color, int factor, XTB_BMP_Color filter_
         int luminosity =  average * factor;
         float fluminosity = (float)luminosity / 255.f;
 
-        out_color = xtb_bmp_color_create(filter_color.b * fluminosity,
+        out_color = bmp_color_create(filter_color.b * fluminosity,
                                     filter_color.g * fluminosity,
                                     filter_color.r * fluminosity,
                                     255);
@@ -65,10 +69,10 @@ void update_rainbow_state(Rainbow_State *state)
     state->times.z += state->increments.z;
 }
 
-XTB_BMP_Color
-layer_filter_rainbow(XTB_BMP_Color color, int factor, Rainbow_State state)
+BMP_Color
+layer_filter_rainbow(BMP_Color color, int factor, Rainbow_State state)
 {
-    XTB_BMP_Color out_color = color;
+    BMP_Color out_color = color;
 
     int threshold = 255 / factor;
 
@@ -87,7 +91,7 @@ layer_filter_rainbow(XTB_BMP_Color color, int factor, Rainbow_State state)
         float norm_g = map_range(g, 0.0f, 1.0f, 0.0f, 255.0f);
         float norm_r = map_range(r, 0.0f, 1.0f, 0.0f, 255.0f);
 
-        out_color = xtb_bmp_color_create(norm_b * fluminosity,
+        out_color = bmp_color_create(norm_b * fluminosity,
                                             norm_g * fluminosity,
                                             norm_r * fluminosity,
                                             255);
@@ -96,13 +100,13 @@ layer_filter_rainbow(XTB_BMP_Color color, int factor, Rainbow_State state)
     return out_color;
 }
 
-XTB_BMP_Color
-layer_filter_negative(XTB_BMP_Color color)
+BMP_Color
+layer_filter_negative(BMP_Color color)
 {
-    XTB_BMP_Color out_color = xtb_bmp_color_create(255 - color.b,
-                                                   255 - color.g,
-                                                   255 - color.r,
-                                                   255);
+    BMP_Color out_color = bmp_color_create(255 - color.b,
+                                           255 - color.g,
+                                           255 - color.r,
+                                           255);
 
     return out_color;
 }

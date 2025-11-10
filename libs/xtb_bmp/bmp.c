@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 
 #define internal static
 #define NOT_IMPLEMENTED do assert(0 && "NOT IMPLEMENTED"); while (0)
@@ -13,7 +14,7 @@
  * utils.c
 ****************************************************************/
 internal unsigned int
-parse_bytes(const XTB_Byte *bytes, int count)
+parse_bytes(const u8 *bytes, int count)
 {
     unsigned int result = 0;
     for (int i = 0; i < count; ++i)
@@ -25,7 +26,7 @@ parse_bytes(const XTB_Byte *bytes, int count)
 }
 
 internal int
-parse_4_bytes(const XTB_Byte *bytes)
+parse_4_bytes(const u8 *bytes)
 {
     return (bytes[0] << 0)
         | (bytes[1] << 8)
@@ -34,7 +35,7 @@ parse_4_bytes(const XTB_Byte *bytes)
 }
 
 internal int
-parse_2_bytes(const XTB_Byte *bytes)
+parse_2_bytes(const u8 *bytes)
 {
     return (bytes[0] << 0) | (bytes[1] << 8);
 }
@@ -116,24 +117,14 @@ int_trim_trailing_zeroes(unsigned int in)
     return in;
 }
 
-int xtb_pow(int base, int power)
-{
-    int result = 1;
-    for (int i = 0; i < power; ++i)
-    {
-        result *= base;
-    }
-    return result;
-}
-
-internal XTB_Byte
-lo_nibble(XTB_Byte byte)
+internal u8
+lo_nibble(u8 byte)
 {
     return byte & 0x0f;
 }
 
-internal XTB_Byte
-hi_nibble(XTB_Byte byte)
+internal u8
+hi_nibble(u8 byte)
 {
     return (byte & 0xf0) >> 4;
 }
@@ -144,7 +135,7 @@ hi_nibble(XTB_Byte byte)
  * measure.c
 ****************************************************************/
 size_t
-xtb_bmp_measure_color_table_count(int bits_per_pixel)
+bmp_measure_color_table_count(int bits_per_pixel)
 {
     switch (bits_per_pixel)
     {
@@ -157,39 +148,39 @@ xtb_bmp_measure_color_table_count(int bits_per_pixel)
 }
 
 size_t
-xtb_bmp_measure_color_table_size_bytes(int bits_per_pixel)
+bmp_measure_color_table_size_bytes(int bits_per_pixel)
 {
-    return xtb_bmp_measure_color_table_count(bits_per_pixel) * sizeof(XTB_BMP_Color);
+    return bmp_measure_color_table_count(bits_per_pixel) * sizeof(BMP_Color);
 }
 
 size_t
-xtb_bmp_measure_bitmap_stride(int bpp, int width)
+bmp_measure_bitmap_stride(int bpp, int width)
 {
     return ((bpp * width + 31) / 32) * 4;
 }
 
 size_t
-xtb_bmp_measure_pixel_data_size(int bpp, int width, int height)
+bmp_measure_pixel_data_size(int bpp, int width, int height)
 {
-    return height * xtb_bmp_measure_bitmap_stride(bpp, width);
+    return height * bmp_measure_bitmap_stride(bpp, width);
 }
 
 size_t
-xtb_bmp_measure_pixel_data_size_bytes_from_header(const XTB_BMP_Info_Header *info_header)
+bmp_measure_pixel_data_size_bytes_from_header(const BMP_Info_Header *info_header)
 {
-    size_t stride = xtb_bmp_measure_bitmap_stride(info_header->bits_per_pixel, info_header->width);
+    size_t stride = bmp_measure_bitmap_stride(info_header->bits_per_pixel, info_header->width);
     return absolute_value(info_header->height) * stride;
 }
 
 /****************************************************************
  * prepass.c
 ****************************************************************/
-XTB_BMP_Prepass_Result
-xtb_bmp_prepass(const XTB_Byte *bytes)
+BMP_Prepass_Result
+bmp_prepass(const u8 *bytes)
 {
-    XTB_BMP_Prepass_Result result = {};
+    BMP_Prepass_Result result = {};
 
-    const XTB_Byte *ptr = bytes;
+    const u8 *ptr = bytes;
 
     // Parse file header
     if (ptr[0] != 'B' || ptr[1] != 'M')
@@ -262,17 +253,17 @@ xtb_bmp_prepass(const XTB_Byte *bytes)
     ptr += 4;
     printf("important_colors = %d\n", result.info_header.important_colors);
 
-    int num_colors = xtb_bmp_measure_color_table_count(result.info_header.bits_per_pixel);
+    int num_colors = bmp_measure_color_table_count(result.info_header.bits_per_pixel);
     printf("num_colors = %d\n", num_colors);
 
     // Buffer sizes
     result.memory_requirements.bitmap_buffer_size = 4 * result.info_header.width * absolute_value(result.info_header.height);
-    result.memory_requirements.color_table_buffer_size = num_colors * sizeof(XTB_BMP_Color);
+    result.memory_requirements.color_table_buffer_size = num_colors * sizeof(BMP_Color);
 
-    if (result.info_header.compression == XTB_BMP_CT_BI_RGB)
+    if (result.info_header.compression == BMP_CT_BI_RGB)
     {
             result.memory_requirements.pixel_data_buffer_size =
-                xtb_bmp_measure_pixel_data_size_bytes_from_header(&result.info_header);
+                bmp_measure_pixel_data_size_bytes_from_header(&result.info_header);
     }
     else
     {
@@ -312,7 +303,7 @@ bitmask_to_bitfields_channel_info(unsigned int bitmask)
     return result;
 }
 
-internal XTB_Byte
+internal u8
 extract_and_normalize_channel_bits(unsigned int pixel, Bitfields_Channel_Info bitfields)
 {
     unsigned int channel_bits = (pixel & bitfields.mask) >> bitfields.shift;
@@ -354,20 +345,20 @@ get_default_bitfields_for_bpp(int bpp)
 }
 
 internal Bitfields
-parse_bitfields(const XTB_Byte **bytes, XTB_BMP_Info_Header *info_header)
+parse_bitfields(const u8 **bytes, BMP_Info_Header *info_header)
 {
 #define PARSE_BITMASK(CHAN)                                             \
     bitfields.CHAN##_chan = bitmask_to_bitfields_channel_info(parse_4_bytes(*bytes)); \
     *bytes += 4;
 
     Bitfields bitfields = {};
-    if (info_header->compression == XTB_BMP_CT_BI_BITFIELDS)
+    if (info_header->compression == BMP_CT_BI_BITFIELDS)
     {
         PARSE_BITMASK(red);
         PARSE_BITMASK(green);
         PARSE_BITMASK(blue);
     }
-    else if (info_header->compression == XTB_BMP_CT_BI_ALPHABITFIELDS)
+    else if (info_header->compression == BMP_CT_BI_ALPHABITFIELDS)
     {
         PARSE_BITMASK(red);
         PARSE_BITMASK(green);
@@ -394,7 +385,7 @@ struct Traversal_Info
 };
 
 internal Traversal_Info
-compute_traversal_info(const XTB_BMP_Info_Header *info_header)
+compute_traversal_info(const BMP_Info_Header *info_header)
 {
     Traversal_Info traversal_info = {};
 
@@ -419,20 +410,20 @@ compute_traversal_info(const XTB_BMP_Info_Header *info_header)
 
 inline void
 parse_pixel_data_indexed(Traversal_Info ti,
-                         const XTB_BMP_Info_Header *info_header,
-                         const XTB_Byte *pixel_data,
-                         const XTB_BMP_Color *color_table,
-                         XTB_BMP_Color *out_bitmap)
+                         const BMP_Info_Header *info_header,
+                         const u8 *pixel_data,
+                         const BMP_Color *color_table,
+                         BMP_Color *out_bitmap)
 {
     int bpp = info_header->bits_per_pixel;
-    int bitmask = xtb_pow(2, bpp) - 1;
+    int bitmask = pow(2, bpp) - 1;
     int pixels_per_byte = 8 / bpp;
 
     unsigned int out_index = 0;
 
     for (int h = ti.start_row_idx; h != ti.end_row_idx; h += ti.direction)
     {
-        const XTB_Byte *row = &pixel_data[h * ti.stride];
+        const u8 *row = &pixel_data[h * ti.stride];
         for (int w = 0; w < info_header->width; ++w)
         {
             int byte_index = w / pixels_per_byte;
@@ -449,25 +440,25 @@ parse_pixel_data_indexed(Traversal_Info ti,
     }
 }
 
-internal XTB_BMP_Color
-parse_pixel_non_indexed(const XTB_Byte *bytes, int bytes_per_pixel, Bitfields bitfields)
+internal BMP_Color
+parse_pixel_non_indexed(const u8 *bytes, int bytes_per_pixel, Bitfields bitfields)
 {
     unsigned int pixel = parse_bytes(bytes, bytes_per_pixel);
 
-    XTB_Byte b = extract_and_normalize_channel_bits(pixel, bitfields.blue_chan);
-    XTB_Byte g = extract_and_normalize_channel_bits(pixel, bitfields.green_chan);
-    XTB_Byte r = extract_and_normalize_channel_bits(pixel, bitfields.red_chan);
-    XTB_Byte a = extract_and_normalize_channel_bits(pixel, bitfields.alpha_chan);
+    u8 b = extract_and_normalize_channel_bits(pixel, bitfields.blue_chan);
+    u8 g = extract_and_normalize_channel_bits(pixel, bitfields.green_chan);
+    u8 r = extract_and_normalize_channel_bits(pixel, bitfields.red_chan);
+    u8 a = extract_and_normalize_channel_bits(pixel, bitfields.alpha_chan);
 
-    return xtb_bmp_color_create(b, g, r, 255);
+    return bmp_color_create(b, g, r, 255);
 }
 
 internal void
 parse_pixel_data_non_indexed(Traversal_Info ti,
-                             const XTB_BMP_Info_Header *info_header,
-                             const XTB_Byte *pixel_data,
+                             const BMP_Info_Header *info_header,
+                             const u8 *pixel_data,
                              Bitfields bitfields,
-                             XTB_BMP_Color *out_bitmap)
+                             BMP_Color *out_bitmap)
 {
     int bytes_per_pixel = info_header->bits_per_pixel / 8;
 
@@ -475,7 +466,7 @@ parse_pixel_data_non_indexed(Traversal_Info ti,
 
     for (int h = ti.start_row_idx; h != ti.end_row_idx; h += ti.direction)
     {
-        const XTB_Byte *row = &pixel_data[h * ti.stride];
+        const u8 *row = &pixel_data[h * ti.stride];
         for (int w = 0; w < info_header->width; ++w)
         {
             int offset = w * bytes_per_pixel;
@@ -487,10 +478,10 @@ parse_pixel_data_non_indexed(Traversal_Info ti,
 
 internal void
 parse_pixel_data_rle(Traversal_Info traversal_info,
-                     const XTB_BMP_Info_Header *info_header,
-                     const XTB_Byte *pixel_data,
-                     const XTB_BMP_Color *color_table,
-                     XTB_BMP_Color *out_bitmap)
+                     const BMP_Info_Header *info_header,
+                     const u8 *pixel_data,
+                     const BMP_Color *color_table,
+                     BMP_Color *out_bitmap)
 {
     enum
     {
@@ -508,8 +499,8 @@ parse_pixel_data_rle(Traversal_Info traversal_info,
     {
         while (true)
         {
-            XTB_Byte fbyte = pixel_data[offset];
-            XTB_Byte sbyte = pixel_data[offset + 1];
+            u8 fbyte = pixel_data[offset];
+            u8 sbyte = pixel_data[offset + 1];
             offset += 2;
 
             if (fbyte == 0x00)
@@ -528,11 +519,11 @@ parse_pixel_data_rle(Traversal_Info traversal_info,
                 else if (sbyte == RLE_EC_DELTA)
                 {
                     // Delta
-                    XTB_Byte x_delta = pixel_data[offset];
-                    XTB_Byte y_delta = pixel_data[offset + 1];
+                    u8 x_delta = pixel_data[offset];
+                    u8 y_delta = pixel_data[offset + 1];
                     offset += 2;
 
-#ifdef XTB_BMP_DELTA_FILL
+#ifdef BMP_DELTA_FILL
                     int pixels_fill_count = y_delta * info_header->width + x_delta;
 
                     int iter_index = h * info_header->width + w;
@@ -548,17 +539,17 @@ parse_pixel_data_rle(Traversal_Info traversal_info,
                 else
                 {
                     // Absolute mode
-                    XTB_Byte pixels_count = sbyte;
+                    u8 pixels_count = sbyte;
 
                     for (int i = 0; i < pixels_count; ++i)
                     {
                         int index = h * info_header->width + w;
 
-                        XTB_Byte pixel_byte_index = i / 2;
-                        XTB_Byte pixel_byte = pixel_data[offset + pixel_byte_index];
+                        u8 pixel_byte_index = i / 2;
+                        u8 pixel_byte = pixel_data[offset + pixel_byte_index];
 
-                        XTB_Byte color_index;
-                        if (info_header->compression == XTB_BMP_CT_BI_RLE4)
+                        u8 color_index;
+                        if (info_header->compression == BMP_CT_BI_RLE4)
                         {
                             color_index = (i % 2 == 0)
                                 ? hi_nibble(pixel_byte)
@@ -574,7 +565,7 @@ parse_pixel_data_rle(Traversal_Info traversal_info,
                     }
 
 
-                    if (info_header->compression == XTB_BMP_CT_BI_RLE4)
+                    if (info_header->compression == BMP_CT_BI_RLE4)
                     {
                         offset += (pixels_count + 1) / 2;
                     }
@@ -589,15 +580,15 @@ parse_pixel_data_rle(Traversal_Info traversal_info,
             else
             {
                 // Replicate value run_count number of times
-                XTB_Byte run_count = fbyte;
-                XTB_Byte value = sbyte;
+                u8 run_count = fbyte;
+                u8 value = sbyte;
 
-                if (info_header->compression == XTB_BMP_CT_BI_RLE4)
+                if (info_header->compression == BMP_CT_BI_RLE4)
                 {
                     for (int i = 0; i < run_count; ++i)
                     {
                         int index = h * info_header->width + w;
-                        XTB_Byte color_index = (i % 2 == 0)
+                        u8 color_index = (i % 2 == 0)
                             ? hi_nibble(value)
                             : lo_nibble(value);
                         out_bitmap[index] = color_table[color_index];
@@ -620,18 +611,18 @@ parse_pixel_data_rle(Traversal_Info traversal_info,
 }
 
 internal void
-parse_pixel_data(const XTB_Byte *pixel_data,
-                 const XTB_BMP_Color *color_table,
-                 const XTB_BMP_Info_Header *info_header,
+parse_pixel_data(const u8 *pixel_data,
+                 const BMP_Color *color_table,
+                 const BMP_Info_Header *info_header,
                  Bitfields bitfields, // Only read for compression type (alpha)bitfields
-                 XTB_BMP_Color *out_bitmap)
+                 BMP_Color *out_bitmap)
 {
 
     Traversal_Info traversal_info = compute_traversal_info(info_header);
 
     switch (info_header->compression)
     {
-        case XTB_BMP_CT_BI_RGB:
+        case BMP_CT_BI_RGB:
         {
             if (info_header->bits_per_pixel <= 8)
             {
@@ -644,13 +635,13 @@ parse_pixel_data(const XTB_Byte *pixel_data,
             }
         } break;
 
-        case XTB_BMP_CT_BI_BITFIELDS:
+        case BMP_CT_BI_BITFIELDS:
         {
             parse_pixel_data_non_indexed(traversal_info, info_header, pixel_data, bitfields, out_bitmap);
         } break;
 
-        case XTB_BMP_CT_BI_RLE4:
-        case XTB_BMP_CT_BI_RLE8:
+        case BMP_CT_BI_RLE4:
+        case BMP_CT_BI_RLE8:
         {
             parse_pixel_data_rle(traversal_info, info_header, pixel_data, color_table, out_bitmap);
         } break;
@@ -664,174 +655,150 @@ parse_pixel_data(const XTB_Byte *pixel_data,
 /****************************************************************
  * allocator.c
 ****************************************************************/
-Allocator* xtb_bmp_global_allocator;
+Allocator* bmp_global_allocator;
 
 Allocator*
-xtb_bmp_get_global_allocator()
+bmp_get_global_allocator()
 {
-    return xtb_bmp_global_allocator;
+    return bmp_global_allocator;
 }
 
-XTB_BMP_Bitmap
-xtb_bmp_bitmap_load_galloc(const XTB_Byte *bytes)
+BMP_Bitmap
+bmp_bitmap_load_galloc(const u8 *bytes)
 {
-    return xtb_bmp_bitmap_load_alloc(xtb_bmp_global_allocator, bytes);
+    return bmp_bitmap_load_alloc(bmp_global_allocator, bytes);
 }
 
 /****************************************************************
  * bitmap.c
 ****************************************************************/
-#define XTB_BMP_COLOR_TABLE_OFFSET 0x36
-XTB_BMP_Bitmap
-xtb_bmp_bitmap_load(XTB_BMP_Prepass_Result prepass_result,
-                    const XTB_Byte *bytes,
+#define BMP_COLOR_TABLE_OFFSET 0x36
+BMP_Bitmap
+bmp_bitmap_load(BMP_Prepass_Result prepass_result,
+                    const u8 *bytes,
                     void *in_bitmap_buffer)
 {
-    XTB_BMP_Bitmap result = {};
+    BMP_Bitmap result = {};
 
-    XTB_BMP_File_Header *file_header = &prepass_result.file_header;
-    XTB_BMP_Info_Header *info_header = &prepass_result.info_header;
+    BMP_File_Header *file_header = &prepass_result.file_header;
+    BMP_Info_Header *info_header = &prepass_result.info_header;
 
-    const XTB_Byte *color_table_data = bytes + XTB_BMP_COLOR_TABLE_OFFSET;
+    const u8 *color_table_data = bytes + BMP_COLOR_TABLE_OFFSET;
 
     Bitfields bitfields = parse_bitfields(&color_table_data, info_header);
 
-    const XTB_Byte *pixel_data = bytes + file_header->data_offset;
+    const u8 *pixel_data = bytes + file_header->data_offset;
 
     parse_pixel_data(pixel_data,
-                     (XTB_BMP_Color*)color_table_data,
+                     (BMP_Color*)color_table_data,
                      info_header,
                      bitfields,
                      in_bitmap_buffer);
 
     result.width = prepass_result.info_header.width;
     result.height = absolute_value(prepass_result.info_header.height);
-    result.stride = prepass_result.info_header.width * sizeof(XTB_BMP_Color);
+    result.stride = prepass_result.info_header.width * sizeof(BMP_Color);
     result.pixel_data = in_bitmap_buffer;
 
     return result;
 }
 
-XTB_BMP_Bitmap
-xtb_bmp_bitmap_load_alloc(Allocator* allocator, const XTB_Byte *bytes)
+BMP_Bitmap
+bmp_bitmap_load_alloc(Allocator* allocator, const u8 *bytes)
 {
-    XTB_BMP_Prepass_Result prepass_result = xtb_bmp_prepass(bytes);
-    XTB_BMP_Memory_Requirements mr = prepass_result.memory_requirements;
+    BMP_Prepass_Result prepass_result = bmp_prepass(bytes);
+    BMP_Memory_Requirements mr = prepass_result.memory_requirements;
     printf("allocation size: %lu\n", mr.bitmap_buffer_size);
     void *bitmap_buffer = AllocateBytes(allocator, mr.bitmap_buffer_size);
-    return xtb_bmp_bitmap_load(prepass_result, bytes, bitmap_buffer);
+    return bmp_bitmap_load(prepass_result, bytes, bitmap_buffer);
 }
 
 void
-xtb_bmp_bitmap_dealloc(Allocator* allocator, XTB_BMP_Bitmap *bitmap)
+bmp_bitmap_dealloc(Allocator* allocator, BMP_Bitmap *bitmap)
 {
     Deallocate(allocator, bitmap->pixel_data);
 }
 
 void
-xtb_bmp_set_global_allocator(Allocator* allocator)
+bmp_set_global_allocator(Allocator* allocator)
 {
-    xtb_bmp_global_allocator = allocator;
+    bmp_global_allocator = allocator;
 }
 
 void
-xtb_bmp_bitmap_gdealloc(XTB_BMP_Bitmap *bitmap)
+bmp_bitmap_gdealloc(BMP_Bitmap *bitmap)
 {
-    xtb_bmp_bitmap_dealloc(xtb_bmp_global_allocator, bitmap);
+    bmp_bitmap_dealloc(bmp_global_allocator, bitmap);
 }
 
-XTB_BMP_Bitmap
-xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream,
-                                Allocator* allocator)
-{
-    stream.seek(stream.context, 0, XTB_BMP_IO_SEEK_END);
-    int size = stream.tell(stream.context);
-    stream.seek(stream.context, 0, XTB_BMP_IO_SEEK_SET);
-
-    char *buffer = AllocateBytes(allocator, size + 1);
-    int bytes_read = stream.read(stream.context, buffer, size);
-
-    if (bytes_read == size)
-    {
-        buffer[size] = '\0';
-        puts(buffer);
-    }
-    else
-    {
-        puts("Could not read stream");
-        Deallocate(allocator, buffer);
-    }
-
-    return xtb_bmp_bitmap_load_alloc(allocator, buffer);
-}
 /****************************************************************
  * dib.c
 ****************************************************************/
-XTB_BMP_DIB
-xtb_bmp_dib_load(XTB_BMP_Prepass_Result prepass_result,
-                 const XTB_Byte *bytes,
+BMP_DIB
+bmp_dib_load(BMP_Prepass_Result prepass_result,
+                 const u8 *bytes,
                  void *color_table_buffer,
                  void *pixel_data_buffer)
 {
-    XTB_BMP_DIB result = {};
+    BMP_DIB result = {};
     result.info_header = prepass_result.info_header;
     result.color_table = color_table_buffer;
     result.pixel_data = pixel_data_buffer;
 
     if (prepass_result.info_header.bits_per_pixel <= 8)
     {
-        const void *color_table_data = bytes + XTB_BMP_COLOR_TABLE_OFFSET;
+        const void *color_table_data = bytes + BMP_COLOR_TABLE_OFFSET;
         int bpp = prepass_result.info_header.bits_per_pixel;
-        size_t color_table_size = xtb_bmp_measure_color_table_size_bytes(bpp);
+        size_t color_table_size = bmp_measure_color_table_size_bytes(bpp);
         memcpy(result.color_table, color_table_data, color_table_size);
     }
 
-    const XTB_Byte *pixel_data = bytes + prepass_result.file_header.data_offset;
-    int pixel_data_size = xtb_bmp_measure_pixel_data_size_bytes_from_header(&prepass_result.info_header);
+    const u8 *pixel_data = bytes + prepass_result.file_header.data_offset;
+    int pixel_data_size = bmp_measure_pixel_data_size_bytes_from_header(&prepass_result.info_header);
     memcpy(result.pixel_data, pixel_data, pixel_data_size);
 
     return result;
 }
 
-XTB_BMP_DIB
-xtb_bmp_dib_load_alloc(Allocator* allocator, const XTB_Byte *bytes)
+BMP_DIB
+bmp_dib_load_alloc(Allocator* allocator, const u8 *bytes)
 {
-    XTB_BMP_Prepass_Result prepass_result = xtb_bmp_prepass(bytes);
-    XTB_BMP_Memory_Requirements mr = prepass_result.memory_requirements;
+    BMP_Prepass_Result prepass_result = bmp_prepass(bytes);
+    BMP_Memory_Requirements mr = prepass_result.memory_requirements;
     void *color_table_buffer = AllocateBytes(allocator, mr.color_table_buffer_size);
     void *pixel_data_buffer = AllocateBytes(allocator, mr.pixel_data_buffer_size);
-    return xtb_bmp_dib_load(prepass_result, bytes, color_table_buffer, pixel_data_buffer);
+    return bmp_dib_load(prepass_result, bytes, color_table_buffer, pixel_data_buffer);
 }
 
 void
-xtb_bmp_dib_dealloc(Allocator* allocator, XTB_BMP_DIB *dib)
+bmp_dib_dealloc(Allocator* allocator, BMP_DIB *dib)
 {
     Deallocate(allocator, dib->color_table);
     Deallocate(allocator, dib->pixel_data);
 }
 
-XTB_BMP_DIB
-xtb_bmp_dib_load_galloc(const XTB_Byte *bytes)
+BMP_DIB
+bmp_dib_load_galloc(const u8 *bytes)
 {
-    return xtb_bmp_dib_load_alloc(xtb_bmp_global_allocator, bytes);
+    return bmp_dib_load_alloc(bmp_global_allocator, bytes);
 }
 
 void
-xtb_bmp_dib_gdealloc(XTB_BMP_DIB *dib)
+bmp_dib_gdealloc(BMP_DIB *dib)
 {
-    xtb_bmp_dib_dealloc(xtb_bmp_global_allocator, dib);
+    bmp_dib_dealloc(bmp_global_allocator, dib);
 }
 
-XTB_BMP_Bitmap
-xtb_bmp_bitmap_create_from_dib_galloc(const XTB_BMP_DIB *dib)
+BMP_Bitmap
+bmp_bitmap_create_from_dib_galloc(const BMP_DIB *dib)
 {
-    XTB_BMP_Bitmap result = {};
+    BMP_Bitmap result = {};
     result.width = dib->info_header.width;
     result.height = absolute_value(dib->info_header.height);
-    result.stride = result.width * sizeof(XTB_BMP_Color); // TODO(xearty): I think this is unused at the moment (but should not be)
+    result.stride = result.width * sizeof(BMP_Color); // TODO(xearty): I think this is unused at the moment (but should not be)
 
     size_t bitmap_buffer_size = 4 * result.width * result.height;
-    void *bitmap_buffer = AllocateBytes(xtb_bmp_global_allocator, bitmap_buffer_size);
+    void *bitmap_buffer = AllocateBytes(bmp_global_allocator, bitmap_buffer_size);
 
     parse_pixel_data(dib->pixel_data,
                      dib->color_table,
@@ -844,19 +811,19 @@ xtb_bmp_bitmap_create_from_dib_galloc(const XTB_BMP_DIB *dib)
 }
 
 size_t
-xtb_bmp_dib_color_table_count(const XTB_BMP_DIB *dib)
+bmp_dib_color_table_count(const BMP_DIB *dib)
 {
-    return xtb_bmp_measure_color_table_count(dib->info_header.bits_per_pixel);
+    return bmp_measure_color_table_count(dib->info_header.bits_per_pixel);
 }
 
 size_t
-xtb_bmp_dib_color_table_size_bytes(const XTB_BMP_DIB *dib)
+bmp_dib_color_table_size_bytes(const BMP_DIB *dib)
 {
-    return xtb_bmp_measure_color_table_size_bytes(dib->info_header.bits_per_pixel);
+    return bmp_measure_color_table_size_bytes(dib->info_header.bits_per_pixel);
 }
 
 void *
-xtb_bmp_dib_color_table_replace(XTB_BMP_DIB *dib, void *new_table)
+bmp_dib_color_table_replace(BMP_DIB *dib, void *new_table)
 {
     void *old_table = dib->color_table;
     dib->color_table = new_table;
@@ -864,29 +831,29 @@ xtb_bmp_dib_color_table_replace(XTB_BMP_DIB *dib, void *new_table)
 }
 
 void
-xtb_bmp_dib_color_table_set_index(XTB_BMP_DIB *dib, size_t index, XTB_BMP_Color color)
+bmp_dib_color_table_set_index(BMP_DIB *dib, size_t index, BMP_Color color)
 {
-    assert(index < xtb_bmp_dib_color_table_count(dib));
+    assert(index < bmp_dib_color_table_count(dib));
     dib->color_table[index] = color;
 }
 
 /****************************************************************
  * dib.c
 ****************************************************************/
-internal XTB_BMP_File_Header
-compute_file_header(const XTB_BMP_DIB *dib)
+internal BMP_File_Header
+compute_file_header(const BMP_DIB *dib)
 {
-    int pixel_data_offset = XTB_BMP_COLOR_TABLE_OFFSET + xtb_bmp_dib_color_table_size_bytes(dib);
-    size_t pixel_data_size = xtb_bmp_measure_pixel_data_size_bytes_from_header(&dib->info_header);
+    int pixel_data_offset = BMP_COLOR_TABLE_OFFSET + bmp_dib_color_table_size_bytes(dib);
+    size_t pixel_data_size = bmp_measure_pixel_data_size_bytes_from_header(&dib->info_header);
 
-    XTB_BMP_File_Header file_header = {};
+    BMP_File_Header file_header = {};
     file_header.file_size = pixel_data_offset + pixel_data_size;
     file_header.data_offset = pixel_data_offset;
     return file_header;
 }
 
 internal void
-write_file_header(FILE *file, XTB_BMP_File_Header file_header)
+write_file_header(FILE *file, BMP_File_Header file_header)
 {
     // Signature
     fwrite("BM", sizeof(char), 2, file);
@@ -898,7 +865,7 @@ write_file_header(FILE *file, XTB_BMP_File_Header file_header)
 #define BITWISE_SERIALIZE(VAR) fwrite(&(VAR), sizeof(VAR), 1, file);
 
 internal void
-write_info_header(FILE *file, const XTB_BMP_Info_Header *info_header)
+write_info_header(FILE *file, const BMP_Info_Header *info_header)
 {
     uint32_t size = 40;
     uint16_t planes = 1;
@@ -918,17 +885,17 @@ write_info_header(FILE *file, const XTB_BMP_Info_Header *info_header)
 }
 
 void
-xtb_bmp_dib_write(const XTB_BMP_DIB *dib, const char *filepath)
+bmp_dib_write(const BMP_DIB *dib, const char *filepath)
 {
-    XTB_BMP_File_Header file_header = compute_file_header(dib);
+    BMP_File_Header file_header = compute_file_header(dib);
 
     FILE *file = fopen(filepath, "w");
 
     write_file_header(file, file_header);
     write_info_header(file, &dib->info_header);
-    fwrite(dib->color_table, sizeof(char), xtb_bmp_dib_color_table_size_bytes(dib), file);
+    fwrite(dib->color_table, sizeof(char), bmp_dib_color_table_size_bytes(dib), file);
 
-    size_t pixel_data_size = xtb_bmp_measure_pixel_data_size_bytes_from_header(&dib->info_header);
+    size_t pixel_data_size = bmp_measure_pixel_data_size_bytes_from_header(&dib->info_header);
     fwrite(dib->pixel_data, sizeof(char), pixel_data_size, file);
 
     fclose(file);
@@ -937,10 +904,10 @@ xtb_bmp_dib_write(const XTB_BMP_DIB *dib, const char *filepath)
 /****************************************************************
  * bmp.c
 ****************************************************************/
-XTB_BMP_Color
-xtb_bmp_color_create(XTB_Byte b, XTB_Byte g, XTB_Byte r, XTB_Byte a)
+BMP_Color
+bmp_color_create(u8 b, u8 g, u8 r, u8 a)
 {
-    XTB_BMP_Color color;
+    BMP_Color color;
     color.b = b;
     color.g = g;
     color.r = r;

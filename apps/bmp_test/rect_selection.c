@@ -1,4 +1,7 @@
+#include <xtb_core/core.h>
+#include <raylib.h>
 #include <string.h>
+#include <stdlib.h>
 
 typedef struct Rect Rect;
 struct Rect {
@@ -24,10 +27,10 @@ struct RectangleSelections {
 static Rect
 create_rect_from_visual_selection(const RectangleSelections *selections)
 {
-    int left = xtb_min(selections->init_visual_rect_x, selections->cursor_visual_rect_x);
-    int right = xtb_max(selections->init_visual_rect_x, selections->cursor_visual_rect_x);
-    int top = xtb_min(selections->init_visual_rect_y, selections->cursor_visual_rect_y);
-    int bottom = xtb_max(selections->init_visual_rect_y, selections->cursor_visual_rect_y);
+    int left = Min(selections->init_visual_rect_x, selections->cursor_visual_rect_x);
+    int right = Max(selections->init_visual_rect_x, selections->cursor_visual_rect_x);
+    int top = Min(selections->init_visual_rect_y, selections->cursor_visual_rect_y);
+    int bottom = Max(selections->init_visual_rect_y, selections->cursor_visual_rect_y);
 
     int width = right - left;
     int height = bottom - top;

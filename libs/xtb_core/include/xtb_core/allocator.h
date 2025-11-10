@@ -30,7 +30,7 @@ Allocator_Set allocator_set_static(Allocator *allocator);
 void allocators_init();
 
 #define AllocateArray(alloc, new_count, T) (T*)  allocator_allocate((alloc), (new_count)*sizeof(T), __alignof(T))
-#define AllocateBytes(alloc, new_count)          AllocateArray(alloc, new_count, char)
+#define AllocateBytes(alloc, new_count)          AllocateArray(alloc, new_count, u8)
 #define Allocate(alloc, T)                       AllocateArray(alloc, 1, T)
 #define Deallocate(alloc, old_ptr)               allocator_deallocate((alloc), (old_ptr), (1)*sizeof(char), __alignof(char))
 
