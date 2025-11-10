@@ -11,7 +11,7 @@ int main(int argc, char **argv)
     Thread_Context tctx;
     tctx_init_and_equip(&tctx);
 
-    XTB_Arena *permanent_arena = xtb_arena_new(XTB_Kilobytes(4));
+    Arena *permanent_arena = xtb_arena_new(XTB_Kilobytes(4));
     allocator_set_static(&permanent_arena->allocator);
 
     XTB_String8 str = xtb_str8_lit("  fani mazakura f ");

@@ -19,7 +19,7 @@ XTB_C_LINKAGE_BEGIN
 #define xtb_push_array_zero(arena, type, count) (type *)xtb_arena_alloc_zero((arena), sizeof(type) * (count))
 #define xtb_push_struct_zero(arena, type) xtb_push_array_zero((arena), type, 1)
 
-#define XTB_ARENA_BOOTSTRAP_OVERHEAD (sizeof(XTB_Arena) + sizeof(XTB_Arena_Chunk_Header))
+#define XTB_ARENA_BOOTSTRAP_OVERHEAD (sizeof(Arena) + sizeof(XTB_Arena_Chunk_Header))
 
 /****************************
  * Arena API
@@ -32,8 +32,8 @@ struct XTB_Arena_Chunk_Header
     XTB_Arena_Chunk_Header *next;
 };
 
-typedef struct XTB_Arena XTB_Arena;
-struct XTB_Arena
+typedef struct Arena Arena;
+struct Arena
 {
     Allocator allocator;
     XTB_Arena_Chunk_Header *base_chunk;
@@ -41,15 +41,15 @@ struct XTB_Arena
     size_t base_size;
 };
 
-XTB_Arena *xtb_arena_new(size_t buffer_size);
-XTB_Arena *xtb_arena_new_exact_size(size_t arena_size);
-void xtb_arena_release(XTB_Arena *arena);
+Arena *xtb_arena_new(size_t buffer_size);
+Arena *xtb_arena_new_exact_size(size_t arena_size);
+void xtb_arena_release(Arena *arena);
 bool xtb_arena_chunk_has_enough_capacity(XTB_Arena_Chunk_Header *chunk, size_t allocation_size);
 
 // TODO: deal with alignment
-void *xtb_arena_alloc(XTB_Arena *arena, size_t allocation_size);
-void *xtb_arena_alloc_zero(XTB_Arena *arena, size_t allocation_size);
-void xtb_arena_clear(XTB_Arena *arena);
+void *xtb_arena_alloc(Arena *arena, size_t allocation_size);
+void *xtb_arena_alloc_zero(Arena *arena, size_t allocation_size);
+void xtb_arena_clear(Arena *arena);
 
 /****************************
  * Temporary Arena API
@@ -64,24 +64,24 @@ struct XTB_Temp_Arena_Snapshot
 typedef struct XTB_Temp_Arena XTB_Temp_Arena;
 struct XTB_Temp_Arena
 {
-    XTB_Arena *arena;
+    Arena *arena;
     XTB_Temp_Arena_Snapshot snapshot;
 };
 
-XTB_Temp_Arena xtb_temp_arena_new(XTB_Arena *arena);
+XTB_Temp_Arena xtb_temp_arena_new(Arena *arena);
 void xtb_temp_arena_release(XTB_Temp_Arena temp);
 
 /****************************
  * Memory Usage Utilities
  ***************************/
-size_t xtb_arena_dump_memory_usage(XTB_Arena *arena);
-size_t xtb_arena_dump_memory_usage_pp(XTB_Arena *arena, char *buffer, size_t buffer_size);
+size_t xtb_arena_dump_memory_usage(Arena *arena);
+size_t xtb_arena_dump_memory_usage_pp(Arena *arena, char *buffer, size_t buffer_size);
 
 /****************************
  * Allocator Interface
  ***************************/
 #ifdef XTB_ARENA_SHORTHANDS
-typedef XTB_Arena Arena;
+typedef Arena Arena;
 
 #define arena_new xtb_arena_new
 #define arena_new_exact_size xtb_arena_new_exact_size

@@ -31,7 +31,7 @@ int main(int argc, char **argv)
     }
 
     XTB_JSON_Value *toplevel_value = xtb_json_parse_file(json_filepath);
-    XTB_Arena *frame_arena = xtb_arena_new(XTB_Megabytes(4));
+    Arena *frame_arena = xtb_arena_new(XTB_Megabytes(4));
 
     char *input_cstring = NULL;
     size_t size = 0;

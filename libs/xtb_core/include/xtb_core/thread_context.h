@@ -8,16 +8,16 @@ XTB_C_LINKAGE_BEGIN
 
 typedef struct XTB_Thread_Context
 {
-    XTB_Arena *arenas[2];
+    Arena *arenas[2];
 } XTB_Thread_Context;
 
 void xtb_tctx_init_and_equip(XTB_Thread_Context *tctx);
 void xtb_tctx_release(void);
 XTB_Thread_Context *xtb_tctx_get_equipped(void);
-XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
+Arena *xtb_tctx_get_scratch(Arena **conflicts, size_t count);
 
 #define xtb_scratch_begin(conflicts, count) xtb_temp_arena_new(xtb_tctx_get_scratch((conflicts), (count)))
-#define xtb_scratch_begin_conflict(alloc) xtb_scratch_begin((XTB_Arena**)(&alloc), 1)
+#define xtb_scratch_begin_conflict(alloc) xtb_scratch_begin((Arena**)(&alloc), 1)
 #define xtb_scratch_begin_no_conflicts() xtb_scratch_begin(NULL, 0)
 
 #define xtb_scratch_end(scratch) xtb_temp_arena_release(scratch)
@@ -30,7 +30,7 @@ XTB_Arena *xtb_tctx_get_scratch(XTB_Arena **conflicts, size_t count);
          xtb_scratch_end(name))
 
 #define xtb_scratch_scope_no_conflicts(name) xtb_scratch_scope(name, NULL, 0)
-#define xtb_scratch_scope_conflict(name, allocator) xtb_scratch_scope(name, (XTB_Arena**)&(allocator).context, 1)
+#define xtb_scratch_scope_conflict(name, allocator) xtb_scratch_scope(name, (Arena**)&(allocator).context, 1)
 
 #ifdef XTB_THREAD_CONTEXT_SHORTHANDS
 typedef XTB_Thread_Context Thread_Context;

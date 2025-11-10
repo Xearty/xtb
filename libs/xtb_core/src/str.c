@@ -23,7 +23,7 @@ XTB_String8 xtb_str8_copy(Allocator* allocator, XTB_String8 string)
     return xtb_str8(buf, string.len);
 }
 
-XTB_String8 xtb_str8_push_copy(XTB_Arena *arena, XTB_String8 string)
+XTB_String8 xtb_str8_push_copy(Arena *arena, XTB_String8 string)
 {
     return xtb_str8_copy(&arena->allocator, string);
 }

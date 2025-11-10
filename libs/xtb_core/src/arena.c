@@ -13,7 +13,7 @@ void* arena_allocator_procedure(void* alloc, int64_t new_size, void* old_ptr, in
 {
     XTB_ASSERT(new_size >= 0 && old_size >= 0 && align >= 0);
 
-    XTB_Arena *arena = (XTB_Arena*)alloc;
+    Arena *arena = (Arena*)alloc;
 
     void* new_ptr = NULL;
 
@@ -43,7 +43,7 @@ static void *chunk_buffer(XTB_Arena_Chunk_Header *header)
     return (char *)header + sizeof(XTB_Arena_Chunk_Header);
 }
 
-static size_t determine_chunk_size(XTB_Arena *arena, size_t allocation_size)
+static size_t determine_chunk_size(Arena *arena, size_t allocation_size)
 {
     return allocation_size > arena->base_size
                ? allocation_size
@@ -65,7 +65,7 @@ static XTB_Arena_Chunk_Header *arena_alloc_chunk(size_t chunk_size)
     return chunk;
 }
 
-static void arena_grow(XTB_Arena *arena, size_t allocation_size)
+static void arena_grow(Arena *arena, size_t allocation_size)
 {
     size_t new_chunk_size = determine_chunk_size(arena, allocation_size);
     XTB_Arena_Chunk_Header *new_chunk = arena_alloc_chunk(new_chunk_size);
@@ -81,7 +81,7 @@ static void *arena_alloc_in_chunk(XTB_Arena_Chunk_Header *chunk, size_t allocati
     return allocation;
 }
 
-static bool arena_next_chunk_can_hold_allocation(XTB_Arena *arena, size_t allocation_size)
+static bool arena_next_chunk_can_hold_allocation(Arena *arena, size_t allocation_size)
 {
     XTB_Arena_Chunk_Header *next_chunk = arena->current_chunk->next;
     return next_chunk != NULL && next_chunk->capacity >= allocation_size;
@@ -90,10 +90,10 @@ static bool arena_next_chunk_can_hold_allocation(XTB_Arena *arena, size_t alloca
 /****************************
  * Arena API
  ***************************/
-XTB_Arena *xtb_arena_new(size_t buffer_size)
+Arena *xtb_arena_new(size_t buffer_size)
 {
     const size_t arena_offset = 0;
-    const size_t chunk_header_offset = arena_offset + sizeof(XTB_Arena);
+    const size_t chunk_header_offset = arena_offset + sizeof(Arena);
     const size_t memory_offset = chunk_header_offset + sizeof(XTB_Arena_Chunk_Header);
 
     const size_t bootstrap_buffer_size = memory_offset + buffer_size;
@@ -105,7 +105,7 @@ XTB_Arena *xtb_arena_new(size_t buffer_size)
     chunk_header->offset = 0;
     chunk_header->next = NULL;
 
-    XTB_Arena *arena = (XTB_Arena *)(bootstrap_buffer);
+    Arena *arena = (Arena *)(bootstrap_buffer);
     arena->base_chunk = chunk_header;
     arena->current_chunk = chunk_header;
     arena->base_size = buffer_size;
@@ -114,12 +114,12 @@ XTB_Arena *xtb_arena_new(size_t buffer_size)
     return arena;
 }
 
-XTB_Arena *xtb_arena_new_exact_size(size_t arena_size)
+Arena *xtb_arena_new_exact_size(size_t arena_size)
 {
     return xtb_arena_new(arena_size - XTB_ARENA_BOOTSTRAP_OVERHEAD);
 }
 
-void xtb_arena_release(XTB_Arena *arena)
+void xtb_arena_release(Arena *arena)
 {
     arena_free_chunks_after(arena->current_chunk);
     free(arena);
@@ -131,7 +131,7 @@ bool xtb_arena_chunk_has_enough_capacity(XTB_Arena_Chunk_Header *chunk, size_t a
 }
 //
 // TODO: deal with alignment
-void *xtb_arena_alloc(XTB_Arena *arena, size_t allocation_size)
+void *xtb_arena_alloc(Arena *arena, size_t allocation_size)
 {
     if (!xtb_arena_chunk_has_enough_capacity(arena->current_chunk, allocation_size))
     {
@@ -150,14 +150,14 @@ void *xtb_arena_alloc(XTB_Arena *arena, size_t allocation_size)
     return arena_alloc_in_chunk(arena->current_chunk, allocation_size);
 }
 
-void *xtb_arena_alloc_zero(XTB_Arena *arena, size_t allocation_size)
+void *xtb_arena_alloc_zero(Arena *arena, size_t allocation_size)
 {
     void *result = xtb_arena_alloc(arena, allocation_size);
     memset(result, 0, allocation_size);
     return result;
 }
 
-void xtb_arena_clear(XTB_Arena *arena)
+void xtb_arena_clear(Arena *arena)
 {
     for (XTB_Arena_Chunk_Header *chunk = arena->base_chunk;
          chunk != NULL;
@@ -172,7 +172,7 @@ void xtb_arena_clear(XTB_Arena *arena)
 /****************************
  * Temporary Arena API
  ***************************/
-XTB_Temp_Arena xtb_temp_arena_new(XTB_Arena *arena)
+XTB_Temp_Arena xtb_temp_arena_new(Arena *arena)
 {
     XTB_Temp_Arena temp = {};
     temp.arena = arena;
@@ -184,7 +184,7 @@ XTB_Temp_Arena xtb_temp_arena_new(XTB_Arena *arena)
 
 void xtb_temp_arena_release(XTB_Temp_Arena temp)
 {
-    XTB_Arena *arena = temp.arena;
+    Arena *arena = temp.arena;
     arena->current_chunk = temp.snapshot.chunk;
     arena->current_chunk->offset = temp.snapshot.offset;
 }
@@ -192,9 +192,9 @@ void xtb_temp_arena_release(XTB_Temp_Arena temp)
 /****************************
  * Memory Usage Utilities
  ***************************/
-size_t xtb_arena_dump_memory_usage(XTB_Arena *arena)
+size_t xtb_arena_dump_memory_usage(Arena *arena)
 {
-    size_t total_usage = sizeof(XTB_Arena);
+    size_t total_usage = sizeof(Arena);
 
     for (XTB_Arena_Chunk_Header *chunk = arena->base_chunk;
          chunk != NULL;
@@ -208,7 +208,7 @@ size_t xtb_arena_dump_memory_usage(XTB_Arena *arena)
 }
 
 /// pretty print memory usage
-size_t xtb_arena_dump_memory_usage_pp(XTB_Arena *arena, char *buffer, size_t buffer_size)
+size_t xtb_arena_dump_memory_usage_pp(Arena *arena, char *buffer, size_t buffer_size)
 {
     size_t usage = xtb_arena_dump_memory_usage(arena);
 
