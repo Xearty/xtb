@@ -12,17 +12,17 @@ C_LINKAGE_BEGIN
 
 typedef struct String
 {
-    char *str;
-    size_t len;
+    u8 *str;
+    usize len;
 } String;
 
-String str_from(const char *str, usize len);
-#define str(cstring_literal) (String){ (char *)cstring_literal, sizeof(cstring_literal) - 1 }
+String str_from(u8 *str, usize len);
+#define str(cstring_literal) (String){ (u8 *)cstring_literal, sizeof(cstring_literal) - 1 }
 String cstr(const char *cstring);
 
 #define cstr_copy(allocator, cstring) str_copy((allocator), cstr((cstring)))
 String str_copy(Allocator* allocator, String string);
-// #define str_lit_copy(allocator, cstring_literal) str_copy((allocator), str(cstring_literal))
+#define str_lit_copy(allocator, cstring_literal) str_copy((allocator), str(cstring_literal))
 String str_push_copy(Arena *arena, String string);
 void str_free(Allocator* allocator, String str);
 #define str_empty str("")

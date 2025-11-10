@@ -25,7 +25,7 @@ static void buffer_ensure_capacity(StringBuffer *str_buffer, size_t needed)
     if (str_buffer->capacity < needed)
     {
         size_t new_cap = GrowGeometric(str_buffer->size, needed);
-        char *new_buffer = AllocateBytes(str_buffer->allocator, new_cap);
+        u8 *new_buffer = AllocateBytes(str_buffer->allocator, new_cap);
 
         // TODO: Add realloc to the allocator interface
         MemoryCopy(new_buffer, str_buffer->data, str_buffer->size);

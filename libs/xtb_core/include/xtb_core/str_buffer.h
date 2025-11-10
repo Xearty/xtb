@@ -13,7 +13,7 @@ C_LINKAGE_BEGIN
 typedef struct StringBuffer
 {
     Allocator* allocator;
-    char *data;
+    u8 *data;
     size_t size;
     size_t capacity;
 } StringBuffer;

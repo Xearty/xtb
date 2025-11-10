@@ -50,7 +50,7 @@ static String parse_string_literal(const char *input)
 
     const char *string_end = rest;
     int string_len = string_end - string_begin;
-    String substr = str_from(string_begin, string_len);
+    String substr = str_from((u8*)string_begin, string_len);
     return str_copy(allocator_get_heap(), substr);
 }
 
@@ -398,7 +398,7 @@ JsonValue *json_parse_file(String filepath)
     String content = os_read_entire_file(heap_allocator, filepath);
     if (str_is_invalid(content)) return NULL;
 
-    JsonValue *value = json_parse(content.str);
+    JsonValue *value = json_parse((const char *)content.str);
     str_free(heap_allocator, content);
 
     return value;
@@ -427,7 +427,7 @@ JsonValue *json_object_get_key_lt(JsonValue *value, const char *key, int length)
     ASSERT(json_value_is_object(value));
     for (JsonPair *pair = value->as.object; pair != NULL; pair = pair->next)
     {
-        if (str_eq(pair->key, str_from(key, length)))
+        if (str_eq(pair->key, str_from((u8*)key, length)))
         {
             return pair->value;
         }

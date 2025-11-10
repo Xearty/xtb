@@ -5,20 +5,20 @@
 #include <stdio.h>
 #include <ctype.h>
 
-String str_from(const char *str, usize len)
+String str_from(u8 *str, usize len)
 {
-    return (String){ (char*)str, len };
+    return (String){ (u8*)str, len };
 }
 
 String cstr(const char *cstring)
 {
-    return str_from(cstring, strlen(cstring));
+    return str_from((u8*)cstring, strlen(cstring));
 }
 
 String str_copy(Allocator* allocator, String string)
 {
-    char *buf = AllocateArray(allocator, string.len + 1, char);
-    strncpy(buf, string.str, string.len)[string.len] = '\0';
+    u8 *buf = AllocateBytes(allocator, string.len + 1);
+    strncpy((char*)buf, (char *)string.str, string.len)[string.len] = '\0';
     return str_from(buf, string.len);
 }
 
@@ -54,7 +54,7 @@ char str_back(String string)
 
 int str_compare(String f, String s)
 {
-    return strncmp(f.str, s.str, Max(f.len, s.len));
+    return strncmp((char*)f.str, (char*)s.str, Max(f.len, s.len));
 }
 
 bool str_eq(String f, String s)
@@ -152,7 +152,7 @@ String str_list_join_str_sep(Allocator* allocator, StringList str_list, String s
     size_t sep_count = count - 1;
     size_t len = non_sep_len + (sep_count * sep.len);
 
-    char *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = AllocateBytes(allocator, len + 1);
 
     size_t out_idx = 0;
     IterateList(str_list, StringListNode, node)
@@ -172,7 +172,7 @@ String str_list_join_str_sep(Allocator* allocator, StringList str_list, String s
 
 String str_list_join_char_sep(Allocator* allocator, StringList str_list, char sep)
 {
-    return str_list_join_str_sep(allocator, str_list, str_from(&sep, 1));
+    return str_list_join_str_sep(allocator, str_list, str_from((u8*)&sep, 1));
 }
 
 size_t str_array_accumulate_length(String *array, size_t count)
@@ -185,7 +185,7 @@ size_t str_array_accumulate_length(String *array, size_t count)
 String str_array_join(Allocator* allocator, String *array, size_t count)
 {
     size_t len = str_array_accumulate_length(array, count);
-    char *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = AllocateBytes(allocator, len + 1);
 
     size_t out_idx = 0;
     for (size_t i = 0; i < count; ++i)
@@ -207,7 +207,7 @@ str_array_join_sep(Allocator* allocator,
     size_t sep_count = count - 1;
     size_t len = non_sep_len + (sep_count * sep.len);
 
-    char *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = AllocateBytes(allocator, len + 1);
 
     size_t out_idx = 0;
     for (size_t i = 0; i < count; ++i)
@@ -400,13 +400,13 @@ String str_formatv(Allocator* allocator, const char *fmt, va_list args)
         return str_invalid;
     }
 
-    char *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = AllocateBytes(allocator, len + 1);
     if (!str_buf)
     {
         return str_invalid;
     }
 
-    vsnprintf(str_buf, len + 1, fmt, args);
+    vsnprintf((char*)str_buf, len + 1, fmt, args);
 
     return str_from(str_buf, len);
 }
