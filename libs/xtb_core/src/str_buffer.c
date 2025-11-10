@@ -6,7 +6,7 @@
 
 #define RemainingCapacity(str_buffer) ((str_buffer)->capacity - (str_buffer)->size)
 #define BufferAppendLocation(str_buffer) ((str_buffer->data) + (str_buffer)->size)
-#define AssertOwnsMemory(str_buffer) ASSERT((str_buffer)->data != NULL)
+#define AssertOwnsMemory(str_buffer) Assert((str_buffer)->data != NULL)
 
 StringBuffer str_buffer_new(Allocator* allocator, size_t cap_hint)
 {

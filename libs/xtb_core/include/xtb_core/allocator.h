@@ -15,17 +15,17 @@ void* allocator_allocate(Allocator* alloc, int64_t new_size, int64_t align);
 void* allocator_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align);
 void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align);
 
-typedef struct Allocator_Set
+typedef struct AllocatorSet
 {
     Allocator *heap_allocator;
     Allocator *static_allocator;
-} Allocator_Set;
+} AllocatorSet;
 
 Allocator *allocator_get_heap(void);
 Allocator *allocator_get_static(void);
 
-Allocator_Set allocator_set_heap(Allocator *allocator);
-Allocator_Set allocator_set_static(Allocator *allocator);
+AllocatorSet allocator_set_heap(Allocator *allocator);
+AllocatorSet allocator_set_static(Allocator *allocator);
 
 void allocators_init();
 

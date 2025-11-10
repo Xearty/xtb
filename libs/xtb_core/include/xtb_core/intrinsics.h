@@ -3,15 +3,15 @@
 
 #include <xtb_core/context_cracking.h>
 
-#define NOINLINE __attribute__((noinline))
-#define NORETURN __attribute__((noreturn))
+#define noinline __attribute__((noinline))
+#define noreturn __attribute__((noreturn))
 
 #if COMPILER_MSVC
-#define THREAD_STATIC __declspec(thread)
+#define thread_local __declspec(thread)
 #elif COMPILER_CLANG || COMPILER_GCC
-#define THREAD_STATIC __thread
+#define thread_local __thread
 #else
-#error THREAD_STATIC not defined for this compiler.
+#error thread_local not defined for this compiler.
 #endif
 
 #ifdef COMPILER_GCC

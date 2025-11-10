@@ -31,22 +31,22 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef struct Untyped_Array {
+typedef struct UntypedArray {
     Allocator* allocator;
     uint8_t* data;
     isize count;
     isize capacity;
-} Untyped_Array;
+} UntypedArray;
 
-typedef struct Generic_Array {
-    Untyped_Array* array;
+typedef struct GenericArray {
+    UntypedArray* array;
     uint32_t item_size;
     uint32_t item_align;
-} Generic_Array;
+} GenericArray;
 
-#define Array_Aligned(Type, align)               \
+#define ArrayAligned(Type, align)                \
     union {                                      \
-        Untyped_Array untyped;                   \
+        UntypedArray untyped;                    \
         struct {                                 \
             Allocator* allocator;                \
             Type* data;                          \
@@ -56,38 +56,38 @@ typedef struct Generic_Array {
         uint8_t (*ALIGN)[align];                 \
     }                                            \
 
-#define Array(Type) Array_Aligned(Type, __alignof(Type) > 0 ? __alignof(Type) : 8)
+#define Array(Type) ArrayAligned(Type, __alignof(Type) > 0 ? __alignof(Type) : 8)
 
-typedef Array(uint8_t)  U8_Array;
-typedef Array(uint16_t) U16_Array;
-typedef Array(uint32_t) U32_Array;
-typedef Array(uint64_t) U64_Array;
+typedef Array(u8)    U8Array;
+typedef Array(u16)   U16Array;
+typedef Array(u32)   U32Array;
+typedef Array(u64)   U64Array;
 
-typedef Array(int8_t)   I8_Array;
-typedef Array(int16_t)  I16_Array;
-typedef Array(int32_t)  I32_Array;
-typedef Array(int64_t)  I64_Array;
+typedef Array(i8)    I8Array;
+typedef Array(i16)   I16Array;
+typedef Array(i32)   I32Array;
+typedef Array(i64)   I64Array;
 
-typedef Array(float)    F32_Array;
-typedef Array(double)   F64_Array;
-typedef Array(void*)    ptr_Array;
+typedef Array(f32)   F32Array;
+typedef Array(f64)   F64Array;
+typedef Array(void*) PtrArray;
 
-typedef I64_Array ISize_Array;
-typedef U64_Array USize_Array;
+typedef I64Array     ISizeArray;
+typedef U64Array     USizeArray;
 
 C_LINKAGE_BEGIN
-void generic_array_init(Generic_Array gen, Allocator* allocator);
-void generic_array_deinit(Generic_Array gen);
-void generic_array_set_capacity(Generic_Array gen, isize capacity);
-void generic_array_resize(Generic_Array gen, isize to_size, bool zero_new);
-void generic_array_reserve(Generic_Array gen, isize to_capacity);
-void generic_array_append(Generic_Array gen, const void* data, isize data_count);
+void generic_array_init(GenericArray gen, Allocator* allocator);
+void generic_array_deinit(GenericArray gen);
+void generic_array_set_capacity(GenericArray gen, isize capacity);
+void generic_array_resize(GenericArray gen, isize to_size, bool zero_new);
+void generic_array_reserve(GenericArray gen, isize to_capacity);
+void generic_array_append(GenericArray gen, const void* data, isize data_count);
 C_LINKAGE_END
 
 #if LANG_CPP
-    #define array_make_generic(array_ptr) (Generic_Array{&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
+    #define array_make_generic(array_ptr) (GenericArray{&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
 #else
-    #define array_make_generic(array_ptr) ((Generic_Array){&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
+    #define array_make_generic(array_ptr) ((GenericArray){&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
 #endif
 
 #define make_array(allocator) { (allocator) }

@@ -8,7 +8,7 @@ C_LINKAGE_BEGIN
 typedef void (*PanicHandler)(const char *message, void *user_data);
 
 void panic_set_handler(PanicHandler handler, void *user_data);
-NORETURN void panic(const char *fmt, ...);
+noreturn void panic(const char *fmt, ...);
 
 C_LINKAGE_END
 

@@ -44,7 +44,7 @@
 /****************************************************************
  * Control-Flow Macros
 ****************************************************************/
-#define SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
+#define GenSwitchMacroIterator(VALUE, ITERATOR, MACRO) \
     Statement(switch (VALUE) { ITERATOR(MACRO) })
 
 /****************************************************************

@@ -20,14 +20,14 @@ static const char *file_mode_to_stdio_mode(FileMode mode)
         if (mode & FM_WRITE) return "w";
     }
 
-    UNREACHABLE;
+    Unreachable;
 }
 
 FileHandle *os_open_file(String filepath, FileMode mode)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
-    FileHandle *handle = (FileHandle*)fopen(filepath.str, file_mode_to_stdio_mode(mode));
+    FileHandle *handle = (FileHandle*)fopen((const char *)filepath.str, file_mode_to_stdio_mode(mode));
     scratch_end(scratch);
     return handle;
 }
@@ -62,7 +62,7 @@ String os_read_entire_file(Allocator *allocator, String filepath)
     if (handle == NULL) return str_invalid;
 
     size_t file_size = os_get_file_size(handle);
-    char *buffer = AllocateBytes(allocator, file_size + 1);
+    u8 *buffer = AllocateBytes(allocator, file_size + 1);
 
     size_t bytes_read = os_read_file(handle, (u8*)buffer, file_size);
     os_close_file(handle);
@@ -99,7 +99,7 @@ bool os_delete_file(String filepath)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
-    bool result = remove(filepath.str) == 0;
+    bool result = remove((const char *)filepath.str) == 0;
     scratch_end(scratch);
     return result;
 }
@@ -110,7 +110,7 @@ bool os_move_file(String old_path, String new_path)
     old_path = str_push_copy(scratch.arena, old_path);
     new_path = str_push_copy(scratch.arena, new_path);
     scratch_end(scratch);
-    return rename(old_path.str, new_path.str) == 0;
+    return rename((const char *)old_path.str, (const char *)new_path.str) == 0;
 }
 
 bool os_copy_file(String filepath, String new_path)

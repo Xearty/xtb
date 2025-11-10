@@ -18,16 +18,16 @@
 static const char *linux_stringify_signal_description(int signal)
 {
 #define CASE(SIGNAL, DESC) case SIGNAL: return DESC;
-    SWITCH_MACRO_ITERATOR(signal, BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
-    UNREACHABLE;
+    GenSwitchMacroIterator(signal, BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
+    Unreachable;
 #undef CASE
 }
 
 static const char *linux_stringify_signal(int signal)
 {
 #define CASE(SIGNAL, DESC) case SIGNAL: return #SIGNAL;
-    SWITCH_MACRO_ITERATOR(signal, BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
-    UNREACHABLE;
+    GenSwitchMacroIterator(signal, BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
+    Unreachable;
 #undef CASE
 }
 

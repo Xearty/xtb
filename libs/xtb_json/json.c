@@ -46,7 +46,7 @@ static String parse_string_literal(const char *input)
     const char *string_begin = rest;
 
     while (rest[0] != '\"') rest += 1;
-    ASSERT(rest[0] == '\"');
+    Assert(rest[0] == '\"');
 
     const char *string_end = rest;
     int string_len = string_end - string_begin;
@@ -245,7 +245,7 @@ static const char *parse_array(const char *input, JsonValue **out)
     }
 
     // We parsed the array successfully and the next character is ]
-    ASSERT(rest[0] == ']');
+    Assert(rest[0] == ']');
     rest += 1; // skip ]
     *out = make_json_array(array);
 
@@ -323,7 +323,7 @@ static const char *parse_object(const char *input, JsonValue **out)
     }
 
     // We parsed the object successfully and the next character is }
-    ASSERT(rest[0] == '}');
+    Assert(rest[0] == '}');
     rest += 1; // skip the }
     *out = make_object(first_pair);
 
@@ -409,7 +409,7 @@ JsonValue *json_parse_file(String filepath)
 ****************************************************************/
 JsonValue *json_object_get_key(JsonValue *value, const char *key)
 {
-    ASSERT(json_value_is_object(value));
+    Assert(json_value_is_object(value));
     for (JsonPair *pair = value->as.object; pair != NULL; pair = pair->next)
     {
         if (str_eq_cstring(pair->key, key))
@@ -424,7 +424,7 @@ JsonValue *json_object_get_key(JsonValue *value, const char *key)
 // Length terminated version of `json_object_get_key`
 JsonValue *json_object_get_key_lt(JsonValue *value, const char *key, int length)
 {
-    ASSERT(json_value_is_object(value));
+    Assert(json_value_is_object(value));
     for (JsonPair *pair = value->as.object; pair != NULL; pair = pair->next)
     {
         if (str_eq(pair->key, str_from((u8*)key, length)))
@@ -438,7 +438,7 @@ JsonValue *json_object_get_key_lt(JsonValue *value, const char *key, int length)
 
 JsonValue *json_array_get_index(JsonValue *value, size_t index)
 {
-    ASSERT(json_value_is_array(value));
+    Assert(json_value_is_array(value));
     if (index < value->as.array.count)
     {
         return value->as.array.data[index];
@@ -559,13 +559,13 @@ JsonValue *json_query(JsonValue *value, const char *query)
 
 size_t json_array_get_length(const JsonValue *value)
 {
-    ASSERT(json_value_is_array(value));
+    Assert(json_value_is_array(value));
     return json_value_is_array(value) ? value->as.array.count : 0;
 }
 
 size_t json_object_get_num_keys(const JsonValue *value)
 {
-    ASSERT(json_value_is_object(value));;
+    Assert(json_value_is_object(value));;
     if (!json_value_is_object(value)) return 0;
 
     size_t count = 0;
@@ -625,7 +625,7 @@ bool json_value_is_object(const JsonValue *value)
 
 bool json_array_is_homogeneous(JsonValue *value)
 {
-    ASSERT(json_value_is_array(value));
+    Assert(json_value_is_array(value));
     if (!json_value_is_array(value)) return false;
 
     for (int i = 0; i < value->as.array.count - 1; ++i)
@@ -641,7 +641,7 @@ bool json_array_is_homogeneous(JsonValue *value)
 
 bool json_array_is_homogeneous_type(JsonValue *value, JsonType type)
 {
-    ASSERT(json_value_is_array(value));
+    Assert(json_value_is_array(value));
     if (!json_value_is_array(value)) return false;
     return json_array_get_length(value) < 2
         || (json_array_get_index(value, 0)->type == type && json_array_is_homogeneous(value));
@@ -679,7 +679,7 @@ bool json_array_is_homogeneous_object(JsonValue *value)
 
 bool json_array_contains_array(const JsonValue *value)
 {
-    ASSERT(json_value_is_array(value));
+    Assert(json_value_is_array(value));
     if (!json_value_is_array(value)) return false;
 
     for (int i = 0; i < value->as.array.count; ++i)
@@ -695,7 +695,7 @@ bool json_array_contains_array(const JsonValue *value)
 
 bool json_array_contains_object(const JsonValue *value)
 {
-    ASSERT(json_value_is_array(value));
+    Assert(json_value_is_array(value));
     if (!json_value_is_array(value)) return false;
 
     for (int i = 0; i < value->as.array.count; ++i)

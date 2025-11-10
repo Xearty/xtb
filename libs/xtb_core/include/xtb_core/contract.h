@@ -6,7 +6,7 @@
 #include <xtb_core/macro_helpers.h>
 
 #ifndef NDEBUG
-#   define ASSERT(cond)                                                           \
+#   define Assert(cond)                                                           \
         Statement({                                                               \
             if (Unlikely(!(cond)))                                                \
             {                                                                         \
@@ -14,19 +14,19 @@
             }                                                                         \
         })
 
-#   define UNREACHABLE                                                      \
+#   define Unreachable                                                      \
         Statement({                                                         \
             panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
         })
 
-#define CheckBounds(i, count, ...) ASSERT(0 <= (i) && (i) <= count)
+#define CheckBounds(i, count, ...) Assert(0 <= (i) && (i) <= count)
 
 #else
-#   define ASSERT(cond) (void)(cond)
-#   define UNREACHABLE
+#   define Assert(cond) (void)(cond)
+#   define Unreachable
 #endif
 
-#define STATIC_ASSERT(cond, msg) \
+#define StaticAssert(cond, msg) \
     typedef char static_assertion_##msg[(cond) ? 1 : -1]
 
 #endif // _XTB_CONTRACT_H_

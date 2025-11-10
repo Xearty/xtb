@@ -45,7 +45,7 @@ Shader load_shader_from_file(const char *ns, String filepath, int shader_type)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     String shader_content = os_read_entire_file(&scratch.arena->allocator, filepath);
-    ASSERT(str_is_valid(shader_content));
+    Assert(str_is_valid(shader_content));
 
     Shader id = glCreateShader(shader_type);
     glShaderSource(id, 1, (const char * const *)&shader_content.str, NULL);

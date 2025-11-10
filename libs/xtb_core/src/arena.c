@@ -11,7 +11,7 @@
  ***************************/
 void* arena_allocator_procedure(void* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
 {
-    ASSERT(new_size >= 0 && old_size >= 0 && align >= 0);
+    Assert(new_size >= 0 && old_size >= 0 && align >= 0);
 
     Arena *arena = (Arena*)alloc;
 

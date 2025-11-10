@@ -1,7 +1,7 @@
 #include <xtb_core/thread_context.h>
 #include <xtb_core/intrinsics.h>
 
-C_LINKAGE THREAD_STATIC ThreadContext *g_tctx;
+C_LINKAGE thread_local ThreadContext *g_tctx;
 
 void tctx_init_and_equip(ThreadContext *tctx)
 {

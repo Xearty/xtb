@@ -28,7 +28,7 @@ void some_function_that_does_not_take_allocator()
     // Here I have another scratch space that is independent from the other
 
     String codetracer = str_copy(&second_temp.arena->allocator, str("codetracer"));
-    puts(codetracer.str);
+    str_debug(codetracer);
     printf("Second arena offset = %zu\n", second_temp.arena->current_chunk->offset);
 
     scratch_end(second_temp);

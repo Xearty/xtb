@@ -103,7 +103,7 @@ String str_format(Allocator* allocator, const char *fmt, ...);
 #define str_debug(s) fprintf(stderr, "%.*s\n", (int)(s).len, (s).str)
 
 #define str_assert_null_terminated(string) \
-    ASSERT((string).str[(string).len] == '\0')
+    Assert((string).str[(string).len] == '\0')
 
 C_LINKAGE_END
 

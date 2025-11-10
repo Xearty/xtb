@@ -13,7 +13,7 @@ typedef struct Panic
 
 Panic g_panic;
 
-void panic_handler_set_handler(PanicHandler handler, void *user_data)
+void panic_set_handler(PanicHandler handler, void *user_data)
 {
     g_panic.handler = handler;
     g_panic.user_data = user_data;

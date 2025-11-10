@@ -112,12 +112,12 @@ int main(int argc, char **argv)
 
     if (!str_starts_with_lit(head_tail, "head"))
     {
-        ASSERT(false);
+        Assert(false);
     }
 
     if (!str_ends_with_lit(head_tail, "tail"))
     {
-        ASSERT(false);
+        Assert(false);
     }
 
     String concat = str_concat_lit(&arena->allocator, str("hello "), "world");

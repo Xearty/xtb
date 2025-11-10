@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-Allocator_Set g_allocators;
+AllocatorSet g_allocators;
 
 Allocator g_malloc_allocator;
 
@@ -20,7 +20,7 @@ static bool is_power_of_two(int64_t num)
 
 static void* malloc_allocate(int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
 {
-    ASSERT(new_size >= 0 && old_size >= 0 && align >= 0);
+    Assert(new_size >= 0 && old_size >= 0 && align >= 0);
 
     void* new_ptr = NULL;
 
@@ -75,23 +75,23 @@ Allocator *allocator_get_static(void)
     return g_allocators.static_allocator;
 }
 
-Allocator_Set allocator_set_heap(Allocator *allocator)
+AllocatorSet allocator_set_heap(Allocator *allocator)
 {
-    Allocator_Set prev_allocators = g_allocators;
+    AllocatorSet prev_allocators = g_allocators;
     g_allocators.heap_allocator = allocator;
     return prev_allocators;
 }
 
-Allocator_Set allocator_set_static(Allocator *allocator)
+AllocatorSet allocator_set_static(Allocator *allocator)
 {
-    Allocator_Set prev_allocators = g_allocators;
+    AllocatorSet prev_allocators = g_allocators;
     g_allocators.static_allocator = allocator;
     return prev_allocators;
 }
 
 void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
 {
-    ASSERT(alloc != NULL && new_size >= 0 && old_size >= 0 && is_power_of_two(align));
+    Assert(alloc != NULL && new_size >= 0 && old_size >= 0 && is_power_of_two(align));
     void* out = (*alloc)(alloc, new_size, old_ptr, old_size, align);
     return out;
 }
