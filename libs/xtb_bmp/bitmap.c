@@ -34,14 +34,14 @@ xtb_bmp_bitmap_load_alloc(Allocator* allocator, const XTB_Byte *bytes)
     XTB_BMP_Prepass_Result prepass_result = xtb_bmp_prepass(bytes);
     XTB_BMP_Memory_Requirements mr = prepass_result.memory_requirements;
     printf("allocation size: %lu\n", mr.bitmap_buffer_size);
-    void *bitmap_buffer = XTB_AllocateBytes(allocator, mr.bitmap_buffer_size);
+    void *bitmap_buffer = AllocateBytes(allocator, mr.bitmap_buffer_size);
     return xtb_bmp_bitmap_load(prepass_result, bytes, bitmap_buffer);
 }
 
 void
 xtb_bmp_bitmap_dealloc(Allocator* allocator, XTB_BMP_Bitmap *bitmap)
 {
-    XTB_Deallocate(allocator, bitmap->pixel_data);
+    Deallocate(allocator, bitmap->pixel_data);
 }
 
 void
@@ -64,7 +64,7 @@ xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream,
     int size = stream.tell(stream.context);
     stream.seek(stream.context, 0, XTB_BMP_IO_SEEK_SET);
 
-    char *buffer = XTB_AllocateBytes(allocator, size + 1);
+    char *buffer = AllocateBytes(allocator, size + 1);
     int bytes_read = stream.read(stream.context, buffer, size);
 
     if (bytes_read == size)
@@ -75,7 +75,7 @@ xtb_bmp_bitmap_load_from_stream(XTB_BMP_IO_Stream stream,
     else
     {
         puts("Could not read stream");
-        XTB_Deallocate(allocator, buffer);
+        Deallocate(allocator, buffer);
     }
 
     return xtb_bmp_bitmap_load_alloc(allocator, buffer);

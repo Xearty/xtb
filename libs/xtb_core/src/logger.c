@@ -41,7 +41,7 @@ void xtb_log(XTB_Log_Level level, const char *fmt, ...)
     }
     else
     {
-        xtb_ansi_print_style(stderr, level_style[level], "[%s] %s", level_str[level], buffer);
+        ansi_print_style(stderr, level_style[level], "[%s] %s", level_str[level], buffer);
         fputs("\n", stderr);
     }
 }

@@ -65,7 +65,7 @@ setup_window_for_bmp(XTB_BMP_Bitmap *bitmap, const char *path)
 
     // Load bitmap
     #if 1
-    XTB_String8 content = xtb_os_read_entire_file(allocator_get_heap(), xtb_str8_cstring(path));
+    String content = os_read_entire_file(allocator_get_heap(), cstr(path));
 
     #ifdef USE_DIB
     XTB_BMP_DIB dib = xtb_bmp_dib_load_galloc(result.content);
@@ -75,7 +75,7 @@ setup_window_for_bmp(XTB_BMP_Bitmap *bitmap, const char *path)
     *bitmap = xtb_bmp_bitmap_load_galloc((XTB_Byte*)content.str);
     #endif
 
-    xtb_str8_free(xtb_bmp_get_global_allocator(), content);
+    str_free(xtb_bmp_get_global_allocator(), content);
     #else
     XTB_BMP_IO_Stream stream = libc_file_read_binary_stream_open(path);
     /* XTB_BMP_IO_Stream stream = libc_file_read_text_stream_open(path); */
@@ -219,8 +219,8 @@ bmp_single_file_viewer_app(int argc, char **argv, const char *filepath)
 int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
-    XTB_Thread_Context tctx;
-    xtb_tctx_init_and_equip(&tctx);
+    ThreadContext tctx;
+    tctx_init_and_equip(&tctx);
 
     SetTraceLogLevel(LOG_ERROR);
 
@@ -232,7 +232,7 @@ int main(int argc, char **argv)
     // bmp_single_file_viewer_app(argc, argv, NULL);
     bmp_directory_viewer_app("./apps/bmp_test/tests/valid");
 
-    xtb_tctx_release();
+    tctx_release();
 
     return 0;
 }

@@ -6,7 +6,7 @@
 
 static void key_callback(Window *window, i32 key, i32 scancode, i32 action, i32 mods)
 {
-    XTB_String8 *user_pointer_str = (XTB_String8*)window_user_pointer_get(window);
+    String *user_pointer_str = (String*)window_user_pointer_get(window);
 
     printf("pressed a key. User pointer string is \"%.*s\"\n",
             (i32)user_pointer_str->len,
@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 
     window_system_init();
 
-    Thread_Context tctx;
+    ThreadContext tctx;
     tctx_init_and_equip(&tctx);
 
     WindowConfig cfg = window_config_default();
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
         fputs("Could not create window", stderr);
     }
 
-    XTB_String8 user_pointer_str = xtb_str8_lit("Tova e string");
+    String user_pointer_str = str("Tova e string");
 
     window_set_key_callback(window, key_callback);
     window_user_pointer_set(window, &user_pointer_str);

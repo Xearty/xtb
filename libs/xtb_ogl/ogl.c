@@ -10,7 +10,7 @@
 
 #include "glad/src/glad.c"
 
-bool ogl_load_gl(XTB_Load_Proc load_proc)
+bool ogl_load_gl(XTBLoadProc load_proc)
 {
     return gladLoadGLLoader(load_proc) != 0;
 }
@@ -41,28 +41,28 @@ void log_shader_program_link_errors(const char *ns, unsigned int id)
     }
 }
 
-Shader load_shader_from_file(const char *ns, XTB_String8 filepath, int shader_type)
+Shader load_shader_from_file(const char *ns, String filepath, int shader_type)
 {
-    XTB_Temp_Arena scratch = xtb_scratch_begin_no_conflicts();
-    XTB_String8 shader_content = xtb_os_read_entire_file(&scratch.arena->allocator, filepath);
-    XTB_ASSERT(xtb_str8_is_valid(shader_content));
+    TempArena scratch = scratch_begin_no_conflicts();
+    String shader_content = os_read_entire_file(&scratch.arena->allocator, filepath);
+    ASSERT(str_is_valid(shader_content));
 
     Shader id = glCreateShader(shader_type);
     glShaderSource(id, 1, (const char * const *)&shader_content.str, NULL);
     glCompileShader(id);
     log_shader_compile_errors(ns, id);
 
-    xtb_scratch_end(scratch);
+    scratch_end(scratch);
 
     return id;
 }
 
-Shader load_vertex_shader_from_file(const char *ns, XTB_String8 filepath)
+Shader load_vertex_shader_from_file(const char *ns, String filepath)
 {
     return load_shader_from_file(ns, filepath, GL_VERTEX_SHADER);
 }
 
-Shader load_fragment_shader_from_file(const char *ns, XTB_String8 filepath)
+Shader load_fragment_shader_from_file(const char *ns, String filepath)
 {
     return load_shader_from_file(ns, filepath, GL_FRAGMENT_SHADER);
 }
@@ -78,7 +78,7 @@ ShaderProgram create_shader_program_from_descriptors(const char *ns, Shader vs_i
     return id;
 }
 
-ShaderProgram load_shader_program_from_files(const char *ns, XTB_String8 vertex_filepath, XTB_String8 fragment_filepath)
+ShaderProgram load_shader_program_from_files(const char *ns, String vertex_filepath, String fragment_filepath)
 {
     char shader_ns[512];
 

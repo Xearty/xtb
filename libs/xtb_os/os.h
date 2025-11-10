@@ -6,125 +6,91 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-XTB_C_LINKAGE_BEGIN
+C_LINKAGE_BEGIN
 
 #define XTB_FILE_NAME_BUFFER_SIZE 256
 
-typedef struct XTB_File_Handle XTB_File_Handle;
+typedef struct FileHandle FileHandle;
 
-typedef enum XTB_File_Mode
+typedef enum FileMode
 {
-    XTB_READ = 0b001,
-    XTB_WRITE = 0b010,
-    XTB_BINARY = 0b100
-} XTB_File_Mode;
+    FM_READ = 0b001,
+    FM_WRITE = 0b010,
+    FM_BINARY = 0b100
+} FileMode;
 
-typedef enum XTB_File_Type
+typedef enum FileType
 {
-    XTB_FT_UNKNOWN = 0,
-    XTB_FT_REGULAR,
-    XTB_FT_DIRECTORY,
-    XTB_FT_SYMLINK,
-    XTB_FT_CHAR_DEVICE,
-    XTB_FT_BLOCK_DEVICE,
-    XTB_FT_FIFO,
-    XTB_FT_SOCKET,
-} XTB_File_Type;
+    FT_UNKNOWN = 0,
+    FT_REGULAR,
+    FT_DIRECTORY,
+    FT_SYMLINK,
+    FT_CHAR_DEVICE,
+    FT_BLOCK_DEVICE,
+    FT_FIFO,
+    FT_SOCKET,
+} FileType;
 
-XTB_File_Handle *xtb_os_open_file(XTB_String8 filepath, XTB_File_Mode mode);
-void xtb_os_close_file(XTB_File_Handle *handle);
+FileHandle *os_open_file(String filepath, FileMode mode);
+void os_close_file(FileHandle *handle);
 
-size_t xtb_os_get_file_size(XTB_File_Handle *handle);
+size_t os_get_file_size(FileHandle *handle);
 
-size_t xtb_os_read_file(XTB_File_Handle *handle, const XTB_Byte *buffer, size_t size);
-XTB_String8 xtb_os_read_entire_file(Allocator *allcoator, XTB_String8 filepath);
+size_t os_read_file(FileHandle *handle, const u8 *buffer, size_t size);
+String os_read_entire_file(Allocator *allcoator, String filepath);
 
-size_t xtb_os_write_file(XTB_File_Handle *handle, const XTB_Byte *buffer, size_t size);
-size_t xtb_os_write_entire_file(XTB_String8 filepath, const XTB_Byte *buffer, size_t size);
+size_t os_write_file(FileHandle *handle, const u8 *buffer, size_t size);
+size_t os_write_entire_file(String filepath, const u8 *buffer, size_t size);
 
-bool xtb_os_file_exists(XTB_String8 filepath);
-bool xtb_os_delete_file(XTB_String8 filepath);
-bool xtb_os_delete_directory(XTB_String8 filepath);
-bool xtb_os_move_file(XTB_String8 old_path, XTB_String8 new_path);
-bool xtb_os_copy_file(XTB_String8 filepath, XTB_String8 new_path);
+bool os_file_exists(String filepath);
+bool os_delete_file(String filepath);
+bool os_delete_directory(String filepath);
+bool os_move_file(String old_path, String new_path);
+bool os_copy_file(String filepath, String new_path);
 
-bool xtb_os_file_has_read_permission(XTB_String8 filepath);
-bool xtb_os_file_has_write_permission(XTB_String8 filepath);
-bool xtb_os_file_has_execute_permission(XTB_String8 filepath);
+bool os_file_has_read_permission(String filepath);
+bool os_file_has_write_permission(String filepath);
+bool os_file_has_execute_permission(String filepath);
 
-bool xtb_os_file_is_regular(XTB_String8 filepath);
-bool xtb_os_file_is_directory(XTB_String8 filepath);
+bool os_file_is_regular(String filepath);
+bool os_file_is_directory(String filepath);
 
-bool xtb_os_file_is_regular_nofollow(XTB_String8 filepath);
-bool xtb_os_file_is_directory_nofollow(XTB_String8 filepath);
-bool xtb_os_file_is_symbolic_link(XTB_String8 filepath);
+bool os_file_is_regular_nofollow(String filepath);
+bool os_file_is_directory_nofollow(String filepath);
+bool os_file_is_symbolic_link(String filepath);
 
-XTB_File_Type xtb_os_get_file_type_nofollow(XTB_String8 filepath);
-XTB_File_Type xtb_os_get_file_type(XTB_String8 filepath);
+FileType os_get_file_type_nofollow(String filepath);
+FileType os_get_file_type(String filepath);
 
-XTB_String8 xtb_os_real_path(Allocator* allocator, XTB_String8 filepath);
+String os_real_path(Allocator* allocator, String filepath);
 
-typedef struct XTB_Directory_Listing_Node {
-    XTB_File_Type type;;
-    XTB_String8 path;
-    struct XTB_Directory_Listing_Node* prev;
-    struct XTB_Directory_Listing_Node* next;
-} XTB_Directory_Listing_Node;
+typedef struct DirectoryListingNode {
+    FileType type;;
+    String path;
+    struct DirectoryListingNode* prev;
+    struct DirectoryListingNode* next;
+} DirectoryListNode;
 
-typedef struct XTB_Directory_List
+typedef struct DirectoryList
 {
-    XTB_Directory_Listing_Node *head;
-    XTB_Directory_Listing_Node *tail;
-} XTB_Directory_List;
+    DirectoryListNode *head;
+    DirectoryListNode *tail;
+} DirectoryList;
 
-typedef enum XTB_Directory_Listing_Flags
+typedef enum DirectoryListingFlags
 {
-    XTB_DIR_LIST_NONE          = 0b000,
-    XTB_DIR_LIST_CURR          = 0b001,
-    XTB_DIR_LIST_PREV          = 0b010,
-    XTB_DIR_LIST_CURR_AND_PREV = 0b011,
-} XTB_Directory_Listing_Flags;
+    DIR_LIST_NONE          = 0b000,
+    DIR_LIST_CURR          = 0b001,
+    DIR_LIST_PREV          = 0b010,
+    DIR_LIST_CURR_AND_PREV = 0b011,
+} DirectoryListFlags;
 
-XTB_Directory_List xtb_os_list_directory_custom(Allocator* allocator, XTB_String8 filepath, XTB_Directory_Listing_Flags flags);
-XTB_Directory_List xtb_os_list_directory(Allocator* allocator, XTB_String8 filepath);
-XTB_Directory_List xtb_os_list_directory_recursively(Allocator* allocator, XTB_String8 filepath);
+DirectoryList os_list_directory_custom(Allocator* allocator, String filepath, DirectoryListFlags flags);
+DirectoryList os_list_directory(Allocator* allocator, String filepath);
+DirectoryList os_list_directory_recursively(Allocator* allocator, String filepath);
 
-XTB_String8 xtb_os_path_join(Allocator* allocator, XTB_String8 *parts, size_t count);
+String os_path_join(Allocator* allocator, String *parts, size_t count);
 
-#ifdef XTB_OS_SHORTHANDS
-typedef XTB_File_Handle File_Handle;
-typedef XTB_File_Mode   File_Mode;
-typedef XTB_File_Type   File_Type;
-
-#define os_open_file                   xtb_os_open_file
-#define os_close_file                  xtb_os_close_file
-#define os_get_file_size               xtb_os_get_file_size
-#define os_read_file                   xtb_os_read_file
-#define os_read_entire_file            xtb_os_read_entire_file
-#define os_write_file                  xtb_os_write_file
-#define os_write_entire_file           xtb_os_write_entire_file
-#define os_file_exists                 xtb_os_file_exists
-#define os_delete_file                 xtb_os_delete_file
-#define os_delete_directory            xtb_os_delete_directory
-#define os_move_file                   xtb_os_move_file
-#define os_copy_file                   xtb_os_copy_file
-#define os_file_has_read_permission    xtb_os_file_has_read_permission
-#define os_file_has_write_permission   xtb_os_file_has_write_permission
-#define os_file_has_execute_permission xtb_os_file_has_execute_permission
-#define os_file_is_regular             xtb_os_file_is_regular
-#define os_file_is_directory           xtb_os_file_is_directory
-#define os_file_is_regular_nofollow    xtb_os_file_is_regular_nofollow
-#define os_file_is_directory_nofollow  xtb_os_file_is_directory_nofollow
-#define os_file_is_symbolic_link       xtb_os_file_is_symbolic_link
-#define os_get_file_type_nofollow      xtb_os_get_file_type_nofollow
-#define os_get_file_type               xtb_os_get_file_type
-#define os_real_path                   xtb_os_real_path
-#define os_list_directory_custom       xtb_os_list_directory_custom
-#define os_list_directory              xtb_os_list_directory
-#define os_list_directory_recursively  xtb_os_list_directory_recursively
-#define os_path_join                   xtb_os_path_join
-#endif
-
-XTB_C_LINKAGE_END
+C_LINKAGE_END
 
 #endif // _XTB_OS_H_

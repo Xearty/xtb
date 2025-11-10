@@ -77,7 +77,7 @@ CheckNil(nil,p) ? \
 
 #define DLLConcat(first, second) DLLConcatHT(first, second, head, tail)
 
-#define XTB_IterateList(list, type, iter) \
+#define IterateList(list, type, iter) \
     for (type *iter = list.head; \
          DLLIterBoundedCond(iter, list.tail); \
          iter = iter->next)

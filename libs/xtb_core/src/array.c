@@ -17,7 +17,7 @@ static bool generic_array_is_consistent(Generic_Array gen)
     bool item_size_correct = gen.item_size > 0;
     bool alignment_correct = ((gen.item_align & (gen.item_align - 1)) == 0) && gen.item_align > 0; // if is power of two and bigger than zero
     bool result = is_capacity_correct && is_size_correct && is_data_correct && item_size_correct && alignment_correct;
-    XTB_ASSERT(result);
+    ASSERT(result);
     return result;
 }
 
@@ -25,12 +25,12 @@ void generic_array_init(Generic_Array gen, Allocator *allocator)
 {
     generic_array_deinit(gen);
     gen.array->allocator = allocator;
-    XTB_ASSERT(generic_array_is_consistent(gen));
+    ASSERT(generic_array_is_consistent(gen));
 }
 
 void generic_array_deinit(Generic_Array gen)
 {
-    XTB_ASSERT(generic_array_is_consistent(gen));
+    ASSERT(generic_array_is_consistent(gen));
     if (gen.array->capacity > 0)
     {
         (*gen.array->allocator)(gen.array->allocator, 0, gen.array->data, gen.array->capacity *gen.item_size, gen.item_align);
@@ -40,8 +40,8 @@ void generic_array_deinit(Generic_Array gen)
 
 void generic_array_set_capacity(Generic_Array gen, isize capacity)
 {
-    XTB_ASSERT(generic_array_is_consistent(gen));
-    XTB_ASSERT(capacity >= 0 && gen.array->allocator != NULL);
+    ASSERT(generic_array_is_consistent(gen));
+    ASSERT(capacity >= 0 && gen.array->allocator != NULL);
 
     isize old_byte_size = gen.item_size * gen.array->capacity;
     isize new_byte_size = gen.item_size * capacity;
@@ -54,7 +54,7 @@ void generic_array_set_capacity(Generic_Array gen, isize capacity)
         gen.array->count = gen.array->capacity;
     }
 
-    XTB_ASSERT(generic_array_is_consistent(gen));
+    ASSERT(generic_array_is_consistent(gen));
 }
 
 void generic_array_resize(Generic_Array gen, isize to_size, bool zero_new)
@@ -66,12 +66,12 @@ void generic_array_resize(Generic_Array gen, isize to_size, bool zero_new)
     }
 
     gen.array->count = to_size;
-    XTB_ASSERT(generic_array_is_consistent(gen));
+    ASSERT(generic_array_is_consistent(gen));
 }
 
 void generic_array_reserve(Generic_Array gen, isize to_fit)
 {
-    XTB_ASSERT(generic_array_is_consistent(gen));
+    ASSERT(generic_array_is_consistent(gen));
     if (gen.array->capacity > to_fit) return;
 
     isize new_capacity = to_fit;
@@ -84,9 +84,9 @@ void generic_array_reserve(Generic_Array gen, isize to_fit)
 
 void generic_array_append(Generic_Array gen, const void *data, isize data_count)
 {
-    XTB_ASSERT(data_count >= 0 && (data || data_count == 0));
+    ASSERT(data_count >= 0 && (data || data_count == 0));
     generic_array_reserve(gen, gen.array->count + data_count);
     memcpy(gen.array->data + gen.item_size * gen.array->count, data, (size_t)(gen.item_size * data_count));
     gen.array->count += data_count;
-    XTB_ASSERT(generic_array_is_consistent(gen));
+    ASSERT(generic_array_is_consistent(gen));
 }

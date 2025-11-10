@@ -3,7 +3,7 @@
 
 #include <xtb_core/context_cracking.h>
 
-XTB_C_LINKAGE_END
+C_LINKAGE_BEGIN
 
 typedef enum XTB_Log_Level
 {
@@ -28,6 +28,6 @@ void xtb_log(XTB_Log_Level level, const char *fmt, ...);
 #define XTB_LOG_ERROR(fmt, ...) xtb_log(XTB_LOG_ERROR, fmt, ##__VA_ARGS__)
 #define XTB_LOG_FATAL(fmt, ...) xtb_log(XTB_LOG_FATAL, fmt, ##__VA_ARGS__)
 
-XTB_C_LINKAGE_END
+C_LINKAGE_END
 
 #endif // _XTB_LOGGER_H_

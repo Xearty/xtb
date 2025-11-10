@@ -16,7 +16,7 @@ XTB_Backtrace g_backtrace;
 
 void xtb_backtrace_error_callback(void *data, const char *msg, int errnum)
 {
-    xtb_ansi_print_bold_red(stderr, "BACKTRACE ERROR: %s", msg);
+    ansi_print_bold_red(stderr, "BACKTRACE ERROR: %s", msg);
     fputs("\n", stderr);
 }
 
@@ -30,7 +30,7 @@ int xtb_backtrace_full_callback(void *data,
     {
         if (g_backtrace.should_print_next_unknown_frame)
         {
-            xtb_ansi_print_bright_black(stderr, "    <missing debug info>");
+            ansi_print_bright_black(stderr, "    <missing debug info>");
             fputs("\n", stderr);
             g_backtrace.should_print_next_unknown_frame = false;
         }
@@ -39,11 +39,11 @@ int xtb_backtrace_full_callback(void *data,
     {
         // main (<path>:<lineno>)
         fputs("    ", stderr);
-        xtb_ansi_print_bold_blue(stderr, "%s", function);
+        ansi_print_bold_blue(stderr, "%s", function);
         fputs(" (", stderr);
-        xtb_ansi_print_green(stderr, "%s", filename);
+        ansi_print_green(stderr, "%s", filename);
         fputs(":", stderr);
-        xtb_ansi_print_red(stderr, "%d", lineno);
+        ansi_print_red(stderr, "%d", lineno);
         fputs(")", stderr);
         fputs("\n", stderr);
 

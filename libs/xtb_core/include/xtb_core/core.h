@@ -20,33 +20,33 @@
 /****************************************************************
  * Memory Utilities
 ****************************************************************/
-#define XTB_Bytes(N) (N)
-#define XTB_Kilobytes(N) (1024 * XTB_Bytes(N))
-#define XTB_Megabytes(N) (1024 * XTB_Kilobytes(N))
-#define XTB_Gigabytes(N) (1024 * XTB_Megabytes(N))
-#define XTB_Terabytes(N) (1024 * XTB_Gigabytes(N))
+#define Bytes(N) (N)
+#define Kilobytes(N) (1024 * Bytes(N))
+#define Megabytes(N) (1024 * Kilobytes(N))
+#define Gigabytes(N) (1024 * Megabytes(N))
+#define Terabytes(N) (1024 * Gigabytes(N))
 
-#define XTB_MemoryZero(s, z) memset((s), 0, (z))
-#define XTB_MemoryZeroStruct(s) XTB_MemoryZero((s), sizeof(*(s)))
-#define XTB_MemoryZeroArray(a) XTB_MemoryZero((a), sizeof(a))
-#define XTB_MemoryZeroTyped(m, c) XTB_MemoryZero((m), sizeof(*(m)) * (c))
+#define MemoryZero(s, z) memset((s), 0, (z))
+#define MemoryZeroStruct(s) MemoryZero((s), sizeof(*(s)))
+#define MemoryZeroArray(a) MemoryZero((a), sizeof(a))
+#define MemoryZeroTyped(m, c) MemoryZero((m), sizeof(*(m)) * (c))
 
-#define XTB_MemoryCopy(s, d, c) memcpy((s), (d), (c));
-#define XTB_MemoryMove(s, d, c) memmove((s), (d), (c));
+#define MemoryCopy(s, d, c) memcpy((s), (d), (c));
+#define MemoryMove(s, d, c) memmove((s), (d), (c));
 
-#define XTB_GrowGeometric(old, need) ((old) ? ((old) * 2 >= (need) ? (old) * 2 : (need)) : (need))
+#define GrowGeometric(old, need) ((old) ? ((old) * 2 >= (need) ? (old) * 2 : (need)) : (need))
 
 /****************************************************************
  * Miscellaneous Macros
 ****************************************************************/
-#define XTB_ArrLen(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
-#define XTB_Unused(X) (void)(X)
+#define ArrLen(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
+#define Unused(X) (void)(X)
 
 /****************************************************************
  * Control-Flow Macros
 ****************************************************************/
-#define XTB_SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
-    XTB_Statement(switch (VALUE) { ITERATOR(MACRO) })
+#define SWITCH_MACRO_ITERATOR(VALUE, ITERATOR, MACRO) \
+    Statement(switch (VALUE) { ITERATOR(MACRO) })
 
 /****************************************************************
  * Type Aliases
@@ -84,21 +84,19 @@ typedef u16 Mask16;
 typedef u32 Mask32;
 typedef u64 Mask64;
 
-typedef u8 XTB_Byte;
-
 /****************************************************************
  * Basic Math Macros
 ****************************************************************/
-#define XTB_Min(A, B) ((A) < (B) ? (A) : (B))
-#define XTB_Max(A, B) ((A) > (B) ? (A) : (B))
-#define XTB_ClampTop(VALUE, MAX_VALUE) XTB_Min(VALUE, MAX_VALUE)
-#define XTB_ClampBot(VALUE, MIN_VALUE) XTB_Max(VALUE, MIN_VALUE)
-#define XTB_Clamp(VALUE, MIN_VALUE, MAX_VALUE) XTB_ClampBot(XTB_ClampTop(VALUE, MAX_VALUE), MIN_VALUE)
+#define Min(A, B) ((A) < (B) ? (A) : (B))
+#define Max(A, B) ((A) > (B) ? (A) : (B))
+#define ClampTop(VALUE, MAX_VALUE) Min(VALUE, MAX_VALUE)
+#define ClampBot(VALUE, MIN_VALUE) Max(VALUE, MIN_VALUE)
+#define Clamp(VALUE, MIN_VALUE, MAX_VALUE) ClampBot(ClampTop(VALUE, MAX_VALUE), MIN_VALUE)
 
-XTB_C_LINKAGE_BEGIN
+C_LINKAGE_BEGIN
 
 void xtb_init(int argc, char **argv);
 
-XTB_C_LINKAGE_END
+C_LINKAGE_END
 
 #endif // _XTB_CORE_H_

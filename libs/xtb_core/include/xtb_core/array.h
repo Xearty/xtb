@@ -75,14 +75,14 @@ typedef Array(void*)    ptr_Array;
 typedef I64_Array ISize_Array;
 typedef U64_Array USize_Array;
 
-XTB_C_LINKAGE_BEGIN
+C_LINKAGE_BEGIN
 void generic_array_init(Generic_Array gen, Allocator* allocator);
 void generic_array_deinit(Generic_Array gen);
 void generic_array_set_capacity(Generic_Array gen, isize capacity);
 void generic_array_resize(Generic_Array gen, isize to_size, bool zero_new);
 void generic_array_reserve(Generic_Array gen, isize to_capacity);
 void generic_array_append(Generic_Array gen, const void* data, isize data_count);
-XTB_C_LINKAGE_END
+C_LINKAGE_END
 
 #if XTB_LANG_CPP
     #define array_make_generic(array_ptr) (Generic_Array{&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})

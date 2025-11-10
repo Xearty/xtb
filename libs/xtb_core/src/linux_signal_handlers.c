@@ -18,16 +18,16 @@
 static const char *xtb_linux_stringify_signal_description(int signal)
 {
 #define CASE(SIGNAL, DESC) case SIGNAL: return DESC;
-    XTB_SWITCH_MACRO_ITERATOR(signal, XTB_BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
-    XTB_UNREACHABLE;
+    SWITCH_MACRO_ITERATOR(signal, XTB_BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
+    UNREACHABLE;
 #undef CASE
 }
 
 static const char *xtb_linux_stringify_signal(int signal)
 {
 #define CASE(SIGNAL, DESC) case SIGNAL: return #SIGNAL;
-    XTB_SWITCH_MACRO_ITERATOR(signal, XTB_BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
-    XTB_UNREACHABLE;
+    SWITCH_MACRO_ITERATOR(signal, XTB_BACKTRACE_HANDLER_SIGNAL_LIST, CASE);
+    UNREACHABLE;
 #undef CASE
 }
 

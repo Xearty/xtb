@@ -4,18 +4,18 @@
 
 #include <stdio.h>
 
-typedef struct Test_Struct
+typedef struct TestStruct
 {
     int x, y, z;
-} Test_Struct;
+} TestStruct;
 
-typedef Array(Test_Struct) Test_Struct_Array;
+typedef Array(TestStruct) Test_Struct_Array;
 
 int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
-    Thread_Context tctx;
+    ThreadContext tctx;
     tctx_init_and_equip(&tctx);
 
     Allocator *allocator = allocator_get_heap();
@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < 5; i++)
     {
-        Test_Struct st = {};
+        TestStruct st = {};
         st.x = 3 * i + 0;
         st.y = 3 * i + 1;
         st.z = 3 * i + 2;
@@ -33,7 +33,7 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < array.count; i++)
     {
-        Test_Struct st = array.data[i];
+        TestStruct st = array.data[i];
         printf("item[%d] = (%d, %d, %d)\n", i, st.x, st.y, st.z);
     }
 

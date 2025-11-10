@@ -8,87 +8,87 @@
 
 typedef enum
 {
-    XTB_JSON_NULL,
-    XTB_JSON_BOOL,
-    XTB_JSON_NUMBER,
-    XTB_JSON_STRING,
-    XTB_JSON_ARRAY,
-    XTB_JSON_OBJECT
-} XTB_JSON_Type;
+    JSON_NULL,
+    JSON_BOOL,
+    JSON_NUMBER,
+    JSON_STRING,
+    JSON_ARRAY,
+    JSON_OBJECT
+} JsonType;
 
-typedef struct XTB_JSON_Value XTB_JSON_Value;
+typedef struct JsonValue JsonValue;
 
-typedef Array(XTB_JSON_Value*) XTB_JSON_Array;
+typedef Array(JsonValue*) JsonArray;
 
-typedef struct XTB_JSON_Pair
+typedef struct JsonPair
 {
-    XTB_String8 key;
-    XTB_JSON_Value *value;
-    struct XTB_JSON_Pair *next;
-} XTB_JSON_Pair;
+    String key;
+    JsonValue *value;
+    struct JsonPair *next;
+} JsonPair;
 
-struct XTB_JSON_Value
+struct JsonValue
 {
-    XTB_JSON_Type type;
+    JsonType type;
     union {
         double number;
         bool boolean;
-        XTB_String8 string;
-        XTB_JSON_Array array;
-        XTB_JSON_Pair* object; // TODO: think if this should be pointer
+        String string;
+        JsonArray array;
+        JsonPair* object; // TODO: think if this should be pointer
     } as;
 };
 
 /****************************************************************
  * Parsing API
 ****************************************************************/
-XTB_JSON_Value *xtb_json_parse(const char *input);
-XTB_JSON_Value *xtb_json_parse_file(XTB_String8 filepath);
+JsonValue *json_parse(const char *input);
+JsonValue *json_parse_file(String filepath);
 
 /****************************************************************
  * Getters
 ****************************************************************/
-XTB_JSON_Value *xtb_json_object_get_key(XTB_JSON_Value *value, const char *key);
-XTB_JSON_Value *xtb_json_array_get_index(XTB_JSON_Value *value, size_t index);
-XTB_JSON_Value *xtb_json_object_get_key_chain(XTB_JSON_Value *value, const char *key);
-XTB_JSON_Value *xtb_json_array_get_index_chain(XTB_JSON_Value *value, size_t index);
-XTB_JSON_Value *xtb_json_object_get_key_lt(XTB_JSON_Value *value, const char *key, int length);
-XTB_JSON_Value *xtb_json_object_get_key_lt_chain(XTB_JSON_Value *value, const char *key, int length);
+JsonValue *json_object_get_key(JsonValue *value, const char *key);
+JsonValue *json_array_get_index(JsonValue *value, size_t index);
+JsonValue *json_object_get_key_chain(JsonValue *value, const char *key);
+JsonValue *json_array_get_index_chain(JsonValue *value, size_t index);
+JsonValue *json_object_get_key_lt(JsonValue *value, const char *key, int length);
+JsonValue *json_object_get_key_lt_chain(JsonValue *value, const char *key, int length);
 
 // Query json objects and arrays with basic jq syntax
-XTB_JSON_Value *xtb_json_query(XTB_JSON_Value *value, const char *query);
+JsonValue *json_query(JsonValue *value, const char *query);
 
-size_t xtb_json_array_get_length(const XTB_JSON_Value *value);
-size_t xtb_json_object_get_num_keys(const XTB_JSON_Value *value);
+size_t json_array_get_length(const JsonValue *value);
+size_t json_object_get_num_keys(const JsonValue *value);
 
-const char *xtb_json_get_type_string(const XTB_JSON_Value *value);
+const char *json_get_type_string(const JsonValue *value);
 
 /****************************************************************
  * Predicates
 ****************************************************************/
-bool xtb_json_value_is_null(const XTB_JSON_Value *value);
-bool xtb_json_value_is_bool(const XTB_JSON_Value *value);
-bool xtb_json_value_is_number(const XTB_JSON_Value *value);
-bool xtb_json_value_is_string(const XTB_JSON_Value *value);
-bool xtb_json_value_is_array(const XTB_JSON_Value *value);
-bool xtb_json_value_is_object(const XTB_JSON_Value *value);
+bool json_value_is_null(const JsonValue *value);
+bool json_value_is_bool(const JsonValue *value);
+bool json_value_is_number(const JsonValue *value);
+bool json_value_is_string(const JsonValue *value);
+bool json_value_is_array(const JsonValue *value);
+bool json_value_is_object(const JsonValue *value);
 
-bool xtb_json_array_is_homogeneous(XTB_JSON_Value *value);
-bool xtb_json_array_is_homogeneous_type(XTB_JSON_Value *value, XTB_JSON_Type type);
-bool xtb_json_array_is_homogeneous_null(XTB_JSON_Value *value);
-bool xtb_json_array_is_homogeneous_bool(XTB_JSON_Value *value);
-bool xtb_json_array_is_homogeneous_number(XTB_JSON_Value *value);
-bool xtb_json_array_is_homogeneous_string(XTB_JSON_Value *value);
-bool xtb_json_array_is_homogeneous_array(XTB_JSON_Value *value);
-bool xtb_json_array_is_homogeneous_object(XTB_JSON_Value *value);
+bool json_array_is_homogeneous(JsonValue *value);
+bool json_array_is_homogeneous_type(JsonValue *value, JsonType type);
+bool json_array_is_homogeneous_null(JsonValue *value);
+bool json_array_is_homogeneous_bool(JsonValue *value);
+bool json_array_is_homogeneous_number(JsonValue *value);
+bool json_array_is_homogeneous_string(JsonValue *value);
+bool json_array_is_homogeneous_array(JsonValue *value);
+bool json_array_is_homogeneous_object(JsonValue *value);
 
-bool xtb_json_array_contains_array(const XTB_JSON_Value *value);
-bool xtb_json_array_contains_object(const XTB_JSON_Value *value);
+bool json_array_contains_array(const JsonValue *value);
+bool json_array_contains_object(const JsonValue *value);
 
 /****************************************************************
  * Pretty printing
 ****************************************************************/
-void xtb_json_print_value(const XTB_JSON_Value *value, FILE *stream);
-void xtb_json_pretty_print_value(const XTB_JSON_Value *value, int indent, FILE *stream);
+void json_print_value(const JsonValue *value, FILE *stream);
+void json_pretty_print_value(const JsonValue *value, int indent, FILE *stream);
 
 #endif // _XTB_JSON_H_

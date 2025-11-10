@@ -5,112 +5,111 @@
 #include <stdio.h>
 #include <ctype.h>
 
-XTB_String8 xtb_str8(const char *str, size_t len)
+String str_from(const char *str, usize len)
 {
-    return (XTB_String8){ (char*)str, len };
+    return (String){ (char*)str, len };
 }
 
-XTB_String8 xtb_str8_cstring(const char *cstring)
+String cstr(const char *cstring)
 {
-    size_t len = strlen(cstring);
-    return xtb_str8(cstring, len);
+    return str_from(cstring, strlen(cstring));
 }
 
-XTB_String8 xtb_str8_copy(Allocator* allocator, XTB_String8 string)
+String str_copy(Allocator* allocator, String string)
 {
-    char *buf = XTB_AllocateArray(allocator, string.len + 1, char);
+    char *buf = AllocateArray(allocator, string.len + 1, char);
     strncpy(buf, string.str, string.len)[string.len] = '\0';
-    return xtb_str8(buf, string.len);
+    return str_from(buf, string.len);
 }
 
-XTB_String8 xtb_str8_push_copy(Arena *arena, XTB_String8 string)
+String str_push_copy(Arena *arena, String string)
 {
-    return xtb_str8_copy(&arena->allocator, string);
+    return str_copy(&arena->allocator, string);
 }
 
-void xtb_str8_free(Allocator* allocator, XTB_String8 str)
+void str_free(Allocator* allocator, String str)
 {
-    XTB_Deallocate(allocator, str.str);
+    Deallocate(allocator, str.str);
 }
 
-bool xtb_str8_is_invalid(XTB_String8 string)
+bool str_is_invalid(String string)
 {
     return string.str == NULL;
 }
 
-bool xtb_str8_is_valid(XTB_String8 string)
+bool str_is_valid(String string)
 {
-    return !xtb_str8_is_invalid(string);
+    return !str_is_invalid(string);
 }
 
-char xtb_str8_front(XTB_String8 string)
+char str_front(String string)
 {
     return string.str[0];
 }
 
-char xtb_str8_back(XTB_String8 string)
+char str_back(String string)
 {
     return string.str[string.len - 1];
 }
 
-int xtb_str8_compare(XTB_String8 f, XTB_String8 s)
+int str_compare(String f, String s)
 {
-    return strncmp(f.str, s.str, XTB_Max(f.len, s.len));
+    return strncmp(f.str, s.str, Max(f.len, s.len));
 }
 
-bool xtb_str8_eq(XTB_String8 f, XTB_String8 s)
+bool str_eq(String f, String s)
 {
     if (f.len != s.len) return false;
-    return xtb_str8_compare(f, s) == 0;
+    return str_compare(f, s) == 0;
 }
 
-bool xtb_str8_eq_cstring(XTB_String8 f, const char *s)
+bool str_eq_cstring(String f, const char *s)
 {
-    return xtb_str8_eq(f, xtb_str8_cstring(s));
+    return str_eq(f, cstr(s));
 }
 
-XTB_String8 xtb_str8_head(XTB_String8 string, size_t count)
+String str_head(String string, size_t count)
 {
-    return xtb_str8_substr(string, 0, count);
+    return str_substr(string, 0, count);
 }
 
-XTB_String8 xtb_str8_tail(XTB_String8 string, size_t count)
+String str_tail(String string, size_t count)
 {
-    int begin_idx = XTB_ClampBot((int)string.len - (int)count, 0);
-    return xtb_str8_substr(string, begin_idx, count);
+    int begin_idx = ClampBot((int)string.len - (int)count, 0);
+    return str_substr(string, begin_idx, count);
 }
 
-bool xtb_str8_starts_with(XTB_String8 string, XTB_String8 prefix)
+bool str_starts_with(String string, String prefix)
 {
-    return xtb_str8_eq(xtb_str8_head(string, prefix.len), prefix);
+    return str_eq(str_head(string, prefix.len), prefix);
 }
 
-bool xtb_str8_ends_with(XTB_String8 string, XTB_String8 postfix)
+bool str_ends_with(String string, String postfix)
 {
-    return xtb_str8_eq(xtb_str8_tail(string, postfix.len), postfix);
+    return str_eq(str_tail(string, postfix.len), postfix);
 }
 
-XTB_String8 xtb_str8_trunc_left(XTB_String8 string, size_t count)
+String str_trunc_left(String string, size_t count)
 {
-    return xtb_str8_substr(string, count, string.len - count);
+    return str_substr(string, count, string.len - count);
 }
 
-XTB_String8 xtb_str8_trunc_right(XTB_String8 string, size_t count)
+String str_trunc_right(String string, size_t count)
 {
-    return xtb_str8_substr(string, 0, string.len - count);
+    return str_substr(string, 0, string.len - count);
 }
 
-XTB_String8 xtb_str8_trim_left(XTB_String8 string)
+String str_trim_left(String string)
 {
     int i;
     for (i = 0; i < string.len; ++i)
     {
         if (!isspace(string.str[i])) break;
     }
-    return xtb_str8_trunc_left(string, i);
+    return str_trunc_left(string, i);
 }
 
-XTB_String8 xtb_str8_trim_right(XTB_String8 string)
+String str_trim_right(String string)
 {
     int i;
     for (i = string.len - 1; i >= 0; --i)
@@ -118,167 +117,167 @@ XTB_String8 xtb_str8_trim_right(XTB_String8 string)
         if (!isspace(string.str[i])) break;
     }
     int count = (int)string.len - 1 - i;
-    return xtb_str8_trunc_right(string, count);
+    return str_trunc_right(string, count);
 }
 
-XTB_String8 xtb_str8_trim(XTB_String8 string)
+String str_trim(String string)
 {
-    return xtb_str8_trim_left(xtb_str8_trim_right(string));
+    return str_trim_left(str_trim_right(string));
 }
 
-size_t xtb_str8_list_length(XTB_String8_List str_list)
+size_t str_list_length(StringList str_list)
 {
     size_t len = 0;
-    XTB_IterateList(str_list, XTB_String8_List_Node, node) len += 1;
+    IterateList(str_list, StringListNode, node) len += 1;
     return len;
 }
 
-size_t xtb_str8_list_accumulate_length(XTB_String8_List str_list)
+size_t str_list_accumulate_length(StringList str_list)
 {
     size_t len = 0;
-    XTB_IterateList(str_list, XTB_String8_List_Node, node) len += node->string.len;
+    IterateList(str_list, StringListNode, node) len += node->string.len;
     return len;
 }
 
-XTB_String8 xtb_str8_list_join(Allocator* allocator, XTB_String8_List str_list)
+String str_list_join(Allocator* allocator, StringList str_list)
 {
-    return xtb_str8_list_join_str_sep(allocator, str_list, xtb_str8_empty);
+    return str_list_join_str_sep(allocator, str_list, str_empty);
 }
 
-XTB_String8 xtb_str8_list_join_str_sep(Allocator* allocator, XTB_String8_List str_list, XTB_String8 sep)
+String str_list_join_str_sep(Allocator* allocator, StringList str_list, String sep)
 {
     // TODO(xearty): Do these two in one pass
-    size_t non_sep_len = xtb_str8_list_accumulate_length(str_list);
-    size_t count = xtb_str8_list_length(str_list);
+    size_t non_sep_len = str_list_accumulate_length(str_list);
+    size_t count = str_list_length(str_list);
     size_t sep_count = count - 1;
     size_t len = non_sep_len + (sep_count * sep.len);
 
-    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+    char *str_buf = AllocateBytes(allocator, len + 1);
 
     size_t out_idx = 0;
-    XTB_IterateList(str_list, XTB_String8_List_Node, node)
+    IterateList(str_list, StringListNode, node)
     {
-        XTB_MemoryCopy(str_buf + out_idx, node->string.str, node->string.len);
+        MemoryCopy(str_buf + out_idx, node->string.str, node->string.len);
         out_idx += node->string.len;
 
         if (node != str_list.tail)
         {
-            XTB_MemoryCopy(str_buf + out_idx, sep.str, sep.len);
+            MemoryCopy(str_buf + out_idx, sep.str, sep.len);
             out_idx += sep.len;
         }
     }
 
-    return xtb_str8(str_buf, len);
+    return str_from(str_buf, len);
 }
 
-XTB_String8 xtb_str8_list_join_char_sep(Allocator* allocator, XTB_String8_List str_list, char sep)
+String str_list_join_char_sep(Allocator* allocator, StringList str_list, char sep)
 {
-    return xtb_str8_list_join_str_sep(allocator, str_list, xtb_str8(&sep, 1));
+    return str_list_join_str_sep(allocator, str_list, str_from(&sep, 1));
 }
 
-size_t xtb_str8_array_accumulate_length(XTB_String8 *array, size_t count)
+size_t str_array_accumulate_length(String *array, size_t count)
 {
     size_t len = 0;
     for (size_t i = 0; i < count; ++i) len += array[i].len;
     return len;
 }
 
-XTB_String8 xtb_str8_array_join(Allocator* allocator, XTB_String8 *array, size_t count)
+String str_array_join(Allocator* allocator, String *array, size_t count)
 {
-    size_t len = xtb_str8_array_accumulate_length(array, count);
-    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+    size_t len = str_array_accumulate_length(array, count);
+    char *str_buf = AllocateBytes(allocator, len + 1);
 
     size_t out_idx = 0;
     for (size_t i = 0; i < count; ++i)
     {
-        XTB_MemoryCopy(str_buf + out_idx, array[i].str, array[i].len);
+        MemoryCopy(str_buf + out_idx, array[i].str, array[i].len);
         out_idx += array[i].len;
     }
 
-    return xtb_str8(str_buf, len);
+    return str_from(str_buf, len);
 }
 
-XTB_String8
-xtb_str8_array_join_sep(Allocator* allocator,
-                        XTB_String8 *array,
+String
+str_array_join_sep(Allocator* allocator,
+                        String *array,
                         size_t count,
-                        XTB_String8 sep)
+                        String sep)
 {
-    size_t non_sep_len = xtb_str8_array_accumulate_length(array, count);
+    size_t non_sep_len = str_array_accumulate_length(array, count);
     size_t sep_count = count - 1;
     size_t len = non_sep_len + (sep_count * sep.len);
 
-    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+    char *str_buf = AllocateBytes(allocator, len + 1);
 
     size_t out_idx = 0;
     for (size_t i = 0; i < count; ++i)
     {
-        XTB_MemoryCopy(str_buf + out_idx, array[i].str, array[i].len);
+        MemoryCopy(str_buf + out_idx, array[i].str, array[i].len);
         out_idx += array[i].len;
 
         if (i != count - 1)
         {
-            XTB_MemoryCopy(str_buf + out_idx, sep.str, sep.len);
+            MemoryCopy(str_buf + out_idx, sep.str, sep.len);
             out_idx += sep.len;
         }
     }
 
-    return xtb_str8(str_buf, len);
+    return str_from(str_buf, len);
 }
 
-XTB_String8 xtb_str8_substr(XTB_String8 string, size_t begin_idx, size_t len)
+String str_substr(String string, size_t begin_idx, size_t len)
 {
-    size_t begin_idx_clamped = XTB_ClampTop(begin_idx, string.len);
-    size_t end_idx = XTB_ClampTop(begin_idx + len, string.len);
+    size_t begin_idx_clamped = ClampTop(begin_idx, string.len);
+    size_t end_idx = ClampTop(begin_idx + len, string.len);
     size_t actual_len = end_idx - begin_idx_clamped;
-    return xtb_str8(string.str + begin_idx_clamped, actual_len);
+    return str_from(string.str + begin_idx_clamped, actual_len);
 }
 
-XTB_String8 xtb_str8_concat(Allocator* allocator, XTB_String8 f, XTB_String8 s)
+String str_concat(Allocator* allocator, String f, String s)
 {
-    XTB_String8 strings[] = { f, s };
-    return xtb_str8_array_join(allocator, strings, XTB_ArrLen(strings));
+    String strings[] = { f, s };
+    return str_array_join(allocator, strings, ArrLen(strings));
 }
 
-XTB_String8_List_Node* xtb_str8_list_alloc_node(Allocator* allocator, XTB_String8 string)
+StringListNode* str_list_alloc_node(Allocator* allocator, String string)
 {
-    XTB_String8_List_Node *node = XTB_AllocateZero(allocator, XTB_String8_List_Node);
+    StringListNode *node = AllocateZero(allocator, StringListNode);
     node->string = string;
     return node;
 }
 
-void xtb_str8_list_push_explicit(Allocator* allocator, XTB_String8_List *str_list, XTB_String8_List_Node *node)
+void str_list_push_explicit(Allocator* allocator, StringList *str_list, StringListNode *node)
 {
     DLLPushBack(str_list->head, str_list->tail, node);
 }
 
-void xtb_str8_list_push(Allocator* allocator, XTB_String8_List *str_list, XTB_String8 string)
+void str_list_push(Allocator* allocator, StringList *str_list, String string)
 {
-    XTB_String8_List_Node *node = xtb_str8_list_alloc_node(allocator, string);
-    xtb_str8_list_push_explicit(allocator, str_list, node);
+    StringListNode *node = str_list_alloc_node(allocator, string);
+    str_list_push_explicit(allocator, str_list, node);
 }
 
-XTB_String8_List
-xtb_str8_split_pred(Allocator* allocator,
-                         XTB_String8 str,
-                         XTB_String8_Split_Pred_Fn pred,
+StringList
+str_split_pred(Allocator* allocator,
+                         String str,
+                         StringSplitPredFn pred,
                          void *data)
 {
-    XTB_String8_List result = {0};
+    StringList result = {0};
 
     size_t token_begin_idx = 0;
     size_t i = 0;
 
     while (i < str.len)
     {
-        XTB_String8 rest = xtb_str8_trunc_left(str, i);
+        String rest = str_trunc_left(str, i);
         int skip = pred(rest, data);
 
         if (skip > 0) // delimiter hit
         {
             size_t tok_len = i - token_begin_idx;
-            XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
-            xtb_str8_list_push(allocator, &result, token);
+            String token = str_substr(str, token_begin_idx, tok_len);
+            str_list_push(allocator, &result, token);
 
             i += skip;
             token_begin_idx = i;
@@ -292,27 +291,27 @@ xtb_str8_split_pred(Allocator* allocator,
     if (token_begin_idx <= str.len) // just in case the predicate returns nonsense
     {
         size_t tok_len = str.len - token_begin_idx;
-        XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
-        xtb_str8_list_push(allocator, &result, token);
+        String token = str_substr(str, token_begin_idx, tok_len);
+        str_list_push(allocator, &result, token);
     }
 
     return result;
 }
 
-XTB_String8_List
-xtb_str8_split_tokens_pred(Allocator* allocator,
-                                XTB_String8 str,
-                                XTB_String8_Split_Pred_Fn pred,
+StringList
+str_split_tokens_pred(Allocator* allocator,
+                                String str,
+                                StringSplitPredFn pred,
                                 void *data)
 {
-    XTB_String8_List result = {0};
+    StringList result = {0};
 
     size_t token_begin_idx = 0;
     size_t i = 0;
 
     while (i < str.len)
     {
-        XTB_String8 rest = xtb_str8_trunc_left(str, i);
+        String rest = str_trunc_left(str, i);
         int skip = pred(rest, data);
 
         if (skip > 0) // delimiter hit
@@ -320,8 +319,8 @@ xtb_str8_split_tokens_pred(Allocator* allocator,
             size_t tok_len = i - token_begin_idx;
             if (tok_len > 0)
             {
-                XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
-                xtb_str8_list_push(allocator, &result, token);
+                String token = str_substr(str, token_begin_idx, tok_len);
+                str_list_push(allocator, &result, token);
             }
 
             i += skip;
@@ -338,37 +337,37 @@ xtb_str8_split_tokens_pred(Allocator* allocator,
         size_t tok_len = str.len - token_begin_idx;
         if (tok_len > 0)
         {
-            XTB_String8 token = xtb_str8_substr(str, token_begin_idx, tok_len);
-            xtb_str8_list_push(allocator, &result, token);
+            String token = str_substr(str, token_begin_idx, tok_len);
+            str_list_push(allocator, &result, token);
         }
     }
 
     return result;
 }
 
-static int split_by_str_pred(XTB_String8 rest, void *data)
+static int split_by_str_pred(String rest, void *data)
 {
-    XTB_String8 sep = *(XTB_String8 *)data;
-    XTB_String8 rest_substr = xtb_str8_substr(rest, 0, sep.len);
-    return xtb_str8_eq(rest_substr, sep) ? sep.len : 0;
+    String sep = *(String *)data;
+    String rest_substr = str_substr(rest, 0, sep.len);
+    return str_eq(rest_substr, sep) ? sep.len : 0;
 }
 
-XTB_String8_List xtb_str8_split_by_str(Allocator* allocator, XTB_String8 str, XTB_String8 sep)
+StringList str_split_by_str(Allocator* allocator, String str, String sep)
 {
-    return xtb_str8_split_pred(allocator, str, split_by_str_pred, &sep);
+    return str_split_pred(allocator, str, split_by_str_pred, &sep);
 }
 
-static int split_by_char_pred(XTB_String8 rest, void *data)
+static int split_by_char_pred(String rest, void *data)
 {
-    return xtb_str8_front(rest) == *(char *)data ? 1 : 0;
+    return str_front(rest) == *(char *)data ? 1 : 0;
 }
 
-XTB_String8_List xtb_str8_split_by_char(Allocator* allocator, XTB_String8 str, char sep)
+StringList str_split_by_char(Allocator* allocator, String str, char sep)
 {
-    return xtb_str8_split_pred(allocator, str, split_by_char_pred, &sep);
+    return str_split_pred(allocator, str, split_by_char_pred, &sep);
 }
 
-static int split_by_whitespace_pred(XTB_String8 rest, void *data)
+static int split_by_whitespace_pred(String rest, void *data)
 {
     int i = 0;
     for (i = 0; i < rest.len; ++i)
@@ -378,17 +377,17 @@ static int split_by_whitespace_pred(XTB_String8 rest, void *data)
     return i;
 }
 
-XTB_String8_List xtb_str8_split_by_whitespace(Allocator* allocator, XTB_String8 str)
+StringList str_split_by_whitespace(Allocator* allocator, String str)
 {
-    return xtb_str8_split_tokens_pred(allocator, str, split_by_whitespace_pred, NULL);
+    return str_split_tokens_pred(allocator, str, split_by_whitespace_pred, NULL);
 }
 
-XTB_String8_List xtb_str8_split_by_lines(Allocator* allocator, XTB_String8 str)
+StringList str_split_by_lines(Allocator* allocator, String str)
 {
-    return xtb_str8_split_by_char(allocator, str, '\n');
+    return str_split_by_char(allocator, str, '\n');
 }
 
-XTB_String8 xtb_str8_formatv(Allocator* allocator, const char *fmt, va_list args)
+String str_formatv(Allocator* allocator, const char *fmt, va_list args)
 {
     va_list args_copy;
     va_copy(args_copy, args);
@@ -398,25 +397,25 @@ XTB_String8 xtb_str8_formatv(Allocator* allocator, const char *fmt, va_list args
 
     if (len <= 0)
     {
-        return xtb_str8_invalid;
+        return str_invalid;
     }
 
-    char *str_buf = XTB_AllocateBytes(allocator, len + 1);
+    char *str_buf = AllocateBytes(allocator, len + 1);
     if (!str_buf)
     {
-        return xtb_str8_invalid;
+        return str_invalid;
     }
 
     vsnprintf(str_buf, len + 1, fmt, args);
 
-    return xtb_str8(str_buf, len);
+    return str_from(str_buf, len);
 }
 
-XTB_String8 xtb_str8_format(Allocator* allocator, const char *fmt, ...)
+String str_format(Allocator* allocator, const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    XTB_String8 result = xtb_str8_formatv(allocator, fmt, args);
+    String result = str_formatv(allocator, fmt, args);
     va_end(args);
     return result;
 }

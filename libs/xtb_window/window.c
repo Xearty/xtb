@@ -277,7 +277,7 @@ Window *window_create(Allocator *allocator, WindowConfig cfg)
     glfwSetWindowSizeCallback(glfw_window, glfw_window_size_callback);
     glfwSetFramebufferSizeCallback(glfw_window, glfw_framebuffer_size_callback);
 
-    Window *window = XTB_AllocateZero(allocator, Window);
+    Window *window = AllocateZero(allocator, Window);
     glfwSetWindowUserPointer(glfw_window, window);
 
     window->handle = glfw_window;
@@ -305,7 +305,7 @@ Window *window_create_default(Allocator *allocator)
 void window_destroy(Window *window)
 {
     glfwDestroyWindow(window->handle);
-    XTB_Deallocate(window->allocator, window);
+    Deallocate(window->allocator, window);
 }
 
 bool window_should_close(Window *window)

@@ -8,18 +8,18 @@ int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
-    Thread_Context tctx;
+    ThreadContext tctx;
     tctx_init_and_equip(&tctx);
 
-    Arena *permanent_arena = xtb_arena_new(XTB_Kilobytes(4));
+    Arena *permanent_arena = arena_new(Kilobytes(4));
     allocator_set_static(&permanent_arena->allocator);
 
-    XTB_String8 str = xtb_str8_lit("  fani mazakura f ");
+    String str = str("  fani mazakura f ");
 
-    XTB_String8_List list = str8_split_by_whitespace(allocator_get_static(), str);
-    XTB_IterateList(list, XTB_String8_List_Node, node)
+    StringList list = str_split_by_whitespace(allocator_get_static(), str);
+    IterateList(list, StringListNode, node)
     {
-        str8_debug(node->string);
+        str_debug(node->string);
     }
 
     tctx_release();

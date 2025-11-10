@@ -12,7 +12,7 @@ typedef struct PermissionsBuffer
     char buf[10];
 } PermissionsBuffer;
 
-PermissionsBuffer get_permissions_str(String8 filepath)
+PermissionsBuffer get_permissions_str(String filepath)
 {
     PermissionsBuffer perm = {};
     perm.buf[0] = os_file_has_execute_permission(filepath) ? 'x' : '-';
@@ -21,17 +21,17 @@ PermissionsBuffer get_permissions_str(String8 filepath)
     return perm;
 }
 
-const char *ft_to_str(File_Type ft)
+const char *ft_to_str(FileType ft)
 {
     switch (ft)
     {
-        case XTB_FT_REGULAR: return "Regular";
-        case XTB_FT_DIRECTORY: return "Directory";
-        case XTB_FT_SYMLINK: return "Symbolic Link";
-        case XTB_FT_CHAR_DEVICE: return "Character Device";
-        case XTB_FT_BLOCK_DEVICE: return "Block Device";
-        case XTB_FT_FIFO: return "FIFO";
-        case XTB_FT_SOCKET: return "Socket";
+        case FT_REGULAR: return "Regular";
+        case FT_DIRECTORY: return "Directory";
+        case FT_SYMLINK: return "Symbolic Link";
+        case FT_CHAR_DEVICE: return "Character Device";
+        case FT_BLOCK_DEVICE: return "Block Device";
+        case FT_FIFO: return "FIFO";
+        case FT_SOCKET: return "Socket";
         default: return "Unknown";
     }
 }
@@ -40,10 +40,10 @@ int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
-    Thread_Context tctx;
+    ThreadContext tctx;
     tctx_init_and_equip(&tctx);
 
-    Arena *arena = arena_new(XTB_Kilobytes(4));
+    Arena *arena = arena_new(Kilobytes(4));
 
     // XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, xtb_str8_lit("./libs/"));
     //
@@ -56,9 +56,9 @@ int main(int argc, char **argv)
     //
     // xtb_os_free_directory_list(allocator, &list);
     //
-    XTB_String8 filepath = xtb_str8_lit("./apps/os_test/main.c");
-    XTB_String8 file_content = xtb_os_read_entire_file(allocator_get_heap(), filepath);
-    str8_debug(file_content);
+    String filepath = str("./apps/os_test/main.c");
+    String file_content = os_read_entire_file(allocator_get_heap(), filepath);
+    str_debug(file_content);
 
     // XTB_String8_List lines = xtb_str8_split_by_lines(allocator, file_content);
     //
@@ -68,15 +68,15 @@ int main(int argc, char **argv)
     //     xtb_str8_debug(joined);
     // });
 
-    xtb_scratch_scope_no_conflicts(scratch)
+    scratch_scope_no_conflicts(scratch)
     {
-        String8 path = str8_lit("apps ");
-        path = str8_trunc_right(path, 1);
+        String path = str("apps ");
+        path = str_trunc_right(path, 1);
 
-        XTB_Directory_List list = os_list_directory(&scratch.arena->allocator, path);
-        XTB_IterateList(list, XTB_Directory_Listing_Node, node)
+        DirectoryList list = os_list_directory(&scratch.arena->allocator, path);
+        IterateList(list, DirectoryListNode, node)
         {
-            XTB_File_Type ft = os_get_file_type(node->path);
+            FileType ft = os_get_file_type(node->path);
             const char *ft_str = ft_to_str(ft);
             bool is_dir = os_file_is_directory(node->path);
             printf("%s %s %s\n", ft_str, node->path.str, is_dir ? "true" : "false");
@@ -84,9 +84,9 @@ int main(int argc, char **argv)
     }
 
     {
-        String8 path = str8_lit("apps/CMakeLists.txt");
-        String8 real = os_real_path(&arena->allocator, path);
-        str8_debug(real);
+        String path = str("apps/CMakeLists.txt");
+        String real = os_real_path(&arena->allocator, path);
+        str_debug(real);
     }
 
     arena_release(arena);

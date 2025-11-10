@@ -6,39 +6,39 @@
 
 #include <stddef.h>
 
-XTB_C_LINKAGE_BEGIN
+C_LINKAGE_BEGIN
 
-#define XTB_STR8_BUFFER_MIN_CAP 64
+#define STR_BUFFER_MIN_CAP 64
 
-typedef struct XTB_String8_Buffer
+typedef struct StringBuffer
 {
     Allocator* allocator;
     char *data;
     size_t size;
     size_t capacity;
-} XTB_String8_Buffer;
+} StringBuffer;
 
-XTB_String8_Buffer xtb_str8_buffer_new(Allocator* allocator, size_t cap_hint);
-XTB_String8_Buffer xtb_str8_buffer_from(Allocator* allocator, XTB_String8 init);
+StringBuffer str_buffer_new(Allocator* allocator, size_t cap_hint);
+StringBuffer str_buffer_from(Allocator* allocator, String init);
 
-void xtb_str8_buffer_push_back(XTB_String8_Buffer *str_buffer, XTB_String8 string);
-#define xtb_str8_buffer_push_back_lit(str_buffer, lit) \
-    xtb_str8_buffer_push_back((str_buffer), xtb_str8_lit(lit))
-#define xtb_str8_buffer_push_back_cstring(str_buffer, cstring) \
-    xtb_str8_buffer_push_back((str_buffer), xtb_str8_cstring(cstring))
+void str_buffer_push_back(StringBuffer *str_buffer, String string);
+#define str_buffer_push_back_lit(str_buffer, lit) \
+    str_buffer_push_back((str_buffer), str(lit))
+#define str_buffer_push_back_cstring(str_buffer, cstring) \
+    str_buffer_push_back((str_buffer), cstr(cstring))
 
-void xtb_str8_buffer_push_front(XTB_String8_Buffer *str_buffer, XTB_String8 string);
-#define xtb_str8_buffer_push_front_lit(str_buffer, lit) \
-    xtb_str8_buffer_push_front((str_buffer), xtb_str8_lit(lit))
-#define xtb_str8_buffer_push_front_cstring(str_buffer, cstring) \
-    xtb_str8_buffer_push_front((str_buffer), xtb_str8_cstring(cstring))
+void str_buffer_push_front(StringBuffer *str_buffer, String string);
+#define str_buffer_push_front_lit(str_buffer, lit) \
+    str_buffer_push_front((str_buffer), str(lit))
+#define str_buffer_push_front_cstring(str_buffer, cstring) \
+    str_buffer_push_front((str_buffer), cstr(cstring))
 
-XTB_String8 xtb_str8_buffer_view(XTB_String8_Buffer *str_buffer);
-#define xtb_str8_buffer_view_copy(allocator, str_buffer) \
-    xtb_str8_copy((allocator), xtb_str8_buffer_view((str_buffer)))
+String str_buffer_view(StringBuffer *str_buffer);
+#define str_buffer_view_copy(allocator, str_buffer) \
+    str_copy((allocator), str_buffer_view((str_buffer)))
 
-XTB_String8 xtb_str8_buffer_detach(XTB_String8_Buffer *str_buffer);
+String str_buffer_detach(StringBuffer *str_buffer);
 
-XTB_C_LINKAGE_END
+C_LINKAGE_END
 
 #endif // _XTB_STR_BUFFER_H_

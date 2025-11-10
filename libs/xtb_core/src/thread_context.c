@@ -1,39 +1,39 @@
 #include <xtb_core/thread_context.h>
 #include <xtb_core/intrinsics.h>
 
-XTB_C_LINKAGE XTB_THREAD_STATIC XTB_Thread_Context *g_tctx;
+C_LINKAGE XTB_THREAD_STATIC ThreadContext *g_tctx;
 
-void xtb_tctx_init_and_equip(XTB_Thread_Context *tctx)
+void tctx_init_and_equip(ThreadContext *tctx)
 {
-    XTB_MemoryZeroStruct(tctx);
+    MemoryZeroStruct(tctx);
     Arena **arena_ptr = tctx->arenas;
-    for (size_t i = 0; i < XTB_ArrLen(tctx->arenas); i += 1, arena_ptr += 1)
+    for (size_t i = 0; i < ArrLen(tctx->arenas); i += 1, arena_ptr += 1)
     {
-        *arena_ptr = xtb_arena_new(XTB_Kilobytes(64));
+        *arena_ptr = arena_new(Kilobytes(64));
     }
     g_tctx = tctx;
 }
 
-void xtb_tctx_release(void)
+void tctx_release(void)
 {
-    for (size_t i = 0; i < XTB_ArrLen(g_tctx->arenas); i += 1)
+    for (size_t i = 0; i < ArrLen(g_tctx->arenas); i += 1)
     {
-        xtb_arena_release(g_tctx->arenas[i]);
+        arena_release(g_tctx->arenas[i]);
     }
 }
 
-XTB_Thread_Context *xtb_tctx_get_equipped(void)
+ThreadContext *tctx_get_equipped(void)
 {
     return g_tctx;
 }
 
-Arena *xtb_tctx_get_scratch(Arena **conflicts, size_t count)
+Arena *tctx_get_scratch(Arena **conflicts, size_t count)
 {
-    XTB_Thread_Context *tctx = xtb_tctx_get_equipped();
+    ThreadContext *tctx = tctx_get_equipped();
 
     Arena *result = 0;
     Arena **arena_ptr = tctx->arenas;
-    for (size_t i = 0; i < XTB_ArrLen(tctx->arenas); i += 1, arena_ptr += 1)
+    for (size_t i = 0; i < ArrLen(tctx->arenas); i += 1, arena_ptr += 1)
     {
         Arena **conflict_ptr = conflicts;
         bool has_conflict = false;

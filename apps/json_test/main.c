@@ -13,8 +13,8 @@ int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
 
-    Thread_Context tctx;
-    xtb_tctx_init_and_equip(&tctx);
+    ThreadContext tctx;
+    tctx_init_and_equip(&tctx);
 
     if (argc > 2)
     {
@@ -24,24 +24,24 @@ int main(int argc, char **argv)
 
     Allocator* gpa = allocator_get_heap();
 
-    XTB_String8 json_filepath = xtb_str8_lit_copy(gpa, "./apps/json_test/test.json");
+    String json_filepath = str_copy(gpa, str("./apps/json_test/test.json"));
     if (argc == 2)
     {
-        json_filepath = xtb_str8_lit_copy(gpa, argv[1]);
+        json_filepath = cstr_copy(gpa, argv[1]);
     }
 
-    XTB_JSON_Value *toplevel_value = xtb_json_parse_file(json_filepath);
-    Arena *frame_arena = xtb_arena_new(XTB_Megabytes(4));
+    JsonValue *toplevel_value = json_parse_file(json_filepath);
+    Arena *frame_arena = arena_new(Megabytes(4));
 
     char *input_cstring = NULL;
     size_t size = 0;
-    const char *prompt = "\nxtb_json> ";
+    const char *prompt = "\njson> ";
 
     while ((input_cstring = readline(prompt)) != NULL)
     {
-        XTB_String8 input = xtb_str8_cstring(input_cstring);
+        String input = cstr(input_cstring);
 
-        xtb_arena_clear(frame_arena);
+        arena_clear(frame_arena);
 
         if (input.str[0] == '\0')
         {
@@ -53,68 +53,68 @@ int main(int argc, char **argv)
             add_history(input.str);
         }
 
-        if (xtb_str8_starts_with_lit(input, ":p"))
+        if (str_starts_with_lit(input, ":p"))
         {
-            XTB_String8 query = xtb_str8_trunc_left(input, 3);
-            XTB_JSON_Value *value = xtb_json_query(toplevel_value, query.str);
+            String query = str_trunc_left(input, 3);
+            JsonValue *value = json_query(toplevel_value, query.str);
 
             if (value)
             {
-                xtb_json_pretty_print_value(value, 4, stderr);
+                json_pretty_print_value(value, 4, stderr);
                 fprintf(stderr, "\n");
             }
             else
             {
-                xtb_ansi_print_red(stderr, "Could not find node\n");
+                ansi_print_red(stderr, "Could not find node\n");
             }
         }
-        else if (xtb_str8_starts_with_lit(input, ":t "))
+        else if (str_starts_with_lit(input, ":t "))
         {
-            XTB_String8 query = xtb_str8_trunc_left(input, 3);
-            XTB_JSON_Value *value = xtb_json_query(toplevel_value, query.str);
+            String query = str_trunc_left(input, 3);
+            JsonValue *value = json_query(toplevel_value, query.str);
 
             if (value)
             {
-                fprintf(stderr, "%s\n", xtb_json_get_type_string(value));
+                fprintf(stderr, "%s\n", json_get_type_string(value));
             }
             else
             {
-                xtb_ansi_print_red(stderr, "Could not find node\n");
+                ansi_print_red(stderr, "Could not find node\n");
             }
         }
-        else if (xtb_str8_starts_with_lit(input, ":l "))
+        else if (str_starts_with_lit(input, ":l "))
         {
-            XTB_String8 filepath = xtb_str8_trunc_left(input, 3);
-            filepath = str8_trim(filepath);
+            String filepath = str_trunc_left(input, 3);
+            filepath = str_trim(filepath);
 
-            XTB_JSON_Value *value = xtb_json_parse_file(filepath);
+            JsonValue *value = json_parse_file(filepath);
             if (value)
             {
                 toplevel_value = value;
-                xtb_str8_free(gpa, json_filepath);
-                json_filepath = xtb_str8_copy(gpa, filepath);
-                xtb_ansi_print_bright_green(stderr, "Loaded \"%s\"\n", filepath.str);
+                str_free(gpa, json_filepath);
+                json_filepath = str_copy(gpa, filepath);
+                ansi_print_bright_green(stderr, "Loaded \"%s\"\n", filepath.str);
             }
             else
             {
-                xtb_ansi_print_red(stderr, "Could not load \"%.*s\", \"%.*s\" is preserved\n",
+                ansi_print_red(stderr, "Could not load \"%.*s\", \"%.*s\" is preserved\n",
                         filepath.len, filepath.str,
                         json_filepath.len, json_filepath.str);
             }
         }
-        else if (xtb_str8_starts_with_lit(input, ":c"))
+        else if (str_starts_with_lit(input, ":c"))
         {
             const char *cwd = getenv("PWD");
             if (cwd)
             {
-                xtb_ansi_print_bright_green(stderr, "\"%s\"\n", cwd);
+                ansi_print_bright_green(stderr, "\"%s\"\n", cwd);
             }
             else
             {
-                xtb_ansi_print_red(stderr, "Could not read $CWD\n");
+                ansi_print_red(stderr, "Could not read $CWD\n");
             }
         }
-        else if (xtb_str8_starts_with_lit(input, ":h"))
+        else if (str_starts_with_lit(input, ":h"))
         {
             const char *help_message = ""
                 "Interactive commands:\n"
@@ -125,15 +125,15 @@ int main(int argc, char **argv)
                 "    :q                     quit the interactive prompt\n"
                 "\n";
 
-            xtb_ansi_print_bright_yellow(stderr, help_message);
+            ansi_print_bright_yellow(stderr, help_message);
         }
-        else if (xtb_str8_starts_with_lit(input, ":q"))
+        else if (str_starts_with_lit(input, ":q"))
         {
             return 0;
         }
         else
         {
-            xtb_ansi_print_red(stderr, "Invalid command\n");
+            ansi_print_red(stderr, "Invalid command\n");
         }
 
         free(input.str);

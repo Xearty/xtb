@@ -20,7 +20,7 @@ static bool is_power_of_two(int64_t num)
 
 static void* malloc_allocate(int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
 {
-    XTB_ASSERT(new_size >= 0 && old_size >= 0 && align >= 0);
+    ASSERT(new_size >= 0 && old_size >= 0 && align >= 0);
 
     void* new_ptr = NULL;
 
@@ -34,7 +34,7 @@ static void* malloc_allocate(int64_t new_size, void* old_ptr, int64_t old_size, 
     }
     else
     {
-        int64_t min_size = XTB_Min(new_size, old_size);
+        int64_t min_size = Min(new_size, old_size);
         new_ptr = aligned_alloc((size_t)align, (size_t)new_size);
         if (new_ptr != 0)
         {
@@ -48,7 +48,7 @@ static void* malloc_allocate(int64_t new_size, void* old_ptr, int64_t old_size, 
 
 static void* malloc_allocator_procedure(void* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
 {
-    XTB_Unused(alloc);
+    Unused(alloc);
     void* new_ptr = malloc_allocate(new_size, old_ptr, old_size, align);
     return new_ptr;
 }
@@ -91,7 +91,7 @@ Allocator_Set allocator_set_static(Allocator *allocator)
 
 void* allocator_try_reallocate(Allocator* alloc, int64_t new_size, void* old_ptr, int64_t old_size, int64_t align)
 {
-    XTB_ASSERT(alloc != NULL && new_size >= 0 && old_size >= 0 && is_power_of_two(align));
+    ASSERT(alloc != NULL && new_size >= 0 && old_size >= 0 && is_power_of_two(align));
     void* out = (*alloc)(alloc, new_size, old_ptr, old_size, align);
     return out;
 }
