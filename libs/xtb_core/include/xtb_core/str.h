@@ -33,6 +33,9 @@ bool str_is_valid(String string);
 i32 str_find_char(String haystack, char needle);
 i32 str_find_char_last(String haystack, char needle);
 
+String path_strip_extension(String path);
+String path_basename(String path);
+
 char str_front(String string);
 char str_back(String string);
 

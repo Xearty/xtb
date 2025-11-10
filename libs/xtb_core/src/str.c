@@ -62,6 +62,20 @@ i32 str_find_char_last(String haystack, char needle)
     return -1;
 }
 
+String path_strip_extension(String path)
+{
+    i32 dot_pos = str_find_char_last(path, '.');
+    i32 ext_len = path.len - dot_pos;
+    return str_trunc_right(path, ext_len);
+}
+
+String path_basename(String path)
+{
+    i32 begin = str_find_char_last(path, '/') + 1;
+    i32 len = path.len - begin;
+    return str_substr(path, begin, len);
+}
+
 char str_front(String string)
 {
     return string.str[0];
