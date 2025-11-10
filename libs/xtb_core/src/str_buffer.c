@@ -45,6 +45,19 @@ void str_buffer_push_back(StringBuffer *str_buffer, String string)
     str_buffer->size += string.len;
 }
 
+void str_buffer_push_back_char(StringBuffer *str_buffer, u8 byte)
+{
+    AssertOwnsMemory(str_buffer);
+
+    buffer_ensure_capacity(str_buffer, str_buffer->size + 1);
+    str_buffer->data[str_buffer->size++] = '\0';
+}
+
+void str_buffer_null_terminate(StringBuffer *str_buffer)
+{
+    str_buffer_push_back_char(str_buffer, '\0');
+}
+
 void str_buffer_push_front(StringBuffer *str_buffer, String string)
 {
     AssertOwnsMemory(str_buffer);
@@ -67,6 +80,8 @@ String str_buffer_view(StringBuffer *str_buffer)
 String str_buffer_detach(StringBuffer *str_buffer)
 {
     AssertOwnsMemory(str_buffer);
+
+    str_buffer_null_terminate(str_buffer);
 
     String string = str_from(str_buffer->data, str_buffer->size);
     str_buffer->data = NULL;
