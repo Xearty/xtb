@@ -32,6 +32,20 @@ bool os_file_exists(String filepath)
     return access_helper(filepath, F_OK);
 }
 
+bool os_create_directory(String path)
+{
+    TempArena scratch = scratch_begin_no_conflicts();
+    path = str_push_copy(scratch.arena, path);
+
+    i32 state = 0;
+    if (!os_file_exists(path))
+    {
+        state = mkdir((const char *)path.str, 0700);
+    }
+    scratch_end(scratch);
+    return state == 0;
+}
+
 bool os_file_has_read_permission(String filepath)
 {
     return access_helper(filepath, R_OK);

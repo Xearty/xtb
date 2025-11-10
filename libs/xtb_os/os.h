@@ -43,6 +43,7 @@ size_t os_write_file(FileHandle *handle, const u8 *buffer, size_t size);
 size_t os_write_entire_file(String filepath, const u8 *buffer, size_t size);
 
 bool os_file_exists(String filepath);
+bool os_create_directory(String path);
 bool os_delete_file(String filepath);
 bool os_delete_directory(String filepath);
 bool os_move_file(String old_path, String new_path);
