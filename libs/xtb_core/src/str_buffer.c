@@ -50,7 +50,7 @@ void str_buffer_push_back_char(StringBuffer *str_buffer, u8 byte)
     AssertOwnsMemory(str_buffer);
 
     buffer_ensure_capacity(str_buffer, str_buffer->size + 1);
-    str_buffer->data[str_buffer->size++] = '\0';
+    str_buffer->data[str_buffer->size++] = byte;
 }
 
 void str_buffer_null_terminate(StringBuffer *str_buffer)
