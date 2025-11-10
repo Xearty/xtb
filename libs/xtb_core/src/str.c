@@ -42,6 +42,26 @@ bool str_is_valid(String string)
     return !str_is_invalid(string);
 }
 
+i32 str_find_char(String haystack, char needle)
+{
+    for (i32 i = 0; i < haystack.len; ++i)
+    {
+        if (haystack.str[i] == needle) return i;
+    }
+
+    return -1;
+}
+
+i32 str_find_char_last(String haystack, char needle)
+{
+    for (i32 i = haystack.len - 1; i >= 0; --i)
+    {
+        if (haystack.str[i] == needle) return i;
+    }
+
+    return -1;
+}
+
 char str_front(String string)
 {
     return string.str[0];

@@ -30,6 +30,9 @@ void str_free(Allocator* allocator, String str);
 bool str_is_invalid(String string);
 bool str_is_valid(String string);
 
+i32 str_find_char(String haystack, char needle);
+i32 str_find_char_last(String haystack, char needle);
+
 char str_front(String string);
 char str_back(String string);
 
