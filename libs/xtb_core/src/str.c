@@ -214,6 +214,8 @@ String str_array_join(Allocator* allocator, String *array, size_t count)
         out_idx += array[i].len;
     }
 
+    str_buf[len] = 0;
+
     return str_from(str_buf, len);
 }
 
