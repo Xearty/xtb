@@ -6,6 +6,7 @@
 #include <xtb_core/contract.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 static const char *file_mode_to_stdio_mode(FileMode mode)
 {
@@ -27,7 +28,13 @@ FileHandle *os_open_file(String filepath, FileMode mode)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
+
     FileHandle *handle = (FileHandle*)fopen((const char *)filepath.str, file_mode_to_stdio_mode(mode));
+    if (!handle)
+    {
+        printf("Error code opening file: %d\n", errno);
+        printf("Error opening file: %s\n", strerror( errno));
+    }
     scratch_end(scratch);
     return handle;
 }
