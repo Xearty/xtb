@@ -152,6 +152,9 @@ int main(int argc, char **argv)
     }
     puts("-----------------------------------------------------------");
 
+    String escaped = str_escape(&arena->allocator, str("\n\r\v\bdf asdfasdf"));
+    str_debug(escaped);
+
     arena_release(arena);
     tctx_release();
 

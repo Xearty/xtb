@@ -1,5 +1,9 @@
 #include <xtb_core/str.h>
 #include <xtb_core/linked_list.h>
+#include <xtb_core/contract.h>
+
+// TODO(xearty): str_buffer should probably go in str.h
+#include <xtb_core/str_buffer.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -60,6 +64,45 @@ i32 str_find_char_last(String haystack, char needle)
     }
 
     return -1;
+}
+
+String str_escape(Allocator *allocator, String string)
+{
+    char escape_characters[] = { 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v', '\\', '\'', '\"', '?' };
+    char hex_values[] = { 0x07, 0x08, 0x1b, 0x0c, 0x0a, 0x0d, 0x09, 0x0b, 0x5c, 0x27, 0x22, 0x3f };
+    StaticAssert(ArrLen(escape_characters) == ArrLen(hex_values), str_escape_arrays_match);
+
+    StringBuffer buf = str_buffer_new(allocator, string.len + 1);
+
+    for (i32 i = 0; i < string.len; ++i)
+    {
+        char ch = string.str[i];
+
+        bool should_escape = false;
+        u8 escape_ch = '\0';
+
+        for (i32 j = 0; j < ArrLen(hex_values); ++j)
+        {
+            if (ch == hex_values[j])
+            {
+                escape_ch = escape_characters[j];
+                should_escape = true;
+                break;
+            }
+        }
+
+        if (should_escape)
+        {
+            str_buffer_push_back_char(&buf, '\\');
+            str_buffer_push_back_char(&buf, escape_ch);
+        }
+        else
+        {
+            str_buffer_push_back_char(&buf, ch);
+        }
+    }
+
+    return str_buffer_detach(&buf);
 }
 
 String path_strip_extension(String path)
