@@ -69,7 +69,7 @@ String os_read_entire_file(Allocator *allocator, String filepath)
 
     if (bytes_read == file_size)
     {
-        buffer[bytes_read - 1] = '\0';
+        buffer[bytes_read] = '\0';
         return str_from(buffer, file_size);
     }
     else
