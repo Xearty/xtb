@@ -8,15 +8,15 @@
 #ifndef NDEBUG
 #   define ASSERT(cond)                                                           \
         Statement({                                                               \
-            if (XTB_Unlikely(!(cond)))                                                \
+            if (Unlikely(!(cond)))                                                \
             {                                                                         \
-                xtb_panic("Assertion failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
+                panic("Assertion failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
             }                                                                         \
         })
 
 #   define UNREACHABLE                                                      \
         Statement({                                                         \
-            xtb_panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
+            panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
         })
 
 #define CheckBounds(i, count, ...) ASSERT(0 <= (i) && (i) <= count)

@@ -6,13 +6,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef struct XTB_Backtrace
+typedef struct Backtrace
 {
     struct backtrace_state *state;
     bool should_print_next_unknown_frame;
-} XTB_Backtrace;
+} Backtrace;
 
-XTB_Backtrace g_backtrace;
+Backtrace g_backtrace;
 
 void xtb_backtrace_error_callback(void *data, const char *msg, int errnum)
 {
@@ -53,7 +53,7 @@ int xtb_backtrace_full_callback(void *data,
     return 0;
 }
 
-void xtb_print_stack_trace(int skip_frames_count)
+void print_stack_trace(int skip_frames_count)
 {
     if (g_backtrace.state == NULL) return;
 
@@ -67,12 +67,12 @@ void xtb_print_stack_trace(int skip_frames_count)
                    NULL);
 }
 
-void xtb_print_full_stack_trace(void)
+void print_full_stack_trace(void)
 {
-    xtb_print_stack_trace(0);
+    print_stack_trace(0);
 }
 
-void xtb_stacktrace_init(const char *exe_path)
+void stacktrace_init(const char *exe_path)
 {
     g_backtrace.state = backtrace_create_state(exe_path, 0, xtb_backtrace_error_callback, NULL);
 }

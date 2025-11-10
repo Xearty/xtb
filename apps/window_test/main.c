@@ -59,29 +59,29 @@ int main(int argc, char **argv)
             window_fullscreen_toggle(window);
         }
 
-        // if (window_key_is_down(XTB_KEY_SPACE))
+        // if (window_key_is_down(KEY_SPACE))
         // {
         //     puts("Space is down");
         // }
-        // if (window_key_is_up(XTB_KEY_SPACE))
+        // if (window_key_is_up(KEY_SPACE))
         // {
         //     puts("Space is up");
         // }
-        // if (window_key_is_pressed(XTB_KEY_SPACE))
+        // if (window_key_is_pressed(KEY_SPACE))
         // {
         //     puts("Space is pressed");
         // }
-        // if (window_key_is_released(XTB_KEY_SPACE))
+        // if (window_key_is_released(KEY_SPACE))
         // {
         //     puts("Space is released");
         // }
         //
-        // if (window_mouse_button_is_down(XTB_MOUSE_BUTTON_LEFT))
+        // if (window_mouse_button_is_down(MOUSE_BUTTON_LEFT))
         // {
         //     puts("Left mouse button is held down");
         // }
         //
-        // if (window_mouse_button_is_released(XTB_MOUSE_BUTTON_LEFT))
+        // if (window_mouse_button_is_released(MOUSE_BUTTON_LEFT))
         // {
         //     puts("Left mouse button was just released");
         // }

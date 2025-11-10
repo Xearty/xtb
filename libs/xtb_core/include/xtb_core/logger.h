@@ -5,28 +5,28 @@
 
 C_LINKAGE_BEGIN
 
-typedef enum XTB_Log_Level
+typedef enum LogLevel
 {
-    XTB_LOG_TRACE = 0,
-    XTB_LOG_DEBUG,
-    XTB_LOG_INFO,
-    XTB_LOG_WARN,
-    XTB_LOG_ERROR,
-    XTB_LOG_FATAL,
-} XTB_Log_Level;
+    LOG_LEVEL_TRACE = 0,
+    LOG_LEVEL_DEBUG,
+    LOG_LEVEL_INFO,
+    LOG_LEVEL_WARN,
+    LOG_LEVEL_ERROR,
+    LOG_LEVEL_FATAL,
+} LogLevel;
 
-typedef void (*XTB_Log_Callback)(XTB_Log_Level level, const char *message, void *user_data);
+typedef void (*LogCallback)(LogLevel level, const char *message, void *user_data);
 
-void xtb_set_log_callback(XTB_Log_Callback cb, void *user_data);
-void xtb_set_trace_log_level(int log_level);
-void xtb_log(XTB_Log_Level level, const char *fmt, ...);
+void logger_set_callback(LogCallback cb, void *user_data);
+void logger_set_log_level(int log_level);
+void logger_log(LogLevel level, const char *fmt, ...);
 
-#define XTB_LOG_TRACE(fmt, ...) xtb_log(XTB_LOG_TRACE, fmt, ##__VA_ARGS__)
-#define XTB_LOG_DEBUG(fmt, ...) xtb_log(XTB_LOG_DEBUG, fmt, ##__VA_ARGS__)
-#define XTB_LOG_INFO(fmt, ...)  xtb_log(XTB_LOG_INFO,  fmt, ##__VA_ARGS__)
-#define XTB_LOG_WARN(fmt, ...)  xtb_log(XTB_LOG_WARN,  fmt, ##__VA_ARGS__)
-#define XTB_LOG_ERROR(fmt, ...) xtb_log(XTB_LOG_ERROR, fmt, ##__VA_ARGS__)
-#define XTB_LOG_FATAL(fmt, ...) xtb_log(XTB_LOG_FATAL, fmt, ##__VA_ARGS__)
+#define LOG_TRACE(fmt, ...) logger_log(LOG_LEVEL_TRACE, fmt, ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) logger_log(LOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...)  logger_log(LOG_LEVEL_INFO,  fmt, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...)  logger_log(LOG_LEVEL_WARN,  fmt, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) logger_log(LOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
+#define LOG_FATAL(fmt, ...) logger_log(LOG_LEVEL_FATAL, fmt, ##__VA_ARGS__)
 
 C_LINKAGE_END
 

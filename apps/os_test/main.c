@@ -45,27 +45,26 @@ int main(int argc, char **argv)
 
     Arena *arena = arena_new(Kilobytes(4));
 
-    // XTB_Directory_List list = xtb_os_list_directory_recursively(allocator, xtb_str8_lit("./libs/"));
+    // DirectoryList list = os_list_directory_recursively(allocator, str("./libs/"));
     //
-    // for (XTB_Directory_Listing_Node *entry = list.head; entry != NULL; entry = entry->next)
+    // for (DirectoryListNode *entry = list.head; entry != NULL; entry = entry->next)
     // {
     //     printf("[%s] [%s] %s\n", get_permissions_str(entry->path).buf, ft_to_str(entry->type), entry->path.str);
     // }
     //
-    // xtb_os_copy_file(xtb_str8_lit("asd"), xtb_str8_lit("asd2"));
-    //
-    // xtb_os_free_directory_list(allocator, &list);
-    //
+    // os_copy_file(str("asd"), str("asd2"));
+
     String filepath = str("./apps/os_test/main.c");
     String file_content = os_read_entire_file(allocator_get_heap(), filepath);
     str_debug(file_content);
 
-    // XTB_String8_List lines = xtb_str8_split_by_lines(allocator, file_content);
+    // StringList lines = str_split_by_lines(allocator, file_content);
     //
-    // XTB_IterateList(lines, XTB_String8_List_Node, line, {
-    //     XTB_String8_List tokens = xtb_str8_split_by_whitespace(allocator, line->string);
-    //     XTB_String8 joined = xtb_str8_list_join_char_sep(allocator, tokens, '&');
-    //     xtb_str8_debug(joined);
+    // IterateList(lines, StringListNode, line)
+    // {
+    //     StringList tokens = str_split_by_whitespace(allocator, line->string);
+    //     String joined = str_list_join_char_sep(allocator, tokens, '&');
+    //     str_debug(joined);
     // });
 
     scratch_scope_no_conflicts(scratch)

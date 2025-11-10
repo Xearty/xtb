@@ -3,23 +3,23 @@
 
 #include <xtb_core/context_cracking.h>
 
-#define XTB_NOINLINE __attribute__((noinline))
-#define XTB_NORETURN __attribute__((noreturn))
+#define NOINLINE __attribute__((noinline))
+#define NORETURN __attribute__((noreturn))
 
-#if XTB_COMPILER_MSVC
-#define XTB_THREAD_STATIC __declspec(thread)
-#elif XTB_COMPILER_CLANG || XTB_COMPILER_GCC
-#define XTB_THREAD_STATIC __thread
+#if COMPILER_MSVC
+#define THREAD_STATIC __declspec(thread)
+#elif COMPILER_CLANG || COMPILER_GCC
+#define THREAD_STATIC __thread
 #else
-#error XTB_THREAD_STATIC not defined for this compiler.
+#error THREAD_STATIC not defined for this compiler.
 #endif
 
-#ifdef XTB_COMPILER_GCC
-#define XTB_Likely(x)      __builtin_expect(!!(x), 1)
-#define XTB_Unlikely(x)    __builtin_expect(!!(x), 0)
+#ifdef COMPILER_GCC
+#define Likely(x)      __builtin_expect(!!(x), 1)
+#define Unlikely(x)    __builtin_expect(!!(x), 0)
 #else
-#define XTB_Likely(x)      (x)
-#define XTB_Unlikely(x)    (x)
+#define Likely(x)      (x)
+#define Unlikely(x)    (x)
 #endif
 
 #endif // _XTB_INTRINSICS_H_

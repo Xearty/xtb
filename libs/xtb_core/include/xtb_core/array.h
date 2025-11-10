@@ -84,7 +84,7 @@ void generic_array_reserve(Generic_Array gen, isize to_capacity);
 void generic_array_append(Generic_Array gen, const void* data, isize data_count);
 C_LINKAGE_END
 
-#if XTB_LANG_CPP
+#if LANG_CPP
     #define array_make_generic(array_ptr) (Generic_Array{&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
 #else
     #define array_make_generic(array_ptr) ((Generic_Array){&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
@@ -143,19 +143,19 @@ C_LINKAGE_END
 
 //Removes a single item from the end of the array
 #define array_pop(array_ptr) (                                                  \
-        XTB_CheckBounds(0, (array_ptr)->count, "cannot pop from empty array!"), \
+        CheckBounds(0, (array_ptr)->count, "cannot pop from empty array!"), \
         (array_ptr)->data[--(array_ptr)->count]                                 \
     )                                                                           \
 
 //Removes the item at index and puts the last item in its place to fill the hole
 #define array_remove_unordered(array_ptr, index) (                                 \
-        XTB_CheckBounds(0, (array_ptr)->count, "cannot remove from empty array!"), \
+        CheckBounds(0, (array_ptr)->count, "cannot remove from empty array!"), \
         (array_ptr)->data[(index)] = (array_ptr)->data[--(array_ptr)->count]       \
     )                                                                              \
 
 //Returns the value of the last item. The array must not be empty!
 #define array_last(array) (                                                     \
-        XTB_CheckBounds(0, (array).count, "cannot get last from empty array!"), \
+        CheckBounds(0, (array).count, "cannot get last from empty array!"), \
         &(array).data[(array).count - 1]                                        \
     )                                                                           \
 

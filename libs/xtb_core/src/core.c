@@ -2,7 +2,7 @@
 #include <xtb_core/allocator.h>
 #include <xtb_core/stacktrace.h>
 
-#if XTB_OS_LINUX
+#if OS_LINUX
 #include "linux_signal_handlers.c"
 #else
 #define register_signal_handlers(...)
@@ -23,7 +23,7 @@ void xtb_init(int argc, char **argv)
     const char *exe_path = argv[0];
 
     allocators_init();
-    xtb_stacktrace_init(exe_path);
+    stacktrace_init(exe_path);
     register_signal_handlers();
 }
 

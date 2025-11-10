@@ -1,27 +1,27 @@
 #include <xtb_core/logger.h>
 #include <xtb_ansi/ansi.h>
 
-typedef struct XTB_Logger
+typedef struct Logger
 {
-    XTB_Log_Callback cb;
+    LogCallback cb;
     void *user_data;
-    XTB_Log_Level level_filter_threshold;
-} XTB_Logger;
+    LogLevel level_filter_threshold;
+} Logger;
 
-XTB_Logger g_logger;
+Logger g_logger;
 
-void xtb_set_log_callback(XTB_Log_Callback cb, void *user_data)
+void logger_set_callback(LogCallback cb, void *user_data)
 {
     g_logger.cb = cb;
     g_logger.user_data = user_data;
 }
 
-void xtb_set_trace_log_level(int log_level)
+void logger_set_log_level(int log_level)
 {
     g_logger.level_filter_threshold = log_level;
 }
 
-void xtb_log(XTB_Log_Level level, const char *fmt, ...)
+void logger_log(LogLevel level, const char *fmt, ...)
 {
     if (level < g_logger.level_filter_threshold) return;
 

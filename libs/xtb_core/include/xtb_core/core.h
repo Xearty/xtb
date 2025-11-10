@@ -1,7 +1,6 @@
 #ifndef _XTB_CORE_H_
 #define _XTB_CORE_H_
 
-#include <xtb_core/shorthands.h>
 #include <xtb_core/context_cracking.h>
 #include <xtb_core/macro_helpers.h>
 

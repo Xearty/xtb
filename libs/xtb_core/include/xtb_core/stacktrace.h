@@ -5,10 +5,10 @@
 
 C_LINKAGE_BEGIN
 
-void xtb_print_stack_trace(int skip_frames_count);
-void xtb_print_full_stack_trace(void);
+void print_stack_trace(int skip_frames_count);
+void print_full_stack_trace(void);
 
-void xtb_stacktrace_init(const char *exe_path);
+void stacktrace_init(const char *exe_path);
 
 C_LINKAGE_END
 

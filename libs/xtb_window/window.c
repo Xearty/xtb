@@ -14,7 +14,7 @@ typedef struct WindowCallbacks
 
     WindowSizeCallback window_size_callback;
     FramebufferSizeCallback framebuffer_size_callback;
-} XTB_WindowCallbacks;
+} WindowCallbacks;
 
 /****************************************************************
  * Per Window State
@@ -24,7 +24,7 @@ struct Window
     GLFWwindow *handle;
     Allocator *allocator;
 
-    XTB_WindowCallbacks callbacks;
+    WindowCallbacks callbacks;
     void *user_pointer;
 
     KeyState keyboard_state[KEY_LAST + 1];

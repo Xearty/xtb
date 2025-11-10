@@ -5,21 +5,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct XTB_Panic
+typedef struct Panic
 {
-    XTB_Panic_Handler handler;
+    PanicHandler handler;
     void *user_data;
-} XTB_Panic;
+} Panic;
 
-XTB_Panic g_panic;
+Panic g_panic;
 
-void xtb_set_panic_handler(XTB_Panic_Handler handler, void *user_data)
+void panic_handler_set_handler(PanicHandler handler, void *user_data)
 {
     g_panic.handler = handler;
     g_panic.user_data = user_data;
 }
 
-void xtb_panic(const char *fmt, ...)
+void panic(const char *fmt, ...)
 {
     char buffer[1024];
 
@@ -28,7 +28,7 @@ void xtb_panic(const char *fmt, ...)
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
 
-    xtb_log(XTB_LOG_FATAL, "%s", buffer);
+    LOG_FATAL("%s", buffer);
 
     if (g_panic.handler)
     {

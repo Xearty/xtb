@@ -1,5 +1,3 @@
-#undef XTB_SHORTHANDS
-
 #include <xtb_core/core.hpp>
 #include <xtb_core/arena.h>
 #include <xtb_core/allocator.h>

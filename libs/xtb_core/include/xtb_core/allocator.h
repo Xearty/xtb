@@ -38,17 +38,6 @@ void allocators_init();
 #define AllocateBytesZero(alloc, new_count)      AllocateArrayZero(alloc, new_count, char)
 #define AllocateZero(alloc, T)                   AllocateArrayZero(alloc, 1, T)
 
-#ifdef ALLOCATOR_SHORTHANDS
-
-#define AllocateArray AllocateArray
-#define AllocateBytes AllocateBytes
-#define Allocate Allocate
-#define Deallocate Deallocate
-#define AllocateArrayZero AllocateArrayZero
-#define AllocateBytesZero AllocateBytesZero
-#define AllocateZero AllocateZero
-#endif
-
 C_LINKAGE_END
 
 #endif // XTB_CORE_ALLOCATOR_INTERFACE_H

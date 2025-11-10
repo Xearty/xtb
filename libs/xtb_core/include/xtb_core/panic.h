@@ -5,10 +5,10 @@
 
 C_LINKAGE_BEGIN
 
-typedef void (*XTB_Panic_Handler)(const char *message, void *user_data);
+typedef void (*PanicHandler)(const char *message, void *user_data);
 
-void xtb_set_panic_handler(XTB_Panic_Handler handler, void *user_data);
-XTB_NORETURN void xtb_panic(const char *fmt, ...);
+void panic_set_handler(PanicHandler handler, void *user_data);
+NORETURN void panic(const char *fmt, ...);
 
 C_LINKAGE_END
 

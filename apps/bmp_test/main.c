@@ -66,18 +66,18 @@ setup_window_for_bmp(BMP_Bitmap *bitmap, const char *path)
     String content = os_read_entire_file(allocator_get_heap(), cstr(path));
 
     #ifdef USE_DIB
-    XTB_BMP_DIB dib = xtb_bmp_dib_load_galloc(result.content);
-    xtb_bmp_dib_write(&dib, "test_write.bmp");
-    *bitmap = xtb_bmp_bitmap_create_from_dib_galloc(&dib);
+    BMP_DIB dib = bmp_dib_load_galloc(result.content);
+    bmp_dib_write(&dib, "test_write.bmp");
+    *bitmap = bmp_bitmap_create_from_dib_galloc(&dib);
     #else
     *bitmap = bmp_bitmap_load_galloc((u8*)content.str);
     #endif
 
     str_free(bmp_get_global_allocator(), content);
     #else
-    XTB_BMP_IO_Stream stream = libc_file_read_binary_stream_open(path);
-    /* XTB_BMP_IO_Stream stream = libc_file_read_text_stream_open(path); */
-    *bitmap = xtb_bmp_bitmap_load_from_stream(stream, xtb_malloc_allocator());
+    BMP_IO_Stream stream = libc_file_read_binary_stream_open(path);
+    /* BMP_IO_Stream stream = libc_file_read_text_stream_open(path); */
+    *bitmap = bmp_bitmap_load_from_stream(stream, malloc_allocator());
     libc_file_read_stream_close(stream);
     #endif
 
@@ -171,7 +171,7 @@ bmp_single_file_viewer_app(int argc, char **argv, const char *filepath)
     RectangleSelections selections = {};
 
     // Broken
-    /* XTB_BMP_Bitmap bm = {}; */
+    /* BMP_Bitmap bm = {}; */
     /* InitWindow(bm.width, bm.height, "BMP Loader"); */
     /* setup_bmp_for_drawing_into_window(&bm, filepath); */
 
