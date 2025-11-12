@@ -158,6 +158,7 @@ static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
 static inline f32 smootherstep(f32 e0, f32 e1, f32 x);
 static inline f32 step(f32 edge, f32 x);
 static inline f32 inverse_smoothstep(f32 x);
+static inline f32 repeat(f32 x, f32 max); // max must be > 0
 
 // Implementation
 
@@ -511,6 +512,11 @@ static inline f32 step(f32 edge, f32 x)
 static inline f32 inverse_smoothstep(f32 x)
 {
     return 0.5f - sinf(asinf(1.0f - 2.0f * x) / 3.0f);
+}
+
+static inline f32 repeat(f32 x, f32 max)
+{
+    return x - floorf(x / max) * max;
 }
 
 #endif // _XTBM_H_
