@@ -151,6 +151,14 @@ static inline vec2 clamp2(vec2 value, vec2 min_value, vec2 max_value);
 static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value);
 static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value);
 
+static inline f32 clamp01(f32 value);
+static inline f32 ilerp(f32 a, f32 b, f32 v);
+
+static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
+static inline f32 smootherstep(f32 e0, f32 e1, f32 x);
+static inline f32 step(f32 edge, f32 x);
+static inline f32 inverse_smoothstep(f32 x);
+
 // Implementation
 
 static inline vec2 v2(f32 x, f32 y)
@@ -471,6 +479,38 @@ static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value)
 static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value)
 {
     return max4(min_value, min4(value, max_value));
+}
+
+static inline f32 clamp01(f32 value)
+{
+    return clamp(value, 0.0f, 1.0f);
+}
+
+static inline f32 ilerp(f32 a, f32 b, f32 v)
+{
+    return (v - a) / (b - a);
+}
+
+static inline f32 smoothstep(f32 e0, f32 e1, f32 x)
+{
+    f32 t = clamp01(ilerp(e0, e1, x));;
+    return t * t * (3.0f - 2.0f * t);
+}
+
+static inline f32 smootherstep(f32 e0, f32 e1, f32 x)
+{
+    f32 t = clamp01(ilerp(e0, e1, x));
+    return t * t * t * (t * (6.0f * t - 15.0f) + 10.0f);
+}
+
+static inline f32 step(f32 edge, f32 x)
+{
+    return x < edge ? 0.f : 1.f;
+}
+
+static inline f32 inverse_smoothstep(f32 x)
+{
+    return 0.5f - sinf(asinf(1.0f - 2.0f * x) / 3.0f);
 }
 
 #endif // _XTBM_H_
