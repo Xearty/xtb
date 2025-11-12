@@ -4,6 +4,8 @@
 #include <math.h>
 
 #define PI 3.14159265359f
+#define E 2.71828f
+#define GOLDEN_RATIO 1.61803398875f
 
 typedef float f32;
 
