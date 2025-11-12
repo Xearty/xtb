@@ -120,13 +120,19 @@ static inline vec3 norm3(vec3 a);
 static inline vec4 norm4(vec4 a);
 
 // Distance
-static inline float distsq2(vec2 a, vec2 b);
-static inline float distsq3(vec3 a, vec3 b);
-static inline float distsq4(vec4 a, vec4 b);
+static inline f32 distsq2(vec2 a, vec2 b);
+static inline f32 distsq3(vec3 a, vec3 b);
+static inline f32 distsq4(vec4 a, vec4 b);
 
-static inline float dist2(vec2 a, vec2 b);
-static inline float dist3(vec3 a, vec3 b);
-static inline float dist4(vec4 a, vec4 b);
+static inline f32 dist2(vec2 a, vec2 b);
+static inline f32 dist3(vec3 a, vec3 b);
+static inline f32 dist4(vec4 a, vec4 b);
+
+// Linear interpolation
+static inline f32 lerp(f32 a, f32 b, f32 t);
+static inline vec2 lerp2(vec2 a, vec2 b, f32 t);
+static inline vec3 lerp3(vec3 a, vec3 b, f32 t);
+static inline vec4 lerp4(vec4 a, vec4 b, f32 t);
 
 // Min/Max
 static inline f32 min(f32 a, f32 b);
@@ -347,34 +353,54 @@ static inline vec4 norm4(vec4 a)
     return mul4s(a, 1.0f / len4(a));
 }
 
-static inline float distsq2(vec2 a, vec2 b)
+static inline f32 distsq2(vec2 a, vec2 b)
 {
     return lensq2(sub2(a, b));
 }
 
-static inline float distsq3(vec3 a, vec3 b)
+static inline f32 distsq3(vec3 a, vec3 b)
 {
     return lensq3(sub3(a, b));
 }
 
-static inline float distsq4(vec4 a, vec4 b)
+static inline f32 distsq4(vec4 a, vec4 b)
 {
     return lensq4(sub4(a, b));
 }
 
-static inline float dist2(vec2 a, vec2 b)
+static inline f32 dist2(vec2 a, vec2 b)
 {
     return sqrtf(distsq2(a, b));
 }
 
-static inline float dist3(vec3 a, vec3 b)
+static inline f32 dist3(vec3 a, vec3 b)
 {
     return sqrtf(distsq3(a, b));
 }
 
-static inline float dist4(vec4 a, vec4 b)
+static inline f32 dist4(vec4 a, vec4 b)
 {
     return sqrtf(distsq4(a, b));
+}
+
+static inline f32 lerp(f32 a, f32 b, f32 t)
+{
+    return a + (b - a) * t;
+}
+
+static inline vec2 lerp2(vec2 a, vec2 b, f32 t)
+{
+    return v2(lerp(a.x, b.x, t), lerp(a.y, b.y, t));
+}
+
+static inline vec3 lerp3(vec3 a, vec3 b, f32 t)
+{
+    return v3(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t));
+}
+
+static inline vec4 lerp4(vec4 a, vec4 b, f32 t)
+{
+    return v4(lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), lerp(a.w, b.w, t));
 }
 
 static inline f32 min(f32 a, f32 b)
