@@ -3,6 +3,8 @@
 
 #include <math.h>
 
+#define PI 3.14159265359f
+
 typedef float f32;
 
 typedef union vec2
@@ -161,6 +163,8 @@ static inline f32 inverse_smoothstep(f32 x);
 static inline f32 repeat(f32 x, f32 max); // max must be > 0
 static inline f32 pingpong(f32 x, f32 l); // creates a triangle wave that goes 0 → l → 0 → l … with period 2l
 static inline f32 sign(f32 x); // returns 0 for 0
+static inline float deg2rad(f32 d);
+static inline float rad2deg(f32 r);
 
 // Implementation
 
@@ -530,6 +534,16 @@ static inline f32 pingpong(f32 x, f32 l)
 static inline f32 sign(f32 x)
 {
     return (x > 0) - (x < 0);
+}
+
+static inline float deg2rad(f32 d)
+{
+    return d * (PI / 180.0f);
+}
+
+static inline float rad2deg(f32 r)
+{
+    return r * (180.0f / PI);
 }
 
 #endif // _XTBM_H_
