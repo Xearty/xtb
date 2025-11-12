@@ -55,7 +55,7 @@ typedef union mat4
         float m20, m21, m22, m23;
         float m30, m31, m32, m33;
     };
-    vec3 col[4];
+    vec4 col[4];
     float scalar[4][4];
 } mat4;
 
