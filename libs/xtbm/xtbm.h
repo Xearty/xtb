@@ -119,6 +119,12 @@ static inline vec2 norm2(vec2 a);
 static inline vec3 norm3(vec3 a);
 static inline vec4 norm4(vec4 a);
 
+// Clamping
+static inline f32 clamp(f32 value, f32 min_value, f32 max_value);
+static inline vec2 clamp2(vec2 value, vec2 min_value, vec2 max_value);
+static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value);
+static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value);
+
 // Implementation
 
 static inline vec2 v2(f32 x, f32 y)
@@ -321,5 +327,30 @@ static inline vec4 norm4(vec4 a)
     return mul4s(a, 1.0f / len4(a));
 }
 
+static inline f32 clamp(f32 value, f32 min_value, f32 max_value)
+{
+    return value < min_value ? min_value : (value > max_value ? max_value : value);
+}
+
+static inline vec2 clamp2(vec2 value, vec2 min_value, vec2 max_value)
+{
+    return v2(clamp(value.x, min_value.x, max_value.x),
+              clamp(value.y, min_value.y, max_value.y));
+}
+
+static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value)
+{
+    return v3(clamp(value.x, min_value.x, max_value.x),
+              clamp(value.y, min_value.y, max_value.y),
+              clamp(value.z, min_value.z, max_value.z));
+}
+
+static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value)
+{
+    return v4(clamp(value.x, min_value.x, max_value.x),
+              clamp(value.y, min_value.y, max_value.y),
+              clamp(value.z, min_value.z, max_value.z),
+              clamp(value.w, min_value.w, max_value.w));
+}
 
 #endif // _XTBM_H_
