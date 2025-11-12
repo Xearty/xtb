@@ -91,6 +91,10 @@ static inline vec2 sub2(vec2 a, vec2 b);
 static inline vec3 sub3(vec3 a, vec3 b);
 static inline vec4 sub4(vec4 a, vec4 b);
 
+static inline vec2 mul2s(vec2 a, float s);
+static inline vec3 mul3s(vec3 a, float s);
+static inline vec4 mul4s(vec4 a, float s);
+
 // Implementation
 
 static inline vec2 v2(f32 x, f32 y)
@@ -213,5 +217,19 @@ static inline vec4 sub4(vec4 a, vec4 b)
     return v4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
 }
 
+static inline vec2 mul2s(vec2 a, float s)
+{
+    return v2(a.x * s, a.y * s);
+}
+
+static inline vec3 mul3s(vec3 a, float s)
+{
+    return v3(a.x * s, a.y * s, a.z * s);
+}
+
+static inline vec4 mul4s(vec4 a, float s)
+{
+    return v4(a.x * s, a.y * s, a.z * s, a.w * s);
+}
 
 #endif // _XTBM_H_
