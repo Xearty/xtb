@@ -82,6 +82,15 @@ static inline mat2 Z2(void);
 static inline mat3 Z3(void);
 static inline mat4 Z4(void);
 
+// Vector arithmetic
+static inline vec2 add2(vec2 a, vec2 b);
+static inline vec3 add3(vec3 a, vec3 b);
+static inline vec4 add4(vec4 a, vec4 b);
+
+static inline vec2 sub2(vec2 a, vec2 b);
+static inline vec3 sub3(vec3 a, vec3 b);
+static inline vec4 sub4(vec4 a, vec4 b);
+
 // Implementation
 
 static inline vec2 v2(f32 x, f32 y)
@@ -173,5 +182,36 @@ static inline mat4 Z4(void)
     mat4 result = {0};
     return result;
 }
+
+static inline vec2 add2(vec2 a, vec2 b)
+{
+    return v2(a.x + b.x, a.y + b.y);
+}
+
+static inline vec3 add3(vec3 a, vec3 b)
+{
+    return v3(a.x + b.x, a.y + b.y, a.z + b.z);
+}
+
+static inline vec4 add4(vec4 a, vec4 b)
+{
+    return v4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+}
+
+static inline vec2 sub2(vec2 a, vec2 b)
+{
+    return v2(a.x - b.x, a.y - b.y);
+}
+
+static inline vec3 sub3(vec3 a, vec3 b)
+{
+    return v3(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+static inline vec4 sub4(vec4 a, vec4 b)
+{
+    return v4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
+}
+
 
 #endif // _XTBM_H_
