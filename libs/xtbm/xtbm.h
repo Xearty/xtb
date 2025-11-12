@@ -72,6 +72,11 @@ static inline mat2 M2(vec2 c0, vec2 c1);
 static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2);
 static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3);
 
+// Identity matrix constructor functions
+static inline mat2 I2(void);
+static inline mat3 I3(void);
+static inline mat4 I4(void);
+
 // Implementation
 
 static inline vec2 v2(f32 x, f32 y)
@@ -127,5 +132,24 @@ static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3)
     m.col[3] = c3;
     return m;
 }
+
+static inline mat2 I2(void)
+{
+    return M2(v2(1.0f, 0.0f), v2(0.0f, 1.0f));
+}
+
+static inline mat3 I3(void)
+{
+    return M3(v3(1.0f, 0.0f, 0.0f), v3(0.0f, 1.0f, 0.0f), v3(0.0f, 0.0f, 1.0f));
+}
+
+static inline mat4 I4(void)
+{
+    return M4(v4(1.0f, 0.0f, 0.0f, 0.0f),
+              v4(0.0f, 1.0f, 0.0f, 0.0f),
+              v4(0.0f, 0.0f, 1.0f, 0.0f),
+              v4(0.0f, 0.0f, 0.0f, 1.0f));
+}
+
 
 #endif // _XTBM_H_
