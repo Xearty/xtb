@@ -160,6 +160,7 @@ static inline f32 step(f32 edge, f32 x);
 static inline f32 inverse_smoothstep(f32 x);
 static inline f32 repeat(f32 x, f32 max); // max must be > 0
 static inline f32 pingpong(f32 x, f32 l); // creates a triangle wave that goes 0 → l → 0 → l … with period 2l
+static inline f32 sign(f32 x); // returns 0 for 0
 
 // Implementation
 
@@ -524,6 +525,11 @@ static inline f32 pingpong(f32 x, f32 l)
 {
     float t = repeat(x, 2.0f * l);
     return l - fabsf(t - l);
+}
+
+static inline f32 sign(f32 x)
+{
+    return (x > 0) - (x < 0);
 }
 
 #endif // _XTBM_H_
