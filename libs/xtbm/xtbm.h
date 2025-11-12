@@ -119,6 +119,15 @@ static inline vec2 norm2(vec2 a);
 static inline vec3 norm3(vec3 a);
 static inline vec4 norm4(vec4 a);
 
+// Distance
+static inline float distsq2(vec2 a, vec2 b);
+static inline float distsq3(vec3 a, vec3 b);
+static inline float distsq4(vec4 a, vec4 b);
+
+static inline float dist2(vec2 a, vec2 b);
+static inline float dist3(vec3 a, vec3 b);
+static inline float dist4(vec4 a, vec4 b);
+
 // Min/Max
 static inline f32 min(f32 a, f32 b);
 static inline vec2 min2(vec2 a, vec2 b);
@@ -336,6 +345,36 @@ static inline vec3 norm3(vec3 a)
 static inline vec4 norm4(vec4 a)
 {
     return mul4s(a, 1.0f / len4(a));
+}
+
+static inline float distsq2(vec2 a, vec2 b)
+{
+    return lensq2(sub2(a, b));
+}
+
+static inline float distsq3(vec3 a, vec3 b)
+{
+    return lensq3(sub3(a, b));
+}
+
+static inline float distsq4(vec4 a, vec4 b)
+{
+    return lensq4(sub4(a, b));
+}
+
+static inline float dist2(vec2 a, vec2 b)
+{
+    return sqrtf(distsq2(a, b));
+}
+
+static inline float dist3(vec3 a, vec3 b)
+{
+    return sqrtf(distsq3(a, b));
+}
+
+static inline float dist4(vec4 a, vec4 b)
+{
+    return sqrtf(distsq4(a, b));
 }
 
 static inline f32 min(f32 a, f32 b)
