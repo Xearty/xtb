@@ -77,6 +77,11 @@ static inline mat2 I2(void);
 static inline mat3 I3(void);
 static inline mat4 I4(void);
 
+// Zero matrix constructors
+static inline mat2 Z2(void);
+static inline mat3 Z3(void);
+static inline mat4 Z4(void);
+
 // Implementation
 
 static inline vec2 v2(f32 x, f32 y)
@@ -151,5 +156,22 @@ static inline mat4 I4(void)
               v4(0.0f, 0.0f, 0.0f, 1.0f));
 }
 
+static inline mat2 Z2(void)
+{
+    mat2 result = {0};
+    return result;
+}
+
+static inline mat3 Z3(void)
+{
+    mat3 result = {0};
+    return result;
+}
+
+static inline mat4 Z4(void)
+{
+    mat4 result = {0};
+    return result;
+}
 
 #endif // _XTBM_H_
