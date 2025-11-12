@@ -99,6 +99,8 @@ static inline f32 dot2(vec2 a, vec2 b);
 static inline f32 dot3(vec3 a, vec3 b);
 static inline f32 dot4(vec4 a, vec4 b);
 
+static inline vec3 cross(vec3 a, vec3 b);
+
 // Implementation
 
 static inline vec2 v2(f32 x, f32 y)
@@ -250,5 +252,11 @@ static inline f32 dot4(vec4 a, vec4 b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
+
+static inline vec3 cross(vec3 a, vec3 b)
+{
+    return v3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
 
 #endif // _XTBM_H_
