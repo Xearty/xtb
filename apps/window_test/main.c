@@ -3,6 +3,9 @@
 #include <xtb_core/thread_context.h>
 #include <xtb_ogl/ogl.h>
 #include <xtb_core/str.h>
+#include <xtbm/xtbm.h>
+#include <xtb_renderer/renderer.h>
+#include <xtb_bmp/bmp.h>
 
 static void key_callback(Window *window, i32 key, i32 scancode, i32 action, i32 mods)
 {
@@ -43,6 +46,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    glViewport(0, 0, cfg.width, cfg.height);
+
+    Renderer renderer = {};
+    renderer_init(&renderer);
+
     while (!window_should_close(window))
     {
         window_poll_events(window);
@@ -55,57 +63,13 @@ int main(int argc, char **argv)
 
         if (key_is_pressed(window, KEY_F))
         {
-            // window_go_windowed(window);
             window_fullscreen_toggle(window);
         }
 
-        // if (window_key_is_down(KEY_SPACE))
-        // {
-        //     puts("Space is down");
-        // }
-        // if (window_key_is_up(KEY_SPACE))
-        // {
-        //     puts("Space is up");
-        // }
-        // if (window_key_is_pressed(KEY_SPACE))
-        // {
-        //     puts("Space is pressed");
-        // }
-        // if (window_key_is_released(KEY_SPACE))
-        // {
-        //     puts("Space is released");
-        // }
-        //
-        // if (window_mouse_button_is_down(MOUSE_BUTTON_LEFT))
-        // {
-        //     puts("Left mouse button is held down");
-        // }
-        //
-        // if (window_mouse_button_is_released(MOUSE_BUTTON_LEFT))
-        // {
-        //     puts("Left mouse button was just released");
-        // }
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-        if (cursor_entered(window))
-        {
-            puts("Cursor is inside window");
-        }
-
-        if (cursor_left(window))
-        {
-            puts("Cursor is outside window");
-        }
-
-        f32 delta_x, delta_y;
-        cursor_delta_get(window, &delta_x, &delta_y);
-
-        f32 x, y;
-        cursor_pos_get(window, &x, &y);
-
-        f32 prev_x, prev_y;
-        cursor_pos_prev_get(window, &prev_x, &prev_y);
-
-        // printf("Delta = (%f, %f) = (%f - %f, %f - %f)\n", delta_x, delta_y, x, prev_x, y, prev_y);
+        render_quad(&renderer);
 
         window_swap_buffers(window);
     }

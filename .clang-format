@@ -3,5 +3,6 @@ IndentWidth: 4
 BreakBeforeBraces: Allman
 AllowShortIfStatementsOnASingleLine: false
 IndentCaseLabels: false
-ColumnLimit: 0
+ColumnLimit: 100
 SortIncludes: false
+IndentExternBlock: NoIndent

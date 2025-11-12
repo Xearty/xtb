@@ -1,3 +1,13 @@
+const char *test_vertex_source = ""
+   "#version 330 core\n"
+   "\n"
+   "layout(location=0) in vec3 aPos;\n"
+   "\n"
+   "void main()\n"
+   "{\n"
+   "    gl_Position = vec4(aPos, 1.0);\n"
+   "}\n";
+
 const char *ortho_vertex_source = ""
    "#version 330 core\n"
    "layout (location = 0) in vec2 aPos;\n"
@@ -247,6 +257,16 @@ const char *texture_fragment_source = ""
    "    vec3 shadedColor = (ambient + diffuse) * objColor;\n"
    "\n"
    "    FragColor = vec4(shadedColor, 1.0);\n"
+   "}\n";
+
+const char *test_fragment_source = ""
+   "#version 330 core\n"
+   "\n"
+   "out vec4 FragColor;\n"
+   "\n"
+   "void main()\n"
+   "{\n"
+   "    FragColor = vec4(vec3(1.0, 0.0, 0.0), 1.0);\n"
    "}\n";
 
 const char *mvp_vertex_source = ""

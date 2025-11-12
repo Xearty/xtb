@@ -41,17 +41,23 @@ void log_shader_program_link_errors(const char *ns, unsigned int id)
     }
 }
 
+Shader load_shader_from_memory(const char *ns, const char *src, int shader_type)
+{
+    Shader id = glCreateShader(shader_type);
+    glShaderSource(id, 1, (const char * const *)&src, NULL);
+    glCompileShader(id);
+    log_shader_compile_errors(ns, id);
+
+    return id;
+}
+
 Shader load_shader_from_file(const char *ns, String filepath, int shader_type)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     String shader_content = os_read_entire_file(&scratch.arena->allocator, filepath);
     Assert(str_is_valid(shader_content));
 
-    Shader id = glCreateShader(shader_type);
-    glShaderSource(id, 1, (const char * const *)&shader_content.str, NULL);
-    glCompileShader(id);
-    log_shader_compile_errors(ns, id);
-
+    Shader id = load_shader_from_memory(ns, (char *)shader_content.str, shader_type);
     scratch_end(scratch);
 
     return id;
@@ -80,13 +86,29 @@ ShaderProgram create_shader_program_from_descriptors(const char *ns, Shader vs_i
 
 ShaderProgram load_shader_program_from_files(const char *ns, String vertex_filepath, String fragment_filepath)
 {
+    TempArena scratch = scratch_begin_no_conflicts();
+
+    String vertex_src = os_read_entire_file(&scratch.arena->allocator, vertex_filepath);
+    Assert(str_is_valid(vertex_src));
+
+    String fragment_src = os_read_entire_file(&scratch.arena->allocator, fragment_filepath);
+    Assert(str_is_valid(fragment_src));
+
+    ShaderProgram program = load_shader_program_from_memory(ns, (char*)vertex_src.str, (char*)fragment_src.str);
+
+    scratch_end(scratch);
+    return program;
+}
+
+ShaderProgram load_shader_program_from_memory(const char *ns, const char *vertex_src, const char *fragment_src)
+{
     char shader_ns[512];
 
     snprintf(shader_ns, 512, "%s_vertex_shader", ns);
-    Shader vertex_shader = load_vertex_shader_from_file(shader_ns, vertex_filepath);
+    Shader vertex_shader = load_shader_from_memory(shader_ns, vertex_src, GL_VERTEX_SHADER);
 
     snprintf(shader_ns, 512, "%s_fragment_shader", ns);
-    Shader fragment_shader = load_fragment_shader_from_file(shader_ns, fragment_filepath);
+    Shader fragment_shader = load_shader_from_memory(shader_ns, fragment_src, GL_FRAGMENT_SHADER);
 
     ShaderProgram id = create_shader_program_from_descriptors(ns, vertex_shader, fragment_shader);
 
@@ -95,4 +117,3 @@ ShaderProgram load_shader_program_from_files(const char *ns, String vertex_filep
 
     return id;
 }
-
