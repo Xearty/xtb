@@ -1,6 +1,8 @@
 #ifndef _XTBM_H_
 #define _XTBM_H_
 
+#include <math.h>
+
 typedef float f32;
 
 typedef union vec2
@@ -95,11 +97,27 @@ static inline vec2 mul2s(vec2 a, f32 s);
 static inline vec3 mul3s(vec3 a, f32 s);
 static inline vec4 mul4s(vec4 a, f32 s);
 
+// Vector products
 static inline f32 dot2(vec2 a, vec2 b);
 static inline f32 dot3(vec3 a, vec3 b);
 static inline f32 dot4(vec4 a, vec4 b);
 
 static inline vec3 cross(vec3 a, vec3 b);
+
+// Vector length squared
+static inline f32 lensq2(vec2 a);
+static inline f32 lensq3(vec3 a);
+static inline f32 lensq4(vec4 a);
+
+// Vector length
+static inline f32 len2(vec2 a);
+static inline f32 len3(vec3 a);
+static inline f32 len4(vec4 a);
+
+// Vector normalization
+static inline vec2 norm2(vec2 a);
+static inline vec3 norm3(vec3 a);
+static inline vec4 norm4(vec4 a);
 
 // Implementation
 
@@ -256,6 +274,51 @@ static inline f32 dot4(vec4 a, vec4 b)
 static inline vec3 cross(vec3 a, vec3 b)
 {
     return v3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
+static inline f32 lensq2(vec2 a)
+{
+    return dot2(a, a);
+}
+
+static inline f32 lensq3(vec3 a)
+{
+    return dot3(a, a);
+}
+
+static inline f32 lensq4(vec4 a)
+{
+    return dot4(a, a);
+}
+
+static inline f32 len2(vec2 a)
+{
+    return sqrtf(lensq2(a));
+}
+
+static inline f32 len3(vec3 a)
+{
+    return sqrtf(lensq3(a));
+}
+
+static inline f32 len4(vec4 a)
+{
+    return sqrtf(lensq4(a));
+}
+
+static inline vec2 norm2(vec2 a)
+{
+    return mul2s(a, 1.0f / len2(a));
+}
+
+static inline vec3 norm3(vec3 a)
+{
+    return mul3s(a, 1.0f / len3(a));
+}
+
+static inline vec4 norm4(vec4 a)
+{
+    return mul4s(a, 1.0f / len4(a));
 }
 
 
