@@ -178,6 +178,11 @@ static inline vec3 proj3(vec3 a, vec3 b);
 static inline vec2 rej2(vec2 a, vec2 b);
 static inline vec3 rej3(vec3 a, vec3 b);
 
+// Reflection of a about normalized b (b must be unit length).
+// Returns: a - 2 * (a · b) * b
+static inline vec2 refl2(vec2 a, vec2 b);
+static inline vec3 refl3(vec3 a, vec3 b);
+
 // Linear interpolation
 static inline f32 lerp(f32 a, f32 b, f32 t);
 static inline vec2 lerp2(vec2 a, vec2 b, f32 t);
@@ -404,6 +409,15 @@ static inline vec2 rej2(vec2 a, vec2 b)
 static inline vec3 rej3(vec3 a, vec3 b)
 {
     return sub3(a, proj3(a, b));
+}
+
+static inline vec2 refl2(vec2 a, vec2 b)
+{
+    return sub2(a, mul2s(b, 2.0f * dot2(a, b)));
+}
+static inline vec3 refl3(vec3 a, vec3 b)
+{
+    return sub3(a, mul3s(b, 2.0f * dot3(a, b)));
 }
 
 static inline f32 lerp(f32 a, f32 b, f32 t)
