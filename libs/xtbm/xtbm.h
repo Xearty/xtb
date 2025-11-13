@@ -163,6 +163,11 @@ static inline mat2 Z2(void);
 static inline mat3 Z3(void);
 static inline mat4 Z4(void);
 
+static inline mat2 transpose2(mat2 m);
+static inline mat3 transpose3(mat3 m);
+static inline mat4 transpose4(mat4 m);
+
+
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
@@ -172,8 +177,8 @@ static inline f32 inverse_smoothstep(f32 x);
 static inline f32 repeat(f32 x, f32 max); // max must be > 0
 static inline f32 pingpong(f32 x, f32 l); // creates a triangle wave that goes 0 → l → 0 → l … with period 2l
 static inline f32 sign(f32 x); // returns 0 for 0
-static inline float deg2rad(f32 d);
-static inline float rad2deg(f32 r);
+static inline f32 deg2rad(f32 d);
+static inline f32 rad2deg(f32 r);
 
 
 // Vector functions
@@ -396,6 +401,36 @@ static inline mat4 Z4(void)
     return result;
 }
 
+static inline mat2 transpose2(mat2 m)
+{
+    mat2 r = {
+        m.m00, m.m10,
+        m.m01, m.m11
+    };
+    return r;
+}
+
+static inline mat3 transpose3(mat3 m)
+{
+    mat3 r = {
+        m.m00, m.m10, m.m20,
+        m.m01, m.m11, m.m21,
+        m.m02, m.m12, m.m22
+    };
+    return r;
+}
+
+static inline mat4 transpose4(mat4 m)
+{
+    mat4 r = {
+        m.m00, m.m10, m.m20, m.m30,
+        m.m01, m.m11, m.m21, m.m31,
+        m.m02, m.m12, m.m22, m.m32,
+        m.m03, m.m13, m.m23, m.m33
+    };
+    return r;
+}
+
 // Utility functions
 
 static inline f32 clamp01(f32 value)
@@ -422,7 +457,7 @@ static inline f32 smootherstep(f32 e0, f32 e1, f32 x)
 
 static inline f32 step(f32 edge, f32 x)
 {
-    return x < edge ? 0.f : 1.f;
+    return x < edge ? 0.0f : 1.0f;
 }
 
 static inline f32 inverse_smoothstep(f32 x)
@@ -437,21 +472,21 @@ static inline f32 repeat(f32 x, f32 max)
 
 static inline f32 pingpong(f32 x, f32 l)
 {
-    float t = repeat(x, 2.0f * l);
+    f32 t = repeat(x, 2.0f * l);
     return l - fabsf(t - l);
 }
 
 static inline f32 sign(f32 x)
 {
-    return (x > 0) - (x < 0);
+    return (x > 0.0f) - (x < 0.0f);
 }
 
-static inline float deg2rad(f32 d)
+static inline f32 deg2rad(f32 d)
 {
     return d * (PI / 180.0f);
 }
 
-static inline float rad2deg(f32 r)
+static inline f32 rad2deg(f32 r)
 {
     return r * (180.0f / PI);
 }
