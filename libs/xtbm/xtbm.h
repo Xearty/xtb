@@ -358,14 +358,8 @@ static inline f32 angle3(vec3 a, vec3 b)
     cosine = clamp(cosine, -1.0f, 1.0f);
     return acosf(cosine);
 }
-static inline f32 angle2_fast(vec2 a, vec2 b)
-{
-    return acosf(dot2(a, b));
-}
-static inline f32 angle3_fast(vec3 a, vec3 b)
-{
-    return acosf(dot3(a, b));
-}
+static inline f32 angle2_fast(vec2 a, vec2 b) { return acosf(dot2(a, b)); }
+static inline f32 angle3_fast(vec3 a, vec3 b) { return acosf(dot3(a, b)); }
 
 static inline f32 scalarproj2(vec2 a, vec2 b)
 {
@@ -393,32 +387,14 @@ static inline float projcoeff3(vec3 a, vec3 b)
     return dot3(a, b) / denom;
 }
 
-static inline vec2 proj2(vec2 a, vec2 b)
-{
-    return mul2s(b, projcoeff2(a, b));
-}
-static inline vec3 proj3(vec3 a, vec3 b)
-{
-    return mul3s(b, projcoeff3(a, b));
-}
+static inline vec2 proj2(vec2 a, vec2 b) { return mul2s(b, projcoeff2(a, b)); }
+static inline vec3 proj3(vec3 a, vec3 b) { return mul3s(b, projcoeff3(a, b)); }
 
-static inline vec2 rej2(vec2 a, vec2 b)
-{
-    return sub2(a, proj2(a, b));
-}
-static inline vec3 rej3(vec3 a, vec3 b)
-{
-    return sub3(a, proj3(a, b));
-}
+static inline vec2 rej2(vec2 a, vec2 b) { return sub2(a, proj2(a, b)); }
+static inline vec3 rej3(vec3 a, vec3 b) { return sub3(a, proj3(a, b)); }
 
-static inline vec2 refl2(vec2 a, vec2 b)
-{
-    return sub2(a, mul2s(b, 2.0f * dot2(a, b)));
-}
-static inline vec3 refl3(vec3 a, vec3 b)
-{
-    return sub3(a, mul3s(b, 2.0f * dot3(a, b)));
-}
+static inline vec2 refl2(vec2 a, vec2 b) { return sub2(a, mul2s(b, 2.0f * dot2(a, b))); }
+static inline vec3 refl3(vec3 a, vec3 b) { return sub3(a, mul3s(b, 2.0f * dot3(a, b))); }
 
 static inline f32 lerp(f32 a, f32 b, f32 t)
 {
