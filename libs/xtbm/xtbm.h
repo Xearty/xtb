@@ -73,21 +73,6 @@ static inline vec2 v2(f32 x, f32 y);
 static inline vec3 v3(f32 x, f32 y, f32 z);
 static inline vec4 v4(f32 x, f32 y, f32 z, f32 w);
 
-// Matrix constructor functions
-static inline mat2 M2(vec2 c0, vec2 c1);
-static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2);
-static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3);
-
-// Identity matrix constructor functions
-static inline mat2 I2(void);
-static inline mat3 I3(void);
-static inline mat4 I4(void);
-
-// Zero matrix constructors
-static inline mat2 Z2(void);
-static inline mat3 Z3(void);
-static inline mat4 Z4(void);
-
 // Vector arithmetic
 static inline vec2 add2(vec2 a, vec2 b);
 static inline vec3 add3(vec3 a, vec3 b);
@@ -155,9 +140,23 @@ static inline vec2 clamp2(vec2 value, vec2 min_value, vec2 max_value);
 static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value);
 static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value);
 
+// Matrix constructors
+static inline mat2 M2(vec2 c0, vec2 c1);
+static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2);
+static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3);
+
+// Identity matrix constructors
+static inline mat2 I2(void);
+static inline mat3 I3(void);
+static inline mat4 I4(void);
+
+// Zero matrix constructors
+static inline mat2 Z2(void);
+static inline mat3 Z3(void);
+static inline mat4 Z4(void);
+
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
-
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
 static inline f32 smootherstep(f32 e0, f32 e1, f32 x);
 static inline f32 step(f32 edge, f32 x);
@@ -195,69 +194,6 @@ static inline vec4 v4(f32 x, f32 y, f32 z, f32 w)
     v.z = z;
     v.w = w;
     return v;
-}
-
-static inline mat2 M2(vec2 c0, vec2 c1)
-{
-    mat2 m;
-    m.col[0] = c0;
-    m.col[1] = c1;
-    return m;
-}
-
-static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2)
-{
-    mat3 m;
-    m.col[0] = c0;
-    m.col[1] = c1;
-    m.col[2] = c2;
-    return m;
-}
-
-static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3)
-{
-    mat4 m;
-    m.col[0] = c0;
-    m.col[1] = c1;
-    m.col[2] = c2;
-    m.col[3] = c3;
-    return m;
-}
-
-static inline mat2 I2(void)
-{
-    return M2(v2(1.0f, 0.0f), v2(0.0f, 1.0f));
-}
-
-static inline mat3 I3(void)
-{
-    return M3(v3(1.0f, 0.0f, 0.0f), v3(0.0f, 1.0f, 0.0f), v3(0.0f, 0.0f, 1.0f));
-}
-
-static inline mat4 I4(void)
-{
-    return M4(v4(1.0f, 0.0f, 0.0f, 0.0f),
-              v4(0.0f, 1.0f, 0.0f, 0.0f),
-              v4(0.0f, 0.0f, 1.0f, 0.0f),
-              v4(0.0f, 0.0f, 0.0f, 1.0f));
-}
-
-static inline mat2 Z2(void)
-{
-    mat2 result = {0};
-    return result;
-}
-
-static inline mat3 Z3(void)
-{
-    mat3 result = {0};
-    return result;
-}
-
-static inline mat4 Z4(void)
-{
-    mat4 result = {0};
-    return result;
 }
 
 static inline vec2 add2(vec2 a, vec2 b)
@@ -488,6 +424,69 @@ static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value)
 static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value)
 {
     return max4(min_value, min4(value, max_value));
+}
+
+static inline mat2 M2(vec2 c0, vec2 c1)
+{
+    mat2 m;
+    m.col[0] = c0;
+    m.col[1] = c1;
+    return m;
+}
+
+static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2)
+{
+    mat3 m;
+    m.col[0] = c0;
+    m.col[1] = c1;
+    m.col[2] = c2;
+    return m;
+}
+
+static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3)
+{
+    mat4 m;
+    m.col[0] = c0;
+    m.col[1] = c1;
+    m.col[2] = c2;
+    m.col[3] = c3;
+    return m;
+}
+
+static inline mat2 I2(void)
+{
+    return M2(v2(1.0f, 0.0f), v2(0.0f, 1.0f));
+}
+
+static inline mat3 I3(void)
+{
+    return M3(v3(1.0f, 0.0f, 0.0f), v3(0.0f, 1.0f, 0.0f), v3(0.0f, 0.0f, 1.0f));
+}
+
+static inline mat4 I4(void)
+{
+    return M4(v4(1.0f, 0.0f, 0.0f, 0.0f),
+              v4(0.0f, 1.0f, 0.0f, 0.0f),
+              v4(0.0f, 0.0f, 1.0f, 0.0f),
+              v4(0.0f, 0.0f, 0.0f, 1.0f));
+}
+
+static inline mat2 Z2(void)
+{
+    mat2 result = {0};
+    return result;
+}
+
+static inline mat3 Z3(void)
+{
+    mat3 result = {0};
+    return result;
+}
+
+static inline mat4 Z4(void)
+{
+    mat4 result = {0};
+    return result;
 }
 
 static inline f32 clamp01(f32 value)
