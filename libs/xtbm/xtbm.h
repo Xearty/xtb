@@ -229,6 +229,11 @@ static inline vec2 mvmul2(mat2 m, vec2 v);
 static inline vec3 mvmul3(mat3 m, vec3 v);
 static inline vec4 mvmul4(mat4 m, vec4 v);
 
+// Matrix-matrix multiplication
+static inline mat2 mmul2(mat2 a, mat2 b);
+static inline mat3 mmul3(mat3 a, mat3 b);
+static inline mat4 mmul4(mat4 a, mat4 b);
+
 // Matrix transposition
 static inline mat2 transpose2(mat2 m);
 static inline mat3 transpose3(mat3 m);
@@ -488,25 +493,25 @@ static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value)
 static inline mat2 M2(vec2 c0, vec2 c1)
 {
     mat2 m;
-    m.col[0] = c0;
-    m.col[1] = c1;
+    m.col0 = c0;
+    m.col1 = c1;
     return m;
 }
 static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2)
 {
     mat3 m;
-    m.col[0] = c0;
-    m.col[1] = c1;
-    m.col[2] = c2;
+    m.col0 = c0;
+    m.col1 = c1;
+    m.col2 = c2;
     return m;
 }
 static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3)
 {
     mat4 m;
-    m.col[0] = c0;
-    m.col[1] = c1;
-    m.col[2] = c2;
-    m.col[3] = c3;
+    m.col0 = c0;
+    m.col1 = c1;
+    m.col2 = c2;
+    m.col3 = c3;
     return m;
 }
 
@@ -562,6 +567,25 @@ static inline vec4 mvmul4(mat4 m, vec4 v)
                  mul4s(m.col1, v.y)),
             add4(mul4s(m.col2, v.z),
                  mul4s(m.col3, v.w)));
+}
+
+static inline mat2 mmul2(mat2 a, mat2 b)
+{
+    return M2(mvmul2(a, b.col0),
+              mvmul2(a, b.col1));
+}
+static inline mat3 mmul3(mat3 a, mat3 b)
+{
+    return M3(mvmul3(a, b.col0),
+              mvmul3(a, b.col1),
+              mvmul3(a, b.col2));
+}
+static inline mat4 mmul4(mat4 a, mat4 b)
+{
+    return M4(mvmul4(a, b.col0),
+              mvmul4(a, b.col1),
+              mvmul4(a, b.col2),
+              mvmul4(a, b.col3));
 }
 
 static inline mat2 transpose2(mat2 m)
