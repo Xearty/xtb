@@ -90,9 +90,21 @@ static inline vec2 div2(vec2 a, vec2 b);
 static inline vec3 div3(vec3 a, vec3 b);
 static inline vec4 div4(vec4 a, vec4 b);
 
+static inline vec2 add2s(vec2 a, f32 s);
+static inline vec3 add3s(vec3 a, f32 s);
+static inline vec4 add4s(vec4 a, f32 s);
+
+static inline vec2 sub2s(vec2 a, f32 s);
+static inline vec3 sub3s(vec3 a, f32 s);
+static inline vec4 sub4s(vec4 a, f32 s);
+
 static inline vec2 mul2s(vec2 a, f32 s);
 static inline vec3 mul3s(vec3 a, f32 s);
 static inline vec4 mul4s(vec4 a, f32 s);
+
+static inline vec2 div2s(vec2 a, f32 s);
+static inline vec3 div3s(vec3 a, f32 s);
+static inline vec4 div4s(vec4 a, f32 s);
 
 // Vector products
 static inline f32 dot2(vec2 a, vec2 b);
@@ -225,9 +237,21 @@ static inline vec2 div2(vec2 a, vec2 b) { return v2(a.x / b.x, a.y / b.y); }
 static inline vec3 div3(vec3 a, vec3 b) { return v3(a.x / b.x, a.y / b.y, a.z / b.z); }
 static inline vec4 div4(vec4 a, vec4 b) { return v4(a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w); }
 
+static inline vec2 add2s(vec2 a, f32 s) { return v2(a.x + s, a.y + s); }
+static inline vec3 add3s(vec3 a, f32 s) { return v3(a.x + s, a.y + s, a.z + s); }
+static inline vec4 add4s(vec4 a, f32 s) { return v4(a.x + s, a.y + s, a.z + s, a.w + s); }
+
+static inline vec2 sub2s(vec2 a, f32 s) { return v2(a.x - s, a.y - s); }
+static inline vec3 sub3s(vec3 a, f32 s) { return v3(a.x - s, a.y - s, a.z - s); }
+static inline vec4 sub4s(vec4 a, f32 s) { return v4(a.x - s, a.y - s, a.z - s, a.w - s); }
+
 static inline vec2 mul2s(vec2 a, f32 s) { return v2(a.x * s, a.y * s); }
 static inline vec3 mul3s(vec3 a, f32 s) { return v3(a.x * s, a.y * s, a.z * s); }
 static inline vec4 mul4s(vec4 a, f32 s) { return v4(a.x * s, a.y * s, a.z * s, a.w * s); }
+
+static inline vec2 div2s(vec2 a, f32 s) { return v2(a.x / s, a.y / s); }
+static inline vec3 div3s(vec3 a, f32 s) { return v3(a.x / s, a.y / s, a.z / s); }
+static inline vec4 div4s(vec4 a, f32 s) { return v4(a.x / s, a.y / s, a.z / s, a.w / s); }
 
 static inline f32 dot2(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
 static inline f32 dot3(vec3 a, vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
