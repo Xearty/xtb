@@ -158,6 +158,25 @@ static inline f32 angle3(vec3 a, vec3 b);
 static inline f32 angle2_fast(vec2 a, vec2 b); // assumes normalized, may NaN
 static inline f32 angle3_fast(vec3 a, vec3 b); // assumes normalized, may NaN
 
+// Scalar projection of a onto b (length of projection).
+// Returns: (a · b) / |b|
+static inline f32 scalarproj2(vec2 a, vec2 b);
+static inline f32 scalarproj3(vec3 a, vec3 b);
+
+// Multiplication by b gets the projection.
+// Returns: (a · b) / |b|^2
+static inline f32 projcoeff2(vec2 a, vec2 b);
+static inline f32 projcoeff3(vec3 a, vec3 b);
+
+// Vector projection of a onto b.
+// Returns: b * projcoef(a, b)
+static inline vec2 proj2(vec2 a, vec2 b);
+static inline vec3 proj3(vec3 a, vec3 b);
+
+// Rejection: component of a perpendicular to b.
+// Returns: a - proj(a onto b)
+static inline vec2 rej2(vec2 a, vec2 b);
+static inline vec3 rej3(vec3 a, vec3 b);
 
 // Linear interpolation
 static inline f32 lerp(f32 a, f32 b, f32 t);
@@ -341,6 +360,50 @@ static inline f32 angle2_fast(vec2 a, vec2 b)
 static inline f32 angle3_fast(vec3 a, vec3 b)
 {
     return acosf(dot3(a, b));
+}
+
+static inline f32 scalarproj2(vec2 a, vec2 b)
+{
+    float b_length = len2(b);
+    if (b_length == 0.0f) return 0.0f;
+    return dot2(a, b) / b_length;
+}
+static inline f32 scalarproj3(vec3 a, vec3 b)
+{
+    float b_length = len3(b);
+    if (b_length == 0.0f) return 0.0f;
+    return dot3(a, b) / b_length;
+}
+
+static inline float projcoeff2(vec2 a, vec2 b)
+{
+    f32 denom = dot2(b, b);
+    if (denom == 0.0f) return 0.0f;
+    return dot2(a, b) / denom;
+}
+static inline float projcoeff3(vec3 a, vec3 b)
+{
+    f32 denom = dot3(b, b);
+    if (denom == 0.0f) return 0.0f;
+    return dot3(a, b) / denom;
+}
+
+static inline vec2 proj2(vec2 a, vec2 b)
+{
+    return mul2s(b, projcoeff2(a, b));
+}
+static inline vec3 proj3(vec3 a, vec3 b)
+{
+    return mul3s(b, projcoeff3(a, b));
+}
+
+static inline vec2 rej2(vec2 a, vec2 b)
+{
+    return sub2(a, proj2(a, b));
+}
+static inline vec3 rej3(vec3 a, vec3 b)
+{
+    return sub3(a, proj3(a, b));
 }
 
 static inline f32 lerp(f32 a, f32 b, f32 t)
