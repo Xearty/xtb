@@ -38,6 +38,7 @@ typedef union mat2
         f32 m00, m01;
         f32 m10, m11;
     };
+    struct { vec2 col0, col1; };
     vec2 col[2];
     f32 scalar[2][2];
 } mat2;
@@ -50,6 +51,7 @@ typedef union mat3
         f32 m10, m11, m12;
         f32 m20, m21, m22;
     };
+    struct { vec3 col0, col1, col2; };
     vec3 col[3];
     f32 scalar[3][3];
 } mat3;
@@ -63,6 +65,7 @@ typedef union mat4
         f32 m20, m21, m22, m23;
         f32 m30, m31, m32, m33;
     };
+    struct { vec4 col0, col1, col2, col3; };
     vec4 col[4];
     f32 scalar[4][4];
 } mat4;
@@ -221,6 +224,12 @@ static inline mat2 Z2(void);
 static inline mat3 Z3(void);
 static inline mat4 Z4(void);
 
+// Matrix-vector multiplication
+static inline vec2 mvmul2(mat2 m, vec2 v);
+static inline vec3 mvmul3(mat3 m, vec3 v);
+static inline vec4 mvmul4(mat4 m, vec4 v);
+
+// Matrix transposition
 static inline mat2 transpose2(mat2 m);
 static inline mat3 transpose3(mat3 m);
 static inline mat4 transpose4(mat4 m);
@@ -483,7 +492,6 @@ static inline mat2 M2(vec2 c0, vec2 c1)
     m.col[1] = c1;
     return m;
 }
-
 static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2)
 {
     mat3 m;
@@ -492,7 +500,6 @@ static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2)
     m.col[2] = c2;
     return m;
 }
-
 static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3)
 {
     mat4 m;
@@ -507,12 +514,10 @@ static inline mat2 I2(void)
 {
     return M2(v2(1.0f, 0.0f), v2(0.0f, 1.0f));
 }
-
 static inline mat3 I3(void)
 {
     return M3(v3(1.0f, 0.0f, 0.0f), v3(0.0f, 1.0f, 0.0f), v3(0.0f, 0.0f, 1.0f));
 }
-
 static inline mat4 I4(void)
 {
     return M4(v4(1.0f, 0.0f, 0.0f, 0.0f),
@@ -526,17 +531,37 @@ static inline mat2 Z2(void)
     mat2 result = {0};
     return result;
 }
-
 static inline mat3 Z3(void)
 {
     mat3 result = {0};
     return result;
 }
-
 static inline mat4 Z4(void)
 {
     mat4 result = {0};
     return result;
+}
+
+static inline vec2 mvmul2(mat2 m, vec2 v)
+{
+    return add2(
+            mul2s(m.col0, v.x),
+            mul2s(m.col1, v.y));
+}
+static inline vec3 mvmul3(mat3 m, vec3 v)
+{
+    return add3(
+            add3(mul3s(m.col0, v.x),
+                 mul3s(m.col1, v.y)),
+            mul3s(m.col2, v.z));
+}
+static inline vec4 mvmul4(mat4 m, vec4 v)
+{
+    return add4(
+            add4(mul4s(m.col0, v.x),
+                 mul4s(m.col1, v.y)),
+            add4(mul4s(m.col2, v.z),
+                 mul4s(m.col3, v.w)));
 }
 
 static inline mat2 transpose2(mat2 m)
