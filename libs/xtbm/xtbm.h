@@ -152,6 +152,13 @@ static inline f32 dist2(vec2 a, vec2 b);
 static inline f32 dist3(vec3 a, vec3 b);
 static inline f32 dist4(vec4 a, vec4 b);
 
+// Angle between vectors
+static inline f32 angle2(vec2 a, vec2 b);
+static inline f32 angle3(vec3 a, vec3 b);
+static inline f32 angle2_fast(vec2 a, vec2 b); // assumes normalized, may NaN
+static inline f32 angle3_fast(vec3 a, vec3 b); // assumes normalized, may NaN
+
+
 // Linear interpolation
 static inline f32 lerp(f32 a, f32 b, f32 t);
 static inline vec2 lerp2(vec2 a, vec2 b, f32 t);
@@ -308,6 +315,33 @@ static inline f32 distsq4(vec4 a, vec4 b) { return lensq4(sub4(a, b)); }
 static inline f32 dist2(vec2 a, vec2 b) { return sqrtf(distsq2(a, b)); }
 static inline f32 dist3(vec3 a, vec3 b) { return sqrtf(distsq3(a, b)); }
 static inline f32 dist4(vec4 a, vec4 b) { return sqrtf(distsq4(a, b)); }
+
+static inline f32 angle2(vec2 a, vec2 b)
+{
+    f32 denom = len2(a) * len2(b);
+    if (denom == 0.0f) return 0.0f;
+
+    f32 cosine = dot2(a, b) / denom;
+    cosine = clamp(cosine, -1.0f, 1.0f);
+    return acosf(cosine);
+}
+static inline f32 angle3(vec3 a, vec3 b)
+{
+    f32 denom = len3(a) * len3(b);
+    if (denom == 0.0f) return 0.0f;
+
+    f32 cosine = dot3(a, b) / denom;
+    cosine = clamp(cosine, -1.0f, 1.0f);
+    return acosf(cosine);
+}
+static inline f32 angle2_fast(vec2 a, vec2 b)
+{
+    return acosf(dot2(a, b));
+}
+static inline f32 angle3_fast(vec3 a, vec3 b)
+{
+    return acosf(dot3(a, b));
+}
 
 static inline f32 lerp(f32 a, f32 b, f32 t)
 {
