@@ -73,13 +73,20 @@ static inline vec2 v2(f32 x, f32 y);
 static inline vec3 v3(f32 x, f32 y, f32 z);
 static inline vec4 v4(f32 x, f32 y, f32 z, f32 w);
 
+// Scalar fill
 static inline vec2 v2s(f32 s);
 static inline vec3 v3s(f32 s);
 static inline vec4 v4s(f32 s);
 
+// Extending constructors
 static inline vec3 v3v2(vec2 xy, f32 z);
 static inline vec4 v4v3(vec3 xyz, f32 w);
 static inline vec4 v4v2(vec2 xy, f32 z, f32 w);
+
+// Truncating constructors
+static inline vec2 v2v3(vec3 v);
+static inline vec2 v2v4(vec4 v);
+static inline vec3 v3v4(vec4 v);
 
 // Vector arithmetic
 static inline vec2 add2(vec2 a, vec2 b);
@@ -236,6 +243,10 @@ static inline vec4 v4s(f32 s) { return v4(s, s, s, s); }
 static inline vec3 v3v2(vec2 xy, f32 z) { return v3(xy.x, xy.y, z); }
 static inline vec4 v4v3(vec3 xyz, f32 w) { return v4(xyz.x, xyz.y, xyz.z, w); }
 static inline vec4 v4v2(vec2 xy, f32 z, f32 w) { return v4(xy.x, xy.y, z, w); }
+
+static inline vec2 v2v3(vec3 v) { return v2(v.x, v.y); }
+static inline vec2 v2v4(vec4 v) { return v2(v.x, v.y); }
+static inline vec3 v3v4(vec4 v) { return v3(v.x, v.y, v.z); }
 
 static inline vec2 add2(vec2 a, vec2 b) { return v2(a.x + b.x, a.y + b.y); }
 static inline vec3 add3(vec3 a, vec3 b) { return v3(a.x + b.x, a.y + b.y, a.z + b.z); }
