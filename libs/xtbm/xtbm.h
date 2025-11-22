@@ -239,6 +239,9 @@ static inline mat2 transpose2(mat2 m);
 static inline mat3 transpose3(mat3 m);
 static inline mat4 transpose4(mat4 m);
 
+static inline f32 det2(mat2 m);
+static inline f32 det3(mat3 m);
+static inline f32 det4(mat4 m);
 
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
@@ -377,24 +380,24 @@ static inline f32 angle3_fast(vec3 a, vec3 b) { return acosf(dot3(a, b)); }
 
 static inline f32 scalarproj2(vec2 a, vec2 b)
 {
-    float b_length = len2(b);
+    f32 b_length = len2(b);
     if (b_length == 0.0f) return 0.0f;
     return dot2(a, b) / b_length;
 }
 static inline f32 scalarproj3(vec3 a, vec3 b)
 {
-    float b_length = len3(b);
+    f32 b_length = len3(b);
     if (b_length == 0.0f) return 0.0f;
     return dot3(a, b) / b_length;
 }
 
-static inline float projcoeff2(vec2 a, vec2 b)
+static inline f32 projcoeff2(vec2 a, vec2 b)
 {
     f32 denom = dot2(b, b);
     if (denom == 0.0f) return 0.0f;
     return dot2(a, b) / denom;
 }
-static inline float projcoeff3(vec3 a, vec3 b)
+static inline f32 projcoeff3(vec3 a, vec3 b)
 {
     f32 denom = dot3(b, b);
     if (denom == 0.0f) return 0.0f;
@@ -616,6 +619,31 @@ static inline mat4 transpose4(mat4 m)
         m.m03, m.m13, m.m23, m.m33
     };
     return r;
+}
+
+static inline f32 det2(mat2 m)
+{
+    return m.m00 * m.m11 - m.m10 * m.m01;
+}
+static inline f32 det3(mat3 m)
+{
+    return m.m00 * m.m11 * m.m22
+         + m.m10 * m.m21 * m.m02
+         + m.m20 * m.m01 * m.m12
+         - m.m00 * m.m21 * m.m12
+         - m.m10 * m.m01 * m.m22
+         - m.m20 * m.m11 * m.m02;
+}
+static inline f32 det4(mat4 m)
+{
+    return m.m00 * m.m11 * m.m22 * m.m33
+         + m.m10 * m.m21 * m.m32 * m.m03
+         + m.m20 * m.m32 * m.m02 * m.m13
+         + m.m30 * m.m01 * m.m12 * m.m23
+         - m.m00 * m.m31 * m.m22 * m.m13
+         - m.m10 * m.m01 * m.m32 * m.m23
+         - m.m20 * m.m11 * m.m02 * m.m33
+         - m.m30 * m.m21 * m.m12 * m.m03;
 }
 
 // Utility functions
