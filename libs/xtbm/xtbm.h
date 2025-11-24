@@ -218,6 +218,11 @@ static inline mat2 M2(vec2 c0, vec2 c1);
 static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2);
 static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3);
 
+// Truncating constructors
+static inline mat2 M2M3(mat3 m);
+static inline mat2 M2M4(mat4 m);
+static inline mat3 M3M4(mat4 m);
+
 // Identity matrix constructors
 static inline mat2 I2(void);
 static inline mat3 I3(void);
@@ -552,6 +557,31 @@ static inline mat4 M4(vec4 c0, vec4 c1, vec4 c2, vec4 c3)
     m.col2 = c2;
     m.col3 = c3;
     return m;
+}
+
+static inline mat2 M2M3(mat3 m)
+{
+    return M2(
+        v2v3(m.col0),
+        v2v3(m.col1)
+    );
+}
+
+static inline mat2 M2M4(mat4 m)
+{
+    return M2(
+        v2v4(m.col0),
+        v2v4(m.col1)
+    );
+}
+
+static inline mat3 M3M4(mat4 m)
+{
+    return M3(
+        v3v4(m.col0),
+        v3v4(m.col1),
+        v3v4(m.col2)
+    );
 }
 
 static inline mat2 I2(void)
