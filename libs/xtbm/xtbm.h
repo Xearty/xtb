@@ -2,6 +2,7 @@
 #define _XTBM_H_
 
 #include <math.h>
+#include <stdbool.h>
 
 #define PI 3.14159265359f
 // #define E 2.71828f
@@ -258,6 +259,7 @@ static inline f32 det4(mat4 m);
 
 static inline mat3 inverse3(mat3 m);
 static inline mat4 affine_inverse4(mat4 m);
+static inline bool is_affine4(mat4 m);
 
 // Linear/Affine transformations
 static inline mat4 make_translate4(vec3 offset);
@@ -773,6 +775,11 @@ static inline mat4 affine_inverse4(mat4 m)
     );
 
     return result;
+}
+
+static inline bool is_affine4(mat4 m)
+{
+    return m.m03 == 0.0f && m.m13 == 0.0f && m.m23 == 0.0f && m.m33 == 1.0f;
 }
 
 static inline mat4 make_translate4(vec3 offset)
