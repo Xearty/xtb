@@ -247,6 +247,11 @@ static inline f32 det4(mat4 m);
 static inline mat4 translate4(mat4 base, vec3 offset);
 static inline mat4 make_translate4(vec3 offset);
 
+static inline mat4 scale4(mat4 base, vec3 scalars);
+static inline mat4 uniform_scale4(mat4 base, f32 scalar);
+static inline mat4 make_scale4(vec3 scalars);
+static inline mat4 make_uniform_scale4(f32 scalar);
+
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
@@ -662,6 +667,29 @@ static inline mat4 translate4(mat4 base, vec3 offset)
 static inline mat4 make_translate4(vec3 offset)
 {
     return translate4(I4(), offset);
+}
+
+static inline mat4 scale4(mat4 base, vec3 scalars)
+{
+    base.m00 *= scalars.x;
+    base.m11 *= scalars.y;
+    base.m22 *= scalars.z;
+    return base;
+}
+
+static inline mat4 uniform_scale4(mat4 base, f32 scalar)
+{
+    return scale4(base, v3s(scalar));
+}
+
+static inline mat4 make_scale4(vec3 scalars)
+{
+    return scale4(I4(), scalars);
+}
+
+static inline mat4 make_uniform_scale4(f32 scalar)
+{
+    return uniform_scale4(I4(), scalar);
 }
 
 // Utility functions

@@ -71,6 +71,8 @@ int main(int argc, char **argv)
 
         mat4 transform = I4();
         transform = translate4(transform, v3(0.2f, 0.2f, 0.0f));
+        transform = scale4(transform, v3(0.2f, 1.2f, 1.0f));
+
         render_quad(&renderer, transform);
 
         window_swap_buffers(window);
