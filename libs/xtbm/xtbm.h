@@ -124,6 +124,10 @@ static inline vec2 div2s(vec2 a, f32 s);
 static inline vec3 div3s(vec3 a, f32 s);
 static inline vec4 div4s(vec4 a, f32 s);
 
+static inline vec2 neg2(vec2 a);
+static inline vec3 neg3(vec3 a);
+static inline vec4 neg4(vec4 a);
+
 // Vector products
 static inline f32 dot2(vec2 a, vec2 b);
 static inline f32 dot3(vec3 a, vec3 b);
@@ -351,6 +355,10 @@ static inline vec4 mul4s(vec4 a, f32 s) { return v4(a.x * s, a.y * s, a.z * s, a
 static inline vec2 div2s(vec2 a, f32 s) { return v2(a.x / s, a.y / s); }
 static inline vec3 div3s(vec3 a, f32 s) { return v3(a.x / s, a.y / s, a.z / s); }
 static inline vec4 div4s(vec4 a, f32 s) { return v4(a.x / s, a.y / s, a.z / s, a.w / s); }
+
+static inline vec2 neg2(vec2 a) { return mul2s(a, -1.0f); }
+static inline vec3 neg3(vec3 a) { return mul3s(a, -1.0f); }
+static inline vec4 neg4(vec4 a) { return mul4s(a, -1.0f); }
 
 static inline f32 dot2(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
 static inline f32 dot3(vec3 a, vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
