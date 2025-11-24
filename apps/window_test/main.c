@@ -51,6 +51,9 @@ int main(int argc, char **argv)
     Renderer renderer = {};
     renderer_init(&renderer);
 
+    mat4 projection2d = ortho2d(0, cfg.width, 0, cfg.height);
+    renderer_set_projection2d(&renderer, projection2d);
+
     while (!window_should_close(window))
     {
         window_poll_events(window);
@@ -70,12 +73,8 @@ int main(int argc, char **argv)
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4 transform = I4();
-        transform = scale4(transform, v3(0.2f, 1.2f, 1.0f));
-        // transform = rotate4_x(transform, time_get());
-        // transform = rotate4_z(transform, time_get());
-        // transform = rotate4_y(transform, time_get());
-        // transform = rotate4_euler(transform, 0.0f, time_get(), time_get() * 3.0f);
-        // transform = rotate4_axis(transform, v3s(1.0f), time_get());
+        transform = scale4(transform, mul3s(v3(0.2f, 1.2f, 1.0f), 300.0f));
+
         transform = rotate4_axis(transform, v3(0, 0, 1), time_get());
         transform = translate4(transform, v3(0.2f, 0.2f, 0.0f));
 

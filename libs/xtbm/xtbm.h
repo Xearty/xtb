@@ -256,11 +256,15 @@ static inline mat4 make_rotate4_euler(f32 yaw, f32 pitch, f32 roll);
 static inline mat4 translate4(mat4 base, vec3 offset);
 static inline mat4 scale4(mat4 base, vec3 scalars);
 static inline mat4 uniform_scale4(mat4 base, f32 scalar);
-static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll);
 static inline mat4 rotate4_x(mat4 base, f32 angle);
 static inline mat4 rotate4_y(mat4 base, f32 angle);
 static inline mat4 rotate4_z(mat4 base, f32 angle);
 static inline mat4 rotate4_axis(mat4 base, vec3 axis, f32 angle);
+static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll);
+
+// Projections
+static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f);
+static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t);
 
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
@@ -796,6 +800,21 @@ static inline mat4 rotate4_axis(mat4 base, vec3 axis, f32 angle)
 static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll)
 {
     return mmul4(make_rotate4_euler(yaw, pitch, roll), base);
+}
+
+static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f)
+{
+    vec3 scale_scalars = v3(2.0f / (r-l), 2.0f / (t-b), -2.0f / (f-n));
+    vec3 translate_scalars = v3(-(r+l) / (r-l),
+                                -(t+b) / (t-b),
+                                -(f+n) / (f-n));
+
+    return mmul4(make_scale4(scale_scalars), make_translate4(translate_scalars));
+}
+
+static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t)
+{
+    return ortho(l, r, b, t, -1.0f, 1.0f);
 }
 
 // Utility functions
