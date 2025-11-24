@@ -26,6 +26,7 @@ int main(int argc, char **argv)
     tctx_init_and_equip(&tctx);
 
     WindowConfig cfg = window_config_default();
+    cfg.width *= 2;
 
     Window *window = window_create(allocator_get_static(), cfg);
     if (!window)
@@ -51,7 +52,9 @@ int main(int argc, char **argv)
     Renderer renderer = {};
     renderer_init(&renderer);
 
-    mat4 projection2d = ortho2d(0, cfg.width, 0, cfg.height);
+    // mat4 projection2d = ortho2d(0, cfg.width, 0, cfg.height);
+    mat4 projection2d = perspective(deg2rad(45.0f), (f32)cfg.width / cfg.height, 0.01f, 100.0f);
+
     renderer_set_projection2d(&renderer, projection2d);
 
     while (!window_should_close(window))
@@ -73,10 +76,10 @@ int main(int argc, char **argv)
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4 transform = I4();
-        transform = scale4(transform, mul3s(v3(0.2f, 1.2f, 1.0f), 300.0f));
+        transform = scale4(transform, mul3s(v3(0.2f, 1.2f, 1.0f), 1.0f));
 
-        transform = rotate4_axis(transform, v3(0, 0, 1), time_get());
-        transform = translate4(transform, v3(0.2f, 0.2f, 0.0f));
+        transform = rotate4_axis(transform, v3(0, 1, 1), time_get());
+        transform = translate4(transform, v3(0.0f, 0.2f, -1.5f));
 
         render_quad(&renderer, transform);
 

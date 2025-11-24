@@ -265,6 +265,7 @@ static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll);
 // Projections
 static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f);
 static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t);
+static inline mat4 perspective(f32 fovy, f32 aspect, f32 near, f32 far);
 
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
@@ -815,6 +816,19 @@ static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f)
 static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t)
 {
     return ortho(l, r, b, t, -1.0f, 1.0f);
+}
+
+static inline mat4 perspective(f32 fovy, f32 aspect, f32 near, f32 far)
+{
+    f32 f = 1.0f / tan(0.5f * fovy);
+
+    mat4 result = Z4();
+    result.m00 = f / aspect;
+    result.m11 = f;
+    result.m22 = (far+near) / (near-far);
+    result.m23 = -1;
+    result.m32 = (2*far*near) / (near-far);
+    return result;
 }
 
 // Utility functions
