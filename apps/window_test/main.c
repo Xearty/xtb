@@ -69,7 +69,9 @@ int main(int argc, char **argv)
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        render_quad(&renderer);
+        mat4 transform = I4();
+        transform = translate4(transform, v3(0.2f, 0.2f, 0.0f));
+        render_quad(&renderer, transform);
 
         window_swap_buffers(window);
     }

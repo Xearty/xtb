@@ -3,9 +3,12 @@ const char *test_vertex_source = ""
    "\n"
    "layout(location=0) in vec3 aPos;\n"
    "\n"
+   "uniform mat4 mvp;\n"
+   "\n"
    "void main()\n"
    "{\n"
-   "    gl_Position = vec4(aPos, 1.0);\n"
+   "    vec4 position = mvp * vec4(aPos, 1.0);\n"
+   "    gl_Position = position;\n"
    "}\n";
 
 const char *ortho_vertex_source = ""

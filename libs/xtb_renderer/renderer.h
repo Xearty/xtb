@@ -81,12 +81,15 @@ static inline void renderer_init(Renderer *renderer)
     renderer->shaders.test = load_shader_program_from_memory("test", test_vertex_source, test_fragment_source);
 }
 
-static inline void render_quad(Renderer *renderer)
+static inline void render_quad(Renderer *renderer, mat4 transform)
 {
     GpuMesh *quad = renderer_setup_quad_data(renderer);
 
     glBindVertexArray(quad->vao);
     glUseProgram(renderer->shaders.test);
+
+    u32 mvp_loc = glGetUniformLocation(renderer->shaders.test, "mvp");
+    glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &transform.m00);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 

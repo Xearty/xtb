@@ -243,6 +243,10 @@ static inline f32 det2(mat2 m);
 static inline f32 det3(mat3 m);
 static inline f32 det4(mat4 m);
 
+// Linear/Affine transformations
+static inline mat4 translate4(mat4 base, vec3 offset);
+static inline mat4 make_translate4(vec3 offset);
+
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
@@ -644,6 +648,20 @@ static inline f32 det4(mat4 m)
          - m.m10 * m.m01 * m.m32 * m.m23
          - m.m20 * m.m11 * m.m02 * m.m33
          - m.m30 * m.m21 * m.m12 * m.m03;
+}
+
+static inline mat4 translate4(mat4 base, vec3 offset)
+{
+    base.m30 += offset.x;
+    base.m31 += offset.y;
+    base.m32 += offset.z;
+
+    return base;
+}
+
+static inline mat4 make_translate4(vec3 offset)
+{
+    return translate4(I4(), offset);
 }
 
 // Utility functions
