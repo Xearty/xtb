@@ -244,13 +244,21 @@ static inline f32 det3(mat3 m);
 static inline f32 det4(mat4 m);
 
 // Linear/Affine transformations
-static inline mat4 translate4(mat4 base, vec3 offset);
 static inline mat4 make_translate4(vec3 offset);
-
-static inline mat4 scale4(mat4 base, vec3 scalars);
-static inline mat4 uniform_scale4(mat4 base, f32 scalar);
 static inline mat4 make_scale4(vec3 scalars);
 static inline mat4 make_uniform_scale4(f32 scalar);
+static inline mat4 make_rotate4_x(f32 angle);
+static inline mat4 make_rotate4_z(f32 angle);
+static inline mat4 make_rotate4_y(f32 angle);
+static inline mat4 make_rotate4_euler(f32 yaw, f32 pitch, f32 roll);
+
+static inline mat4 translate4(mat4 base, vec3 offset);
+static inline mat4 scale4(mat4 base, vec3 scalars);
+static inline mat4 uniform_scale4(mat4 base, f32 scalar);
+static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll);
+static inline mat4 rotate4_x(mat4 base, f32 angle);
+static inline mat4 rotate4_y(mat4 base, f32 angle);
+static inline mat4 rotate4_z(mat4 base, f32 angle);
 
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
@@ -655,41 +663,100 @@ static inline f32 det4(mat4 m)
          - m.m30 * m.m21 * m.m12 * m.m03;
 }
 
-static inline mat4 translate4(mat4 base, vec3 offset)
-{
-    base.m30 += offset.x;
-    base.m31 += offset.y;
-    base.m32 += offset.z;
-
-    return base;
-}
-
 static inline mat4 make_translate4(vec3 offset)
 {
-    return translate4(I4(), offset);
+    mat4 result = I4();
+    result.m30 = offset.x;
+    result.m31 = offset.y;
+    result.m32 = offset.z;
+    return result;
 }
 
-static inline mat4 scale4(mat4 base, vec3 scalars)
+static inline mat4 translate4(mat4 base, vec3 offset)
 {
-    base.m00 *= scalars.x;
-    base.m11 *= scalars.y;
-    base.m22 *= scalars.z;
-    return base;
-}
-
-static inline mat4 uniform_scale4(mat4 base, f32 scalar)
-{
-    return scale4(base, v3s(scalar));
+    return mmul4(make_translate4(offset), base);
 }
 
 static inline mat4 make_scale4(vec3 scalars)
 {
-    return scale4(I4(), scalars);
+    mat4 result = I4();
+    result.m00 = scalars.x;
+    result.m11 = scalars.y;
+    result.m22 = scalars.z;
+    return result;
 }
 
 static inline mat4 make_uniform_scale4(f32 scalar)
 {
-    return uniform_scale4(I4(), scalar);
+    return make_scale4(v3s(scalar));
+}
+
+static inline mat4 scale4(mat4 base, vec3 scalars)
+{
+    return mmul4(make_scale4(scalars), base);
+}
+
+static inline mat4 uniform_scale4(mat4 base, f32 scalar)
+{
+    return mmul4(make_uniform_scale4(scalar), base);
+}
+
+static inline mat4 make_rotate4_x(f32 angle)
+{
+    mat4 result = I4();
+    result.m11 = cos(angle);
+    result.m12 = sin(angle);
+    result.m21 = -sin(angle);
+    result.m22 = cos(angle);
+    return result;
+}
+
+static inline mat4 make_rotate4_y(f32 angle)
+{
+    mat4 result = I4();
+    result.m00 = cos(angle);
+    result.m02 = -sin(angle);
+    result.m20 = sin(angle);
+    result.m22 = cos(angle);
+    return result;
+}
+
+static inline mat4 make_rotate4_z(f32 angle)
+{
+    mat4 result = I4();
+    result.m00 = cos(angle);
+    result.m01 = sin(angle);
+    result.m10 = -sin(angle);
+    result.m11 = cos(angle);
+    return result;
+}
+
+static inline mat4 make_rotate4_euler(f32 yaw, f32 pitch, f32 roll)
+{
+    return mmul4(
+            mmul4(make_rotate4_z(yaw),
+                  make_rotate4_y(pitch)),
+            make_rotate4_x(roll));
+}
+
+static inline mat4 rotate4_x(mat4 base, f32 angle)
+{
+    return mmul4(make_rotate4_x(angle), base);
+}
+
+static inline mat4 rotate4_y(mat4 base, f32 angle)
+{
+    return mmul4(make_rotate4_y(angle), base);
+}
+
+static inline mat4 rotate4_z(mat4 base, f32 angle)
+{
+    return mmul4(make_rotate4_z(angle), base);
+}
+
+static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll)
+{
+    return mmul4(make_rotate4_euler(yaw, pitch, roll), base);
 }
 
 // Utility functions
