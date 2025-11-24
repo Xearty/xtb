@@ -74,7 +74,9 @@ int main(int argc, char **argv)
         // transform = rotate4_x(transform, time_get());
         // transform = rotate4_z(transform, time_get());
         // transform = rotate4_y(transform, time_get());
-        transform = rotate4_euler(transform, 0.0f, time_get(), time_get() * 3.0f);
+        // transform = rotate4_euler(transform, 0.0f, time_get(), time_get() * 3.0f);
+        // transform = rotate4_axis(transform, v3s(1.0f), time_get());
+        transform = rotate4_axis(transform, v3(0, 0, 1), time_get());
         transform = translate4(transform, v3(0.2f, 0.2f, 0.0f));
 
         render_quad(&renderer, transform);

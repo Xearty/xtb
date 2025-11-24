@@ -250,6 +250,7 @@ static inline mat4 make_uniform_scale4(f32 scalar);
 static inline mat4 make_rotate4_x(f32 angle);
 static inline mat4 make_rotate4_z(f32 angle);
 static inline mat4 make_rotate4_y(f32 angle);
+static inline mat4 make_rotate4_axis(vec3 axis, f32 angle);
 static inline mat4 make_rotate4_euler(f32 yaw, f32 pitch, f32 roll);
 
 static inline mat4 translate4(mat4 base, vec3 offset);
@@ -259,6 +260,7 @@ static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll);
 static inline mat4 rotate4_x(mat4 base, f32 angle);
 static inline mat4 rotate4_y(mat4 base, f32 angle);
 static inline mat4 rotate4_z(mat4 base, f32 angle);
+static inline mat4 rotate4_axis(mat4 base, vec3 axis, f32 angle);
 
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
@@ -739,6 +741,38 @@ static inline mat4 make_rotate4_euler(f32 yaw, f32 pitch, f32 roll)
             make_rotate4_x(roll));
 }
 
+static inline mat4 make_rotate4_axis(vec3 axis, f32 angle)
+{
+    // Normalize axis; if it's near zero, just return identity
+    f32 len_axis = len3(axis);
+    if (len_axis == 0.0f) return I4();
+    axis = div3s(axis, len_axis);
+
+    f32 ux = axis.x;
+    f32 uy = axis.y;
+    f32 uz = axis.z;
+
+    f32 c = cos(angle);
+    f32 s = sin(angle);
+    f32 t = 1.0f - c;
+
+    mat4 result = I4();
+
+    result.m00 = ux*ux*t + c;
+    result.m01 = ux*uy*t + uz*s;
+    result.m02 = ux*uz*t - uy*s;
+
+    result.m10 = ux*uy*t - uz*s;
+    result.m11 = uy*uy*t + c;
+    result.m12 = uy*uz*t + ux*s;
+
+    result.m20 = ux*uy*t + uy*s;
+    result.m21 = uy*uz*t - ux*s;
+    result.m22 = uz*uz*t + c;
+
+    return result;
+}
+
 static inline mat4 rotate4_x(mat4 base, f32 angle)
 {
     return mmul4(make_rotate4_x(angle), base);
@@ -752,6 +786,11 @@ static inline mat4 rotate4_y(mat4 base, f32 angle)
 static inline mat4 rotate4_z(mat4 base, f32 angle)
 {
     return mmul4(make_rotate4_z(angle), base);
+}
+
+static inline mat4 rotate4_axis(mat4 base, vec3 axis, f32 angle)
+{
+    return mmul4(make_rotate4_axis(axis, angle), base);
 }
 
 static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll)
