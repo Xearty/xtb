@@ -76,12 +76,18 @@ int main(int argc, char **argv)
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4 transform = I4();
+        transform = translate4(transform, v3(0.0f, 0.2f, 5.5f));
         transform = scale4(transform, mul3s(v3(0.2f, 1.2f, 1.0f), 1.0f));
+        // transform = rotate4_axis(transform, v3(0, 1, 1), time_get());
+        transform = rotate4_y(transform, time_get());
 
-        transform = rotate4_axis(transform, v3(0, 1, 1), time_get());
-        transform = translate4(transform, v3(0.0f, 0.2f, -1.5f));
+        mat4 inverse = affine_inverse4(transform);
 
-        render_quad(&renderer, transform);
+        mat4 identity = mmul4(inverse, transform);
+
+        identity = translate4(identity, v3(0.0f, 0.0f, -2.5f));
+
+        render_quad(&renderer, identity);
 
         window_swap_buffers(window);
     }

@@ -4,7 +4,7 @@
 #include <math.h>
 
 #define PI 3.14159265359f
-#define E 2.71828f
+// #define E 2.71828f
 #define GOLDEN_RATIO 1.61803398875f
 
 typedef float f32;
@@ -255,6 +255,9 @@ static inline mat4 transpose4(mat4 m);
 static inline f32 det2(mat2 m);
 static inline f32 det3(mat3 m);
 static inline f32 det4(mat4 m);
+
+static inline mat3 inverse3(mat3 m);
+static inline mat4 affine_inverse4(mat4 m);
 
 // Linear/Affine transformations
 static inline mat4 make_translate4(vec3 offset);
@@ -734,6 +737,42 @@ static inline f32 det4(mat4 m)
          - m.m10 * m.m01 * m.m32 * m.m23
          - m.m20 * m.m11 * m.m02 * m.m33
          - m.m30 * m.m21 * m.m12 * m.m03;
+}
+
+static inline mat3 inverse3(mat3 m)
+{
+    f32 determinant = det3(m);
+
+    f32 a = m.m00, b = m.m10, c = m.m20;
+    f32 d = m.m01, e = m.m11, f = m.m21;
+    f32 g = m.m02, h = m.m12, i = m.m22;
+
+    f32 A =  (e*i - f*h), D = -(b*i - c*h), G =  (b*f - c*e);
+    f32 B = -(d*i - f*g), E =  (a*i - c*g), H = -(a*f - c*d);
+    f32 C =  (d*h - e*g), F = -(a*h - b*g), I =  (a*e - b*d);
+
+    // TODO: Determinant can be computed faster using the values above
+    mat3 result = mmul3s(M3(
+        v3(A, B, C),
+        v3(D, E, F),
+        v3(G, H, I)
+    ), 1.0f / determinant);
+
+    return result;
+}
+
+static inline mat4 affine_inverse4(mat4 m)
+{
+    mat3 inv3 = inverse3(M3M4(m));
+
+    mat4 result = M4(
+        v4v3(inv3.col0, 0.0f),
+        v4v3(inv3.col1, 0.0f),
+        v4v3(inv3.col2, 0.0f),
+        v4v3(mvmul3(mmul3s(inv3, -1.0f), v3v4(m.col3)), 1.0f)
+    );
+
+    return result;
 }
 
 static inline mat4 make_translate4(vec3 offset)
