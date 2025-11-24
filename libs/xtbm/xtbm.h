@@ -285,6 +285,8 @@ static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f);
 static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t);
 static inline mat4 perspective(f32 fovy, f32 aspect, f32 near, f32 far);
 
+static inline mat4 look_at(vec3 position, vec3 direction, vec3 up);
+
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
@@ -940,6 +942,21 @@ static inline mat4 perspective(f32 fovy, f32 aspect, f32 near, f32 far)
     result.m22 = (far+near) / (near-far);
     result.m23 = -1;
     result.m32 = (2*far*near) / (near-far);
+    return result;
+}
+
+static inline mat4 look_at(vec3 eye, vec3 center, vec3 up)
+{
+    vec3 f = norm3(sub3(center, eye));
+    vec3 s = norm3(cross(f, up));
+    vec3 u = cross(s, f);
+
+    mat4 result = M4(
+        v4v3(s, 0.0f),
+        v4v3(u, 0.0f),
+        v4v3(f, 0.0f),
+        v4(-dot3(s, eye), -dot3(u, eye), dot3(f, eye), 1.0f)
+    );
     return result;
 }
 
