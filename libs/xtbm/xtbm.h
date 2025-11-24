@@ -228,6 +228,10 @@ static inline mat2 Z2(void);
 static inline mat3 Z3(void);
 static inline mat4 Z4(void);
 
+static inline mat2 mmul2s(mat2 m, f32 s);
+static inline mat3 mmul3s(mat3 m, f32 s);
+static inline mat4 mmul4s(mat4 m, f32 s);
+
 // Matrix-vector multiplication
 static inline vec2 mvmul2(mat2 m, vec2 v);
 static inline vec3 mvmul3(mat3 m, vec3 v);
@@ -580,6 +584,30 @@ static inline mat4 Z4(void)
 {
     mat4 result = {0};
     return result;
+}
+
+static inline mat2 mmul2s(mat2 m, f32 s)
+{
+    m.col0 = mul2s(m.col0, s);
+    m.col1 = mul2s(m.col1, s);
+    return m;
+}
+
+static inline mat3 mmul3s(mat3 m, f32 s)
+{
+    m.col0 = mul3s(m.col0, s);
+    m.col1 = mul3s(m.col1, s);
+    m.col2 = mul3s(m.col2, s);
+    return m;
+}
+
+static inline mat4 mmul4s(mat4 m, f32 s)
+{
+    m.col0 = mul4s(m.col0, s);
+    m.col1 = mul4s(m.col1, s);
+    m.col2 = mul4s(m.col2, s);
+    m.col3 = mul4s(m.col3, s);
+    return m;
 }
 
 static inline vec2 mvmul2(mat2 m, vec2 v)
