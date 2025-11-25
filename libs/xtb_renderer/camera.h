@@ -53,16 +53,21 @@ void camera_look_at(Camera *c, vec3 direction)
     c->pitch = rad2deg(asinf(direction.y));
 }
 
-void camera_move_local(Camera *c, vec3 delta_local)
+static inline void camera_move(Camera *c, vec3 delta)
 {
-    vec3 offset =
+    c->position = add3(c->position, delta);
+}
+
+static inline void camera_move_local(Camera *c, vec3 delta_local)
+{
+    vec3 delta =
         add3(
             add3(mul3s(c->basis.back, delta_local.z),
                  mul3s(c->basis.right, delta_local.x)),
             mul3s(c->basis.up, delta_local.y)
         );
 
-    c->position = add3(c->position, offset);
+    camera_move(c, delta);
 }
 
 void camera_init(Camera *camera)
