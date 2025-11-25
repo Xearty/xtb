@@ -285,6 +285,7 @@ static inline mat4 rotate4_euler(mat4 base, f32 yaw, f32 pitch, f32 roll);
 // Projections
 static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f);
 static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t);
+static inline mat4 ortho2d_screen(f32 width, f32 height);
 static inline mat4 perspective(f32 fovy, f32 aspect, f32 near, f32 far);
 
 static inline mat4 look_at(vec3 position, vec3 direction, vec3 up);
@@ -943,6 +944,11 @@ static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f)
 static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t)
 {
     return ortho(l, r, b, t, -1.0f, 1.0f);
+}
+
+static inline mat4 ortho2d_screen(f32 width, f32 height)
+{
+    return ortho2d(0.0f, width, height, 0.0f);
 }
 
 static inline mat4 perspective(f32 fovy, f32 aspect, f32 near, f32 far)
