@@ -954,7 +954,7 @@ static inline mat4 look_at(vec3 eye, vec3 center, vec3 up)
     mat4 result = M4(
         v4v3(s, 0.0f),
         v4v3(u, 0.0f),
-        v4v3(f, 0.0f),
+        v4v3(neg3(f), 0.0f),
         v4(-dot3(s, eye), -dot3(u, eye), dot3(f, eye), 1.0f)
     );
     return result;
