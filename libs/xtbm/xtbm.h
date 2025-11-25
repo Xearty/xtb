@@ -214,6 +214,8 @@ static inline vec2 clamp2(vec2 value, vec2 min_value, vec2 max_value);
 static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value);
 static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value);
 
+static inline vec3 v3_euler(f32 yaw, f32 pitch);
+
 // Matrix constructors
 static inline mat2 M2(vec2 c0, vec2 c1);
 static inline mat3 M3(vec3 c0, vec3 c1, vec3 c2);
@@ -537,6 +539,17 @@ static inline vec3 clamp3(vec3 value, vec3 min_value, vec3 max_value)
 static inline vec4 clamp4(vec4 value, vec4 min_value, vec4 max_value)
 {
     return max4(min_value, min4(value, max_value));
+}
+
+static inline vec3 v3_euler(f32 yaw, f32 pitch)
+{
+    f32 y = deg2rad(yaw);
+    f32 p = deg2rad(pitch);
+    return v3(
+        sinf(y) * cosf(p),
+        sinf(p),
+        -cosf(y) * cosf(p)
+    );
 }
 
 // Matrix functions
