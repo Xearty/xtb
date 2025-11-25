@@ -898,7 +898,7 @@ static inline mat4 make_rotate4_axis(vec3 axis, f32 angle)
     result.m11 = uy*uy*t + c;
     result.m12 = uy*uz*t + ux*s;
 
-    result.m20 = ux*uy*t + uy*s;
+    result.m20 = ux*uz*t + uy*s;
     result.m21 = uy*uz*t - ux*s;
     result.m22 = uz*uz*t + c;
 
