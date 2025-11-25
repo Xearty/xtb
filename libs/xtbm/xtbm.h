@@ -937,7 +937,7 @@ static inline mat4 ortho(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f)
                                 -(t+b) / (t-b),
                                 -(f+n) / (f-n));
 
-    return mmul4(make_scale4(scale_scalars), make_translate4(translate_scalars));
+    return mmul4(make_translate4(translate_scalars), make_scale4(scale_scalars));
 }
 
 static inline mat4 ortho2d(f32 l, f32 r, f32 b, f32 t)
