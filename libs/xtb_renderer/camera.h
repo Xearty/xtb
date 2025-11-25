@@ -68,6 +68,7 @@ void camera_move_local(Camera *c, vec3 delta_local)
 void camera_init(Camera *camera)
 {
     MemoryZeroStruct(camera);
+    camera->view = I4();
     camera->projection = I4();
 
     camera_recalc_matrices(camera);
