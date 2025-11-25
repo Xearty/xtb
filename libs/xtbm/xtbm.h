@@ -290,6 +290,7 @@ static inline mat4 perspective(f32 fovy, f32 aspect, f32 near, f32 far);
 
 static inline mat4 look_at(vec3 position, vec3 direction, vec3 up);
 
+static inline f32 fract(f32 f);
 static inline f32 clamp01(f32 value);
 static inline f32 ilerp(f32 a, f32 b, f32 v);
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
@@ -981,6 +982,11 @@ static inline mat4 look_at(vec3 eye, vec3 center, vec3 up)
 }
 
 // Utility functions
+
+static inline float fract(f32 f)
+{
+    return f - floorf(f);
+}
 
 static inline f32 clamp01(f32 value)
 {
