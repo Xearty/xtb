@@ -2,6 +2,7 @@
 #define _XTB_RENDERER_H_
 
 #include "geometry.h"
+#include "camera.h"
 #include <xtb_core/arena.h>
 #include <xtb_ogl/ogl.h>
 #include "generated/baked_shaders_generated.h"
@@ -31,7 +32,7 @@ typedef struct Renderer
     GeometryCache mesh_cache;
     ShaderRegistry shaders;
 
-    mat4 projection2d;
+    Camera camera;
 } Renderer;
 
 static inline GpuMesh* renderer_setup_quad_data(Renderer *renderer)
@@ -83,11 +84,6 @@ static inline void renderer_init(Renderer *renderer)
     renderer->shaders.test = load_shader_program_from_memory("test", test_vertex_source, test_fragment_source);
 }
 
-static inline void renderer_set_projection2d(Renderer *renderer, mat4 projection)
-{
-    renderer->projection2d = projection;
-}
-
 static inline void render_quad(Renderer *renderer, mat4 transform)
 {
     GpuMesh *quad = renderer_setup_quad_data(renderer);
@@ -95,7 +91,8 @@ static inline void render_quad(Renderer *renderer, mat4 transform)
     glBindVertexArray(quad->vao);
     glUseProgram(renderer->shaders.test);
 
-    transform = mmul4(renderer->projection2d, transform);
+    // transform = mmul4(renderer->camera.projection, mmul4(renderer->camera.view, transform));
+    transform = mmul4(renderer->camera.projection, mmul4(renderer->camera.view, transform));
     u32 mvp_loc = glGetUniformLocation(renderer->shaders.test, "mvp");
     glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, &transform.m00);
 
