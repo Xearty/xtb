@@ -292,7 +292,7 @@ static inline mat4 look_at(vec3 position, vec3 direction, vec3 up);
 
 static inline f32 fract(f32 f);
 static inline f32 clamp01(f32 value);
-static inline f32 ilerp(f32 a, f32 b, f32 v);
+static inline f32 unlerp(f32 a, f32 b, f32 v);
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x);
 static inline f32 smootherstep(f32 e0, f32 e1, f32 x);
 static inline f32 step(f32 edge, f32 x);
@@ -993,20 +993,20 @@ static inline f32 clamp01(f32 value)
     return clamp(value, 0.0f, 1.0f);
 }
 
-static inline f32 ilerp(f32 a, f32 b, f32 v)
+static inline f32 unlerp(f32 a, f32 b, f32 v)
 {
     return (v - a) / (b - a);
 }
 
 static inline f32 smoothstep(f32 e0, f32 e1, f32 x)
 {
-    f32 t = clamp01(ilerp(e0, e1, x));;
+    f32 t = clamp01(unlerp(e0, e1, x));;
     return t * t * (3.0f - 2.0f * t);
 }
 
 static inline f32 smootherstep(f32 e0, f32 e1, f32 x)
 {
-    f32 t = clamp01(ilerp(e0, e1, x));
+    f32 t = clamp01(unlerp(e0, e1, x));
     return t * t * t * (t * (6.0f * t - 15.0f) + 10.0f);
 }
 

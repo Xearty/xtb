@@ -25,7 +25,7 @@ compute_bezier_points(Allocator *allocator, vec2 points[], size_t count, i32 sam
 
     for (int sample_iter = 0; sample_iter < samples; ++sample_iter)
     {
-        float t = ilerp(0, samples - 1, sample_iter);
+        float t = unlerp(0, samples - 1, sample_iter);
 
         float icount = count;
         memcpy(intermediate, points, sizeof(vec2) * count);
