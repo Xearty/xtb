@@ -15,11 +15,19 @@ void* arena_allocator_procedure(void* alloc, int64_t new_size, void* old_ptr, in
 
     Arena *arena = (Arena*)alloc;
 
-    void* new_ptr = NULL;
-
-    if (new_size != 0)
+    // Arena never frees individual allocations
+    if (new_size == 0)
     {
-        new_ptr = arena_alloc(arena, new_size);
+        return NULL;
+    }
+
+    void* new_ptr = arena_alloc(arena, new_size);
+    if (new_ptr == NULL) return NULL;
+
+    // It's realloc, copy the contents
+    if (old_ptr != NULL && old_size > 0)
+    {
+        memcpy(new_ptr, old_ptr, Min(new_size, old_size));
     }
 
     return new_ptr;
