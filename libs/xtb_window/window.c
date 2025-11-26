@@ -239,8 +239,8 @@ WindowConfig window_config_default(void)
     cfg.flags = WINDOW_VSYNC;
     cfg.samples = 1;
 
-    cfg.opengl.version_major = 3;
-    cfg.opengl.version_minor = 3;
+    cfg.opengl.version_major = 4;
+    cfg.opengl.version_minor = 5;
 
     return cfg;
 }
