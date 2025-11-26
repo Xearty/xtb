@@ -7,6 +7,11 @@
 #include <xtb_renderer/renderer.h>
 #include <xtb_bmp/bmp.h>
 
+typedef struct WindowUserData
+{
+    Renderer *renderer;
+} WindowUserData;
+
 static void key_callback(Window *window, i32 key, i32 scancode, i32 action, i32 mods)
 {
     String *user_pointer_str = (String*)window_user_pointer_get(window);
@@ -14,6 +19,14 @@ static void key_callback(Window *window, i32 key, i32 scancode, i32 action, i32 
     printf("pressed a key. User pointer string is \"%.*s\"\n",
             (i32)user_pointer_str->len,
             user_pointer_str->str);
+}
+
+static void framebuffer_size_callback(Window *window, i32 width, i32 height)
+{
+    WindowUserData *user_data = (WindowUserData*)window_user_pointer_get(window);
+
+    glViewport(0, 0, width, height);
+    renderer_cameras_recreate_projections(user_data->renderer, width, height);
 }
 
 void process_camera_movement(Window *window, Camera *camera, f32 dt)
@@ -67,10 +80,8 @@ int main(int argc, char **argv)
         fputs("Could not create window", stderr);
     }
 
-    String user_pointer_str = str("Tova e string");
-
     window_set_key_callback(window, key_callback);
-    window_user_pointer_set(window, &user_pointer_str);
+    window_set_framebuffer_size_callback(window, framebuffer_size_callback);
 
     cursor_capture(window);
 
@@ -86,6 +97,11 @@ int main(int argc, char **argv)
 
     Renderer renderer = {};
     renderer_init(&renderer, cfg.width, cfg.height);
+
+    WindowUserData window_user_data = {};
+    window_user_data.renderer = &renderer;
+
+    window_user_pointer_set(window, &window_user_data);
 
     camera_set_position(&renderer.camera3d, v3(0.0f, 0.0f, 20.0f));
     camera_look_at(&renderer.camera3d, v3s(0.0f));
