@@ -173,8 +173,8 @@ FileType dirent_ft_to_ft(int ft)
 DirectoryList os_list_directory_custom(Allocator* allocator, String filepath, DirectoryListFlags flags)
 {
     TempArena scratch = scratch_begin_conflict(allocator);
-    filepath = str_push_copy(scratch.arena, filepath);
-    DIR *dir = opendir(filepath.str);
+    String filepath_nt = str_push_copy(scratch.arena, filepath);
+    DIR *dir = opendir(filepath_nt.str);
     scratch_end(scratch);
 
     DirectoryList list = {0};
