@@ -129,7 +129,7 @@ static void renderer_setup_polyline_data(Renderer *renderer, PolylineRenderData 
     glBindVertexArray(0);
 }
 
-static inline GpuMesh* renderer_setup_quad_data(Renderer *renderer)
+static inline GpuMesh* ensure_quad_mesh(Renderer *renderer)
 {
     if (renderer->mesh_cache.quad) return renderer->mesh_cache.quad;
 
@@ -170,6 +170,54 @@ static inline GpuMesh* renderer_setup_quad_data(Renderer *renderer)
     return quad;
 }
 
+static inline GpuMesh* ensure_cube_mesh(Renderer *renderer)
+{
+    if (renderer->mesh_cache.cube) return renderer->mesh_cache.cube;
+
+    renderer->mesh_cache.cube = push_struct_zero(renderer->mesh_cache.arena, GpuMesh);
+
+    GpuMesh *cube = renderer->mesh_cache.cube;
+
+    cube->geometry = push_struct_zero(renderer->mesh_cache.arena, Mesh);
+    *cube->geometry = geometry_create_cube(&renderer->mesh_cache.arena->allocator);
+    Assert(cube->geometry != NULL);
+
+    glGenVertexArrays(1, &cube->vao);
+
+    glGenBuffers(1, &cube->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, cube->vbo);
+    glBufferData(GL_ARRAY_BUFFER, cube->geometry->vertices.count * sizeof(Vertex), cube->geometry->vertices.data, GL_STATIC_DRAW);
+
+    glBindVertexArray(cube->vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, cube->vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube->ebo);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, tex_coords));
+    glEnableVertexAttribArray(2);
+
+    glBindVertexArray(0);
+
+    return cube;
+}
+
+inline void renderer_mvp_set_uniforms(const Renderer *renderer, ShaderProgram program, mat4 model)
+{
+    glUseProgram(program);
+
+    int model_loc = glGetUniformLocation(program, "model");
+    int view_loc = glGetUniformLocation(program, "view");
+    int projection_loc = glGetUniformLocation(program, "projection");
+
+    glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model.m00);
+    glUniformMatrix4fv(view_loc, 1, GL_FALSE, &renderer->camera3d.view.m00);
+    glUniformMatrix4fv(projection_loc, 1, GL_FALSE, &renderer->camera3d.projection.m00);
+}
+
 /****************************************************************
  * Renderer Lifecycle
 ****************************************************************/
@@ -179,7 +227,8 @@ void renderer_init(Renderer *renderer, f32 width, f32 height)
     renderer->mesh_cache.arena = arena_new(Kilobytes(4));
 
     renderer->shaders.test = load_shader_program_from_memory("test", test_vertex_source, test_fragment_source);
-    renderer->shaders.polyline = load_shader_program_from_memory("test", polyline_2d_instanced_vertex_source, test_fragment_source);
+    renderer->shaders.polyline = load_shader_program_from_memory("polyline", polyline_2d_instanced_vertex_source, test_fragment_source);
+    renderer->shaders.mvp_solid_color = load_shader_program_from_memory("mvp_solid_color", mvp_vertex_source, solid_color_fragment_source);
 
     renderer_setup_polyline_data(renderer, &renderer->polyline_render_data);
 
@@ -211,7 +260,7 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
 ****************************************************************/
 void render_quad(Renderer *renderer, mat4 transform)
 {
-    GpuMesh *quad = renderer_setup_quad_data(renderer);
+    GpuMesh *quad = ensure_quad_mesh(renderer);
 
     glBindVertexArray(quad->vao);
     glUseProgram(renderer->shaders.test);
@@ -223,6 +272,23 @@ void render_quad(Renderer *renderer, mat4 transform)
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
     glBindVertexArray(0);
+}
+
+void render_cube(Renderer *renderer, vec4 color, mat4 model)
+{
+    GpuMesh *cube = ensure_cube_mesh(renderer);
+
+    // ShaderProgram shader_program = renderer->shaders.mvp_solid_color;
+
+    ShaderProgram program = renderer->shaders.mvp_solid_color;
+    glUseProgram(program);
+    renderer_mvp_set_uniforms(renderer, program, model);
+
+    int color_loc = glGetUniformLocation(program, "color");
+    glUniform4f(color_loc, color.r, color.g, color.b, color.a);
+
+    glBindVertexArray(cube->vao);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
 void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped)

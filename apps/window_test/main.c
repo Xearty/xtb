@@ -12,15 +12,6 @@ typedef struct WindowUserData
     Renderer *renderer;
 } WindowUserData;
 
-static void key_callback(Window *window, i32 key, i32 scancode, i32 action, i32 mods)
-{
-    String *user_pointer_str = (String*)window_user_pointer_get(window);
-
-    printf("pressed a key. User pointer string is \"%.*s\"\n",
-            (i32)user_pointer_str->len,
-            user_pointer_str->str);
-}
-
 static void framebuffer_size_callback(Window *window, i32 width, i32 height)
 {
     WindowUserData *user_data = (WindowUserData*)window_user_pointer_get(window);
@@ -31,7 +22,7 @@ static void framebuffer_size_callback(Window *window, i32 width, i32 height)
 
 void process_camera_movement(Window *window, Camera *camera, f32 dt)
 {
-    f32 movement_speed = 10.0f * dt;
+    f32 movement_speed = 20.0f * dt;
 
     if (key_is_down(window, KEY_W))
     {
@@ -51,6 +42,16 @@ void process_camera_movement(Window *window, Camera *camera, f32 dt)
     if (key_is_down(window, KEY_D))
     {
         camera_move_local(camera, v3(movement_speed, 0.0f, 0.0f));
+    }
+
+    if (key_is_down(window, KEY_SPACE))
+    {
+        camera_move(camera, v3(0.0f, movement_speed, 0.0f));
+    }
+
+    if (key_is_down(window, KEY_LEFT_SHIFT))
+    {
+        camera_move(camera, v3(0.0f, -movement_speed, 0.0f));
     }
 
     f32 dx, dy;
@@ -80,7 +81,6 @@ int main(int argc, char **argv)
         fputs("Could not create window", stderr);
     }
 
-    window_set_key_callback(window, key_callback);
     window_set_framebuffer_size_callback(window, framebuffer_size_callback);
 
     cursor_capture(window);
@@ -148,6 +148,8 @@ int main(int argc, char **argv)
         // identity = translate4(identity, v3(0.0f, 0.0f, -2.5f));
 
         render_quad(&renderer, transform);
+
+        render_cube(&renderer, v4(1.0f, 0.0f, 1.0f, 1.0f), transform);
 
         window_swap_buffers(window);
     }

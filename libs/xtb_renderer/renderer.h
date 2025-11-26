@@ -24,12 +24,14 @@ typedef struct GeometryCache
     Arena *arena;
 
     GpuMesh *quad;
+    GpuMesh *cube;
 } GeometryCache;
 
 typedef struct ShaderRegistry
 {
     ShaderProgram test;
     ShaderProgram polyline;
+    ShaderProgram mvp_solid_color;
 } ShaderRegistry;
 
 typedef struct PolylinePerVertexData
@@ -80,6 +82,7 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
  * Rendering Functions
 ****************************************************************/
 void render_quad(Renderer *renderer, mat4 transform);
+void render_cube(Renderer *renderer, vec4 color, mat4 transform);
 void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
 void render_bezier_spline_custom(Renderer *renderer, vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
 
