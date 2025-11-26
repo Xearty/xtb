@@ -85,16 +85,10 @@ int main(int argc, char **argv)
     glViewport(0, 0, cfg.width, cfg.height);
 
     Renderer renderer = {};
-    renderer_init(&renderer);
-    camera_init(&renderer.camera);
+    renderer_init(&renderer, cfg.width, cfg.height);
 
-    // mat4 projection2d = ortho2d(0, cfg.width, 0, cfg.height);
-    mat4 projection2d = perspective(deg2rad(45.0f), (f32)cfg.width / cfg.height, 0.01f, 100.0f);
-    camera_set_projection(&renderer.camera, projection2d);
-    camera_set_position(&renderer.camera, v3(0.0f, 0.0f, 20.0f));
-    camera_set_look_at(&renderer.camera, v3s(0.0f));
-
-    // renderer_set_projection2d(&renderer, projection2d);
+    camera_set_position(&renderer.camera3d, v3(0.0f, 0.0f, 20.0f));
+    camera_look_at(&renderer.camera3d, v3s(0.0f));
 
     f32 time = time_get();
     f32 prev_time = time;
@@ -118,8 +112,8 @@ int main(int argc, char **argv)
             window_fullscreen_toggle(window);
         }
 
-        process_camera_movement(window, &renderer.camera, dt);
-        camera_recalc_matrices(&renderer.camera);
+        process_camera_movement(window, &renderer.camera3d, dt);
+        camera_recalc_matrices(&renderer.camera3d);
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
