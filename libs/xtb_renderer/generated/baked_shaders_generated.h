@@ -1,3 +1,6 @@
+#ifndef XTB_RENDERER_GENERATED_SHADERS_HEADER
+#define XTB_RENDERER_GENERATED_SHADERS_HEADER
+
 const char *test_vertex_source = ""
    "#version 330 core\n"
    "\n"
@@ -299,3 +302,4 @@ const char *ortho_vertex_source = ""
    "    gl_Position = projection * vec4(aPos, 0.0, 1.0);\n"
    "}\n";
 
+#endif // XTB_RENDERER_GENERATED_SHADERS_HEADER

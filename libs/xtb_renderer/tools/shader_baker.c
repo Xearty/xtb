@@ -7,6 +7,8 @@
 #include <xtb_core/contract.h>
 #include <xtb_core/str_buffer.h>
 
+#define HEADER_GUARD_NAME "XTB_RENDERER_GENERATED_SHADERS_HEADER"
+
 String ident_from_path(Allocator *allocator, String path)
 {
     String base = path_strip_extension(path_basename(path));
@@ -69,6 +71,8 @@ int main(int argc, char **argv)
 
     DirectoryList shader_paths = os_list_directory(&permanent_arena->allocator, shaders_dir);
 
+    str_buffer_push_back_lit(&builder, "#ifndef "HEADER_GUARD_NAME"\n#define "HEADER_GUARD_NAME"\n\n");
+
     IterateList(shader_paths, DirectoryListNode, shader_file)
     {
         if (shader_file->type != FT_REGULAR) continue;
@@ -87,6 +91,8 @@ int main(int argc, char **argv)
         append_shader_source(&builder, ident, source);
         scratch_end(scratch);
     }
+
+    str_buffer_push_back_lit(&builder, "#endif // "HEADER_GUARD_NAME);
 
     usize bytes_written = os_write_entire_file(out, builder.data, builder.size);
     if (bytes_written != builder.size)
