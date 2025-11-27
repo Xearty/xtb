@@ -75,13 +75,15 @@ int main(int argc, char **argv)
     tctx_init_and_equip(&tctx);
 
     WindowConfig cfg = window_config_default();
-    cfg.width *= 2;
+    cfg.width = 2000;
+    cfg.height = 1200;
     cfg.samples = 16;
 
     Window *window = window_create(allocator_get_static(), cfg);
     if (!window)
     {
         fputs("Could not create window", stderr);
+        return 1;
     }
 
     window_set_framebuffer_size_callback(window, framebuffer_size_callback);
@@ -113,7 +115,6 @@ int main(int argc, char **argv)
     f32 time = time_get();
     f32 prev_time = time;
 
-
     MaterialParamDescArray params = material_params_from_program(allocator_get_static(), renderer.shaders.mvp_solid_color);
 
     for (i32 i = 0; i < params.count; ++i)
@@ -126,8 +127,12 @@ int main(int argc, char **argv)
         printf("array_size = %d\n", it->array_size);
     }
 
+    Arena *frame_arena = arena_new(Kilobytes(4));
+
     while (!window_should_close(window))
     {
+        arena_clear(frame_arena);
+
         time = time_get();
         f32 dt = time - prev_time;
         prev_time = time;
@@ -172,6 +177,14 @@ int main(int argc, char **argv)
         transform = translate4(transform, v3(7.0f, 0.0f, -3.0f));
         render_cube(&renderer, magenta, transform);
 
+        Vec2Array points = make_array(&frame_arena->allocator);
+        array_push(&points, v2(100.f, 100.0f));
+        array_push(&points, v2(500.f, 1000.0f));
+        array_push(&points, v2(100.f, 800.0f));
+        array_push(&points, v2(1000.f, 500.0f));
+        array_push(&points, v2(500.f, 500.0f));
+
+        render_bezier_spline_custom(&renderer, points.data, points.count, 2, 50, 5.0f, red, false);
 
         window_swap_buffers(window);
     }

@@ -5,6 +5,7 @@
 #include "camera.h"
 #include <xtb_ogl/ogl.h>
 #include "material.h"
+#include "types.h"
 
 #ifndef POLYLINE_INSTANCED_MAX_LINES
 #define POLYLINE_INSTANCED_MAX_LINES 128

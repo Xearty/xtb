@@ -26,26 +26,26 @@ static Vec2Array compute_bezier_points(Allocator *allocator, vec2 points[], size
     Vec2Array polypoints = make_array(allocator);
     array_reserve(&polypoints, samples);
 
-    vec2 *intermediate = AllocateArray(&scratch.arena->allocator, count, vec2);
+    Vec2Array intermediate = make_array(&scratch.arena->allocator);
 
     for (int sample_iter = 0; sample_iter < samples; ++sample_iter)
     {
         float t = unlerp(0, samples - 1, sample_iter);
 
         float icount = count;
-        memcpy(intermediate, points, sizeof(vec2) * count);
+        array_assign(&intermediate, points, count);
 
         while (icount > 1)
         {
             for (int i = 0; i < icount - 1; ++i)
             {
-                intermediate[i] = lerp2(intermediate[i], intermediate[i + 1], t);
+                intermediate.data[i] = lerp2(intermediate.data[i], intermediate.data[i + 1], t);
             }
 
             icount -= 1;
         }
 
-        array_push(&polypoints, intermediate[0]);
+        array_push(&polypoints, intermediate.data[0]);
     }
 
     scratch_end(scratch);
