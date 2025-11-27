@@ -11,11 +11,11 @@
 
 C_LINKAGE_BEGIN
 
+// TODO: Use a single buffer for vertices and indices and store offsets
 typedef struct GpuMesh
 {
     u32 vbo;
     u32 ebo;
-    u32 vao;
     Mesh *geometry;
 } GpuMesh;
 
@@ -63,6 +63,8 @@ typedef struct Renderer
 
     PolylineRenderData polyline_render_data;
 
+    u32 standard_vao;
+
     Camera camera2d;
     Camera camera3d;
 } Renderer;
@@ -81,7 +83,7 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
 /****************************************************************
  * Rendering Functions
 ****************************************************************/
-void render_quad(Renderer *renderer, mat4 transform);
+void render_quad(Renderer *renderer, vec4 color, mat4 transform);
 void render_cube(Renderer *renderer, vec4 color, mat4 transform);
 void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
 void render_bezier_spline_custom(Renderer *renderer, vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
