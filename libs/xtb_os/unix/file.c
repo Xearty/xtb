@@ -22,7 +22,7 @@ static bool access_helper(String filepath, int check_value)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
-    bool result = access(filepath.str, check_value) == 0;
+    bool result = access((char*)filepath.str, check_value) == 0;
     scratch_end(scratch);
     return result;
 }
@@ -92,7 +92,7 @@ FileType os_get_file_type(String filepath)
 
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
-    int state = stat(filepath.str, &st);
+    int state = stat((char*)filepath.str, &st);
     scratch_end(scratch);
 
     if (state != 0) return FT_UNKNOWN;
@@ -116,7 +116,7 @@ FileType os_get_file_type_nofollow(String filepath)
 
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
-    int state = lstat(filepath.str, &st);
+    int state = lstat((char*)filepath.str, &st);
     scratch_end(scratch);
 
     if (state != 0) return FT_UNKNOWN;
@@ -143,7 +143,7 @@ bool os_delete_directory(String filepath)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
-    bool success = nftw(filepath.str, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
+    bool success = nftw((char*)filepath.str, unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
     scratch_end(scratch);
     return success;
 }
@@ -174,7 +174,7 @@ DirectoryList os_list_directory_custom(Allocator* allocator, String filepath, Di
 {
     TempArena scratch = scratch_begin_conflict(allocator);
     String filepath_nt = str_push_copy(scratch.arena, filepath);
-    DIR *dir = opendir(filepath_nt.str);
+    DIR *dir = opendir((char*)filepath_nt.str);
     scratch_end(scratch);
 
     DirectoryList list = {0};

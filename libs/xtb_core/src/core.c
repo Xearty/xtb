@@ -20,6 +20,7 @@
 
 void xtb_init(int argc, char **argv)
 {
+    Unused(argc);
     const char *exe_path = argv[0];
 
     allocators_init();

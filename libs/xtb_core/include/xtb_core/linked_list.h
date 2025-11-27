@@ -73,7 +73,7 @@ CheckNil(nil,p) ? \
 #define DLLConcatHT(first, second, head, tail) \
     (first.tail->next = second.head, \
     second.head->prev = first.tail, \
-    first.tail = second.tail, first)
+    first.tail = second.tail)
 
 #define DLLConcat(first, second) DLLConcatHT(first, second, head, tail)
 

@@ -6,12 +6,10 @@
 static void material_set_defaults(Material *mat)
 {
     MaterialParamDescArray *params = &mat->templ->params;
-    MaterialParamValueArray *values = &mat->values;
 
     for (i32 i = 0; i < params->count; ++i)
     {
         MaterialParamDesc *param = &params->data[i];
-        MaterialParamValue *value = &values->data[i];
 
         switch (param->kind)
         {

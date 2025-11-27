@@ -26,7 +26,11 @@
 #   define Unreachable
 #endif
 
-#define StaticAssert(cond, msg) \
-    typedef char static_assertion_##msg[(cond) ? 1 : -1]
+#if defined(COMPILER_GCC) || defined(COMPILER_CLANG)
+#define StaticAssert(cond, msg) _Static_assert((cond), msg);
+#else
+#error StaticAssert not defined for compiler
+#endif
+
 
 #endif // _XTB_CONTRACT_H_

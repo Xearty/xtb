@@ -4,6 +4,12 @@ project(xtb C)
 option(XTB_BUILD_APPS "Build xtb applications/tests" ON)
 option(XTB_BUILD_CPP "Build the cpp bindings" ON)
 
+add_compile_options(
+    -Wall
+    # -Wextra
+    -Werror
+)
+
 add_subdirectory(libs)
 
 if(XTB_BUILD_APPS)

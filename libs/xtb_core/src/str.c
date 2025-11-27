@@ -70,7 +70,7 @@ String str_escape(Allocator *allocator, String string)
 {
     char escape_characters[] = { 'a', 'b', 'e', 'f', 'n', 'r', 't', 'v', '\\', '\'', '\"', '?' };
     char hex_values[] = { 0x07, 0x08, 0x1b, 0x0c, 0x0a, 0x0d, 0x09, 0x0b, 0x5c, 0x27, 0x22, 0x3f };
-    StaticAssert(ArrLen(escape_characters) == ArrLen(hex_values), str_escape_arrays_match);
+    StaticAssert(ArrLen(escape_characters) == ArrLen(hex_values), "Array lengths must match");
 
     StringBuffer buf = str_buffer_new(allocator, string.len + 1);
 

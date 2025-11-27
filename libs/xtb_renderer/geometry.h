@@ -27,20 +27,20 @@ static inline Mesh geometry_create_quad(Allocator *allocator)
     array_reserve(&mesh.vertices, 4);
 
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, 0.0f},
-        .tex_coords = {1.0f, 1.0f}
+        .position = v3(0.5f, 0.5f, 0.0f),
+        .tex_coords = v2(1.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, 0.0f},
-        .tex_coords = {1.0f, 0.0f}
+        .position = v3(0.5f, -0.5f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, 0.0f},
-        .tex_coords = {0.0f, 0.0f}
+        .position = v3(-0.5f, -0.5f, 0.0f),
+        .tex_coords = v2(0.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, 0.0f},
-        .tex_coords = {0.0f, 1.0f}
+        .position = v3(-0.5f, 0.5f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
 
     array_init(&mesh.indices, allocator);
@@ -64,189 +64,189 @@ static inline Mesh geometry_create_cube(Allocator *allocator)
     array_reserve(&mesh.vertices, 36);
 
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, -0.5f},
-        .normal = {0.0f, 0.0f, -1.0f},
-        .tex_coords = {0.0f, 0.0f},
+        .position = v3(-0.5f, -0.5f, -0.5f),
+        .normal = v3(0.0f, 0.0f, -1.0f),
+        .tex_coords = v2(0.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, -0.5f},
-        .normal = {0.0f, 0.0f, -1.0f},
-        .tex_coords = {1.0f, 0.0f},
+        .position = v3(0.5f, -0.5f, -0.5f),
+        .normal = v3(0.0f, 0.0f, -1.0f),
+        .tex_coords = v2(1.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, -0.5f},
-        .normal = {0.0f, 0.0f, -1.0f},
-        .tex_coords = {1.0f, 1.0f},
+        .position = v3(0.5f, 0.5f, -0.5f),
+        .normal = v3(0.0f, 0.0f, -1.0f),
+        .tex_coords = v2(1.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, -0.5f},
-        .normal = {0.0f, 0.0f, -1.0f},
-        .tex_coords = {1.0f, 1.0f},
+        .position = v3(0.5f, 0.5f, -0.5f),
+        .normal = v3(0.0f, 0.0f, -1.0f),
+        .tex_coords = v2(1.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, -0.5f},
-        .normal = {0.0f, 0.0f, -1.0f},
-        .tex_coords = {0.0f, 1.0f},
+        .position = v3(-0.5f, 0.5f, -0.5f),
+        .normal = v3(0.0f, 0.0f, -1.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, -0.5f},
-        .normal = {0.0f, 0.0f, -1.0f},
-        .tex_coords = {0.0f, 0.0f},
-    }));
-
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, 0.5f},
-        .normal = {0.0f, 0.0f, 1.0f},
-        .tex_coords = {0.0f, 0.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, 0.5f},
-        .normal = {0.0f, 0.0f, 1.0f},
-        .tex_coords = {1.0f, 0.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, 0.5f},
-        .normal = {0.0f, 0.0f, 1.0f},
-        .tex_coords = {1.0f, 1.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, 0.5f},
-        .normal = {0.0f, 0.0f, 1.0f},
-        .tex_coords = {1.0f, 1.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, 0.5f},
-        .normal = {0.0f, 0.0f, 1.0f},
-        .tex_coords = {0.0f, 1.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, 0.5f},
-        .normal = {0.0f, 0.0f, 1.0f},
-        .tex_coords = {0.0f, 0.0f},
+        .position = v3(-0.5f, -0.5f, -0.5f),
+        .normal = v3(0.0f, 0.0f, -1.0f),
+        .tex_coords = v2(0.0f, 0.0f),
     }));
 
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, 0.5f},
-        .normal = {-1.0f, 0.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
+        .position = v3(-0.5f, -0.5f, 0.5f),
+        .normal = v3(0.0f, 0.0f, 1.0f),
+        .tex_coords = v2(0.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, -0.5f},
-        .normal = {-1.0f, 0.0f, 0.0f},
-        .tex_coords = {1.0f, 1.0f},
+        .position = v3(0.5f, -0.5f, 0.5f),
+        .normal = v3(0.0f, 0.0f, 1.0f),
+        .tex_coords = v2(1.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, -0.5f},
-        .normal = {-1.0f, 0.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
+        .position = v3(0.5f, 0.5f, 0.5f),
+        .normal = v3(0.0f, 0.0f, 1.0f),
+        .tex_coords = v2(1.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, -0.5f},
-        .normal = {-1.0f, 0.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
+        .position = v3(0.5f, 0.5f, 0.5f),
+        .normal = v3(0.0f, 0.0f, 1.0f),
+        .tex_coords = v2(1.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, 0.5f},
-        .normal = {-1.0f, 0.0f, 0.0f},
-        .tex_coords = {0.0f, 0.0f},
+        .position = v3(-0.5f, 0.5f, 0.5f),
+        .normal = v3(0.0f, 0.0f, 1.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, 0.5f},
-        .normal = {-1.0f, 0.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
-    }));
-
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, 0.5f},
-        .normal = {1.0f, 0.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, -0.5f},
-        .normal = {1.0f, 0.0f, 0.0f},
-        .tex_coords = {1.0f, 1.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, -0.5f},
-        .normal = {1.0f, 0.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, -0.5f},
-        .normal = {1.0f, 0.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, 0.5f},
-        .normal = {1.0f, 0.0f, 0.0f},
-        .tex_coords = {0.0f, 0.0f},
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, 0.5f},
-        .normal = {1.0f, 0.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
+        .position = v3(-0.5f, -0.5f, 0.5f),
+        .normal = v3(0.0f, 0.0f, 1.0f),
+        .tex_coords = v2(0.0f, 0.0f),
     }));
 
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, -0.5f},
-        .normal = {0.0f, -1.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
+        .position = v3(-0.5f, 0.5f, 0.5f),
+        .normal = v3(-1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, -0.5f},
-        .normal = {0.0f, -1.0f, 0.0f},
-        .tex_coords = {1.0f, 1.0f},
+        .position = v3(-0.5f, 0.5f, -0.5f),
+        .normal = v3(-1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(1.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, 0.5f},
-        .normal = {0.0f, -1.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
+        .position = v3(-0.5f, -0.5f, -0.5f),
+        .normal = v3(-1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, -0.5f, 0.5f},
-        .normal = {0.0f, -1.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
+        .position = v3(-0.5f, -0.5f, -0.5f),
+        .normal = v3(-1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, 0.5f},
-        .normal = {0.0f, -1.0f, 0.0f},
-        .tex_coords = {0.0f, 0.0f},
+        .position = v3(-0.5f, -0.5f, 0.5f),
+        .normal = v3(-1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(0.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, -0.5f, -0.5f},
-        .normal = {0.0f, -1.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
+        .position = v3(-0.5f, 0.5f, 0.5f),
+        .normal = v3(-1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
     }));
 
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, -0.5f},
-        .normal = {0.0f, 1.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
+        .position = v3(0.5f, 0.5f, 0.5f),
+        .normal = v3(1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, -0.5f},
-        .normal = {0.0f, 1.0f, 0.0f},
-        .tex_coords = {1.0f, 1.0f},
+        .position = v3(0.5f, 0.5f, -0.5f),
+        .normal = v3(1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(1.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, 0.5f},
-        .normal = {0.0f, 1.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
+        .position = v3(0.5f, -0.5f, -0.5f),
+        .normal = v3(1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {0.5f, 0.5f, 0.5f},
-        .normal = {0.0f, 1.0f, 0.0f},
-        .tex_coords = {1.0f, 0.0f},
+        .position = v3(0.5f, -0.5f, -0.5f),
+        .normal = v3(1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, 0.5f},
-        .normal = {0.0f, 1.0f, 0.0f},
-        .tex_coords = {0.0f, 0.0f},
+        .position = v3(0.5f, -0.5f, 0.5f),
+        .normal = v3(1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(0.0f, 0.0f),
     }));
     array_push(&mesh.vertices, ((Vertex) {
-        .position = {-0.5f, 0.5f, -0.5f},
-        .normal = {0.0f, 1.0f, 0.0f},
-        .tex_coords = {0.0f, 1.0f},
+        .position = v3(0.5f, 0.5f, 0.5f),
+        .normal = v3(1.0f, 0.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
+    }));
+
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(-0.5f, -0.5f, -0.5f),
+        .normal = v3(0.0f, -1.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(0.5f, -0.5f, -0.5f),
+        .normal = v3(0.0f, -1.0f, 0.0f),
+        .tex_coords = v2(1.0f, 1.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(0.5f, -0.5f, 0.5f),
+        .normal = v3(0.0f, -1.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(0.5f, -0.5f, 0.5f),
+        .normal = v3(0.0f, -1.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(-0.5f, -0.5f, 0.5f),
+        .normal = v3(0.0f, -1.0f, 0.0f),
+        .tex_coords = v2(0.0f, 0.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(-0.5f, -0.5f, -0.5f),
+        .normal = v3(0.0f, -1.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
+    }));
+
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(-0.5f, 0.5f, -0.5f),
+        .normal = v3(0.0f, 1.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(0.5f, 0.5f, -0.5f),
+        .normal = v3(0.0f, 1.0f, 0.0f),
+        .tex_coords = v2(1.0f, 1.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(0.5f, 0.5f, 0.5f),
+        .normal = v3(0.0f, 1.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(0.5f, 0.5f, 0.5f),
+        .normal = v3(0.0f, 1.0f, 0.0f),
+        .tex_coords = v2(1.0f, 0.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(-0.5f, 0.5f, 0.5f),
+        .normal = v3(0.0f, 1.0f, 0.0f),
+        .tex_coords = v2(0.0f, 0.0f),
+    }));
+    array_push(&mesh.vertices, ((Vertex) {
+        .position = v3(-0.5f, 0.5f, -0.5f),
+        .normal = v3(0.0f, 1.0f, 0.0f),
+        .tex_coords = v2(0.0f, 1.0f),
     }));
 
     return mesh;

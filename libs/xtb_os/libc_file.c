@@ -140,7 +140,7 @@ String os_real_path(Allocator* allocator, String filepath)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     filepath = str_push_copy(scratch.arena, filepath);
-    char *realpath_result = realpath(filepath.str, NULL);
+    char *realpath_result = realpath((char*)filepath.str, NULL);
     scratch_end(scratch);
 
     String copy = cstr_copy(allocator, realpath_result);

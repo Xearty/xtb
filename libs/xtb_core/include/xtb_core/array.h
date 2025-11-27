@@ -90,7 +90,7 @@ C_LINKAGE_END
     #define array_make_generic(array_ptr) ((GenericArray){&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
 #endif
 
-#define make_array(allocator) { (allocator) }
+#define make_array(allocator) {{ (allocator) }}
 
 //Initializes the array. If the array is already initialized deinitializes it first.
 //Thus expects a properly formed array. Suppling a non-zeroed memory will cause errors!

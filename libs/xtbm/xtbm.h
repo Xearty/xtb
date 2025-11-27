@@ -705,32 +705,29 @@ static inline mat4 mmul4(mat4 a, mat4 b)
 
 static inline mat2 transpose2(mat2 m)
 {
-    mat2 r = {
-        m.m00, m.m10,
-        m.m01, m.m11
-    };
-    return r;
+    return M2(
+        v2(m.m00, m.m10),
+        v2(m.m01, m.m11)
+    );
 }
 
 static inline mat3 transpose3(mat3 m)
 {
-    mat3 r = {
-        m.m00, m.m10, m.m20,
-        m.m01, m.m11, m.m21,
-        m.m02, m.m12, m.m22
-    };
-    return r;
+    return M3(
+        v3(m.m00, m.m10, m.m20),
+        v3(m.m01, m.m11, m.m21),
+        v3(m.m02, m.m12, m.m22)
+    );
 }
 
 static inline mat4 transpose4(mat4 m)
 {
-    mat4 r = {
-        m.m00, m.m10, m.m20, m.m30,
-        m.m01, m.m11, m.m21, m.m31,
-        m.m02, m.m12, m.m22, m.m32,
-        m.m03, m.m13, m.m23, m.m33
-    };
-    return r;
+    return M4(
+        v4(m.m00, m.m10, m.m20, m.m30),
+        v4(m.m01, m.m11, m.m21, m.m31),
+        v4(m.m02, m.m12, m.m22, m.m32),
+        v4(m.m03, m.m13, m.m23, m.m33)
+    );
 }
 
 static inline f32 det2(mat2 m)

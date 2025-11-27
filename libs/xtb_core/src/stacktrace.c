@@ -1,3 +1,4 @@
+#include <xtb_core/core.h>
 #include <xtb_core/stacktrace.h>
 #include <xtb_ansi/ansi.h>
 
@@ -16,6 +17,9 @@ Backtrace g_backtrace;
 
 void xtb_backtrace_error_callback(void *data, const char *msg, int errnum)
 {
+    Unused(data);
+    Unused(errnum);
+
     ansi_print_bold_red(stderr, "BACKTRACE ERROR: %s", msg);
     fputs("\n", stderr);
 }
@@ -26,6 +30,9 @@ int xtb_backtrace_full_callback(void *data,
                                  int lineno,
                                  const char *function)
 {
+    Unused(data);
+    Unused(pc);
+
     if (filename == NULL)
     {
         if (g_backtrace.should_print_next_unknown_frame)

@@ -38,6 +38,8 @@ static int linux_signal_exit_code(int signal)
 
 static void linux_signal_handler_backtrace(int signal, siginfo_t *siginfo, void *context)
 {
+    Unused(siginfo);
+
     LOG_FATAL("Caught %s: %s",
               linux_stringify_signal(signal),
               linux_stringify_signal_description(signal));
