@@ -3,8 +3,8 @@
 
 #include "geometry.h"
 #include "camera.h"
-#include "xtb_core/contract.h"
 #include <xtb_ogl/ogl.h>
+#include "material.h"
 
 #ifndef POLYLINE_INSTANCED_MAX_LINES
 #define POLYLINE_INSTANCED_MAX_LINES 128
@@ -56,48 +56,6 @@ typedef struct PolylineRenderData
     u32 vao;
     u32 per_vertex_vbo;
 } PolylineRenderData;
-//
-// TODO: Convert this to an enum that mirrors gl types
-typedef u32 MaterialParamKind;
-
-typedef struct MaterialParamDesc
-{
-    String name;
-    MaterialParamKind kind;
-    i32 uniform_location;
-    i32 array_size;
-} MaterialParamDesc;
-
-typedef Array(MaterialParamDesc) MaterialParamDescArray;
-
-typedef struct MaterialTemplate
-{
-    ShaderProgram program;
-    MaterialParamDescArray params;
-} MaterialTemplate;
-
-typedef struct MaterialParamValue
-{
-    MaterialParamKind kind;
-    union
-    {
-        f32 f32;
-        vec2 vec2;
-        vec3 vec3;
-        vec4 vec4;
-        mat2 mat2;
-        mat3 mat3;
-        mat4 mat4;
-    } as;
-} MaterialParamValue;
-
-typedef Array(MaterialParamValue) MaterialParamValueArray;
-
-typedef struct Material
-{
-    MaterialTemplate *templ;
-    MaterialParamValueArray values;
-} Material;
 
 // TOOD: Material pool
 typedef struct Renderer

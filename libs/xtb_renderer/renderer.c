@@ -5,6 +5,9 @@
 #include <xtb_core/thread_context.h>
 #include "generated/baked_shaders_generated.h"
 
+#include "material.c"
+#include "opengl_material.c"
+
 /****************************************************************
  * Internal
 ****************************************************************/
@@ -214,113 +217,6 @@ static void init_standard_vao(Renderer *renderer)
     glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
     glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, tex_coords));
 }
-
-// The opengl version
-MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgram program)
-{
-    MaterialParamDescArray params = make_array(allocator);;
-
-    GLint uniform_count = 0;
-    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_count);
-
-    if (uniform_count > 0)
-    {
-        array_reserve(&params, uniform_count);
-
-        GLint max_name_len = 0;
-        glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_name_len);
-
-        TempArena scratch = scratch_begin_conflict(allocator);
-
-        u8 *uniform_name = AllocateBytes(&scratch.arena->allocator, max_name_len + 1);
-
-        for (GLint uniform_index = 0; uniform_index < uniform_count; ++uniform_index)
-        {
-            GLsizei length = 0;
-            GLsizei count = 0;
-            GLenum type = GL_NONE;
-
-            glGetActiveUniform(program, uniform_index, max_name_len, &length, &count, &type, (GLchar*)uniform_name);
-
-            MaterialParamDesc param = {};
-            param.name = str_copy(allocator, str_from(uniform_name, length));
-            param.kind = type;
-            param.uniform_location = glGetUniformLocation(program, (GLchar*)uniform_name);
-            param.array_size = count;
-
-            array_push(&params, param);
-        }
-
-        scratch_end(scratch);
-    }
-
-    return params;
-}
-
-i32 material_find_param(const MaterialTemplate *t, const char *name)
-{
-    for (i32 i = 0; i < t->params.count; ++i)
-    {
-        MaterialParamDesc *desc = &t->params.data[i];
-        if (str_eq_cstring(desc->name, name))
-        {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-void material_set_vec4(Material *mat, const char *name, vec4 val)
-{
-    i32 idx = material_find_param(mat->templ, name);
-    Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC4);
-
-    mat->values.data[idx].kind = GL_FLOAT_VEC4;
-    mat->values.data[idx].as.vec4 = val;
-}
-
-void material_set_vec2(Material *mat, const char *name, vec2 val)
-{
-    i32 idx = material_find_param(mat->templ, name);
-    Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC2);
-
-    mat->values.data[idx].kind = GL_FLOAT_VEC2;
-    mat->values.data[idx].as.vec2 = val;
-}
-
-void material_set_vec3(Material *mat, const char *name, vec3 val)
-{
-    i32 idx = material_find_param(mat->templ, name);
-    Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC3);
-
-    mat->values.data[idx].kind = GL_FLOAT_VEC3;
-    mat->values.data[idx].as.vec3 = val;
-}
-
-void material_set_mat4(Material *mat, const char *name, mat4 val)
-{
-    i32 idx = material_find_param(mat->templ, name);
-    Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_MAT4);
-
-    mat->values.data[idx].kind = GL_FLOAT_MAT4;
-    mat->values.data[idx].as.mat4 = val;
-}
-
-Material material_instance_create(Allocator *allocator, MaterialTemplate *templ)
-{
-    Material mat = {};
-    mat.templ = templ;
-    array_init(&mat.values, allocator);
-    array_resize(&mat.values, templ->params.count);
-
-    return mat;
-}
-
 static void init_default_solid_color_material(Renderer *r)
 {
     MaterialTemplate *templ = Allocate(&r->persistent_arena->allocator, MaterialTemplate);
@@ -394,64 +290,6 @@ static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 /****************************************************************
  * Rendering Functions
 ****************************************************************/
-static void material_apply(Renderer *renderer, Material *material)
-{
-    glUseProgram(material->templ->program);
-
-    for (i32 i = 0; i < material->templ->params.count; ++i)
-    {
-        const MaterialParamDesc *desc = &material->templ->params.data[i];
-        const MaterialParamValue *value = &material->values.data[i];
-
-        switch (desc->kind)
-        {
-            case GL_FLOAT:
-            {
-                glUniform1f(desc->uniform_location, value->as.f32);
-            } break;
-
-            case GL_FLOAT_VEC2:
-            {
-                glUniform2fv(desc->uniform_location, 1, &value->as.vec2.x);
-            } break;
-
-            case GL_FLOAT_VEC3:
-            {
-                glUniform3fv(desc->uniform_location, 1, &value->as.vec3.x);
-            } break;
-
-            case GL_FLOAT_VEC4:
-            {
-                glUniform4fv(desc->uniform_location, 1, &value->as.vec4.x);
-            } break;
-
-            case GL_FLOAT_MAT2:
-            {
-                glUniformMatrix2fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat2.m00);
-            } break;
-
-            case GL_FLOAT_MAT3:
-            {
-                glUniformMatrix3fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat3.m00);
-            } break;
-
-            case GL_FLOAT_MAT4:
-            {
-                glUniformMatrix4fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat4.m00);
-            } break;
-        }
-    }
-}
-
-Material material_copy(Material *m)
-{
-    Material res = {};
-    res.templ = m->templ;
-    array_init(&res.values, allocator_get_static());
-    array_append(&res.values, m->values.data, m->values.count);
-    return res;
-}
-
 static void material_set_mvp(Renderer *renderer, Material *material, mat4 model)
 {
     material_set_mat4(material, "model", model);
@@ -462,7 +300,7 @@ static void material_set_mvp(Renderer *renderer, Material *material, mat4 model)
 // Implies mvp vertex shader
 static void render_mesh(Renderer *renderer, GpuMesh *mesh, Material *material)
 {
-    material_apply(renderer, material);
+    material_apply(material);
     render_mesh_geometry(renderer, mesh);
 }
 
