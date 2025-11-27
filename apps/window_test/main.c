@@ -113,6 +113,19 @@ int main(int argc, char **argv)
     f32 time = time_get();
     f32 prev_time = time;
 
+
+    MaterialParamDescArray params = material_params_from_program(allocator_get_static(), renderer.shaders.mvp_solid_color);
+
+    for (i32 i = 0; i < params.count; ++i)
+    {
+        MaterialParamDesc *it = &params.data[i];
+
+        printf("name = \"%.*s\", ", (i32)it->name.len, it->name.str);
+        printf("kind = \"%s\", ", gl_type_to_string(it->kind));
+        printf("uniform_location = %d, ", it->uniform_location);
+        printf("array_size = %d\n", it->array_size);
+    }
+
     while (!window_should_close(window))
     {
         time = time_get();

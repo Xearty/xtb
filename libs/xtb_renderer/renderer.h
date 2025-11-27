@@ -3,6 +3,7 @@
 
 #include "geometry.h"
 #include "camera.h"
+#include "xtb_core/contract.h"
 #include <xtb_ogl/ogl.h>
 
 #ifndef POLYLINE_INSTANCED_MAX_LINES
@@ -55,9 +56,54 @@ typedef struct PolylineRenderData
     u32 vao;
     u32 per_vertex_vbo;
 } PolylineRenderData;
+//
+// TODO: Convert this to an enum that mirrors gl types
+typedef u32 MaterialParamKind;
 
+typedef struct MaterialParamDesc
+{
+    String name;
+    MaterialParamKind kind;
+    i32 uniform_location;
+    i32 array_size;
+} MaterialParamDesc;
+
+typedef Array(MaterialParamDesc) MaterialParamDescArray;
+
+typedef struct MaterialTemplate
+{
+    ShaderProgram program;
+    MaterialParamDescArray params;
+} MaterialTemplate;
+
+typedef struct MaterialParamValue
+{
+    MaterialParamKind kind;
+    union
+    {
+        f32 f32;
+        vec2 vec2;
+        vec3 vec3;
+        vec4 vec4;
+        mat2 mat2;
+        mat3 mat3;
+        mat4 mat4;
+    } as;
+} MaterialParamValue;
+
+typedef Array(MaterialParamValue) MaterialParamValueArray;
+
+typedef struct Material
+{
+    MaterialTemplate *templ;
+    MaterialParamValueArray values;
+} Material;
+
+// TOOD: Material pool
 typedef struct Renderer
 {
+    Arena *persistent_arena;
+
     GeometryCache mesh_cache;
     ShaderRegistry shaders;
 
@@ -65,9 +111,28 @@ typedef struct Renderer
 
     u32 standard_vao;
 
+    Material default_solid_color_material;
+
     Camera camera2d;
     Camera camera3d;
 } Renderer;
+
+MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgram program);
+static inline const char *gl_type_to_string(i32 type)
+{
+    switch (type)
+    {
+        case GL_FLOAT: return "float";
+        case GL_FLOAT_VEC2: return "vec2";
+        case GL_FLOAT_VEC3: return "vec3";
+        case GL_FLOAT_VEC4: return "vec4";
+        case GL_FLOAT_MAT2: return "mat2";
+        case GL_FLOAT_MAT3: return "mat3";
+        case GL_FLOAT_MAT4: return "mat4";
+    }
+
+    return "<Unknown>";
+}
 
 /****************************************************************
  * Renderer Lifecycle

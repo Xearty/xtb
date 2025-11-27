@@ -215,12 +215,129 @@ static void init_standard_vao(Renderer *renderer)
     glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, tex_coords));
 }
 
+// The opengl version
+MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgram program)
+{
+    MaterialParamDescArray params = make_array(allocator);;
+
+    GLint uniform_count = 0;
+    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_count);
+
+    if (uniform_count > 0)
+    {
+        array_reserve(&params, uniform_count);
+
+        GLint max_name_len = 0;
+        glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_name_len);
+
+        TempArena scratch = scratch_begin_conflict(allocator);
+
+        u8 *uniform_name = AllocateBytes(&scratch.arena->allocator, max_name_len + 1);
+
+        for (GLint uniform_index = 0; uniform_index < uniform_count; ++uniform_index)
+        {
+            GLsizei length = 0;
+            GLsizei count = 0;
+            GLenum type = GL_NONE;
+
+            glGetActiveUniform(program, uniform_index, max_name_len, &length, &count, &type, (GLchar*)uniform_name);
+
+            MaterialParamDesc param = {};
+            param.name = str_copy(allocator, str_from(uniform_name, length));
+            param.kind = type;
+            param.uniform_location = glGetUniformLocation(program, (GLchar*)uniform_name);
+            param.array_size = count;
+
+            array_push(&params, param);
+        }
+
+        scratch_end(scratch);
+    }
+
+    return params;
+}
+
+i32 material_find_param(const MaterialTemplate *t, const char *name)
+{
+    for (i32 i = 0; i < t->params.count; ++i)
+    {
+        MaterialParamDesc *desc = &t->params.data[i];
+        if (str_eq_cstring(desc->name, name))
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void material_set_vec4(Material *mat, const char *name, vec4 val)
+{
+    i32 idx = material_find_param(mat->templ, name);
+    Assert(idx >= 0);
+    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC4);
+
+    mat->values.data[idx].kind = GL_FLOAT_VEC4;
+    mat->values.data[idx].as.vec4 = val;
+}
+
+void material_set_vec2(Material *mat, const char *name, vec2 val)
+{
+    i32 idx = material_find_param(mat->templ, name);
+    Assert(idx >= 0);
+    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC2);
+
+    mat->values.data[idx].kind = GL_FLOAT_VEC2;
+    mat->values.data[idx].as.vec2 = val;
+}
+
+void material_set_vec3(Material *mat, const char *name, vec3 val)
+{
+    i32 idx = material_find_param(mat->templ, name);
+    Assert(idx >= 0);
+    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC3);
+
+    mat->values.data[idx].kind = GL_FLOAT_VEC3;
+    mat->values.data[idx].as.vec3 = val;
+}
+
+void material_set_mat4(Material *mat, const char *name, mat4 val)
+{
+    i32 idx = material_find_param(mat->templ, name);
+    Assert(idx >= 0);
+    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_MAT4);
+
+    mat->values.data[idx].kind = GL_FLOAT_MAT4;
+    mat->values.data[idx].as.mat4 = val;
+}
+
+Material material_instance_create(Allocator *allocator, MaterialTemplate *templ)
+{
+    Material mat = {};
+    mat.templ = templ;
+    array_init(&mat.values, allocator);
+    array_reserve(&mat.values, templ->params.count);
+
+    return mat;
+}
+
+static void init_default_solid_color_material(Renderer *r)
+{
+    MaterialTemplate *templ = Allocate(&r->persistent_arena->allocator, MaterialTemplate);
+    templ->program = r->shaders.mvp_solid_color;
+    templ->params = material_params_from_program(&r->persistent_arena->allocator, templ->program);
+
+    r->default_solid_color_material = material_instance_create(&r->persistent_arena->allocator, templ);
+    material_set_vec4(&r->default_solid_color_material, "color", v4(1.0f, 0.0f, 1.0f, 1.0f));
+}
+
 /****************************************************************
  * Renderer Lifecycle
 ****************************************************************/
 void renderer_init(Renderer *renderer, f32 width, f32 height)
 {
     MemoryZeroStruct(renderer);
+    renderer->persistent_arena = arena_new(Kilobytes(4));
     renderer->mesh_cache.arena = arena_new(Kilobytes(4));
 
     renderer->shaders.test = load_shader_program_from_memory("test", test_vertex_source, test_fragment_source);
@@ -234,11 +351,14 @@ void renderer_init(Renderer *renderer, f32 width, f32 height)
     camera_init(&renderer->camera2d);
     camera_init(&renderer->camera3d);
     renderer_cameras_recreate_projections(renderer, width, height);
+
+    init_default_solid_color_material(renderer);
 }
 
 void renderer_deinit(Renderer *renderer)
 {
     arena_release(renderer->mesh_cache.arena);
+    arena_release(renderer->persistent_arena);
 }
 
 /****************************************************************
@@ -255,13 +375,11 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
 }
 
 // TODO: Add support for materials
-static void render_mesh(Renderer *renderer, const GpuMesh *mesh)
+static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 {
     u32 vao = renderer->standard_vao;
     glBindVertexArray(vao);
     glVertexArrayVertexBuffer(vao, 0, mesh->vbo, 0, sizeof(Vertex));
-
-    glUseProgram(renderer->shaders.mvp_solid_color);
 
     if (mesh->geometry->indices.count > 0)
     {
@@ -277,30 +395,94 @@ static void render_mesh(Renderer *renderer, const GpuMesh *mesh)
 /****************************************************************
  * Rendering Functions
 ****************************************************************/
+static void material_apply(Renderer *renderer, Material *material)
+{
+    glUseProgram(material->templ->program);
+
+    for (i32 i = 0; i < material->templ->params.count; ++i)
+    {
+        const MaterialParamDesc *desc = &material->templ->params.data[i];
+        const MaterialParamValue *value = &material->values.data[i];
+
+        switch (desc->kind)
+        {
+            case GL_FLOAT:
+            {
+                glUniform1f(desc->uniform_location, value->as.f32);
+            } break;
+
+            case GL_FLOAT_VEC2:
+            {
+                glUniform2fv(desc->uniform_location, 1, &value->as.vec2.x);
+            } break;
+
+            case GL_FLOAT_VEC3:
+            {
+                glUniform3fv(desc->uniform_location, 1, &value->as.vec3.x);
+            } break;
+
+            case GL_FLOAT_VEC4:
+            {
+                glUniform4fv(desc->uniform_location, 1, &value->as.vec4.x);
+            } break;
+
+            case GL_FLOAT_MAT2:
+            {
+                glUniformMatrix2fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat2.m00);
+            } break;
+
+            case GL_FLOAT_MAT3:
+            {
+                glUniformMatrix3fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat3.m00);
+            } break;
+
+            case GL_FLOAT_MAT4:
+            {
+                glUniformMatrix4fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat4.m00);
+            } break;
+        }
+    }
+}
+
+Material material_copy(Material *m)
+{
+    Material res = {};
+    res.templ = m->templ;
+    array_init(&res.values, allocator_get_static());
+    array_append(&res.values, m->values.data, m->values.count);
+    return res;
+}
+
+static void material_set_mvp(Renderer *renderer, Material *material, mat4 model)
+{
+    material_set_mat4(material, "model", model);
+    material_set_mat4(material, "view", renderer->camera3d.view);
+    material_set_mat4(material, "projection", renderer->camera3d.projection);
+}
+
+// Implies mvp vertex shader
+static void render_mesh(Renderer *renderer, GpuMesh *mesh, Material *material)
+{
+    material_apply(renderer, material);
+    render_mesh_geometry(renderer, mesh);
+}
+
 void render_quad(Renderer *renderer, vec4 color, mat4 transform)
 {
-    ShaderProgram program = renderer->shaders.mvp_solid_color;
-    glUseProgram(program);
-    renderer_mvp_set_uniforms(renderer, program, transform);
+    Material material = material_copy(&renderer->default_solid_color_material);
+    material_set_vec4(&material, "color", color);
+    material_set_mvp(renderer, &material, transform);
 
-    int color_loc = glGetUniformLocation(program, "color");
-    glUniform4f(color_loc, color.r, color.g, color.b, color.a);
-
-    render_mesh(renderer, ensure_quad_mesh(renderer));
-
-    glBindVertexArray(0);
+    render_mesh(renderer, ensure_quad_mesh(renderer), &material);
 }
 
 void render_cube(Renderer *renderer, vec4 color, mat4 transform)
 {
-    ShaderProgram program = renderer->shaders.mvp_solid_color;
-    glUseProgram(program);
-    renderer_mvp_set_uniforms(renderer, program, transform);
+    Material material = material_copy(&renderer->default_solid_color_material);
+    material_set_vec4(&material, "color", color); // TODO: Default is not taken into account
+    material_set_mvp(renderer, &material, transform);
 
-    int color_loc = glGetUniformLocation(program, "color");
-    glUniform4f(color_loc, color.r, color.g, color.b, color.a);
-
-    render_mesh(renderer, ensure_cube_mesh(renderer));
+    render_mesh(renderer, ensure_cube_mesh(renderer), &material);
 }
 
 void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped)
