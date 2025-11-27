@@ -10,6 +10,14 @@ add_compile_options(
     -Werror
 )
 
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(
+        -Og
+        -ggdb
+        -fno-omit-frame-pointer
+    )
+endif()
+
 add_subdirectory(libs)
 
 if(XTB_BUILD_APPS)
