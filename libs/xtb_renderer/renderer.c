@@ -306,20 +306,28 @@ static void render_mesh(Renderer *renderer, GpuMesh *mesh, Material *material)
 
 void render_quad(Renderer *renderer, vec4 color, mat4 transform)
 {
-    Material material = material_copy(&renderer->default_solid_color_material);
+    TempArena scratch = scratch_begin_no_conflicts();
+
+    Material material = material_copy(&scratch.arena->allocator, &renderer->default_solid_color_material);
     material_set_vec4(&material, "color", color);
     material_set_mvp(renderer, &material, transform);
 
     render_mesh(renderer, ensure_quad_mesh(renderer), &material);
+
+    scratch_end(scratch);
 }
 
 void render_cube(Renderer *renderer, vec4 color, mat4 transform)
 {
-    Material material = material_copy(&renderer->default_solid_color_material);
+    TempArena scratch = scratch_begin_no_conflicts();
+
+    Material material = material_copy(&scratch.arena->allocator, &renderer->default_solid_color_material);
     material_set_vec4(&material, "color", color); // TODO: Default is not taken into account
     material_set_mvp(renderer, &material, transform);
 
     render_mesh(renderer, ensure_cube_mesh(renderer), &material);
+
+    scratch_end(scratch);
 }
 
 void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped)

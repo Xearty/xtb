@@ -67,11 +67,11 @@ Material material_instance_create(Allocator *allocator, MaterialTemplate *templ)
     return mat;
 }
 
-Material material_copy(Material *m)
+Material material_copy(Allocator *allocator, Material *m)
 {
     Material res = {};
     res.templ = m->templ;
-    array_init(&res.values, allocator_get_static());
+    array_init(&res.values, allocator);
     array_append(&res.values, m->values.data, m->values.count);
     return res;
 }
