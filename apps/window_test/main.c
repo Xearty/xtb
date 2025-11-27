@@ -139,6 +139,11 @@ int main(int argc, char **argv)
 
         window_poll_events(window);
 
+        if (key_is_pressed(window, KEY_Q))
+        {
+            toggle_wireframe();
+        }
+
         if (key_is_pressed(window, KEY_ESCAPE))
         {
             window_request_close(window);

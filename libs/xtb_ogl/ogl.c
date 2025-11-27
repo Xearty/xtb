@@ -117,3 +117,18 @@ ShaderProgram load_shader_program_from_memory(const char *ns, const char *vertex
 
     return id;
 }
+
+void toggle_wireframe(void)
+{
+    GLint polygonMode[2];
+    glGetIntegerv(GL_POLYGON_MODE, polygonMode);
+    if (polygonMode[1] == GL_LINE)
+    {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+    else
+    {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
+}
+

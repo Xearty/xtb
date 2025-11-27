@@ -22,6 +22,8 @@ ShaderProgram load_shader_program_from_files(const char *ns, String vertex_filep
 Shader load_shader_from_memory(const char *ns, const char *src, int shader_type);
 ShaderProgram load_shader_program_from_memory(const char *ns, const char *vertex_src, const char *fragment_src);
 
+void toggle_wireframe(void);
+
 C_LINKAGE_END
 
 #endif // _XTB_OGL_H_
