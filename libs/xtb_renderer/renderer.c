@@ -316,7 +316,7 @@ Material material_instance_create(Allocator *allocator, MaterialTemplate *templ)
     Material mat = {};
     mat.templ = templ;
     array_init(&mat.values, allocator);
-    array_reserve(&mat.values, templ->params.count);
+    array_resize(&mat.values, templ->params.count);
 
     return mat;
 }
@@ -374,7 +374,6 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
     camera_set_projection(&renderer->camera3d, perspective_proj);
 }
 
-// TODO: Add support for materials
 static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 {
     u32 vao = renderer->standard_vao;
