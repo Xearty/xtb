@@ -61,13 +61,37 @@ C_LINKAGE_BEGIN
 
 i32 material_find_param(const MaterialTemplate *t, const char *name);
 
-void material_set_vec4(Material *mat, const char *name, vec4 val);
+/****************************************************************
+ * Index Setters
+****************************************************************/
+void material_set_float_by_index(Material *mat, i32 index, f32 val);
+void material_set_vec2_by_index(Material *mat, i32 index, vec2 val);
+void material_set_vec3_by_index(Material *mat, i32 index, vec3 val);
+void material_set_vec4_by_index(Material *mat, i32 index, vec4 val);
+void material_set_mat2_by_index(Material *mat, i32 index, mat2 val);
+void material_set_mat3_by_index(Material *mat, i32 index, mat3 val);
+void material_set_mat4_by_index(Material *mat, i32 index, mat4 val);
+
+/****************************************************************
+ * String Setters
+****************************************************************/
+void material_set_float(Material *mat, const char *name, f32 val);
 void material_set_vec2(Material *mat, const char *name, vec2 val);
 void material_set_vec3(Material *mat, const char *name, vec3 val);
+void material_set_vec4(Material *mat, const char *name, vec4 val);
+void material_set_mat2(Material *mat, const char *name, mat2 val);
+void material_set_mat3(Material *mat, const char *name, mat3 val);
 void material_set_mat4(Material *mat, const char *name, mat4 val);
 
+/****************************************************************
+ * Constructors
+****************************************************************/
 Material material_instance_create(Allocator *allocator, MaterialTemplate *templ);
+Material material_copy(Allocator *allocator, Material *m);
 
+/****************************************************************
+ * Miscellaneous
+****************************************************************/
 static inline const char *material_param_type_to_string(i32 type)
 {
     switch (type)
