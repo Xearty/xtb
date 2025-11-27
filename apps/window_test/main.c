@@ -54,12 +54,14 @@ void process_camera_movement(Window *window, Camera *camera, f32 dt)
         camera_move(camera, v3(0.0f, -movement_speed, 0.0f));
     }
 
+    f32 mouse_sensitivity = 0.5f;
+
     f32 dx, dy;
     cursor_delta_get(window, &dx, &dy);
     if (dx != 0.0f || dy != 0.0f)
     {
-        camera->yaw += dx;
-        camera->pitch -= dy;
+        camera->yaw += dx * mouse_sensitivity;
+        camera->pitch -= dy * mouse_sensitivity;
     }
 }
 
