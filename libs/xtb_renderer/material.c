@@ -21,9 +21,9 @@ void material_set_vec4(Material *mat, const char *name, vec4 val)
 {
     i32 idx = material_find_param(mat->templ, name);
     Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC4);
+    Assert(mat->templ->params.data[idx].kind == MATERIAL_PARAM_FLOAT_VEC4);
 
-    mat->values.data[idx].kind = GL_FLOAT_VEC4;
+    mat->values.data[idx].kind = MATERIAL_PARAM_FLOAT_VEC4;
     mat->values.data[idx].as.vec4 = val;
 }
 
@@ -31,9 +31,9 @@ void material_set_vec2(Material *mat, const char *name, vec2 val)
 {
     i32 idx = material_find_param(mat->templ, name);
     Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC2);
+    Assert(mat->templ->params.data[idx].kind == MATERIAL_PARAM_FLOAT_VEC2);
 
-    mat->values.data[idx].kind = GL_FLOAT_VEC2;
+    mat->values.data[idx].kind = MATERIAL_PARAM_FLOAT_VEC2;
     mat->values.data[idx].as.vec2 = val;
 }
 
@@ -41,9 +41,9 @@ void material_set_vec3(Material *mat, const char *name, vec3 val)
 {
     i32 idx = material_find_param(mat->templ, name);
     Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_VEC3);
+    Assert(mat->templ->params.data[idx].kind == MATERIAL_PARAM_FLOAT_VEC3);
 
-    mat->values.data[idx].kind = GL_FLOAT_VEC3;
+    mat->values.data[idx].kind = MATERIAL_PARAM_FLOAT_VEC3;
     mat->values.data[idx].as.vec3 = val;
 }
 
@@ -51,9 +51,9 @@ void material_set_mat4(Material *mat, const char *name, mat4 val)
 {
     i32 idx = material_find_param(mat->templ, name);
     Assert(idx >= 0);
-    Assert(mat->templ->params.data[idx].kind == GL_FLOAT_MAT4);
+    Assert(mat->templ->params.data[idx].kind == MATERIAL_PARAM_FLOAT_MAT4);
 
-    mat->values.data[idx].kind = GL_FLOAT_MAT4;
+    mat->values.data[idx].kind = MATERIAL_PARAM_FLOAT_MAT4;
     mat->values.data[idx].as.mat4 = val;
 }
 

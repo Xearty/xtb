@@ -77,21 +77,6 @@ typedef struct Renderer
 } Renderer;
 
 MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgram program);
-static inline const char *gl_type_to_string(i32 type)
-{
-    switch (type)
-    {
-        case GL_FLOAT: return "float";
-        case GL_FLOAT_VEC2: return "vec2";
-        case GL_FLOAT_VEC3: return "vec3";
-        case GL_FLOAT_VEC4: return "vec4";
-        case GL_FLOAT_MAT2: return "mat2";
-        case GL_FLOAT_MAT3: return "mat3";
-        case GL_FLOAT_MAT4: return "mat4";
-    }
-
-    return "<Unknown>";
-}
 
 /****************************************************************
  * Renderer Lifecycle

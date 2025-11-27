@@ -122,7 +122,7 @@ int main(int argc, char **argv)
         MaterialParamDesc *it = &params.data[i];
 
         printf("name = \"%.*s\", ", (i32)it->name.len, it->name.str);
-        printf("kind = \"%s\", ", gl_type_to_string(it->kind));
+        printf("kind = \"%s\", ", material_param_type_to_string(it->kind));
         printf("uniform_location = %d, ", it->uniform_location);
         printf("array_size = %d\n", it->array_size);
     }

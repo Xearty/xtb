@@ -3,6 +3,22 @@
 #include <xtb_ogl/ogl.h>
 #include <xtb_core/thread_context.h>
 
+static inline MaterialParamKind opengl_type_to_material_param_type(i32 gl_type)
+{
+    switch (gl_type)
+    {
+        case GL_FLOAT: return MATERIAL_PARAM_FLOAT;
+        case GL_FLOAT_VEC2: return MATERIAL_PARAM_FLOAT_VEC2;
+        case GL_FLOAT_VEC3: return MATERIAL_PARAM_FLOAT_VEC3;
+        case GL_FLOAT_VEC4: return MATERIAL_PARAM_FLOAT_VEC4;
+        case GL_FLOAT_MAT2: return MATERIAL_PARAM_FLOAT_MAT2;
+        case GL_FLOAT_MAT3: return MATERIAL_PARAM_FLOAT_MAT3;
+        case GL_FLOAT_MAT4: return MATERIAL_PARAM_FLOAT_MAT4;
+    }
+
+    return MATERIAL_PARAM_NONE;
+}
+
 MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgram program)
 {
     MaterialParamDescArray params = make_array(allocator);;
@@ -31,7 +47,7 @@ MaterialParamDescArray material_params_from_program(Allocator *allocator, Shader
 
             MaterialParamDesc param = {};
             param.name = str_copy(allocator, str_from(uniform_name, length));
-            param.kind = type;
+            param.kind = opengl_type_to_material_param_type(type);
             param.uniform_location = glGetUniformLocation(program, (GLchar*)uniform_name);
             param.array_size = count;
 
@@ -55,40 +71,42 @@ static void material_apply(Material *material)
 
         switch (desc->kind)
         {
-            case GL_FLOAT:
+            case MATERIAL_PARAM_FLOAT:
             {
                 glUniform1f(desc->uniform_location, value->as.f32);
             } break;
 
-            case GL_FLOAT_VEC2:
+            case MATERIAL_PARAM_FLOAT_VEC2:
             {
                 glUniform2fv(desc->uniform_location, 1, &value->as.vec2.x);
             } break;
 
-            case GL_FLOAT_VEC3:
+            case MATERIAL_PARAM_FLOAT_VEC3:
             {
                 glUniform3fv(desc->uniform_location, 1, &value->as.vec3.x);
             } break;
 
-            case GL_FLOAT_VEC4:
+            case MATERIAL_PARAM_FLOAT_VEC4:
             {
                 glUniform4fv(desc->uniform_location, 1, &value->as.vec4.x);
             } break;
 
-            case GL_FLOAT_MAT2:
+            case MATERIAL_PARAM_FLOAT_MAT2:
             {
                 glUniformMatrix2fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat2.m00);
             } break;
 
-            case GL_FLOAT_MAT3:
+            case MATERIAL_PARAM_FLOAT_MAT3:
             {
                 glUniformMatrix3fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat3.m00);
             } break;
 
-            case GL_FLOAT_MAT4:
+            case MATERIAL_PARAM_FLOAT_MAT4:
             {
                 glUniformMatrix4fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat4.m00);
             } break;
+
+            case MATERIAL_PARAM_NONE: break;
         }
     }
 }

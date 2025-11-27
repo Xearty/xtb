@@ -6,8 +6,17 @@
 #include <xtb_core/array.h>
 #include <xtbm/xtbm.h>
 
-// TODO: Convert this to an enum that mirrors gl types
-typedef u32 MaterialParamKind;
+typedef enum MaterialParamKind
+{
+    MATERIAL_PARAM_NONE = 0,
+    MATERIAL_PARAM_FLOAT,
+    MATERIAL_PARAM_FLOAT_VEC2,
+    MATERIAL_PARAM_FLOAT_VEC3,
+    MATERIAL_PARAM_FLOAT_VEC4,
+    MATERIAL_PARAM_FLOAT_MAT2,
+    MATERIAL_PARAM_FLOAT_MAT3,
+    MATERIAL_PARAM_FLOAT_MAT4,
+} MaterialParamKind;
 
 typedef struct MaterialParamDesc
 {
@@ -58,6 +67,22 @@ void material_set_vec3(Material *mat, const char *name, vec3 val);
 void material_set_mat4(Material *mat, const char *name, mat4 val);
 
 Material material_instance_create(Allocator *allocator, MaterialTemplate *templ);
+
+static inline const char *material_param_type_to_string(i32 type)
+{
+    switch (type)
+    {
+        case MATERIAL_PARAM_FLOAT: return "float";
+        case MATERIAL_PARAM_FLOAT_VEC2: return "vec2";
+        case MATERIAL_PARAM_FLOAT_VEC3: return "vec3";
+        case MATERIAL_PARAM_FLOAT_VEC4: return "vec4";
+        case MATERIAL_PARAM_FLOAT_MAT2: return "mat2";
+        case MATERIAL_PARAM_FLOAT_MAT3: return "mat3";
+        case MATERIAL_PARAM_FLOAT_MAT4: return "mat4";
+    }
+
+    return "<Unknown>";
+}
 
 C_LINKAGE_END
 
