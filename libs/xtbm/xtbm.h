@@ -9,6 +9,7 @@
 #define GOLDEN_RATIO 1.61803398875f
 
 typedef float f32;
+typedef int i32;
 
 typedef union vec2
 {
@@ -298,6 +299,7 @@ static inline f32 smootherstep(f32 e0, f32 e1, f32 x);
 static inline f32 step(f32 edge, f32 x);
 static inline f32 inverse_smoothstep(f32 x);
 static inline f32 repeat(f32 x, f32 max); // max must be > 0
+static inline i32 repeati32(i32 x, i32 max);
 static inline f32 pingpong(f32 x, f32 l); // creates a triangle wave that goes 0 → l → 0 → l … with period 2l
 static inline f32 sign(f32 x); // returns 0 for 0
 static inline f32 deg2rad(f32 d);
@@ -1020,6 +1022,11 @@ static inline f32 inverse_smoothstep(f32 x)
 static inline f32 repeat(f32 x, f32 max)
 {
     return x - floorf(x / max) * max;
+}
+
+static inline i32 repeati32(i32 x, i32 max)
+{
+    return (x % max + max) % x;
 }
 
 static inline f32 pingpong(f32 x, f32 l)
