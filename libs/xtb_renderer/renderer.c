@@ -11,12 +11,7 @@
 /****************************************************************
  * Internal
 ****************************************************************/
-static inline int positive_modulo(int i, int n)
-{
-    return (i % n + n) % n;
-}
-
-static Vec2Array compute_bezier_points(Allocator *allocator, vec2 points[], size_t count, i32 samples)
+static Vec2Array compute_bezier_points(Allocator *allocator, vec2 *points, size_t count, i32 samples)
 {
     Assert(samples > 1);
     Assert(count > 0);
@@ -28,16 +23,16 @@ static Vec2Array compute_bezier_points(Allocator *allocator, vec2 points[], size
 
     Vec2Array intermediate = make_array(&scratch.arena->allocator);
 
-    for (int sample_iter = 0; sample_iter < samples; ++sample_iter)
+    for (i32 sample_iter = 0; sample_iter < samples; ++sample_iter)
     {
-        float t = unlerp(0, samples - 1, sample_iter);
+        f32 t = unlerp(0, samples - 1, sample_iter);
 
-        float icount = count;
+        i32 icount = count;
         array_assign(&intermediate, points, count);
 
         while (icount > 1)
         {
-            for (int i = 0; i < icount - 1; ++i)
+            for (i32 i = 0; i < icount - 1; ++i)
             {
                 intermediate.data[i] = lerp2(intermediate.data[i], intermediate.data[i + 1], t);
             }
@@ -84,7 +79,7 @@ static void renderer_setup_polyline_data(Renderer *renderer, PolylineRenderData 
     glGenBuffers(1, &rdata->instanced_vbo);
     glGenBuffers(1, &rdata->instanced_ebo);
 
-    int per_vertex_stride = sizeof(PolylinePerVertexData);
+    i32 per_vertex_stride = sizeof(PolylinePerVertexData);
     glBindBuffer(GL_ARRAY_BUFFER, rdata->per_vertex_vbo);
 
     glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, per_vertex_stride, (void *)offsetof(PolylinePerVertexData, t));
@@ -101,7 +96,7 @@ static void renderer_setup_polyline_data(Renderer *renderer, PolylineRenderData 
 
     glBufferData(GL_ARRAY_BUFFER, sizeof(per_vertex_data), per_vertex_data, GL_STATIC_DRAW);
 
-    unsigned int indices[] = {
+    u32 indices[] = {
         0, 1, 2, //
         2, 3, 0  //
     };
@@ -109,7 +104,7 @@ static void renderer_setup_polyline_data(Renderer *renderer, PolylineRenderData 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rdata->instanced_ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    int instanced_stride = sizeof(PolylineInstanceData);
+    i32 instanced_stride = sizeof(PolylineInstanceData);
     glBindBuffer(GL_ARRAY_BUFFER, rdata->instanced_vbo);
     glBufferData(GL_ARRAY_BUFFER, POLYLINE_INSTANCED_MAX_LINES * instanced_stride, NULL, GL_DYNAMIC_DRAW);
 
@@ -190,9 +185,9 @@ inline void renderer_mvp_set_uniforms(const Renderer *renderer, ShaderProgram pr
 {
     glUseProgram(program);
 
-    int model_loc = glGetUniformLocation(program, "model");
-    int view_loc = glGetUniformLocation(program, "view");
-    int projection_loc = glGetUniformLocation(program, "projection");
+    i32 model_loc = glGetUniformLocation(program, "model");
+    i32 view_loc = glGetUniformLocation(program, "view");
+    i32 projection_loc = glGetUniformLocation(program, "projection");
 
     glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model.m00);
     glUniformMatrix4fv(view_loc, 1, GL_FALSE, &renderer->camera3d.view.m00);
@@ -342,22 +337,22 @@ void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thi
 
     glBindVertexArray(rdata->vao);
 
-    for (int batch_start = 0; batch_start < count - 1; batch_start += POLYLINE_INSTANCED_MAX_LINES)
+    for (i32 batch_start = 0; batch_start < count - 1; batch_start += POLYLINE_INSTANCED_MAX_LINES)
     {
         PolylineInstanceData instanced_data[POLYLINE_INSTANCED_MAX_LINES] = {};
 
-        int batch_end = min(batch_start + POLYLINE_INSTANCED_MAX_LINES, count - 1);
+        i32 batch_end = Min(batch_start + POLYLINE_INSTANCED_MAX_LINES, count - 1);
 
-        for (int i = batch_start; i < batch_end; ++i)
+        for (i32 i = batch_start; i < batch_end; ++i)
         {
             PolylineInstanceData *inst_data = &instanced_data[i - batch_start];
 
             if (looped)
             {
-                inst_data->prev = points[positive_modulo(i - 1, count - 1)];
+                inst_data->prev = points[repeati32(i - 1, count - 1)];
                 inst_data->current_start = points[i];
-                inst_data->current_end = points[positive_modulo(i + 1, count - 1)];
-                inst_data->next = points[positive_modulo(i + 2, count - 1)];
+                inst_data->current_end = points[repeati32(i + 1, count - 1)];
+                inst_data->next = points[repeati32(i + 2, count - 1)];
             }
             else
             {
@@ -368,7 +363,7 @@ void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thi
             }
         }
 
-        int instances_in_batch = batch_end - batch_start;
+        i32 instances_in_batch = batch_end - batch_start;
 
         glBindBuffer(GL_ARRAY_BUFFER, rdata->instanced_vbo);
         glBufferSubData(GL_ARRAY_BUFFER, 0, instances_in_batch * sizeof(PolylineInstanceData), instanced_data);
