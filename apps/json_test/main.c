@@ -34,7 +34,6 @@ int main(int argc, char **argv)
     Arena *frame_arena = arena_new(Megabytes(4));
 
     char *input_cstring = NULL;
-    size_t size = 0;
     const char *prompt = "\njson> ";
 
     while ((input_cstring = readline(prompt)) != NULL)
@@ -50,13 +49,13 @@ int main(int argc, char **argv)
         }
         else
         {
-            add_history(input.str);
+            add_history((char*)input.str);
         }
 
         if (str_starts_with_lit(input, ":p"))
         {
             String query = str_trunc_left(input, 3);
-            JsonValue *value = json_query(toplevel_value, query.str);
+            JsonValue *value = json_query(toplevel_value, (char*)query.str);
 
             if (value)
             {
@@ -71,7 +70,7 @@ int main(int argc, char **argv)
         else if (str_starts_with_lit(input, ":t "))
         {
             String query = str_trunc_left(input, 3);
-            JsonValue *value = json_query(toplevel_value, query.str);
+            JsonValue *value = json_query(toplevel_value, (char*)query.str);
 
             if (value)
             {

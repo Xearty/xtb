@@ -492,8 +492,6 @@ JsonValue *json_query(JsonValue *value, const char *query)
         {
             query++; // skip [
 
-            const char *key_begin = query;
-
             if (is_digit(query[0]))
             {
                 // array index
@@ -588,6 +586,8 @@ const char *json_get_type_string(const JsonValue *value)
         case JSON_ARRAY: return "array";
         case JSON_OBJECT: return "object";
     }
+
+    Unreachable;
 }
 
 /****************************************************************

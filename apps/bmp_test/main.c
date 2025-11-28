@@ -20,10 +20,6 @@
 void
 render_bitmap(BMP_Bitmap bitmap, const RectangleSelections* selections)
 {
-    BMP_Color bright_maroon = bmp_color_create(72, 33, 195, 255);
-    BMP_Color mauve  = bmp_color_create(255, 175, 224, 255);
-    BMP_Color red  = bmp_color_create(0, 0, 255, 255);
-
     static Rainbow_State rainbow_state;
     static bool initialized = false;
     if (!initialized)
@@ -41,7 +37,6 @@ render_bitmap(BMP_Bitmap bitmap, const RectangleSelections* selections)
 
             if (is_inside_selection(selections, w, h))
             {
-                BMP_Color pixel = bitmap.pixel_data[h * bitmap.width + w];
                 color = layer_filter_negative(color);
                 color = layer_filter_rainbow(color, 1, rainbow_state);
             }

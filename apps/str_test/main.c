@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     Arena *arena = arena_new(Kilobytes(4));
 
     String string = str("hello");
-    puts(string.str);
+    puts((char*)string.str);
     printf("length = %zu\n", string.len);
 
     String dyn_string = str_copy(&arena->allocator, str("hello there"));
@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     SLLQueuePush(str_list.head, str_list.tail, &node2);
 
     String concatenated = str_list_join(&arena->allocator, str_list);
-    puts(concatenated.str);
+    puts((char*)concatenated.str);
 
     String test2 = str("Nqkakuv dulug string");
     String sub_test2 = str_substr_copy(&arena->allocator, test2, 10, 5);
@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 
     String sep = str(".");
     String joined = str_list_join_str_sep(&arena->allocator, list, sep);
-    puts(joined.str);
+    puts((char*)joined.str);
 
     if (str_eq_lit(joined, "a.b.c.d.e"))
     {
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     test3 = str_trunc_left(test3, 3);
     test3 = str_trunc_right(test3, 4);
     test3 = str_copy(&temp.arena->allocator, test3);
-    puts(test3.str);
+    puts((char*)test3.str);
 
     String test4 = str("\t \n  First  \n \t  \t\t \r Second\n \t\t \r\n");
     String test5 = test4;
@@ -83,17 +83,17 @@ int main(int argc, char **argv)
     String char_split_str = str("Very long string that contains multiple tokens");
     StringList char_split_list = str_split_by_char(&temp.arena->allocator, char_split_str, ' ');
     String char_joined = str_list_join_str_sep(&temp.arena->allocator, char_split_list, str("<sep>"));
-    puts(char_joined.str);
+    puts((char*)char_joined.str);
 
     String str_split_str = str("Very long  string that contains  multiple tokens");
     StringList str_split_list = str_split_by_str(&temp.arena->allocator, str_split_str, str("  "));
     String str_joined = str_list_join_str_sep(&temp.arena->allocator, str_split_list, str("---"));
-    puts(str_joined.str);
+    puts((char*)str_joined.str);
 
     String space_split_str = str("\t\n\r\r\n Very \t long  \rstring\r\rthat contains \r \nmultiple \n\r\r\n\ttokens\t\n\t");
     StringList space_split_list = str_split_by_whitespace(&temp.arena->allocator, space_split_str);
     String space_joined = str_list_join_char_sep(&temp.arena->allocator, space_split_list, '-');
-    puts(space_joined.str);
+    puts((char*)space_joined.str);
 
     String concatenated2 = str_list_join(&temp.arena->allocator, space_split_list);
     str_debug(concatenated2);

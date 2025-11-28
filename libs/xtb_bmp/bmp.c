@@ -101,22 +101,6 @@ count_set_bits(unsigned int value)
     return count;
 }
 
-internal unsigned int
-int_trim_trailing_zeroes(unsigned int in)
-{
-    if (in == 0)
-    {
-        return in;
-    }
-
-    while ((in & 1) == 0)
-    {
-        in >>= 1;
-    }
-
-    return in;
-}
-
 internal u8
 lo_nibble(u8 byte)
 {
@@ -128,8 +112,6 @@ hi_nibble(u8 byte)
 {
     return (byte & 0xf0) >> 4;
 }
-
-
 
 /****************************************************************
  * measure.c
@@ -408,7 +390,7 @@ compute_traversal_info(const BMP_Info_Header *info_header)
     return traversal_info;
 }
 
-inline void
+internal void
 parse_pixel_data_indexed(Traversal_Info ti,
                          const BMP_Info_Header *info_header,
                          const u8 *pixel_data,
@@ -448,7 +430,7 @@ parse_pixel_non_indexed(const u8 *bytes, int bytes_per_pixel, Bitfields bitfield
     u8 b = extract_and_normalize_channel_bits(pixel, bitfields.blue_chan);
     u8 g = extract_and_normalize_channel_bits(pixel, bitfields.green_chan);
     u8 r = extract_and_normalize_channel_bits(pixel, bitfields.red_chan);
-    u8 a = extract_and_normalize_channel_bits(pixel, bitfields.alpha_chan);
+    // u8 a = extract_and_normalize_channel_bits(pixel, bitfields.alpha_chan);
 
     return bmp_color_create(b, g, r, 255);
 }
