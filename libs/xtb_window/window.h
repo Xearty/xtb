@@ -59,6 +59,7 @@ void window_make_context_current(Window *window);
 void window_swap_buffers(Window *window);
 
 void window_title_set(Window *window, const char *title);
+void window_title_show_fps(Window *window, const char *title, f32 dt, f32 secs_per_update);
 
 /****************************************************************
  * Vsync

@@ -3,6 +3,7 @@
 #include <xtb_core/allocator.h>
 #include <GLFW/glfw3.h>
 #include <string.h>
+#include <stdio.h>
 
 typedef struct WindowCallbacks
 {
@@ -350,6 +351,27 @@ void window_request_close(Window *window)
 void window_title_set(Window *window, const char *title)
 {
     glfwSetWindowTitle(window->handle, title);
+}
+
+void window_title_show_fps(Window *window, const char *title, f32 dt, f32 secs_per_update)
+{
+    static f32 elapsed = 0;
+    static i32 frames_count = 0;
+
+    elapsed += dt;
+    frames_count += 1;
+
+    if (elapsed >= secs_per_update)
+    {
+        int fps = frames_count / elapsed;
+
+        frames_count = 0;
+        elapsed = 0;
+
+        char format_buf[128];
+        snprintf(format_buf, sizeof(format_buf), "%s | %d fps", title, fps);
+        window_title_set(window, format_buf);
+    }
 }
 
 /****************************************************************

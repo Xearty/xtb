@@ -139,6 +139,8 @@ int main(int argc, char **argv)
 
         window_poll_events(window);
 
+        window_title_show_fps(window, cfg.title, dt, 0.1f);
+
         if (key_is_pressed(window, KEY_Q))
         {
             toggle_wireframe();
