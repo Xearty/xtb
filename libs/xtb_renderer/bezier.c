@@ -1,5 +1,6 @@
 #include "renderer.h"
 
+#include "types.h"
 #include <xtb_core/thread_context.h>
 
 static Vec2Array compute_bezier_points(Allocator *allocator, vec2 *points, size_t count, i32 samples)

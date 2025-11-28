@@ -1,11 +1,9 @@
 #ifndef _XTB_RENDERER_H_
 #define _XTB_RENDERER_H_
 
-#include "geometry.h"
 #include "camera.h"
 #include <xtb_ogl/ogl.h>
 #include "material.h"
-#include "types.h"
 
 #ifndef POLYLINE_INSTANCED_MAX_LINES
 #define POLYLINE_INSTANCED_MAX_LINES 128
@@ -18,7 +16,9 @@ typedef struct GpuMesh
 {
     u32 vbo;
     u32 ebo;
-    Mesh *geometry;
+
+    u32 vertices_count;
+    i32 indices_count;
 } GpuMesh;
 
 typedef struct GeometryCache

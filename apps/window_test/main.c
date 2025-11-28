@@ -6,6 +6,7 @@
 #include <xtbm/xtbm.h>
 #include <xtb_renderer/renderer.h>
 #include <xtb_bmp/bmp.h>
+#include <xtb_renderer/types.h>
 
 typedef struct WindowUserData
 {

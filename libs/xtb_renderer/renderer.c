@@ -1,5 +1,7 @@
 #include "renderer.h"
 
+#include "geometry.h"
+
 #include <xtb_core/arena.h>
 #include <xtb_core/thread_context.h>
 #include "generated/baked_shaders_generated.h"
@@ -12,71 +14,61 @@
 /****************************************************************
  * Internal
 ****************************************************************/
-static inline GpuMesh* ensure_quad_mesh(Renderer *renderer)
+static void mesh_upload(Mesh mesh, GpuMesh *gpu_mesh)
+{
+    gpu_mesh->vertices_count = mesh.vertices.count;
+    gpu_mesh->indices_count = mesh.indices.count;
+
+    glCreateBuffers(1, &gpu_mesh->vbo);
+    glNamedBufferData(
+        gpu_mesh->vbo,
+        mesh.vertices.count * sizeof(Vertex),
+        mesh.vertices.data,
+        GL_STATIC_DRAW
+    );
+
+    if (mesh.indices.count > 0)
+    {
+        glCreateBuffers(1, &gpu_mesh->ebo);
+        glNamedBufferData(
+            gpu_mesh->ebo,
+            mesh.indices.count * sizeof(u32),
+            mesh.indices.data,
+            GL_STATIC_DRAW
+        );
+    }
+}
+
+static GpuMesh* ensure_quad_mesh(Renderer *renderer)
 {
     if (renderer->mesh_cache.quad) return renderer->mesh_cache.quad;
 
+    TempArena scratch = scratch_begin_no_conflicts();
+
     renderer->mesh_cache.quad = push_struct_zero(renderer->mesh_cache.arena, GpuMesh);
-
-    GpuMesh *quad = renderer->mesh_cache.quad;
-
-    quad->geometry = push_struct_zero(renderer->mesh_cache.arena, Mesh);
-    *quad->geometry = geometry_create_quad(&renderer->mesh_cache.arena->allocator);
-    Assert(quad->geometry != NULL);
-
-    glCreateBuffers(1, &quad->vbo);
-    glNamedBufferData(
-        quad->vbo,
-        quad->geometry->vertices.count * sizeof(Vertex),
-        quad->geometry->vertices.data,
-        GL_STATIC_DRAW
+    mesh_upload(
+        geometry_create_quad(&scratch.arena->allocator),
+        renderer->mesh_cache.quad
     );
 
-    glCreateBuffers(1, &quad->ebo);
-    glNamedBufferData(
-        quad->ebo,
-        quad->geometry->indices.count * sizeof(u32),
-        quad->geometry->indices.data,
-        GL_STATIC_DRAW
-    );
-
-    return quad;
+    scratch_end(scratch);
+    return renderer->mesh_cache.quad;
 }
 
-static inline GpuMesh* ensure_cube_mesh(Renderer *renderer)
+static GpuMesh* ensure_cube_mesh(Renderer *renderer)
 {
     if (renderer->mesh_cache.cube) return renderer->mesh_cache.cube;
 
+    TempArena scratch = scratch_begin_no_conflicts();
+
     renderer->mesh_cache.cube = push_struct_zero(renderer->mesh_cache.arena, GpuMesh);
-
-    GpuMesh *cube = renderer->mesh_cache.cube;
-
-    cube->geometry = push_struct_zero(renderer->mesh_cache.arena, Mesh);
-    *cube->geometry = geometry_create_cube(&renderer->mesh_cache.arena->allocator);
-    Assert(cube->geometry != NULL);
-
-    glCreateBuffers(1, &cube->vbo);
-    glNamedBufferData(
-        cube->vbo,
-        cube->geometry->vertices.count * sizeof(Vertex),
-        cube->geometry->vertices.data,
-        GL_STATIC_DRAW
+    mesh_upload(
+        geometry_create_cube(&scratch.arena->allocator),
+        renderer->mesh_cache.cube
     );
 
-    return cube;
-}
-
-inline void renderer_mvp_set_uniforms(const Renderer *renderer, ShaderProgram program, mat4 model)
-{
-    glUseProgram(program);
-
-    i32 model_loc = glGetUniformLocation(program, "model");
-    i32 view_loc = glGetUniformLocation(program, "view");
-    i32 projection_loc = glGetUniformLocation(program, "projection");
-
-    glUniformMatrix4fv(model_loc, 1, GL_FALSE, &model.m00);
-    glUniformMatrix4fv(view_loc, 1, GL_FALSE, &renderer->camera3d.view.m00);
-    glUniformMatrix4fv(projection_loc, 1, GL_FALSE, &renderer->camera3d.projection.m00);
+    scratch_end(scratch);
+    return renderer->mesh_cache.cube;
 }
 
 static void init_standard_vao(Renderer *renderer)
@@ -159,14 +151,14 @@ static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
     glBindVertexArray(vao);
     glVertexArrayVertexBuffer(vao, 0, mesh->vbo, 0, sizeof(Vertex));
 
-    if (mesh->geometry->indices.count > 0)
+    if (mesh->indices_count > 0)
     {
         glVertexArrayElementBuffer(vao, mesh->ebo);
-        glDrawElements(GL_TRIANGLES, mesh->geometry->indices.count, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, mesh->indices_count, GL_UNSIGNED_INT, 0);
     }
     else
     {
-        glDrawArrays(GL_TRIANGLES, 0, mesh->geometry->vertices.count);
+        glDrawArrays(GL_TRIANGLES, 0, mesh->vertices_count);
     }
 }
 
