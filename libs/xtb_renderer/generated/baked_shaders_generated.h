@@ -162,9 +162,11 @@ const char *solid_color_fragment_source = ""
    "\n"
    "uniform vec4 color;\n"
    "\n"
+   "uniform float u_Time;\n"
+   "\n"
    "void main()\n"
    "{\n"
-   "    FragColor = color;\n"
+   "    FragColor = color * abs(sin(u_Time));\n"
    "}\n";
 
 const char *polyline_2d_instanced_vertex_source = ""

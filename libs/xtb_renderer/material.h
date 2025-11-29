@@ -95,6 +95,20 @@ Material material_copy(Allocator *allocator, Material *m);
 /****************************************************************
  * Predicates
 ****************************************************************/
+static inline bool uniform_is_engine_global(String name)
+{
+    static String engine_global_uniforms[] = {
+        str("u_Time"),
+    };
+
+    for (i32 i = 0; i < ArrLen(engine_global_uniforms); ++i)
+    {
+        if (str_eq(name, engine_global_uniforms[i])) return true;
+    }
+
+    return false;
+}
+
 static inline bool uniform_is_mvp(String name)
 {
     static String mvp_uniforms[] = {
@@ -113,7 +127,9 @@ static inline bool uniform_is_mvp(String name)
 
 static inline bool uniform_is_material_param(String name)
 {
-    return !uniform_is_mvp(name);
+    if (uniform_is_engine_global(name)) return false;
+    if (uniform_is_mvp(name))           return false;
+    return true;
 }
 
 /****************************************************************

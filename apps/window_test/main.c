@@ -62,6 +62,11 @@ void process_camera_movement(Window *window, Camera *camera, f32 dt)
     camera_rotate_delta(camera, dx * mouse_sensitivity, -dy * mouse_sensitivity);
 }
 
+void update_global_uniforms(GlobalUniformState *uniforms)
+{
+    uniforms->u_Time = time_get();
+}
+
 int main(int argc, char **argv)
 {
     xtb_init(argc, argv);
@@ -100,6 +105,8 @@ int main(int argc, char **argv)
 
     Renderer renderer = {};
     renderer_init(&renderer, cfg.width, cfg.height);
+
+    renderer.global_uniforms_update_cb = update_global_uniforms;
 
     WindowUserData window_user_data = {};
     window_user_data.renderer = &renderer;

@@ -144,15 +144,19 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
 /****************************************************************
  * Rendering Functions
 ****************************************************************/
-static void set_mvp_uniforms(Renderer *renderer, MaterialTemplate *templ, mat4 model)
+static void set_engine_global_uniforms(Renderer *renderer, ShaderProgram program)
+{
+    glProgramUniform1f(program.id, program.time_location, renderer->global_uniforms.u_Time);
+}
+
+static void set_mvp_uniforms(Renderer *renderer, ShaderProgram program, mat4 model)
 {
     Camera *camera3d = &renderer->camera3d;
-    ShaderProgram *program = &templ->program;
 
     // NOTE: Consider the case when a uniform is not present
-    glProgramUniformMatrix4fv(program->id, program->model_location, 1, GL_FALSE, &model.m00);
-    glProgramUniformMatrix4fv(program->id, program->view_location, 1, GL_FALSE, &camera3d->view.m00);
-    glProgramUniformMatrix4fv(program->id, program->projection_location, 1, GL_FALSE, &camera3d->projection.m00);
+    glProgramUniformMatrix4fv(program.id, program.model_location, 1, GL_FALSE, &model.m00);
+    glProgramUniformMatrix4fv(program.id, program.view_location, 1, GL_FALSE, &camera3d->view.m00);
+    glProgramUniformMatrix4fv(program.id, program.projection_location, 1, GL_FALSE, &camera3d->projection.m00);
 }
 
 static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
@@ -175,7 +179,9 @@ static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 // Implies mvp vertex shader
 static void render_mesh(Renderer *renderer, GpuMesh *mesh, mat4 model, Material *material)
 {
-    set_mvp_uniforms(renderer, material->templ, model);
+    set_mvp_uniforms(renderer, material->templ->program, model);
+    set_engine_global_uniforms(renderer, material->templ->program);
+
     material_apply(material);
     render_mesh_geometry(renderer, mesh);
 }
@@ -183,6 +189,7 @@ static void render_mesh(Renderer *renderer, GpuMesh *mesh, mat4 model, Material 
 void begin_frame(Renderer *renderer)
 {
     camera_recalc_view_matrix(&renderer->camera3d);
+    renderer->global_uniforms_update_cb(&renderer->global_uniforms);
 }
 
 void end_frame(Renderer *renderer)

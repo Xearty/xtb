@@ -59,6 +59,14 @@ typedef struct PolylineRenderData
     u32 per_vertex_vbo;
 } PolylineRenderData;
 
+// NOTE: This is a temporary design, probably going to be deleted
+typedef struct GlobalUniformState
+{
+    f32 u_Time;
+} GlobalUniformState;
+
+typedef void (*GlobalUniformStateUpdateCallback)(GlobalUniformState *uniforms);
+
 // TOOD: Material pool
 typedef struct Renderer
 {
@@ -72,6 +80,9 @@ typedef struct Renderer
     u32 standard_vao;
 
     Material default_solid_color_material;
+
+    GlobalUniformState global_uniforms;
+    GlobalUniformStateUpdateCallback global_uniforms_update_cb;
 
     Camera camera2d;
     Camera camera3d;
