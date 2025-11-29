@@ -23,7 +23,7 @@ static void framebuffer_size_callback(Window *window, i32 width, i32 height)
 
 void process_camera_movement(Window *window, Camera *camera, f32 dt)
 {
-    f32 movement_speed = 20.0f * dt;
+    const f32 movement_speed = 20.0f * dt;
 
     if (key_is_down(window, KEY_W))
     {
@@ -55,15 +55,11 @@ void process_camera_movement(Window *window, Camera *camera, f32 dt)
         camera_move(camera, v3(0.0f, -movement_speed, 0.0f));
     }
 
-    f32 mouse_sensitivity = 0.5f;
+    const f32 mouse_sensitivity = 0.1f;
 
     f32 dx, dy;
     cursor_delta_get(window, &dx, &dy);
-    if (dx != 0.0f || dy != 0.0f)
-    {
-        camera->yaw += dx * mouse_sensitivity;
-        camera->pitch -= dy * mouse_sensitivity;
-    }
+    camera_rotate_delta(camera, dx * mouse_sensitivity, -dy * mouse_sensitivity);
 }
 
 int main(int argc, char **argv)

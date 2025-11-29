@@ -88,4 +88,10 @@ static inline void camera_set_position(Camera *camera, vec3 position)
     camera->position = position;
 }
 
+static inline void camera_rotate_delta(Camera *camera, f32 dx, f32 dy)
+{
+    camera->yaw += dx;
+    camera->pitch += dy;
+}
+
 #endif // _XTB_CAMERA_H_
