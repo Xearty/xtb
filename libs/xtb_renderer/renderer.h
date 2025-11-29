@@ -31,9 +31,9 @@ typedef struct GeometryCache
 
 typedef struct ShaderRegistry
 {
-    ShaderProgram test;
-    ShaderProgram polyline;
-    ShaderProgram mvp_solid_color;
+    ShaderProgramID test;
+    ShaderProgramID polyline;
+    ShaderProgramID mvp_solid_color;
 } ShaderRegistry;
 
 typedef struct PolylinePerVertexData
@@ -76,7 +76,7 @@ typedef struct Renderer
     Camera camera3d;
 } Renderer;
 
-MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgram program);
+MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgramID program);
 
 /****************************************************************
  * Renderer Lifecycle

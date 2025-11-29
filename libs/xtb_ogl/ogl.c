@@ -73,9 +73,9 @@ Shader load_fragment_shader_from_file(const char *ns, String filepath)
     return load_shader_from_file(ns, filepath, GL_FRAGMENT_SHADER);
 }
 
-ShaderProgram create_shader_program_from_descriptors(const char *ns, Shader vs_id, Shader fs_id)
+ShaderProgramID create_shader_program_from_descriptors(const char *ns, Shader vs_id, Shader fs_id)
 {
-    ShaderProgram id = glCreateProgram();
+    ShaderProgramID id = glCreateProgram();
     glAttachShader(id, vs_id);
     glAttachShader(id, fs_id);
     glLinkProgram(id);
@@ -84,7 +84,7 @@ ShaderProgram create_shader_program_from_descriptors(const char *ns, Shader vs_i
     return id;
 }
 
-ShaderProgram load_shader_program_from_files(const char *ns, String vertex_filepath, String fragment_filepath)
+ShaderProgramID load_shader_program_from_files(const char *ns, String vertex_filepath, String fragment_filepath)
 {
     TempArena scratch = scratch_begin_no_conflicts();
 
@@ -94,13 +94,13 @@ ShaderProgram load_shader_program_from_files(const char *ns, String vertex_filep
     String fragment_src = os_read_entire_file(&scratch.arena->allocator, fragment_filepath);
     Assert(str_is_valid(fragment_src));
 
-    ShaderProgram program = load_shader_program_from_memory(ns, (char*)vertex_src.str, (char*)fragment_src.str);
+    ShaderProgramID program = load_shader_program_from_memory(ns, (char*)vertex_src.str, (char*)fragment_src.str);
 
     scratch_end(scratch);
     return program;
 }
 
-ShaderProgram load_shader_program_from_memory(const char *ns, const char *vertex_src, const char *fragment_src)
+ShaderProgramID load_shader_program_from_memory(const char *ns, const char *vertex_src, const char *fragment_src)
 {
     char shader_ns[512];
 
@@ -110,7 +110,7 @@ ShaderProgram load_shader_program_from_memory(const char *ns, const char *vertex
     snprintf(shader_ns, 512, "%s_fragment_shader", ns);
     Shader fragment_shader = load_shader_from_memory(shader_ns, fragment_src, GL_FRAGMENT_SHADER);
 
-    ShaderProgram id = create_shader_program_from_descriptors(ns, vertex_shader, fragment_shader);
+    ShaderProgramID id = create_shader_program_from_descriptors(ns, vertex_shader, fragment_shader);
 
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);

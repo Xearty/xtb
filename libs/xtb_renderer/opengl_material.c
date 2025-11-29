@@ -19,7 +19,7 @@ static inline MaterialParamKind opengl_type_to_material_param_type(i32 gl_type)
     return MATERIAL_PARAM_NONE;
 }
 
-MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgram program)
+MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgramID program)
 {
     MaterialParamDescArray params = make_array(allocator);;
 

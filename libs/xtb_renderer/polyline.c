@@ -63,7 +63,7 @@ void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thi
 {
     const PolylineRenderData *rdata = &renderer->polyline_render_data;
 
-    ShaderProgram program = renderer->shaders.polyline;
+    ShaderProgramID program = renderer->shaders.polyline;
     glUseProgram(program);
     glUniform1f(glGetUniformLocation(program, "uThickness"), thickness);
     glUniformMatrix4fv(glGetUniformLocation(program, "uProjection"), 1, GL_FALSE, &renderer->camera2d.projection.m00);
