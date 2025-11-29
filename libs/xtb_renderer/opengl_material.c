@@ -45,7 +45,6 @@ MaterialParamDescArray material_params_from_program(Allocator *allocator, Shader
 
             glGetActiveUniform(program, uniform_index, max_name_len, &length, &count, &type, (GLchar*)uniform_name);
 
-
             String param_name = str_from(uniform_name, length);
 
             if (uniform_is_material_param(param_name))
@@ -59,9 +58,7 @@ MaterialParamDescArray material_params_from_program(Allocator *allocator, Shader
 
                 array_push(&params, param);
             }
-
         }
-
         scratch_end(scratch);
     }
 

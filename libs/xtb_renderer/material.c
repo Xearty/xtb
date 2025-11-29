@@ -3,6 +3,8 @@
 #include <xtb_core/thread_context.h>
 #include <xtb_ogl/ogl.h>
 
+#include "opengl_material.c"
+
 static void material_set_defaults(Material *mat)
 {
     MaterialParamDescArray *params = &mat->templ->params;
@@ -155,6 +157,12 @@ void material_set_mat4(Material *mat, const char *name, mat4 val)
 /****************************************************************
  * Constructors
 ****************************************************************/
+void material_template_init(Allocator *allocator, ShaderProgram program, MaterialTemplate *templ)
+{
+    templ->program = program;
+    templ->params = material_params_from_program(allocator, program.id);;
+}
+
 Material material_instance_create(Allocator *allocator, MaterialTemplate *templ)
 {
     Material mat = {};

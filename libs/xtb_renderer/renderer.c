@@ -7,7 +7,6 @@
 #include "generated/baked_shaders_generated.h"
 
 #include "material.c"
-#include "opengl_material.c"
 #include "polyline.c"
 #include "bezier.c"
 #include "camera.c"
@@ -93,8 +92,7 @@ static void init_standard_vao(Renderer *renderer)
 static void init_default_solid_color_material(Renderer *r)
 {
     MaterialTemplate *templ = Allocate(&r->persistent_arena->allocator, MaterialTemplate);
-    templ->program = r->shaders.mvp_solid_color;
-    templ->params = material_params_from_program(&r->persistent_arena->allocator, templ->program.id);
+    material_template_init(&r->persistent_arena->allocator, r->shaders.mvp_solid_color, templ);
 
     r->default_solid_color_material = material_instance_create(&r->persistent_arena->allocator, templ);
     material_set_vec4(&r->default_solid_color_material, "color", v4(1.0f, 0.0f, 1.0f, 1.0f));

@@ -88,6 +88,7 @@ void material_set_mat4(Material *mat, const char *name, mat4 val);
 /****************************************************************
  * Constructors
 ****************************************************************/
+void material_template_init(Allocator *allocator, ShaderProgram program, MaterialTemplate *templ);
 Material material_instance_create(Allocator *allocator, MaterialTemplate *templ);
 Material material_copy(Allocator *allocator, Material *m);
 
