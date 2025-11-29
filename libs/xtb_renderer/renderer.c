@@ -176,6 +176,15 @@ static void material_set_mvp(Renderer *renderer, Material *material, mat4 model)
     material_set_mat4(material, "projection", renderer->camera3d.projection);
 }
 
+void begin_frame(Renderer *renderer)
+{
+    camera_recalc_view_matrix(&renderer->camera3d);
+}
+
+void end_frame(Renderer *renderer)
+{
+}
+
 void render_quad(Renderer *renderer, vec4 color, mat4 transform)
 {
     TempArena scratch = scratch_begin_no_conflicts();

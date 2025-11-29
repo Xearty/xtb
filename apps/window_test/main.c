@@ -155,40 +155,33 @@ int main(int argc, char **argv)
         }
 
         process_camera_movement(window, &renderer.camera3d, dt);
-        camera_recalc_matrices(&renderer.camera3d);
 
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        begin_frame(&renderer);
+        {
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        mat4 transform = I4();
-        transform = uniform_scale4(transform, 5.0f);
-        // transform = scale4(transform, mul3s(v3(0.2f, 1.2f, 1.0f), 1.0f));
-        // transform = rotate4_y(transform, time_get());
-        // transform = translate4(transform, v3(0.0f, 0.2f, 5.5f));
-        // transform = rotate4_axis(transform, v3(0, 1, 1), time_get());
+            mat4 transform = I4();
+            transform = uniform_scale4(transform, 5.0f);
 
-        // mat4 inverse = affine_inverse4(transform);
+            vec4 red = v4(1.0f, 0.0f, 0.0f, 1.0f);
+            vec4 magenta = v4(1.0f, 0.0f, 1.0f, 1.0f);
 
-        // mat4 identity = mmul4(inverse, transform);
+            render_quad(&renderer, red, transform);
 
-        // identity = translate4(identity, v3(0.0f, 0.0f, -2.5f));
+            transform = translate4(transform, v3(7.0f, 0.0f, -3.0f));
+            render_cube(&renderer, magenta, transform);
 
-        vec4 red = v4(1.0f, 0.0f, 0.0f, 1.0f);
-        vec4 magenta = v4(1.0f, 0.0f, 1.0f, 1.0f);
+            Vec2Array points = make_array(&frame_arena->allocator);
+            array_push(&points, v2(100.f, 100.0f));
+            array_push(&points, v2(500.f, 1000.0f));
+            array_push(&points, v2(100.f, 800.0f));
+            array_push(&points, v2(1000.f, 500.0f));
+            array_push(&points, v2(500.f, 500.0f));
 
-        render_quad(&renderer, red, transform);
-
-        transform = translate4(transform, v3(7.0f, 0.0f, -3.0f));
-        render_cube(&renderer, magenta, transform);
-
-        Vec2Array points = make_array(&frame_arena->allocator);
-        array_push(&points, v2(100.f, 100.0f));
-        array_push(&points, v2(500.f, 1000.0f));
-        array_push(&points, v2(100.f, 800.0f));
-        array_push(&points, v2(1000.f, 500.0f));
-        array_push(&points, v2(500.f, 500.0f));
-
-        render_bezier_spline_custom(&renderer, points.data, points.count, 2, 50, 5.0f, red, false);
+            render_bezier_spline_custom(&renderer, points.data, points.count, 2, 50, 5.0f, red, false);
+        }
+        end_frame(&renderer);
 
         window_swap_buffers(window);
     }

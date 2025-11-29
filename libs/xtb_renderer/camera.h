@@ -36,12 +36,11 @@ static inline void camera_recalc_basis(Camera *c)
     c->basis.up = norm3(cross(c->basis.back, c->basis.right));
 }
 
-static inline void camera_recalc_matrices(Camera *c)
+static inline void camera_recalc_view_matrix(Camera *c)
 {
-    camera_recalc_basis(c);
-
+    vec3 world_up = v3(0.0f, 1.0f, 0.0f);
     vec3 target = sub3(c->position, c->basis.back);
-    c->view = look_at(c->position, target, v3(0.0f, 1.0f, 0.0f));
+    c->view = look_at(c->position, target, world_up);
 }
 
 static inline void camera_look_at(Camera *c, vec3 point)
@@ -74,8 +73,6 @@ static inline void camera_init(Camera *camera)
     MemoryZeroStruct(camera);
     camera->view = I4();
     camera->projection = I4();
-
-    camera_recalc_matrices(camera);
 }
 
 static inline void camera_set_projection(Camera *camera, mat4 projection)
@@ -92,6 +89,7 @@ static inline void camera_rotate_delta(Camera *camera, f32 dx, f32 dy)
 {
     camera->yaw += dx;
     camera->pitch += dy;
+    camera_recalc_basis(camera);
 }
 
 #endif // _XTB_CAMERA_H_

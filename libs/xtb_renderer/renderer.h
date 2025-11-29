@@ -92,6 +92,9 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
 /****************************************************************
  * Rendering Functions
 ****************************************************************/
+void begin_frame(Renderer *renderer);
+void end_frame(Renderer *renderer);
+
 void render_quad(Renderer *renderer, vec4 color, mat4 transform);
 void render_cube(Renderer *renderer, vec4 color, mat4 transform);
 void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
