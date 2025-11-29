@@ -9,6 +9,9 @@
 // #define XTB_BMP_DELTA_FILL
 /// end Compile-time customization //
 
+namespace xtb
+{
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -153,5 +156,7 @@ void bmp_dib_write(const BMP_DIB *dib, const char *filepath);
 #ifdef __cplusplus
 }
 #endif
+
+}
 
 #endif // _XTB_BMP_H_

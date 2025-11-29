@@ -1,4 +1,4 @@
-add_library(xtb_json json.c)
+add_library(xtb_json json.cpp)
 
 target_include_directories(xtb_json PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(xtb_json PUBLIC xtb_core xtb_os xtb_ansi)

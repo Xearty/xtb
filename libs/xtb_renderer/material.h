@@ -4,11 +4,14 @@
 #include "shader.h"
 
 #include <xtb_core/core.h>
-#include <xtb_core/str.h>
+#include <xtb_core/string.h>
 #include <xtb_core/array.h>
 #include <xtbm/xtbm.h>
 
-typedef enum MaterialParamKind
+namespace xtb
+{
+
+enum MaterialParamKind
 {
     MATERIAL_PARAM_NONE = 0,
     MATERIAL_PARAM_FLOAT,
@@ -18,48 +21,42 @@ typedef enum MaterialParamKind
     MATERIAL_PARAM_FLOAT_MAT2,
     MATERIAL_PARAM_FLOAT_MAT3,
     MATERIAL_PARAM_FLOAT_MAT4,
-} MaterialParamKind;
+};
 
-typedef struct MaterialParamDesc
+struct MaterialParamDesc
 {
     String name;
     MaterialParamKind kind;
     i32 uniform_location;
     i32 array_size;
-} MaterialParamDesc;
+};
 
-typedef Array(MaterialParamDesc) MaterialParamDescArray;
-
-typedef struct MaterialTemplate
+struct MaterialTemplate
 {
     ShaderProgram program;
-    MaterialParamDescArray params;
-} MaterialTemplate;
+    Array<MaterialParamDesc> params;
+};
 
 typedef struct MaterialParamValue
 {
     MaterialParamKind kind;
     union
     {
-        f32 f32;
-        vec2 vec2;
-        vec3 vec3;
-        vec4 vec4;
-        mat2 mat2;
-        mat3 mat3;
-        mat4 mat4;
+        f32 f32_;
+        vec2 vec2_;
+        vec3 vec3_;
+        vec4 vec4_;
+        mat2 mat2_;
+        mat3 mat3_;
+        mat4 mat4_;
     } as;
 } MaterialParamValue;
-
-typedef Array(MaterialParamValue) MaterialParamValueArray;
 
 typedef struct Material
 {
     MaterialTemplate *templ;
-    MaterialParamValueArray values;
+    Array<MaterialParamValue> values;
 } Material;
-
-C_LINKAGE_BEGIN
 
 i32 material_find_param(const MaterialTemplate *t, const char *name);
 
@@ -98,12 +95,12 @@ Material material_copy(Allocator *allocator, Material *m);
 static inline bool uniform_is_engine_global(String name)
 {
     static String engine_global_uniforms[] = {
-        str("u_Time"),
+        "u_Time",
     };
 
     for (i32 i = 0; i < ArrLen(engine_global_uniforms); ++i)
     {
-        if (str_eq(name, engine_global_uniforms[i])) return true;
+        if (name == engine_global_uniforms[i]) return true;
     }
 
     return false;
@@ -112,14 +109,14 @@ static inline bool uniform_is_engine_global(String name)
 static inline bool uniform_is_mvp(String name)
 {
     static String mvp_uniforms[] = {
-        str("model"),
-        str("view"),
-        str("projection")
+        "model",
+        "view",
+        "projection",
     };
 
     for (i32 i = 0; i < ArrLen(mvp_uniforms); ++i)
     {
-        if (str_eq(name, mvp_uniforms[i])) return true;
+        if (name == mvp_uniforms[i]) return true;
     }
 
     return false;
@@ -151,6 +148,6 @@ static inline const char *material_param_type_to_string(i32 type)
     return "<Unknown>";
 }
 
-C_LINKAGE_END
+}
 
 #endif // XTB_RENDERER_MATERIAL

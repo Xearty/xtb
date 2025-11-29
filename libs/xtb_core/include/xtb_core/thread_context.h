@@ -4,34 +4,72 @@
 #include <xtb_core/core.h>
 #include <xtb_core/arena.h>
 
-C_LINKAGE_BEGIN
+namespace xtb
+{
 
-typedef struct ThreadContext
+struct ThreadContext
 {
     Arena *arenas[2];
-} ThreadContext;
 
-void tctx_init_and_equip(ThreadContext *tctx);
-void tctx_release(void);
-ThreadContext *tctx_get_equipped(void);
-Arena *tctx_get_scratch(Arena **conflicts, size_t count);
+    static void init(ThreadContext* tctx);
+    static void deinit();
+    static ThreadContext* get();
+    static Arena* get_scratch(Arena** conflicts, isize count);
+};
 
-#define scratch_begin(conflicts, count) temp_arena_new(tctx_get_scratch((conflicts), (count)))
+#define scratch_begin(conflicts, count) temp_arena_new(ThreadContext::get_scratch((conflicts), (count)))
 #define scratch_begin_conflict(alloc) scratch_begin((Arena**)(&alloc), 1)
 #define scratch_begin_no_conflicts() scratch_begin(NULL, 0)
 
 #define scratch_end(scratch) temp_arena_release(scratch)
 
-#define scratch_scope(name, conflicts, conflicts_count)                      \
-    for (TempArena name = scratch_begin((conflicts), (conflicts_count)) \
-             , name##_counter = {0};                                             \
-         name##_counter.snapshot.offset == 0;                                    \
-         name##_counter.snapshot.offset += 1,                                    \
-         scratch_end(name))
+struct ThreadContextScope
+{
+    ThreadContext tctx;
 
-#define scratch_scope_no_conflicts(name) scratch_scope(name, NULL, 0)
-#define scratch_scope_conflict(name, allocator) scratch_scope(name, (Arena**)&(allocator).context, 1)
+    ThreadContextScope()
+    {
+        ThreadContext::init(&this->tctx);
+    }
 
-C_LINKAGE_END
+    ~ThreadContextScope()
+    {
+        ThreadContext::deinit();
+    }
+};
+
+struct ScratchScope
+{
+    TempArena scratch;
+
+    ScratchScope()
+    {
+        Arena* scratch_arena = ThreadContext::get_scratch(NULL, 0);
+        this->scratch = temp_arena_new(scratch_arena);
+    }
+
+    ScratchScope(Allocator* conflict)
+    {
+        Arena* scratch_arena = ThreadContext::get_scratch((Arena**)&conflict, 1);
+        this->scratch = temp_arena_new(scratch_arena);
+    }
+
+    ~ScratchScope()
+    {
+        temp_arena_release(this->scratch);
+    }
+
+    Arena* operator*()
+    {
+        return this->scratch.arena;
+    }
+
+    Arena* operator->()
+    {
+        return this->scratch.arena;
+    }
+};
+
+}
 
 #endif // _XTB_CORE_THREAD_CONTEXT_H_

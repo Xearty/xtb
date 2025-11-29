@@ -1,7 +1,7 @@
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(RAYLIB REQUIRED raylib)
 
-add_executable(bmp_test main.c)
+add_executable(bmp_test main.cpp)
 
 target_include_directories(bmp_test
                            PRIVATE

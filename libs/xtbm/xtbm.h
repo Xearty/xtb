@@ -4,6 +4,9 @@
 #include <math.h>
 #include <stdbool.h>
 
+namespace xtb
+{
+
 #define PI 3.14159265359f
 // #define E 2.71828f
 #define GOLDEN_RATIO 1.61803398875f
@@ -1048,6 +1051,8 @@ static inline f32 deg2rad(f32 d)
 static inline f32 rad2deg(f32 r)
 {
     return r * (180.0f / PI);
+}
+
 }
 
 #endif // _XTBM_H_

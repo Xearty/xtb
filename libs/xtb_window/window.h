@@ -4,7 +4,8 @@
 #include <xtb_core/core.h>
 #include <xtb_core/allocator.h>
 
-C_LINKAGE_BEGIN
+namespace xtb
+{
 
 /****************************************************************
  * Window System
@@ -310,6 +311,6 @@ double time_get(void);
 #define MOUSE_BUTTON_RIGHT     MOUSE_BUTTON_2
 #define MOUSE_BUTTON_MIDDLE    MOUSE_BUTTON_3
 
-C_LINKAGE_END
+}
 
 #endif // _XTB_WINDOW_H_

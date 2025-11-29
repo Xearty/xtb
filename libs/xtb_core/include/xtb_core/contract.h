@@ -13,23 +13,25 @@
                 panic("Assertion failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
             }                                                                         \
         })
+#else
+#   define Assert(cond) (void)(cond)
+#endif
 
-#   define Unreachable                                                      \
-        Statement({                                                         \
-            panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
-        })
+#define Unreachable                                                      \
+    Statement({                                                         \
+        panic("Unreachable line reached (%s:%d)",  __FILE__, __LINE__); \
+    })
 
 #define CheckBounds(i, count, ...) Assert(0 <= (i) && (i) <= count)
 
-#else
-#   define Assert(cond) (void)(cond)
-#   define Unreachable
-#endif
-
-#if defined(COMPILER_GCC) || defined(COMPILER_CLANG)
-#define StaticAssert(cond, msg) _Static_assert((cond), msg);
+#if LANG_C
+#if COMPILER_GCC || COMPILER_CLANG
+#define StaticAssert(cond, msg) _Static_assert((cond), msg)
 #else
 #error StaticAssert not defined for compiler
+#endif
+#else
+#define StaticAssert(cond, msg) static_assert((cond), msg)
 #endif
 
 

@@ -3,6 +3,9 @@
 
 #include <xtbm/xtbm.h>
 
+namespace xtb
+{
+
 typedef struct Basis
 {
     vec3 right;
@@ -45,5 +48,7 @@ void camera_set_projection(Camera *camera, mat4 projection);
  * View
 ****************************************************************/
 void camera_recalc_view_matrix(Camera *c);
+
+}
 
 #endif // _XTB_CAMERA_H_

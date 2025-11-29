@@ -4,6 +4,9 @@
 #include <xtb_core/core.h>
 #include <xtb_ogl/ogl.h>
 
+namespace xtb
+{
+
 typedef struct ShaderProgram
 {
     u32 id;
@@ -29,6 +32,8 @@ static inline ShaderProgram create_shader_program(const char *ns, const char *vs
     };
 
     return result;
+}
+
 }
 
 #endif // XTB_RENDERER_SHADER_H

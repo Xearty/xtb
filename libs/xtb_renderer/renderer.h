@@ -10,7 +10,8 @@
 #define POLYLINE_INSTANCED_MAX_LINES 128
 #endif
 
-C_LINKAGE_BEGIN
+namespace xtb
+{
 
 // TODO: Use a single buffer for vertices and indices and store offsets
 typedef struct GpuMesh
@@ -88,7 +89,7 @@ typedef struct Renderer
     Camera camera3d;
 } Renderer;
 
-MaterialParamDescArray material_params_from_program(Allocator *allocator, ShaderProgramID program);
+Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, ShaderProgramID program);
 
 /****************************************************************
  * Renderer Lifecycle
@@ -112,6 +113,6 @@ void render_cube(Renderer *renderer, vec4 color, mat4 model);
 void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
 void render_bezier_spline_custom(Renderer *renderer, vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
 
-C_LINKAGE_END
+}
 
 #endif // _XTB_RENDERER_H_

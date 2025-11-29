@@ -1,10 +1,13 @@
 #ifndef _XTB_JSON_H_
 #define _XTB_JSON_H_
 
-#include <xtb_core/str.h>
+#include <xtb_core/string.h>
 #include <xtb_core/array.h>
 #include <stdbool.h>
 #include <stdio.h>
+
+namespace xtb
+{
 
 typedef enum
 {
@@ -18,7 +21,8 @@ typedef enum
 
 typedef struct JsonValue JsonValue;
 
-typedef Array(JsonValue*) JsonArray;
+// typedef Array(JsonValue*) JsonArray;
+using JsonArray = Array<JsonValue*>;
 
 typedef struct JsonPair
 {
@@ -90,5 +94,7 @@ bool json_array_contains_object(const JsonValue *value);
 ****************************************************************/
 void json_print_value(const JsonValue *value, FILE *stream);
 void json_pretty_print_value(const JsonValue *value, int indent, FILE *stream);
+
+}
 
 #endif // _XTB_JSON_H_

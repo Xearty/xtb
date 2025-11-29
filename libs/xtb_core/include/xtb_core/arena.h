@@ -8,7 +8,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-C_LINKAGE_BEGIN
+namespace xtb
+{
 
 /****************************
  * Utility macros
@@ -24,7 +25,6 @@ C_LINKAGE_BEGIN
 /****************************
  * Arena API
  ***************************/
-typedef struct ArenaChunkHeader ArenaChunkHeader;
 struct ArenaChunkHeader
 {
     size_t capacity;
@@ -32,7 +32,6 @@ struct ArenaChunkHeader
     ArenaChunkHeader *next;
 };
 
-typedef struct Arena Arena;
 struct Arena
 {
     Allocator allocator;
@@ -54,14 +53,12 @@ void arena_clear(Arena *arena);
 /****************************
  * Temporary Arena API
  ***************************/
-typedef struct TempArenaSnapshot TempArenaSnapshot;
 struct TempArenaSnapshot
 {
     ArenaChunkHeader *chunk;
     size_t offset;
 };
 
-typedef struct TempArena TempArena;
 struct TempArena
 {
     Arena *arena;
@@ -77,6 +74,6 @@ void temp_arena_release(TempArena temp);
 size_t arena_dump_memory_usage(Arena *arena);
 size_t arena_dump_memory_usage_pp(Arena *arena, char *buffer, size_t buffer_size);
 
-C_LINKAGE_END
+}
 
 #endif // _XTB_ALLOCATOR_ARENA_H_

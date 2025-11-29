@@ -1,3 +1,3 @@
-add_library(xtb_ansi ansi.c)
+add_library(xtb_ansi ansi.cpp)
 
 target_include_directories(xtb_ansi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

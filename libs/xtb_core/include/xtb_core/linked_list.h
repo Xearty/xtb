@@ -1,6 +1,8 @@
 #ifndef _XTB_LINKED_LIST_H_
 #define _XTB_LINKED_LIST_H_
 
+#include <utility>
+
 /****************************************************************
  * Linked list implementation scraped from raddebugger
 ****************************************************************/
@@ -77,9 +79,9 @@ CheckNil(nil,p) ? \
 
 #define DLLConcat(first, second) DLLConcatHT(first, second, head, tail)
 
-#define IterateList(list, type, iter) \
-    for (type *iter = list.head; \
-         DLLIterBoundedCond(iter, list.tail); \
-         iter = iter->next)
+#define IterateList(list) \
+    for (decltype(std::declval<decltype(*list)>().head) it = (list)->head; \
+         DLLIterBoundedCond(it, (list)->tail); \
+         it = it->next)
 
 #endif // _XTB_LINKED_LIST_H_

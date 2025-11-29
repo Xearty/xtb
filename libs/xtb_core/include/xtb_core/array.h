@@ -1,166 +1,266 @@
 #ifndef _XTB_ARRAY_H_
 #define _XTB_ARRAY_H_
 
-// NOTE(xearty): This file is copied from https://github.com/Boostibot/cbasis
-
-// This freestanding file introduces a simple but powerful typed dynamic array concept.
-// It works by defining struct for each type and then using type untyped macros to work
-// with these structs.
-//
-// This approach was chosen because:
-// 1) we need type safety! Array of int should be distinct type from Array of char
-//    This disqualified the one Array struct for all types holding the type info supplied at runtime.
-//
-// 2) we need to be able to work with empty arrays easily and safely.
-//    Empty arrays are the most common arrays so having them as a special and error prone case
-//    is less than ideal. This disqualified the typed pointer to allocated array prefixed with header holding
-//    the meta data. See how stb library implements "stretchy buffers".
-//    This approach also introduces a lot of helper functions instead of simple array.count or whatever.
-//
-// 3) we need to hold info about allocators used for the array. We should know how to deallocate any array using its allocator.
-//
-// 4) the array type must be fully explicit. There should never be the case where we return an array from a function and we dont know
-//    what kind of array it is/if it even is a dynamic array. This is another issue with the stb style.
-//
-// This file is also fully freestanding. To compile the function definitions #define MODULE_IMPL_ALL and include it again in .c file.
-
 #include <xtb_core/core.h>
 #include <xtb_core/allocator.h>
 #include <xtb_core/contract.h>
+#include <xtb_core/slice.h>
+#include <iterator>
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <initializer_list>
+#include <algorithm>
+#include <stdio.h>
+#include <utility>
 
-typedef struct UntypedArray {
-    Allocator* allocator;
-    uint8_t* data;
-    isize count;
-    isize capacity;
-} UntypedArray;
+namespace xtb
+{
 
-typedef struct GenericArray {
-    UntypedArray* array;
-    uint32_t item_size;
-    uint32_t item_align;
-} GenericArray;
+template <typename It>
+struct EnumerateIterator
+{
+    using Ref = decltype(*std::declval<It>());
+    using Pair = std::pair<const isize, Ref>;
 
-#define ArrayAligned(Type, align)                \
-    union {                                      \
-        UntypedArray untyped;                    \
-        struct {                                 \
-            Allocator* allocator;                \
-            Type* data;                          \
-            isize count;                         \
-            isize capacity;                      \
-        };                                       \
-        uint8_t (*ALIGN)[align];                 \
-    }                                            \
+    isize index;
+    It iterator;
 
-#define Array(Type) ArrayAligned(Type, __alignof(Type) > 0 ? __alignof(Type) : 8)
+    explicit EnumerateIterator(isize index, It iterator) : index(index), iterator(iterator) {}
 
-typedef Array(u8)    U8Array;
-typedef Array(u16)   U16Array;
-typedef Array(u32)   U32Array;
-typedef Array(u64)   U64Array;
+    bool operator!=(const EnumerateIterator<It>& other) const
+    {
+        return this->iterator != other.iterator;
+    }
 
-typedef Array(i8)    I8Array;
-typedef Array(i16)   I16Array;
-typedef Array(i32)   I32Array;
-typedef Array(i64)   I64Array;
+    void operator++()
+    {
+        ++this->index;
+        ++this->iterator;
+    }
 
-typedef Array(f32)   F32Array;
-typedef Array(f64)   F64Array;
-typedef Array(void*) PtrArray;
+    Pair operator*() const
+    {
+        return Pair { this->index, *this->iterator };
+    }
+};
 
-typedef I64Array     ISizeArray;
-typedef U64Array     USizeArray;
+template <typename R>
+struct EnumerateRange
+{
+    R range;
 
-C_LINKAGE_BEGIN
-void generic_array_init(GenericArray gen, Allocator* allocator);
-void generic_array_deinit(GenericArray gen);
-void generic_array_set_capacity(GenericArray gen, isize capacity);
-void generic_array_resize(GenericArray gen, isize to_size, bool zero_new);
-void generic_array_reserve(GenericArray gen, isize to_capacity);
-void generic_array_append(GenericArray gen, const void* data, isize data_count);
-C_LINKAGE_END
+    auto begin()
+    {
+        using It = decltype(std::begin(this->range));
+        return EnumerateIterator<It>(0, std::begin(this->range));
+    }
 
-#if LANG_CPP
-    #define array_make_generic(array_ptr) (GenericArray{&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
-#else
-    #define array_make_generic(array_ptr) ((GenericArray){&(array_ptr)->untyped, sizeof *(array_ptr)->data, sizeof *(array_ptr)->ALIGN})
-#endif
+    auto end()
+    {
+        using It = decltype(std::end(this->range));
+        return EnumerateIterator<It>(0, std::end(this->range));
+    }
+};
 
-#define make_array(allocator) {{ (allocator) }}
+template <typename R>
+auto enumerate(R& range)
+{
+    return EnumerateRange<R&>{ range };
+}
 
-//Initializes the array. If the array is already initialized deinitializes it first.
-//Thus expects a properly formed array. Suppling a non-zeroed memory will cause errors!
-//All data structers in this library need to be zero init to be valid!
-#define array_init(array_ptr, allocator) \
-    generic_array_init(array_make_generic(array_ptr), (allocator))
+template <typename R>
+auto enumerate(const R& range)
+{
+    return EnumerateRange<const R&>{ range };
+}
 
-//Deallocates and resets the array
-#define array_deinit(array_ptr) \
-    generic_array_deinit(array_make_generic(array_ptr))
+// TODO: Make an OwningArray Array variant that calls destructors
+template <typename T>
+struct Array
+{
+    Array() = default;
 
-//If the array capacity is lower than to_capacity sets the capacity to to_capacity.
-//If setting of capacity is required and the new capcity is less then one geometric growth
-// step away from current capacity grows instead.
-#define array_reserve(array_ptr, to_capacity) \
-    generic_array_reserve(array_make_generic(array_ptr), (to_capacity))
+    explicit Array(Allocator *allocator, isize capacity = 0)
+        : m_allocator(allocator)
+    {
+        this->ensure_capacity(capacity);
+    }
 
-//Sets the array size to the specied to_size.
-//If the to_size is smaller than current size simply dicards further items
-//If the to_size is greater than current size zero initializes the newly added items
-#define array_resize(array_ptr, to_size) \
-    generic_array_resize(array_make_generic(array_ptr), (to_size), true)
+    explicit Array(Allocator *allocator, const T *pointer, isize size)
+        : Array(allocator, size)
+    {
+        for (isize i = 0; i < size; ++i)
+        {
+            this->append_assume_capacity(pointer[i]);
+        }
+    }
 
-//Just like array_resize except doesnt zero initialized newly added region
-#define array_resize_for_overwrite(array_ptr, to_size) \
-    generic_array_resize(array_make_generic(array_ptr), (to_size), false)
+    static Array<T> init(Allocator *allocator)
+    {
+        return Array(allocator);
+    }
 
-//Sets the array size to 0. Does not deallocate the array
-#define array_clear(array_ptr) ((array_ptr)->count = 0)
+    static Array<T> init_with_capacity(Allocator *allocator, isize capacity)
+    {
+        return Array(allocator, capacity);
+    }
 
-//Appends item_count items to the end of the array growing it
-#define array_append(array_ptr, items, item_count) (                                                 \
-        /* Here is a little hack to typecheck the items array.*/                                     \
-        /* We do a comparison that emmits a warning on incompatible types but doesnt get executed */ \
-        (void) sizeof((array_ptr)->data == (items)),                                                 \
-        generic_array_append(array_make_generic(array_ptr), (items), (item_count))                   \
-    )                                                                                                \
+    static Array<T> from_pointer(Allocator *allocator, T *pointer, isize size)
+    {
+        return Array(allocator, pointer, size);
+    }
 
-//Discards current items in the array and replaces them with the provided items
-#define array_assign(array_ptr, items, item_count) (     \
-        array_clear(array_ptr),                          \
-        array_append((array_ptr), (items), (item_count)) \
-    )                                                    \
+    Array(std::initializer_list<T> ilist) : m_allocator(allocator_get_heap())
+    {
+        this->ensure_capacity(ilist.size());
+        std::copy(ilist.begin(), ilist.end(), m_data);
+        m_size = ilist.size();
+    }
 
-//Appends a single item to the end of the array
-#define array_push(array_ptr, item_value) (                                           \
-        generic_array_reserve(array_make_generic(array_ptr), (array_ptr)->count + 1), \
-        (array_ptr)->data[(array_ptr)->count++] = (item_value)                        \
-    )                                                                                 \
+    static Array<T> init_with_size(Allocator *allocator, isize size)
+    {
+        auto result = Array::init(allocator);
+        result.resize(size);
+        return result;
+    }
 
-//Removes a single item from the end of the array
-#define array_pop(array_ptr) (                                                  \
-        CheckBounds(0, (array_ptr)->count, "cannot pop from empty array!"), \
-        (array_ptr)->data[--(array_ptr)->count]                                 \
-    )                                                                           \
+    void deinit()
+    {
+        Deallocate(m_allocator, m_data);
+    }
 
-//Removes the item at index and puts the last item in its place to fill the hole
-#define array_remove_unordered(array_ptr, index) (                                 \
-        CheckBounds(0, (array_ptr)->count, "cannot remove from empty array!"), \
-        (array_ptr)->data[(index)] = (array_ptr)->data[--(array_ptr)->count]       \
-    )                                                                              \
+    void reserve(isize capacity)
+    {
+        this->ensure_capacity(capacity);
+    }
 
-//Returns the value of the last item. The array must not be empty!
-#define array_last(array) (                                                     \
-        CheckBounds(0, (array).count, "cannot get last from empty array!"), \
-        &(array).data[(array).count - 1]                                        \
-    )                                                                           \
+    void resize(isize size)
+    {
+        this->reserve(size);
+        for (isize i = m_size; i < size; ++i)
+        {
+            m_data[i] = T{};
+        }
+        m_size = size;
+    }
 
-#define array_set_capacity(array_ptr, capacity) \
-    generic_array_set_capacity(array_make_generic(array_ptr), (capacity))
-#endif
+    void append(const T& item)
+    {
+        this->ensure_capacity(m_size + 1);
+        this->append_assume_capacity(item);
+    }
 
-// #endif // _XTB_ARRAY_H_
+    void append(const T* pointer, isize size)
+    {
+        this->ensure_capacity(m_size + size);
+        this->append_assume_capacity(pointer, size);
+    }
+
+    void append(std::initializer_list<T> ilist)
+    {
+        this->ensure_capacity(m_size + ilist.size());
+        this->append_assume_capacity(ilist);
+    }
+
+    void append_assume_capacity(const T& item)
+    {
+        Assert(m_size + 1 <= m_capacity);
+        m_data[m_size++] = item;
+    }
+
+    void append_assume_capacity(const T* pointer, isize size)
+    {
+        Assert(m_size + size <= m_capacity);
+        for (isize i = 0; i < size; ++i)
+        {
+            this->append_assume_capacity(pointer[i]);
+        }
+    }
+
+    void append_assume_capacity(std::initializer_list<T> ilist)
+    {
+        Assert(m_size + (isize)ilist.size() <= m_capacity);
+        for (const T& item : ilist)
+        {
+            m_data[m_size++] = item;
+        }
+    }
+
+    isize size() const { return m_size; }
+    isize capacity() const { return m_capacity; };
+    T* data() const { return m_data; }
+
+    void clear()
+    {
+        Deallocate(m_allocator, m_data);
+        m_data = NULL;
+        m_size = 0;
+        m_capacity = 0;
+    }
+
+    T& operator[](isize index)
+    {
+        Assert(index < m_size);
+        return m_data[index];
+    }
+
+    const T& operator[](isize index) const
+    {
+        Assert(index < m_size);
+        return m_data[index];
+    }
+
+    void destroy_items()
+    {
+        if constexpr (!std::is_trivially_destructible_v<T>)
+        {
+            for (isize i = 0; i < m_size; ++i)
+            {
+                m_data[i].~T();
+            }
+        }
+    }
+
+    const T* begin() const { return m_data; }
+    const T* end() const { return m_data + m_size; }
+
+    const T* cbegin() const { return m_data; }
+    const T* cend() const { return m_data + m_size; }
+
+    auto enumerate() { return xtb::enumerate(*this); }
+
+    Slice<T> to_slice() const { return Slice<T>::from(m_data, m_size); }
+    SliceMut<T> to_slice_mut() { return SliceMut<T>::from(m_data, m_size); }
+
+    operator SliceMut<T>()
+    {
+        return this->to_slice_mut();
+    }
+
+    operator Slice<T>() const
+    {
+        return this->to_slice();
+    }
+
+protected:
+    void ensure_capacity(isize needed)
+    {
+        if (m_capacity >= needed) return;
+
+        isize new_capacity = GrowGeometric(m_capacity, needed);
+
+        m_data = ReallocateTyped(m_allocator, m_data, m_capacity, new_capacity, T);
+        Assert(m_data != NULL);
+
+        m_capacity = new_capacity;
+    }
+
+protected:
+    Allocator* m_allocator = NULL;
+    T* m_data = NULL;
+    isize m_size = 0;
+    isize m_capacity = 0;
+};
+
+}
+
+#endif // _XTB_ARRAY_H_

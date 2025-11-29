@@ -8,6 +8,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+namespace xtb
+{
+
 /****************************************************************
  * Versioning
 ****************************************************************/
@@ -30,15 +33,15 @@
 #define MemoryZeroArray(a) MemoryZero((a), sizeof(a))
 #define MemoryZeroTyped(m, c) MemoryZero((m), sizeof(*(m)) * (c))
 
-#define MemoryCopy(s, d, c) memcpy((s), (d), (c));
-#define MemoryMove(s, d, c) memmove((s), (d), (c));
+#define MemoryCopy(d, s, c) memcpy((d), (s), (c));
+#define MemoryMove(d, s, c) memmove((d), (s), (c));
 
 #define GrowGeometric(old, need) ((old) ? ((old) * 2 >= (need) ? (old) * 2 : (need)) : (need))
 
 /****************************************************************
  * Miscellaneous Macros
 ****************************************************************/
-#define ArrLen(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
+#define ArrLen(ARRAY) ((isize)sizeof(ARRAY) / (isize)sizeof((ARRAY)[0]))
 #define Unused(X) (void)(X)
 
 /****************************************************************
@@ -47,41 +50,59 @@
 #define GenSwitchMacroIterator(VALUE, ITERATOR, MACRO) \
     Statement(switch (VALUE) { ITERATOR(MACRO) })
 
+// Taken from https://www.gingerbill.org/article/2015/08/19/defer-in-cpp/
+template <typename F>
+struct privDefer {
+	F f;
+	privDefer(F f) : f(f) {}
+	~privDefer() { f(); }
+};
+
+template <typename F>
+privDefer<F> defer_func(F f) {
+	return privDefer<F>(f);
+}
+
+#define DEFER_1(x, y) x##y
+#define DEFER_2(x, y) DEFER_1(x, y)
+#define DEFER_3(x)    DEFER_2(x, __COUNTER__)
+#define defer(code)   auto DEFER_3(_defer_) = defer_func([&](){code;})
+
 /****************************************************************
  * Type Aliases
 ****************************************************************/
-typedef uint8_t     u8;
-typedef uint16_t    u16;
-typedef uint32_t    u32;
-typedef uint64_t    u64;
-typedef uint64_t    usize;
+using u8    = uint8_t;
+using u16   = uint16_t;
+using u32   = uint32_t;
+using u64   = uint64_t;
+using usize = uintptr_t;
 
-typedef int8_t      i8;
-typedef int16_t     i16;
-typedef int32_t     i32;
-typedef int64_t     i64;
-typedef int64_t     isize;
+using i8    = int8_t;
+using i16   = int16_t;
+using i32   = int32_t;
+using i64   = int64_t;
+using isize = ptrdiff_t;
 
-typedef bool        b8;
-typedef uint16_t    b16;
-typedef uint32_t    b32;
-typedef uint64_t    b64;
+using b8  = uint8_t;
+using b16 = uint16_t;
+using b32 = uint32_t;
+using b64 = uint64_t;
 
-typedef float       f32;
-typedef double      f64;
+using f32 = float;
+using f64 = double;
 
-typedef long long int      lli;
-typedef unsigned long long llu;
+using lli = long long int;
+using llu = unsigned long long int;
 
-typedef u8  Flags8;
-typedef u16 Flags16;
-typedef u32 Flags32;
-typedef u64 Flags64;
+using Flags8  = uint8_t;
+using Flags16 = uint16_t;
+using Flags32 = uint32_t;
+using Flags64 = uint64_t;
 
-typedef u8  Mask8;
-typedef u16 Mask16;
-typedef u32 Mask32;
-typedef u64 Mask64;
+using Mask8  = uint8_t;
+using Mask16 = uint16_t;
+using Mask32 = uint32_t;
+using Mask64 = uint64_t;
 
 /****************************************************************
  * Basic Math Macros
@@ -92,10 +113,8 @@ typedef u64 Mask64;
 #define ClampBot(VALUE, MIN_VALUE) Max(VALUE, MIN_VALUE)
 #define Clamp(VALUE, MIN_VALUE, MAX_VALUE) ClampBot(ClampTop(VALUE, MAX_VALUE), MIN_VALUE)
 
-C_LINKAGE_BEGIN
+void init(int argc, char **argv);
 
-void xtb_init(int argc, char **argv);
-
-C_LINKAGE_END
+}
 
 #endif // _XTB_CORE_H_

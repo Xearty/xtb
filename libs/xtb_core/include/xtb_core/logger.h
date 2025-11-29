@@ -3,9 +3,10 @@
 
 #include <xtb_core/context_cracking.h>
 
-C_LINKAGE_BEGIN
+namespace xtb
+{
 
-typedef enum LogLevel
+enum LogLevel
 {
     LOG_LEVEL_TRACE = 0,
     LOG_LEVEL_DEBUG,
@@ -13,12 +14,12 @@ typedef enum LogLevel
     LOG_LEVEL_WARN,
     LOG_LEVEL_ERROR,
     LOG_LEVEL_FATAL,
-} LogLevel;
+};
 
-typedef void (*LogCallback)(LogLevel level, const char *message, void *user_data);
+using LogCallback = void(*)(LogLevel level, const char* message, void* user_data);
 
 void logger_set_callback(LogCallback cb, void *user_data);
-void logger_set_log_level(int log_level);
+void logger_set_log_level(LogLevel log_level);
 void logger_log(LogLevel level, const char *fmt, ...);
 
 #define LOG_TRACE(fmt, ...) logger_log(LOG_LEVEL_TRACE, fmt, ##__VA_ARGS__)
@@ -28,6 +29,6 @@ void logger_log(LogLevel level, const char *fmt, ...);
 #define LOG_ERROR(fmt, ...) logger_log(LOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
 #define LOG_FATAL(fmt, ...) logger_log(LOG_LEVEL_FATAL, fmt, ##__VA_ARGS__)
 
-C_LINKAGE_END
+}
 
 #endif // _XTB_LOGGER_H_

@@ -1,9 +1,9 @@
-add_library(xtb_renderer renderer.c)
+add_library(xtb_renderer renderer.cpp)
 
 set(SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(SHADERS_GENERATED_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/generated/baked_shaders_generated.h)
 
-add_executable(shader_baker tools/shader_baker.c)
+add_executable(shader_baker tools/shader_baker.cpp)
 target_link_libraries(shader_baker PRIVATE xtb_core xtb_os)
 
 add_custom_command(

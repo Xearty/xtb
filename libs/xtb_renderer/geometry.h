@@ -4,252 +4,252 @@
 #include <xtb_core/array.h>
 #include <xtbm/xtbm.h>
 
-typedef struct Vertex
+namespace xtb
+{
+
+struct Vertex
 {
     vec3 position;
     vec3 normal;
     vec2 tex_coords;
-} Vertex;
+};
 
-typedef Array(Vertex) VertexArray;
-
-typedef struct Mesh
+struct Mesh
 {
-    VertexArray vertices;
-    U32Array indices;
-} Mesh;
+    Array<Vertex> vertices;
+    Array<u32> indices;
+};
 
 static inline Mesh geometry_create_quad(Allocator *allocator)
 {
-    Mesh mesh = {0};
+    Mesh mesh = {};
 
-    array_init(&mesh.vertices, allocator);
-    array_reserve(&mesh.vertices, 4);
+    mesh.vertices = Array<Vertex>::init_with_capacity(allocator, 4);
 
-    array_push(&mesh.vertices, ((Vertex) {
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, 0.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, 0.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
+    });
 
-    array_init(&mesh.indices, allocator);
-    array_reserve(&mesh.indices, 6);
+    mesh.indices = Array<u32>::init_with_capacity(allocator, 6);
 
-    array_push(&mesh.indices, 0);
-    array_push(&mesh.indices, 1);
-    array_push(&mesh.indices, 3);
-    array_push(&mesh.indices, 1);
-    array_push(&mesh.indices, 2);
-    array_push(&mesh.indices, 3);
+    mesh.indices.append(0);
+    mesh.indices.append(1);
+    mesh.indices.append(3);
+    mesh.indices.append(1);
+    mesh.indices.append(2);
+    mesh.indices.append(3);
 
     return mesh;
 }
 
 static inline Mesh geometry_create_cube(Allocator *allocator)
 {
-    Mesh mesh = {0};
+    Mesh mesh = {};
 
-    array_init(&mesh.vertices, allocator);
-    array_reserve(&mesh.vertices, 36);
+    mesh.vertices = Array<Vertex>::init_with_capacity(allocator, 36);
 
-    array_push(&mesh.vertices, ((Vertex) {
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, -0.5f),
         .normal = v3(0.0f, 0.0f, -1.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, -0.5f),
         .normal = v3(0.0f, 0.0f, -1.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, -0.5f),
         .normal = v3(0.0f, 0.0f, -1.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, -0.5f),
         .normal = v3(0.0f, 0.0f, -1.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, -0.5f),
         .normal = v3(0.0f, 0.0f, -1.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, -0.5f),
         .normal = v3(0.0f, 0.0f, -1.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
+    });
 
-    array_push(&mesh.vertices, ((Vertex) {
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, 0.5f),
         .normal = v3(0.0f, 0.0f, 1.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, 0.5f),
         .normal = v3(0.0f, 0.0f, 1.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, 0.5f),
         .normal = v3(0.0f, 0.0f, 1.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, 0.5f),
         .normal = v3(0.0f, 0.0f, 1.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, 0.5f),
         .normal = v3(0.0f, 0.0f, 1.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, 0.5f),
         .normal = v3(0.0f, 0.0f, 1.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
+    });
 
-    array_push(&mesh.vertices, ((Vertex) {
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, 0.5f),
         .normal = v3(-1.0f, 0.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, -0.5f),
         .normal = v3(-1.0f, 0.0f, 0.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, -0.5f),
         .normal = v3(-1.0f, 0.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, -0.5f),
         .normal = v3(-1.0f, 0.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, 0.5f),
         .normal = v3(-1.0f, 0.0f, 0.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, 0.5f),
         .normal = v3(-1.0f, 0.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
+    });
 
-    array_push(&mesh.vertices, ((Vertex) {
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, 0.5f),
         .normal = v3(1.0f, 0.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, -0.5f),
         .normal = v3(1.0f, 0.0f, 0.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, -0.5f),
         .normal = v3(1.0f, 0.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, -0.5f),
         .normal = v3(1.0f, 0.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, 0.5f),
         .normal = v3(1.0f, 0.0f, 0.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, 0.5f),
         .normal = v3(1.0f, 0.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
+    });
 
-    array_push(&mesh.vertices, ((Vertex) {
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, -0.5f),
         .normal = v3(0.0f, -1.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, -0.5f),
         .normal = v3(0.0f, -1.0f, 0.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, 0.5f),
         .normal = v3(0.0f, -1.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, -0.5f, 0.5f),
         .normal = v3(0.0f, -1.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, 0.5f),
         .normal = v3(0.0f, -1.0f, 0.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, -0.5f, -0.5f),
         .normal = v3(0.0f, -1.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
+    });
 
-    array_push(&mesh.vertices, ((Vertex) {
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, -0.5f),
         .normal = v3(0.0f, 1.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, -0.5f),
         .normal = v3(0.0f, 1.0f, 0.0f),
         .tex_coords = v2(1.0f, 1.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, 0.5f),
         .normal = v3(0.0f, 1.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(0.5f, 0.5f, 0.5f),
         .normal = v3(0.0f, 1.0f, 0.0f),
         .tex_coords = v2(1.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, 0.5f),
         .normal = v3(0.0f, 1.0f, 0.0f),
         .tex_coords = v2(0.0f, 0.0f),
-    }));
-    array_push(&mesh.vertices, ((Vertex) {
+    });
+    mesh.vertices.append({
         .position = v3(-0.5f, 0.5f, -0.5f),
         .normal = v3(0.0f, 1.0f, 0.0f),
         .tex_coords = v2(0.0f, 1.0f),
-    }));
+    });
 
     return mesh;
+}
+
 }
 
 #endif // _XTB_RENDERER_GEOMETRY_H_

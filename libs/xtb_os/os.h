@@ -2,96 +2,105 @@
 #define _XTB_OS_H_
 
 #include <xtb_core/core.h>
-#include <xtb_core/str.h>
+#include <xtb_core/string.h>
 #include <stddef.h>
-#include <stdbool.h>
-
-C_LINKAGE_BEGIN
 
 #define XTB_FILE_NAME_BUFFER_SIZE 256
 
-typedef struct FileHandle FileHandle;
-
-typedef enum FileMode
+namespace xtb::os
 {
-    FM_READ = 0b001,
-    FM_WRITE = 0b010,
-    FM_BINARY = 0b100
-} FileMode;
 
-typedef enum FileType
+using FileHandle = struct FileHandle;
+
+struct FileMode
 {
-    FT_UNKNOWN = 0,
-    FT_REGULAR,
-    FT_DIRECTORY,
-    FT_SYMLINK,
-    FT_CHAR_DEVICE,
-    FT_BLOCK_DEVICE,
-    FT_FIFO,
-    FT_SOCKET,
-} FileType;
+    enum : Flags32
+    {
+        Read = 0b001,
+        Write = 0b010,
+        Binary = 0b100
+    };
+};
 
-FileHandle *os_open_file(String filepath, FileMode mode);
-void os_close_file(FileHandle *handle);
+using FileModeFlags = Flags32;
 
-size_t os_get_file_size(FileHandle *handle);
+enum class FileType
+{
+    Unknown = 0,
+    Regular,
+    Directory,
+    Symlink,
+    CharDevice,
+    BlockDevice,
+    Fifo,
+    Socket,
+};
 
-size_t os_read_file(FileHandle *handle, const u8 *buffer, size_t size);
-String os_read_entire_file(Allocator *allcoator, String filepath);
+FileHandle* open_file(String filepath, FileModeFlags mode);
+void close_file(FileHandle* handle);
 
-size_t os_write_file(FileHandle *handle, const u8 *buffer, size_t size);
-size_t os_write_entire_file(String filepath, const u8 *buffer, size_t size);
+size_t get_file_size(FileHandle* handle);
 
-bool os_file_exists(String filepath);
-bool os_create_directory(String path);
-bool os_delete_file(String filepath);
-bool os_delete_directory(String filepath);
-bool os_move_file(String old_path, String new_path);
-bool os_copy_file(String filepath, String new_path);
+size_t read_file(FileHandle* handle, const u8* buffer, size_t size);
+String read_entire_file(Allocator* allcoator, String filepath);
 
-bool os_file_has_read_permission(String filepath);
-bool os_file_has_write_permission(String filepath);
-bool os_file_has_execute_permission(String filepath);
+size_t write_file(FileHandle* handle, const u8* buffer, size_t size);
+size_t write_entire_file(String filepath, const u8* buffer, size_t size);
 
-bool os_file_is_regular(String filepath);
-bool os_file_is_directory(String filepath);
+bool file_exists(String filepath);
+bool create_directory(String path);
+bool delete_file(String filepath);
+bool delete_directory(String filepath);
+bool move_file(String old_path, String new_path);
+bool copy_file(String filepath, String new_path);
 
-bool os_file_is_regular_nofollow(String filepath);
-bool os_file_is_directory_nofollow(String filepath);
-bool os_file_is_symbolic_link(String filepath);
+bool file_has_read_permission(String filepath);
+bool file_has_write_permission(String filepath);
+bool file_has_execute_permission(String filepath);
 
-FileType os_get_file_type_nofollow(String filepath);
-FileType os_get_file_type(String filepath);
+bool file_is_regular(String filepath);
+bool file_is_directory(String filepath);
 
-String os_real_path(Allocator* allocator, String filepath);
+bool file_is_regular_nofollow(String filepath);
+bool file_is_directory_nofollow(String filepath);
+bool file_is_symbolic_link(String filepath);
 
-typedef struct DirectoryListingNode {
+FileType get_file_type_nofollow(String filepath);
+FileType get_file_type(String filepath);
+
+String real_path(Allocator* allocator, String filepath);
+
+struct DirectoryListingNode {
     FileType type;;
     String path;
     struct DirectoryListingNode* prev;
     struct DirectoryListingNode* next;
-} DirectoryListNode;
+};
 
-typedef struct DirectoryList
+struct DirectoryList
 {
-    DirectoryListNode *head;
-    DirectoryListNode *tail;
-} DirectoryList;
+    DirectoryListingNode* head;
+    DirectoryListingNode* tail;
+};
 
-typedef enum DirectoryListingFlags
+struct DirectoryListing
 {
-    DIR_LIST_NONE          = 0b000,
-    DIR_LIST_CURR          = 0b001,
-    DIR_LIST_PREV          = 0b010,
-    DIR_LIST_CURR_AND_PREV = 0b011,
-} DirectoryListFlags;
+    enum : Flags32
+    {
+        None               = 0b000,
+        Current            = 0b001,
+        Previous           = 0b010,
+        CurrentAndPrevious = 0b011,
+    };
+};
 
-DirectoryList os_list_directory_custom(Allocator* allocator, String filepath, DirectoryListFlags flags);
-DirectoryList os_list_directory(Allocator* allocator, String filepath);
-DirectoryList os_list_directory_recursively(Allocator* allocator, String filepath);
+using DirectoryListingFlags = Flags32;
 
-String os_path_join(Allocator* allocator, String *parts, size_t count);
+DirectoryList list_directory_custom(Allocator* allocator, String filepath, DirectoryListingFlags flags);
+DirectoryList list_directory(Allocator* allocator, String filepath);
+DirectoryList list_directory_recursively(Allocator* allocator, String filepath);
 
-C_LINKAGE_END
+String path_join(Allocator* allocator, String* parts, size_t count);
+}
 
 #endif // _XTB_OS_H_

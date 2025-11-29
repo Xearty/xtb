@@ -1,10 +1,11 @@
 #ifndef _XTB_OGL_H_
 #define _XTB_OGL_H_
 
-#include <xtb_core/str.h>
+#include <xtb_core/string.h>
 #include <glad/glad.h>
 
-C_LINKAGE_BEGIN
+namespace xtb
+{
 
 typedef unsigned int ShaderProgramID;
 typedef unsigned int Shader;
@@ -24,6 +25,6 @@ ShaderProgramID load_shader_program_from_memory(const char *ns, const char *vert
 
 void toggle_wireframe(void);
 
-C_LINKAGE_END
+}
 
 #endif // _XTB_OGL_H_

@@ -81,6 +81,9 @@ ANSI_COLOR_LIST(DEC_PRINT_COLOR_FUNC);
 void ansi_print_style(FILE *stream, const char *ansi_seq, const char *fmt, ...);
 void ansi_vprint_style(FILE *stream, const char *ansi_seq, const char *fmt, va_list va_args);
 
+const char* ansi_color8_foreground(int index);
+const char* ansi_color8_background(int index);
+
 #undef DEC_PRINT_COLOR_FUNC
 
 #ifdef __cplusplus

@@ -3,13 +3,14 @@
 
 #include <xtb_core/intrinsics.h>
 
-C_LINKAGE_BEGIN
+namespace xtb
+{
 
-typedef void (*PanicHandler)(const char *message, void *user_data);
+using PanicHandler = void(*)(const char* message, void* user_data);
 
 void panic_set_handler(PanicHandler handler, void *user_data);
 noreturn void panic(const char *fmt, ...);
 
-C_LINKAGE_END
+}
 
 #endif // _XTB_PANIC_H_
