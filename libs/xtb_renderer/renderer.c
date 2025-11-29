@@ -10,6 +10,7 @@
 #include "opengl_material.c"
 #include "polyline.c"
 #include "bezier.c"
+#include "camera.c"
 
 /****************************************************************
  * Internal
