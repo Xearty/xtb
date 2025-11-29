@@ -1,6 +1,8 @@
 #ifndef XTB_RENDERER_MATERIAL
 #define XTB_RENDERER_MATERIAL
 
+#include "shader.h"
+
 #include <xtb_core/core.h>
 #include <xtb_core/str.h>
 #include <xtb_core/array.h>
@@ -30,7 +32,7 @@ typedef Array(MaterialParamDesc) MaterialParamDescArray;
 
 typedef struct MaterialTemplate
 {
-    i32 program;
+    ShaderProgram program;
     MaterialParamDescArray params;
 } MaterialTemplate;
 
@@ -88,6 +90,30 @@ void material_set_mat4(Material *mat, const char *name, mat4 val);
 ****************************************************************/
 Material material_instance_create(Allocator *allocator, MaterialTemplate *templ);
 Material material_copy(Allocator *allocator, Material *m);
+
+/****************************************************************
+ * Predicates
+****************************************************************/
+static inline bool uniform_is_mvp(String name)
+{
+    static String mvp_uniforms[] = {
+        str("model"),
+        str("view"),
+        str("projection")
+    };
+
+    for (i32 i = 0; i < ArrLen(mvp_uniforms); ++i)
+    {
+        if (str_eq(name, mvp_uniforms[i])) return true;
+    }
+
+    return false;
+}
+
+static inline bool uniform_is_material_param(String name)
+{
+    return !uniform_is_mvp(name);
+}
 
 /****************************************************************
  * Miscellaneous

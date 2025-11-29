@@ -94,7 +94,7 @@ static void init_default_solid_color_material(Renderer *r)
 {
     MaterialTemplate *templ = Allocate(&r->persistent_arena->allocator, MaterialTemplate);
     templ->program = r->shaders.mvp_solid_color;
-    templ->params = material_params_from_program(&r->persistent_arena->allocator, templ->program);
+    templ->params = material_params_from_program(&r->persistent_arena->allocator, templ->program.id);
 
     r->default_solid_color_material = material_instance_create(&r->persistent_arena->allocator, templ);
     material_set_vec4(&r->default_solid_color_material, "color", v4(1.0f, 0.0f, 1.0f, 1.0f));
@@ -109,9 +109,9 @@ void renderer_init(Renderer *renderer, f32 width, f32 height)
     renderer->persistent_arena = arena_new(Kilobytes(4));
     renderer->mesh_cache.arena = arena_new(Kilobytes(4));
 
-    renderer->shaders.test = load_shader_program_from_memory("test", test_vertex_source, test_fragment_source);
-    renderer->shaders.polyline = load_shader_program_from_memory("polyline", polyline_2d_instanced_vertex_source, test_fragment_source);
-    renderer->shaders.mvp_solid_color = load_shader_program_from_memory("mvp_solid_color", mvp_vertex_source, solid_color_fragment_source);
+    renderer->shaders.test = create_shader_program("test", test_vertex_source, test_fragment_source);
+    renderer->shaders.polyline = create_shader_program("polyline", polyline_2d_instanced_vertex_source, test_fragment_source);
+    renderer->shaders.mvp_solid_color = create_shader_program("mvp_solid_color", mvp_vertex_source, solid_color_fragment_source);
 
     init_standard_vao(renderer);
 
@@ -146,6 +146,17 @@ void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 he
 /****************************************************************
  * Rendering Functions
 ****************************************************************/
+static void set_mvp_uniforms(Renderer *renderer, MaterialTemplate *templ, mat4 model)
+{
+    Camera *camera3d = &renderer->camera3d;
+    ShaderProgram *program = &templ->program;
+
+    // NOTE: Consider the case when a uniform is not present
+    glProgramUniformMatrix4fv(program->id, program->model_location, 1, GL_FALSE, &model.m00);
+    glProgramUniformMatrix4fv(program->id, program->view_location, 1, GL_FALSE, &camera3d->view.m00);
+    glProgramUniformMatrix4fv(program->id, program->projection_location, 1, GL_FALSE, &camera3d->projection.m00);
+}
+
 static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 {
     u32 vao = renderer->standard_vao;
@@ -164,17 +175,11 @@ static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 }
 
 // Implies mvp vertex shader
-static void render_mesh(Renderer *renderer, GpuMesh *mesh, Material *material)
+static void render_mesh(Renderer *renderer, GpuMesh *mesh, mat4 model, Material *material)
 {
+    set_mvp_uniforms(renderer, material->templ, model);
     material_apply(material);
     render_mesh_geometry(renderer, mesh);
-}
-
-static void material_set_mvp(Renderer *renderer, Material *material, mat4 model)
-{
-    material_set_mat4(material, "model", model);
-    material_set_mat4(material, "view", renderer->camera3d.view);
-    material_set_mat4(material, "projection", renderer->camera3d.projection);
 }
 
 void begin_frame(Renderer *renderer)
@@ -186,28 +191,26 @@ void end_frame(Renderer *renderer)
 {
 }
 
-void render_quad(Renderer *renderer, vec4 color, mat4 transform)
+void render_quad(Renderer *renderer, vec4 color, mat4 model)
 {
     TempArena scratch = scratch_begin_no_conflicts();
 
     Material material = material_copy(&scratch.arena->allocator, &renderer->default_solid_color_material);
     material_set_vec4(&material, "color", color);
-    material_set_mvp(renderer, &material, transform);
 
-    render_mesh(renderer, ensure_quad_mesh(renderer), &material);
+    render_mesh(renderer, ensure_quad_mesh(renderer), model, &material);
 
     scratch_end(scratch);
 }
 
-void render_cube(Renderer *renderer, vec4 color, mat4 transform)
+void render_cube(Renderer *renderer, vec4 color, mat4 model)
 {
     TempArena scratch = scratch_begin_no_conflicts();
 
     Material material = material_copy(&scratch.arena->allocator, &renderer->default_solid_color_material);
     material_set_vec4(&material, "color", color);
-    material_set_mvp(renderer, &material, transform);
 
-    render_mesh(renderer, ensure_cube_mesh(renderer), &material);
+    render_mesh(renderer, ensure_cube_mesh(renderer), model, &material);
 
     scratch_end(scratch);
 }

@@ -112,7 +112,7 @@ int main(int argc, char **argv)
     f32 time = time_get();
     f32 prev_time = time;
 
-    MaterialParamDescArray params = material_params_from_program(allocator_get_static(), renderer.shaders.mvp_solid_color);
+    MaterialParamDescArray params = material_params_from_program(allocator_get_static(), renderer.shaders.mvp_solid_color.id);
 
     for (i32 i = 0; i < params.count; ++i)
     {

@@ -45,13 +45,21 @@ MaterialParamDescArray material_params_from_program(Allocator *allocator, Shader
 
             glGetActiveUniform(program, uniform_index, max_name_len, &length, &count, &type, (GLchar*)uniform_name);
 
-            MaterialParamDesc param = {};
-            param.name = str_copy(allocator, str_from(uniform_name, length));
-            param.kind = opengl_type_to_material_param_type(type);
-            param.uniform_location = glGetUniformLocation(program, (GLchar*)uniform_name);
-            param.array_size = count;
 
-            array_push(&params, param);
+            String param_name = str_from(uniform_name, length);
+
+            if (uniform_is_material_param(param_name))
+            {
+                MaterialParamDesc param = {
+                    .name = str_copy(allocator, param_name),
+                    .kind = opengl_type_to_material_param_type(type),
+                    .uniform_location = glGetUniformLocation(program, (GLchar*)uniform_name),
+                    .array_size = count,
+                };
+
+                array_push(&params, param);
+            }
+
         }
 
         scratch_end(scratch);
@@ -60,9 +68,9 @@ MaterialParamDescArray material_params_from_program(Allocator *allocator, Shader
     return params;
 }
 
-static void material_apply(Material *material)
+void material_apply(Material *material)
 {
-    glUseProgram(material->templ->program);
+    glUseProgram(material->templ->program.id);
 
     for (i32 i = 0; i < material->templ->params.count; ++i)
     {
