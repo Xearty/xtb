@@ -125,7 +125,7 @@ FileType get_file_type_nofollow(String filepath)
     switch (st.st_mode & S_IFMT)
     {
         case S_IFREG:  return FileType::Regular;
-        case S_IFDIR:  return FileType::Symlink;
+        case S_IFDIR:  return FileType::Directory;
         case S_IFLNK:  return FileType::Symlink;
         case S_IFCHR:  return FileType::CharDevice;
         case S_IFBLK:  return FileType::BlockDevice;
@@ -144,7 +144,6 @@ bool delete_directory(String filepath)
 {
     ScratchScope scratch;
     filepath = filepath.copy(&scratch->allocator);
-
     return nftw((char*)filepath.data(), unlink_cb, 64, FTW_DEPTH | FTW_PHYS) == 0;
 }
 
