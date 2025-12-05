@@ -16,18 +16,18 @@ void window_system_shutdown(void);
 /****************************************************************
  * Window Configuration
 ****************************************************************/
-typedef enum WindowFlags
+enum WindowFlags
 {
     WINDOW_VSYNC      = 0b0001,
     WINDOW_FULLSCREEN = 0b0010,
-} WindowFlags;
+};
 
-typedef enum WindowBackend
+enum WindowBackend
 {
     WINDOW_BACKEND_OPENGL = 0,
-} WindowBackend;
+};
 
-typedef struct WindowConfig
+struct WindowConfig
 {
     u32 width;
     u32 height;
@@ -38,14 +38,14 @@ typedef struct WindowConfig
     u32 samples;
 
     struct { u32 version_major; u32 version_minor; } opengl;
-} WindowConfig;
+};
 
 WindowConfig window_config_default(void);
 
 /****************************************************************
  * Window
 ****************************************************************/
-typedef struct Window Window;
+using Window = struct Window;
 
 Window* window_create(Allocator *allocator, WindowConfig cfg);
 Window* window_create_default(Allocator *allocator);
@@ -84,7 +84,7 @@ void window_size_get(Window *window, i32 *width, i32 *height);
 /****************************************************************
  * Monitor
 ****************************************************************/
-typedef struct Monitor Monitor;
+using Monitor = struct Monitor;
 
 Monitor* monitor_primary_get(void);
 Monitor* window_monitor_get(Window *window);
@@ -92,13 +92,13 @@ Monitor* window_monitor_get(Window *window);
 /****************************************************************
  * Callbacks
 ****************************************************************/
-typedef void (*KeyCallback)(Window *window, i32 key, i32 scancode, i32 action, i32 mods);
-typedef void (*MouseButtonCallback)(Window *window, i32 button, i32 action, i32 mods);
-typedef void (*CursorPositionCallback)(Window *window, f64 xpos, f64 ypos);
-typedef void (*ScrollCallback)(Window *window, f64 xoffset, f64 yoffset);
-typedef void (*CursorEnterCallback)(Window *window, i32 entered);
-typedef void (*WindowSizeCallback)(Window *window, i32 width, i32 height);
-typedef void (*FramebufferSizeCallback)(Window *window, i32 width, i32 height);
+using KeyCallback = void (*)(Window *window, i32 key, i32 scancode, i32 action, i32 mods);
+using MouseButtonCallback = void (*)(Window *window, i32 button, i32 action, i32 mods);
+using CursorPositionCallback = void (*)(Window *window, f64 xpos, f64 ypos);
+using ScrollCallback = void (*)(Window *window, f64 xoffset, f64 yoffset);
+using CursorEnterCallback = void (*)(Window *window, i32 entered);
+using WindowSizeCallback = void (*)(Window *window, i32 width, i32 height);
+using FramebufferSizeCallback = void (*)(Window *window, i32 width, i32 height);
 
 void window_set_key_callback(Window *window, KeyCallback callback);
 void window_set_mouse_button_callback(Window *window, MouseButtonCallback callback);
@@ -114,13 +114,13 @@ void* window_user_pointer_get(Window *window);
 /****************************************************************
  * Keyboard Input
 ****************************************************************/
-typedef enum KeyState
+enum KeyState
 {
     KEY_UP = 0,
     KEY_DOWN,
     KEY_RELEASED,
     KEY_PRESSED,
-} KeyState;
+};
 
 KeyState key_state_get(Window *window, u32 key);
 bool     key_is_down(Window *window, u32 key);
@@ -141,12 +141,12 @@ void cursor_pos_get(Window *window, f32 *x, f32 *y);
 void cursor_pos_prev_get(Window *window, f32 *x, f32 *y);
 void cursor_delta_get(Window *window, f32 *x, f32 *y);
 
-typedef enum CursorFocus {
+enum CursorFocus {
     CURSOR_INSIDE = 0,
     CURSOR_OUTSIDE,
     CURSOR_ENTERED,
     CURSOR_LEFT
-} CursorFocus;
+};
 
 CursorFocus cursor_focus_get(Window *window);
 bool        cursor_is_inside(Window *window);

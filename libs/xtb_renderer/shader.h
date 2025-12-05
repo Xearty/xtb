@@ -7,7 +7,7 @@
 namespace xtb
 {
 
-typedef struct ShaderProgram
+struct ShaderProgram
 {
     u32 id;
 
@@ -16,7 +16,7 @@ typedef struct ShaderProgram
     i32 projection_location;
 
     i32 time_location;
-} ShaderProgram;
+};
 
 
 static inline ShaderProgram create_shader_program(const char *ns, const char *vs, const char *fs)

@@ -10,7 +10,7 @@ namespace xtb
 typedef unsigned int ShaderProgramID;
 typedef unsigned int Shader;
 
-typedef void* (* XTBLoadProc)(const char *name);
+using XTBLoadProc = void* (*)(const char* name);
 
 bool ogl_load_gl(XTBLoadProc load_proc);
 

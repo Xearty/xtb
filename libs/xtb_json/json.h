@@ -9,7 +9,7 @@
 namespace xtb
 {
 
-typedef enum
+enum JsonType
 {
     JSON_NULL,
     JSON_BOOL,
@@ -17,19 +17,18 @@ typedef enum
     JSON_STRING,
     JSON_ARRAY,
     JSON_OBJECT
-} JsonType;
+};
 
-typedef struct JsonValue JsonValue;
+struct JsonValue;
 
-// typedef Array(JsonValue*) JsonArray;
 using JsonArray = Array<JsonValue*>;
 
-typedef struct JsonPair
+struct JsonPair
 {
     String key;
     JsonValue *value;
     struct JsonPair *next;
-} JsonPair;
+};
 
 struct JsonValue
 {

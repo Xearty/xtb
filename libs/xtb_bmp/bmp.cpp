@@ -260,7 +260,6 @@ bmp_prepass(const u8 *bytes)
 /****************************************************************
  * bitfields.c
 ****************************************************************/
-typedef struct Bitfields_Channel_Info Bitfields_Channel_Info;
 struct Bitfields_Channel_Info
 {
     unsigned int mask;
@@ -268,7 +267,6 @@ struct Bitfields_Channel_Info
     unsigned int shift;
 };
 
-typedef struct Bitfields Bitfields;
 struct Bitfields
 {
     Bitfields_Channel_Info blue_chan;
@@ -356,7 +354,6 @@ parse_bitfields(const u8 **bytes, BMP_Info_Header *info_header)
 /****************************************************************
  * pixel_data.c
 ****************************************************************/
-typedef struct Traversal_Info Traversal_Info;
 struct Traversal_Info
 {
     int start_row_idx;

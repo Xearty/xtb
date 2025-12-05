@@ -6,14 +6,14 @@
 namespace xtb
 {
 
-typedef struct Basis
+struct Basis
 {
     vec3 right;
     vec3 up;
     vec3 back;
-} Basis;
+};
 
-typedef struct Camera
+struct Camera
 {
     f32 yaw, pitch;
 
@@ -22,7 +22,7 @@ typedef struct Camera
 
     mat4 projection;
     mat4 view;
-} Camera;
+};
 
 /****************************************************************
  * Initialization

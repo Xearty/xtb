@@ -8,7 +8,7 @@
 namespace xtb
 {
 
-typedef struct WindowCallbacks
+struct WindowCallbacks
 {
     KeyCallback key_callback;
     MouseButtonCallback mouse_button_callback;
@@ -18,7 +18,7 @@ typedef struct WindowCallbacks
 
     WindowSizeCallback window_size_callback;
     FramebufferSizeCallback framebuffer_size_callback;
-} WindowCallbacks;
+};
 
 /****************************************************************
  * Per Window State

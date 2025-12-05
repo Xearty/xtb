@@ -1,7 +1,6 @@
 #include <xtb_core/core.h>
 #include <raylib.h>
 
-typedef struct WindowState WindowState;
 struct WindowState
 {
     Vector2 screen_size;

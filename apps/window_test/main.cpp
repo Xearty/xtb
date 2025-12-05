@@ -10,10 +10,10 @@
 
 using namespace xtb;
 
-typedef struct WindowUserData
+struct WindowUserData
 {
     Renderer *renderer;
-} WindowUserData;
+};
 
 static void framebuffer_size_callback(Window *window, i32 width, i32 height)
 {

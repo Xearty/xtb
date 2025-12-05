@@ -16,12 +16,12 @@ namespace xtb
 extern "C" {
 #endif
 
-typedef enum BMP_Pixel_Format
+enum BMP_Pixel_Format
 {
     BMP_PF_ARGB8888
-} BMP_Pixel_Format;
+};
 
-typedef enum BMP_Compression_Type
+enum BMP_Compression_Type
 {
     BMP_CT_BI_RGB = 0,
     BMP_CT_BI_RLE8 = 1,
@@ -33,16 +33,14 @@ typedef enum BMP_Compression_Type
     BMP_CT_BI_CMYK = 11,
     BMP_CT_BI_CMYKRLE8 = 12,
     BMP_CT_BI_CMYKRLE4 = 13
-} BMP_Compression_Type;
+};
 
-typedef struct BMP_File_Header BMP_File_Header;
 struct BMP_File_Header
 {
     int file_size;
     int data_offset;
 };
 
-typedef struct BMP_Info_Header BMP_Info_Header;
 struct BMP_Info_Header
 {
     int width;
@@ -54,7 +52,6 @@ struct BMP_Info_Header
     int important_colors;
 };
 
-typedef struct BMP_Color BMP_Color;
 struct BMP_Color
 {
     u8 b;
@@ -63,7 +60,6 @@ struct BMP_Color
     u8 a;
 };
 
-typedef struct BMP_DIB BMP_DIB;
 struct BMP_DIB
 {
     BMP_Info_Header info_header;
@@ -71,7 +67,6 @@ struct BMP_DIB
     u8 *pixel_data;
 };
 
-typedef struct BMP_Memory_Requirements BMP_Memory_Requirements;
 struct BMP_Memory_Requirements
 {
     size_t bitmap_buffer_size;
@@ -79,7 +74,6 @@ struct BMP_Memory_Requirements
     size_t pixel_data_buffer_size;
 };
 
-typedef struct BMP_Prepass_Result BMP_Prepass_Result;
 struct BMP_Prepass_Result
 {
     BMP_File_Header file_header;
@@ -87,7 +81,6 @@ struct BMP_Prepass_Result
     BMP_Memory_Requirements memory_requirements;
 };
 
-typedef struct BMP_Bitmap BMP_Bitmap;
 struct BMP_Bitmap
 {
     BMP_Color *pixel_data;

@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-typedef struct Rect Rect;
 struct Rect {
     int x;
     int y;
@@ -11,7 +10,6 @@ struct Rect {
     int height;
 };
 
-typedef struct RectangleSelections RectangleSelections;
 struct RectangleSelections {
     // Rects buffer
     Rect *rects;

@@ -39,11 +39,11 @@ map_range(float value,
     }
 }
 
-typedef struct Rainbow_State
+struct Rainbow_State
 {
     Vector3 times;
     Vector3 increments;
-} Rainbow_State;
+};
 
 Rainbow_State create_rainbow_state(float min_increment, float max_increment)
 {

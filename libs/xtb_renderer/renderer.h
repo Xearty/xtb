@@ -14,62 +14,62 @@ namespace xtb
 {
 
 // TODO: Use a single buffer for vertices and indices and store offsets
-typedef struct GpuMesh
+struct GpuMesh
 {
     u32 vbo;
     u32 ebo;
 
     u32 vertices_count;
     i32 indices_count;
-} GpuMesh;
+};
 
-typedef struct GeometryCache
+struct GeometryCache
 {
     Arena *arena;
 
     GpuMesh *quad;
     GpuMesh *cube;
-} GeometryCache;
+};
 
-typedef struct ShaderRegistry
+struct ShaderRegistry
 {
     ShaderProgram test;
     ShaderProgram polyline;
     ShaderProgram mvp_solid_color;
-} ShaderRegistry;
+};
 
-typedef struct PolylinePerVertexData
+struct PolylinePerVertexData
 {
     f32 t;
     f32 side;
-} PolylinePerVertexData;
+};
 
-typedef struct PolylineInstanceData
+struct PolylineInstanceData
 {
     vec2 prev;
     vec2 current_start;
     vec2 current_end;
     vec2 next;
-} PolylineInstanceData;
+};
 
-typedef struct PolylineRenderData
+struct PolylineRenderData
 {
     u32 instanced_vbo;
     u32 instanced_ebo;
     u32 vao;
     u32 per_vertex_vbo;
-} PolylineRenderData;
+};
 
 // NOTE: This is a temporary design, probably going to be deleted
-typedef struct GlobalUniformState
+struct GlobalUniformState
 {
     f32 u_Time;
-} GlobalUniformState;
+};
 
-typedef void (*GlobalUniformStateUpdateCallback)(GlobalUniformState *uniforms);
+using GlobalUniformStateUpdateCallback = void(*)(GlobalUniformState *uniforms);
 
 // TOOD: Material pool
-typedef struct Renderer
+struct Renderer
 {
     Arena *persistent_arena;
 
@@ -87,7 +87,7 @@ typedef struct Renderer
 
     Camera camera2d;
     Camera camera3d;
-} Renderer;
+};
 
 Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, ShaderProgramID program);
 

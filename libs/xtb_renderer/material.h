@@ -37,7 +37,7 @@ struct MaterialTemplate
     Array<MaterialParamDesc> params;
 };
 
-typedef struct MaterialParamValue
+struct MaterialParamValue
 {
     MaterialParamKind kind;
     union
@@ -50,13 +50,13 @@ typedef struct MaterialParamValue
         mat3 mat3_;
         mat4 mat4_;
     } as;
-} MaterialParamValue;
+};
 
-typedef struct Material
+struct Material
 {
     MaterialTemplate *templ;
     Array<MaterialParamValue> values;
-} Material;
+};
 
 i32 material_find_param(const MaterialTemplate *t, const char *name);
 
