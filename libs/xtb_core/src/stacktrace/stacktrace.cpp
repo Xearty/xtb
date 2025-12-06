@@ -29,6 +29,28 @@ struct Backtrace
 
 Backtrace g_backtrace;
 
+static i32 digit_count(i32 integer)
+{
+    if (integer == 0) return 1;
+
+    i32 count = 0;
+    while (integer != 0)
+    {
+        count += 1;
+        integer /= 10;
+    }
+
+    return count;
+}
+
+static void indent(i32 count)
+{
+    for (i32 i = 0; i < count; ++i)
+    {
+        std::cerr << ' ';
+    }
+}
+
 void xtb_backtrace_error_callback(void *data, const char *msg, int errnum)
 {
     Unused(data);
@@ -203,12 +225,14 @@ static void push_missing_frame()
     g_backtrace.missing_frames_count += 1;
 }
 
-static void print_missing_frames(i64 next_non_missing_depth)
+static void print_missing_frames(i64 next_non_missing_depth, i32 align)
 {
     if (g_backtrace.missing_frames_count <= 0) return;
 
     if (g_backtrace.missing_frames_count == 1)
     {
+        indent(align - digit_count(next_non_missing_depth - 1));
+
         std::cerr
             << " "
             << g_backtrace.colors.decoration_color << "["
@@ -220,6 +244,7 @@ static void print_missing_frames(i64 next_non_missing_depth)
     }
     else
     {
+        indent(align - digit_count(next_non_missing_depth));
         std::cerr
             << " "
             << g_backtrace.colors.decoration_color << "["
@@ -235,9 +260,15 @@ static void print_missing_frames(i64 next_non_missing_depth)
     g_backtrace.missing_frames_count = 0;
 }
 
-static void print_stack_frame(StackFrame* frame, isize depth)
+static void print_stack_frame(StackFrame* frame, isize depth, i32 align)
 {
     ScratchScope scratch;
+
+// #define EXPAND_MISSING_FRAMES
+
+#ifdef EXPAND_MISSING_FRAMES
+    print_missing_frames(depth, align);
+#endif
 
     if (frame->filename.is_empty())
     {
@@ -245,7 +276,7 @@ static void print_stack_frame(StackFrame* frame, isize depth)
     }
     else
     {
-        print_missing_frames(depth);
+        print_missing_frames(depth, align);
 
         String function_display = frame->function;
 
@@ -263,12 +294,17 @@ static void print_stack_frame(StackFrame* frame, isize depth)
             free(demangled_symbol);
         }
 
+        indent(align - digit_count(depth) + 1);
+
         std::cerr
-            << " " << g_backtrace.colors.decoration_color << "["
+            << g_backtrace.colors.decoration_color << "["
             << g_backtrace.colors.line_number_color << depth
             << g_backtrace.colors.decoration_color << "]" << COLOR_RESET << " "
             << stacktrace_get_final_signature_string(&scratch->allocator, function_display)
-            << "\n     " << g_backtrace.colors.decoration_color << "↳" << COLOR_RESET << " "
+            << "\n";
+
+        indent(align + 2 + 2);
+        std::cerr << g_backtrace.colors.decoration_color << "↳" << COLOR_RESET << " "
             << g_backtrace.colors.filepath_color << frame->filename << COLOR_RESET
             << g_backtrace.colors.decoration_color << ":" << COLOR_RESET
             << g_backtrace.colors.line_number_color << frame->line << COLOR_RESET
@@ -283,12 +319,14 @@ void print(int skip_frames_count)
     ScratchScope scratch;
     Array<StackFrame> frames = collect_stack_frames(*scratch, skip_frames_count);
 
+    i32 align = digit_count(frames.size() - 1);
+
     for (isize depth = 0; depth < frames.size(); ++depth)
     {
-        print_stack_frame(&frames[depth], depth);
+        print_stack_frame(&frames[depth], depth, align);
     }
 
-    print_missing_frames(frames.size());
+    print_missing_frames(frames.size(), align);
 }
 
 void print_full()
