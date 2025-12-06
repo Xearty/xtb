@@ -16,6 +16,8 @@ enum class TokenKind
     Const,
     Volatile,
     DotDotDot,
+    LeftArrow,
+    RightArrow,
 };
 
 enum class IdentType
@@ -72,6 +74,8 @@ struct Lexer
             || parse_simple_token(token, "(", TokenKind::LeftParen)
             || parse_simple_token(token, ")", TokenKind::RightParen)
             || parse_simple_token(token, ",", TokenKind::Comma)
+            || parse_simple_token(token, "<", TokenKind::LeftArrow)
+            || parse_simple_token(token, ">", TokenKind::RightArrow)
             || parse_simple_token(token, "&&", TokenKind::RVReference)
             || parse_simple_token(token, "::", TokenKind::NamespaceSeparator)
             || parse_simple_token(token, "...", TokenKind::DotDotDot)
