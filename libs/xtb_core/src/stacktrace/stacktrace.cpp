@@ -110,7 +110,7 @@ String stacktrace_get_final_signature_string(Allocator* allocator, String signat
     }
 
     StringBuf formatted_signature = format_colored_signature(
-        &scratch->allocator,
+        allocator,
         signature,
         g_backtrace.colors
     );
