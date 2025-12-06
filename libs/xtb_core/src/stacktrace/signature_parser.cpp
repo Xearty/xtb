@@ -18,6 +18,8 @@ enum class TokenKind
     DotDotDot,
     LeftArrow,
     RightArrow,
+    Signed,
+    Unsigned,
 };
 
 enum class IdentType
@@ -81,6 +83,8 @@ struct Lexer
             || parse_simple_token(token, "...", TokenKind::DotDotDot)
             || parse_simple_token(token, "const", TokenKind::Const)
             || parse_simple_token(token, "volatile", TokenKind::Volatile)
+            || parse_simple_token(token, "signed", TokenKind::Signed)
+            || parse_simple_token(token, "unsigned", TokenKind::Unsigned)
             || parse_identifier(token);
 
         return parsed;
@@ -133,6 +137,7 @@ struct Lexer
 void resolve_ident_type(SliceMut<Token> tokens)
 {
     bool inside_parameter_list = false;
+    i32 template_parameter_list_level = 0;
 
     for (isize i = 0; i < tokens.size(); ++i)
     {
@@ -145,7 +150,9 @@ void resolve_ident_type(SliceMut<Token> tokens)
                 if (tokens.size() == 1)
                 {
                     token->ident_type = IdentType::Function;
+                    break;
                 }
+
                 if (i != tokens.size() - 1)
                 {
                     const auto* next_token = &tokens[i + 1];
@@ -153,21 +160,59 @@ void resolve_ident_type(SliceMut<Token> tokens)
                     if (next_token->kind == TokenKind::NamespaceSeparator)
                     {
                         token->ident_type = IdentType::Namespace;
+                        break;
                     }
-                    else if (inside_parameter_list)
+
+                    if (!inside_parameter_list)
                     {
-                        token->ident_type = IdentType::Type;
-                    }
-                    else
-                    {
-                        token->ident_type = IdentType::Function;
+                        if (next_token->kind == TokenKind::LeftParen)
+                        {
+                            token->ident_type = IdentType::Function;
+                            break;
+                        }
+
+                        if (template_parameter_list_level == 0 && next_token->kind == TokenKind::LeftArrow)
+                        {
+                            i32 local_counter = 1;
+                            bool assigned = false;
+                            for (isize j = i + 2; j < tokens.size() - 1; ++j)
+                            {
+                                if (tokens[j].kind == TokenKind::LeftArrow) local_counter += 1;
+                                if (tokens[j].kind == TokenKind::RightArrow) local_counter -= 1;
+                                if (local_counter == 0)
+                                {
+                                    if (tokens[j + 1].kind == TokenKind::LeftParen)
+                                    {
+                                        token->ident_type = IdentType::Function;
+                                        assigned = true;
+                                    }
+                                    break;
+                                }
+                            }
+                            if (assigned)
+                            {
+                                break;
+                            }
+                        }
                     }
                 }
+
+                token->ident_type = IdentType::Type;
             } break;
 
             case TokenKind::LeftParen:
             {
                 inside_parameter_list = true;
+            } break;
+
+            case TokenKind::LeftArrow:
+            {
+                template_parameter_list_level += 1;
+            } break;
+
+            case TokenKind::RightArrow:
+            {
+                template_parameter_list_level -= 1;
             } break;
 
             default: {}

@@ -54,11 +54,17 @@ StringBuf format_colored_signature(Allocator* allocator, String signature, Color
     ScratchScope scratch(allocator);
     Array<Token> tokens = tokenize(&scratch->allocator, signature);
 
+    bool inside_parameter_list = false;
+
     for (const auto& token : tokens)
     {
         const char* ansi_color = colors.default_color;
 
-        if (token.kind == TokenKind::Identifier)
+        if (token.kind == TokenKind::LeftParen)
+        {
+            inside_parameter_list = true;
+        }
+        else if (token.kind == TokenKind::Identifier)
         {
             switch (token.ident_type)
             {
@@ -77,14 +83,25 @@ StringBuf format_colored_signature(Allocator* allocator, String signature, Color
         {
             ansi_color = colors.pointer_ref_color;
         }
+        else if (token.kind == TokenKind::Signed || token.kind == TokenKind::Unsigned)
+        {
+            ansi_color = colors.type_color;
+        }
 
         result.append(String::from_cstr(ansi_color));
         result.append(token.source_string);
         result.append(String::from_cstr(COLOR_RESET));
 
-        if (token.kind == TokenKind::Comma)
+        if (token.kind == TokenKind::Comma || token.kind == TokenKind::Signed || token.kind == TokenKind::Unsigned)
         {
             result.append(' ');
+        }
+        else if (token.kind == TokenKind::Pointer || token.kind == TokenKind::LVReference || token.kind == TokenKind::RVReference)
+        {
+            if (!inside_parameter_list)
+            {
+                result.append(' ');
+            }
         }
     }
 
