@@ -691,14 +691,14 @@ bmp_bitmap_load_alloc(Allocator* allocator, const u8 *bytes)
     BMP_Prepass_Result prepass_result = bmp_prepass(bytes);
     BMP_Memory_Requirements mr = prepass_result.memory_requirements;
     printf("allocation size: %lu\n", mr.bitmap_buffer_size);
-    void *bitmap_buffer = AllocateBytes(allocator, mr.bitmap_buffer_size);
+    void *bitmap_buffer = allocate_bytes(allocator, mr.bitmap_buffer_size);
     return bmp_bitmap_load(prepass_result, bytes, bitmap_buffer);
 }
 
 void
 bmp_bitmap_dealloc(Allocator* allocator, BMP_Bitmap *bitmap)
 {
-    Deallocate(allocator, bitmap->pixel_data);
+    deallocate(allocator, bitmap->pixel_data);
 }
 
 void
@@ -747,16 +747,16 @@ bmp_dib_load_alloc(Allocator* allocator, const u8 *bytes)
 {
     BMP_Prepass_Result prepass_result = bmp_prepass(bytes);
     BMP_Memory_Requirements mr = prepass_result.memory_requirements;
-    void *color_table_buffer = AllocateBytes(allocator, mr.color_table_buffer_size);
-    void *pixel_data_buffer = AllocateBytes(allocator, mr.pixel_data_buffer_size);
+    void *color_table_buffer = allocate_bytes(allocator, mr.color_table_buffer_size);
+    void *pixel_data_buffer = allocate_bytes(allocator, mr.pixel_data_buffer_size);
     return bmp_dib_load(prepass_result, bytes, color_table_buffer, pixel_data_buffer);
 }
 
 void
 bmp_dib_dealloc(Allocator* allocator, BMP_DIB *dib)
 {
-    Deallocate(allocator, dib->color_table);
-    Deallocate(allocator, dib->pixel_data);
+    deallocate(allocator, dib->color_table);
+    deallocate(allocator, dib->pixel_data);
 }
 
 BMP_DIB
@@ -780,7 +780,7 @@ bmp_bitmap_create_from_dib_galloc(const BMP_DIB *dib)
     result.stride = result.width * sizeof(BMP_Color); // TODO(xearty): I think this is unused at the moment (but should not be)
 
     size_t bitmap_buffer_size = 4 * result.width * result.height;
-    void *bitmap_buffer = AllocateBytes(bmp_global_allocator, bitmap_buffer_size);
+    void *bitmap_buffer = allocate_bytes(bmp_global_allocator, bitmap_buffer_size);
 
     parse_pixel_data(dib->pixel_data,
                      dib->color_table,

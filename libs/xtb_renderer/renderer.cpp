@@ -94,7 +94,7 @@ static void init_standard_vao(Renderer *renderer)
 }
 static void init_default_solid_color_material(Renderer *r)
 {
-    MaterialTemplate *templ = Allocate(&r->persistent_arena->allocator, MaterialTemplate);
+    MaterialTemplate *templ = allocate<MaterialTemplate>(&r->persistent_arena->allocator);
     material_template_init(&r->persistent_arena->allocator, r->shaders.mvp_solid_color, templ);
 
     r->default_solid_color_material = material_instance_create(&r->persistent_arena->allocator, templ);

@@ -69,7 +69,7 @@ String read_entire_file(Allocator *allocator, String filepath)
     if (handle == NULL) return String::invalid();
 
     size_t file_size = get_file_size(handle);
-    u8 *buffer = AllocateBytes(allocator, file_size + 1);
+    u8 *buffer = allocate_bytes(allocator, file_size + 1);
 
     size_t bytes_read = read_file(handle, (u8*)buffer, file_size);
     close_file(handle);
@@ -81,7 +81,7 @@ String read_entire_file(Allocator *allocator, String filepath)
     }
     else
     {
-        Deallocate(allocator, buffer);
+        deallocate(allocator, buffer);
         return String::invalid();
     }
 }

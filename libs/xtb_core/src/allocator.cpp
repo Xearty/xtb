@@ -112,7 +112,7 @@ void* allocator_allocate(Allocator* alloc, int64_t new_size, int64_t align)
 
 void allocator_deallocate(Allocator* alloc, void* old_ptr, int64_t old_size, int64_t align)
 {
-    if(old_size > 0)
+    if (old_size > 0)
     {
         (*alloc)(alloc, 0, old_ptr, old_size, align);
     }

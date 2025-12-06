@@ -125,7 +125,7 @@ struct Array
 
     void deinit()
     {
-        Deallocate(m_allocator, m_data);
+        deallocate(m_allocator, m_data);
     }
 
     void reserve(isize capacity)
@@ -191,7 +191,7 @@ struct Array
 
     void clear()
     {
-        Deallocate(m_allocator, m_data);
+        deallocate(m_allocator, m_data);
         m_data = NULL;
         m_size = 0;
         m_capacity = 0;
@@ -248,7 +248,7 @@ protected:
 
         isize new_capacity = GrowGeometric(m_capacity, needed);
 
-        m_data = ReallocateTyped(m_allocator, m_data, m_capacity, new_capacity, T);
+        m_data = reallocate<T>(m_allocator, m_data, m_capacity, new_capacity);
         Assert(m_data != NULL);
 
         m_capacity = new_capacity;

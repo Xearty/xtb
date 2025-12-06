@@ -14,7 +14,7 @@ namespace xtb
 
 String String::copy(Allocator *allocator)
 {
-    u8 *buf = AllocateBytes(allocator, m_len + 1);
+    u8 *buf = allocate_bytes(allocator, m_len + 1);
     strncpy((char*)buf, (char *)m_data, m_len)[m_len] = '\0';
     return String(buf, m_len);
 }
@@ -277,7 +277,7 @@ String String::formatv(Allocator* allocator, const char *fmt, va_list args)
         return String::invalid();
     }
 
-    u8 *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = allocate_bytes(allocator, len + 1);
     if (!str_buf)
     {
         return String::invalid();
@@ -307,7 +307,7 @@ static isize str_array_accumulate_length(String *array, isize count)
 String String::array_join(Allocator* allocator, String *array, isize count)
 {
     isize len = str_array_accumulate_length(array, count);
-    u8 *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = allocate_bytes(allocator, len + 1);
 
     isize out_idx = 0;
     for (isize i = 0; i < count; ++i)
@@ -327,7 +327,7 @@ String String::array_join_sep(Allocator* allocator, String *array, isize count, 
     isize sep_count = count - 1;
     isize len = non_sep_len + (sep_count * sep.len());
 
-    u8 *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = allocate_bytes(allocator, len + 1);
 
     isize out_idx = 0;
     for (isize i = 0; i < count; ++i)
@@ -371,7 +371,7 @@ str_array_join_sep(Allocator* allocator,
     isize sep_count = count - 1;
     isize len = non_sep_len + (sep_count * sep.len());
 
-    u8 *str_buf = AllocateBytes(allocator, len + 1);
+    u8 *str_buf = allocate_bytes(allocator, len + 1);
 
     isize out_idx = 0;
     for (isize i = 0; i < count; ++i)
@@ -538,7 +538,7 @@ std::ostream& operator<<(std::ostream& os, String string)
 
 StringList::Node* StringList::alloc_node(Allocator* allocator, String string)
 {
-    StringList::Node *node = AllocateZero(allocator, StringList::Node);
+    StringList::Node *node = allocate_value_init<StringList::Node>(allocator);
     node->string = string;
     return node;
 }

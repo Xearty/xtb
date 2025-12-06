@@ -38,7 +38,7 @@ Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, Shad
 
         TempArena scratch = scratch_begin_conflict(allocator);
 
-        u8 *uniform_name = AllocateBytes(&scratch.arena->allocator, max_name_len + 1);
+        u8* uniform_name = allocate_bytes(&scratch.arena->allocator, max_name_len + 1);
 
         for (GLint uniform_index = 0; uniform_index < uniform_count; ++uniform_index)
         {

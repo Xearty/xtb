@@ -31,41 +31,55 @@ AllocatorSet allocator_set_static(Allocator *allocator);
 void allocators_init();
 
 template <typename T>
-inline T* xtb_allocate_array_value_init(void *alloc, isize count)
+T* allocate_array(Allocator* allocator, isize count)
 {
-    T* ptr = (T*) allocator_allocate((Allocator*)alloc, count * (int64_t)sizeof(T), __alignof(T));
-    for (isize i = 0; i < count; ++i)
-    {
-        ptr[i] = T{};
-    }
-    return ptr;
+    return (T*)allocator_allocate(allocator, count * sizeof(T), __alignof(T));
 }
 
 template <typename T>
-inline T* xtb_allocate_value_init(void* alloc)
+T* allocate(Allocator* allocator)
 {
-    return xtb_allocate_array_value_init<T>(alloc, 1);
+    return allocate_array<T>(allocator, 1);
 }
 
-#define AllocateArray(alloc, new_count, T) (T*)  allocator_allocate((alloc), (new_count)*sizeof(T), __alignof(T))
-#define AllocateBytes(alloc, new_count)          AllocateArray(alloc, new_count, u8)
-#define Allocate(alloc, T)                       AllocateArray(alloc, 1, T)
-#define Reallocate(alloc, old_ptr, old_size, new_size)    allocator_reallocate((alloc), (new_size), (old_ptr), (old_size), __alignof(T))
-#define ReallocateTyped(alloc, old_ptr, old_size, new_size, T)    (T*)Reallocate(alloc, old_ptr, (old_size)*sizeof(T), (new_size)*sizeof(T))
-#define Deallocate(alloc, old_ptr)               allocator_deallocate((alloc), (old_ptr), (1)*sizeof(char), __alignof(char))
+inline u8* allocate_bytes(Allocator* allocator, isize count)
+{
+    return allocate_array<u8>(allocator, count);
+}
 
-// #define AllocateArrayZero(alloc, new_count, T)   (T*)MemoryZeroTyped(AllocateArray(alloc, new_count, T), new_count)
-// #define AllocateBytesZero(alloc, new_count)      (u8*)AllocateArrayZero(alloc, new_count, char)
-// #define AllocateZero(alloc, T)                   (T*)AllocateArrayZero(alloc, 1, T)
+template <typename T>
+inline T* allocate_array_value_init(Allocator *allocator, isize count)
+{
+    T* buf = allocate_array<T>(allocator, count);
+    for (isize i = 0; i < count; ++i)
+    {
+        buf[i] = T{};
+    }
+    return buf;
+}
 
-#define AllocateArrayZero(alloc, new_count, T) \
-    xtb_allocate_array_value_init<T>((alloc), (new_count))
+template <typename T>
+inline T* allocate_value_init(Allocator* allocator)
+{
+    return allocate_array_value_init<T>(allocator, 1);
+}
 
-#define AllocateZero(alloc, T) \
-    xtb_allocate_value_init<T>((alloc))
+template <typename T>
+void deallocate(Allocator* allocator, T* ptr)
+{
+    allocator_deallocate(allocator, ptr, 1, __alignof(T));
+}
 
-#define AllocateBytesZero(alloc, new_count) \
-    (u8*)xtb_allocate_array_value_init<unsigned char>((alloc), (new_count))
+template <typename T>
+T* reallocate(Allocator* allocator, void* old_ptr, isize old_size, isize new_size)
+{
+    return (T*)allocator_reallocate(allocator, new_size * sizeof(T), old_ptr, old_size * sizeof(T), __alignof(T));
+}
+
+inline u8* reallocate_bytes(Allocator* allocator, void* old_ptr, isize old_size, isize new_size)
+{
+    return reallocate<u8>(allocator, old_ptr, old_size, new_size);
+}
 
 }
 

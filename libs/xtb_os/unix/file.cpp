@@ -195,7 +195,7 @@ DirectoryList list_directory_custom(Allocator* allocator, String filepath, Direc
 
         String path_parts[] = { filepath, entry_str };
 
-        DirectoryListingNode *node = Allocate(allocator, DirectoryListingNode);
+        DirectoryListingNode *node = allocate<DirectoryListingNode>(allocator);
         node->type = dirent_ft_to_ft(entry->d_type);
         node->path = path_join(allocator, path_parts, ArrLen(path_parts));
         DLLPushBack(list.head, list.tail, node);
