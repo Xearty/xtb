@@ -20,6 +20,7 @@ enum class TokenKind
     RightArrow,
     Signed,
     Unsigned,
+    Integer,
 };
 
 enum class IdentType
@@ -85,7 +86,8 @@ struct Lexer
             || parse_simple_token(token, "volatile", TokenKind::Volatile)
             || parse_simple_token(token, "signed", TokenKind::Signed)
             || parse_simple_token(token, "unsigned", TokenKind::Unsigned)
-            || parse_identifier(token);
+            || parse_identifier(token)
+            || parse_integer(token);
 
         return parsed;
     }
@@ -111,6 +113,31 @@ struct Lexer
             };
 
             m_rest = m_rest.trunc_left(identifier.len());
+            return true;
+        }
+
+        return false;
+    }
+
+    bool parse_integer(Token* token)
+    {
+        isize end_idx = 0;
+        while (is_integer_character(m_rest[end_idx]))
+        {
+            ++end_idx;
+        }
+
+        if (end_idx > 0)
+        {
+            String integer = m_rest.head(end_idx);
+
+            *token = {
+                .kind = TokenKind::Integer,
+                .source_string = integer,
+                .ident_type = IdentType::None,
+            };
+
+            m_rest = m_rest.trunc_left(integer.len());
             return true;
         }
 
