@@ -228,18 +228,8 @@ struct Array
 
     auto enumerate() { return xtb::enumerate(*this); }
 
-    Slice<T> to_slice() { return Slice<T>(m_data, m_size); }
-    Slice<const T> to_slice() const { return Slice<const T>(m_data, m_size); }
-
-    operator Slice<T>()
-    {
-        return this->to_slice();
-    }
-
-    operator Slice<const T>() const
-    {
-        return this->to_slice();
-    }
+    [[nodiscard]] Slice<T>       to_slice()       noexcept { return Slice<T>(m_data, m_size); }
+    [[nodiscard]] Slice<const T> to_slice() const noexcept { return Slice<const T>(m_data, m_size); }
 
 protected:
     void ensure_capacity(isize needed)

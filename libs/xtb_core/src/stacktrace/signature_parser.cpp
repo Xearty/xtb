@@ -258,7 +258,7 @@ Array<Token> tokenize(Allocator* allocator, String input)
         tokens.append(token);
     }
 
-    resolve_ident_type(tokens);
+    resolve_ident_type(tokens.to_slice());
 
     return tokens;
 }
