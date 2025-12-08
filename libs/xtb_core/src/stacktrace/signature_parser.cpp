@@ -161,7 +161,7 @@ struct Lexer
     }
 };
 
-void resolve_ident_type(SliceMut<Token> tokens)
+void resolve_ident_type(Slice<Token> tokens)
 {
     bool inside_parameter_list = false;
     i32 template_parameter_list_level = 0;

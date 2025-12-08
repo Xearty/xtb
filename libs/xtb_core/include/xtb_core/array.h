@@ -228,15 +228,15 @@ struct Array
 
     auto enumerate() { return xtb::enumerate(*this); }
 
-    Slice<T> to_slice() const { return Slice<T>::from(m_data, m_size); }
-    SliceMut<T> to_slice_mut() { return SliceMut<T>::from(m_data, m_size); }
+    Slice<T> to_slice() { return Slice<T>(m_data, m_size); }
+    Slice<const T> to_slice() const { return Slice<const T>(m_data, m_size); }
 
-    operator SliceMut<T>()
+    operator Slice<T>()
     {
-        return this->to_slice_mut();
+        return this->to_slice();
     }
 
-    operator Slice<T>() const
+    operator Slice<const T>() const
     {
         return this->to_slice();
     }
@@ -248,7 +248,7 @@ protected:
 
         isize new_capacity = GrowGeometric(m_capacity, needed);
 
-        m_data = reallocate<T>(m_allocator, m_data, m_capacity, new_capacity);
+        m_data = reallocate<T>(m_allocator, (void*)m_data, m_capacity, new_capacity);
         Assert(m_data != NULL);
 
         m_capacity = new_capacity;
@@ -260,6 +260,12 @@ protected:
     isize m_size = 0;
     isize m_capacity = 0;
 };
+
+template <typename T>
+[[nodiscard]] constexpr Slice<T> slice(const Array<T>& array) noexcept
+{
+    return Slice<T>(array.data(), array.size());
+}
 
 }
 
