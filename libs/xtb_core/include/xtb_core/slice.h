@@ -35,6 +35,8 @@ struct Slice
         return m_data[index];
     }
 
+    operator Slice<const T>() const noexcept { return Slice<const T>(m_data, m_size); }
+
     iterator begin() noexcept { return m_data; }
     iterator end()   noexcept { return m_data + m_size; }
 
