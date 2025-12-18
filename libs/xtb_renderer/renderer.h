@@ -71,47 +71,45 @@ using GlobalUniformStateUpdateCallback = void(*)(GlobalUniformState *uniforms);
 // TOOD: Material pool
 struct Renderer
 {
-    Arena *persistent_arena;
+    Arena *persistent_arena{};
 
-    GeometryCache mesh_cache;
-    ShaderRegistry shaders;
+    GeometryCache mesh_cache{};
+    ShaderRegistry shaders{};
 
-    PolylineRenderData polyline_render_data;
+    PolylineRenderData polyline_render_data{};
 
-    u32 standard_vao;
+    u32 standard_vao{};
 
-    Material default_solid_color_material;
+    Material default_solid_color_material{};
 
-    GlobalUniformState global_uniforms;
-    GlobalUniformStateUpdateCallback global_uniforms_update_cb;
+    GlobalUniformState global_uniforms{};
+    GlobalUniformStateUpdateCallback global_uniforms_update_cb{};
 
-    Camera camera2d;
-    Camera camera3d;
+    Camera camera2d{};
+    Camera camera3d{};
+
+    Renderer();
+    Renderer(f32 width, f32 height);
+
+    static Renderer init(f32 width, f32 height)
+    {
+        return Renderer(width, height);
+    }
+
+    void deinit();
+
+    void cameras_recreate_projections(f32 width, f32 height);
+
+    void begin_frame();
+    void end_frame();
+
+    void render_quad(vec4 color, mat4 model);
+    void render_cube(vec4 color, mat4 model);
+    void render_polyline_custom(vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
+    void render_bezier_spline_custom(vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
 };
 
 Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, ShaderProgramID program);
-
-/****************************************************************
- * Renderer Lifecycle
-****************************************************************/
-void renderer_init(Renderer *renderer, f32 width, f32 height);
-void renderer_deinit(Renderer *renderer);
-
-/****************************************************************
- * Cameras
-****************************************************************/
-void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 height);
-
-/****************************************************************
- * Rendering Functions
-****************************************************************/
-void begin_frame(Renderer *renderer);
-void end_frame(Renderer *renderer);
-
-void render_quad(Renderer *renderer, vec4 color, mat4 model);
-void render_cube(Renderer *renderer, vec4 color, mat4 model);
-void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
-void render_bezier_spline_custom(Renderer *renderer, vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
 
 }
 

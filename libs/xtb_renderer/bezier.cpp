@@ -73,11 +73,11 @@ static Array<vec2> compute_bezier_spline_points(Allocator *allocator, vec2 *poin
     return polypoints;
 }
 
-void render_bezier_spline_custom(Renderer *renderer, vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped)
+void Renderer::render_bezier_spline_custom(vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped)
 {
     TempArena scratch = scratch_begin_no_conflicts();
     Array<vec2> polypoints = compute_bezier_spline_points(&scratch.arena->allocator, points, count, bezier_deg, samples);
-    render_polyline_custom(renderer, polypoints.data(), polypoints.size(), thickness, color, looped);
+    this->render_polyline_custom(polypoints.data(), polypoints.size(), thickness, color, looped);
     scratch_end(scratch);
 }
 

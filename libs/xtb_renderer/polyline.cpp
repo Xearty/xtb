@@ -62,14 +62,14 @@ static void setup_polyline_render_data(Renderer *renderer, PolylineRenderData *o
     glBindVertexArray(0);
 }
 
-void render_polyline_custom(Renderer *renderer, vec2 *points, i32 count, f32 thickness, vec4 color, bool looped)
+void Renderer::render_polyline_custom(vec2 *points, i32 count, f32 thickness, vec4 color, bool looped)
 {
-    const PolylineRenderData *rdata = &renderer->polyline_render_data;
+    const PolylineRenderData *rdata = &this->polyline_render_data;
 
-    ShaderProgramID program = renderer->shaders.polyline.id;
+    ShaderProgramID program = this->shaders.polyline.id;
     glUseProgram(program);
     glUniform1f(glGetUniformLocation(program, "uThickness"), thickness);
-    glUniformMatrix4fv(glGetUniformLocation(program, "uProjection"), 1, GL_FALSE, &renderer->camera2d.projection.m00);
+    glUniformMatrix4fv(glGetUniformLocation(program, "uProjection"), 1, GL_FALSE, &this->camera2d.projection.m00);
     glUniform4f(glGetUniformLocation(program, "color"), color.r, color.g, color.b, color.a);
 
     glBindVertexArray(rdata->vao);

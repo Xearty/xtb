@@ -14,10 +14,13 @@
 namespace xtb
 {
 
+namespace
+{
+
 /****************************************************************
  * Internal
 ****************************************************************/
-static void mesh_upload(Mesh mesh, GpuMesh *gpu_mesh)
+void mesh_upload(Mesh mesh, GpuMesh *gpu_mesh)
 {
     gpu_mesh->vertices_count = mesh.vertices.size();
     gpu_mesh->indices_count = mesh.indices.size();
@@ -42,7 +45,7 @@ static void mesh_upload(Mesh mesh, GpuMesh *gpu_mesh)
     }
 }
 
-static GpuMesh* ensure_quad_mesh(Renderer *renderer)
+GpuMesh* ensure_quad_mesh(Renderer *renderer)
 {
     if (renderer->mesh_cache.quad) return renderer->mesh_cache.quad;
 
@@ -58,7 +61,7 @@ static GpuMesh* ensure_quad_mesh(Renderer *renderer)
     return renderer->mesh_cache.quad;
 }
 
-static GpuMesh* ensure_cube_mesh(Renderer *renderer)
+GpuMesh* ensure_cube_mesh(Renderer *renderer)
 {
     if (renderer->mesh_cache.cube) return renderer->mesh_cache.cube;
 
@@ -74,7 +77,7 @@ static GpuMesh* ensure_cube_mesh(Renderer *renderer)
     return renderer->mesh_cache.cube;
 }
 
-static void init_standard_vao(Renderer *renderer)
+void init_standard_vao(Renderer *renderer)
 {
     glCreateVertexArrays(1, &renderer->standard_vao);
 
@@ -92,7 +95,7 @@ static void init_standard_vao(Renderer *renderer)
     glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
     glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, tex_coords));
 }
-static void init_default_solid_color_material(Renderer *r)
+void init_default_solid_color_material(Renderer *r)
 {
     MaterialTemplate *templ = allocate<MaterialTemplate>(&r->persistent_arena->allocator);
     material_template_init(&r->persistent_arena->allocator, r->shaders.mvp_solid_color, templ);
@@ -101,59 +104,12 @@ static void init_default_solid_color_material(Renderer *r)
     material_set_vec4(&r->default_solid_color_material, "color", v4(1.0f, 0.0f, 1.0f, 1.0f));
 }
 
-/****************************************************************
- * Renderer Lifecycle
-****************************************************************/
-void renderer_init(Renderer *renderer, f32 width, f32 height)
-{
-    *renderer = {};
-
-    renderer->persistent_arena = arena_new(Kilobytes(4));
-    renderer->mesh_cache.arena = arena_new(Kilobytes(4));
-
-    renderer->shaders.test = create_shader_program("test", test_vertex_source, test_fragment_source);
-    renderer->shaders.polyline = create_shader_program("polyline", polyline_2d_instanced_vertex_source, test_fragment_source);
-    renderer->shaders.mvp_solid_color = create_shader_program("mvp_solid_color", mvp_vertex_source, solid_color_fragment_source);
-
-    init_standard_vao(renderer);
-
-    setup_polyline_render_data(renderer, &renderer->polyline_render_data);
-
-    camera_init(&renderer->camera2d);
-    camera_init(&renderer->camera3d);
-    renderer_cameras_recreate_projections(renderer, width, height);
-
-    init_default_solid_color_material(renderer);
-}
-
-void renderer_deinit(Renderer *renderer)
-{
-    arena_release(renderer->mesh_cache.arena);
-    arena_release(renderer->persistent_arena);
-}
-
-/****************************************************************
- * Cameras
-****************************************************************/
-void renderer_cameras_recreate_projections(Renderer *renderer, f32 width, f32 height)
-{
-    mat4 ortho_proj = ortho2d_screen(width, height);
-    camera_set_projection(&renderer->camera2d, ortho_proj);
-
-    f32 aspect_ratio = width / height;
-    mat4 perspective_proj = perspective(deg2rad(45.0f), aspect_ratio, 0.01f, 100.0f);
-    camera_set_projection(&renderer->camera3d, perspective_proj);
-}
-
-/****************************************************************
- * Rendering Functions
-****************************************************************/
-static void set_engine_global_uniforms(Renderer *renderer, ShaderProgram program)
+void set_engine_global_uniforms(Renderer *renderer, ShaderProgram program)
 {
     glProgramUniform1f(program.id, program.time_location, renderer->global_uniforms.u_Time);
 }
 
-static void set_mvp_uniforms(Renderer *renderer, ShaderProgram program, mat4 model)
+void set_mvp_uniforms(Renderer *renderer, ShaderProgram program, mat4 model)
 {
     Camera *camera3d = &renderer->camera3d;
 
@@ -163,7 +119,7 @@ static void set_mvp_uniforms(Renderer *renderer, ShaderProgram program, mat4 mod
     glProgramUniformMatrix4fv(program.id, program.projection_location, 1, GL_FALSE, &camera3d->projection.m00);
 }
 
-static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
+void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 {
     u32 vao = renderer->standard_vao;
     glBindVertexArray(vao);
@@ -181,7 +137,7 @@ static void render_mesh_geometry(Renderer *renderer, const GpuMesh *mesh)
 }
 
 // Implies mvp vertex shader
-static void render_mesh(Renderer *renderer, GpuMesh *mesh, mat4 model, Material *material)
+void render_mesh(Renderer *renderer, GpuMesh *mesh, mat4 model, Material *material)
 {
     set_mvp_uniforms(renderer, material->templ->program, model);
     set_engine_global_uniforms(renderer, material->templ->program);
@@ -190,36 +146,85 @@ static void render_mesh(Renderer *renderer, GpuMesh *mesh, mat4 model, Material 
     render_mesh_geometry(renderer, mesh);
 }
 
-void begin_frame(Renderer *renderer)
-{
-    camera_recalc_view_matrix(&renderer->camera3d);
-    renderer->global_uniforms_update_cb(&renderer->global_uniforms);
 }
 
-void end_frame(Renderer *renderer)
+/****************************************************************
+ * Renderer Lifecycle
+****************************************************************/
+Renderer::Renderer() {}
+
+Renderer::Renderer(f32 width, f32 height)
+{
+    this->persistent_arena = arena_new(Kilobytes(4));
+    this->mesh_cache.arena = arena_new(Kilobytes(4));
+
+    this->shaders.test = create_shader_program("test", test_vertex_source, test_fragment_source);
+    this->shaders.polyline = create_shader_program("polyline", polyline_2d_instanced_vertex_source, test_fragment_source);
+    this->shaders.mvp_solid_color = create_shader_program("mvp_solid_color", mvp_vertex_source, solid_color_fragment_source);
+
+    init_standard_vao(this);
+
+    setup_polyline_render_data(this, &this->polyline_render_data);
+
+    camera_init(&this->camera2d);
+    camera_init(&this->camera3d);
+    this->cameras_recreate_projections(width, height);
+
+    init_default_solid_color_material(this);
+}
+
+void Renderer::deinit()
+{
+    arena_release(this->mesh_cache.arena);
+    arena_release(this->persistent_arena);
+}
+
+/****************************************************************
+ * Cameras
+****************************************************************/
+void Renderer::cameras_recreate_projections(f32 width, f32 height)
+{
+    mat4 ortho_proj = ortho2d_screen(width, height);
+    camera_set_projection(&this->camera2d, ortho_proj);
+
+    f32 aspect_ratio = width / height;
+    mat4 perspective_proj = perspective(deg2rad(45.0f), aspect_ratio, 0.01f, 100.0f);
+    camera_set_projection(&this->camera3d, perspective_proj);
+}
+
+/****************************************************************
+ * Rendering Functions
+****************************************************************/
+void Renderer::begin_frame()
+{
+    camera_recalc_view_matrix(&this->camera3d);
+    this->global_uniforms_update_cb(&this->global_uniforms);
+}
+
+void Renderer::end_frame()
 {
 }
 
-void render_quad(Renderer *renderer, vec4 color, mat4 model)
+void Renderer::render_quad(vec4 color, mat4 model)
 {
     TempArena scratch = scratch_begin_no_conflicts();
 
-    Material material = material_copy(&scratch.arena->allocator, &renderer->default_solid_color_material);
+    Material material = material_copy(&scratch.arena->allocator, &this->default_solid_color_material);
     material_set_vec4(&material, "color", color);
 
-    render_mesh(renderer, ensure_quad_mesh(renderer), model, &material);
+    render_mesh(this, ensure_quad_mesh(this), model, &material);
 
     scratch_end(scratch);
 }
 
-void render_cube(Renderer *renderer, vec4 color, mat4 model)
+void Renderer::render_cube(vec4 color, mat4 model)
 {
     TempArena scratch = scratch_begin_no_conflicts();
 
-    Material material = material_copy(&scratch.arena->allocator, &renderer->default_solid_color_material);
+    Material material = material_copy(&scratch.arena->allocator, &this->default_solid_color_material);
     material_set_vec4(&material, "color", color);
 
-    render_mesh(renderer, ensure_cube_mesh(renderer), model, &material);
+    render_mesh(this, ensure_cube_mesh(this), model, &material);
 
     scratch_end(scratch);
 }

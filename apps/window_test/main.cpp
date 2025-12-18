@@ -20,7 +20,7 @@ static void framebuffer_size_callback(Window *window, i32 width, i32 height)
     WindowUserData *user_data = (WindowUserData*)window_user_pointer_get(window);
 
     glViewport(0, 0, width, height);
-    renderer_cameras_recreate_projections(user_data->renderer, width, height);
+    user_data->renderer->cameras_recreate_projections(width, height);
 }
 
 void process_camera_movement(Window *window, Camera *camera, f32 dt)
@@ -104,8 +104,8 @@ int main(int argc, char **argv)
     glViewport(0, 0, cfg.width, cfg.height);
     glEnable(GL_DEPTH_TEST);
 
-    Renderer renderer = {};
-    renderer_init(&renderer, cfg.width, cfg.height);
+    Renderer renderer = Renderer::init(cfg.width, cfg.height);
+    defer (renderer.deinit());
 
     renderer.global_uniforms_update_cb = update_global_uniforms;
 
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
 
         process_camera_movement(window, &renderer.camera3d, dt);
 
-        begin_frame(&renderer);
+        renderer.begin_frame();
         {
             glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -175,10 +175,10 @@ int main(int argc, char **argv)
             vec4 red = v4(1.0f, 0.0f, 0.0f, 1.0f);
             vec4 magenta = v4(1.0f, 0.0f, 1.0f, 1.0f);
 
-            render_quad(&renderer, red, transform);
+            renderer.render_quad( red, transform);
 
             transform = translate4(transform, v3(7.0f, 0.0f, -3.0f));
-            render_cube(&renderer, magenta, transform);
+            renderer.render_cube(magenta, transform);
 
             Array<vec2> points = Array<vec2>::init(&frame_arena->allocator);
             points.append({
@@ -189,9 +189,9 @@ int main(int argc, char **argv)
                 v2(500.f, 500.0f),
             });
 
-            render_bezier_spline_custom(&renderer, points.data(), points.size(), 2, 50, 5.0f, red, false);
+            renderer.render_bezier_spline_custom(points.data(), points.size(), 2, 50, 5.0f, red, false);
         }
-        end_frame(&renderer);
+        renderer.end_frame();
 
         window_swap_buffers(window);
     }

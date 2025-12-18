@@ -7,7 +7,7 @@ namespace xtb::stacktrace
 
 ColorScheme ColorScheme::get_default()
 {
-    return ColorScheme::get_preset(ColorSchemePreset::Solar);
+    return ColorScheme::get_preset(ColorSchemePreset::Gruvbox);
 }
 
 ColorScheme ColorScheme::get_preset(ColorSchemePreset preset)

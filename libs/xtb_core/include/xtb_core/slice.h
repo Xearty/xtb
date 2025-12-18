@@ -45,7 +45,6 @@ struct Slice
     const_iterator cbegin() const noexcept { return m_data; }
     const_iterator cend()   const noexcept { return m_data + m_size; }
 
-    // TODO
     [[nodiscard]] Slice subslice(isize offset, isize count) const noexcept
     {
         Assert(offset >= 0 && offset <= m_size);
