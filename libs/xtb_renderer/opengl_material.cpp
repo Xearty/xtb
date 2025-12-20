@@ -36,9 +36,9 @@ Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, Shad
         GLint max_name_len = 0;
         glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_name_len);
 
-        TempArena scratch = scratch_begin_conflict(allocator);
+        ScratchScope scratch(allocator);
 
-        u8* uniform_name = allocate_bytes(&scratch.arena->allocator, max_name_len + 1);
+        u8* uniform_name = allocate_bytes(&scratch->allocator, max_name_len + 1);
 
         for (GLint uniform_index = 0; uniform_index < uniform_count; ++uniform_index)
         {
@@ -62,7 +62,6 @@ Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, Shad
                 params.append(param);
             }
         }
-        scratch_end(scratch);
     }
 
     return params;

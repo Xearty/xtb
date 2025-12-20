@@ -45,14 +45,14 @@ int main(int argc, char **argv)
     String sub_test2 = test2.substr(10, 5).copy(&arena->allocator);
     std::cout << "str = " << sub_test2 << ", len = " << sub_test2.len() << std::endl;
 
-    TempArena temp = scratch_begin(NULL, 0);
+    ScratchScope scratch;
 
     StringList list = {0};
-    list.push_back("a", &temp.arena->allocator);
-    list.push_back("b", &temp.arena->allocator);
-    list.push_back("c", &temp.arena->allocator);
-    list.push_back("d", &temp.arena->allocator);
-    list.push_back("e", &temp.arena->allocator);
+    list.push_back("a", &scratch->allocator);
+    list.push_back("b", &scratch->allocator);
+    list.push_back("c", &scratch->allocator);
+    list.push_back("d", &scratch->allocator);
+    list.push_back("e", &scratch->allocator);
 
     String sep = ".";
     String joined = list.join_string_sep(sep, &arena->allocator);
@@ -70,42 +70,40 @@ int main(int argc, char **argv)
     String test3 = "Hello world";
     test3 = test3.trunc_left(3);
     test3 = test3.trunc_right(4);
-    test3 = test3.copy(&temp.arena->allocator);
+    test3 = test3.copy(&scratch->allocator);
     puts((char*)test3.data());
 
     String test4 = "\t \n  First  \n \t  \t\t \r Second\n \t\t \r\n";
     String test5 = test4;
-    test5 = test4.trim_left().copy(&temp.arena->allocator);
+    test5 = test4.trim_left().copy(&scratch->allocator);
     printf("Left trimmed: \"%s\"\n", test5.data());
 
-    test5 = test4.trim_right().copy(&temp.arena->allocator);
+    test5 = test4.trim_right().copy(&scratch->allocator);
     printf("Right trimmed: \"%s\"\n", test5.data());
 
-    test5 = test4.trim().copy(&temp.arena->allocator);
+    test5 = test4.trim().copy(&scratch->allocator);
     printf("Trimmed both ways: \"%s\"\n", test5.data());
 
-    String test6 = test4.trim().copy(&temp.arena->allocator);
+    String test6 = test4.trim().copy(&scratch->allocator);
     printf("Trimmed both ways copy: \"%s\"\n", test6.data());
 
     String char_split_str = "Very long string that contains multiple tokens";
-    StringList char_split_list = char_split_str.split_by_char(' ', &temp.arena->allocator);
-    String char_joined = char_split_list.join_string_sep("<sep>", &temp.arena->allocator);
+    StringList char_split_list = char_split_str.split_by_char(' ', &scratch->allocator);
+    String char_joined = char_split_list.join_string_sep("<sep>", &scratch->allocator);
     std::cout << char_joined << std::endl;
 
     String str_split_str = "Very long  string that contains  multiple tokens";
-    StringList str_split_list = str_split_str.split_by_str("  ", &temp.arena->allocator);
-    String str_joined = str_split_list.join_string_sep("---", &temp.arena->allocator);
+    StringList str_split_list = str_split_str.split_by_str("  ", &scratch->allocator);
+    String str_joined = str_split_list.join_string_sep("---", &scratch->allocator);
     std::cout << str_joined << std::endl;
 
     String space_split_str = "\t\n\r\r\n Very \t long  \rstring\r\rthat contains \r \nmultiple \n\r\r\n\ttokens\t\n\t";
-    StringList space_split_list = space_split_str.split_by_whitespace(&temp.arena->allocator);
-    String space_joined = space_split_list.join_char_sep('-', &temp.arena->allocator);
+    StringList space_split_list = space_split_str.split_by_whitespace(&scratch->allocator);
+    String space_joined = space_split_list.join_char_sep('-', &scratch->allocator);
     std::cout << space_joined << std::endl;
 
-    String concatenated2 = space_split_list.join(&temp.arena->allocator);
+    String concatenated2 = space_split_list.join(&scratch->allocator);
     std::cout << concatenated2 << std::endl;
-
-    scratch_end(temp);
 
     String formatted = String::format(&arena->allocator, "The answer is %d", 42);
     std::cout << formatted << std::endl;
@@ -136,10 +134,10 @@ int main(int argc, char **argv)
 
     puts("----------------------String Buffer------------------------");
     {
-        TempArena scratch = scratch_begin(0, 0);
+        ScratchScope scratch2(&scratch->allocator);;
 
         // This will be allocated on the scratch arena
-        StringBuf str_buffer = StringBuf::init(&scratch.arena->allocator);
+        StringBuf str_buffer = StringBuf::init(&scratch2->allocator);
         for (int i = 0; i < 10; ++i)
         {
             String hello = "hello";
@@ -152,8 +150,6 @@ int main(int argc, char **argv)
 
         // This is allocated on the persistent arena
         String owned_str = str_buffer.detach();
-
-        scratch_end(scratch);
 
         std::cout << owned_str << std::endl;
     }

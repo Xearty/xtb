@@ -22,8 +22,8 @@ String ident_from_path(Allocator *allocator, String path)
 
 void append_shader_source(StringBuf& builder, String ident, String source)
 {
-    TempArena scratch = scratch_begin_no_conflicts();
-    Allocator *allocator = &scratch.arena->allocator;
+    ScratchScope scratch(builder.allocator());
+    Allocator *allocator = &scratch->allocator;
 
     source = source.trim();
 
@@ -45,8 +45,6 @@ void append_shader_source(StringBuf& builder, String ident, String source)
     }
 
     builder.append(";\n\n");
-
-    scratch_end(scratch);
 }
 
 int main(int argc, char **argv)
@@ -81,8 +79,8 @@ int main(int argc, char **argv)
         auto shader_file = it;
         if (shader_file->type != os::FileType::Regular) continue;
 
-        TempArena scratch = scratch_begin_no_conflicts();
-        Allocator *scratch_allocator = &scratch.arena->allocator;
+        ScratchScope scratch;
+        Allocator *scratch_allocator = &scratch->allocator;
 
         String ident = ident_from_path(scratch_allocator, shader_file->path);
         String source = os::read_entire_file(scratch_allocator, shader_file->path);
@@ -93,7 +91,6 @@ int main(int argc, char **argv)
         }
 
         append_shader_source(builder, ident, source);
-        scratch_end(scratch);
     }
 
     builder.append("#endif // " HEADER_GUARD_NAME);

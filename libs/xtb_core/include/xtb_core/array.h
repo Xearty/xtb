@@ -188,6 +188,7 @@ struct Array
     isize size() const { return m_size; }
     isize capacity() const { return m_capacity; };
     T* data() const { return m_data; }
+    Allocator* allocator() const { return m_allocator; }
 
     void clear()
     {

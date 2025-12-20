@@ -17,12 +17,6 @@ struct ThreadContext
     static Arena* get_scratch(Arena** conflicts, isize count);
 };
 
-#define scratch_begin(conflicts, count) temp_arena_new(ThreadContext::get_scratch((conflicts), (count)))
-#define scratch_begin_conflict(alloc) scratch_begin((Arena**)(&alloc), 1)
-#define scratch_begin_no_conflicts() scratch_begin(NULL, 0)
-
-#define scratch_end(scratch) temp_arena_release(scratch)
-
 struct ThreadContextScope
 {
     ThreadContext tctx;

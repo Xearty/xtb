@@ -49,15 +49,14 @@ GpuMesh* ensure_quad_mesh(Renderer *renderer)
 {
     if (renderer->mesh_cache.quad) return renderer->mesh_cache.quad;
 
-    TempArena scratch = scratch_begin_no_conflicts();
+    ScratchScope scratch;
 
     renderer->mesh_cache.quad = push_struct_zero(renderer->mesh_cache.arena, GpuMesh);
     mesh_upload(
-        geometry_create_quad(&scratch.arena->allocator),
+        geometry_create_quad(&scratch->allocator),
         renderer->mesh_cache.quad
     );
 
-    scratch_end(scratch);
     return renderer->mesh_cache.quad;
 }
 
@@ -65,15 +64,14 @@ GpuMesh* ensure_cube_mesh(Renderer *renderer)
 {
     if (renderer->mesh_cache.cube) return renderer->mesh_cache.cube;
 
-    TempArena scratch = scratch_begin_no_conflicts();
+    ScratchScope scratch;
 
     renderer->mesh_cache.cube = push_struct_zero(renderer->mesh_cache.arena, GpuMesh);
     mesh_upload(
-        geometry_create_cube(&scratch.arena->allocator),
+        geometry_create_cube(&scratch->allocator),
         renderer->mesh_cache.cube
     );
 
-    scratch_end(scratch);
     return renderer->mesh_cache.cube;
 }
 
@@ -207,26 +205,22 @@ void Renderer::end_frame()
 
 void Renderer::render_quad(vec4 color, mat4 model)
 {
-    TempArena scratch = scratch_begin_no_conflicts();
+    ScratchScope scratch;
 
-    Material material = material_copy(&scratch.arena->allocator, &this->default_solid_color_material);
+    Material material = material_copy(&scratch->allocator, &this->default_solid_color_material);
     material_set_vec4(&material, "color", color);
 
     render_mesh(this, ensure_quad_mesh(this), model, &material);
-
-    scratch_end(scratch);
 }
 
 void Renderer::render_cube(vec4 color, mat4 model)
 {
-    TempArena scratch = scratch_begin_no_conflicts();
+    ScratchScope scratch;
 
-    Material material = material_copy(&scratch.arena->allocator, &this->default_solid_color_material);
+    Material material = material_copy(&scratch->allocator, &this->default_solid_color_material);
     material_set_vec4(&material, "color", color);
 
     render_mesh(this, ensure_cube_mesh(this), model, &material);
-
-    scratch_end(scratch);
 }
 
 }

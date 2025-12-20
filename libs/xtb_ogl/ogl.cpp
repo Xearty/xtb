@@ -56,14 +56,11 @@ Shader load_shader_from_memory(const char *ns, const char *src, int shader_type)
 
 Shader load_shader_from_file(const char *ns, String filepath, int shader_type)
 {
-    TempArena scratch = scratch_begin_no_conflicts();
-    String shader_content = os::read_entire_file(&scratch.arena->allocator, filepath);
+    ScratchScope scratch;
+    String shader_content = os::read_entire_file(&scratch->allocator, filepath);
     Assert(shader_content.is_valid());
 
-    Shader id = load_shader_from_memory(ns, (char *)shader_content.data(), shader_type);
-    scratch_end(scratch);
-
-    return id;
+    return load_shader_from_memory(ns, (char *)shader_content.data(), shader_type);
 }
 
 Shader load_vertex_shader_from_file(const char *ns, String filepath)
@@ -89,18 +86,15 @@ ShaderProgramID create_shader_program_from_descriptors(const char *ns, Shader vs
 
 ShaderProgramID load_shader_program_from_files(const char *ns, String vertex_filepath, String fragment_filepath)
 {
-    TempArena scratch = scratch_begin_no_conflicts();
+    ScratchScope scratch;
 
-    String vertex_src = os::read_entire_file(&scratch.arena->allocator, vertex_filepath);
+    String vertex_src = os::read_entire_file(&scratch->allocator, vertex_filepath);
     Assert(vertex_src.is_valid());
 
-    String fragment_src = os::read_entire_file(&scratch.arena->allocator, fragment_filepath);
+    String fragment_src = os::read_entire_file(&scratch->allocator, fragment_filepath);
     Assert(fragment_src.is_valid());
 
-    ShaderProgramID program = load_shader_program_from_memory(ns, (char*)vertex_src.data(), (char*)fragment_src.data());
-
-    scratch_end(scratch);
-    return program;
+    return load_shader_program_from_memory(ns, (char*)vertex_src.data(), (char*)fragment_src.data());
 }
 
 ShaderProgramID load_shader_program_from_memory(const char *ns, const char *vertex_src, const char *fragment_src)

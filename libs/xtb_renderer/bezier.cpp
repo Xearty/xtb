@@ -11,11 +11,11 @@ static Array<vec2> compute_bezier_points(Allocator *allocator, vec2 *points, siz
     Assert(samples > 1);
     Assert(count > 0);
 
-    TempArena scratch = scratch_begin_conflict(allocator);
+    ScratchScope scratch(allocator);
 
     auto polypoints = Array<vec2>::init_with_capacity(allocator, samples);
 
-    auto intermediate = Array<vec2>::init_with_size(&scratch.arena->allocator, count);
+    auto intermediate = Array<vec2>::init_with_size(&scratch->allocator, count);
 
     for (i32 sample_iter = 0; sample_iter < samples; ++sample_iter)
     {
@@ -40,7 +40,6 @@ static Array<vec2> compute_bezier_points(Allocator *allocator, vec2 *points, siz
         polypoints.append(intermediate[0]);
     }
 
-    scratch_end(scratch);
     return polypoints;
 }
 
@@ -75,10 +74,9 @@ static Array<vec2> compute_bezier_spline_points(Allocator *allocator, vec2 *poin
 
 void Renderer::render_bezier_spline_custom(vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped)
 {
-    TempArena scratch = scratch_begin_no_conflicts();
-    Array<vec2> polypoints = compute_bezier_spline_points(&scratch.arena->allocator, points, count, bezier_deg, samples);
+    ScratchScope scratch;
+    Array<vec2> polypoints = compute_bezier_spline_points(&scratch->allocator, points, count, bezier_deg, samples);
     this->render_polyline_custom(polypoints.data(), polypoints.size(), thickness, color, looped);
-    scratch_end(scratch);
 }
 
 }
