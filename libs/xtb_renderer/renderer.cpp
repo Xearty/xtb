@@ -96,10 +96,10 @@ void init_standard_vao(Renderer *renderer)
 void init_default_solid_color_material(Renderer *r)
 {
     MaterialTemplate *templ = allocate<MaterialTemplate>(&r->persistent_arena->allocator);
-    material_template_init(&r->persistent_arena->allocator, r->shaders.mvp_solid_color, templ);
+    *templ = MaterialTemplate::init(&r->persistent_arena->allocator, r->shaders.mvp_solid_color);
 
-    r->default_solid_color_material = material_instance_create(&r->persistent_arena->allocator, templ);
-    material_set_vec4(&r->default_solid_color_material, "color", v4(1.0f, 0.0f, 1.0f, 1.0f));
+    r->default_solid_color_material = Material::create_from_template(&r->persistent_arena->allocator, templ);
+    r->default_solid_color_material.set_vec4("color", v4(1.0f, 0.0f, 1.0f, 1.0f));
 }
 
 void set_engine_global_uniforms(Renderer *renderer, ShaderProgram program)
@@ -207,8 +207,8 @@ void Renderer::render_quad(vec4 color, mat4 model)
 {
     ScratchScope scratch;
 
-    Material material = material_copy(&scratch->allocator, &this->default_solid_color_material);
-    material_set_vec4(&material, "color", color);
+    Material material = this->default_solid_color_material.copy(&scratch->allocator);
+    material.set_vec4("color", color);
 
     render_mesh(this, ensure_quad_mesh(this), model, &material);
 }
@@ -217,8 +217,8 @@ void Renderer::render_cube(vec4 color, mat4 model)
 {
     ScratchScope scratch;
 
-    Material material = material_copy(&scratch->allocator, &this->default_solid_color_material);
-    material_set_vec4(&material, "color", color);
+    Material material = this->default_solid_color_material.copy(&scratch->allocator);
+    material.set_vec4("color", color);
 
     render_mesh(this, ensure_cube_mesh(this), model, &material);
 }

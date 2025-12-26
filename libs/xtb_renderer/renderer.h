@@ -109,8 +109,6 @@ struct Renderer
     void render_bezier_spline_custom(vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
 };
 
-Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, ShaderProgramID program);
-
 }
 
 #endif // _XTB_RENDERER_H_

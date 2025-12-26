@@ -10,16 +10,16 @@ static inline MaterialParamKind opengl_type_to_material_param_type(i32 gl_type)
 {
     switch (gl_type)
     {
-        case GL_FLOAT: return MATERIAL_PARAM_FLOAT;
-        case GL_FLOAT_VEC2: return MATERIAL_PARAM_FLOAT_VEC2;
-        case GL_FLOAT_VEC3: return MATERIAL_PARAM_FLOAT_VEC3;
-        case GL_FLOAT_VEC4: return MATERIAL_PARAM_FLOAT_VEC4;
-        case GL_FLOAT_MAT2: return MATERIAL_PARAM_FLOAT_MAT2;
-        case GL_FLOAT_MAT3: return MATERIAL_PARAM_FLOAT_MAT3;
-        case GL_FLOAT_MAT4: return MATERIAL_PARAM_FLOAT_MAT4;
+        case GL_FLOAT: return MaterialParamKind::Float;
+        case GL_FLOAT_VEC2: return MaterialParamKind::Vec2;
+        case GL_FLOAT_VEC3: return MaterialParamKind::Vec3;
+        case GL_FLOAT_VEC4: return MaterialParamKind::Vec4;
+        case GL_FLOAT_MAT2: return MaterialParamKind::Mat2;
+        case GL_FLOAT_MAT3: return MaterialParamKind::Mat3;
+        case GL_FLOAT_MAT4: return MaterialParamKind::Mat4;
     }
 
-    return MATERIAL_PARAM_NONE;
+    return MaterialParamKind::None;
 }
 
 Array<MaterialParamDesc> material_params_from_program(Allocator *allocator, ShaderProgramID program)
@@ -78,42 +78,42 @@ void material_apply(Material *material)
 
         switch (desc->kind)
         {
-            case MATERIAL_PARAM_FLOAT:
+            case MaterialParamKind::Float:
             {
                 glUniform1f(desc->uniform_location, value->as.f32_);
             } break;
 
-            case MATERIAL_PARAM_FLOAT_VEC2:
+            case xtb::MaterialParamKind::Vec2:
             {
                 glUniform2fv(desc->uniform_location, 1, &value->as.vec2_.x);
             } break;
 
-            case MATERIAL_PARAM_FLOAT_VEC3:
+            case xtb::MaterialParamKind::Vec3:
             {
                 glUniform3fv(desc->uniform_location, 1, &value->as.vec3_.x);
             } break;
 
-            case MATERIAL_PARAM_FLOAT_VEC4:
+            case xtb::MaterialParamKind::Vec4:
             {
                 glUniform4fv(desc->uniform_location, 1, &value->as.vec4_.x);
             } break;
 
-            case MATERIAL_PARAM_FLOAT_MAT2:
+            case MaterialParamKind::Mat2:
             {
                 glUniformMatrix2fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat2_.m00);
             } break;
 
-            case MATERIAL_PARAM_FLOAT_MAT3:
+            case MaterialParamKind::Mat3:
             {
                 glUniformMatrix3fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat3_.m00);
             } break;
 
-            case MATERIAL_PARAM_FLOAT_MAT4:
+            case MaterialParamKind::Mat4:
             {
                 glUniformMatrix4fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat4_.m00);
             } break;
 
-            case MATERIAL_PARAM_NONE: break;
+            case xtb::MaterialParamKind::None: break;
         }
     }
 }

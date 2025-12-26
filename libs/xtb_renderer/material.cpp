@@ -4,11 +4,15 @@
 #include <xtb_ogl/ogl.h>
 
 #include "opengl_material.cpp"
+#include "xtb_core/allocator.h"
 
 namespace xtb
 {
 
-static void material_set_defaults(Material *mat)
+namespace
+{
+
+void material_set_defaults(Material *mat)
 {
     Array<MaterialParamDesc>& params = mat->templ->params;
 
@@ -16,26 +20,28 @@ static void material_set_defaults(Material *mat)
     {
         switch (params[i].kind)
         {
-            case MATERIAL_PARAM_FLOAT: material_set_float_by_index(mat, i, 0.0f); break;
+            case MaterialParamKind::Float: mat->set_float_by_index(i, 0.0f); break;
 
-            case MATERIAL_PARAM_FLOAT_VEC2: material_set_vec2_by_index(mat, i, v2s(0.0f)); break;
-            case MATERIAL_PARAM_FLOAT_VEC3: material_set_vec3_by_index(mat, i, v3s(0.0f)); break;
-            case MATERIAL_PARAM_FLOAT_VEC4: material_set_vec4_by_index(mat, i, v4s(0.0f)); break;
+            case MaterialParamKind::Vec2: mat->set_vec2_by_index(i, v2s(0.0f)); break;
+            case MaterialParamKind::Vec3: mat->set_vec3_by_index(i, v3s(0.0f)); break;
+            case MaterialParamKind::Vec4: mat->set_vec4_by_index(i, v4s(0.0f)); break;
 
-            case MATERIAL_PARAM_FLOAT_MAT2: material_set_mat2_by_index(mat, i, I2()); break;
-            case MATERIAL_PARAM_FLOAT_MAT3: material_set_mat3_by_index(mat, i, I3()); break;
-            case MATERIAL_PARAM_FLOAT_MAT4: material_set_mat4_by_index(mat, i, I4()); break;
+            case MaterialParamKind::Mat2: mat->set_mat2_by_index(i, I2()); break;
+            case MaterialParamKind::Mat3: mat->set_mat3_by_index(i, I3()); break;
+            case MaterialParamKind::Mat4: mat->set_mat4_by_index(i, I4()); break;
 
-            case MATERIAL_PARAM_NONE: break;
+            case MaterialParamKind::None: break;
         }
     }
 }
 
-i32 material_find_param(const MaterialTemplate *t, const char *name)
+}
+
+i32 MaterialTemplate::find_param(const char *name) const
 {
-    for (i32 i = 0; i < t->params.size(); ++i)
+    for (i32 i = 0; i < this->params.size(); ++i)
     {
-        const MaterialParamDesc *desc = &t->params[i];
+        const MaterialParamDesc *desc = &this->params[i];
         if (desc->name == String::from_cstr(name))
         {
             return i;
@@ -48,123 +54,125 @@ i32 material_find_param(const MaterialTemplate *t, const char *name)
 /****************************************************************
  * Index Setters
 ****************************************************************/
-void material_set_float_by_index(Material *mat, i32 index, f32 val)
+void Material::set_float_by_index(i32 index, f32 val)
 {
     Assert(index >= 0);
-    Assert(mat->templ->params[index].kind == MATERIAL_PARAM_FLOAT_VEC2);
+    Assert(this->templ->params[index].kind == MaterialParamKind::Float);
 
-    mat->values[index].kind = MATERIAL_PARAM_FLOAT;
-    mat->values[index].as.f32_ = val;
+    this->values[index].kind = MaterialParamKind::Float;
+    this->values[index].as.f32_ = val;
 }
 
-void material_set_vec2_by_index(Material *mat, i32 index, vec2 val)
+void Material::set_vec2_by_index(i32 index, vec2 val)
 {
     Assert(index >= 0);
-    Assert(mat->templ->params[index].kind == MATERIAL_PARAM_FLOAT_VEC2);
+    Assert(this->templ->params[index].kind == MaterialParamKind::Vec2);
 
-    mat->values[index].kind = MATERIAL_PARAM_FLOAT_VEC2;
-    mat->values[index].as.vec2_ = val;
+    this->values[index].kind = MaterialParamKind::Vec2;
+    this->values[index].as.vec2_ = val;
 }
 
-void material_set_vec3_by_index(Material *mat, i32 index, vec3 val)
+void Material::set_vec3_by_index(i32 index, vec3 val)
 {
     Assert(index >= 0);
-    Assert(mat->templ->params[index].kind == MATERIAL_PARAM_FLOAT_VEC3);
+    Assert(this->templ->params[index].kind == MaterialParamKind::Vec3);
 
-    mat->values[index].kind = MATERIAL_PARAM_FLOAT_VEC3;
-    mat->values[index].as.vec3_ = val;
+    this->values[index].kind = MaterialParamKind::Vec3;
+    this->values[index].as.vec3_ = val;
 }
 
-void material_set_vec4_by_index(Material *mat, i32 index, vec4 val)
+void Material::set_vec4_by_index(i32 index, vec4 val)
 {
     Assert(index >= 0);
-    Assert(mat->templ->params[index].kind == MATERIAL_PARAM_FLOAT_VEC4);
+    Assert(this->templ->params[index].kind == MaterialParamKind::Vec4);
 
-    mat->values[index].kind = MATERIAL_PARAM_FLOAT_VEC4;
-    mat->values[index].as.vec4_ = val;
+    this->values[index].kind = MaterialParamKind::Vec4;
+    this->values[index].as.vec4_ = val;
 }
 
-void material_set_mat2_by_index(Material *mat, i32 index, mat2 val)
+void Material::set_mat2_by_index(i32 index, mat2 val)
 {
     Assert(index >= 0);
-    Assert(mat->templ->params[index].kind == MATERIAL_PARAM_FLOAT_MAT2);
+    Assert(this->templ->params[index].kind == MaterialParamKind::Mat2);
 
-    mat->values[index].kind = MATERIAL_PARAM_FLOAT_MAT2;
-    mat->values[index].as.mat2_ = val;
+    this->values[index].kind = MaterialParamKind::Mat2;
+    this->values[index].as.mat2_ = val;
 }
 
-void material_set_mat3_by_index(Material *mat, i32 index, mat3 val)
+void Material::set_mat3_by_index(i32 index, mat3 val)
 {
     Assert(index >= 0);
-    Assert(mat->templ->params[index].kind == MATERIAL_PARAM_FLOAT_MAT3);
+    Assert(this->templ->params[index].kind == MaterialParamKind::Mat3);
 
-    mat->values[index].kind = MATERIAL_PARAM_FLOAT_MAT3;
-    mat->values[index].as.mat3_ = val;
+    this->values[index].kind = MaterialParamKind::Mat3;
+    this->values[index].as.mat3_ = val;
 }
 
-void material_set_mat4_by_index(Material *mat, i32 index, mat4 val)
+void Material::set_mat4_by_index(i32 index, mat4 val)
 {
     Assert(index >= 0);
-    Assert(mat->templ->params[index].kind == MATERIAL_PARAM_FLOAT_MAT4);
+    Assert(this->templ->params[index].kind == MaterialParamKind::Mat4);
 
-    mat->values[index].kind = MATERIAL_PARAM_FLOAT_MAT4;
-    mat->values[index].as.mat4_ = val;
+    this->values[index].kind = MaterialParamKind::Mat4;
+    this->values[index].as.mat4_ = val;
 }
 
 /****************************************************************
  * String Setters
 ****************************************************************/
-void material_set_float(Material *mat, const char *name, f32 val)
+void Material::set_float(const char *name, f32 val)
 {
-    i32 index = material_find_param(mat->templ, name);
-    material_set_float_by_index(mat, index, val);
+    i32 index = this->templ->find_param(name);
+    this->set_float_by_index(index, val);
 }
 
-void material_set_vec2(Material *mat, const char *name, vec2 val)
+void Material::set_vec2(const char *name, vec2 val)
 {
-    i32 index = material_find_param(mat->templ, name);
-    material_set_vec2_by_index(mat, index, val);
+    i32 index = this->templ->find_param(name);
+    this->set_vec2_by_index(index, val);
 }
 
-void material_set_vec4(Material *mat, const char *name, vec4 val)
+void Material::set_vec4(const char *name, vec4 val)
 {
-    i32 index = material_find_param(mat->templ, name);
-    material_set_vec4_by_index(mat, index, val);
+    i32 index = this->templ->find_param(name);
+    this->set_vec4_by_index(index, val);
 }
 
-void material_set_vec3(Material *mat, const char *name, vec3 val)
+void Material::set_vec3(const char *name, vec3 val)
 {
-    i32 index = material_find_param(mat->templ, name);
-    material_set_vec3_by_index(mat, index, val);
+    i32 index = this->templ->find_param(name);
+    this->set_vec3_by_index(index, val);
 }
 
-void material_set_mat2(Material *mat, const char *name, mat2 val)
+void Material::set_mat2(const char *name, mat2 val)
 {
-    i32 index = material_find_param(mat->templ, name);
-    material_set_mat2_by_index(mat, index, val);
+    i32 index = this->templ->find_param(name);
+    this->set_mat2_by_index(index, val);
 }
 
-void material_set_mat3(Material *mat, const char *name, mat3 val)
+void Material::set_mat3(const char *name, mat3 val)
 {
-    i32 index = material_find_param(mat->templ, name);
-    material_set_mat3_by_index(mat, index, val);
+    i32 index = this->templ->find_param(name);
+    this->set_mat3_by_index(index, val);
 }
 
-void material_set_mat4(Material *mat, const char *name, mat4 val)
+void Material::set_mat4(const char *name, mat4 val)
 {
-    i32 index = material_find_param(mat->templ, name);
-    material_set_mat4_by_index(mat, index, val);
+    i32 index = this->templ->find_param(name);
+    this->set_mat4_by_index(index, val);
 }
 /****************************************************************
  * Constructors
 ****************************************************************/
-void material_template_init(Allocator *allocator, ShaderProgram program, MaterialTemplate *templ)
+MaterialTemplate MaterialTemplate::init(Allocator *allocator, ShaderProgram program)
 {
-    templ->program = program;
-    templ->params = material_params_from_program(allocator, program.id);;
+    MaterialTemplate templ = {};
+    templ.program = program;
+    templ.params = material_params_from_program(allocator, program.id);;
+    return templ;
 }
 
-Material material_instance_create(Allocator *allocator, MaterialTemplate *templ)
+Material Material::create_from_template(Allocator* allocator, MaterialTemplate* templ)
 {
     Material mat = {};
     mat.templ = templ;
@@ -174,14 +182,14 @@ Material material_instance_create(Allocator *allocator, MaterialTemplate *templ)
     return mat;
 }
 
-Material material_copy(Allocator *allocator, Material *m)
+Material Material::copy(Allocator* allocator) const
 {
     Material res = {};
-    res.templ = m->templ;
+    res.templ = this->templ;
     res.values = Array<MaterialParamValue>::init(allocator);
-    for (isize i = 0; i < m->values.size(); ++i)
+    for (isize i = 0; i < this->values.size(); ++i)
     {
-        res.values.append(m->values[i]);
+        res.values.append(this->values[i]);
     }
     // array_init(&res.values, allocator);
     // array_append(&res.values, m->values.data, m->values.count);
