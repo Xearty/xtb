@@ -39,6 +39,7 @@ void* arena_allocator_procedure(void* alloc, int64_t new_size, void* old_ptr, in
 static void arena_free_chunks_after(ArenaChunkHeader *chunk)
 {
     ArenaChunkHeader *chunk_iter = chunk->next;
+    chunk->next = NULL;
 
     while (chunk_iter != NULL)
     {
