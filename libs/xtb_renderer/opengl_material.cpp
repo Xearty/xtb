@@ -3,6 +3,8 @@
 #include <xtb_ogl/ogl.h>
 #include <xtb_core/thread_context.h>
 
+#include <iostream>
+
 namespace xtb
 {
 
@@ -83,17 +85,17 @@ void material_apply(Material *material)
                 glUniform1f(desc->uniform_location, value->as.f32_);
             } break;
 
-            case xtb::MaterialParamKind::Vec2:
+            case MaterialParamKind::Vec2:
             {
                 glUniform2fv(desc->uniform_location, 1, &value->as.vec2_.x);
             } break;
 
-            case xtb::MaterialParamKind::Vec3:
+            case MaterialParamKind::Vec3:
             {
                 glUniform3fv(desc->uniform_location, 1, &value->as.vec3_.x);
             } break;
 
-            case xtb::MaterialParamKind::Vec4:
+            case MaterialParamKind::Vec4:
             {
                 glUniform4fv(desc->uniform_location, 1, &value->as.vec4_.x);
             } break;
@@ -113,7 +115,16 @@ void material_apply(Material *material)
                 glUniformMatrix4fv(desc->uniform_location, 1, GL_FALSE, &value->as.mat4_.m00);
             } break;
 
-            case xtb::MaterialParamKind::None: break;
+            case MaterialParamKind::None: break;
+        }
+    }
+
+    for (isize tex_idx = 0; tex_idx < ArrLen(material->textures); ++tex_idx)
+    {
+        u32 tex_handle = material->textures[tex_idx];
+        if (tex_handle != 0)
+        {
+            glBindTextureUnit(tex_idx, tex_handle);
         }
     }
 }

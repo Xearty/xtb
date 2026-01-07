@@ -78,6 +78,8 @@ struct Material
     MaterialTemplate *templ;
     Array<MaterialParamValue> values;
 
+    u32 textures[8];
+
     /****************************************************************
      * Index Setters
      ****************************************************************/
@@ -104,6 +106,7 @@ struct Material
      * Constructors
      ****************************************************************/
     static Material create_from_template(Allocator* allocator, MaterialTemplate* templ);
+    static Material create_from_shader_program(Allocator* allocator, ShaderProgram program);
     Material copy(Allocator *allocator) const;
 };
 

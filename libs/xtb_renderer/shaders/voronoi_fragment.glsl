@@ -7,8 +7,8 @@
 #define FRAME_PADDING 0.01
 #define SPEED 0.2
 
-uniform float iTime;
-uniform vec2 iResolution;
+uniform float u_Time;
+uniform vec2 u_Resolution;
 
 in vec2 texCoords;
 in vec3 position;
@@ -76,7 +76,7 @@ vec3 GetVoronoiColor(vec2 uv, float aspectRatio)
         float x = Random(float(i) + float(POSITION_SEED) * 534.) * aspectRatio;
         float y = Random(float(i) + float(POSITION_SEED) * 123.);
 
-        float t = iTime * SPEED;
+        float t = u_Time * SPEED;
         t *= Remap(0., 1., .9, 1., Random(float(i) * 12.5125));
         float dx = Remap(0., 1., -x + FRAME_PADDING, -x + aspectRatio - FRAME_PADDING, LinearNoise1d(float(i) * 43. + t));
         float dy = Remap(0., 1., -y + FRAME_PADDING, -y + 1. - FRAME_PADDING, LinearNoise1d(float(i) * 261. + t));
@@ -113,7 +113,7 @@ vec3 GetVoronoiColor(vec2 uv, float aspectRatio)
 void main()
 {
     vec2 uv = texCoords;;
-    float aspectRatio = iResolution.x / iResolution.y;
+    float aspectRatio = u_Resolution.x / u_Resolution.y;
     uv.x *= aspectRatio;
 
     TriplanarUV triUV = GetTriplanarUV(localPosition * 2.0);

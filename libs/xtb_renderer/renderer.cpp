@@ -10,6 +10,10 @@
 #include "polyline.cpp"
 #include "bezier.cpp"
 #include "camera.cpp"
+#include <xtb_os/os.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
 
 namespace xtb
 {
@@ -95,11 +99,15 @@ void init_standard_vao(Renderer *renderer)
 }
 void init_default_solid_color_material(Renderer *r)
 {
-    MaterialTemplate *templ = allocate<MaterialTemplate>(&r->persistent_arena->allocator);
-    *templ = MaterialTemplate::init(&r->persistent_arena->allocator, r->shaders.mvp_solid_color);
-
-    r->default_solid_color_material = Material::create_from_template(&r->persistent_arena->allocator, templ);
+    r->default_solid_color_material = Material::create_from_shader_program(&r->persistent_arena->allocator, r->shaders.mvp_solid_color);
     r->default_solid_color_material.set_vec4("color", v4(1.0f, 0.0f, 1.0f, 1.0f));
+}
+
+void init_default_textured_material(Renderer *r)
+{
+    r->default_textured_material = Material::create_from_shader_program(&r->persistent_arena->allocator, r->shaders.mvp_texture);
+    r->default_textured_material.set_vec3("u_LightPosition", v3(20, 20, 20));
+    r->default_textured_material.set_vec3("u_LightColor", v3(1, 1, 1));
 }
 
 void set_engine_global_uniforms(Renderer *renderer, ShaderProgram program)
@@ -155,10 +163,13 @@ Renderer::Renderer(f32 width, f32 height)
 {
     this->persistent_arena = arena_new(Kilobytes(4));
     this->mesh_cache.arena = arena_new(Kilobytes(4));
+    this->mesh_cache.models = Array<ModelEntry>::init(&this->mesh_cache.arena->allocator);
 
     this->shaders.test = create_shader_program("test", test_vertex_source, test_fragment_source);
     this->shaders.polyline = create_shader_program("polyline", polyline_2d_instanced_vertex_source, test_fragment_source);
     this->shaders.mvp_solid_color = create_shader_program("mvp_solid_color", mvp_vertex_source, solid_color_fragment_source);
+    this->shaders.mvp_texture = create_shader_program("mvp_texture", mvp_vertex_source, texture_fragment_source);
+    this->shaders.mvp_voronoi = create_shader_program("mvp_voronoi", mvp_vertex_source, voronoi_fragment_source);
 
     init_standard_vao(this);
 
@@ -169,12 +180,116 @@ Renderer::Renderer(f32 width, f32 height)
     this->cameras_recreate_projections(width, height);
 
     init_default_solid_color_material(this);
+    init_default_textured_material(this);
+
+    this->textures = Array<TextureEntry>::init(&this->persistent_arena->allocator);
 }
 
 void Renderer::deinit()
 {
     arena_release(this->mesh_cache.arena);
     arena_release(this->persistent_arena);
+}
+
+isize Renderer::find_model(String name) const
+{
+    for (isize i = 0; i < this->mesh_cache.models.size(); ++i)
+    {
+        if (this->mesh_cache.models[i].name == name)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+isize Renderer::load_model(String name, String path)
+{
+    ScratchScope scratch;
+    Array<Mesh> meshes = model_load(&scratch->allocator, path);
+
+    Array<GpuMesh> gpu_meshes = Array<GpuMesh>::init_with_size(&this->mesh_cache.arena->allocator, meshes.size());
+    for (isize i = 0; i < meshes.size(); ++i)
+    {
+        mesh_upload(meshes[i], &gpu_meshes[i]);
+    }
+
+    this->mesh_cache.models.append(ModelEntry{
+        .name = name.copy(&this->mesh_cache.arena->allocator),
+        .meshes = gpu_meshes,
+    });
+
+    return this->mesh_cache.models.size() - 1;
+}
+
+bool Renderer::model_loaded(String name)
+{
+    return this->find_model(name) != -1;
+}
+
+isize Renderer::ensure_model(String name, String path)
+{
+    isize model_idx = this->find_model(name);
+
+    if (model_idx != -1)
+    {
+        return model_idx;
+    }
+    else
+    {
+        return this->load_model(name, path);
+    }
+}
+
+isize Renderer::find_texture(String name) const
+{
+    for (isize i = 0; i < this->textures.size(); ++i)
+    {
+        if (this->textures[i].name == name)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+isize Renderer::load_texture(String name, String path)
+{
+    ScratchScope scratch;
+
+    String tex_file_data = os::read_entire_file(&scratch->allocator, path);
+
+    i32 width, height, comp;
+    // stbi_set_flip_vertically_on_load(true);
+    u8* pixel_data = stbi_load_from_memory(tex_file_data.data(), tex_file_data.len(), &width, &height, &comp, 3);
+    Assert(pixel_data != NULL);
+
+    u32 tex_id;
+    glCreateTextures(GL_TEXTURE_2D, 1, &tex_id);
+
+    glBindTexture(GL_TEXTURE_2D, tex_id); // NOTE: Not sure if this is necessary.
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, pixel_data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    this->textures.append(TextureEntry{
+        .name = name.copy(&this->mesh_cache.arena->allocator),
+        .id = tex_id,
+    });
+
+    return this->textures.size() - 1;
+}
+
+bool Renderer::texture_loaded(String name)
+{
+    return this->find_texture(name) != -1;
 }
 
 /****************************************************************
@@ -186,7 +301,7 @@ void Renderer::cameras_recreate_projections(f32 width, f32 height)
     camera_set_projection(&this->camera2d, ortho_proj);
 
     f32 aspect_ratio = width / height;
-    mat4 perspective_proj = perspective(deg2rad(45.0f), aspect_ratio, 0.01f, 100.0f);
+    mat4 perspective_proj = perspective(deg2rad(45.0f), aspect_ratio, 0.01f, 1000.0f);
     camera_set_projection(&this->camera3d, perspective_proj);
 }
 
@@ -221,6 +336,38 @@ void Renderer::render_cube(vec4 color, mat4 model)
     material.set_vec4("color", color);
 
     render_mesh(this, ensure_cube_mesh(this), model, &material);
+}
+
+void Renderer::render_model(String model_name, Material* material, mat4 transform)
+{
+    isize model_idx = this->find_model(model_name);
+    Assert(model_idx != -1);
+
+    ModelEntry* model_info = &this->mesh_cache.models[model_idx];
+
+    for (isize i = 0; i < model_info->meshes.size(); ++i)
+    {
+        render_mesh(this, &model_info->meshes[i], transform, material);
+    }
+}
+
+Material Renderer::create_textured_material(Allocator* allocator, String texture_name)
+{
+    isize texture_idx = this->find_texture(texture_name);
+    Assert(texture_idx != -1);
+
+    TextureEntry texture = this->textures[texture_idx];
+
+    Material material = this->default_textured_material.copy(allocator);
+    material.textures[0] = texture.id;
+    return material;
+}
+
+Material Renderer::create_solid_color_material(Allocator* allocator, vec4 color)
+{
+    Material material = this->default_solid_color_material.copy(allocator);
+    material.set_vec4("color", color);
+    return material;
 }
 
 }

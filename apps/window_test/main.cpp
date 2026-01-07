@@ -132,6 +132,18 @@ int main(int argc, char **argv)
         printf("array_size = %d\n", it->array_size);
     }
 
+    renderer.load_model("orange_cat", "/home/xearty/code/mine/xtb/assets/Cat_v1_L3.123cb1b1943a-2f48-4e44-8f71-6bbe19a3ab64/12221_Cat_v1_l3.obj");
+    renderer.load_texture("orange_cat", "/home/xearty/code/mine/xtb/assets/Cat_v1_L3.123cb1b1943a-2f48-4e44-8f71-6bbe19a3ab64/Cat_diffuse.jpg");
+    Material orange_cat_mat = renderer.create_textured_material(allocator_get_static(), "orange_cat");
+
+    renderer.load_model("garfield", "/home/xearty/code/mine/xtb/assets/Cat_v1_L1.123c3567cbad-4d37-440f-b576-e9b70ca4bacd/20430_Cat_v1_NEW.obj");
+    renderer.load_texture("garfield", "/home/xearty/code/mine/xtb/assets/Cat_v1_L1.123c3567cbad-4d37-440f-b576-e9b70ca4bacd/20430_cat_diff_v1.jpg");
+    Material garfield_mat = renderer.create_textured_material(allocator_get_static(), "garfield");
+
+    renderer.load_model("woman_crouching", "/home/xearty/code/mine/xtb/assets/woman-crouching/source/belt G.glb");
+    renderer.load_texture("woman_crouching", "/home/xearty/code/mine/xtb/assets/woman-crouching/textures/texture_pbr_20250901_1.png");
+    Material woman_crouching_mat = renderer.create_textured_material(allocator_get_static(), "woman_crouching");
+
     Arena *frame_arena = arena_new(Kilobytes(4));
 
     while (!window_should_close(window))
@@ -175,10 +187,30 @@ int main(int argc, char **argv)
             vec4 red = v4(1.0f, 0.0f, 0.0f, 1.0f);
             vec4 magenta = v4(1.0f, 0.0f, 1.0f, 1.0f);
 
-            renderer.render_quad( red, transform);
+            mat4 orange_trans = I4();
+            orange_trans = rotate4_x(orange_trans, deg2rad(-90.0f));
+            orange_trans = rotate4_y(orange_trans, time);
+            orange_trans = translate4(orange_trans, v3(-10.0f, 0.0f, -30.0f));
+
+            // renderer.render_model("orange_cat", &orange_cat_mat, orange_trans);
+            // renderer.render_model("orange_cat", &voronoi_mat, orange_trans);
+
+            mat4 woman_trans = I4();
+            woman_trans = uniform_scale4(woman_trans, 15.0f);
+            woman_trans = rotate4_x(woman_trans, deg2rad(90.0f));
+            woman_trans = rotate4_y(woman_trans, time);
+            woman_trans = translate4(woman_trans, v3(-10.0f, 0.0f, -30.0f));
+            renderer.render_model("woman_crouching", &woman_crouching_mat, woman_trans);
+
+            mat4 garfield_trans = I4();
+            garfield_trans = rotate4_x(garfield_trans, deg2rad(-90.0f));
+            garfield_trans = rotate4_y(garfield_trans, time);
+            garfield_trans = translate4(garfield_trans, v3(10.0f, 0.0f, -30.0f));
+
+            renderer.render_model("garfield", &garfield_mat, garfield_trans);
 
             transform = translate4(transform, v3(7.0f, 0.0f, -3.0f));
-            renderer.render_cube(magenta, transform);
+            // renderer.render_cube(magenta, transform);
 
             Array<vec2> points = Array<vec2>::init(&frame_arena->allocator);
             points.append({

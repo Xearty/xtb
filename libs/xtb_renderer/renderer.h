@@ -23,12 +23,26 @@ struct GpuMesh
     i32 indices_count;
 };
 
+struct ModelEntry
+{
+    String name;
+    Array<GpuMesh> meshes;
+};
+
+struct TextureEntry
+{
+    String name;
+    u32 id;
+};
+
 struct GeometryCache
 {
     Arena *arena;
 
     GpuMesh *quad;
     GpuMesh *cube;
+
+    Array<ModelEntry> models;
 };
 
 struct ShaderRegistry
@@ -36,6 +50,8 @@ struct ShaderRegistry
     ShaderProgram test;
     ShaderProgram polyline;
     ShaderProgram mvp_solid_color;
+    ShaderProgram mvp_texture;
+    ShaderProgram mvp_voronoi;
 };
 
 struct PolylinePerVertexData
@@ -76,11 +92,14 @@ struct Renderer
     GeometryCache mesh_cache{};
     ShaderRegistry shaders{};
 
+    Array<TextureEntry> textures{};
+
     PolylineRenderData polyline_render_data{};
 
     u32 standard_vao{};
 
     Material default_solid_color_material{};
+    Material default_textured_material{};
 
     GlobalUniformState global_uniforms{};
     GlobalUniformStateUpdateCallback global_uniforms_update_cb{};
@@ -90,6 +109,15 @@ struct Renderer
 
     Renderer();
     Renderer(f32 width, f32 height);
+
+    isize find_model(String name) const;
+    isize load_model(String name, String path);
+    bool model_loaded(String name);
+    isize ensure_model(String name, String path);
+
+    isize find_texture(String name) const;
+    isize load_texture(String name, String path);
+    bool texture_loaded(String name);
 
     static Renderer init(f32 width, f32 height)
     {
@@ -103,10 +131,16 @@ struct Renderer
     void begin_frame();
     void end_frame();
 
+    // void render_test(mat4 model);
+
     void render_quad(vec4 color, mat4 model);
     void render_cube(vec4 color, mat4 model);
     void render_polyline_custom(vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
     void render_bezier_spline_custom(vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
+    void render_model(String model_name, Material* material, mat4 transform);
+
+    Material create_textured_material(Allocator* allocator, String texture_name);
+    Material create_solid_color_material(Allocator* allocator, vec4 color);
 };
 
 }

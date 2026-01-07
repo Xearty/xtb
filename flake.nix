@@ -22,6 +22,8 @@
             readline
             libbacktrace
             glfw3
+            assimp
+            stb
           ];
         };
       });

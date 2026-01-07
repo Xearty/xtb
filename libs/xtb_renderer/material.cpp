@@ -182,6 +182,14 @@ Material Material::create_from_template(Allocator* allocator, MaterialTemplate* 
     return mat;
 }
 
+Material Material::create_from_shader_program(Allocator* allocator, ShaderProgram program)
+{
+    MaterialTemplate *templ = allocate<MaterialTemplate>(allocator);
+    *templ = MaterialTemplate::init(allocator, program);
+
+    return Material::create_from_template(allocator, templ);
+}
+
 Material Material::copy(Allocator* allocator) const
 {
     Material res = {};
@@ -191,6 +199,14 @@ Material Material::copy(Allocator* allocator) const
     {
         res.values.append(this->values[i]);
     }
+
+    for (isize i = 0; i < ArrLen(this->textures); ++i)
+    {
+        res.textures[i] = this->textures[i];
+    }
+
+    MemoryCopy(res.textures, this->textures, sizeof(this->textures));
+
     // array_init(&res.values, allocator);
     // array_append(&res.values, m->values.data, m->values.count);
     return res;
