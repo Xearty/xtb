@@ -133,7 +133,7 @@ Arena *arena_new_exact_size(size_t arena_size)
 
 void arena_release(Arena *arena)
 {
-    arena_free_chunks_after(arena->current_chunk);
+    arena_free_chunks_after(arena->base_chunk);
     free(arena);
 }
 
