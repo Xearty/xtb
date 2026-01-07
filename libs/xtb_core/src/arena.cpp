@@ -199,6 +199,12 @@ void temp_arena_release(TempArena temp)
     Arena *arena = temp.arena;
     arena->current_chunk = temp.snapshot.chunk;
     arena->current_chunk->offset = temp.snapshot.offset;
+
+    if (arena->current_chunk->next)
+    {
+        arena->current_chunk->next->offset = 0;
+        arena_free_chunks_after(arena->current_chunk->next);
+    }
 }
 
 /****************************
