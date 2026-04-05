@@ -8,7 +8,6 @@
 
   outputs =
     {
-      self,
       nixpkgs,
       flake-utils,
       ...
@@ -17,9 +16,11 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        llvmPkgs = pkgs.llvmPackages_22;
+        mkShell = pkgs.mkShell.override { stdenv = llvmPkgs.stdenv; };
       in
       {
-        devShells.default = pkgs.mkShell {
+        devShells.default = mkShell {
           name = "default";
           nativeBuildInputs = with pkgs; [
             raylib
@@ -32,6 +33,8 @@
             assimp
             stb
             cmake
+
+            llvmPkgs.clang-tools
           ];
         };
       }
