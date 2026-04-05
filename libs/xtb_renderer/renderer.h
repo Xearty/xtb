@@ -134,12 +134,15 @@ struct Renderer
     // void render_test(mat4 model);
 
     void render_quad(vec4 color, mat4 model);
+    void render_quad(vec4 color, mat4 model, Material* material);
+
     void render_cube(vec4 color, mat4 model);
     void render_polyline_custom(vec2 *points, i32 count, f32 thickness, vec4 color, bool looped);
     void render_bezier_spline_custom(vec2 *points, i32 count, i32 bezier_deg, i32 samples, f32 thickness, vec4 color, bool looped);
     void render_model(String model_name, Material* material, mat4 transform);
 
     Material create_textured_material(Allocator* allocator, String texture_name);
+    Material create_textured_material(Allocator* allocator, u32 texture_id);
     Material create_solid_color_material(Allocator* allocator, vec4 color);
 };
 

@@ -7,6 +7,7 @@ option(XTB_BUILD_JSON "Build the json module" ON)
 option(XTB_BUILD_OGL "Build the ogl module" ON)
 option(XTB_BUILD_WINDOW "Build the window module" ON)
 option(XTB_BUILD_RENDERER "Build the renderer module" ON)
+option(XTB_BUILD_NOISE "Build the noise module" ON)
 
 if(XTB_BUILD_CORE)
     add_subdirectory(xtb_core)
@@ -42,4 +43,8 @@ endif()
 
 if(XTB_BUILD_RENDERER)
     add_subdirectory(xtb_renderer)
+endif()
+
+if(XTB_BUILD_NOISE)
+    add_subdirectory(xtb_noise)
 endif()

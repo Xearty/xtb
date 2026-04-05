@@ -328,6 +328,11 @@ void Renderer::render_quad(vec4 color, mat4 model)
     render_mesh(this, ensure_quad_mesh(this), model, &material);
 }
 
+void Renderer::render_quad(vec4 color, mat4 model, Material* material)
+{
+    render_mesh(this, ensure_quad_mesh(this), model, material);
+}
+
 void Renderer::render_cube(vec4 color, mat4 model)
 {
     ScratchScope scratch;
@@ -357,9 +362,13 @@ Material Renderer::create_textured_material(Allocator* allocator, String texture
     Assert(texture_idx != -1);
 
     TextureEntry texture = this->textures[texture_idx];
+    return this->create_textured_material(allocator, texture.id);
+}
 
+Material Renderer::create_textured_material(Allocator* allocator, u32 texture_id)
+{
     Material material = this->default_textured_material.copy(allocator);
-    material.textures[0] = texture.id;
+    material.textures[0] = texture_id;
     return material;
 }
 
