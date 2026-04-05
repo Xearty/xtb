@@ -7,6 +7,7 @@
 #include <xtb_renderer/renderer.h>
 #include <xtb_bmp/bmp.h>
 #include <xtb_renderer/types.h>
+#include <xtb_noise/noise.h>
 
 using namespace xtb;
 
@@ -146,6 +147,56 @@ int main(int argc, char **argv)
 
     Arena *frame_arena = arena_new(Kilobytes(4));
 
+    u32 noise_texture_id = 0;
+    {
+        Noise1d noise = Noise1d::create(10);
+        f32 value1 = noise.sample(.5f);
+        f32 value2 = noise.sample(.5001f);
+        f32 value3 = noise.sample(.5002f);
+        f32 value4 = noise.sample(.5003f);
+        printf("value1 = %f\n", value1);
+        printf("value2 = %f\n", value2);
+        printf("value3 = %f\n", value3);
+        printf("value4 = %f\n", value4);
+
+        i32 tex_dim = 1000;
+        u8* noise_texture_data = new u8[tex_dim * tex_dim * 4];
+        for (i32 y = 0; y < tex_dim; ++y)
+        {
+            f32 noise_value = noise.sample((f32)y / (f32)(tex_dim - 1));
+            f32 chan_value = noise_value * 255;
+
+            for (i32 x = 0; x < tex_dim; ++x)
+            {
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 0] = 255;
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 1] = 0;
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 2] = 0;
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 3] = 255;;
+
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 0] = chan_value;
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 1] = chan_value;
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 2] = chan_value;
+                noise_texture_data[y * 4 * tex_dim + 4 * x + 3] = 255;;
+                // noise_texture_data[y * tex_dim + 4 * x + 0] = chan_value;
+                // noise_texture_data[y * tex_dim + 4 * x + 1] = chan_value;
+                // noise_texture_data[y * tex_dim + 4 * x + 2] = chan_value;
+                // noise_texture_data[y * tex_dim + 4 * x + 3] = 255;;
+            }
+        }
+
+        glCreateTextures(GL_TEXTURE_2D, 1, &noise_texture_id);
+        glBindTexture(GL_TEXTURE_2D, noise_texture_id);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_dim, tex_dim, 0, GL_RGBA, GL_UNSIGNED_BYTE, noise_texture_data);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    }
+
+    Material noise_textured_material = renderer.create_textured_material(allocator_get_static(), noise_texture_id);
+
     while (!window_should_close(window))
     {
         arena_clear(frame_arena);
@@ -212,16 +263,31 @@ int main(int argc, char **argv)
             transform = translate4(transform, v3(7.0f, 0.0f, -3.0f));
             // renderer.render_cube(magenta, transform);
 
-            Array<vec2> points = Array<vec2>::init(&frame_arena->allocator);
-            points.append({
-                v2(100.f, 100.0f),
-                v2(500.f, 1000.0f),
-                v2(100.f, 800.0f),
-                v2(1000.f, 500.0f),
-                v2(500.f, 500.0f),
-            });
+            // Array<vec2> points = Array<vec2>::init(&frame_arena->allocator);
+            // points.append({
+            //     v2(100.f, 100.0f),
+            //     v2(500.f, 1000.0f),
+            //     v2(100.f, 800.0f),
+            //     v2(1000.f, 500.0f),
+            //     v2(500.f, 500.0f),
+            // });
+            //
+            // renderer.render_bezier_spline_custom(points.data(), points.size(), 2, 50, 5.0f, red, false);
 
-            renderer.render_bezier_spline_custom(points.data(), points.size(), 2, 50, 5.0f, red, false);
+
+            // for (f32 t = 0.0f; t < 100.0f; t += 0.1f)
+            // {
+            //     printf("t = %f\n", t);
+            //     mat4 qt = I4();
+            //     qt = translate4(qt, v3(0.0f, t * 10.0f, 0.0f));
+            //     renderer.render_quad(v4(1.0f, 0.0f, 1.0f, 1.0f), transform);
+            // }
+
+            mat4 qt = I4();
+            qt = uniform_scale4(qt, 10.0f);
+            renderer.render_quad(v4(1.0f, 0.0f, 1.0f, 1.0f), qt, &noise_textured_material);
+
+
         }
         renderer.end_frame();
 
