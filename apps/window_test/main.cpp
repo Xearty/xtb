@@ -132,16 +132,16 @@ int main(int argc, char **argv)
         printf("array_size = %d\n", it->array_size);
     }
 
-    renderer.load_model("orange_cat", "/home/xearty/code/mine/xtb/assets/Cat_v1_L3.123cb1b1943a-2f48-4e44-8f71-6bbe19a3ab64/12221_Cat_v1_l3.obj");
-    renderer.load_texture("orange_cat", "/home/xearty/code/mine/xtb/assets/Cat_v1_L3.123cb1b1943a-2f48-4e44-8f71-6bbe19a3ab64/Cat_diffuse.jpg");
+    renderer.load_model("orange_cat", "./assets/Cat_v1_L3.123cb1b1943a-2f48-4e44-8f71-6bbe19a3ab64/12221_Cat_v1_l3.obj");
+    renderer.load_texture("orange_cat", "./assets/Cat_v1_L3.123cb1b1943a-2f48-4e44-8f71-6bbe19a3ab64/Cat_diffuse.jpg");
     Material orange_cat_mat = renderer.create_textured_material(allocator_get_static(), "orange_cat");
 
-    renderer.load_model("garfield", "/home/xearty/code/mine/xtb/assets/Cat_v1_L1.123c3567cbad-4d37-440f-b576-e9b70ca4bacd/20430_Cat_v1_NEW.obj");
-    renderer.load_texture("garfield", "/home/xearty/code/mine/xtb/assets/Cat_v1_L1.123c3567cbad-4d37-440f-b576-e9b70ca4bacd/20430_cat_diff_v1.jpg");
+    renderer.load_model("garfield", "./assets/Cat_v1_L1.123c3567cbad-4d37-440f-b576-e9b70ca4bacd/20430_Cat_v1_NEW.obj");
+    renderer.load_texture("garfield", "./assets/Cat_v1_L1.123c3567cbad-4d37-440f-b576-e9b70ca4bacd/20430_cat_diff_v1.jpg");
     Material garfield_mat = renderer.create_textured_material(allocator_get_static(), "garfield");
 
-    renderer.load_model("woman_crouching", "/home/xearty/code/mine/xtb/assets/woman-crouching/source/belt G.glb");
-    renderer.load_texture("woman_crouching", "/home/xearty/code/mine/xtb/assets/woman-crouching/textures/texture_pbr_20250901_1.png");
+    renderer.load_model("woman_crouching", "./assets/woman-crouching/source/belt G.glb");
+    renderer.load_texture("woman_crouching", "./assets/woman-crouching/textures/texture_pbr_20250901_1.png");
     Material woman_crouching_mat = renderer.create_textured_material(allocator_get_static(), "woman_crouching");
 
     Arena *frame_arena = arena_new(Kilobytes(4));
