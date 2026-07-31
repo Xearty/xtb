@@ -158,10 +158,24 @@ version (linux)
             state.framesTruncated = true;
             return 1;
         }
+
+        const(char)* resolvedFilename = filename;
+        const(char)* resolvedFunctionName = functionName;
+        if (resolvedFilename is null || resolvedFunctionName is null)
+        {
+            Dl_info information;
+            if (dladdr(cast(const(void)*) programCounter, &information) != 0)
+            {
+                if (resolvedFilename is null)
+                    resolvedFilename = information.dli_fname;
+                if (resolvedFunctionName is null)
+                    resolvedFunctionName = information.dli_sname;
+            }
+        }
         StackFrame* frame = &state.frames[state.frameCount++];
         frame.programCounter = programCounter;
-        frame.filename = copyText(*state, filename);
-        frame.functionName = copyText(*state, functionName);
+        frame.filename = copyText(*state, resolvedFilename);
+        frame.functionName = copyText(*state, resolvedFunctionName);
         frame.line = line > 0 ? cast(uint) line : 0;
         return 0;
     }
@@ -465,6 +479,8 @@ nothrow @nogc unittest
 version (linux)
 nothrow @nogc unittest
 {
+    import core.stdc.stdlib : malloc;
+
     CaptureState state;
     StackFrame[1] frames;
     char[3] text;
@@ -479,4 +495,18 @@ nothrow @nogc unittest
 
     assert(collectFrame(&state, 2, null, 0, null) == 1);
     assert(state.framesTruncated);
+
+    CaptureState fallbackState;
+    StackFrame[1] fallbackFrames;
+    char[512] fallbackText;
+    fallbackState.frames = fallbackFrames[];
+    fallbackState.text = fallbackText[];
+    assert(collectFrame(
+        &fallbackState,
+        cast(size_t) &malloc,
+        null,
+        0,
+        null,
+    ) == 0);
+    assert(fallbackFrames[0].functionName.length != 0);
 }
