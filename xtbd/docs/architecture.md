@@ -109,6 +109,48 @@ must be nonzero, and is capped at the largest integer exactly representable by
 failure is exposed only by `tryCreate`; `create` panics consistently with other
 owning containers.
 
+## Operating-system boundary
+
+`xtb.os` is the only general-purpose package that calls operating-system APIs.
+Its public interface uses `Path`, a trivially copied borrowed view that rejects
+embedded NUL bytes. A `Path` owns no storage; callers keep its source alive
+exactly as they would for `String`. Joining does not normalize, resolve links,
+or silently access the filesystem.
+
+POSIX calls need temporary NUL-terminated text. The Linux backend obtains that
+storage from the explicitly installed thread context through `ScratchScope`;
+path-based OS operations therefore require `ThreadContextScope` on the calling
+thread. Returned handles, mappings, metadata, and copied output never retain
+scratch storage.
+
+Expected failures return `OsError`, containing a portable category and native
+code. A successful existence or permission query may write `false`; absence
+and denied access are query results rather than failures. Unsupported backends
+return `OsErrorKind.unsupported` while retaining the API and allowing the whole
+library to compile.
+
+`File`, `DirectoryIterator`, and `MappedFile` are non-copyable RAII owners with
+valid empty states and idempotent `deinit`. Operations that mutate or advance
+them take explicit pointers. `IoResult` distinguishes partial progress from
+failure; complete I/O loops over short transfers and interruptions. Whole-file
+helpers use caller-owned `Array!ubyte`, preserving embedded NUL bytes and
+making allocation explicit.
+
+Directory enumeration is streaming. `DirectoryEntry.name` borrows libc's entry
+buffer and expires when the iterator advances or closes. There is deliberately
+no linked-list result. `walkDirectory` performs depth-first traversal through a
+non-allocating callback receiving a temporary full `Path`; that path must not
+escape the callback. Traversal receives an explicit temporary allocator so
+arbitrary directory depth does not consume nested scratch arenas. Callers
+needing persistence copy entries into their chosen container and allocator.
+
+`environmentVariable` returns a process-owned borrowed view that later
+environment mutation can invalidate. `currentDirectory`, `executablePath`, and
+`canonicalPath` write owned bytes into a supplied `StringBuf`. Read-only maps
+remain valid until their `MappedFile` is destroyed. Monotonic timestamps serve
+elapsed-time measurement; wall-clock timestamps are Unix-epoch nanoseconds and
+may jump when the system clock changes.
+
 ## BetterC design rules
 
 ### ABI and entry points

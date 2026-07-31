@@ -10,6 +10,12 @@ The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
 camera, and projection operations, plus a stable deterministic random generator
 and allocator-owned periodic value noise.
 
+The `xtb.os` package provides borrowed validated paths, RAII files and memory
+maps, binary-safe complete I/O, metadata, streaming directory traversal,
+explicit errors, environment/path queries, and monotonic/wall clocks. Linux
+has the locally tested backend; other targets retain buildable APIs reporting
+unsupported operations.
+
 Stack traces include bounded D demangling, allocation-free signature coloring,
 configurable ANSI themes, and explicitly installed panic/fatal-signal handlers.
 See `examples/stacktrace_demo.d` and the diagnostics section of
@@ -28,8 +34,8 @@ by default. Set `StackTraceStyle.signatureColumns` to another limit, or select
 
 The project is independent from the adjacent C++ sources. Public modules live
 under `source/xtb`, focused unit tests are colocated with those modules, and
-`tests/core_tests.d` plus `tests/math_tests.d` are the explicit BetterC test
-runners.
+`tests/core_tests.d`, `tests/math_tests.d`, and `tests/os_tests.d` are the
+explicit BetterC test runners.
 
 ## Build and test
 
@@ -58,6 +64,11 @@ contracts.
 Import `xtb.math` for the stable math surface. Matrices are column-major and
 multiply column vectors; transformations compose right-to-left. See
 `examples/math_demo.d` for transforms and deterministic periodic noise.
+
+Import `xtb.os` for platform services. Threads making path-based OS calls must
+install `ThreadContextScope`, which supplies temporary C-string storage.
+Directory traversal streams entries rather than allocating a linked list. See
+`examples/os_demo.d`.
 
 The remaining C++ core capability audit and proposed implementation milestone
 are maintained in `docs/core-gap-analysis.md`.

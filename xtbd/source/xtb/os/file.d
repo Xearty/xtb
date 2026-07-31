@@ -81,6 +81,19 @@ struct File
     }
 }
 
+OsError flush(File* file) nothrow @system @nogc
+{
+    require(file !is null && file.valid, "invalid File for flush");
+    version (linux)
+    {
+        import core.sys.posix.unistd : fsync;
+
+        return fsync(file.descriptor_) == 0 ? OsError.init : lastError();
+    }
+    else
+        return unsupported();
+}
+
 OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
 {
     require(output !is null, "File output pointer is null");

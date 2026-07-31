@@ -30,3 +30,8 @@ configuration "math-demo" {
     targetType "executable"
     mainSourceFile "examples/math_demo.d"
 }
+
+configuration "os-demo" {
+    targetType "executable"
+    mainSourceFile "examples/os_demo.d"
+}

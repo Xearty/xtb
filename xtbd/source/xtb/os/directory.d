@@ -1,12 +1,23 @@
 module xtb.os.directory;
 
 import xtb.core.panic : require;
+import xtb.core.memory : Allocator;
 import xtb.core.string : String, StringBuf, append, checkedCString, clear, fromCString;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 import xtb.os.file : FileType;
-import xtb.os.path : Path;
+import xtb.os.path : Path, appendComponent;
+
+enum Access : ubyte
+{
+    exists,
+    read,
+    write,
+    execute,
+}
+
+alias DirectoryVisitor = bool function(Path path, FileType type, void* context) nothrow @nogc;
 
 enum DirectoryStatus : ubyte
 {
@@ -228,4 +239,123 @@ OsError executablePath(ref StringBuf output) nothrow @system @nogc
     }
     else
         return unsupported();
+}
+
+OsError queryAccess(Path path, Access requested, bool* output) nothrow @system @nogc
+{
+    require(output !is null, "access output pointer is null");
+    *output = false;
+    version (linux)
+    {
+        import core.sys.posix.unistd : F_OK, R_OK, W_OK, X_OK, access;
+
+        ScratchScope scratch = ScratchScope.acquire();
+        StringBuf native = StringBuf.fromString(scratch.allocator, path.view);
+        int mode;
+        final switch (requested)
+        {
+        case Access.exists:
+            mode = F_OK;
+            break;
+        case Access.read:
+            mode = R_OK;
+            break;
+        case Access.write:
+            mode = W_OK;
+            break;
+        case Access.execute:
+            mode = X_OK;
+            break;
+        }
+        if (access(native.checkedCString, mode) == 0)
+        {
+            *output = true;
+            return OsError.init;
+        }
+        const error = lastError();
+        if (error.kind == OsErrorKind.notFound || error.kind == OsErrorKind.permissionDenied)
+            return OsError.init;
+        return error;
+    }
+    else
+        return unsupported();
+}
+
+OsError canonicalPath(Path path, ref StringBuf output) nothrow @system @nogc
+{
+    output.clear();
+    version (linux)
+    {
+        import core.stdc.stdlib : free;
+        import core.sys.posix.stdlib : realpath;
+
+        ScratchScope scratch = ScratchScope.acquire();
+        StringBuf native = StringBuf.fromString(scratch.allocator, path.view);
+        char* resolved = realpath(native.checkedCString, null);
+        if (resolved is null)
+            return lastError();
+        output.append(fromCString(resolved));
+        free(resolved);
+        return OsError.init;
+    }
+    else
+        return unsupported();
+}
+
+OsError walkDirectory(Path root, Allocator* temporaryAllocator,
+        DirectoryVisitor visitor, void* context = null, size_t maximumDepth = 256) nothrow @system @nogc
+{
+    require(temporaryAllocator !is null, "directory traversal requires a temporary allocator");
+    require(visitor !is null, "directory visitor is null");
+    bool keepGoing = true;
+    return walk(root, temporaryAllocator, visitor, context, 0, maximumDepth, &keepGoing);
+}
+
+private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor visitor,
+        void* context, size_t depth, size_t maximumDepth, bool* keepGoing) nothrow @system @nogc
+{
+    if (depth > maximumDepth)
+        return OsError(OsErrorKind.invalidArgument, 0);
+    DirectoryIterator iterator;
+    OsError error = openDirectory(root, &iterator);
+    if (error.failed)
+        return error;
+    DirectoryEntry entry;
+    for (;;)
+    {
+        const result = (&iterator).next(&entry);
+        if (result.status == DirectoryStatus.finished)
+            return OsError.init;
+        if (result.status == DirectoryStatus.failed)
+            return result.error;
+
+        StringBuf full = StringBuf.fromString(temporaryAllocator, root.view);
+        full.appendComponent(Path.fromString(entry.name));
+        const path = Path.fromString(full.view);
+        FileType type = entry.type;
+        if (type == FileType.unknown)
+        {
+            import xtb.os.file : FileMetadata, metadata;
+
+            FileMetadata information;
+            error = metadata(path, false, &information);
+            if (error.failed)
+                return error;
+            type = information.type;
+        }
+        if (!visitor(path, type, context))
+        {
+            *keepGoing = false;
+            return OsError.init;
+        }
+        if (type == FileType.directory)
+        {
+            error = walk(path, temporaryAllocator, visitor, context, depth + 1,
+                    maximumDepth, keepGoing);
+            if (error.failed)
+                return error;
+            if (!*keepGoing)
+                return OsError.init;
+        }
+    }
 }

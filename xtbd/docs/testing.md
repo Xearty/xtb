@@ -51,6 +51,12 @@ modules in that shard and lists them explicitly. Explicit enumeration is
 intentional: it replaces unavailable `ModuleInfo` discovery and makes omissions
 visible in review.
 
+The explicit runners are `core_tests.d`, `math_tests.d`, and `os_tests.d`.
+The OS runner creates a process-unique directory below `/tmp`, touches only
+paths inside it, and removes every created file and directory before returning.
+Platform runtime assertions are backend-versioned; the same runner remains a
+compile check where no native backend exists.
+
 ```d
 module tests.core_runner;
 
@@ -197,7 +203,7 @@ The Nix development shell is the canonical toolchain and provides LDC, DUB,
 ```sh
 nix develop
 just lint            # dscanner plus project policy checks
-just format          # format the D math package, runner, and example
+just format          # format the D math/OS packages, runners, and examples
 just test            # every BetterC runner
 just build           # production static library with -betterC
 just test-sanitize   # BetterC runner under AddressSanitizer

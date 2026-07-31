@@ -13,6 +13,12 @@ import xtb.core.string : String, StringBuf, append;
 import xtb.core.thread_context : ThreadContextScope;
 import xtb.core.types : u64, u8;
 
+version (linux) private bool countEntry(Path, FileType, void* context) nothrow @system @nogc
+{
+    ++*cast(size_t*) context;
+    return true;
+}
+
 version (linux) private void runLinuxIntegration() nothrow @system @nogc
 {
     import core.sys.posix.unistd : getpid;
@@ -69,9 +75,19 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     }
     assert(entries == 2);
     iterator.deinit();
+    size_t walked;
+    assert(walkDirectory(rootPath, mallocAllocator(), &countEntry, &walked).succeeded);
+    assert(walked == 2);
+
+    bool exists;
+    assert(queryAccess(firstPath, Access.exists, &exists).succeeded && exists);
+    assert(queryAccess(firstPath, Access.read, &exists).succeeded && exists);
 
     StringBuf cwd = StringBuf.create(mallocAllocator());
     assert(currentDirectory(cwd).succeeded && cwd.view.length != 0);
+    StringBuf canonical = StringBuf.create(mallocAllocator());
+    assert(canonicalPath(rootPath, canonical).succeeded);
+    assert(canonical.view.length != 0);
     StringBuf executable = StringBuf.create(mallocAllocator());
     assert(executablePath(executable).succeeded && executable.view.length != 0);
     String environmentPath;

@@ -69,6 +69,12 @@
             ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
             -of=math-tests
           ./math-tests
+          ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source \
+            tests/os_tests.d source/xtb/os/path.d \
+            $(find source -name '*.d' ! -path 'source/xtb/os/path.d' -print | sort) \
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
+            -of=os-tests
+          ./os-tests
           ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source \
             tests/core_tests.d $(find source -name '*.d' -print | sort) \
             ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
@@ -80,6 +86,12 @@
             ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
             -of=math-tests-optimized
           ./math-tests-optimized
+          ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source \
+            tests/os_tests.d source/xtb/os/path.d \
+            $(find source -name '*.d' ! -path 'source/xtb/os/path.d' -print | sort) \
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
+            -of=os-tests-optimized
+          ./os-tests-optimized
           clang -std=c11 -Wall -Wextra -Werror \
             -c tests/abi_allocator.c -o abi-allocator-c.o
           ldc2 -betterC -boundscheck=on -wi -de -I=source \
