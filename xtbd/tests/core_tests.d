@@ -1,6 +1,8 @@
 module tests.core_tests;
 
 import xtb.core.types;
+import xtb.core.metadata;
+import xtb.core.slice;
 import xtb.core.memory;
 import xtb.core.arena;
 import xtb.core.thread_context;
@@ -13,6 +15,10 @@ import xtb.core.print;
 extern(C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.core.types))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.metadata))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.slice))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.memory))
         testFunction();
