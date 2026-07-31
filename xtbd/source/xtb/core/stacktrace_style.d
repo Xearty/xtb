@@ -13,6 +13,12 @@ enum StackTraceTheme
     plain,
 }
 
+enum ModuleDisplay
+{
+    omitted,
+    full,
+}
+
 struct StackTraceColors
 {
     AnsiColor functionName;
@@ -84,11 +90,16 @@ struct StackTraceStyle
 {
     StackTraceColors colors;
     bool showProgramCounter;
+    ModuleDisplay moduleDisplay;
 
     static StackTraceStyle fromTheme(StackTraceTheme theme)
         pure nothrow @safe @nogc
     {
-        return StackTraceStyle(StackTraceColors.fromTheme(theme), false);
+        return StackTraceStyle(
+            StackTraceColors.fromTheme(theme),
+            false,
+            ModuleDisplay.omitted,
+        );
     }
 }
 
@@ -212,18 +223,44 @@ private bool isModuleIdentifier(String input, size_t end)
     return next < input.length && input[next] == '.';
 }
 
+private bool aggregateIdentifier(String identifier)
+    pure nothrow @safe @nogc
+{
+    return identifier.length != 0 &&
+        (identifier[0] == '@' || identifier[0] >= 'A' && identifier[0] <= 'Z');
+}
+
 void writeSignature(
     ref Writer writer,
     String signature,
     scope const StackTraceColors* colors,
+    ModuleDisplay moduleDisplay = ModuleDisplay.omitted,
 ) nothrow @nogc
 {
     StackTraceColors plain;
     const StackTraceColors* activeColors = colors is null ? &plain : colors;
     size_t offset;
+    bool suppressSeparator;
     while (offset < signature.length)
     {
         const token = nextToken(signature, offset);
+        if (suppressSeparator && token.kind == SignatureTokenKind.punctuation &&
+            token.source.equal("."))
+        {
+            suppressSeparator = false;
+            offset = token.end;
+            continue;
+        }
+        suppressSeparator = false;
+        if (moduleDisplay == ModuleDisplay.omitted &&
+            token.kind == SignatureTokenKind.identifier &&
+            isModuleIdentifier(signature, token.end) &&
+            !aggregateIdentifier(token.source))
+        {
+            suppressSeparator = true;
+            offset = token.end;
+            continue;
+        }
         AnsiColor color;
         final switch (token.kind)
         {
@@ -231,7 +268,9 @@ void writeSignature(
                 color = isFunctionIdentifier(signature, token.end)
                     ? activeColors.functionName
                     : isModuleIdentifier(signature, token.end)
-                        ? activeColors.moduleName : activeColors.typeName;
+                        ? aggregateIdentifier(token.source)
+                            ? activeColors.typeName : activeColors.moduleName
+                        : activeColors.typeName;
                 break;
             case SignatureTokenKind.keyword:
                 color = activeColors.keyword;
@@ -289,5 +328,12 @@ nothrow @nogc unittest
     const plain = StackTraceColors.fromTheme(StackTraceTheme.plain);
     plainWriter.writeSignature("pkg.module.call(int)", &plain);
     assert(plainWriter.finish().ok);
-    assert(plainStorage[0 .. plainOutput.written].equal("pkg.module.call(int)"));
+    assert(plainStorage[0 .. plainOutput.written].equal("call(int)"));
+
+    char[128] fullStorage;
+    TestSink fullOutput = TestSink(fullStorage[]);
+    Writer fullWriter = Writer.fromSink(&testSink, &fullOutput);
+    fullWriter.writeSignature("pkg.module.Type.call(int)", &plain, ModuleDisplay.full);
+    assert(fullWriter.finish().ok);
+    assert(fullStorage[0 .. fullOutput.written].equal("pkg.module.Type.call(int)"));
 }

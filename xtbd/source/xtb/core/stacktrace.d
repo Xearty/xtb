@@ -336,7 +336,11 @@ void writeStackTrace(
                 demangledStorage[],
                 &functionDisplay,
             );
-            writer.writeSignature(functionDisplay, colors);
+            writer.writeSignature(
+                functionDisplay,
+                colors,
+                style.moduleDisplay,
+            );
         }
         else
         {

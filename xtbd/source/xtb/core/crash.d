@@ -6,7 +6,8 @@ import xtb.core.panic : PanicHook, panic, setPanicHandler;
 import xtb.core.print : Writer;
 import xtb.core.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
-import xtb.core.stacktrace_style : AnsiColor, StackTraceStyle, StackTraceTheme;
+import xtb.core.stacktrace_style : AnsiColor, ModuleDisplay, StackTraceStyle,
+    StackTraceTheme;
 import xtb.core.string : String;
 
 enum SignalTraceSafety
@@ -20,6 +21,7 @@ struct CrashHandlerOptions
     StackTraceTheme theme = StackTraceTheme.gruvbox;
     SignalTraceSafety signalSafety = SignalTraceSafety.bestEffort;
     bool tracePanics = true;
+    ModuleDisplay moduleDisplay = ModuleDisplay.omitted;
 }
 
 struct CrashHandlerScope
@@ -41,6 +43,7 @@ struct CrashHandlerScope
         requireInstall(!globalState.active, "crash handlers already installed");
         globalState.context = StackTraceContext.create(permanentExecutablePath);
         globalState.style = StackTraceStyle.fromTheme(options.theme);
+        globalState.style.moduleDisplay = options.moduleDisplay;
         globalState.signalSafety = options.signalSafety;
         globalState.panicTraceWritten = 0;
         version (Posix)

@@ -97,11 +97,14 @@ registration.
 
 Stack traces use caller-provided frame and text storage. Symbol capture,
 demangling, signature tokenization, styling, and rendering must not allocate.
-The D demangler is deliberately bounded: it writes into caller storage, keeps
-the readable qualified name when it cannot decode a complex type suffix, and
-falls back to the untouched linkage name when even the name is malformed or
-the buffer is exhausted. A diagnostic must never trust a length embedded in a
-mangled name without checking it against the remaining input.
+The D demangler implements relative identifier/type back-references, template
+types and values, qualifiers, arrays, pointers, functions, delegates, tuples,
+calling conventions, parameter storage classes, and function attributes. It
+writes the complete signature into caller storage and returns the untouched
+linkage name only when the symbol is malformed, is not D-mangled, or exhausts
+the destination. It must never shorten a valid signature with a placeholder.
+A diagnostic never trusts an encoded length, count, or relative offset without
+checking it against the remaining input and a fixed recursion limit.
 
 `StackTraceStyle` owns no text or allocation. Its `StackTraceColors` store
 enabled 8-bit ANSI indices, normally from a preset or `fromAnsi8`; escape
@@ -109,6 +112,13 @@ sequences are emitted directly into the destination writer. Rendering uses a
 plain theme when ANSI control sequences are inappropriate. Signature coloring
 is lexical presentation only; failure to classify a token never changes or
 discards the token's source bytes.
+
+`StackTraceStyle.moduleDisplay` defaults to `ModuleDisplay.omitted`. Rendering
+removes lowercase package/module prefixes while retaining aggregate ownership,
+so `examples.app.SceneLoader.load(ref xtb.core.Context)` is displayed as
+`SceneLoader.load(ref Context)`. Demangling itself always retains the complete
+qualified name. Set `moduleDisplay = ModuleDisplay.full` when disambiguation or
+copying the exact qualified signature is more important than compact output.
 
 Fatal diagnostics require explicit process startup:
 
