@@ -1,0 +1,21 @@
+name "xtbd"
+description "BetterC-first foundational libraries"
+license "BSL-1.0"
+targetType "staticLibrary"
+sourcePaths "source"
+buildOptions "betterC"
+dflags "-preview=dip1000" platform="ldc"
+
+configuration "library" {
+    targetType "staticLibrary"
+}
+
+configuration "core-demo" {
+    targetType "executable"
+    mainSourceFile "examples/core_demo.d"
+}
+
+configuration "print-demo" {
+    targetType "executable"
+    mainSourceFile "examples/print_demo.d"
+}

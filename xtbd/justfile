@@ -1,0 +1,31 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+source_files := `find source -name '*.d' -print | sort | tr '\n' ' '`
+
+default: check
+
+build:
+    mkdir -p build
+    ldc2 -betterC -boundscheck=on -wi -de -I=source -lib {{source_files}} -of=build/libxtbd.a
+
+test:
+    mkdir -p build
+    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source {{source_files}} tests/core_tests.d -of=build/core_tests
+    ./build/core_tests
+
+test-sanitize:
+    mkdir -p build
+    ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source {{source_files}} tests/core_tests.d -of=build/core_tests_asan
+    ./build/core_tests_asan
+
+examples:
+    mkdir -p build
+    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/core_demo.d -of=build/core_demo
+    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/print_demo.d -of=build/print_demo
+    ./build/core_demo
+    ./build/print_demo
+
+lint:
+    dscanner lint --config dscanner.ini --styleCheck source tests examples
+
+check: lint build test examples
