@@ -261,9 +261,60 @@ bool tryInsert(T)(ref Array!T array, size_t index, T value) nothrow @nogc
     return true;
 }
 
+bool tryInsert(T)(
+    ref Array!T array,
+    size_t index,
+    scope const(T)[] values,
+) nothrow @nogc
+{
+    require(index <= array.length_, "Array insert index out of bounds");
+    if (values.length > size_t.max - array.length_)
+        return false;
+
+    bool aliasesArray;
+    if (values.length != 0 && array.data_ !is null)
+    {
+        const sourceAddress = cast(size_t) values.ptr;
+        const beginAddress = cast(size_t) array.data_;
+        const endAddress = beginAddress + array.length_ * T.sizeof;
+        aliasesArray = sourceAddress >= beginAddress && sourceAddress < endAddress;
+        if (aliasesArray)
+        {
+            const byteOffset = sourceAddress - beginAddress;
+            if (byteOffset % T.sizeof != 0 ||
+                values.length > array.length_ - byteOffset / T.sizeof)
+                return false;
+            return false;
+        }
+    }
+
+    const oldLength = array.length_;
+    const newLength = oldLength + values.length;
+    if (!array.tryReserve(newLength))
+        return false;
+    const following = oldLength - index;
+    if (following != 0)
+        memmove(array.data_ + index + values.length,
+            array.data_ + index, following * T.sizeof);
+
+    if (values.length != 0)
+    {
+        memmove(array.data_ + index, values.ptr, values.length * T.sizeof);
+    }
+    array.length_ = newLength;
+    return true;
+}
+
 void insert(T)(ref Array!T array, size_t index, T value) nothrow @nogc
 {
     if (!array.tryInsert(index, value))
+        panic("Array allocation failed");
+}
+
+void insert(T)(ref Array!T array, size_t index, scope const(T)[] values)
+    nothrow @nogc
+{
+    if (!array.tryInsert(index, values))
         panic("Array allocation failed");
 }
 
