@@ -3,6 +3,8 @@ module xtb.core.print;
 import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
 import xtb.core.string : String, StringBuf, append, clear, equal;
+import xtb.core.memory : Allocator, tryAllocate;
+import xtb.core.panic : panic, require;
 
 alias Sink = size_t function(void* context, scope String bytes) nothrow @nogc;
 
@@ -277,6 +279,50 @@ BufferWriteResult formatBuffer(string pattern, Args...)(
         state.written,
         state.required,
     );
+}
+
+bool tryFormatString(string pattern, Args...)(
+    Allocator* allocator,
+    String* output,
+    auto ref Args args,
+) nothrow @nogc
+{
+    require(output !is null, "String output pointer is null");
+    char[] emptyDestination;
+    const measured = formatBuffer!pattern(emptyDestination, args);
+    if (measured.required == size_t.max)
+        return false;
+    char* destination = allocator.tryAllocate!char(measured.required + 1);
+    if (destination is null)
+        return false;
+    const formatted = formatBuffer!pattern(
+        destination[0 .. measured.required + 1],
+        args,
+    );
+    if (!formatted.ok || formatted.truncated)
+    {
+        (*allocator)(
+            allocator,
+            0,
+            destination,
+            measured.required + 1,
+            char.alignof,
+        );
+        return false;
+    }
+    *output = destination[0 .. formatted.written];
+    return true;
+}
+
+String formatString(string pattern, Args...)(
+    Allocator* allocator,
+    auto ref Args args,
+) nothrow @nogc
+{
+    String result;
+    if (!tryFormatString!pattern(allocator, &result, args))
+        panic("String formatting failed");
+    return result;
 }
 
 bool flushStdout() nothrow @nogc
@@ -652,7 +698,7 @@ private size_t nextSpecial(string pattern, size_t start)
 
 nothrow @nogc unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.memory : deallocate, mallocAllocator;
 
     StringBuf buffer = StringBuf.create(mallocAllocator());
     buffer.writeTo("answer=", 42, ", hex=", hexadecimal(255));
@@ -668,4 +714,12 @@ nothrow @nogc unittest
     assert(result.written == 7);
     assert(result.required == 9);
     assert(fixedBuffer[7] == '\0');
+
+    String allocated = formatString!"{}:{}"(mallocAllocator(), "item", 9);
+    assert(allocated.equal("item:9"));
+    mallocAllocator().deallocate(
+        cast(void*) allocated.ptr,
+        allocated.length + 1,
+        char.alignof,
+    );
 }
