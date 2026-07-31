@@ -258,6 +258,27 @@ BufferWriteResult writeBuffer(Args...)(char[] destination, auto ref Args args)
     );
 }
 
+BufferWriteResult formatBuffer(string pattern, Args...)(
+    char[] destination,
+    auto ref Args args,
+) nothrow @nogc
+{
+    FixedBufferState state;
+    state.destination = destination;
+    if (destination.length != 0)
+        destination[0] = '\0';
+
+    Writer writer = Writer.fromSink(&fixedBufferSink, &state);
+    writeFormat!(pattern, 0, 0)(writer, args);
+    const result = writer.finish();
+    return BufferWriteResult(
+        result.ok && !state.overflow,
+        state.overflow || state.required > state.written,
+        state.written,
+        state.required,
+    );
+}
+
 bool flushStdout() nothrow @nogc
 {
     return fflush(cast(FILE*) stdout) == 0;

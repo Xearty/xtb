@@ -22,13 +22,13 @@ enum notFound = size_t.max;
 alias SplitPredicate = size_t function(String rest, void* context)
     nothrow @nogc;
 
-String fromCString(scope const(char)* value) nothrow @system @nogc
+String fromCString(const(char)* value) nothrow @system @nogc
 {
     require(value !is null, "null C string");
     return value[0 .. strlen(value)];
 }
 
-bool tryFromCString(scope const(char)* value, String* output)
+bool tryFromCString(const(char)* value, String* output)
     nothrow @system @nogc
 {
     require(output !is null, "String output pointer is null");
