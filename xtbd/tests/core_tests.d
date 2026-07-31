@@ -12,6 +12,7 @@ import xtb.core.list;
 import xtb.core.logger;
 import xtb.core.string;
 import xtb.core.print;
+import xtb.core.stacktrace;
 
 version (Posix)
 {
@@ -111,6 +112,8 @@ extern(C) int main(int argumentCount, char** arguments)
     static foreach (testFunction; __traits(getUnitTests, xtb.core.string))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.print))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.stacktrace))
         testFunction();
 
     version (Posix)

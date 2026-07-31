@@ -12,3 +12,4 @@ public import xtb.core.list;
 public import xtb.core.string;
 public import xtb.core.print;
 public import xtb.core.logger;
+public import xtb.core.stacktrace;

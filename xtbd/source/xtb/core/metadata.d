@@ -5,7 +5,7 @@ enum versionMinor = 1;
 enum versionPatch = 0;
 enum versionString = "0.1.0";
 
-version (Linux)
+version (linux)
     enum operatingSystem = "linux";
 else version (OSX)
     enum operatingSystem = "macos";

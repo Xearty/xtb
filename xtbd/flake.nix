@@ -25,6 +25,7 @@
         version = "0.1.0";
         src = self;
         nativeBuildInputs = [pkgs.ldc];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.libbacktrace];
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
@@ -53,18 +54,22 @@
         version = "0.1.0";
         src = self;
         nativeBuildInputs = [pkgs.ldc pkgs.clang];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.libbacktrace];
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
           ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source \
             $(find source -name '*.d' -print | sort) tests/core_tests.d \
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
             -of=core-tests
           ./core-tests
           clang -std=c11 -Wall -Wextra -Werror \
             -c tests/abi_allocator.c -o abi-allocator-c.o
           ldc2 -betterC -boundscheck=on -wi -de -I=source \
             $(find source -name '*.d' -print | sort) \
-            tests/abi_allocator.d abi-allocator-c.o -of=abi-allocator
+            tests/abi_allocator.d abi-allocator-c.o \
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
+            -of=abi-allocator
           ./abi-allocator
           runHook postBuild
         '';
@@ -77,6 +82,14 @@
 
     devShells = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
+      linkedBacktrace =
+        if pkgs.stdenv.isLinux
+        then
+          pkgs.runCommand "libbacktrace-linked" {} ''
+            mkdir -p $out/lib
+            ln -s ${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0 $out/lib/libbacktrace.so
+          ''
+        else pkgs.libbacktrace;
     in {
       default = pkgs.mkShell {
         name = "xtbd";
@@ -90,9 +103,13 @@
           pkg-config
           clang-tools
           lldb
+          linkedBacktrace
         ];
 
         shellHook = ''
+          export XTB_LIBBACKTRACE=${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0
+          export LIBRARY_PATH=${linkedBacktrace}/lib''${LIBRARY_PATH:+:}$LIBRARY_PATH
+          export LD_LIBRARY_PATH=${pkgs.libbacktrace}/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
           echo "xtbd BetterC shell: $(ldc2 --version | head -n 1)"
         '';
       };

@@ -1,6 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 source_files := `find source -name '*.d' -print | sort | tr '\n' ' '`
+platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
 
 default: check
 
@@ -10,18 +11,18 @@ build:
 
 test:
     mkdir -p build
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source {{source_files}} tests/core_tests.d -of=build/core_tests
+    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests
     ./build/core_tests
 
 test-sanitize:
     mkdir -p build
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source {{source_files}} tests/core_tests.d -of=build/core_tests_asan
+    ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
     ./build/core_tests_asan
 
 test-ubsan:
     mkdir -p build
     if ldc2 -betterC -fsanitize=undefined -c source/xtb/core/types.d -of=build/ubsan_probe.o >/dev/null 2>&1; then \
-        ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source {{source_files}} tests/core_tests.d -of=build/core_tests_ubsan; \
+        ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
         ./build/core_tests_ubsan; \
     else \
         echo "UBSan is not supported by this LDC build; skipped"; \
@@ -30,15 +31,17 @@ test-ubsan:
 test-abi:
     mkdir -p build
     clang -std=c11 -Wall -Wextra -Werror -c tests/abi_allocator.c -o build/abi_allocator_c.o
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} tests/abi_allocator.d build/abi_allocator_c.o -of=build/abi_allocator
+    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} tests/abi_allocator.d build/abi_allocator_c.o {{platform_libs}} -of=build/abi_allocator
     ./build/abi_allocator
 
 examples:
     mkdir -p build
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/core_demo.d -of=build/core_demo
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/print_demo.d -of=build/print_demo
+    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/core_demo.d {{platform_libs}} -of=build/core_demo
+    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/print_demo.d {{platform_libs}} -of=build/print_demo
+    ldc2 -betterC -g -boundscheck=on -wi -de -I=source {{source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
     ./build/core_demo
     ./build/print_demo
+    ./build/stacktrace_demo
 
 lint:
     dscanner lint --config dscanner.ini --styleCheck source tests examples

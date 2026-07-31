@@ -5,6 +5,7 @@ targetType "staticLibrary"
 sourcePaths "source"
 buildOptions "betterC"
 dflags "-preview=dip1000" platform="ldc"
+libs "backtrace" platform="linux"
 
 configuration "library" {
     targetType "staticLibrary"
@@ -18,4 +19,9 @@ configuration "core-demo" {
 configuration "print-demo" {
     targetType "executable"
     mainSourceFile "examples/print_demo.d"
+}
+
+configuration "stacktrace-demo" {
+    targetType "executable"
+    mainSourceFile "examples/stacktrace_demo.d"
 }
