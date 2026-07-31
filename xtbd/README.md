@@ -28,3 +28,6 @@ module such as `xtb.core.arena`. All consuming targets must also compile with
 `-betterC`. See `examples/core_demo.d` and `examples/print_demo.d` for complete
 runnable programs, and `docs/architecture.md` for ownership and scratch-space
 contracts.
+
+The remaining C++ core capability audit and proposed implementation milestone
+are maintained in `docs/core-gap-analysis.md`.
