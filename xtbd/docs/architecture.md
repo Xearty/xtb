@@ -93,6 +93,52 @@ Executable entry points are `extern(C) int main(int argc, char** argv)` (or the
 platform equivalent). Startup is explicit: no module constructors or implicit
 registration.
 
+### Diagnostics and fatal crashes
+
+Stack traces use caller-provided frame and text storage. Symbol capture,
+demangling, signature tokenization, styling, and rendering must not allocate.
+The D demangler is deliberately bounded: it writes into caller storage, keeps
+the readable qualified name when it cannot decode a complex type suffix, and
+falls back to the untouched linkage name when even the name is malformed or
+the buffer is exhausted. A diagnostic must never trust a length embedded in a
+mangled name without checking it against the remaining input.
+
+`StackTraceStyle` owns no text or allocation. Its `StackTraceColors` store
+enabled 8-bit ANSI indices, normally from a preset or `fromAnsi8`; escape
+sequences are emitted directly into the destination writer. Rendering uses a
+plain theme when ANSI control sequences are inappropriate. Signature coloring
+is lexical presentation only; failure to classify a token never changes or
+discards the token's source bytes.
+
+Fatal diagnostics require explicit process startup:
+
+```d
+scope CrashHandlerScope crashes = CrashHandlerScope.install(argv[0]);
+```
+
+There are no module constructors. Installation is process-global, must happen
+before application worker threads start, and a second simultaneous scope is a
+programming error. Scope destruction restores the previous panic and signal
+handlers. A panic occurs in ordinary execution context, so its hook may use
+libbacktrace and the complete styled renderer before `abort` terminates the
+process.
+
+POSIX fatal-signal handling has a stricter contract. `write`, `_exit`, and the
+signal metadata path are async-signal-safe; libbacktrace, allocation, stdio,
+logging, locks, and general symbolization are not. `SignalTraceSafety.strict`
+therefore prints the faulting program counter from `ucontext` and stops.
+`bestEffort`, the ergonomic default, additionally invokes the platform stack
+unwinder after warming it during installation. It often produces useful raw
+program counters but cannot be guaranteed deadlock-free after arbitrary memory
+corruption. This tradeoff is explicit in the option type. Signal output never
+calls the D demangler, allocator, logger, `Writer`, or libc buffered I/O.
+
+After reporting, the handler restores normal fatal-signal semantics by
+re-delivering the original signal. This preserves the conventional exit status
+and core-dump behavior. Handle only crash signals (`SIGABRT`, `SIGBUS`,
+`SIGFPE`, `SIGILL`, and `SIGSEGV`); do not reinterpret interactive or orderly
+termination signals as crashes.
+
 ### Memory and ownership
 
 Allocation is a dependency. Preserve the useful shape of the C++ allocator:

@@ -6,6 +6,12 @@ builders, read-only `String` views, intrusive lists, panic/logging facilities,
 allocation-free formatted output, structured logging, panic contracts, and
 explicit caller-storage-backed stack traces.
 
+Stack traces include bounded D demangling, allocation-free signature coloring,
+configurable ANSI themes, and explicitly installed panic/fatal-signal handlers.
+See `examples/stacktrace_demo.d` and the diagnostics section of
+`docs/architecture.md` for the safety tradeoff between strict and best-effort
+signal unwinding.
+
 The project is independent from the adjacent C++ sources. Public modules live
 under `source/xtb/core`, focused unit tests are colocated with those modules,
 and `tests/core_tests.d` is the explicit BetterC test runner.

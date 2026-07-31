@@ -165,6 +165,15 @@ Scratch-space tests additionally verify:
   and cross-thread use panic in tests that deliberately violate those
   contracts.
 
+Stack-trace tests use synthetic signatures to cover valid D linkage names,
+truncated length fields, unsupported encodings, empty output buffers, and ANSI
+versus plain rendering. Run crash handlers only in death-test subprocesses.
+The strict signal mode is the deterministic test target: assert nonzero signal
+termination and capture stderr when exact diagnostics matter. Best-effort
+unwinding is an integration smoke test rather than a deterministic assertion,
+because unwinder behavior varies with architecture, optimization, unwind
+tables, and the instruction at which the signal arrived.
+
 ## Regression tests and fixtures
 
 A bug fix starts with the smallest test that fails for the reported reason.
@@ -193,6 +202,13 @@ just test-sanitize   # BetterC runner under AddressSanitizer
 just examples        # compile and run public consumer examples
 just check           # lint, build, test, and examples
 ```
+
+D-Scanner 0.15.2's static-analysis visitor does not terminate on the
+allocation-free signature styling module, although its lexer and parser accept
+the module immediately. Until that upstream defect is fixed, `just lint` runs
+D-Scanner's syntax checker on `stacktrace_style.d` and all configured static
+analysis checks on every other D file. LDC still compiles the style module with
+the same BetterC warnings/deprecations policy in every build and test command.
 
 Keep formatting consistent with the surrounding modules and use DScanner for
 syntax and style enforcement. Do not mix a repository-wide formatting rewrite

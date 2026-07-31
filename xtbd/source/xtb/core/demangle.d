@@ -289,7 +289,8 @@ nothrow @nogc unittest
     assert(!tryDemangleD("_D4mainFZi", empty[], &result));
 
     assert(tryDemangleD(
-        "_D8examples15stacktrace_demo16buildRenderGraphFNbNiKS3xtb4core10stacktrace17StackTraceContextKSQDpQDj12AssetRequestPiZi",
+        "_D8examples15stacktrace_demo16buildRenderGraphFNbNiKS3xtb4core" ~
+            "10stacktrace17StackTraceContextKSQDpQDj12AssetRequestPiZi",
         storage[],
         &result,
     ));

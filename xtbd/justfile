@@ -1,6 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 source_files := `find source -name '*.d' -print | sort | tr '\n' ' '`
+lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/core/stacktrace_style.d' -print | sort | tr '\n' ' '`
 platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
 
 default: check
@@ -44,6 +45,7 @@ examples:
     ./build/stacktrace_demo
 
 lint:
-    dscanner lint --config dscanner.ini --styleCheck source tests examples
+    dscanner --syntaxCheck source/xtb/core/stacktrace_style.d
+    dscanner lint --config dscanner.ini --styleCheck {{lint_files}}
 
 check: lint build test test-abi test-ubsan examples
