@@ -417,3 +417,66 @@ nothrow @nogc unittest
         assert(trace.frames.length != 0 || trace.backendError);
     }
 }
+
+version (unittest)
+{
+    private struct TraceCapture
+    {
+        char[2048] bytes;
+        size_t length;
+    }
+
+    private size_t traceCaptureSink(void* context, scope String bytes)
+        nothrow @nogc
+    {
+        TraceCapture* capture = cast(TraceCapture*) context;
+        const available = capture.bytes.length - capture.length;
+        const amount = bytes.length < available ? bytes.length : available;
+        memcpy(capture.bytes.ptr + capture.length, bytes.ptr, amount);
+        capture.length += amount;
+        return amount;
+    }
+}
+
+nothrow @nogc unittest
+{
+    import xtb.core.string : equal;
+
+    StackFrame[1] frames = [StackFrame(
+        0x1234,
+        "main.d",
+        "_D3app3runFiZi",
+        9,
+    )];
+    StackTrace trace;
+    trace.frames = frames[];
+    StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.plain);
+    TraceCapture capture;
+    Writer writer = Writer.fromSink(&traceCaptureSink, &capture);
+    writer.writeStackTrace(&trace, &style);
+    assert(writer.finish().ok);
+    assert(capture.bytes[0 .. capture.length].equal(
+        "Stack trace (most recent call first):\n" ~
+        "[0] run(int)\n" ~
+        "    ↳ main.d:9\n",
+    ));
+}
+
+version (linux)
+nothrow @nogc unittest
+{
+    CaptureState state;
+    StackFrame[1] frames;
+    char[3] text;
+    state.frames = frames[];
+    state.text = text[];
+    assert(collectFrame(&state, 1, "file.d".ptr, 7, "function".ptr) == 0);
+    assert(state.frameCount == 1);
+    assert(state.textTruncated);
+    assert(state.textRequired == "file.d".length + "function".length);
+    assert(frames[0].filename.length == 0);
+    assert(frames[0].functionName.length == 0);
+
+    assert(collectFrame(&state, 2, null, 0, null) == 1);
+    assert(state.framesTruncated);
+}

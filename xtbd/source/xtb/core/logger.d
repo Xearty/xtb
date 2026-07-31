@@ -283,6 +283,30 @@ version (unittest)
         capture.length += amount;
         return amount == record.message.length;
     }
+
+    private bool rejectSink(void*, scope const LogRecord*) nothrow @nogc
+    {
+        return false;
+    }
+
+    private bool rejectFlush(void*) nothrow @nogc
+    {
+        return false;
+    }
+
+    private struct RecursiveCapture
+    {
+        Logger* logger;
+        LogStatus nestedStatus;
+    }
+
+    private bool recursiveSink(void* context, scope const LogRecord*)
+        nothrow @nogc
+    {
+        RecursiveCapture* capture = cast(RecursiveCapture*) context;
+        capture.nestedStatus = (*capture.logger).log(LogLevel.error, "nested").status;
+        return true;
+    }
 }
 
 nothrow @nogc unittest
@@ -307,4 +331,22 @@ nothrow @nogc unittest
     result = logger.log(LogLevel.warning, "message longer than buffer");
     assert(result.status == LogStatus.truncated && result.required > result.written);
     assert(logger.flush());
+
+    Logger invalid;
+    assert(invalid.log(LogLevel.info, "ignored").status == LogStatus.invalidLogger);
+    assert(!invalid.flush());
+
+    logger.setSink(&rejectSink, null, &rejectFlush);
+    assert(logger.log(LogLevel.error, "rejected").status == LogStatus.sinkFailed);
+    assert(!logger.flush());
+
+    RecursiveCapture recursive;
+    Logger recursiveLogger = Logger.create(
+        &recursiveSink,
+        &recursive,
+        messageBuffer[],
+    );
+    recursive.logger = &recursiveLogger;
+    assert(recursiveLogger.log(LogLevel.error, "outer").status == LogStatus.delivered);
+    assert(recursive.nestedStatus == LogStatus.recursive);
 }
