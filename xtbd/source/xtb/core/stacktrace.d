@@ -1,8 +1,11 @@
 module xtb.core.stacktrace;
 
 import core.stdc.string : memcpy, strlen;
+import xtb.core.demangle : tryDemangleD;
 import xtb.core.print : Writer, hexadecimal;
 import xtb.core.string : String;
+import xtb.core.stacktrace_style : AnsiColor, StackTraceColors, StackTraceStyle,
+    StackTraceTheme, beginAnsi, endAnsi, writeSignature;
 
 struct StackFrame
 {
@@ -262,44 +265,133 @@ StackTrace capture(
     return result;
 }
 
-void writeStackTrace(ref Writer writer, scope const StackTrace* trace)
+private size_t decimalDigits(size_t value) pure nothrow @safe @nogc
+{
+    size_t result = 1;
+    while (value >= 10)
+    {
+        value /= 10;
+        ++result;
+    }
+    return result;
+}
+
+private void beginColor(ref Writer writer, AnsiColor color) nothrow @nogc
+{
+    writer.beginAnsi(color);
+}
+
+private void endColor(
+    ref Writer writer,
+    scope const StackTraceColors*,
+    AnsiColor color,
+) nothrow @nogc
+{
+    writer.endAnsi(color);
+}
+
+void writeStackTrace(
+    ref Writer writer,
+    scope const StackTrace* trace,
+    scope const StackTraceStyle* requestedStyle = null,
+)
     nothrow @nogc
 {
+    StackTraceStyle defaultStyle = StackTraceStyle.fromTheme(
+        StackTraceTheme.gruvbox,
+    );
+    const style = requestedStyle is null ? &defaultStyle : requestedStyle;
+    const colors = &style.colors;
     if (trace is null)
     {
+        beginColor(writer, colors.warning);
         writer.put("<null stack trace>\n");
+        endColor(writer, colors, colors.warning);
         return;
     }
+    beginColor(writer, colors.decoration);
+    writer.put("Stack trace");
+    endColor(writer, colors, colors.decoration);
+    writer.put(" (most recent call first):\n");
+    const indexWidth = trace.frames.length == 0
+        ? 1 : decimalDigits(trace.frames.length - 1);
     foreach (index, frame; trace.frames)
     {
+        writer.repeat(' ', indexWidth - decimalDigits(index));
+        beginColor(writer, colors.decoration);
         writer.put('[');
+        endColor(writer, colors, colors.decoration);
+        beginColor(writer, colors.lineNumber);
         writer.value(index);
+        endColor(writer, colors, colors.lineNumber);
+        beginColor(writer, colors.decoration);
         writer.put("] ");
+        endColor(writer, colors, colors.decoration);
         if (frame.functionName.length != 0)
-            writer.put(frame.functionName);
+        {
+            char[2048] demangledStorage;
+            String functionDisplay;
+            cast(void) tryDemangleD(
+                frame.functionName,
+                demangledStorage[],
+                &functionDisplay,
+            );
+            writer.writeSignature(functionDisplay, colors);
+        }
         else
         {
+            beginColor(writer, colors.warning);
+            writer.put("<unknown symbol>");
+            endColor(writer, colors, colors.warning);
+        }
+        if (style.showProgramCounter || frame.functionName.length == 0)
+        {
+            writer.put("  ");
+            beginColor(writer, colors.address);
             writer.put("pc=");
             writer.value(hexadecimal(cast(size_t) frame.programCounter));
+            endColor(writer, colors, colors.address);
         }
         if (frame.filename.length != 0)
         {
-            writer.put("\n    at ");
+            writer.put('\n');
+            writer.repeat(' ', indexWidth + 3);
+            beginColor(writer, colors.decoration);
+            writer.put("↳ ");
+            endColor(writer, colors, colors.decoration);
+            beginColor(writer, colors.filePath);
             writer.put(frame.filename);
+            endColor(writer, colors, colors.filePath);
             if (frame.line != 0)
             {
+                beginColor(writer, colors.decoration);
                 writer.put(':');
+                endColor(writer, colors, colors.decoration);
+                beginColor(writer, colors.lineNumber);
                 writer.value(frame.line);
+                endColor(writer, colors, colors.lineNumber);
             }
         }
         writer.put('\n');
     }
     if (trace.framesTruncated)
+    {
+        beginColor(writer, colors.warning);
         writer.put("<additional frames omitted>\n");
+        endColor(writer, colors, colors.warning);
+    }
     if (trace.textTruncated)
+    {
+        beginColor(writer, colors.warning);
         writer.put("<some symbols omitted: text storage exhausted>\n");
+        endColor(writer, colors, colors.warning);
+    }
     if (trace.backendError && trace.frames.length == 0)
+    {
+        beginColor(writer, colors.warning);
         writer.put("<stack trace unavailable>\n");
+        endColor(writer, colors, colors.warning);
+    }
 }
 
 nothrow @nogc unittest

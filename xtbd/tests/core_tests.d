@@ -12,7 +12,10 @@ import xtb.core.list;
 import xtb.core.logger;
 import xtb.core.string;
 import xtb.core.print;
+import xtb.core.demangle;
+import xtb.core.stacktrace_style;
 import xtb.core.stacktrace;
+import xtb.core.crash;
 
 version (Posix)
 {
@@ -69,6 +72,17 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         ThreadContextScope context = ThreadContextScope.acquire(1, 64);
         ScratchScope first = ScratchScope.acquire();
         ScratchScope.acquire(first.allocator);
+    }
+    version (Posix)
+    if (cStringEqual(name, "crash-signal"))
+    {
+        import core.stdc.signal : SIGSEGV, raise;
+
+        CrashHandlerOptions options;
+        options.signalSafety = SignalTraceSafety.strict;
+        scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
+        raise(SIGSEGV);
+        panic("fatal signal unexpectedly returned");
     }
     version (Posix)
     if (cStringEqual(name, "cross-thread-pop"))
@@ -133,6 +147,10 @@ extern(C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.print))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.demangle))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.stacktrace_style))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.stacktrace))
         testFunction();
 
@@ -144,6 +162,7 @@ extern(C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "non-lifo-pop");
         expectDeath(arguments[0], "scratch-conflict");
         expectDeath(arguments[0], "cross-thread-pop");
+        expectDeath(arguments[0], "crash-signal");
     }
     return 0;
 }
