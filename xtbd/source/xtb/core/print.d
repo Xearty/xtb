@@ -633,7 +633,7 @@ nothrow @nogc unittest
 {
     import xtb.core.memory : mallocAllocator;
 
-    StringBuf buffer = StringBuf.init(mallocAllocator());
+    StringBuf buffer = StringBuf.create(mallocAllocator());
     buffer.writeTo("answer=", 42, ", hex=", hexadecimal(255));
     assert(buffer.view.equal("answer=42, hex=0xff"));
     buffer.clear();

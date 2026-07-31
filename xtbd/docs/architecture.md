@@ -238,7 +238,7 @@ mutation rule. Other mutable parameters remain pointers. Function names are
 short verbs; never prefix every operation with the type name.
 
 ```d
-StringBuf buffer = StringBuf.init(allocator);
+StringBuf buffer = StringBuf.create(allocator);
 buffer.append(prefix);
 buffer.appendByte(':');
 buffer.append(value);
@@ -445,7 +445,7 @@ String makePath(
 {
     ScratchScope scratch = ScratchScope.acquire(outputAllocator);
 
-    StringBuf temporary = StringBuf.init(scratch.allocator());
+    StringBuf temporary = StringBuf.create(scratch.allocator());
     temporary.append(left);
     temporary.append('/');
     temporary.append(right);
@@ -518,8 +518,13 @@ values, nullability, and integer overflow before entering such an adapter.
 - Keep the name `Array!T` for the allocator-owning growable container. Native
   D slices remain the borrowed representation. `Array!T` is non-copyable and
   its mutating free functions use a `ref Array!T` UFCS receiver.
-- Make state transitions explicit with verbs such as `init`, `reset`,
+- Make state transitions explicit with verbs such as `create`, `reset`,
   `read`, `finish`, and `deinit`.
+- Use `create(allocator)` for resource-owning factories and
+  `withCapacity(allocator, capacity)` when preallocation is requested. Reserve
+  `fromX` for conversion/copy factories and `acquire` for scoped resources.
+  Never declare a member named `init`: D reserves `Type.init` for the type's
+  default-initialized value, and generic code must remain able to use it.
 - Use `scope const` for non-escaping read-only inputs. Use pointers for mutable
   parameters by default. The first receiver of a mutating UFCS operation may
   use `ref`, allowing `buffer.append(value)` for `StringBuf`, `Array!T`, and

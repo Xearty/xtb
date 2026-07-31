@@ -112,7 +112,7 @@ after partial failure. In this project pay particular attention to:
 - exact-capacity and one-past-capacity allocator/container operations;
 - malformed, truncated, and adversarial BMP/JSON input;
 - short reads/writes and operating-system error mapping;
-- repeated `init`/`deinit`, zero-state cleanup, and allocator failure;
+- repeated `create`/`deinit`, zero-state cleanup, and allocator failure;
 - foreign enum/range validation and callback user-context preservation.
 
 Allocator-aware code should be tested with a small instrumented allocator that

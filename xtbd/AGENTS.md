@@ -30,8 +30,12 @@ Before changing public APIs, inspect their existing call sites.
   modules and document its invariants.
 - Model fallible operations with explicit result/status values. Do not encode
   expected failures as assertions.
-- Give every owning struct explicit `init`/`deinit` behavior, make zero state
+- Give every owning struct explicit `create`/`deinit` behavior, make zero state
   valid when practical, and document whether copying is allowed.
+- Do not declare a member named `init`; preserve D's built-in `Type.init`
+  property. Use `create`, `withCapacity`, `fromX`, or `acquire` according to
+  whether the operation constructs, preallocates, converts, or acquires a
+  scoped resource.
 - Use `snake_case` for modules and filenames, `PascalCase` for types, and
   `camelCase` for functions and variables. Follow D's standard naming for
   compile-time values and enum members unless a foreign ABI dictates names.

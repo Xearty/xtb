@@ -307,18 +307,25 @@ struct StringBuf
 
     @disable this(this);
 
-    static StringBuf init(Allocator* allocator, size_t initialCapacity = 0)
+    static StringBuf create(Allocator* allocator) nothrow @nogc
+    {
+        StringBuf result;
+        result.bytes_ = Array!char.create(allocator);
+        return result;
+    }
+
+    static StringBuf withCapacity(Allocator* allocator, size_t capacity)
         nothrow @nogc
     {
         StringBuf result;
-        result.bytes_ = Array!char.init(allocator, initialCapacity);
+        result.bytes_ = Array!char.withCapacity(allocator, capacity);
         return result;
     }
 
     static StringBuf fromString(Allocator* allocator, String value)
         nothrow @nogc
     {
-        StringBuf result = init(allocator, value.length);
+        StringBuf result = withCapacity(allocator, value.length);
         result.append(value);
         return result;
     }

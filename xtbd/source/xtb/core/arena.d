@@ -25,7 +25,7 @@ struct Arena
 
     @disable this(this);
 
-    static Arena init(
+    static Arena create(
         Allocator* backingAllocator,
         size_t defaultChunkSize = 64 * 1024,
     ) nothrow @nogc
@@ -294,7 +294,7 @@ nothrow @nogc unittest
 {
     import xtb.core.memory : mallocAllocator;
 
-    Arena arena = Arena.init(mallocAllocator(), 64);
+    Arena arena = Arena.create(mallocAllocator(), 64);
     int* persistent = cast(int*) arena.allocate(int.sizeof, int.alignof);
     *persistent = 42;
 

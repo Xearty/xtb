@@ -16,13 +16,19 @@ struct Array(T)
 
     @disable this(this);
 
-    static Array init(Allocator* allocator, size_t initialCapacity = 0)
-        nothrow @nogc
+    static Array create(Allocator* allocator) nothrow @nogc
     {
         require(allocator !is null, "Array requires an allocator");
         Array result;
         result.allocator_ = allocator;
-        if (initialCapacity != 0 && !result.tryReserve(initialCapacity))
+        return result;
+    }
+
+    static Array withCapacity(Allocator* allocator, size_t capacity)
+        nothrow @nogc
+    {
+        Array result = create(allocator);
+        if (capacity != 0 && !result.tryReserve(capacity))
             panic("Array allocation failed");
         return result;
     }
@@ -226,7 +232,7 @@ nothrow @nogc unittest
 {
     import xtb.core.memory : mallocAllocator;
 
-    Array!int values = Array!int.init(mallocAllocator(), 1);
+    Array!int values = Array!int.withCapacity(mallocAllocator(), 1);
     values.append(1);
     int[3] more = [2, 3, 4];
     values.append(more[]);

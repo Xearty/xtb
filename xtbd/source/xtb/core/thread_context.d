@@ -47,7 +47,7 @@ struct ThreadContextScope
         context.ownerAllocator = backingAllocator;
         context.arenaCount = scratchArenaCount;
         foreach (i; 0 .. scratchArenaCount)
-            context.arenas[i] = Arena.init(backingAllocator, scratchChunkSize);
+            context.arenas[i] = Arena.create(backingAllocator, scratchChunkSize);
 
         tlsContext = context;
         ThreadContextScope result;
