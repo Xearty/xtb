@@ -3,6 +3,7 @@ module xtb.core.arena;
 import core.stdc.string : memcpy, memset;
 import xtb.core.memory : Allocator, allocate, deallocate;
 import xtb.core.panic : panic, require;
+import xtb.core.print : Writer;
 import xtb.core.types : addOverflows;
 
 private struct ArenaChunk
@@ -14,6 +15,34 @@ private struct ArenaChunk
     ubyte* data;
 }
 
+struct ArenaStats
+{
+    size_t usedBytes;
+    size_t reservedBytes;
+    size_t peakUsedBytes;
+    size_t chunkCount;
+
+    void formatTo(ref Writer writer) const nothrow @nogc
+    {
+        writer.put("ArenaStats(used=");
+        writer.value(usedBytes);
+        writer.put(", reserved=");
+        writer.value(reservedBytes);
+        writer.put(", peak=");
+        writer.value(peakUsedBytes);
+        writer.put(", chunks=");
+        writer.value(chunkCount);
+        writer.put(')');
+    }
+}
+
+private int tlsThreadMarker;
+
+private void* currentThreadToken() nothrow @nogc
+{
+    return &tlsThreadMarker;
+}
+
 struct Arena
 {
     Allocator allocator;
@@ -22,6 +51,11 @@ struct Arena
     private ArenaChunk* currentChunk;
     private size_t defaultChunkSize;
     private size_t scopeDepth;
+    private size_t usedBytes_;
+    private size_t peakUsedBytes_;
+    private size_t retentionLimit = size_t.max;
+    private size_t generation_ = 1;
+    private bool poisonRewoundMemory_;
 
     @disable this(this);
 
@@ -66,7 +100,11 @@ struct Arena
         }
 
         void* result = chunk.data + alignedOffset;
+        const occupied = alignedOffset + size - chunk.offset;
         chunk.offset = alignedOffset + size;
+        usedBytes_ += occupied;
+        if (usedBytes_ > peakUsedBytes_)
+            peakUsedBytes_ = usedBytes_;
         return result;
     }
 
@@ -85,6 +123,8 @@ struct Arena
         for (ArenaChunk* chunk = firstChunk; chunk !is null; chunk = chunk.next)
             chunk.offset = 0;
         currentChunk = firstChunk;
+        usedBytes_ = 0;
+        ++generation_;
     }
 
     void deinit() nothrow @nogc
@@ -108,6 +148,95 @@ struct Arena
         currentChunk = null;
         defaultChunkSize = 0;
         scopeDepth = 0;
+        usedBytes_ = 0;
+        peakUsedBytes_ = 0;
+        retentionLimit = size_t.max;
+        ++generation_;
+    }
+
+    ArenaStats stats() const pure nothrow @safe @nogc
+    {
+        ArenaStats result;
+        result.usedBytes = usedBytes_;
+        result.peakUsedBytes = peakUsedBytes_;
+        for (const(ArenaChunk)* chunk = firstChunk;
+            chunk !is null; chunk = chunk.next)
+        {
+            result.reservedBytes += chunk.capacity;
+            ++result.chunkCount;
+        }
+        return result;
+    }
+
+    void setRetentionLimit(size_t bytes) nothrow @nogc
+    {
+        retentionLimit = bytes;
+        if (scopeDepth == 0)
+            trimToRetentionLimit();
+    }
+
+    void setRewindPoisoning(bool enabled) nothrow @nogc
+    {
+        poisonRewoundMemory_ = enabled;
+    }
+
+    void trim() nothrow @nogc
+    {
+        require(scopeDepth == 0, "cannot trim arena with active temporary scopes");
+        ArenaChunk* keep = currentChunk;
+        if (keep is null)
+        {
+            releaseChunks(firstChunk);
+            firstChunk = null;
+            return;
+        }
+        releaseChunks(keep.next);
+        keep.next = null;
+    }
+
+    private void trimToRetentionLimit() nothrow @nogc
+    {
+        size_t reserved;
+        ArenaChunk* previous;
+        ArenaChunk* chunk = firstChunk;
+        while (chunk !is null)
+        {
+            if (chunk is currentChunk)
+                previous = chunk;
+            reserved += chunk.capacity;
+            chunk = chunk.next;
+        }
+        if (reserved <= retentionLimit || previous is null)
+            return;
+
+        chunk = previous.next;
+        while (chunk !is null && reserved > retentionLimit)
+        {
+            ArenaChunk* next = chunk.next;
+            reserved -= chunk.capacity;
+            backingAllocator.deallocate(
+                chunk,
+                chunk.allocationSize,
+                ArenaChunk.alignof,
+            );
+            chunk = next;
+        }
+        previous.next = chunk;
+    }
+
+    private void releaseChunks(ArenaChunk* first) nothrow @nogc
+    {
+        ArenaChunk* chunk = first;
+        while (chunk !is null)
+        {
+            ArenaChunk* next = chunk.next;
+            backingAllocator.deallocate(
+                chunk,
+                chunk.allocationSize,
+                ArenaChunk.alignof,
+            );
+            chunk = next;
+        }
     }
 
     private ArenaChunk* obtainChunk(size_t size, size_t alignment)
@@ -228,6 +357,9 @@ struct TempArena
     private ArenaChunk* chunk_;
     private size_t offset_;
     private size_t depth_;
+    private size_t usedBytes_;
+    private size_t generation_;
+    private void* threadToken_;
     private bool active_;
 
     @disable this(this);
@@ -257,6 +389,9 @@ TempArena push(Arena* arena) nothrow @nogc
     result.chunk_ = arena.currentChunk;
     result.offset_ = arena.currentChunk is null ? 0 : arena.currentChunk.offset;
     result.depth_ = ++arena.scopeDepth;
+    result.usedBytes_ = arena.usedBytes_;
+    result.generation_ = arena.generation_;
+    result.threadToken_ = currentThreadToken();
     result.active_ = true;
     return result;
 }
@@ -266,7 +401,26 @@ void pop(ref TempArena temporary) nothrow @nogc
     require(temporary.active_, "temporary arena already popped");
     Arena* arena = temporary.arena_;
     require(arena !is null, "temporary arena has no arena");
+    require(temporary.threadToken_ is currentThreadToken(),
+        "temporary arena popped on a different thread");
+    require(arena.generation_ == temporary.generation_,
+        "temporary arena checkpoint generation mismatch");
     require(arena.scopeDepth == temporary.depth_, "temporary arenas must pop in LIFO order");
+
+    if (arena.poisonRewoundMemory_)
+    {
+        ArenaChunk* chunk = temporary.chunk_ is null
+            ? arena.firstChunk : temporary.chunk_;
+        bool first = true;
+        for (; chunk !is null; chunk = chunk.next)
+        {
+            const begin = first && temporary.chunk_ !is null
+                ? temporary.offset_ : 0;
+            if (chunk.offset > begin)
+                memset(chunk.data + begin, 0xDD, chunk.offset - begin);
+            first = false;
+        }
+    }
 
     if (temporary.chunk_ is null)
     {
@@ -283,10 +437,16 @@ void pop(ref TempArena temporary) nothrow @nogc
     }
 
     --arena.scopeDepth;
+    arena.usedBytes_ = temporary.usedBytes_;
+    if (arena.scopeDepth == 0)
+        arena.trimToRetentionLimit();
     temporary.arena_ = null;
     temporary.chunk_ = null;
     temporary.offset_ = 0;
     temporary.depth_ = 0;
+    temporary.usedBytes_ = 0;
+    temporary.generation_ = 0;
+    temporary.threadToken_ = null;
     temporary.active_ = false;
 }
 
@@ -306,5 +466,16 @@ nothrow @nogc unittest
     inner.pop();
     outer.pop();
     assert(*persistent == 42);
+    assert(arena.stats.usedBytes >= int.sizeof);
+    assert(arena.stats.peakUsedBytes >= arena.stats.usedBytes);
+    assert(arena.stats.chunkCount >= 1);
+    arena.setRewindPoisoning(true);
+    TempArena poisoned = (&arena).push();
+    ubyte* bytes = cast(ubyte*) arena.allocate(8, 1);
+    bytes[0] = 1;
+    poisoned.pop();
+    assert(bytes[0] == 0xDD);
+    arena.setRetentionLimit(64);
+    arena.trim();
     arena.deinit();
 }
