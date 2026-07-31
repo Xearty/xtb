@@ -18,6 +18,21 @@ test-sanitize:
     ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source {{source_files}} tests/core_tests.d -of=build/core_tests_asan
     ./build/core_tests_asan
 
+test-ubsan:
+    mkdir -p build
+    if ldc2 -betterC -fsanitize=undefined -c source/xtb/core/types.d -of=build/ubsan_probe.o >/dev/null 2>&1; then \
+        ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source {{source_files}} tests/core_tests.d -of=build/core_tests_ubsan; \
+        ./build/core_tests_ubsan; \
+    else \
+        echo "UBSan is not supported by this LDC build; skipped"; \
+    fi
+
+test-abi:
+    mkdir -p build
+    clang -std=c11 -Wall -Wextra -Werror -c tests/abi_allocator.c -o build/abi_allocator_c.o
+    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} tests/abi_allocator.d build/abi_allocator_c.o -of=build/abi_allocator
+    ./build/abi_allocator
+
 examples:
     mkdir -p build
     ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/core_demo.d -of=build/core_demo
@@ -28,4 +43,4 @@ examples:
 lint:
     dscanner lint --config dscanner.ini --styleCheck source tests examples
 
-check: lint build test examples
+check: lint build test test-abi test-ubsan examples

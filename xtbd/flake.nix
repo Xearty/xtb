@@ -52,7 +52,7 @@
         pname = "xtbd-tests";
         version = "0.1.0";
         src = self;
-        nativeBuildInputs = [pkgs.ldc];
+        nativeBuildInputs = [pkgs.ldc pkgs.clang];
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
@@ -60,6 +60,12 @@
             $(find source -name '*.d' -print | sort) tests/core_tests.d \
             -of=core-tests
           ./core-tests
+          clang -std=c11 -Wall -Wextra -Werror \
+            -c tests/abi_allocator.c -o abi-allocator-c.o
+          ldc2 -betterC -boundscheck=on -wi -de -I=source \
+            $(find source -name '*.d' -print | sort) \
+            tests/abi_allocator.d abi-allocator-c.o -of=abi-allocator
+          ./abi-allocator
           runHook postBuild
         '';
         installPhase = ''
