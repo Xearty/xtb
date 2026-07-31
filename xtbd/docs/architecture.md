@@ -113,6 +113,15 @@ plain theme when ANSI control sequences are inappropriate. Signature coloring
 is lexical presentation only; failure to classify a token never changes or
 discards the token's source bytes.
 
+The preset catalog is `solar`, `warmAsh`, `zenburn`, `gruvbox`, `tokyoNight`,
+`nord`, `dracula`, `oneDark`, `monokai`, `catppuccinMocha`, `everforest`,
+`solarized`, `firewatch`, `mutedEarth`, `hokusaiMist`, and `harborDusk`.
+`experiment` intentionally remains an uncolored customization base, matching
+its currently unspecified palette, while `plain` is the explicit stable
+no-ANSI preset. Each preset and its colors must be declared in one
+`ThemeDefinition`; positional arrays keyed implicitly by enum order are not
+allowed.
+
 `StackTraceStyle.moduleDisplay` defaults to `ModuleDisplay.omitted`. Rendering
 removes lowercase package/module prefixes while retaining aggregate ownership,
 so `examples.app.SceneLoader.load(ref xtb.core.Context)` is displayed as

@@ -5,11 +5,23 @@ import xtb.core.string : String, equal;
 
 enum StackTraceTheme
 {
+    solar,
+    warmAsh,
+    zenburn,
     gruvbox,
     tokyoNight,
     nord,
     dracula,
+    oneDark,
+    monokai,
     catppuccinMocha,
+    everforest,
+    solarized,
+    firewatch,
+    mutedEarth,
+    hokusaiMist,
+    harborDusk,
+    experiment,
     plain,
 }
 
@@ -35,21 +47,10 @@ struct StackTraceColors
     static StackTraceColors fromTheme(StackTraceTheme theme)
         pure nothrow @safe @nogc
     {
-        final switch (theme)
-        {
-            case StackTraceTheme.gruvbox:
-                return fromAnsi8(214, 142, 108, 245, 208, 167, 250, 240, 244, 203);
-            case StackTraceTheme.tokyoNight:
-                return fromAnsi8(111, 117, 75, 244, 179, 204, 189, 238, 243, 203);
-            case StackTraceTheme.nord:
-                return fromAnsi8(110, 109, 146, 245, 180, 139, 252, 240, 244, 167);
-            case StackTraceTheme.dracula:
-                return fromAnsi8(84, 117, 141, 245, 228, 212, 255, 240, 244, 203);
-            case StackTraceTheme.catppuccinMocha:
-                return fromAnsi8(111, 216, 147, 243, 211, 211, 189, 238, 241, 203);
-            case StackTraceTheme.plain:
-                return StackTraceColors.init;
-        }
+        static foreach (definition; themeDefinitions)
+            if (theme == definition.theme)
+                return definition.colors;
+        assert(false, "invalid stack-trace theme");
     }
 
     static StackTraceColors fromAnsi8(
@@ -79,6 +80,55 @@ struct StackTraceColors
         );
     }
 }
+
+private struct ThemeDefinition
+{
+    StackTraceTheme theme;
+    StackTraceColors colors;
+}
+
+private enum themeDefinitions = [
+    ThemeDefinition(StackTraceTheme.solar,
+        StackTraceColors.fromAnsi8(220, 110, 81, 244, 203, 152, 252, 250, 250, 8)),
+    ThemeDefinition(StackTraceTheme.warmAsh,
+        StackTraceColors.fromAnsi8(220, 250, 245, 240, 203, 152, 252, 239, 247, 238)),
+    ThemeDefinition(StackTraceTheme.zenburn,
+        StackTraceColors.fromAnsi8(228, 187, 109, 240, 248, 223, 188, 239, 229, 237)),
+    ThemeDefinition(StackTraceTheme.gruvbox,
+        StackTraceColors.fromAnsi8(142, 214, 109, 244, 243, 208, 223, 241, 223, 239)),
+    ThemeDefinition(StackTraceTheme.tokyoNight,
+        StackTraceColors.fromAnsi8(111, 179, 117, 60, 60, 141, 146, 239, 110, 238)),
+    ThemeDefinition(StackTraceTheme.nord,
+        StackTraceColors.fromAnsi8(110, 186, 109, 240, 239, 139, 255, 238, 252, 237)),
+    ThemeDefinition(StackTraceTheme.dracula,
+        StackTraceColors.fromAnsi8(84, 228, 117, 61, 239, 212, 255, 238, 255, 237)),
+    ThemeDefinition(StackTraceTheme.oneDark,
+        StackTraceColors.fromAnsi8(75, 180, 73, 241, 240, 176, 249, 238, 249, 237)),
+    ThemeDefinition(StackTraceTheme.monokai,
+        StackTraceColors.fromAnsi8(148, 179, 81, 242, 242, 197, 255, 240, 252, 238)),
+    ThemeDefinition(StackTraceTheme.catppuccinMocha,
+        StackTraceColors.fromAnsi8(111, 216, 147, 243, 241, 211, 189, 238, 189, 237)),
+    ThemeDefinition(StackTraceTheme.everforest,
+        StackTraceColors.fromAnsi8(144, 180, 109, 245, 240, 174, 187, 239, 187, 238)),
+    ThemeDefinition(StackTraceTheme.solarized,
+        StackTraceColors.fromAnsi8(221, 116, 67, 241, 244, 208, 252, 239, 246, 237)),
+    ThemeDefinition(StackTraceTheme.firewatch,
+        StackTraceColors.fromAnsi8(208, 179, 68, 241, 160, 202, 252, 239, 247, 237)),
+    ThemeDefinition(StackTraceTheme.mutedEarth,
+        StackTraceColors.fromAnsi8(143, 180, 108, 244, 242, 137, 252, 240, 247, 238)),
+    ThemeDefinition(StackTraceTheme.hokusaiMist,
+        StackTraceColors.fromAnsi8(110, 179, 109, 244, 240, 140, 187, 238, 187, 237)),
+    ThemeDefinition(StackTraceTheme.harborDusk,
+        StackTraceColors.fromAnsi8(110, 180, 67, 242, 59, 215, 187, 240, 187, 238)),
+    ThemeDefinition(StackTraceTheme.experiment, StackTraceColors.init),
+    ThemeDefinition(StackTraceTheme.plain, StackTraceColors.init),
+];
+
+static assert(themeDefinitions.length == __traits(allMembers, StackTraceTheme).length);
+static foreach (leftIndex, left; themeDefinitions)
+    static foreach (rightIndex, right; themeDefinitions)
+        static if (leftIndex < rightIndex)
+            static assert(left.theme != right.theme, "duplicate stack-trace theme");
 
 struct AnsiColor
 {
@@ -156,6 +206,7 @@ private bool keyword(String source) pure nothrow @system @nogc
         case "const", "immutable", "inout", "shared", "scope", "return",
             "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
             "@safe", "@trusted", "@system", "@nogc", "void", "bool",
+            "function", "delegate", "typeof",
             "byte", "ubyte", "short", "ushort", "int", "uint", "long",
             "ulong", "cent", "ucent", "char", "wchar", "dchar", "float",
             "double", "real", "ifloat", "idouble", "ireal", "cfloat",
