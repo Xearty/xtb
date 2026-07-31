@@ -4,6 +4,12 @@ import xtb.core.string : String, equal;
 
 private enum maxRecursion = 64;
 
+enum SignatureDetail
+{
+    overloadIdentity,
+    full,
+}
+
 private struct DemangleWriter
 {
     char[] storage;
@@ -53,6 +59,7 @@ private struct Demangler
     size_t recursion;
     size_t lastTemplateName;
     bool hasLastTemplateName;
+    SignatureDetail detail;
     DemangleWriter output;
 
     bool consume(char value) pure nothrow @system @nogc
@@ -378,7 +385,11 @@ private struct Demangler
         return result;
     }
 
-    bool functionType(bool hasReturn = true, String callable = null)
+    bool functionType(
+        bool hasReturn = true,
+        String callable = null,
+        bool identityOnly = false,
+    )
         nothrow @system @nogc
     {
         String memberQualifier;
@@ -440,11 +451,22 @@ private struct Demangler
         output.put(memberQualifier);
         if (hasReturn)
         {
-            output.put(" -> ");
-            if (!type())
+            DemangleWriter savedOutput;
+            char[1024] ignoredReturn;
+            if (identityOnly)
+            {
+                savedOutput = output;
+                output = DemangleWriter(ignoredReturn[]);
+            }
+            else output.put(" -> ");
+            const validReturn = type();
+            if (identityOnly)
+                output = savedOutput;
+            if (!validReturn)
                 return false;
         }
-        writeFunctionSuffix(attributes, convention);
+        if (!identityOnly)
+            writeFunctionSuffix(attributes, convention);
         return !output.failed;
     }
 
@@ -715,7 +737,7 @@ private struct Demangler
             return true;
         if (offset < input.length &&
             (callConvention(input[offset]) || input[offset] == 'M'))
-            return functionType();
+            return functionType(true, null, detail == SignatureDetail.overloadIdentity);
         return type();
     }
 }
@@ -793,6 +815,7 @@ bool tryDemangleD(
     String mangled,
     return scope char[] storage,
     return scope String* result,
+    SignatureDetail detail = SignatureDetail.overloadIdentity,
 ) nothrow @system @nogc
 {
     if (result is null)
@@ -812,6 +835,7 @@ bool tryDemangleD(
     Demangler demangler;
     demangler.input = mangled;
     demangler.offset = 2;
+    demangler.detail = detail;
     demangler.output.storage = storage;
     if (!demangler.qualifiedName())
         return false;
@@ -822,7 +846,11 @@ bool tryDemangleD(
         else if (callConvention(mangled[demangler.offset]) ||
             mangled[demangler.offset] == 'M')
         {
-            if (!demangler.functionType())
+            if (!demangler.functionType(
+                true,
+                null,
+                detail == SignatureDetail.overloadIdentity,
+            ))
                 return false;
         }
         else if (!demangler.type())
@@ -846,6 +874,17 @@ nothrow @nogc unittest
     ));
     assert(result.equal(
         "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
+            "StackTraceContext, const(char)[])",
+    ));
+    assert(tryDemangleD(
+        "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
+            "10stacktrace17StackTraceContextAxaZi",
+        storage[],
+        &result,
+        SignatureDetail.full,
+    ));
+    assert(result.equal(
+        "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
             "StackTraceContext, const(char)[]) -> int nothrow @nogc",
     ));
 
@@ -858,7 +897,7 @@ nothrow @nogc unittest
     assert(result.equal(
         "examples.stacktrace_demo.buildRenderGraph(ref xtb.core.stacktrace." ~
             "StackTraceContext, ref examples.stacktrace_demo.AssetRequest, " ~
-            "int*) -> int nothrow @nogc",
+            "int*)",
     ));
 
     assert(tryDemangleD(
@@ -870,7 +909,7 @@ nothrow @nogc unittest
     assert(result.equal(
         "examples.stacktrace_demo.dispatchTyped!(int)(ref " ~
             "xtb.core.stacktrace.StackTraceContext, ref examples.stacktrace_demo." ~
-            "AssetRequest, scope const(int)[]) -> int nothrow @nogc",
+            "AssetRequest, scope const(int)[])",
     ));
 
     assert(!tryDemangleD("_D999broken", storage[], &result));
@@ -895,4 +934,13 @@ nothrow @nogc unittest
     alias generatedAliasInstantiation = generatedAliasTemplate!generatedAliasTarget;
     assert(tryDemangleD(generatedAliasInstantiation.mangleof, storage[], &result));
     assert(result.containsText("generatedAliasTarget("));
+    assert(!result.containsText("generatedAliasTarget(scope const(float)[]) ->"));
+
+    assert(tryDemangleD(
+        generatedAliasInstantiation.mangleof,
+        storage[],
+        &result,
+        SignatureDetail.full,
+    ));
+    assert(result.containsText("generatedAliasTarget(scope const(float)[]) -> bool"));
 }

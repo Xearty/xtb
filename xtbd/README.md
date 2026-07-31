@@ -12,6 +12,12 @@ See `examples/stacktrace_demo.d` and the diagnostics section of
 `docs/architecture.md` for the safety tradeoff between strict and best-effort
 signal unwinding.
 
+Signatures default to an overload-oriented view: outer return types and
+function attributes are hidden, while member qualifiers and complete nested
+function/delegate parameter types remain visible. Set
+`StackTraceStyle.signatureDetail` to `SignatureDetail.full` for every encoded
+return type and attribute.
+
 The project is independent from the adjacent C++ sources. Public modules live
 under `source/xtb/core`, focused unit tests are colocated with those modules,
 and `tests/core_tests.d` is the explicit BetterC test runner.

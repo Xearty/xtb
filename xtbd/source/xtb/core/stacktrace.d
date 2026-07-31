@@ -335,6 +335,7 @@ void writeStackTrace(
                 frame.functionName,
                 demangledStorage[],
                 &functionDisplay,
+                style.signatureDetail,
             );
             writer.writeSignature(
                 functionDisplay,

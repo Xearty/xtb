@@ -100,11 +100,23 @@ demangling, signature tokenization, styling, and rendering must not allocate.
 The D demangler implements relative identifier/type back-references, template
 types and values, qualifiers, arrays, pointers, functions, delegates, tuples,
 calling conventions, parameter storage classes, and function attributes. It
-writes the complete signature into caller storage and returns the untouched
-linkage name only when the symbol is malformed, is not D-mangled, or exhausts
-the destination. It must never shorten a valid signature with a placeholder.
-A diagnostic never trusts an encoded length, count, or relative offset without
-checking it against the remaining input and a fixed recursion limit.
+writes into caller storage and returns the untouched linkage name only when the
+symbol is malformed, is not D-mangled, or exhausts the destination. It must
+never shorten a valid signature with a placeholder. A diagnostic never trusts
+an encoded length, count, or relative offset without checking it against the
+remaining input and a fixed recursion limit.
+
+`SignatureDetail.overloadIdentity` is the default for stack traces and direct
+demangling. It discards the outer function's return type and function
+attributes because they do not distinguish overloads. It retains parameter
+storage classes and the member-function `const`, `immutable`, `shared`, or
+`inout` qualifier. Function and delegate types nested inside parameters remain
+complete—including their return type, calling convention, and attributes—
+because those properties participate in parameter-type matching. Alias
+template arguments naming functions use the same overload-oriented form.
+Select `SignatureDetail.full` through `StackTraceStyle.signatureDetail`,
+`CrashHandlerOptions.signatureDetail`, or the final `tryDemangleD` argument
+when diagnostic output should include every encoded return type and attribute.
 
 `StackTraceStyle` owns no text or allocation. Its `StackTraceColors` store
 enabled 8-bit ANSI indices, normally from a preset or `fromAnsi8`; escape

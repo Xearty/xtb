@@ -1,6 +1,7 @@
 module xtb.core.stacktrace_style;
 
 import xtb.core.print : Writer;
+import xtb.core.demangle : SignatureDetail;
 import xtb.core.string : String, equal;
 
 enum StackTraceTheme
@@ -141,6 +142,7 @@ struct StackTraceStyle
     StackTraceColors colors;
     bool showProgramCounter;
     ModuleDisplay moduleDisplay;
+    SignatureDetail signatureDetail;
 
     static StackTraceStyle fromTheme(StackTraceTheme theme)
         pure nothrow @safe @nogc
@@ -149,6 +151,7 @@ struct StackTraceStyle
             StackTraceColors.fromTheme(theme),
             false,
             ModuleDisplay.omitted,
+            SignatureDetail.overloadIdentity,
         );
     }
 }
@@ -364,6 +367,8 @@ nothrow @nogc unittest
     TestSink output = TestSink(storage[]);
     Writer writer = Writer.fromSink(&testSink, &output);
     const colors = StackTraceColors.fromTheme(StackTraceTheme.gruvbox);
+    const defaultStyle = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
+    assert(defaultStyle.signatureDetail == SignatureDetail.overloadIdentity);
     writer.writeSignature(
         "xtb.core.Array!(const(char)[]).append(ref String)",
         &colors,
