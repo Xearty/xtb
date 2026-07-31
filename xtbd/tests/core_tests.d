@@ -16,8 +16,17 @@ import xtb.core.stacktrace;
 
 version (Posix)
 {
+    import core.sys.posix.pthread : pthread_create, pthread_join, pthread_t;
     import core.sys.posix.sys.wait : waitpid;
     import core.sys.posix.unistd : _exit, execl, fork;
+}
+
+version (Posix)
+private extern(C) void* popOnOtherThread(void* context) nothrow @nogc
+{
+    TempArena* temporary = cast(TempArena*) context;
+    (*temporary).pop();
+    return null;
 }
 
 private bool cStringEqual(const(char)* left, const(char)* right)
@@ -60,6 +69,17 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         ThreadContextScope context = ThreadContextScope.acquire(1, 64);
         ScratchScope first = ScratchScope.acquire();
         ScratchScope.acquire(first.allocator);
+    }
+    version (Posix)
+    if (cStringEqual(name, "cross-thread-pop"))
+    {
+        Arena arena = Arena.create(mallocAllocator(), 64);
+        TempArena temporary = (&arena).push();
+        pthread_t thread;
+        if (pthread_create(&thread, null, &popOnOtherThread, &temporary) != 0)
+            panic("pthread_create failed");
+        pthread_join(thread, null);
+        panic("cross-thread pop unexpectedly returned");
     }
     panic("unknown death case");
 }
@@ -123,6 +143,7 @@ extern(C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "double-pop");
         expectDeath(arguments[0], "non-lifo-pop");
         expectDeath(arguments[0], "scratch-conflict");
+        expectDeath(arguments[0], "cross-thread-pop");
     }
     return 0;
 }

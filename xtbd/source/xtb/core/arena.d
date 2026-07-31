@@ -1,7 +1,7 @@
 module xtb.core.arena;
 
 import core.stdc.string : memcpy, memset;
-import xtb.core.memory : Allocator, allocate, deallocate;
+import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic, require;
 import xtb.core.print : Writer;
 import xtb.core.types : addOverflows;
@@ -82,10 +82,19 @@ struct Arena
     void* allocate(size_t size, size_t alignment = (void*).alignof)
         nothrow @nogc
     {
+        void* result = tryAllocate(size, alignment);
+        if (size != 0 && result is null)
+            panic("arena allocation failed");
+        return result;
+    }
+
+    void* tryAllocate(size_t size, size_t alignment = (void*).alignof)
+        nothrow @nogc
+    {
         if (size == 0)
             return null;
-        if (!isPowerOfTwo(alignment))
-            panic("arena alignment must be a power of two");
+        require(isPowerOfTwo(alignment),
+            "arena alignment must be a power of two");
 
         ArenaChunk* chunk = currentChunk;
         size_t alignedOffset;
@@ -95,8 +104,10 @@ struct Arena
             size > chunk.capacity - alignedOffset)
         {
             chunk = obtainChunk(size, alignment);
+            if (chunk is null)
+                return null;
             if (!alignedOffsetFor(chunk, alignment, &alignedOffset))
-                panic("arena offset overflow");
+                return null;
         }
 
         void* result = chunk.data + alignedOffset;
@@ -112,6 +123,15 @@ struct Arena
         nothrow @nogc
     {
         void* result = allocate(size, alignment);
+        if (result !is null)
+            memset(result, 0, size);
+        return result;
+    }
+
+    void* tryAllocateZeroed(size_t size, size_t alignment = (void*).alignof)
+        nothrow @nogc
+    {
+        void* result = tryAllocate(size, alignment);
         if (result !is null)
             memset(result, 0, size);
         return result;
@@ -263,6 +283,8 @@ struct Arena
 
         const capacity = size > defaultChunkSize ? size : defaultChunkSize;
         ArenaChunk* created = createChunk(capacity, alignment);
+        if (created is null)
+            return null;
         if (firstChunk is null)
             firstChunk = created;
         else
@@ -277,13 +299,15 @@ struct Arena
         const padding = alignment - 1;
         if (addOverflows(ArenaChunk.sizeof, padding) ||
             addOverflows(ArenaChunk.sizeof + padding, capacity))
-            panic("arena chunk size overflow");
+            return null;
 
         const allocationSize = ArenaChunk.sizeof + padding + capacity;
-        ArenaChunk* chunk = cast(ArenaChunk*) backingAllocator.allocate(
+        ArenaChunk* chunk = cast(ArenaChunk*) backingAllocator.tryAllocate(
             allocationSize,
             ArenaChunk.alignof,
         );
+        if (chunk is null)
+            return null;
         *chunk = ArenaChunk.init;
         chunk.allocationSize = allocationSize;
         chunk.capacity = capacity;
@@ -291,7 +315,14 @@ struct Arena
         const start = cast(size_t) (cast(ubyte*) chunk + ArenaChunk.sizeof);
         size_t alignedStart;
         if (!alignUp(start, alignment, &alignedStart))
-            panic("arena address overflow");
+        {
+            backingAllocator.deallocate(
+                chunk,
+                allocationSize,
+                ArenaChunk.alignof,
+            );
+            return null;
+        }
         chunk.data = cast(ubyte*) alignedStart;
         return chunk;
     }
@@ -342,7 +373,9 @@ private void* arenaAllocatorProcedure(
     if (newSize == 0)
         return null;
 
-    void* replacement = arena.allocate(newSize, alignment);
+    void* replacement = arena.tryAllocate(newSize, alignment);
+    if (replacement is null)
+        return null;
     if (oldPointer !is null && oldSize != 0)
     {
         const amount = oldSize < newSize ? oldSize : newSize;
@@ -478,4 +511,15 @@ nothrow @nogc unittest
     arena.setRetentionLimit(64);
     arena.trim();
     arena.deinit();
+
+    import xtb.core.memory : AllocationRecord, InstrumentedAllocator;
+    AllocationRecord[4] records;
+    InstrumentedAllocator failing = InstrumentedAllocator.create(
+        mallocAllocator(), records[],
+    );
+    failing.failAfter(0);
+    Arena fallible = Arena.create(failing.handle, 64);
+    assert(fallible.tryAllocate(8, 8) is null);
+    assert(fallible.stats.chunkCount == 0);
+    fallible.deinit();
 }
