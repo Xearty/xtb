@@ -1,6 +1,7 @@
 module xtb.os.directory;
 
 import xtb.core.panic : require;
+import xtb.core.array : Array, resize;
 import xtb.core.memory : Allocator;
 import xtb.core.string : String, StringBuf, append, checkedCString, clear, fromCString;
 import xtb.core.thread_context : ScratchScope;
@@ -209,12 +210,14 @@ OsError currentDirectory(ref StringBuf output) nothrow @system @nogc
     output.clear();
     version (linux)
     {
+        import core.stdc.stdlib : free;
         import core.sys.posix.unistd : getcwd;
 
-        char[4096] buffer;
-        if (getcwd(buffer.ptr, buffer.length) is null)
+        char* buffer = getcwd(null, 0);
+        if (buffer is null)
             return lastError();
-        output.append(fromCString(buffer.ptr));
+        output.append(fromCString(buffer));
+        free(buffer);
         return OsError.init;
     }
     else
@@ -228,14 +231,22 @@ OsError executablePath(ref StringBuf output) nothrow @system @nogc
     {
         import core.sys.posix.unistd : readlink;
 
-        char[4096] buffer;
-        const amount = readlink("/proc/self/exe".ptr, buffer.ptr, buffer.length);
-        if (amount < 0)
-            return lastError();
-        if (cast(size_t) amount == buffer.length)
-            return OsError(OsErrorKind.system, 0);
-        output.append(buffer[0 .. cast(size_t) amount]);
-        return OsError.init;
+        ScratchScope scratch = ScratchScope.acquire();
+        Array!char buffer = Array!char.withLength(scratch.allocator, 256);
+        for (;;)
+        {
+            const amount = readlink("/proc/self/exe".ptr, buffer.slice.ptr, buffer.length);
+            if (amount < 0)
+                return lastError();
+            if (cast(size_t) amount < buffer.length)
+            {
+                output.append(buffer.slice[0 .. cast(size_t) amount]);
+                return OsError.init;
+            }
+            if (buffer.length > size_t.max / 2)
+                return OsError(OsErrorKind.system, 0);
+            buffer.resize(buffer.length * 2);
+        }
     }
     else
         return unsupported();

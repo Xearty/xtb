@@ -38,6 +38,7 @@ struct OpenOptions
     bool truncate;
     bool append;
     bool exclusive;
+    bool closeOnExec = true;
     u16 permissions = 0x180; // POSIX 0600
 }
 
@@ -65,19 +66,32 @@ struct File
 
     void deinit() nothrow @nogc
     {
-        version (linux)
-        {
-            import core.sys.posix.unistd : close;
-
-            if (descriptor_ >= 0)
-                close(descriptor_);
-        }
-        descriptor_ = -1;
+        close(&this);
     }
 
     bool valid() const pure nothrow @safe @nogc
     {
         return descriptor_ >= 0;
+    }
+}
+
+OsError close(File* file) nothrow @system @nogc
+{
+    require(file !is null, "File pointer is null");
+    if (!file.valid)
+        return OsError.init;
+    version (linux)
+    {
+        import core.sys.posix.unistd : nativeClose = close;
+
+        const descriptor = file.descriptor_;
+        file.descriptor_ = -1;
+        return nativeClose(descriptor) == 0 ? OsError.init : lastError();
+    }
+    else
+    {
+        file.descriptor_ = -1;
+        return unsupported();
     }
 }
 
@@ -102,8 +116,8 @@ OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
         return OsError(OsErrorKind.invalidArgument, 0);
     version (linux)
     {
-        import core.sys.posix.fcntl : O_APPEND, O_CREAT, O_EXCL, O_RDONLY,
-            O_RDWR, O_TRUNC, O_WRONLY, open;
+        import core.sys.posix.fcntl : O_APPEND, O_CLOEXEC, O_CREAT, O_EXCL,
+            O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY, open;
 
         ScratchScope scratch = ScratchScope.acquire();
         StringBuf native = StringBuf.fromString(scratch.allocator, path.view);
@@ -116,6 +130,8 @@ OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
             flags |= O_APPEND;
         if (options.exclusive)
             flags |= O_EXCL;
+        if (options.closeOnExec)
+            flags |= O_CLOEXEC;
         const descriptor = open(native.checkedCString, flags, cast(uint) options.permissions);
         if (descriptor < 0)
             return lastError();
@@ -278,7 +294,8 @@ version (linux) private FileMetadata convert(ref const(NativeStat) native) pure 
         break;
     }
     return FileMetadata(type, cast(u64) native.st_size,
-            cast(u64) native.st_mtime * 1_000_000_000UL, cast(u32) native.st_mode & 0xFFF);
+            cast(u64) native.st_mtime * 1_000_000_000UL + cast(u64) native.st_mtimensec,
+            cast(u32) native.st_mode & 0xFFF);
 }
 
 OsError readEntireFile(Path path, ref Array!u8 output) nothrow @system @nogc

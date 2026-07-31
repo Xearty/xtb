@@ -37,6 +37,15 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     const u8[6] contents = [0, 1, 2, 3, 0, 255];
     assert(writeEntireFile(firstPath, contents[]).succeeded);
 
+    File explicitFile;
+    assert(open(firstPath, OpenOptions.init, &explicitFile).succeeded);
+    assert(explicitFile.valid);
+    assert(close(&explicitFile).succeeded && !explicitFile.valid);
+    assert(close(&explicitFile).succeeded);
+    OpenOptions invalidOptions;
+    invalidOptions.read = false;
+    assert(open(firstPath, invalidOptions, &explicitFile).kind == OsErrorKind.invalidArgument);
+
     FileMetadata information;
     assert(metadata(firstPath, true, &information).succeeded);
     assert(information.type == FileType.regular && information.size == contents.length);

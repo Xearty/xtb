@@ -39,6 +39,29 @@ struct Path
     {
         return value_.length != 0 && value_[0] == '/';
     }
+
+    Path fileName() const pure nothrow @safe @nogc
+    {
+        size_t end = value_.length;
+        while (end > 1 && value_[end - 1] == '/')
+            --end;
+        size_t begin = end;
+        while (begin != 0 && value_[begin - 1] != '/')
+            --begin;
+        return Path(value_[begin .. end]);
+    }
+
+    Path parent() const pure nothrow @safe @nogc
+    {
+        size_t end = value_.length;
+        while (end > 1 && value_[end - 1] == '/')
+            --end;
+        while (end != 0 && value_[end - 1] != '/')
+            --end;
+        while (end > 1 && value_[end - 1] == '/')
+            --end;
+        return Path(value_[0 .. end]);
+    }
 }
 
 bool tryAppendComponent(ref StringBuf output, Path component) nothrow @nogc
@@ -70,6 +93,8 @@ nothrow @nogc unittest
 
     Path path = Path.fromString("var");
     assert(path.view == "var" && !path.absolute);
+    assert(Path.fromString("/tmp/file.txt/").fileName.view == "file.txt");
+    assert(Path.fromString("/tmp/file.txt/").parent.view == "/tmp");
     StringBuf joined = StringBuf.fromString(mallocAllocator(), "/tmp/");
     joined.appendComponent(Path.fromString("/xtbd/"));
     joined.appendComponent(Path.fromString("file"));
