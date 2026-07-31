@@ -7,30 +7,83 @@ import xtb.core.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.core.string : String;
 
+private enum AssetKind : ubyte
+{
+    texture,
+    mesh,
+}
+
 private struct AssetRequest
 {
     String path;
     int identifier;
 }
 
-private struct SceneLoader
+private union AssetMetadata
 {
-    pragma(inline, false)
-    int load(
-        ref StackTraceContext context,
-        const(AssetRequest)* request,
-        scope const(int)[] samples,
-    ) nothrow @nogc
+    ulong packed;
+    ubyte[8] bytes;
+}
+
+private struct RenderResult
+{
+    uint submittedPasses;
+    AssetMetadata metadata;
+}
+
+private alias ErrorHook = extern(C) void function(int, const(char)*);
+private alias SampleFilter = bool function(scope const(float)[]) pure nothrow @nogc;
+private alias CompletionHook = void delegate(
+    ref const(AssetRequest),
+    const(RenderResult)*,
+) nothrow @nogc;
+
+private struct RenderBackend
+{
+    private struct Command
     {
-        return decodeAsset(context, request, samples);
+        ushort opcode;
+        const(void)* payload;
     }
+
+    pragma(inline, false)
+    int submit(
+        ref StackTraceContext context,
+        scope const(Command)[] commands,
+        ref uint[String] resourceSlots,
+        ErrorHook errorHook,
+        CompletionHook completion,
+        shared(const(void))* device,
+    ) const nothrow @nogc
+    {
+        return inspectBackendState(
+            context,
+            commands,
+            resourceSlots,
+            errorHook,
+            completion,
+            device,
+        );
+    }
+}
+
+private extern(C) void reportError(int, const(char)*) nothrow @nogc
+{
+}
+
+private bool finiteSamples(scope const(float)[] samples) pure nothrow @nogc
+{
+    foreach (sample; samples)
+        if (sample != sample)
+            return false;
+    return true;
 }
 
 pragma(inline, false)
 private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
 {
-    StackFrame[64] frames;
-    char[32 * 1024] text;
+    StackFrame[96] frames;
+    char[64 * 1024] text;
     StackTrace trace = context.capture(frames[], text[], 1);
 
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
@@ -39,69 +92,106 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
 }
 
 pragma(inline, false)
-private int submitRenderGraph(
+private int inspectBackendState(
     ref StackTraceContext context,
-    uint passCount,
-    const(void)* backendHandle,
+    scope const(RenderBackend.Command)[] commands,
+    ref uint[String] resourceSlots,
+    ErrorHook errorHook,
+    CompletionHook completion,
+    shared(const(void))* device,
 ) nothrow @nogc
 {
     const result = writeCapturedTrace(context);
-    return result + cast(int) passCount - cast(int) passCount +
-        (backendHandle is null ? 0 : 0);
+    return result + cast(int) commands.length - cast(int) commands.length +
+        (errorHook is null ? 0 : 0) + (completion is null ? 0 : 0) +
+        (device is null ? 0 : 0);
 }
 
 pragma(inline, false)
-private int buildRenderGraph(
+private int encodeCommands(
+    AssetKind kind,
+    size_t laneCount,
+    alias filter,
+)(
     ref StackTraceContext context,
-    ref AssetRequest request,
-    int* mutableCursor,
+    ref const(AssetRequest) request,
+    scope const(float)[] samples,
+    ref const(ubyte)[16] digest,
+    ref uint[String] resourceSlots,
+    ErrorHook errorHook,
+    CompletionHook completion,
 ) nothrow @nogc
 {
-    const passCount = mutableCursor is null ? 0U : cast(uint) *mutableCursor;
-    return submitRenderGraph(context, passCount, &request);
+    const accepted = filter(samples);
+    RenderBackend.Command[2] commands = [
+        RenderBackend.Command(cast(ushort) kind, &request),
+        RenderBackend.Command(cast(ushort) laneCount, &digest),
+    ];
+    RenderBackend backend;
+    shared(const(void))* device;
+    return backend.submit(
+        context,
+        commands[],
+        resourceSlots,
+        errorHook,
+        completion,
+        device,
+    ) + (accepted ? 0 : 0);
 }
 
 pragma(inline, false)
-private int validatePixels(
+private int qualifyAndEncode(
+    AssetKind kind,
+    size_t laneCount,
+    alias filter,
+)(
     ref StackTraceContext context,
-    ref AssetRequest request,
-    scope const(int)[] samples,
+    inout(AssetRequest)* request,
+    scope const(float)[] samples,
+    const(ubyte[16])* digest,
+    ref uint[String] resourceSlots,
+    immutable(ubyte)* formatTag,
+    lazy int,
+    out RenderResult preliminaryResult,
 ) nothrow @nogc
 {
-    int cursor = samples.length == 0 ? 0 : samples[0];
-    return buildRenderGraph(context, request, &cursor);
+    ErrorHook errorHook = &reportError;
+    CompletionHook completion;
+    return encodeCommands!(kind, laneCount, filter)(
+        context,
+        *request,
+        samples,
+        *digest,
+        resourceSlots,
+        errorHook,
+        completion,
+    ) + (formatTag is null ? 0 : 0) +
+        cast(int) preliminaryResult.submittedPasses;
 }
 
 pragma(inline, false)
-private int parseHeader(
+private int dispatchAsset(Types...)(
     ref StackTraceContext context,
-    const(AssetRequest)* source,
-    scope const(int)[] samples,
+    ref const(AssetRequest) request,
+    scope const(float)[] samples,
+    ref const(ubyte)[16] digest,
+    ref uint[String] resourceSlots,
+    Types values,
 ) nothrow @nogc
 {
-    AssetRequest request = *source;
-    return validatePixels(context, request, samples);
-}
-
-pragma(inline, false)
-private int decodeAsset(
-    ref StackTraceContext context,
-    const(AssetRequest)* request,
-    scope const(int)[] samples,
-) nothrow @nogc
-{
-    return parseHeader(context, request, samples);
-}
-
-pragma(inline, false)
-private int dispatchTyped(T)(
-    ref StackTraceContext context,
-    ref AssetRequest request,
-    scope const(T)[] samples,
-) nothrow @nogc
-{
-    SceneLoader loader;
-    return loader.load(context, &request, samples);
+    immutable ubyte formatTag = 7;
+    RenderResult preliminaryResult;
+    const ignored = values.length;
+    return qualifyAndEncode!(AssetKind.mesh, 8, finiteSamples)(
+        context,
+        &request,
+        samples,
+        &digest,
+        resourceSlots,
+        &formatTag,
+        request.identifier,
+        preliminaryResult,
+    ) + cast(int) ignored - cast(int) ignored;
 }
 
 pragma(inline, false)
@@ -111,9 +201,20 @@ private int loadScene(
     int identifier,
 ) nothrow @nogc
 {
-    int[4] samples = [3, 5, 8, 13];
-    AssetRequest request = AssetRequest(path, identifier);
-    return dispatchTyped!int(context, request, samples[]);
+    float[4] samples = [0.25f, 0.5f, 0.75f, 1.0f];
+    ubyte[16] digest;
+    uint[String] resourceSlots;
+    const AssetRequest request = AssetRequest(path, identifier);
+    return dispatchAsset!(int, double, String)(
+        context,
+        request,
+        samples[],
+        digest,
+        resourceSlots,
+        42,
+        3.5,
+        "mesh",
+    );
 }
 
 pragma(inline, false)

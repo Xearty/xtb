@@ -173,13 +173,17 @@ private struct Demangler
             return type();
         if (consume('V'))
         {
-            if (!type())
+            char[1024] ignoredType;
+            DemangleWriter savedOutput = output;
+            output = DemangleWriter(ignoredType[]);
+            const validType = type();
+            output = savedOutput;
+            if (!validType)
                 return false;
-            output.put(" = ");
             return value();
         }
         if (consume('S'))
-            return qualifiedName();
+            return startsWith("_D") ? mangledName() : qualifiedName();
         if (consume('X'))
         {
             size_t length;
@@ -377,10 +381,27 @@ private struct Demangler
     bool functionType(bool hasReturn = true, String callable = null)
         nothrow @system @nogc
     {
+        String memberQualifier;
         if (offset < input.length && input[offset] == 'M')
         {
             ++offset;
-            skipTypeModifiers();
+            if (consume('x')) memberQualifier = " const";
+            else if (consume('y')) memberQualifier = " immutable";
+            else if (consume('O'))
+            {
+                if (consume('x')) memberQualifier = " shared const";
+                else if (startsWith("Ng"))
+                {
+                    offset += 2;
+                    memberQualifier = " shared inout";
+                }
+                else memberQualifier = " shared";
+            }
+            else if (startsWith("Ng"))
+            {
+                offset += 2;
+                memberQualifier = " inout";
+            }
         }
         if (offset >= input.length || !callConvention(input[offset]))
             return false;
@@ -416,6 +437,7 @@ private struct Demangler
             output.put(close == 'X' ? "..." : "TypeInfo[]...");
         }
         output.put(')');
+        output.put(memberQualifier);
         if (hasReturn)
         {
             output.put(" -> ");
@@ -563,7 +585,11 @@ private struct Demangler
             case 'r': output.put("cdouble"); return true;
             case 'c': output.put("creal"); return true;
             case 'n': output.put("typeof(null)"); return true;
-            case 'P': return postfix("*");
+            case 'P':
+                if (offset < input.length &&
+                    (callConvention(input[offset]) || input[offset] == 'M'))
+                    return type();
+                return postfix("*");
             case 'A': return postfix("[]");
             case 'G': return staticArray();
             case 'H': return associativeArray();
@@ -687,6 +713,9 @@ private struct Demangler
             return false;
         if (consume('Z'))
             return true;
+        if (offset < input.length &&
+            (callConvention(input[offset]) || input[offset] == 'M'))
+            return functionType();
         return type();
     }
 }
@@ -727,12 +756,35 @@ private int generatedTemplate(int value, T)(T input) pure nothrow @nogc
 }
 
 version (unittest)
+private bool generatedAliasTarget(scope const(float)[]) pure nothrow @nogc
+{
+    return true;
+}
+
+version (unittest)
+private int generatedAliasTemplate(alias target)() pure nothrow @nogc
+{
+    return target(null) ? 1 : 0;
+}
+
+version (unittest)
 private bool containsEllipsis(String value) pure nothrow @safe @nogc
 {
     if (value.length < 3)
         return false;
     foreach (index; 0 .. value.length - 2)
         if (value[index .. index + 3] == "...")
+            return true;
+    return false;
+}
+
+version (unittest)
+private bool containsText(String value, String needle) pure nothrow @system @nogc
+{
+    if (needle.length > value.length)
+        return false;
+    foreach (offset; 0 .. value.length - needle.length + 1)
+        if (value[offset .. offset + needle.length].equal(needle))
             return true;
     return false;
 }
@@ -832,9 +884,15 @@ nothrow @nogc unittest
     assert(tryDemangleD(generatedSignature.mangleof, storage[], &result));
     assert(!result.containsEllipsis);
     assert(result.length > "generatedSignature".length);
+    assert(result.containsText("function(long) -> int"));
+    assert(!result.containsText("function(long) -> int*"));
 
     alias generatedInstantiation = generatedTemplate!(7, long);
     assert(tryDemangleD(generatedInstantiation.mangleof, storage[], &result));
     assert(!result.containsEllipsis);
-    assert(result.length > "generatedTemplate".length);
+    assert(result.containsText("generatedTemplate!(7, long)"));
+
+    alias generatedAliasInstantiation = generatedAliasTemplate!generatedAliasTarget;
+    assert(tryDemangleD(generatedAliasInstantiation.mangleof, storage[], &result));
+    assert(result.containsText("generatedAliasTarget("));
 }
