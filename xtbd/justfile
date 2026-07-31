@@ -1,10 +1,14 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 source_files := `find source -name '*.d' -print | sort | tr '\n' ' '`
+math_source_files := `printf '%s ' source/xtb/math/random.d; find source -name '*.d' ! -path 'source/xtb/math/random.d' -print | sort | tr '\n' ' '`
 lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/core/stacktrace_style.d' -print | sort | tr '\n' ' '`
 platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
 
 default: check
+
+format:
+    dfmt --inplace source/xtb/math/*.d tests/math_tests.d examples/math_demo.d
 
 build:
     mkdir -p build
@@ -12,13 +16,17 @@ build:
 
 test:
     mkdir -p build
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests
+    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source tests/core_tests.d {{source_files}} {{platform_libs}} -of=build/core_tests
     ./build/core_tests
+    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests
+    ./build/math_tests
 
 test-optimized:
     mkdir -p build
-    ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_optimized
+    ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source tests/core_tests.d {{source_files}} {{platform_libs}} -of=build/core_tests_optimized
     ./build/core_tests_optimized
+    ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_optimized
+    ./build/math_tests_optimized
 
 test-darwin-build:
     mkdir -p build
@@ -49,9 +57,11 @@ examples:
     ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/core_demo.d {{platform_libs}} -of=build/core_demo
     ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/print_demo.d {{platform_libs}} -of=build/print_demo
     ldc2 -betterC -g -boundscheck=on -wi -de -I=source {{source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
+    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/math_demo.d {{platform_libs}} -of=build/math_demo
     ./build/core_demo
     ./build/print_demo
     ./build/stacktrace_demo
+    ./build/math_demo
 
 lint:
     dscanner --syntaxCheck source/xtb/core/stacktrace_style.d

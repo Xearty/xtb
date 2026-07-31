@@ -25,3 +25,8 @@ configuration "stacktrace-demo" {
     targetType "executable"
     mainSourceFile "examples/stacktrace_demo.d"
 }
+
+configuration "math-demo" {
+    targetType "executable"
+    mainSourceFile "examples/math_demo.d"
+}

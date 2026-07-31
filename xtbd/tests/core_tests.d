@@ -16,11 +16,6 @@ import xtb.core.demangle;
 import xtb.core.stacktrace_style;
 import xtb.core.stacktrace;
 import xtb.core.crash;
-import xtb.math.scalar;
-import xtb.math.vector;
-import xtb.math.matrix;
-import xtb.math.random;
-import xtb.math.noise;
 
 version (Posix)
 {

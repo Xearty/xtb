@@ -191,12 +191,13 @@ runner fixture root explicitly.
 ## Tooling and commands
 
 The Nix development shell is the canonical toolchain and provides LDC, DUB,
-`dscanner`, `just`, and native debugging tools. `dub.sdl` and the
+`dscanner`, `dfmt`, `just`, and native debugging tools. `dub.sdl` and the
 `justfile` should expose these stable commands once source code is introduced:
 
 ```sh
 nix develop
 just lint            # dscanner plus project policy checks
+just format          # format the D math package, runner, and example
 just test            # every BetterC runner
 just build           # production static library with -betterC
 just test-sanitize   # BetterC runner under AddressSanitizer

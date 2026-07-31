@@ -79,6 +79,36 @@ neutral abstraction downward rather than adding mutual imports. Foreign
 bindings live beside their adapter (for example `xtb.graphics.opengl.binding`)
 and are not treated as general-purpose core modules.
 
+## Math and deterministic noise
+
+`xtb.math` is a BetterC value layer. `Vector2`, `Vector3`, `Vector4`,
+`Matrix2`, `Matrix3`, and `Matrix4` are tightly packed `float` values with no
+allocator, destructor, runtime type information, or hidden initialization.
+Use native construction and operators rather than dimension-suffixed helper
+names. Algorithms are free functions designed for UFCS, such as
+`direction.normalized`, `matrix.transposed`, and `value.projectedOnto(axis)`.
+
+Matrices are column-major and multiply column vectors. `a * b * point` applies
+`b` before `a`; transform-building code must preserve that order explicitly.
+Projection functions use the OpenGL-style right-handed clip convention with
+depth in `[-1, 1]`. Inversion is fallible and writes through an explicit
+output pointer: singular matrices return `false` without fabricating a matrix.
+The affine inverse additionally rejects non-affine inputs.
+
+`Random` implements a stable PCG32 sequence. Callers always supply a seed and
+may supply an independent stream; there is no process-global random state.
+`unit()` returns values in `[0, 1)`, and `below(bound)` uses rejection sampling
+instead of modulo-biased range reduction.
+
+`ValueNoise1D` owns its periodic lattice through an explicit `Allocator*` and
+is non-copyable. Its integer lattice values lie in `[-1, 1]`; `sample` uses a
+smootherstep interpolation and accepts negative finite coordinates. A seed and
+stream fully determine its values. The period is measured in lattice cells,
+must be nonzero, and is capped at the largest integer exactly representable by
+`float`, so `sample(x) == sample(x + period)` remains meaningful. Allocation
+failure is exposed only by `tryCreate`; `create` panics consistently with other
+owning containers.
+
 ## BetterC design rules
 
 ### ABI and entry points
