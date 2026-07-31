@@ -7,6 +7,7 @@ private enum maxRecursion = 64;
 enum SignatureDetail
 {
     overloadIdentity,
+    overloadIdentityAndReturn,
     full,
 }
 
@@ -388,7 +389,7 @@ private struct Demangler
     bool functionType(
         bool hasReturn = true,
         String callable = null,
-        bool identityOnly = false,
+        SignatureDetail functionDetail = SignatureDetail.full,
     )
         nothrow @system @nogc
     {
@@ -453,19 +454,19 @@ private struct Demangler
         {
             DemangleWriter savedOutput;
             char[1024] ignoredReturn;
-            if (identityOnly)
+            if (functionDetail == SignatureDetail.overloadIdentity)
             {
                 savedOutput = output;
                 output = DemangleWriter(ignoredReturn[]);
             }
             else output.put(" -> ");
             const validReturn = type();
-            if (identityOnly)
+            if (functionDetail == SignatureDetail.overloadIdentity)
                 output = savedOutput;
             if (!validReturn)
                 return false;
         }
-        if (!identityOnly)
+        if (functionDetail == SignatureDetail.full)
             writeFunctionSuffix(attributes, convention);
         return !output.failed;
     }
@@ -737,7 +738,7 @@ private struct Demangler
             return true;
         if (offset < input.length &&
             (callConvention(input[offset]) || input[offset] == 'M'))
-            return functionType(true, null, detail == SignatureDetail.overloadIdentity);
+            return functionType(true, null, detail);
         return type();
     }
 }
@@ -849,7 +850,7 @@ bool tryDemangleD(
             if (!demangler.functionType(
                 true,
                 null,
-                detail == SignatureDetail.overloadIdentity,
+                detail,
             ))
                 return false;
         }
@@ -875,6 +876,17 @@ nothrow @nogc unittest
     assert(result.equal(
         "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
             "StackTraceContext, const(char)[])",
+    ));
+    assert(tryDemangleD(
+        "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
+            "10stacktrace17StackTraceContextAxaZi",
+        storage[],
+        &result,
+        SignatureDetail.overloadIdentityAndReturn,
+    ));
+    assert(result.equal(
+        "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
+            "StackTraceContext, const(char)[]) -> int",
     ));
     assert(tryDemangleD(
         "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~

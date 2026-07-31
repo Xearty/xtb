@@ -5,7 +5,7 @@ import xtb.core.demangle : tryDemangleD;
 import xtb.core.print : Writer, hexadecimal;
 import xtb.core.string : String;
 import xtb.core.stacktrace_style : AnsiColor, StackTraceColors, StackTraceStyle,
-    StackTraceTheme, beginAnsi, endAnsi, writeSignature;
+    StackTraceTheme, SignatureFormat, beginAnsi, endAnsi, writeSignature;
 
 struct StackFrame
 {
@@ -341,6 +341,12 @@ void writeStackTrace(
                 functionDisplay,
                 colors,
                 style.moduleDisplay,
+                SignatureFormat(
+                    style.signatureLayout,
+                    style.signatureColumns,
+                    indexWidth + 3,
+                    indexWidth + 3,
+                ),
             );
         }
         else

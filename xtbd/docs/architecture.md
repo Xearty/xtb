@@ -117,6 +117,33 @@ template arguments naming functions use the same overload-oriented form.
 Select `SignatureDetail.full` through `StackTraceStyle.signatureDetail`,
 `CrashHandlerOptions.signatureDetail`, or the final `tryDemangleD` argument
 when diagnostic output should include every encoded return type and attribute.
+`SignatureDetail.overloadIdentityAndReturn` is the middle ground for readable
+diagnostics: it adds the outer return type to the overload identity but still
+omits outer function attributes.
+
+`StackTraceStyle.signatureLayout` defaults to `SignatureLayout.multiline`, with
+`signatureColumns = 100`. If the outer signature exceeds that width, it is
+formatted like a D declaration: the opening parenthesis ends the first line,
+every outer parameter occupies a separate line indented four spaces, and the
+closing parenthesis begins the final line. The return type and outer function
+attributes, when enabled by `SignatureDetail`, remain after that closing
+parenthesis. Nested function, delegate, qualifier, and template argument lists
+remain intact within their containing parameter. Width checks count visible
+signature bytes rather than ANSI escape-sequence bytes; the frame index and
+its indentation do not count toward the limit. A signature whose visible width
+is exactly the configured limit remains on one line. Select
+`SignatureLayout.singleLine` for machine-oriented output or terminals that
+handle horizontal scrolling. Direct `writeSignature` callers configure the
+same behavior with `SignatureFormat`, including their initial column and base
+indentation. A zero column limit is treated as unbounded.
+
+```text
+Renderer.submit(
+    ref Context,
+    scope const(Command)[],
+    CompletionHook
+) -> RenderResult nothrow @nogc
+```
 
 `StackTraceStyle` owns no text or allocation. Its `StackTraceColors` store
 enabled 8-bit ANSI indices, normally from a preset or `fromAnsi8`; escape

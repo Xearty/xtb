@@ -18,6 +18,10 @@ function/delegate parameter types remain visible. Set
 `StackTraceStyle.signatureDetail` to `SignatureDetail.full` for every encoded
 return type and attribute.
 
+Long signatures use source-style multiline parameter lists beyond 100 columns
+by default. Set `StackTraceStyle.signatureColumns` to another limit, or select
+`SignatureLayout.singleLine` through `StackTraceStyle.signatureLayout`.
+
 The project is independent from the adjacent C++ sources. Public modules live
 under `source/xtb/core`, focused unit tests are colocated with those modules,
 and `tests/core_tests.d` is the explicit BetterC test runner.

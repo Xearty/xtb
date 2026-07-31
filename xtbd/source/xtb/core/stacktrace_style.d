@@ -1,7 +1,7 @@
 module xtb.core.stacktrace_style;
 
-import xtb.core.print : Writer;
 import xtb.core.demangle : SignatureDetail;
+import xtb.core.print : Writer;
 import xtb.core.string : String, equal;
 
 enum StackTraceTheme
@@ -30,6 +30,20 @@ enum ModuleDisplay
 {
     omitted,
     full,
+}
+
+enum SignatureLayout
+{
+    multiline,
+    singleLine,
+}
+
+struct SignatureFormat
+{
+    SignatureLayout layout = SignatureLayout.multiline;
+    size_t maxColumns = 100;
+    size_t initialColumn;
+    size_t continuationIndent = 4;
 }
 
 struct StackTraceColors
@@ -143,6 +157,8 @@ struct StackTraceStyle
     bool showProgramCounter;
     ModuleDisplay moduleDisplay;
     SignatureDetail signatureDetail;
+    SignatureLayout signatureLayout;
+    size_t signatureColumns;
 
     static StackTraceStyle fromTheme(StackTraceTheme theme)
         pure nothrow @safe @nogc
@@ -152,6 +168,8 @@ struct StackTraceStyle
             false,
             ModuleDisplay.omitted,
             SignatureDetail.overloadIdentity,
+            SignatureLayout.multiline,
+            100,
         );
     }
 }
@@ -174,6 +192,7 @@ void endAnsi(ref Writer writer, AnsiColor color) nothrow @nogc
 private enum SignatureTokenKind
 {
     identifier,
+    type,
     keyword,
     punctuation,
     space,
@@ -208,12 +227,22 @@ private bool keyword(String source) pure nothrow @system @nogc
     {
         case "const", "immutable", "inout", "shared", "scope", "return",
             "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
-            "@safe", "@trusted", "@system", "@nogc", "void", "bool",
-            "function", "delegate", "typeof",
-            "byte", "ubyte", "short", "ushort", "int", "uint", "long",
-            "ulong", "cent", "ucent", "char", "wchar", "dchar", "float",
-            "double", "real", "ifloat", "idouble", "ireal", "cfloat",
-            "cdouble", "creal", "size_t", "ptrdiff_t":
+            "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
+            "typeof":
+            return true;
+        default:
+            return false;
+    }
+}
+
+private bool primitiveType(String source) pure nothrow @system @nogc
+{
+    switch (source)
+    {
+        case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
+            "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
+            "dchar", "float", "double", "real", "ifloat", "idouble",
+            "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
             return true;
         default:
             return false;
@@ -246,8 +275,13 @@ private SignatureToken nextToken(String input, size_t start)
             ++end;
     }
     const source = input[start .. end];
-    if (kind == SignatureTokenKind.identifier && keyword(source))
-        kind = SignatureTokenKind.keyword;
+    if (kind == SignatureTokenKind.identifier)
+    {
+        if (primitiveType(source))
+            kind = SignatureTokenKind.type;
+        else if (keyword(source))
+            kind = SignatureTokenKind.keyword;
+    }
     return SignatureToken(kind, source, end);
 }
 
@@ -284,15 +318,12 @@ private bool aggregateIdentifier(String identifier)
         (identifier[0] == '@' || identifier[0] >= 'A' && identifier[0] <= 'Z');
 }
 
-void writeSignature(
-    ref Writer writer,
+private size_t visibleWidth(
     String signature,
-    scope const StackTraceColors* colors,
-    ModuleDisplay moduleDisplay = ModuleDisplay.omitted,
-) nothrow @nogc
+    ModuleDisplay moduleDisplay,
+) pure nothrow @system @nogc
 {
-    StackTraceColors plain;
-    const StackTraceColors* activeColors = colors is null ? &plain : colors;
+    size_t width;
     size_t offset;
     bool suppressSeparator;
     while (offset < signature.length)
@@ -315,6 +346,104 @@ void writeSignature(
             offset = token.end;
             continue;
         }
+        width += token.source.length;
+        offset = token.end;
+    }
+    return width;
+}
+
+private struct ParameterList
+{
+    size_t open;
+    size_t close;
+    bool found;
+}
+
+private ParameterList outerParameterList(String signature)
+    pure nothrow @safe @nogc
+{
+    size_t depth;
+    size_t candidate;
+    bool hasCandidate;
+    ParameterList result;
+    foreach (offset, character; signature)
+    {
+        if (depth == 0 && character == '-' && offset + 1 < signature.length &&
+            signature[offset + 1] == '>')
+            break;
+        if (character == '(')
+        {
+            if (depth == 0)
+            {
+                candidate = offset;
+                hasCandidate = true;
+            }
+            ++depth;
+        }
+        else if (character == ')' && depth != 0)
+        {
+            --depth;
+            if (depth == 0 && hasCandidate)
+                result = ParameterList(candidate, offset, true);
+        }
+    }
+    return result;
+}
+
+void writeSignature(
+    ref Writer writer,
+    String signature,
+    scope const StackTraceColors* colors,
+    ModuleDisplay moduleDisplay = ModuleDisplay.omitted,
+    SignatureFormat format = SignatureFormat.init,
+) nothrow @nogc
+{
+    StackTraceColors plain;
+    const StackTraceColors* activeColors = colors is null ? &plain : colors;
+    size_t offset;
+    bool suppressSeparator;
+    bool suppressSpace;
+    const parameters = outerParameterList(signature);
+    const multiline = format.layout == SignatureLayout.multiline &&
+        format.maxColumns != 0 && parameters.found &&
+        parameters.close > parameters.open + 1 &&
+        visibleWidth(signature, moduleDisplay) > format.maxColumns;
+    bool insideParameters;
+    size_t nestedParentheses;
+    while (offset < signature.length)
+    {
+        const token = nextToken(signature, offset);
+        const tokenOffset = offset;
+        if (multiline && tokenOffset == parameters.close)
+        {
+            writer.put('\n');
+            writer.repeat(' ', format.continuationIndent);
+            insideParameters = false;
+        }
+        if (suppressSeparator && token.kind == SignatureTokenKind.punctuation &&
+            token.source.equal("."))
+        {
+            suppressSeparator = false;
+            offset = token.end;
+            continue;
+        }
+        suppressSeparator = false;
+        if (suppressSpace && token.kind == SignatureTokenKind.space)
+        {
+            suppressSpace = false;
+            offset = token.end;
+            continue;
+        }
+        suppressSpace = false;
+        if (moduleDisplay == ModuleDisplay.omitted &&
+            token.kind == SignatureTokenKind.identifier &&
+            isModuleIdentifier(signature, token.end) &&
+            !aggregateIdentifier(token.source))
+        {
+            suppressSeparator = true;
+            offset = token.end;
+            continue;
+        }
         AnsiColor color;
         final switch (token.kind)
         {
@@ -325,6 +454,9 @@ void writeSignature(
                         ? aggregateIdentifier(token.source)
                             ? activeColors.typeName : activeColors.moduleName
                         : activeColors.typeName;
+                break;
+            case SignatureTokenKind.type:
+                color = activeColors.typeName;
                 break;
             case SignatureTokenKind.keyword:
                 color = activeColors.keyword;
@@ -339,6 +471,28 @@ void writeSignature(
         writer.put(token.source);
         writer.endAnsi(color);
         offset = token.end;
+        if (!multiline || token.kind != SignatureTokenKind.punctuation)
+            continue;
+        if (tokenOffset == parameters.open)
+        {
+            writer.put('\n');
+            writer.repeat(' ', format.continuationIndent + 4);
+            suppressSpace = true;
+            insideParameters = true;
+            nestedParentheses = 0;
+        }
+        else if (insideParameters && token.source.equal("("))
+            ++nestedParentheses;
+        else if (insideParameters && token.source.equal(")") &&
+            nestedParentheses != 0)
+            --nestedParentheses;
+        else if (insideParameters && nestedParentheses == 0 &&
+            token.source.equal(","))
+        {
+            writer.put('\n');
+            writer.repeat(' ', format.continuationIndent + 4);
+            suppressSpace = true;
+        }
     }
 }
 
@@ -369,6 +523,11 @@ nothrow @nogc unittest
     const colors = StackTraceColors.fromTheme(StackTraceTheme.gruvbox);
     const defaultStyle = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
     assert(defaultStyle.signatureDetail == SignatureDetail.overloadIdentity);
+    assert(defaultStyle.signatureLayout == SignatureLayout.multiline);
+    assert(defaultStyle.signatureColumns == 100);
+    assert(nextToken("int", 0).kind == SignatureTokenKind.type);
+    assert(nextToken("void", 0).kind == SignatureTokenKind.type);
+    assert(nextToken("const", 0).kind == SignatureTokenKind.keyword);
     writer.writeSignature(
         "xtb.core.Array!(const(char)[]).append(ref String)",
         &colors,
@@ -392,4 +551,51 @@ nothrow @nogc unittest
     fullWriter.writeSignature("pkg.module.Type.call(int)", &plain, ModuleDisplay.full);
     assert(fullWriter.finish().ok);
     assert(fullStorage[0 .. fullOutput.written].equal("pkg.module.Type.call(int)"));
+
+    char[256] multilineStorage;
+    TestSink multilineOutput = TestSink(multilineStorage[]);
+    Writer multilineWriter = Writer.fromSink(&testSink, &multilineOutput);
+    multilineWriter.writeSignature(
+        "render(int, delegate(int, long) -> void, const(char)[]) -> bool nothrow",
+        &plain,
+        ModuleDisplay.omitted,
+        SignatureFormat(SignatureLayout.multiline, 30, 0, 4),
+    );
+    assert(multilineWriter.finish().ok);
+    assert(multilineStorage[0 .. multilineOutput.written].equal(
+        "render(\n        int,\n        delegate(int, long) -> void,\n" ~
+            "        const(char)[]\n    ) -> bool nothrow",
+    ));
+
+    char[128] singleStorage;
+    TestSink singleOutput = TestSink(singleStorage[]);
+    Writer singleWriter = Writer.fromSink(&testSink, &singleOutput);
+    singleWriter.writeSignature(
+        "call(int, const(char)[], long)",
+        &plain,
+        ModuleDisplay.omitted,
+        SignatureFormat(SignatureLayout.singleLine, 1, 0, 4),
+    );
+    assert(singleWriter.finish().ok);
+    assert(singleStorage[0 .. singleOutput.written].equal(
+        "call(int, const(char)[], long)",
+    ));
+
+    enum boundarySignature = "call(int, const(char)[], long)";
+    char[128] boundaryStorage;
+    TestSink boundaryOutput = TestSink(boundaryStorage[]);
+    Writer boundaryWriter = Writer.fromSink(&testSink, &boundaryOutput);
+    boundaryWriter.writeSignature(
+        boundarySignature,
+        &plain,
+        ModuleDisplay.omitted,
+        SignatureFormat(
+            SignatureLayout.multiline,
+            boundarySignature.length,
+            80,
+            4,
+        ),
+    );
+    assert(boundaryWriter.finish().ok);
+    assert(boundaryStorage[0 .. boundaryOutput.written].equal(boundarySignature));
 }

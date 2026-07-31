@@ -2,9 +2,11 @@ module examples.stacktrace_demo;
 
 import core.stdc.stdio : FILE, stdout;
 import xtb.core.crash : CrashHandlerScope;
+import xtb.core.demangle : SignatureDetail;
 import xtb.core.print : Writer;
 import xtb.core.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
+import xtb.core.stacktrace_style : StackTraceStyle, StackTraceTheme;
 import xtb.core.string : String;
 
 private enum AssetKind : ubyte
@@ -87,7 +89,9 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
     StackTrace trace = context.capture(frames[], text[], 1);
 
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
-    writer.writeStackTrace(&trace);
+    StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
+    style.signatureDetail = SignatureDetail.overloadIdentityAndReturn;
+    writer.writeStackTrace(&trace, &style);
     return writer.finish().ok ? 0 : 1;
 }
 
@@ -195,6 +199,27 @@ private int dispatchAsset(Types...)(
 }
 
 pragma(inline, false)
+private int selectAsset(
+    ref StackTraceContext context,
+    ref const(AssetRequest) request,
+    scope const(float)[] samples,
+) nothrow @nogc
+{
+    ubyte[16] digest;
+    uint[String] resourceSlots;
+    return dispatchAsset!(int, double, String)(
+        context,
+        request,
+        samples,
+        digest,
+        resourceSlots,
+        42,
+        3.5,
+        "mesh",
+    );
+}
+
+pragma(inline, false)
 private int loadScene(
     ref StackTraceContext context,
     String path,
@@ -202,19 +227,8 @@ private int loadScene(
 ) nothrow @nogc
 {
     float[4] samples = [0.25f, 0.5f, 0.75f, 1.0f];
-    ubyte[16] digest;
-    uint[String] resourceSlots;
     const AssetRequest request = AssetRequest(path, identifier);
-    return dispatchAsset!(int, double, String)(
-        context,
-        request,
-        samples[],
-        digest,
-        resourceSlots,
-        42,
-        3.5,
-        "mesh",
-    );
+    return selectAsset(context, request, samples[]);
 }
 
 pragma(inline, false)

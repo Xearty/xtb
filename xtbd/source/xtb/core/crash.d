@@ -7,7 +7,7 @@ import xtb.core.print : Writer;
 import xtb.core.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.core.stacktrace_style : AnsiColor, ModuleDisplay, StackTraceStyle,
-    StackTraceTheme;
+    StackTraceTheme, SignatureLayout;
 import xtb.core.demangle : SignatureDetail;
 import xtb.core.string : String;
 
@@ -24,6 +24,8 @@ struct CrashHandlerOptions
     bool tracePanics = true;
     ModuleDisplay moduleDisplay = ModuleDisplay.omitted;
     SignatureDetail signatureDetail = SignatureDetail.overloadIdentity;
+    SignatureLayout signatureLayout = SignatureLayout.multiline;
+    size_t signatureColumns = 100;
 }
 
 struct CrashHandlerScope
@@ -47,6 +49,8 @@ struct CrashHandlerScope
         globalState.style = StackTraceStyle.fromTheme(options.theme);
         globalState.style.moduleDisplay = options.moduleDisplay;
         globalState.style.signatureDetail = options.signatureDetail;
+        globalState.style.signatureLayout = options.signatureLayout;
+        globalState.style.signatureColumns = options.signatureColumns;
         globalState.signalSafety = options.signalSafety;
         globalState.panicTraceWritten = 0;
         version (Posix)
