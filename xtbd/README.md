@@ -3,7 +3,8 @@
 `xtbd` is a small foundational D library designed for `-betterC`: explicit
 allocators, arenas and thread-local scratch scopes, owning arrays and string
 builders, read-only `String` views, intrusive lists, panic/logging facilities,
-and allocation-free formatted output.
+allocation-free formatted output, structured logging, panic contracts, and
+explicit caller-storage-backed stack traces.
 
 The project is independent from the adjacent C++ sources. Public modules live
 under `source/xtb/core`, focused unit tests are colocated with those modules,

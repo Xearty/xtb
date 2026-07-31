@@ -23,5 +23,9 @@ extern(C) int main() nothrow @nogc
         numbers[0],
         numbers[numbers.length - 1],
     );
+
+    char[128] logStorage;
+    Logger logger = stderrLogger(logStorage[], LogLevel.info);
+    logger.logf!"processed {} values"(LogLevel.info, numbers.length);
     return 0;
 }

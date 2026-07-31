@@ -198,8 +198,10 @@ Keep formatting consistent with the surrounding modules and use DScanner for
 syntax and style enforcement. Do not mix a repository-wide formatting rewrite
 into a functional change. Treat compiler warnings and
 deprecations as errors in CI. Use sanitizers supported by LDC/Clang for native
-debug test builds (at minimum address and undefined behavior sanitizers), while
-also retaining a normal debug run because sanitizers change execution.
+debug test builds. AddressSanitizer is mandatory on the pinned toolchain;
+UndefinedBehaviorSanitizer is run when the compiler accepts it and otherwise
+reports an explicit capability skip. Retain a normal debug run because
+sanitizers change execution.
 
 Coverage is a trend and gap-finding tool, not a substitute for boundary cases.
 If BetterC coverage support is unavailable on a target, collect it in a

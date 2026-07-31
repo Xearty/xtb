@@ -550,7 +550,7 @@ compatibility requirements.
 | C++ area | D destination | Architectural treatment |
 | --- | --- | --- |
 | allocator, arena, slices, arrays, strings | `xtb.core` | explicit allocator and ownership; no process-global allocator |
-| panic, logger, printing, thread context | `xtb.core` | explicit sinks/contexts; only the installed thread context and panic hook use TLS |
+| panic, logger, printing, stack traces, thread context | `xtb.core` | explicit sinks/storage/contexts; only the installed thread context and panic hook use TLS |
 | file and directory operations | `xtb.os` | platform-neutral API over per-platform adapters |
 | BMP and JSON | `xtb.codec.bmp`, `xtb.codec.json` | bounds-checked byte parsers, explicit errors, I/O-independent core |
 | vectors, matrices, noise | `xtb.math` | value types and pure allocation-free algorithms |
