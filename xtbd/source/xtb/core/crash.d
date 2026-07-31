@@ -327,8 +327,12 @@ version (Posix)
             rawWrite("\n");
         }
 
-        cast(void) kill(getpid(), signal);
-        _exit(128 + signal);
+        // The current signal remains blocked until this handler returns. Queue
+        // it after SA_RESETHAND restored the default disposition, then return
+        // so the kernel can perform normal signal termination (and core-dump
+        // handling). Use _exit only if re-delivery itself fails.
+        if (kill(getpid(), signal) != 0)
+            _exit(128 + signal);
     }
 }
 else
