@@ -20,6 +20,10 @@ test-optimized:
     ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_optimized
     ./build/core_tests_optimized
 
+test-darwin-build:
+    mkdir -p build
+    ldc2 -betterC -mtriple=aarch64-apple-darwin -boundscheck=on -wi -de -I=source -lib {{source_files}} -of=build/libxtbd_aarch64_darwin.a
+
 test-sanitize:
     mkdir -p build
     ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
@@ -53,4 +57,4 @@ lint:
     dscanner --syntaxCheck source/xtb/core/stacktrace_style.d
     dscanner lint --config dscanner.ini --styleCheck {{lint_files}}
 
-check: lint build test test-optimized test-abi test-ubsan examples
+check: lint build test test-optimized test-darwin-build test-abi test-ubsan examples

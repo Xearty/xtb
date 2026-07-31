@@ -53,7 +53,7 @@ struct CrashHandlerScope
         globalState.style.signatureColumns = options.signatureColumns;
         globalState.signalTraceMode = options.signalTraceMode;
         globalState.panicTraceWritten = 0;
-        version (Posix)
+        version (linux)
             installSignals();
         if (options.tracePanics)
             globalState.previousPanic = setPanicHandler(&tracePanic);
@@ -74,7 +74,7 @@ struct CrashHandlerScope
                 globalState.previousPanic.handler,
                 globalState.previousPanic.context,
             );
-        version (Posix)
+        version (linux)
             restoreSignals();
         globalState = GlobalCrashState.init;
         active_ = false;
@@ -90,7 +90,7 @@ private struct GlobalCrashState
     bool tracesPanics;
     bool active;
     sig_atomic_t panicTraceWritten;
-    version (Posix)
+    version (linux)
         sigaction_t[handledSignals.length] previousSignals;
 }
 
@@ -119,7 +119,7 @@ private void tracePanic(String message, void*) nothrow @nogc
     globalState.panicTraceWritten = 1;
 }
 
-version (Posix)
+version (linux)
 {
     import core.sys.linux.execinfo : backtrace;
     import core.sys.posix.signal : SA_RESETHAND, SA_SIGINFO, SIGBUS,

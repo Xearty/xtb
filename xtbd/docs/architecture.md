@@ -181,7 +181,7 @@ handlers. A panic occurs in ordinary execution context, so its hook may use
 libbacktrace and the complete styled renderer before `abort` terminates the
 process.
 
-POSIX fatal-signal handling has a stricter contract. `write`, `_exit`, and the
+Linux fatal-signal handling has a stricter contract. `write`, `_exit`, and the
 signal metadata path are async-signal-safe; libbacktrace, allocation, stdio,
 logging, locks, and general symbolization are not.
 `SignalTraceMode.faultAddressOnly` therefore prints the faulting program
@@ -191,6 +191,12 @@ unwinder after warming it during installation. It often produces useful raw
 program counters but cannot be guaranteed deadlock-free after arbitrary memory
 corruption. This tradeoff is explicit in the mode type. Signal output never
 calls the D demangler, allocator, logger, `Writer`, or libc buffered I/O.
+
+The fatal-signal backend is compiled only under `version (linux)`. Other
+platforms retain the same explicit `CrashHandlerScope` and panic-hook API, but
+do not install signal handlers until a platform backend with locally verified
+context and unwinding support exists. This keeps the portable BetterC library
+buildable instead of importing Linux facilities under a broad POSIX guard.
 
 After reporting, the handler restores normal fatal-signal semantics by
 re-delivering the original signal. This preserves the conventional exit status

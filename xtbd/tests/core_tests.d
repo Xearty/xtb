@@ -76,7 +76,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         ScratchScope first = ScratchScope.acquire();
         ScratchScope.acquire(first.allocator);
     }
-    version (Posix)
+    version (linux)
     if (cStringEqual(name, "crash-segv-address"))
     {
         CrashHandlerOptions options;
@@ -85,7 +85,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         raise(SIGSEGV);
         panic("fatal signal unexpectedly returned");
     }
-    version (Posix)
+    version (linux)
     if (cStringEqual(name, "crash-segv-unwind"))
     {
         CrashHandlerOptions options;
@@ -94,35 +94,35 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         raise(SIGSEGV);
         panic("fatal signal unexpectedly returned");
     }
-    version (Posix)
+    version (linux)
     if (cStringEqual(name, "crash-abrt"))
     {
         scope CrashHandlerScope handlers = CrashHandlerScope.install();
         raise(SIGABRT);
         panic("fatal signal unexpectedly returned");
     }
-    version (Posix)
+    version (linux)
     if (cStringEqual(name, "crash-bus"))
     {
         scope CrashHandlerScope handlers = CrashHandlerScope.install();
         raise(SIGBUS);
         panic("fatal signal unexpectedly returned");
     }
-    version (Posix)
+    version (linux)
     if (cStringEqual(name, "crash-fpe"))
     {
         scope CrashHandlerScope handlers = CrashHandlerScope.install();
         raise(SIGFPE);
         panic("fatal signal unexpectedly returned");
     }
-    version (Posix)
+    version (linux)
     if (cStringEqual(name, "crash-ill"))
     {
         scope CrashHandlerScope handlers = CrashHandlerScope.install();
         raise(SIGILL);
         panic("fatal signal unexpectedly returned");
     }
-    version (Posix)
+    version (linux)
     if (cStringEqual(name, "diagnostic-panic"))
     {
         CrashHandlerOptions options;
@@ -285,33 +285,50 @@ extern(C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "non-lifo-pop");
         expectDeath(arguments[0], "scratch-conflict");
         expectDeath(arguments[0], "cross-thread-pop");
-        DeathOutput panicOutput = captureDeath(arguments[0], "diagnostic-panic");
-        assert(panicOutput.signal == SIGABRT);
-        assert(panicOutput.text.contains("Stack trace"));
-        assert(panicOutput.text.contains("intentional diagnostic panic"));
-        assert(panicOutput.text.contains("<rich panic trace printed above>"));
-        DeathOutput addressOnly = captureDeath(
-            arguments[0],
-            "crash-segv-address",
-        );
-        assert(addressOnly.signal == SIGSEGV);
-        assert(addressOnly.text.contains("Fatal crash: "));
-        assert(addressOnly.text.contains("SIGSEGV"));
-        assert(addressOnly.text.contains("Stack trace (signal context):"));
-        assert(addressOnly.text.contains("<faulting instruction>"));
-        assert(addressOnly.text.contains(
-            "<fault-address-only mode: stack unwinding disabled>",
-        ));
+        version (linux)
+        {
+            DeathOutput panicOutput = captureDeath(
+                arguments[0],
+                "diagnostic-panic",
+            );
+            assert(panicOutput.signal == SIGABRT);
+            assert(panicOutput.text.contains("Stack trace"));
+            assert(panicOutput.text.contains("intentional diagnostic panic"));
+            assert(panicOutput.text.contains("<rich panic trace printed above>"));
+            DeathOutput addressOnly = captureDeath(
+                arguments[0],
+                "crash-segv-address",
+            );
+            assert(addressOnly.signal == SIGSEGV);
+            assert(addressOnly.text.contains("Fatal crash: "));
+            assert(addressOnly.text.contains("SIGSEGV"));
+            assert(addressOnly.text.contains("Stack trace (signal context):"));
+            assert(addressOnly.text.contains("<faulting instruction>"));
+            assert(addressOnly.text.contains(
+                "<fault-address-only mode: stack unwinding disabled>",
+            ));
 
-        DeathOutput unwound = captureDeath(arguments[0], "crash-segv-unwind");
-        assert(unwound.signal == SIGSEGV);
-        assert(unwound.text.contains("SIGSEGV"));
-        assert(unwound.text.contains("+1"));
+            DeathOutput unwound = captureDeath(
+                arguments[0],
+                "crash-segv-unwind",
+            );
+            assert(unwound.signal == SIGSEGV);
+            assert(unwound.text.contains("SIGSEGV"));
+            assert(unwound.text.contains("+1"));
 
-        expectSignalDiagnostic(arguments[0], "crash-abrt", SIGABRT, "SIGABRT");
-        expectSignalDiagnostic(arguments[0], "crash-bus", SIGBUS, "SIGBUS");
-        expectSignalDiagnostic(arguments[0], "crash-fpe", SIGFPE, "SIGFPE");
-        expectSignalDiagnostic(arguments[0], "crash-ill", SIGILL, "SIGILL");
+            expectSignalDiagnostic(
+                arguments[0], "crash-abrt", SIGABRT, "SIGABRT",
+            );
+            expectSignalDiagnostic(
+                arguments[0], "crash-bus", SIGBUS, "SIGBUS",
+            );
+            expectSignalDiagnostic(
+                arguments[0], "crash-fpe", SIGFPE, "SIGFPE",
+            );
+            expectSignalDiagnostic(
+                arguments[0], "crash-ill", SIGILL, "SIGILL",
+            );
+        }
     }
     return 0;
 }

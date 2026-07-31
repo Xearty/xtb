@@ -1,6 +1,10 @@
 module xtb.core.memory;
 
-import core.stdc.stdlib : aligned_alloc, free, malloc, realloc;
+import core.stdc.stdlib : free, malloc, realloc;
+version (Posix)
+    import core.sys.posix.stdlib : posix_memalign;
+else
+    import core.stdc.stdlib : aligned_alloc;
 import core.stdc.string : memcpy;
 import xtb.core.panic : panic, require;
 import xtb.core.types : multiplyOverflows;
@@ -31,23 +35,6 @@ private size_t normalizedAlignment(size_t alignment) pure nothrow @safe @nogc
     return alignment < minimum ? minimum : alignment;
 }
 
-private bool roundUp(size_t value, size_t alignment, size_t* result)
-    pure nothrow @safe @nogc
-{
-    const remainder = value & (alignment - 1);
-    if (remainder == 0)
-    {
-        *result = value;
-        return true;
-    }
-
-    const addition = alignment - remainder;
-    if (addition > size_t.max - value)
-        return false;
-    *result = value + addition;
-    return true;
-}
-
 private void* mallocAllocatorProcedure(
     void*,
     size_t newSize,
@@ -69,11 +56,27 @@ private void* mallocAllocatorProcedure(
     if (alignment <= (void*).alignof)
         return realloc(oldPointer, newSize);
 
-    size_t allocationSize;
-    if (!roundUp(newSize, alignment, &allocationSize))
-        return null;
-
-    void* replacement = aligned_alloc(alignment, allocationSize);
+    void* replacement;
+    version (Posix)
+    {
+        if (posix_memalign(&replacement, alignment, newSize) != 0)
+            replacement = null;
+    }
+    else
+    {
+        size_t allocationSize;
+        const remainder = newSize & (alignment - 1);
+        if (remainder != 0)
+        {
+            const addition = alignment - remainder;
+            if (addition > size_t.max - newSize)
+                return null;
+            allocationSize = newSize + addition;
+        }
+        else
+            allocationSize = newSize;
+        replacement = aligned_alloc(alignment, allocationSize);
+    }
     if (replacement is null)
         return null;
 

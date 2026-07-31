@@ -121,7 +121,12 @@ ownership, hidden global state, and macro-oriented interfaces.
   Linux;
 - execinfo/dladdr fallback when debug information is unavailable;
 - truncation and backend-error reporting;
-- non-allocating `Writer` rendering;
+- bounded D demangling with overload-oriented, return-type, and full detail;
+- optional module qualifiers and source-style multiline signatures;
+- non-allocating token-colored `Writer` rendering;
+- the complete embedded theme catalog plus a plain theme;
+- explicitly scoped panic tracing and Linux fatal-signal diagnostics;
+- fault-address-only and attempted-unwind signal modes;
 - runnable debug-info example.
 
 ### Build and verification
@@ -135,6 +140,8 @@ ownership, hidden global state, and macro-oriented interfaces.
 - DScanner policy;
 - DUB library and example configurations;
 - Nix package and test derivations;
+- optimized no-debug-info test execution;
+- local AArch64 Darwin cross-compilation of the portable library;
 - runnable core, print, and stack-trace examples.
 
 ## Deliberately deferred or rejected compatibility
@@ -172,26 +179,6 @@ consumer and a new design review.
 - C variadic formatting;
 - arbitrary automatic struct reflection in the printer.
 
-### Fatal signals
-
-Automatic rich fatal-signal handling is deferred. The C++ implementation logs,
-formats, allocates, and performs stack-trace work from signal context, none of
-which is generally async-signal-safe. A future opt-in platform module must use
-a minimal signal-safe handler, restore previous handlers, and hand richer work
-off only where the platform contract permits it.
-
-### Stack-trace presentation policy
-
-- C++ signature token classification;
-- seventeen embedded color presets;
-- automatic C++/D demangling when it would violate the non-allocating writer
-  contract;
-- mandatory stack-trace support on platforms without a tested backend.
-
-Raw symbols, optional ANSI policy at the final output layer, and graceful
-backend failure are preferable to embedding a large presentation subsystem in
-the foundational package.
-
 ### Termination and logging policy in panic
 
 - configurable continuation after panic;
@@ -203,8 +190,9 @@ core retains a minimal raw stderr path that does not depend on logger health.
 
 ## Known environmental limitation
 
-The flake declares Linux ARM and Darwin systems, but this development host can
-execute only x86-64 Linux checks. Nix evaluates the portable outputs for the
-current system; builders or CI for the other systems are still required before
-claiming those targets have been executed. The public stack-trace API degrades
-to `backendError` where no backend is compiled.
+This development host executes only x86-64 Linux binaries. The complete
+portable library is cross-compiled locally for AArch64 Darwin, but builders or
+CI on AArch64 Linux and Darwin are still required before claiming those targets
+have been executed. Fatal-signal installation and rich stack capture are Linux
+backends; elsewhere `CrashHandlerScope` still traces panics through the portable
+hook and stack capture reports `backendError`.
