@@ -85,6 +85,14 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         panic("fatal signal unexpectedly returned");
     }
     version (Posix)
+    if (cStringEqual(name, "diagnostic-panic"))
+    {
+        CrashHandlerOptions options;
+        options.signalSafety = SignalTraceSafety.strict;
+        scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
+        panic("intentional diagnostic panic");
+    }
+    version (Posix)
     if (cStringEqual(name, "cross-thread-pop"))
     {
         Arena arena = Arena.create(mallocAllocator(), 64);
@@ -163,6 +171,7 @@ extern(C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "scratch-conflict");
         expectDeath(arguments[0], "cross-thread-pop");
         expectDeath(arguments[0], "crash-signal");
+        expectDeath(arguments[0], "diagnostic-panic");
     }
     return 0;
 }
