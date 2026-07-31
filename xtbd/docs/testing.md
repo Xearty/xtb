@@ -168,10 +168,11 @@ Scratch-space tests additionally verify:
 Stack-trace tests use synthetic signatures to cover valid D linkage names,
 truncated length fields, unsupported encodings, empty output buffers, and ANSI
 versus plain rendering. Run crash handlers only in death-test subprocesses.
-The strict signal mode is the deterministic test target: assert nonzero signal
-termination and capture stderr when exact diagnostics matter. Best-effort
-unwinding is an integration smoke test rather than a deterministic assertion,
-because unwinder behavior varies with architecture, optimization, unwind
+The fault-address-only signal mode is the deterministic test target: assert
+nonzero signal termination and capture stderr when exact diagnostics matter.
+Attempted stack unwinding is an integration smoke test rather than a
+deterministic assertion because unwinder behavior varies with architecture,
+optimization, unwind
 tables, and the instruction at which the signal arrived.
 
 ## Regression tests and fixtures

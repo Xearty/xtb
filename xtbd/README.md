@@ -9,8 +9,8 @@ explicit caller-storage-backed stack traces.
 Stack traces include bounded D demangling, allocation-free signature coloring,
 configurable ANSI themes, and explicitly installed panic/fatal-signal handlers.
 See `examples/stacktrace_demo.d` and the diagnostics section of
-`docs/architecture.md` for the safety tradeoff between strict and best-effort
-signal unwinding.
+`docs/architecture.md` for the safety tradeoff between fault-address-only and
+attempted stack unwinding.
 
 Signatures default to an overload-oriented view: outer return types and
 function attributes are hidden, while member qualifiers and complete nested

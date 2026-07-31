@@ -183,12 +183,13 @@ process.
 
 POSIX fatal-signal handling has a stricter contract. `write`, `_exit`, and the
 signal metadata path are async-signal-safe; libbacktrace, allocation, stdio,
-logging, locks, and general symbolization are not. `SignalTraceSafety.strict`
-therefore prints the faulting program counter from `ucontext` and stops.
-`bestEffort`, the ergonomic default, additionally invokes the platform stack
+logging, locks, and general symbolization are not.
+`SignalTraceMode.faultAddressOnly` therefore prints the faulting program
+counter from `ucontext` and stops. `SignalTraceMode.attemptStackUnwind`, the
+ergonomic default, additionally invokes the platform stack
 unwinder after warming it during installation. It often produces useful raw
 program counters but cannot be guaranteed deadlock-free after arbitrary memory
-corruption. This tradeoff is explicit in the option type. Signal output never
+corruption. This tradeoff is explicit in the mode type. Signal output never
 calls the D demangler, allocator, logger, `Writer`, or libc buffered I/O.
 
 After reporting, the handler restores normal fatal-signal semantics by

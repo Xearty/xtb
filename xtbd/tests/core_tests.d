@@ -79,7 +79,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         import core.stdc.signal : SIGSEGV, raise;
 
         CrashHandlerOptions options;
-        options.signalSafety = SignalTraceSafety.strict;
+        options.signalTraceMode = SignalTraceMode.faultAddressOnly;
         scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
         raise(SIGSEGV);
         panic("fatal signal unexpectedly returned");
@@ -88,7 +88,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "diagnostic-panic"))
     {
         CrashHandlerOptions options;
-        options.signalSafety = SignalTraceSafety.strict;
+        options.signalTraceMode = SignalTraceMode.faultAddressOnly;
         scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
         panic("intentional diagnostic panic");
     }

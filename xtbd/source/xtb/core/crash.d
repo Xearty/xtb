@@ -11,16 +11,16 @@ import xtb.core.stacktrace_style : AnsiColor, ModuleDisplay, StackTraceStyle,
 import xtb.core.demangle : SignatureDetail;
 import xtb.core.string : String;
 
-enum SignalTraceSafety
+enum SignalTraceMode
 {
-    strict,
-    bestEffort,
+    faultAddressOnly,
+    attemptStackUnwind,
 }
 
 struct CrashHandlerOptions
 {
     StackTraceTheme theme = StackTraceTheme.gruvbox;
-    SignalTraceSafety signalSafety = SignalTraceSafety.bestEffort;
+    SignalTraceMode signalTraceMode = SignalTraceMode.attemptStackUnwind;
     bool tracePanics = true;
     ModuleDisplay moduleDisplay = ModuleDisplay.omitted;
     SignatureDetail signatureDetail = SignatureDetail.overloadIdentity;
@@ -51,7 +51,7 @@ struct CrashHandlerScope
         globalState.style.signatureDetail = options.signatureDetail;
         globalState.style.signatureLayout = options.signatureLayout;
         globalState.style.signatureColumns = options.signatureColumns;
-        globalState.signalSafety = options.signalSafety;
+        globalState.signalTraceMode = options.signalTraceMode;
         globalState.panicTraceWritten = 0;
         version (Posix)
             installSignals();
@@ -86,7 +86,7 @@ private struct GlobalCrashState
     StackTraceContext context;
     StackTraceStyle style;
     PanicHook previousPanic;
-    SignalTraceSafety signalSafety;
+    SignalTraceMode signalTraceMode;
     bool tracesPanics;
     bool active;
     sig_atomic_t panicTraceWritten;
@@ -292,7 +292,7 @@ version (Posix)
             rawWrite("\n");
         }
 
-        if (globalState.signalSafety == SignalTraceSafety.bestEffort &&
+        if (globalState.signalTraceMode == SignalTraceMode.attemptStackUnwind &&
             globalState.panicTraceWritten == 0)
         {
             void*[64] addresses;
@@ -321,7 +321,7 @@ version (Posix)
         else
         {
             rawStyled(
-                "<strict signal-safe mode: unwinding disabled>",
+                "<fault-address-only mode: stack unwinding disabled>",
                 colors.decoration,
             );
             rawWrite("\n");
