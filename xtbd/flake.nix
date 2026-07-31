@@ -63,6 +63,11 @@
             ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
             -of=core-tests
           ./core-tests
+          ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source \
+            $(find source -name '*.d' -print | sort) tests/core_tests.d \
+            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
+            -of=core-tests-optimized
+          ./core-tests-optimized
           clang -std=c11 -Wall -Wextra -Werror \
             -c tests/abi_allocator.c -o abi-allocator-c.o
           ldc2 -betterC -boundscheck=on -wi -de -I=source \
