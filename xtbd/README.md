@@ -13,9 +13,13 @@ and `tests/core_tests.d` is the explicit BetterC test runner.
 ## Build and test
 
 ```sh
-nix develop
+direnv allow
 just check
 ```
+
+Alternatively, run `nix develop` from `xtbd` and then use the same `just`
+commands. The project-local `.envrc` deliberately selects the independent
+`xtbd` flake instead of inheriting the adjacent C++ project's environment.
 
 `just check` lints, builds the static library, runs every unit test, and builds
 and runs the examples. Individual commands are `just build`, `just test`,
