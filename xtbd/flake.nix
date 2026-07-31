@@ -30,7 +30,7 @@
         buildPhase = ''
           runHook preBuild
           mkdir -p build
-          ldc2 -betterC -boundscheck=on -wi -de -I=source \
+          ldc2 -betterC -boundscheck=on -wi -de -oq -I=source \
             -lib $(find source -name '*.d' -print | sort) \
             -of=build/libxtbd.a
           runHook postBuild

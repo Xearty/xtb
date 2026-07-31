@@ -12,7 +12,7 @@ format:
 
 build:
     mkdir -p build
-    ldc2 -betterC -boundscheck=on -wi -de -I=source -lib {{source_files}} -of=build/libxtbd.a
+    ldc2 -betterC -boundscheck=on -wi -de -oq -I=source -lib {{source_files}} -of=build/libxtbd.a
 
 test:
     mkdir -p build
@@ -30,18 +30,22 @@ test-optimized:
 
 test-darwin-build:
     mkdir -p build
-    ldc2 -betterC -mtriple=aarch64-apple-darwin -boundscheck=on -wi -de -I=source -lib {{source_files}} -of=build/libxtbd_aarch64_darwin.a
+    ldc2 -betterC -mtriple=aarch64-apple-darwin -boundscheck=on -wi -de -oq -I=source -lib {{source_files}} -of=build/libxtbd_aarch64_darwin.a
 
 test-sanitize:
     mkdir -p build
     ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
     ./build/core_tests_asan
+    ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_asan
+    ./build/math_tests_asan
 
 test-ubsan:
     mkdir -p build
     if ldc2 -betterC -fsanitize=undefined -c source/xtb/core/types.d -of=build/ubsan_probe.o >/dev/null 2>&1; then \
         ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
         ./build/core_tests_ubsan; \
+        ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_ubsan; \
+        ./build/math_tests_ubsan; \
     else \
         echo "UBSan is not supported by this LDC build; skipped"; \
     fi
