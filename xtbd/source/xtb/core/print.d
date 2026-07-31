@@ -3,7 +3,7 @@ module xtb.core.print;
 import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
 import xtb.core.string : String, StringBuf, append, clear, equal;
-import xtb.core.memory : Allocator, tryAllocate;
+import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic, require;
 
 alias Sink = size_t function(void* context, scope String bytes) nothrow @nogc;
@@ -301,13 +301,7 @@ bool tryFormatString(string pattern, Args...)(
     );
     if (!formatted.ok || formatted.truncated)
     {
-        (*allocator)(
-            allocator,
-            0,
-            destination,
-            measured.required + 1,
-            char.alignof,
-        );
+        allocator.deallocate(destination, measured.required + 1);
         return false;
     }
     *output = destination[0 .. formatted.written];
