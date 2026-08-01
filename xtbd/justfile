@@ -4,6 +4,7 @@ core_source_files := `find source/xtb/core -name '*.d' -print | sort | tr '\n' '
 diagnostics_source_files := `find source/xtb/diagnostics -name '*.d' -print | sort | tr '\n' ' '`
 math_source_files := `find source/xtb/math -name '*.d' -print | sort | tr '\n' ' '`
 os_source_files := `find source/xtb/os -name '*.d' -print | sort | tr '\n' ' '`
+serde_source_files := `find source/xtb/serde -name '*.d' -print | sort | tr '\n' ' '`
 fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d"
 lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' -print | sort | tr '\n' ' '`
 fuzz_files := `find fuzz -name '*.d' -print | sort | tr '\n' ' '`
@@ -22,6 +23,7 @@ build:
     ldc2 {{common_flags}} -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics.a
     ldc2 {{common_flags}} -oq -lib {{math_source_files}} -of=build/libxtbd_math.a
     ldc2 {{common_flags}} -oq -lib {{os_source_files}} -of=build/libxtbd_os.a
+    ldc2 {{common_flags}} -oq -lib {{serde_source_files}} -of=build/libxtbd_serde.a
 
 test:
     mkdir -p build
@@ -31,6 +33,8 @@ test:
     ./build/math_tests
     ldc2 {{common_flags}} -unittest tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests
     ./build/os_tests
+    ldc2 {{common_flags}} -unittest tests/serde_tests.d {{core_source_files}} {{serde_source_files}} -of=build/serde_tests
+    ./build/serde_tests
 
 test-optimized:
     mkdir -p build
@@ -40,6 +44,8 @@ test-optimized:
     ./build/math_tests_optimized
     ldc2 {{common_flags}} -unittest -O3 tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_optimized
     ./build/os_tests_optimized
+    ldc2 {{common_flags}} -unittest -O3 tests/serde_tests.d {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_optimized
+    ./build/serde_tests_optimized
 
 test-release:
     mkdir -p build
@@ -50,6 +56,8 @@ test-release:
     status=0; bash -c './build/math_tests_release --panic-random-bound >/dev/null 2>&1' >/dev/null 2>&1 || status=$?; test "$status" -eq 134
     ldc2 {{common_flags}} -unittest -O3 -release tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_release
     ./build/os_tests_release
+    ldc2 {{common_flags}} -unittest -O3 -release tests/serde_tests.d {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_release
+    ./build/serde_tests_release
 
 test-darwin-build:
     mkdir -p build
@@ -57,6 +65,7 @@ test-darwin-build:
     ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics_aarch64_darwin.a
     ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{math_source_files}} -of=build/libxtbd_math_aarch64_darwin.a
     ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{os_source_files}} -of=build/libxtbd_os_aarch64_darwin.a
+    ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{serde_source_files}} -of=build/libxtbd_serde_aarch64_darwin.a
 
 test-sanitize:
     mkdir -p build
@@ -66,6 +75,8 @@ test-sanitize:
     ./build/math_tests_asan
     ldc2 {{common_flags}} -unittest -fsanitize=address tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_asan
     ./build/os_tests_asan
+    ldc2 {{common_flags}} -unittest -fsanitize=address tests/serde_tests.d {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_asan
+    ./build/serde_tests_asan
 
 test-ubsan:
     mkdir -p build
@@ -76,6 +87,8 @@ test-ubsan:
         ./build/math_tests_ubsan; \
         ldc2 {{common_flags}} -unittest -fsanitize=undefined tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_ubsan; \
         ./build/os_tests_ubsan; \
+        ldc2 {{common_flags}} -unittest -fsanitize=undefined tests/serde_tests.d {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_ubsan; \
+        ./build/serde_tests_ubsan; \
     else \
         echo "UBSan is not supported by this LDC build; skipped"; \
     fi
@@ -88,6 +101,9 @@ fuzz-smoke:
     ldc2 {{common_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/container_fuzz.d {{fuzz_core_source_files}} -of=build/container_fuzz.o
     clang++ -fsanitize=fuzzer,address build/container_fuzz.o -o build/container_fuzz
     ./build/container_fuzz -runs=1000 -max_len=512
+    ldc2 {{common_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/serde_fuzz.d {{core_source_files}} {{serde_source_files}} -of=build/serde_fuzz.o
+    clang++ -fsanitize=fuzzer,address build/serde_fuzz.o -o build/serde_fuzz
+    ./build/serde_fuzz -runs=2000 -max_len=2048
 
 test-abi:
     mkdir -p build
@@ -102,11 +118,13 @@ examples:
     ldc2 {{common_flags}} -g {{core_source_files}} {{diagnostics_source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
     ldc2 {{common_flags}} {{core_source_files}} {{math_source_files}} examples/math_demo.d -of=build/math_demo
     ldc2 {{common_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
+    ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
     ./build/core_demo
     ./build/print_demo
     ./build/stacktrace_demo
     ./build/math_demo
     ./build/os_demo source
+    ./build/serde_demo
 
 lint:
     dscanner --syntaxCheck source/xtb/diagnostics/stacktrace_style.d

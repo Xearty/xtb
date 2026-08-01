@@ -14,52 +14,63 @@ configuration "library" {
 
 configuration "core" {
     targetType "staticLibrary"
-    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
 }
 
 configuration "diagnostics" {
     targetType "staticLibrary"
-    excludedSourceFiles "source/xtb/math/*.d" "source/xtb/os/*.d"
+    excludedSourceFiles "source/xtb/math/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
     libs "backtrace" platform="linux"
 }
 
 configuration "math" {
     targetType "staticLibrary"
-    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/os/*.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
 }
 
 configuration "os" {
     targetType "staticLibrary"
-    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/serde/*.d"
+}
+
+configuration "serde" {
+    targetType "staticLibrary"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
 }
 
 configuration "core-demo" {
     targetType "executable"
     mainSourceFile "examples/core_demo.d"
-    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
 }
 
 configuration "print-demo" {
     targetType "executable"
     mainSourceFile "examples/print_demo.d"
-    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
 }
 
 configuration "stacktrace-demo" {
     targetType "executable"
     mainSourceFile "examples/stacktrace_demo.d"
-    excludedSourceFiles "source/xtb/math/*.d" "source/xtb/os/*.d"
+    excludedSourceFiles "source/xtb/math/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
     libs "backtrace" platform="linux"
 }
 
 configuration "math-demo" {
     targetType "executable"
     mainSourceFile "examples/math_demo.d"
-    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/os/*.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
 }
 
 configuration "os-demo" {
     targetType "executable"
     mainSourceFile "examples/os_demo.d"
-    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/serde/*.d"
+}
+
+configuration "serde-demo" {
+    targetType "executable"
+    mainSourceFile "examples/serde_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
 }
