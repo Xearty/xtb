@@ -1,14 +1,70 @@
 module xtb.core.array;
 
+import core.internal.traits : hasElaborateDestructor;
+import core.lifetime : emplace, move, moveEmplace;
 import core.stdc.string : memmove;
-import xtb.core.memory : Allocator, deallocate, tryReallocate;
+import xtb.core.memory : Allocator, deallocate, tryAllocate, tryReallocate;
 import xtb.core.panic : panic, require;
 import xtb.core.types : multiplyOverflows;
 
+version (unittest)
+{
+    private __gshared size_t trackedDestructions;
+    private __gshared int[16] destructionOrder;
+    private __gshared int copyableLiveElements;
+
+    private struct TrackedElement
+    {
+        int value;
+        bool active;
+
+        @disable this(this);
+
+        this(int value) nothrow @nogc
+        {
+            this.value = value;
+            active = true;
+        }
+
+        ~this() nothrow @nogc
+        {
+            if (!active)
+                return;
+            destructionOrder[trackedDestructions++] = value;
+            active = false;
+        }
+    }
+
+    private struct CopyableElement
+    {
+        int value;
+        bool active;
+
+        this(int value) nothrow @nogc
+        {
+            this.value = value;
+            active = true;
+            ++copyableLiveElements;
+        }
+
+        this(this) nothrow @nogc
+        {
+            if (active)
+                ++copyableLiveElements;
+        }
+
+        ~this() nothrow @nogc
+        {
+            if (!active)
+                return;
+            active = false;
+            --copyableLiveElements;
+        }
+    }
+}
+
 struct Array(T)
 {
-    static assert(__traits(isPOD, T), "Array currently requires a POD element type");
-
     private Allocator* allocator_;
     private T* data_;
     private size_t length_;
@@ -52,8 +108,9 @@ struct Array(T)
         return result;
     }
 
-    static Array fromSlice(Allocator* allocator, scope const(T)[] values)
+    static Array fromSlice(U = T)(Allocator* allocator, scope const(T)[] values)
         nothrow @nogc
+        if (is(U == T) && __traits(isCopyable, T))
     {
         Array result = withCapacity(allocator, values.length);
         result.append(values);
@@ -67,8 +124,8 @@ struct Array(T)
 
     void deinit() nothrow @nogc
     {
-        if (data_ !is null)
-            allocator_.deallocate(data_, capacity_);
+        destroyElements(data_, length_);
+        allocator_.deallocate(data_, capacity_);
         allocator_ = null;
         data_ = null;
         length_ = 0;
@@ -118,6 +175,77 @@ struct Array(T)
     }
 }
 
+private void constructInitial(T)(T* destination) nothrow @nogc
+{
+    static if (__traits(isPOD, T))
+        *destination = T.init;
+    else
+        emplace(destination);
+}
+
+private void constructMove(T)(T* destination, ref T source) nothrow @nogc
+{
+    static if (__traits(isPOD, T))
+        *destination = source;
+    else
+        moveEmplace(source, *destination);
+}
+
+private void constructCopy(T, U)(T* destination, ref U source) nothrow @nogc
+{
+    static if (__traits(isPOD, T))
+        *destination = source;
+    else
+        emplace(destination, source);
+}
+
+private void destroyElement(T)(T* element) nothrow @nogc
+{
+    static if (hasElaborateDestructor!T)
+        destroy!false(*element);
+}
+
+private void destroyElements(T)(T* data, size_t length) nothrow @nogc
+{
+    static if (hasElaborateDestructor!T)
+    {
+        while (length != 0)
+            destroyElement(data + --length);
+    }
+}
+
+private bool trySetCapacity(T)(ref Array!T array, size_t capacity)
+    nothrow @nogc
+{
+    if (multiplyOverflows(capacity, T.sizeof))
+        return false;
+
+    static if (__traits(isPOD, T))
+    {
+        void* replacement = array.allocator_.tryReallocate(
+            capacity * T.sizeof,
+            array.data_,
+            array.capacity_ * T.sizeof,
+            T.alignof,
+        );
+        if (capacity != 0 && replacement is null)
+            return false;
+        array.data_ = cast(T*) replacement;
+    }
+    else
+    {
+        T* replacement = array.allocator_.tryAllocate!T(capacity);
+        if (capacity != 0 && replacement is null)
+            return false;
+        foreach (i; 0 .. array.length_)
+            constructMove(replacement + i, array.data_[i]);
+        array.allocator_.deallocate(array.data_, array.capacity_);
+        array.data_ = replacement;
+    }
+    array.capacity_ = capacity;
+    return true;
+}
+
 bool tryReserve(T)(ref Array!T array, size_t requested) nothrow @nogc
 {
     if (requested <= array.capacity_)
@@ -134,21 +262,7 @@ bool tryReserve(T)(ref Array!T array, size_t requested) nothrow @nogc
         capacity *= 2;
     }
 
-    if (multiplyOverflows(capacity, T.sizeof))
-        return false;
-
-    void* replacement = array.allocator_.tryReallocate(
-        capacity * T.sizeof,
-        array.data_,
-        array.capacity_ * T.sizeof,
-        T.alignof,
-    );
-    if (replacement is null)
-        return false;
-
-    array.data_ = cast(T*) replacement;
-    array.capacity_ = capacity;
-    return true;
+    return array.trySetCapacity(capacity);
 }
 
 void reserve(T)(ref Array!T array, size_t requested) nothrow @nogc
@@ -159,15 +273,19 @@ void reserve(T)(ref Array!T array, size_t requested) nothrow @nogc
 
 bool tryResize(T)(ref Array!T array, size_t requested) nothrow @nogc
 {
+    if (requested < array.length_)
+    {
+        destroyElements(array.data_ + requested, array.length_ - requested);
+        array.length_ = requested;
+        return true;
+    }
     if (!array.tryReserve(requested))
         return false;
-
-    if (requested > array.length_)
+    while (array.length_ < requested)
     {
-        foreach (i; array.length_ .. requested)
-            array.data_[i] = T.init;
+        constructInitial(array.data_ + array.length_);
+        ++array.length_;
     }
-    array.length_ = requested;
     return true;
 }
 
@@ -181,23 +299,26 @@ bool tryAppend(T)(ref Array!T array, T value) nothrow @nogc
 {
     if (array.length_ == size_t.max || !array.tryReserve(array.length_ + 1))
         return false;
-    array.data_[array.length_++] = value;
+    constructMove(array.data_ + array.length_, value);
+    ++array.length_;
     return true;
 }
 
 void append(T)(ref Array!T array, T value) nothrow @nogc
 {
-    if (!array.tryAppend(value))
+    if (!array.tryAppend(move(value)))
         panic("Array allocation failed");
 }
 
 void appendAssumeCapacity(T)(ref Array!T array, T value) nothrow @nogc
 {
     require(array.length_ < array.capacity_, "Array capacity exceeded");
-    array.data_[array.length_++] = value;
+    constructMove(array.data_ + array.length_, value);
+    ++array.length_;
 }
 
 bool tryAppend(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc
+    if (__traits(isCopyable, T))
 {
     if (values.length > size_t.max - array.length_)
         return false;
@@ -220,17 +341,30 @@ bool tryAppend(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc
         }
     }
 
-    const newLength = array.length_ + values.length;
+    const oldLength = array.length_;
+    const newLength = oldLength + values.length;
     if (!array.tryReserve(newLength))
         return false;
     const(T)* source = aliasesArray ? array.data_ + sourceOffset : values.ptr;
-    if (values.length != 0)
-        memmove(array.data_ + array.length_, source, values.length * T.sizeof);
-    array.length_ = newLength;
+    static if (__traits(isPOD, T))
+    {
+        if (values.length != 0)
+            memmove(array.data_ + array.length_, source, values.length * T.sizeof);
+        array.length_ = newLength;
+    }
+    else
+    {
+        while (array.length_ < newLength)
+        {
+            constructCopy(array.data_ + array.length_, source[array.length_ - oldLength]);
+            ++array.length_;
+        }
+    }
     return true;
 }
 
 void append(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc
+    if (__traits(isCopyable, T))
 {
     if (!array.tryAppend(values))
         panic("Array allocation failed");
@@ -240,12 +374,24 @@ void appendAssumeCapacity(T)(
     ref Array!T array,
     scope const(T)[] values,
 ) nothrow @nogc
+    if (__traits(isCopyable, T))
 {
     require(values.length <= array.capacity_ - array.length_,
         "Array capacity exceeded");
-    if (values.length != 0)
-        memmove(array.data_ + array.length_, values.ptr, values.length * T.sizeof);
-    array.length_ += values.length;
+    static if (__traits(isPOD, T))
+    {
+        if (values.length != 0)
+            memmove(array.data_ + array.length_, values.ptr, values.length * T.sizeof);
+        array.length_ += values.length;
+    }
+    else
+    {
+        foreach (ref value; values)
+        {
+            constructCopy(array.data_ + array.length_, value);
+            ++array.length_;
+        }
+    }
 }
 
 bool tryInsert(T)(ref Array!T array, size_t index, T value) nothrow @nogc
@@ -253,10 +399,22 @@ bool tryInsert(T)(ref Array!T array, size_t index, T value) nothrow @nogc
     require(index <= array.length_, "Array insert index out of bounds");
     if (array.length_ == size_t.max || !array.tryReserve(array.length_ + 1))
         return false;
-    const following = array.length_ - index;
-    if (following != 0)
-        memmove(array.data_ + index + 1, array.data_ + index, following * T.sizeof);
-    array.data_[index] = value;
+    static if (__traits(isPOD, T))
+    {
+        const following = array.length_ - index;
+        if (following != 0)
+            memmove(array.data_ + index + 1, array.data_ + index, following * T.sizeof);
+    }
+    else
+    {
+        size_t position = array.length_;
+        while (position > index)
+        {
+            constructMove(array.data_ + position, array.data_[position - 1]);
+            --position;
+        }
+    }
+    constructMove(array.data_ + index, value);
     ++array.length_;
     return true;
 }
@@ -266,10 +424,13 @@ bool tryInsert(T)(
     size_t index,
     scope const(T)[] values,
 ) nothrow @nogc
+    if (__traits(isCopyable, T))
 {
     require(index <= array.length_, "Array insert index out of bounds");
     if (values.length > size_t.max - array.length_)
         return false;
+    if (values.length == 0)
+        return true;
 
     bool aliasesArray;
     if (values.length != 0 && array.data_ !is null)
@@ -292,14 +453,25 @@ bool tryInsert(T)(
     const newLength = oldLength + values.length;
     if (!array.tryReserve(newLength))
         return false;
-    const following = oldLength - index;
-    if (following != 0)
-        memmove(array.data_ + index + values.length,
-            array.data_ + index, following * T.sizeof);
-
-    if (values.length != 0)
+    static if (__traits(isPOD, T))
     {
-        memmove(array.data_ + index, values.ptr, values.length * T.sizeof);
+        const following = oldLength - index;
+        if (following != 0)
+            memmove(array.data_ + index + values.length,
+                array.data_ + index, following * T.sizeof);
+        if (values.length != 0)
+            memmove(array.data_ + index, values.ptr, values.length * T.sizeof);
+    }
+    else
+    {
+        size_t position = oldLength;
+        while (position > index)
+        {
+            --position;
+            constructMove(array.data_ + position + values.length, array.data_[position]);
+        }
+        foreach (offset, ref value; values)
+            constructCopy(array.data_ + index + offset, value);
     }
     array.length_ = newLength;
     return true;
@@ -307,12 +479,13 @@ bool tryInsert(T)(
 
 void insert(T)(ref Array!T array, size_t index, T value) nothrow @nogc
 {
-    if (!array.tryInsert(index, value))
+    if (!array.tryInsert(index, move(value)))
         panic("Array allocation failed");
 }
 
 void insert(T)(ref Array!T array, size_t index, scope const(T)[] values)
     nothrow @nogc
+    if (__traits(isCopyable, T))
 {
     if (!array.tryInsert(index, values))
         panic("Array allocation failed");
@@ -321,26 +494,37 @@ void insert(T)(ref Array!T array, size_t index, scope const(T)[] values)
 T pop(T)(ref Array!T array) nothrow @nogc
 {
     require(array.length_ != 0, "cannot pop an empty Array");
-    T result = array.data_[--array.length_];
-    array.data_[array.length_] = T.init;
+    --array.length_;
+    T result = void;
+    static if (__traits(isPOD, T))
+        result = array.data_[array.length_];
+    else
+        constructMove(&result, array.data_[array.length_]);
     return result;
 }
 
 void clear(T)(ref Array!T array) nothrow @nogc
 {
-    foreach (i; 0 .. array.length_)
-        array.data_[i] = T.init;
+    destroyElements(array.data_, array.length_);
     array.length_ = 0;
 }
 
 void removeAt(T)(ref Array!T array, size_t index) nothrow @nogc
 {
     require(index < array.length_, "Array index out of bounds");
-    const following = array.length_ - index - 1;
-    if (following != 0)
-        memmove(array.data_ + index, array.data_ + index + 1, following * T.sizeof);
+    static if (__traits(isPOD, T))
+    {
+        const following = array.length_ - index - 1;
+        if (following != 0)
+            memmove(array.data_ + index, array.data_ + index + 1, following * T.sizeof);
+    }
+    else
+    {
+        destroyElement(array.data_ + index);
+        foreach (i; index .. array.length_ - 1)
+            constructMove(array.data_ + i, array.data_[i + 1]);
+    }
     --array.length_;
-    array.data_[array.length_] = T.init;
 }
 
 void removeRange(T)(ref Array!T array, size_t index, size_t count)
@@ -350,13 +534,19 @@ void removeRange(T)(ref Array!T array, size_t index, size_t count)
     require(count <= array.length_ - index, "Array range count out of bounds");
     if (count == 0)
         return;
-    const following = array.length_ - index - count;
-    if (following != 0)
-        memmove(array.data_ + index, array.data_ + index + count, following * T.sizeof);
-    const oldLength = array.length_;
+    static if (__traits(isPOD, T))
+    {
+        const following = array.length_ - index - count;
+        if (following != 0)
+            memmove(array.data_ + index, array.data_ + index + count, following * T.sizeof);
+    }
+    else
+    {
+        destroyElements(array.data_ + index, count);
+        foreach (i; index .. array.length_ - count)
+            constructMove(array.data_ + i, array.data_[i + count]);
+    }
     array.length_ -= count;
-    foreach (i; array.length_ .. oldLength)
-        array.data_[i] = T.init;
 }
 
 bool tryShrinkToFit(T)(ref Array!T array) nothrow @nogc
@@ -368,17 +558,7 @@ bool tryShrinkToFit(T)(ref Array!T array) nothrow @nogc
         array.resetAndRelease();
         return true;
     }
-    void* replacement = array.allocator_.tryReallocate(
-        array.length_ * T.sizeof,
-        array.data_,
-        array.capacity_ * T.sizeof,
-        T.alignof,
-    );
-    if (replacement is null)
-        return false;
-    array.data_ = cast(T*) replacement;
-    array.capacity_ = array.length_;
-    return true;
+    return array.trySetCapacity(array.length_);
 }
 
 void shrinkToFit(T)(ref Array!T array) nothrow @nogc
@@ -389,8 +569,8 @@ void shrinkToFit(T)(ref Array!T array) nothrow @nogc
 
 void resetAndRelease(T)(ref Array!T array) nothrow @nogc
 {
-    if (array.data_ !is null)
-        array.allocator_.deallocate(array.data_, array.capacity_);
+    destroyElements(array.data_, array.length_);
+    array.allocator_.deallocate(array.data_, array.capacity_);
     array.data_ = null;
     array.length_ = 0;
     array.capacity_ = 0;
@@ -399,6 +579,10 @@ void resetAndRelease(T)(ref Array!T array) nothrow @nogc
 nothrow @nogc unittest
 {
     import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
+
+    Array!int zero;
+    zero.deinit();
+    zero.resetAndRelease();
 
     Array!int values = Array!int.withCapacity(mallocAllocator(), 1);
     values.append(1);
@@ -435,5 +619,97 @@ nothrow @nogc unittest
     assert(!fallible.tryAppend(7));
     assert(fallible.length == previousLength && fallible[0] == 42);
     fallible.deinit();
+    assert(tracked.clean);
+}
+
+nothrow @nogc unittest
+{
+    import xtb.core.memory : mallocAllocator;
+
+    trackedDestructions = 0;
+    destructionOrder[] = 0;
+
+    Array!TrackedElement values = Array!TrackedElement.withCapacity(
+        mallocAllocator(),
+        1,
+    );
+    values.append(TrackedElement(1));
+    values.append(TrackedElement(3));
+    values.insert(1, TrackedElement(2));
+    assert(values.length == 3);
+    assert(values[0].value == 1);
+    assert(values[1].value == 2);
+    assert(values[2].value == 3);
+    assert(trackedDestructions == 0);
+
+    values.removeAt(1);
+    assert(values.length == 2);
+    assert(values[1].value == 3);
+    assert(trackedDestructions == 1);
+    assert(destructionOrder[0] == 2);
+
+    {
+        TrackedElement value = values.pop();
+        assert(value.value == 3);
+        assert(trackedDestructions == 1);
+    }
+    assert(trackedDestructions == 2);
+    assert(destructionOrder[1] == 3);
+
+    values.append(TrackedElement(4));
+    values.append(TrackedElement(5));
+    values.clear();
+    assert(trackedDestructions == 5);
+    assert(destructionOrder[2] == 5);
+    assert(destructionOrder[3] == 4);
+    assert(destructionOrder[4] == 1);
+
+    values.append(TrackedElement(6));
+    values.resetAndRelease();
+    assert(trackedDestructions == 6);
+    assert(destructionOrder[5] == 6);
+    values.deinit();
+    assert(trackedDestructions == 6);
+}
+
+nothrow @nogc unittest
+{
+    import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
+
+    copyableLiveElements = 0;
+    {
+        CopyableElement[2] source = [CopyableElement(7), CopyableElement(8)];
+        assert(copyableLiveElements == 2);
+        Array!CopyableElement values = Array!CopyableElement.fromSlice(
+            mallocAllocator(),
+            source[],
+        );
+        assert(copyableLiveElements == 4);
+        values.append(source[]);
+        assert(copyableLiveElements == 6);
+        values.shrinkToFit();
+        values.append(values.slice[0 .. 2]);
+        assert(copyableLiveElements == 8);
+        values.removeRange(1, 2);
+        assert(copyableLiveElements == 6);
+        values.shrinkToFit();
+        assert(copyableLiveElements == 6);
+    }
+    assert(copyableLiveElements == 0);
+
+    AllocationRecord[16] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+    Array!(Array!int) arrays = Array!(Array!int).create(tracked.handle);
+    Array!int child = Array!int.create(tracked.handle);
+    child.append(42);
+    arrays.append(move(child));
+    assert(arrays.length == 1);
+    assert(arrays[0][0] == 42);
+    arrays.clear();
+    assert(arrays.empty);
+    arrays.resetAndRelease();
     assert(tracked.clean);
 }

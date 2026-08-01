@@ -119,6 +119,9 @@ after partial failure. In this project pay particular attention to:
 - malformed, truncated, and adversarial BMP/JSON input;
 - short reads/writes and operating-system error mapping;
 - repeated `create`/`deinit`, zero-state cleanup, and allocator failure;
+- owning-container destruction order, removal and shrinking of elaborate
+  elements, relocation without double destruction, move-only elements, and
+  copy-constrained slice operations;
 - foreign enum/range validation and callback user-context preservation.
 
 Allocator-aware code should be tested with a small instrumented allocator that

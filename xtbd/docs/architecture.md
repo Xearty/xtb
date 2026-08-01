@@ -700,7 +700,15 @@ values, nullability, and integer overflow before entering such an adapter.
   and runtime reflection are unavailable.
 - Keep the name `Array!T` for the allocator-owning growable container. Native
   D slices remain the borrowed representation. `Array!T` is non-copyable and
-  its mutating free functions use a `ref Array!T` UFCS receiver.
+  its mutating free functions use a `ref Array!T` UFCS receiver. It owns every
+  live element: removal, shrinking, clearing, release, and destruction run
+  element destructors in reverse lifetime order where applicable. Relocation
+  uses move construction for elaborate types and leaves moved-from storage
+  uninitialized; only POD elements use raw reallocation and byte movement.
+  Value append/insert operations accept movable non-copyable structs. Slice
+  factories and slice append/insert operations exist only for copyable element
+  types. Element construction, movement, and destruction must satisfy the
+  container's `nothrow @nogc` contract.
 - Make state transitions explicit with verbs such as `create`, `reset`,
   `read`, `finish`, and `deinit`.
 - Use `create(allocator)` for resource-owning factories and

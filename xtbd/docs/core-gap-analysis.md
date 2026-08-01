@@ -32,13 +32,16 @@ ownership, hidden global state, and macro-oriented interfaces.
 
 ### Arrays and borrowed slices
 
-- non-copyable allocator-owning `Array!T` for POD elements;
+- non-copyable allocator-owning `Array!T` for POD, copyable, and move-only
+  BetterC value types;
 - `create`, `withCapacity`, `tryWithCapacity`, `withLength`, and `fromSlice`;
 - fallible/panicking reserve, resize, append, and insertion;
 - assume-capacity append;
 - alias-safe append across reallocation;
 - pop, indexed removal, range removal, clear-with-capacity-retention,
   `shrinkToFit`, and `resetAndRelease`;
+- lifetime-aware construction, move relocation, reverse-order destruction,
+  and POD-only bytewise fast paths;
 - strong-state tests under injected allocation failure;
 - native D slices as the borrowed representation;
 - generic `subslice`, `drop`, `take`, `dropLast`, `takeLast`, `front`, and
@@ -164,8 +167,6 @@ consumer and a new design review.
 - invalid-string sentinel distinct from an empty string;
 - C++ `StringBuf::detach()` behavior, which appears to expose freed storage;
 - implicit ownership transfer from containers;
-- a general non-POD owning array until destruction/move requirements are
-  demonstrated by a real consumer.
 
 ### Macro and C++ representation compatibility
 
