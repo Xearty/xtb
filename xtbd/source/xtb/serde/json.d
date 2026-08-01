@@ -6,9 +6,13 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
+import core.lifetime : move;
+import core.internal.traits : hasElaborateDestructor;
+import xtb.core.array : Array, tryResize;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : require;
 import xtb.core.print : Writer;
+import xtb.core.string : StringBuf;
 import xtb.core.types : String;
 import xtb.serde.attributes : AliasName, Flatten, Ignore, KeyCase, OmitDefault,
     Rename, Required;
@@ -16,9 +20,11 @@ import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
     deserializationAllocator, prepareDeserialized;
-import xtb.serde.traits : FieldSymbol, FieldType, Unqualified, fieldHas,
-    fieldMatches, fieldName, fieldOrdinal, isDynamicArray, isFixedArray,
-    isSerdeStruct, isString, schemaCase, serializedFieldCount, validateSchema;
+import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
+    fieldHas, fieldMatches, fieldName, fieldOrdinal, isArray, isDynamicArray,
+    isFixedArray, isSerdeStruct, isString, isStringBuf, initializeOwnedValue,
+    schemaCase, serializedFieldCount, validateBorrowedSchema,
+    validateOwnedSchema, validateSchema;
 
 struct JsonWriteOptions
 {
@@ -74,7 +80,7 @@ SerdeError readJson(T)(
     JsonReadOptions options = JsonReadOptions.init,
 )
 {
-    validateSchema!T();
+    validateBorrowedSchema!T();
     require(options.limits.maxDepth != 0, "JSON max depth must be nonzero");
     require(options.limits.maxCollectionLength != 0,
         "JSON collection limit must be nonzero");
@@ -106,6 +112,43 @@ SerdeError readJson(T)(
     return success();
 }
 
+SerdeError readJson(T)(
+    scope String input,
+    Allocator* allocator,
+    T* output,
+    JsonReadOptions options = JsonReadOptions.init,
+) if (isSerdeStruct!T)
+{
+    validateOwnedSchema!T();
+    require(allocator !is null && *allocator !is null,
+        "serde requires a valid allocator");
+    require(output !is null, "owned JSON output pointer is null");
+    require(options.limits.maxDepth != 0, "JSON max depth must be nonzero");
+    require(options.limits.maxCollectionLength != 0,
+        "JSON collection limit must be nonzero");
+
+    T decoded;
+    initializeOwnedValue(allocator, &decoded);
+    JsonParser parser;
+    parser.input = input;
+    parser.allocator = allocator;
+    parser.options = options;
+    parser.line = 1;
+    parser.column = 1;
+    parser.skipWhitespace();
+    decodeValue(parser, &decoded, 0);
+    if (parser.error.ok)
+    {
+        parser.skipWhitespace();
+        if (parser.position != input.length)
+            parser.fail(SerdeErrorKind.invalidSyntax);
+    }
+    if (!parser.error.ok)
+        return parser.error;
+    move(decoded, *output);
+    return success();
+}
+
 private struct JsonEncoder
 {
 nothrow @nogc:
@@ -129,8 +172,8 @@ nothrow @nogc:
     }
 }
 
-private bool valuesEqual(T, E)(scope const ref T value, scope const E expected)
-pure @safe
+private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expected)
+@system
 {
     alias U = Unqualified!T;
     static if (isString!U)
@@ -142,12 +185,30 @@ pure @safe
                 return false;
         return true;
     }
+    else static if (isStringBuf!U)
+    {
+        if (value.length != expected.length)
+            return false;
+        foreach (index; 0 .. value.length)
+            if (value.view[index] != expected.view[index])
+                return false;
+        return true;
+    }
     else static if (isDynamicArray!U)
     {
         if (value.length != expected.length)
             return false;
         foreach (index, ref const element; value)
             if (!valuesEqual(element, expected[index]))
+                return false;
+        return true;
+    }
+    else static if (isArray!U)
+    {
+        if (value.length != expected.length)
+            return false;
+        foreach (index; 0 .. value.length)
+            if (!valuesEqual(value[index], expected[index]))
                 return false;
         return true;
     }
@@ -172,6 +233,21 @@ pure @safe
         return value == expected;
 }
 
+private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
+@system
+{
+    static if (hasElaborateDestructor!(Unqualified!F))
+    {
+        Unqualified!F defaults;
+        return valuesEqual(value, defaults);
+    }
+    else
+    {
+        auto expected = Unqualified!T.init.tupleof[index];
+        return valuesEqual(value, expected);
+    }
+}
+
 private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, size_t depth)
 {
     if (!encoder.error.ok)
@@ -179,6 +255,8 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
     alias U = Unqualified!T;
     static if (isString!U)
         encodeString(encoder, cast(String) value);
+    else static if (isStringBuf!U)
+        encodeString(encoder, value.view);
     else static if (is(U == bool))
         encoder.writer.put(value ? "true" : "false");
     else static if (is(U == enum))
@@ -194,6 +272,8 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
         else
             encodeValue(encoder, *value, depth);
     }
+    else static if (isArray!U)
+        encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
     else static if (isSerdeStruct!U)
@@ -242,9 +322,9 @@ private void encodeOneField(T, size_t index, F)(
     bool* wrote,
 )
 {
-    enum omit = fieldHas!(T, index, OmitDefault);
-    if (omit && valuesEqual(value, Unqualified!T.init.tupleof[index]))
-        return;
+    static if (fieldHas!(T, index, OmitDefault))
+        if (fieldIsDefault!(T, index)(value))
+            return;
     if (*wrote)
         encoder.writer.put(',');
     encoder.newline(depth + 1);
@@ -268,7 +348,11 @@ private void encodeFieldName(T, size_t index)(ref JsonEncoder encoder)
     encoder.writer.put('"');
 }
 
-private void encodeArray(T)(ref JsonEncoder encoder, scope const ref T values, size_t depth)
+private void encodeArray(Element)(
+    ref JsonEncoder encoder,
+    scope const(Element)[] values,
+    size_t depth,
+)
 {
     if (depth >= encoder.options.maxDepth)
     {
@@ -448,6 +532,8 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
     parser.skipWhitespace();
     static if (isString!U)
         decodeString(parser, cast(String*) output);
+    else static if (isStringBuf!U)
+        decodeStringBuf(parser, cast(StringBuf*) output);
     else static if (is(U == bool))
         decodeBool(parser, output);
     else static if (is(U == enum))
@@ -458,6 +544,8 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeFloat(parser, output);
     else static if (is(U == Pointee*, Pointee))
         decodePointer(parser, output, depth);
+    else static if (isArray!U)
+        decodeArray!(ArrayElement!U)(parser, cast(U*) output, depth);
     else static if (isDynamicArray!U)
         decodeDynamicArray(parser, output, depth);
     else static if (isFixedArray!U)
@@ -850,6 +938,49 @@ private void decodeDynamicArray(T)(ref JsonParser parser, T* output, size_t dept
     }
 }
 
+private void decodeArray(Element)(
+    ref JsonParser parser,
+    Array!Element* output,
+    size_t depth,
+)
+{
+    JsonParser counter = parser;
+    size_t count;
+    countArray(counter, depth, &count);
+    if (!counter.error.ok)
+    {
+        parser.error = counter.error;
+        return;
+    }
+    Array!Element values = Array!Element.create(parser.allocator);
+    if (!values.tryResize(count))
+    {
+        parser.fail(SerdeErrorKind.allocationFailure);
+        return;
+    }
+    foreach (index; 0 .. count)
+        initializeOwnedValue(parser.allocator, &values[index]);
+    parser.consume('[');
+    parser.skipWhitespace();
+    foreach (index; 0 .. count)
+    {
+        decodeValue(parser, &values[index], depth + 1);
+        if (!parser.error.ok)
+            return;
+        parser.skipWhitespace();
+        if (index + 1 == count)
+            parser.consume(']');
+        else
+        {
+            parser.consume(',');
+            parser.skipWhitespace();
+        }
+    }
+    if (count == 0)
+        parser.consume(']');
+    move(values, *output);
+}
+
 private void decodeFixedArray(T)(ref JsonParser parser, T* output, size_t depth)
 {
     if (depth >= parser.options.limits.maxDepth)
@@ -1009,6 +1140,22 @@ private void decodeString(ref JsonParser parser, String* output)
 {
     bool owned;
     decodeStringToken(parser, output, &owned, true);
+}
+
+private void decodeStringBuf(ref JsonParser parser, StringBuf* output)
+{
+    String value;
+    bool owned;
+    decodeStringToken(parser, &value, &owned, true);
+    if (!parser.error.ok)
+        return;
+    require(owned, "owned JSON string was not allocated");
+    *output = StringBuf.adopt(
+        parser.allocator,
+        cast(char*) value.ptr,
+        value.length,
+        value.length + 1,
+    );
 }
 
 private void decodeStringToken(

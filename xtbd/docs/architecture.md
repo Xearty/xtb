@@ -795,11 +795,14 @@ do not share a text-shaped intermediate representation; a future binary
 backend can therefore preserve field identifiers, fixed-width values, and
 other binary policies without pretending they are strings.
 
-The initial schema supports booleans, signed and unsigned integers,
-floating-point values, enums, `String`, structs, pointers as nullable values,
-fixed arrays, and dynamic slices. The root of a key-value document is a
-struct. Unsupported field types fail at compile time with the field and type
-in the diagnostic. Enums use their D member names in text formats by default.
+Schemas support booleans, signed and unsigned integers, floating-point values,
+enums, nested structs, fixed arrays, and two deliberate ownership families.
+Document-owned schemas use `String`, dynamic slices, and pointers as nullable
+values. Self-owning schemas use `StringBuf` and `Array!T`; they do not contain
+raw owning pointers or slices. The root of a key-value document is a struct.
+Unsupported or mixed ownership shapes fail at compile time with the field and
+type in the diagnostic. Enums use their D member names in text formats by
+default.
 
 Fields use narrowly scoped UDAs from `xtb.serde.attributes`:
 
@@ -825,8 +828,7 @@ keys and duplicate assignments are rejected by default; options may ignore
 unknown keys for forward compatibility, but never silently accept duplicate
 keys. Missing fields retain `T.init` unless marked `@required`.
 
-Text decoding may allocate for decoded strings, dynamic arrays, optional
-pointer values, and the root object. The primary result is
+Text decoding offers two lifetime models. A document-owned decode writes a
 `Deserialized!T`, a non-copyable RAII owner holding both `T*` and an internal
 allocation tracker over its explicit `Allocator*`. The tracker records only
 allocations made by that decode, so destruction and partial-failure cleanup do
@@ -834,12 +836,27 @@ not mistake a static field initializer or other default pointer for owned
 memory. Its destructor releases the exact allocation set made by the backend;
 the output remains empty on failure. A `String` inside the result is still a
 read-only simple view, but newly decoded bytes are owned by the surrounding
-`Deserialized!T`, not by the slice itself. A view or pointer obtained from the
-result expires when that owner is reset or destroyed. User-defined structs
-with destructors are not
-automatically deserialized: their independent lifetime policy requires an
-explicit adapter rather than guessing how serde allocations interact with the
-destructor.
+`Deserialized!T`. A view or pointer obtained from the result expires when that
+owner is reset or destroyed.
+
+A self-owning decode writes an ordinary caller-owned struct directly. Text
+fields are `StringBuf`, collections are `Array!T`, and nested structs compose
+those owners. Each container uses the allocator passed to `readJson` or
+`readToml`; no tracking allocator or result wrapper is involved. Decoding is
+transactional: the backend builds a temporary RAII value, destroys it on any
+failure, and replaces the caller's previous output by move only after the
+whole document succeeds. The previous value therefore remains intact on
+syntax, schema, range, limit, or allocation failure. The resulting struct can
+be mutated, moved, reset, and extended using the normal `StringBuf` and
+`Array!T` APIs. Every owning container in a successful result is initialized
+with the decode allocator even when its field was absent, including containers
+inside nested records and fixed or dynamic owning arrays. Appending to an
+absent optional collection or string therefore requires no repair step.
+
+Serde permits compiler-generated destruction arising from supported owning
+fields. A user-defined destructor remains unsupported because the decoder
+cannot infer its construction invariants or whether partially initialized
+state is valid; such types require a future explicit adapter.
 
 Serialization writes to `Writer` and performs no allocation. Deserialization
 accepts a `String` input, explicit allocator, explicit output pointer, and

@@ -1,5 +1,7 @@
 module tests.serde_tests;
 
+import core.lifetime : move;
+import xtb.core.array : Array, append;
 import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
 import xtb.core.print : Writer;
 import xtb.core.string : String, StringBuf, append, clear, equal;
@@ -109,8 +111,32 @@ align(64) private struct AlignedDocument
     int value;
 }
 
+@fieldCase(KeyCase.snake)
+private struct OwnedEndpoint
+{
+    @required StringBuf hostName;
+    ushort port;
+    Array!StringBuf labels;
+}
+
+@fieldCase(KeyCase.snake)
+private struct OwnedDocument
+{
+    @required StringBuf applicationName;
+    OwnedEndpoint primaryEndpoint;
+    Array!OwnedEndpoint replicaEndpoints;
+    Array!StringBuf featureFlags;
+    @omitDefault StringBuf description;
+    @omitDefault Array!StringBuf experiments;
+    int[3] retryDelays;
+    @omitDefault bool tracingEnabled;
+}
+
 static assert(!__traits(compiles, validateSchema!ConflictingNames()));
 static assert(__traits(compiles, validateSchema!StaticInitializer()));
+static assert(__traits(compiles, validateOwnedSchema!OwnedDocument()));
+static assert(!__traits(compiles, validateBorrowedSchema!OwnedDocument()));
+static assert(!__traits(compiles, validateOwnedSchema!Settings()));
 static assert(!__traits(compiles, (ref Deserialized!Settings value) {
         Deserialized!Settings copy = value;
     }));
@@ -435,6 +461,218 @@ private void testTomlAllocationFailures() nothrow @nogc
     assert(reachedSuccess);
 }
 
+private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
+{
+    enum input =
+        "{\"application_name\":\"control plane\"," ~
+        "\"primary_endpoint\":{\"host_name\":\"api.internal\"," ~
+        "\"port\":8443,\"labels\":[\"primary\",\"tls\"]}," ~
+        "\"replica_endpoints\":[" ~
+        "{\"host_name\":\"api-1.internal\",\"port\":8443,\"labels\":[]}," ~
+        "{\"host_name\":\"api-2.internal\",\"port\":9443," ~
+        "\"labels\":[\"canary\"]}]," ~
+        "\"feature_flags\":[\"audit\",\"metrics\"]," ~
+        "\"retry_delays\":[1,5,30],\"tracing_enabled\":true}";
+
+    OwnedDocument document;
+    SerdeError error = readJson(input, mallocAllocator(), &document);
+    assert(error.ok);
+    assert(document.applicationName.view.equal("control plane"));
+    assert(document.primaryEndpoint.hostName.view.equal("api.internal"));
+    assert(document.primaryEndpoint.labels.length == 2);
+    assert(document.replicaEndpoints.length == 2);
+    assert(document.replicaEndpoints[1].hostName.view.equal("api-2.internal"));
+    assert(document.featureFlags[0].view.equal("audit"));
+
+    document.applicationName.clear();
+    document.applicationName.append("edge plane");
+    document.primaryEndpoint.hostName.append(".test");
+    document.featureFlags[1].clear();
+    document.featureFlags[1].append("telemetry");
+    StringBuf addedFlag = StringBuf.fromString(mallocAllocator(), "compression");
+    document.featureFlags.append(move(addedFlag));
+    document.retryDelays[2] = 60;
+    document.tracingEnabled = false;
+
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, document);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "{\"application_name\":\"edge plane\"," ~
+            "\"primary_endpoint\":{\"host_name\":\"api.internal.test\"," ~
+            "\"port\":8443,\"labels\":[\"primary\",\"tls\"]}," ~
+            "\"replica_endpoints\":[" ~
+            "{\"host_name\":\"api-1.internal\",\"port\":8443,\"labels\":[]}," ~
+            "{\"host_name\":\"api-2.internal\",\"port\":9443," ~
+            "\"labels\":[\"canary\"]}]," ~
+            "\"feature_flags\":[\"audit\",\"telemetry\",\"compression\"]," ~
+            "\"retry_delays\":[1,5,60]}"));
+}
+
+private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
+{
+    enum first =
+        "application_name = \"scheduler\"\n" ~
+        "primary_endpoint = { host_name = \"jobs.internal\", port = 7000, " ~
+        "labels = [\"stable\"] }\n" ~
+        "replica_endpoints = [{ host_name = \"jobs-1.internal\", " ~
+        "port = 7001, labels = [\"backup\"] }]\n" ~
+        "feature_flags = [\"fair_queue\"]\n" ~
+        "retry_delays = [2, 10, 45]\n";
+    enum replacement =
+        "application_name = \"worker\"\n" ~
+        "primary_endpoint = { host_name = \"worker.internal\", port = 9000, " ~
+        "labels = [] }\n" ~
+        "replica_endpoints = []\n" ~
+        "feature_flags = [\"batch\", \"priority\"]\n" ~
+        "retry_delays = [1, 3, 9]\n" ~
+        "tracing_enabled = true\n";
+
+    OwnedDocument document;
+    SerdeError error = readToml(first, mallocAllocator(), &document);
+    assert(error.ok);
+    assert(document.applicationName.view.equal("scheduler"));
+    assert(document.replicaEndpoints.length == 1);
+
+    error = readToml(replacement, mallocAllocator(), &document);
+    assert(error.ok);
+    assert(document.applicationName.view.equal("worker"));
+    assert(document.primaryEndpoint.hostName.view.equal("worker.internal"));
+    assert(document.replicaEndpoints.empty);
+    assert(document.featureFlags.length == 2);
+    assert(document.tracingEnabled);
+
+    document.featureFlags[0].append("-v2");
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, document);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "application_name = \"worker\"\n" ~
+            "primary_endpoint = { host_name = \"worker.internal\", port = 9000, " ~
+            "labels = [] }\n" ~
+            "replica_endpoints = []\n" ~
+            "feature_flags = [\"batch-v2\", \"priority\"]\n" ~
+            "retry_delays = [1, 3, 9]\n" ~
+            "tracing_enabled = true"));
+}
+
+private void testOwnedDecodeIsTransactional() nothrow @nogc
+{
+    AllocationRecord[128] records;
+    InstrumentedAllocator allocator = InstrumentedAllocator.create(
+        mallocAllocator(), records[]);
+    OwnedDocument document;
+    document.applicationName = StringBuf.fromString(allocator.handle, "preserved");
+
+    SerdeError error = readJson(
+        "{\"application_name\":\"replacement\"," ~
+            "\"primary_endpoint\":{\"host_name\":\"partial\"}," ~
+            "\"replica_endpoints\":[{\"host_name\":7}]}",
+        allocator.handle,
+        &document,
+    );
+    assert(error.kind == SerdeErrorKind.typeMismatch);
+    assert(document.applicationName.view.equal("preserved"));
+
+    error = readToml(
+        "application_name = \"replacement\"\n" ~
+            "primary_endpoint = { host_name = \"partial\" }\n" ~
+            "replica_endpoints = [7]\n",
+        allocator.handle,
+        &document,
+    );
+    assert(error.kind == SerdeErrorKind.typeMismatch);
+    assert(document.applicationName.view.equal("preserved"));
+
+    error = readJson(
+        "{\"application_name\":\"replacement succeeded\"}",
+        allocator.handle,
+        &document,
+    );
+    assert(error.ok);
+    assert(document.applicationName.view.equal("replacement succeeded"));
+    assert(document.primaryEndpoint.hostName.allocator is allocator.handle);
+    assert(document.featureFlags.allocator is allocator.handle);
+    assert(document.description.allocator is allocator.handle);
+    assert(document.experiments.allocator is allocator.handle);
+    document.primaryEndpoint.hostName.append("initialized after decode");
+    StringBuf lateFlag = StringBuf.fromString(allocator.handle, "late");
+    document.featureFlags.append(move(lateFlag));
+    assert(document.primaryEndpoint.hostName.view.equal(
+            "initialized after decode"));
+    assert(document.featureFlags[0].view.equal("late"));
+    destroy(document);
+    assert(allocator.clean);
+    assert(allocator.stats.invalidCalls == 0);
+}
+
+private void testOwnedAllocationFailures() nothrow @nogc
+{
+    enum input =
+        "{\"application_name\":\"owned\"," ~
+        "\"primary_endpoint\":{\"host_name\":\"primary\",\"labels\":[\"a\"]}," ~
+        "\"replica_endpoints\":[{\"host_name\":\"replica\"," ~
+        "\"labels\":[\"b\"]}],\"feature_flags\":[\"one\",\"two\"]," ~
+        "\"retry_delays\":[1,2,3]}";
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        {
+            OwnedDocument document;
+            SerdeError error = readJson(input, allocator.handle, &document);
+            if (error.ok)
+            {
+                assert(document.applicationName.view.equal("owned"));
+                reachedSuccess = true;
+            }
+            else
+                assert(error.kind == SerdeErrorKind.allocationFailure);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+
+    enum tomlInput =
+        "application_name = \"owned\"\n" ~
+        "primary_endpoint = { host_name = \"primary\", labels = [\"a\"] }\n" ~
+        "replica_endpoints = [{ host_name = \"replica\", labels = [\"b\"] }]\n" ~
+        "feature_flags = [\"one\", \"two\"]\n" ~
+        "retry_delays = [1, 2, 3]\n";
+    reachedSuccess = false;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        {
+            OwnedDocument document;
+            SerdeError error = readToml(tomlInput, allocator.handle, &document);
+            if (error.ok)
+            {
+                assert(document.applicationName.view.equal("owned"));
+                reachedSuccess = true;
+            }
+            else
+                assert(error.kind == SerdeErrorKind.allocationFailure);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+}
+
 extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
@@ -447,5 +685,9 @@ extern (C) int main()
     testTomlRoundTrip();
     testTomlTablesAndSyntax();
     testTomlAllocationFailures();
+    testOwnedJsonRoundTripAndMutation();
+    testOwnedTomlRoundTripAndReplacement();
+    testOwnedDecodeIsTransactional();
+    testOwnedAllocationFailures();
     return 0;
 }

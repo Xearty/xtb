@@ -208,6 +208,15 @@ Serde tests additionally verify:
   and the instrumented allocator balanced;
 - destroying or resetting a successful `Deserialized!T` recursively releases
   the root, copied strings, slices, and nullable pointer values exactly once;
+- owning decodes populate `StringBuf`, `Array!T`, nested owning structs, and
+  fixed arrays without an ownership wrapper; the result remains freely
+  mutable and normal RAII destruction releases every nested allocation;
+- absent owning fields retain the decode allocator and can grow immediately,
+  while omit-default compares empty owning containers without allocating;
+- any owning decode failure destroys the temporary partial graph, balances the
+  caller's allocator, and leaves a previously populated output unchanged;
+- replacing a successful owning output releases its former graph exactly once,
+  including arrays of move-only strings and nested owning records;
 - serializers allocate nothing, propagate sink failure, produce deterministic
   field order, and never emit a partial token after detecting an unsupported
   value; and

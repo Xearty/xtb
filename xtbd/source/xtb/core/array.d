@@ -109,6 +109,26 @@ nothrow @nogc:
         return (*output).tryReserve(capacity);
     }
 
+    package(xtb) static Array adopt(
+        Allocator* allocator,
+        T* data,
+        size_t length,
+        size_t capacity,
+    )
+    {
+        require(allocator !is null && *allocator !is null,
+            "Array requires a valid allocator");
+        require(length <= capacity, "adopted Array length exceeds capacity");
+        require((capacity == 0) == (data is null),
+            "adopted Array storage does not match capacity");
+        Array result;
+        result.allocator_ = allocator;
+        result.data_ = data;
+        result.length_ = length;
+        result.capacity_ = capacity;
+        return result;
+    }
+
     static Array withLength(Allocator* allocator, size_t length)
 
     {

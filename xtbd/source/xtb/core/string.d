@@ -642,6 +642,18 @@ nothrow @nogc:
         return (*output).tryAppend(value);
     }
 
+    package(xtb) static StringBuf adopt(
+        Allocator* allocator,
+        char* data,
+        size_t length,
+        size_t capacity,
+    )
+    {
+        StringBuf result;
+        result.bytes_ = Array!char.adopt(allocator, data, length, capacity);
+        return result;
+    }
+
     void deinit()
     {
         bytes_.deinit();

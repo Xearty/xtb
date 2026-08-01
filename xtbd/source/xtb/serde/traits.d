@@ -3,6 +3,9 @@ module xtb.serde.traits;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
+import xtb.core.array : Array;
+import xtb.core.memory : Allocator;
+import xtb.core.string : StringBuf;
 import xtb.core.types : String;
 import xtb.serde.attributes;
 import xtb.serde.casing : casedNamesEqual, matchesCased;
@@ -15,6 +18,18 @@ template Unqualified(T)
 enum isString(T) = is(Unqualified!T == String) ||
     is(Unqualified!T == immutable(char)[]);
 
+enum isStringBuf(T) = is(Unqualified!T == StringBuf);
+
+template ArrayElement(T)
+{
+    static if (is(Unqualified!T == Array!Element, Element))
+        alias ArrayElement = Element;
+    else
+        static assert(false, T.stringof ~ " is not an Array");
+}
+
+enum isArray(T) = is(Unqualified!T == Array!Element, Element);
+
 enum isDynamicArray(T) = is(Unqualified!T == Element[], Element) &&
     !is(Element == char) && !is(Element == const(char)) &&
     !is(Element == immutable(char));
@@ -23,8 +38,8 @@ enum isFixedArray(T) = is(Unqualified!T == Element[N], Element, size_t N) &&
     !is(Element == char) && !is(Element == const(char)) &&
     !is(Element == immutable(char));
 
-enum isSerdeStruct(T) = is(Unqualified!T == struct) &&
-    !hasElaborateDestructor!(Unqualified!T);
+enum isSerdeStruct(T) = is(Unqualified!T == struct) && !isStringBuf!T &&
+    !isArray!T && !__traits(hasMember, Unqualified!T, "__dtor");
 
 private bool containsAttribute(A, Attributes...)(Attributes attributes)
 pure @safe
@@ -146,13 +161,15 @@ enum fieldOrdinal(T, size_t index) = countFieldsBefore!(T, index);
 private bool supportedValue(T)() pure @safe
 {
     alias U = Unqualified!T;
-    static if (isString!U || is(U == bool) || is(U == enum) ||
+    static if (isString!U || isStringBuf!U || is(U == bool) || is(U == enum) ||
         __traits(isIntegral, U) || __traits(isFloating, U))
         return true;
     else static if (is(U == Pointee*, Pointee))
         return supportedValue!Pointee;
     else static if (isDynamicArray!U)
         return supportedValue!(typeof(U.init[0]));
+    else static if (isArray!U)
+        return supportedValue!(ArrayElement!U);
     else static if (isFixedArray!U)
         return supportedValue!(typeof(U.init[0]));
     else static if (isSerdeStruct!U)
@@ -173,7 +190,7 @@ void validateSchema(T)()
 {
     alias U = Unqualified!T;
     static assert(isSerdeStruct!U,
-        "serde document root must be a struct without a destructor");
+        "serde document root must be a struct without a user-defined destructor");
     static assert(countAttribute!FieldCase(__traits(getAttributes, U)) <= 1,
         "a serde struct may have at most one @fieldCase");
     static assert(schemaCase!U != KeyCase.schema,
@@ -184,6 +201,86 @@ void validateSchema(T)()
         static foreach (right; left + 1 .. serializedFieldCount!U)
             static assert(!leafNamesOverlap!U(left, right),
                 "serialized field names and aliases must be unique after flattening");
+}
+
+private bool borrowedValue(T)() pure @safe
+{
+    alias U = Unqualified!T;
+    static if (isString!U || is(U == bool) || is(U == enum) ||
+        __traits(isIntegral, U) || __traits(isFloating, U))
+        return true;
+    else static if (is(U == Pointee*, Pointee))
+        return borrowedValue!Pointee;
+    else static if (isDynamicArray!U)
+        return borrowedValue!(typeof(U.init[0]));
+    else static if (isFixedArray!U)
+        return borrowedValue!(typeof(U.init[0]));
+    else static if (isSerdeStruct!U && !hasElaborateDestructor!U)
+    {
+        bool result = true;
+        static foreach (index; 0 .. U.tupleof.length)
+            static if (!fieldHas!(U, index, Ignore))
+                result = result && borrowedValue!(FieldType!(U, index));
+        return result;
+    }
+    else
+        return false;
+}
+
+private bool ownedValue(T)() pure @safe
+{
+    alias U = Unqualified!T;
+    static if (isStringBuf!U || is(U == bool) || is(U == enum) ||
+        __traits(isIntegral, U) || __traits(isFloating, U))
+        return true;
+    else static if (isArray!U)
+        return ownedValue!(ArrayElement!U);
+    else static if (isFixedArray!U)
+        return ownedValue!(typeof(U.init[0]));
+    else static if (isSerdeStruct!U)
+    {
+        bool result = true;
+        static foreach (index; 0 .. U.tupleof.length)
+            static if (!fieldHas!(U, index, Ignore))
+                result = result && ownedValue!(FieldType!(U, index));
+        return result;
+    }
+    else
+        return false;
+}
+
+void validateBorrowedSchema(T)()
+{
+    validateSchema!T();
+    static assert(borrowedValue!T,
+        "Deserialized schemas use String, slices, and pointers; owning containers require direct decoding");
+}
+
+void validateOwnedSchema(T)()
+{
+    validateSchema!T();
+    static assert(ownedValue!T,
+        "directly decoded schemas use StringBuf and Array; String, slices, and raw pointers require Deserialized");
+}
+
+package(xtb.serde) void initializeOwnedValue(T)(
+    Allocator* allocator,
+    T* output,
+)
+{
+    alias U = Unqualified!T;
+    static if (isStringBuf!U)
+        *cast(StringBuf*) output = StringBuf.create(allocator);
+    else static if (isArray!U)
+        *cast(U*) output = U.create(allocator);
+    else static if (isFixedArray!U)
+        foreach (index; 0 .. output.length)
+            initializeOwnedValue(allocator, &(*output)[index]);
+    else static if (isSerdeStruct!U)
+                {
+                static foreach (index; 0 .. U.tupleof.length)
+                    initializeOwnedValue(allocator, &output.tupleof[index]);
+            }
 }
 
 private bool fieldsOverlap(A, size_t left, B, size_t right)() pure @safe
