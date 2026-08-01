@@ -1001,6 +1001,20 @@ later, must compose `xtb.serde` with `xtb.os`.
   factories and slice append/insert operations exist only for copyable element
   types. Element construction, movement, and destruction must satisfy the
   container's `nothrow @nogc` contract.
+- Use `HashMap!(K, V)` and `HashSet!K` for allocator-owned hashed collections.
+  They use open addressing rather than node allocation and are non-copyable.
+  Keys must be copyable and remain immutable through the container; use a
+  `String` view or stable handle when the underlying resource is owning.
+  `String` keys borrow their bytes, so those bytes must outlive the entry.
+  Lookup returns `V*` (or `const(V)*` through a const map) to keep mutation
+  explicit. Hash and equality policies are compile-time types with
+  `nothrow @nogc` pointer-based calls and copyable destructor-free state.
+  `HashSeed.init` is deliberately deterministic, while `seeded` permits
+  process-specific layouts. The built-in hash remains non-cryptographic under
+  either API; applications handling adversarial keys supply a stronger keyed
+  custom policy. Insertions and reserve operations keep the old table intact
+  when allocation fails. Structural mutation invalidates cursors and storage
+  pointers, and iteration order is unspecified.
 - Make state transitions explicit with verbs such as `create`, `reset`,
   `read`, `finish`, and `deinit`.
 - Use `create(allocator)` for resource-owning factories and

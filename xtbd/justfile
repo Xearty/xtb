@@ -6,7 +6,7 @@ math_source_files := `find source/xtb/math -name '*.d' -print | sort | tr '\n' '
 os_source_files := `find source/xtb/os -name '*.d' -print | sort | tr '\n' ' '`
 serde_source_files := `find source/xtb/serde -name '*.d' -print | sort | tr '\n' ' '`
 serde_test_files := "tests/serde_tests.d tests/serde_backend_contract.d"
-fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d"
+fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/hash.d source/xtb/core/hash_map.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d"
 lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' -print | sort | tr '\n' ' '`
 fuzz_files := `find fuzz -name '*.d' -print | sort | tr '\n' ' '`
 format_files := `find source tests examples fuzz -name '*.d' -print | sort | tr '\n' ' '`
@@ -121,6 +121,7 @@ examples:
     ldc2 {{common_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
     ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
     ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/option_demo.d -of=build/option_demo
+    ldc2 {{common_flags}} {{core_source_files}} examples/hash_demo.d -of=build/hash_demo
     ./build/core_demo
     ./build/print_demo
     ./build/stacktrace_demo
@@ -128,6 +129,7 @@ examples:
     ./build/os_demo source
     ./build/serde_demo
     ./build/option_demo
+    ./build/hash_demo
 
 lint:
     dscanner --syntaxCheck source/xtb/diagnostics/stacktrace_style.d

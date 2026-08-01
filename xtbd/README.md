@@ -2,8 +2,9 @@
 
 `xtbd` is a small foundational D library designed for `-betterC`: explicit
 allocators, arenas and thread-local scratch scopes, owning arrays and string
-builders, read-only `String` views, intrusive lists, panic/logging facilities,
-allocation-free formatted output, structured logging, and panic contracts.
+builders, hash maps and sets, read-only `String` views, intrusive lists,
+panic/logging facilities, allocation-free formatted output, structured
+logging, and panic contracts.
 Optional stack traces and crash observation live in `xtb.diagnostics`.
 
 The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
@@ -65,9 +66,9 @@ test derivation are also available through `nix build` and `nix flake check`.
 
 Import the stable core surface with `import xtb.core;`, or import a focused
 module such as `xtb.core.arena`. All consuming targets must also compile with
-`-betterC`. See `examples/core_demo.d` and `examples/print_demo.d` for complete
-runnable programs, and `docs/architecture.md` for ownership and scratch-space
-contracts.
+`-betterC`. See `examples/core_demo.d`, `examples/hash_demo.d`, and
+`examples/print_demo.d` for complete runnable programs, and
+`docs/architecture.md` for ownership and scratch-space contracts.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,

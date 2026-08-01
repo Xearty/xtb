@@ -11,6 +11,8 @@ import xtb.core.thread_context;
 import xtb.core.array;
 import xtb.core.option;
 import xtb.core.list;
+import xtb.core.hash;
+import xtb.core.hash_map;
 import xtb.core.logger;
 import xtb.core.string;
 import xtb.core.print;

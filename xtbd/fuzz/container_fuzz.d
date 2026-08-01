@@ -3,6 +3,7 @@ module fuzz.container_fuzz;
 nothrow @nogc:
 
 import xtb.core.array : Array, clear, removeAt, tryAppend, tryInsert;
+import xtb.core.hash_map : HashMap, HashSet, remove, set, tryAdd;
 import xtb.core.memory : mallocAllocator;
 import xtb.core.string : StringBuf, clear, tryAppend, tryEscape, tryInsert,
     tryPrepend;
@@ -14,10 +15,14 @@ extern (C) int LLVMFuzzerTestOneInput(const(ubyte)* data, size_t size) @system
 
     Array!ubyte values = Array!ubyte.create(mallocAllocator());
     StringBuf text = StringBuf.create(mallocAllocator());
+    HashMap!(ubyte, ubyte) map = HashMap!(ubyte, ubyte).create(
+        mallocAllocator(),
+    );
+    HashSet!ubyte setValues = HashSet!ubyte.create(mallocAllocator());
     size_t cursor;
     while (cursor < size)
     {
-        const operation = data[cursor++] % 8;
+        const operation = data[cursor++] % 12;
         final switch (operation)
         {
             case 0:
@@ -68,10 +73,24 @@ extern (C) int LLVMFuzzerTestOneInput(const(ubyte)* data, size_t size) @system
                 values.clear();
                 text.clear();
                 break;
+            case 8:
+                map.set(data[cursor - 1], cast(ubyte) cursor);
+                break;
+            case 9:
+                map.remove(data[cursor - 1]);
+                break;
+            case 10:
+                setValues.tryAdd(data[cursor - 1]);
+                break;
+            case 11:
+                setValues.remove(data[cursor - 1]);
+                break;
         }
 
         assert(values.length <= values.capacity);
         assert(text.length <= text.capacity);
+        assert(map.length <= 256 && map.length <= map.capacity);
+        assert(setValues.length <= 256 && setValues.length <= setValues.capacity);
         if (values.length > 4096)
             values.clear();
         if (text.length > 4096)

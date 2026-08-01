@@ -80,3 +80,9 @@ configuration "option-demo" {
     mainSourceFile "examples/option_demo.d"
     excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
 }
+
+configuration "hash-demo" {
+    targetType "executable"
+    mainSourceFile "examples/hash_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d" "source/xtb/serde/*.d"
+}

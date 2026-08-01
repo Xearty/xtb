@@ -60,6 +60,21 @@ ownership, hidden global state, and macro-oriented interfaces.
 - normal compiler-generated destruction through always-valid `T.init` storage;
 - JSON null and TOML omission support through `xtb.serde`.
 
+### Hash containers
+
+- non-copyable allocator-owning `HashMap!(K, V)` and `HashSet!K`;
+- open addressing with cached hashes, linear probing, tombstone reuse, and a
+  maximum seven-eighths occupied-or-removed load;
+- deterministic default hashing for integral, enum, pointer, and `String`
+  keys, plus explicit seeds and custom hash/equality policies;
+- fallible/panicking reserve and insertion, distinct insert/replace/already
+  present results, lookup returning an explicit mutable value pointer, removal,
+  clear, shrinking, and capacity release;
+- immutable key access and mutable-value/read-only cursors with documented
+  structural invalidation;
+- move-aware non-POD value relocation and destruction, collision-heavy tests,
+  strong-state allocation-failure tests, sanitizer coverage, and fuzzing.
+
 ### Strings
 
 - mandatory read-only `String = const(char)[]` values;

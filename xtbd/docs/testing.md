@@ -130,6 +130,13 @@ after partial failure. In this project pay particular attention to:
 - owning-container destruction order, removal and shrinking of elaborate
   elements, relocation without double destruction, move-only elements, and
   copy-constrained slice operations;
+- hash-container growth, replacement, duplicate insertion, tombstone reuse,
+  removal, shrinking, cursor coverage, immutable keys, explicit value-pointer
+  mutation, deterministic/custom hashing, and seeded hashing;
+- constant-hash collision chains and allocation failure during each table
+  allocation, with the previous table and every live value preserved;
+- hash-map value destruction on replacement, removal, clear, release, and
+  scope exit without double destruction;
 - byte-zeroed allocation produces all-zero POD storage and rejects elaborate
   element types at compile time;
 - foreign enum/range validation and callback user-context preservation.
