@@ -23,14 +23,17 @@ to the `unittest` block where possible.
 ```d
 module xtb.math.scalar;
 
-pure nothrow @safe @nogc
+@safe nothrow @nogc:
+
+import xtb.core.panic : require;
+
 int clamp(int value, int low, int high)
 {
-    assert(low <= high);
+    require(low <= high, "invalid clamp range");
     return value < low ? low : value > high ? high : value;
 }
 
-@safe nothrow @nogc unittest
+unittest
 {
     assert(clamp(-1, 0, 10) == 0);
     assert(clamp(4, 0, 10) == 4);
@@ -38,11 +41,12 @@ int clamp(int value, int low, int high)
 }
 ```
 
-Attributes on a unittest are useful compile-time checks. Match the strongest
-contract promised by the code under test. Avoid heap-backed literals,
-concatenation, exceptions, and test helpers that accidentally require
-Druntime. Fixed-size stack arrays, slices, caller-provided buffers, and libc
-facilities are appropriate.
+Module and aggregate attribute blocks establish the common BetterC contract;
+do not repeat `nothrow @nogc` on every function or unittest. Add a narrower
+attribute locally only when it documents a real boundary. Avoid heap-backed
+literals, concatenation, exceptions, and test helpers that accidentally
+require Druntime. Fixed-size stack arrays, slices, caller-provided buffers, and
+libc facilities are appropriate.
 
 ## BetterC test runner
 
@@ -100,6 +104,10 @@ imports it. The standard command should build each runner with both
    `extern(C)` functions. Test both symbol/link compatibility and layouts.
 5. **Examples** compile in CI as consumer checks. They are documentation, not a
    replacement for assertions.
+6. **Fuzz targets** expose libFuzzer's `LLVMFuzzerTestOneInput` C ABI and are
+   built with AddressSanitizer plus inline-counter/PC-table coverage. A short
+   run belongs in the standard gate; longer corpus-backed runs belong in
+   dedicated jobs.
 
 Window and graphics tests are split into deterministic state-machine tests and
 thin backend smoke tests. Backend smoke tests must skip explicitly when their
@@ -208,12 +216,13 @@ The Nix development shell is the canonical toolchain and provides LDC, DUB,
 ```sh
 nix develop
 just lint            # dscanner plus project policy checks
-just format          # format the D math/OS packages, runners, and examples
+just format          # format all D sources, runners, fuzzers, and examples
 just test            # every BetterC runner
 just build           # production static library with -betterC
 just test-sanitize   # BetterC runner under AddressSanitizer
+just fuzz-smoke      # short ASan/libFuzzer parser and container runs
 just examples        # compile and run public consumer examples
-just check           # lint, build, test, and examples
+just check           # complete local verification matrix
 ```
 
 D-Scanner 0.15.2's static-analysis visitor does not terminate on the
@@ -222,6 +231,10 @@ the module immediately. Until that upstream defect is fixed, `just lint` runs
 D-Scanner's syntax checker on `stacktrace_style.d` and all configured static
 analysis checks on every other D file. LDC still compiles the style module with
 the same BetterC warnings/deprecations policy in every build and test command.
+
+Fuzz harnesses receive syntax checking but are excluded from D-Scanner's naming
+style pass because `LLVMFuzzerTestOneInput` is a required foreign symbol, not a
+D naming choice.
 
 Keep formatting consistent with the surrounding modules and use DScanner for
 syntax and style enforcement. Do not mix a repository-wide formatting rewrite

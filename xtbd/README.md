@@ -49,10 +49,11 @@ Alternatively, run `nix develop` from `xtbd` and then use the same `just`
 commands. The project-local `.envrc` deliberately selects the independent
 `xtbd` flake instead of inheriting the adjacent C++ project's environment.
 
-`just check` lints, builds the package archives, runs every unit test, and builds
-and runs the examples. Individual commands are `just build`, `just test`,
-`just lint`, and `just examples`. A reproducible package and test derivation are
-also available through `nix build` and `nix flake check`.
+`just check` lints, builds the package archives, runs debug, optimized, release,
+ABI, sanitizer, cross-build, and fuzz checks, then builds and runs the examples.
+Individual commands include `just build`, `just test`, `just test-sanitize`,
+`just fuzz-smoke`, `just lint`, and `just examples`. A reproducible package and
+test derivation are also available through `nix build` and `nix flake check`.
 
 ## Using the library
 

@@ -12,8 +12,12 @@ ownership, hidden global state, and macro-oriented interfaces.
 - semantic version constants and version string;
 - operating-system and architecture traits;
 - fixed-width integer and floating-point aliases;
-- `min`, `max`, `clamp`, checked geometric growth, and overflow helpers;
-- checked KiB, MiB, GiB, and TiB scaling.
+- dependency-free primitive aliases in `xtb.core.types` and generic numeric
+  operations in `xtb.core.numeric`;
+- `min`, `max`, always-checked `clamp`, direct geometric growth, and overflow
+  helpers;
+- direct panicking KiB, MiB, GiB, and TiB conversions plus explicitly named
+  fallible variants.
 
 ### Allocators
 
@@ -139,6 +143,7 @@ ownership, hidden global state, and macro-oriented interfaces.
 - BetterC compilation for library, tests, and examples;
 - colocated unit tests with an explicit BetterC test runner;
 - AddressSanitizer execution;
+- ASan/libFuzzer smoke targets for the D demangler and mutable containers;
 - UBSan capability detection with an explicit skip on the pinned LDC, which
   does not support `-fsanitize=undefined`;
 - C ABI allocator smoke test;
