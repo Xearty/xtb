@@ -5,6 +5,22 @@ nothrow @nogc:
 import core.lifetime : move, moveEmplace;
 import xtb.core.panic : require;
 
+version (unittest) private struct TrackedOptionValue
+{
+nothrow @nogc:
+
+    int* destructions;
+    bool armed;
+
+    @disable this(this);
+
+    ~this()
+    {
+        if (armed)
+            ++*destructions;
+    }
+}
+
 struct Option(T)
 {
 nothrow @nogc:
@@ -139,6 +155,21 @@ unittest
     text.set(move(extracted));
     text.reset();
     assert(text.empty);
+
+    int destructions;
+    {
+        TrackedOptionValue first = TrackedOptionValue(&destructions, true);
+        Option!TrackedOptionValue tracked = some(move(first));
+        tracked.reset();
+        assert(destructions == 1);
+
+        TrackedOptionValue second = TrackedOptionValue(&destructions, true);
+        tracked.set(move(second));
+        TrackedOptionValue taken = tracked.take();
+        assert(tracked.empty);
+        assert(destructions == 1);
+    }
+    assert(destructions == 2);
 
     static assert(!__traits(compiles, (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
 }
