@@ -2,267 +2,424 @@ module xtb.core.list;
 
 import xtb.core.panic : require;
 
-struct List(Node)
+nothrow @nogc:
+
+/// Membership state for one intrusive doubly linked list.
+struct ListLink(Node)
 {
-    static assert(__traits(hasMember, Node, "prev"));
-    static assert(__traits(hasMember, Node, "next"));
+    private Node* previous_;
+    private Node* next_;
+    private bool linked_;
 
-    Node* first;
-    Node* last;
-
-    bool empty() const pure nothrow @safe @nogc
+    bool linked() const pure @safe
     {
-        return first is null;
+        return linked_;
+    }
+
+    Node* previous() return pure
+    {
+        return previous_;
+    }
+
+    const(Node)* previous() const return pure
+    {
+        return previous_;
+    }
+
+    Node* next() return pure
+    {
+        return next_;
+    }
+
+    const(Node)* next() const return pure
+    {
+        return next_;
     }
 }
 
-private bool containsNode(Node)(ref List!Node list, Node* node) nothrow @nogc
+/// Membership state for one intrusive queue or stack.
+struct ForwardLink(Node)
 {
-    for (Node* current = list.first; current !is null; current = current.next)
-        if (current is node)
-            return true;
-    return false;
-}
+    private Node* next_;
+    private bool linked_;
 
-void pushBack(Node)(ref List!Node list, Node* node) nothrow @nogc
-{
-    require(node !is null, "cannot insert a null list node");
-    require(node.prev is null && node.next is null, "list node is already linked");
-    require(!list.containsNode(node), "list node is already linked");
-    node.prev = list.last;
-    if (list.last is null)
-        list.first = node;
-    else
-        list.last.next = node;
-    list.last = node;
-}
-
-void pushFront(Node)(ref List!Node list, Node* node) nothrow @nogc
-{
-    require(node !is null, "cannot insert a null list node");
-    require(node.prev is null && node.next is null, "list node is already linked");
-    require(!list.containsNode(node), "list node is already linked");
-    node.next = list.first;
-    if (list.first is null)
-        list.last = node;
-    else
-        list.first.prev = node;
-    list.first = node;
-}
-
-void insertAfter(Node)(ref List!Node list, Node* position, Node* node)
-    nothrow @nogc
-{
-    require(position !is null && node !is null, "cannot insert a null list node");
-    require(list.containsNode(position), "position is not in this list");
-    require(node.prev is null && node.next is null && !list.containsNode(node),
-        "list node is already linked");
-    if (position is list.last)
+    bool linked() const pure @safe
     {
-        list.pushBack(node);
-        return;
+        return linked_;
     }
-    node.prev = position;
-    node.next = position.next;
-    position.next.prev = node;
-    position.next = node;
-}
 
-void insertBefore(Node)(ref List!Node list, Node* position, Node* node)
-    nothrow @nogc
-{
-    require(position !is null && node !is null, "cannot insert a null list node");
-    require(list.containsNode(position), "position is not in this list");
-    require(node.prev is null && node.next is null && !list.containsNode(node),
-        "list node is already linked");
-    if (position is list.first)
+    Node* next() return pure
     {
-        list.pushFront(node);
-        return;
+        return next_;
     }
-    node.next = position;
-    node.prev = position.prev;
-    position.prev.next = node;
-    position.prev = node;
-}
 
-void remove(Node)(ref List!Node list, Node* node) nothrow @nogc
-{
-    require(node !is null, "cannot remove a null list node");
-    require(list.containsNode(node), "node is not in this list");
-    if (node.prev is null)
+    const(Node)* next() const return pure
     {
-        require(list.first is node, "node is not in this list");
-        list.first = node.next;
+        return next_;
     }
-    else
-        node.prev.next = node.next;
-
-    if (node.next is null)
-    {
-        require(list.last is node, "node is not in this list");
-        list.last = node.prev;
-    }
-    else
-        node.next.prev = node.prev;
-
-    node.prev = null;
-    node.next = null;
 }
 
-Node* popFront(Node)(ref List!Node list) nothrow @nogc
+private ref ListLink!Node listLinkOf(Node, string member)(Node* node)
 {
-    require(list.first !is null, "cannot pop an empty list");
-    Node* result = list.first;
-    list.remove(result);
-    return result;
+    return __traits(getMember, *node, member);
 }
 
-Node* popBack(Node)(ref List!Node list) nothrow @nogc
+private ref ForwardLink!Node forwardLinkOf(Node, string member)(Node* node)
 {
-    require(list.last !is null, "cannot pop an empty list");
-    Node* result = list.last;
-    list.remove(result);
-    return result;
+    return __traits(getMember, *node, member);
 }
 
-void concatenate(Node)(ref List!Node destination, ref List!Node source)
-    nothrow @nogc
+/// Intrusive doubly linked list using `Node.member` as its membership hook.
+struct List(Node, string member = "listLink")
 {
-    require(&destination !is &source, "cannot concatenate a list with itself");
-    if (source.empty)
-        return;
-    if (destination.empty)
+    static assert(__traits(hasMember, Node, member),
+        "List node is missing its " ~ member ~ " hook");
+    static assert(is(typeof(__traits(getMember, Node.init, member)) == ListLink!Node),
+        "List hook must be ListLink!Node");
+
+    private Node* first_;
+    private Node* last_;
+
+    @disable this(this);
+
+    bool empty() const pure @safe
     {
-        destination.first = source.first;
-        destination.last = source.last;
+        return first_ is null;
     }
-    else
+
+    Node* first() return pure
     {
-        destination.last.next = source.first;
-        source.first.prev = destination.last;
-        destination.last = source.last;
+        return first_;
     }
-    source.first = null;
-    source.last = null;
+
+    const(Node)* first() const return pure
+    {
+        return first_;
+    }
+
+    Node* last() return pure
+    {
+        return last_;
+    }
+
+    const(Node)* last() const return pure
+    {
+        return last_;
+    }
+
+    private bool contains(Node* node)
+    {
+        for (Node* current = first_; current !is null;
+            current = listLinkOf!(Node, member)(current).next_)
+        {
+            if (current is node)
+                return true;
+        }
+        return false;
+    }
+
+    void pushBack(Node* node)
+    {
+        require(node !is null, "cannot insert a null list node");
+        ref link = listLinkOf!(Node, member)(node);
+        require(!link.linked_, "list node is already linked");
+
+        link.previous_ = last_;
+        link.next_ = null;
+        link.linked_ = true;
+        if (last_ is null)
+            first_ = node;
+        else
+            listLinkOf!(Node, member)(last_).next_ = node;
+        last_ = node;
+    }
+
+    void pushFront(Node* node)
+    {
+        require(node !is null, "cannot insert a null list node");
+        ref link = listLinkOf!(Node, member)(node);
+        require(!link.linked_, "list node is already linked");
+
+        link.previous_ = null;
+        link.next_ = first_;
+        link.linked_ = true;
+        if (first_ is null)
+            last_ = node;
+        else
+            listLinkOf!(Node, member)(first_).previous_ = node;
+        first_ = node;
+    }
+
+    void insertAfter(Node* position, Node* node)
+    {
+        require(position !is null && node !is null,
+            "cannot insert a null list node");
+        require(contains(position), "position is not in this list");
+        require(!listLinkOf!(Node, member)(node).linked_,
+            "list node is already linked");
+        if (position is last_)
+        {
+            pushBack(node);
+            return;
+        }
+
+        ref positionLink = listLinkOf!(Node, member)(position);
+        ref link = listLinkOf!(Node, member)(node);
+        link.previous_ = position;
+        link.next_ = positionLink.next_;
+        link.linked_ = true;
+        listLinkOf!(Node, member)(positionLink.next_).previous_ = node;
+        positionLink.next_ = node;
+    }
+
+    void insertBefore(Node* position, Node* node)
+    {
+        require(position !is null && node !is null,
+            "cannot insert a null list node");
+        require(contains(position), "position is not in this list");
+        require(!listLinkOf!(Node, member)(node).linked_,
+            "list node is already linked");
+        if (position is first_)
+        {
+            pushFront(node);
+            return;
+        }
+
+        ref positionLink = listLinkOf!(Node, member)(position);
+        ref link = listLinkOf!(Node, member)(node);
+        link.next_ = position;
+        link.previous_ = positionLink.previous_;
+        link.linked_ = true;
+        listLinkOf!(Node, member)(positionLink.previous_).next_ = node;
+        positionLink.previous_ = node;
+    }
+
+    void remove(Node* node)
+    {
+        require(node !is null, "cannot remove a null list node");
+        require(contains(node), "node is not in this list");
+        ref link = listLinkOf!(Node, member)(node);
+
+        if (link.previous_ is null)
+            first_ = link.next_;
+        else
+            listLinkOf!(Node, member)(link.previous_).next_ = link.next_;
+
+        if (link.next_ is null)
+            last_ = link.previous_;
+        else
+            listLinkOf!(Node, member)(link.next_).previous_ = link.previous_;
+
+        link = ListLink!Node.init;
+    }
+
+    Node* popFront()
+    {
+        require(first_ !is null, "cannot pop an empty list");
+        Node* result = first_;
+        remove(result);
+        return result;
+    }
+
+    Node* popBack()
+    {
+        require(last_ !is null, "cannot pop an empty list");
+        Node* result = last_;
+        remove(result);
+        return result;
+    }
+
+    void concatenate(ref List source)
+    {
+        require(&this !is &source, "cannot concatenate a list with itself");
+        if (source.empty)
+            return;
+        if (empty)
+        {
+            first_ = source.first_;
+            last_ = source.last_;
+        }
+        else
+        {
+            listLinkOf!(Node, member)(last_).next_ = source.first_;
+            listLinkOf!(Node, member)(source.first_).previous_ = last_;
+            last_ = source.last_;
+        }
+        source.first_ = null;
+        source.last_ = null;
+    }
+
+    ListCursor!(Node, member) cursor()
+    {
+        return ListCursor!(Node, member)(first_, false);
+    }
+
+    ListCursor!(Node, member) reverseCursor()
+    {
+        return ListCursor!(Node, member)(last_, true);
+    }
 }
 
-struct ListCursor(Node)
+struct ListCursor(Node, string member)
 {
     private Node* current_;
     private bool reverse_;
 
-    bool valid() const pure nothrow @safe @nogc
+    bool valid() const pure @safe
     {
         return current_ !is null;
     }
 
-    Node* get() return nothrow @system @nogc
+    Node* get() return
     {
         require(valid, "invalid list cursor");
         return current_;
     }
 
-    void advance() nothrow @nogc
+    void advance()
     {
         require(valid, "invalid list cursor");
-        current_ = reverse_ ? current_.prev : current_.next;
+        ref link = listLinkOf!(Node, member)(current_);
+        current_ = reverse_ ? link.previous_ : link.next_;
     }
 }
 
-ListCursor!Node cursor(Node)(ref List!Node list) nothrow @nogc
+/// Intrusive FIFO queue using `Node.member` as its membership hook.
+struct Queue(Node, string member = "forwardLink")
 {
-    return ListCursor!Node(list.first, false);
+    static assert(__traits(hasMember, Node, member),
+        "Queue node is missing its " ~ member ~ " hook");
+    static assert(is(typeof(__traits(getMember, Node.init, member)) == ForwardLink!Node),
+        "Queue hook must be ForwardLink!Node");
+
+    private Node* first_;
+    private Node* last_;
+
+    @disable this(this);
+
+    bool empty() const pure @safe
+    {
+        return first_ is null;
+    }
+
+    Node* first() return pure
+    {
+        return first_;
+    }
+
+    Node* last() return pure
+    {
+        return last_;
+    }
+
+    void pushBack(Node* node)
+    {
+        require(node !is null, "cannot insert a null queue node");
+        ref link = forwardLinkOf!(Node, member)(node);
+        require(!link.linked_, "queue node is already linked");
+
+        link.next_ = null;
+        link.linked_ = true;
+        if (last_ is null)
+            first_ = node;
+        else
+            forwardLinkOf!(Node, member)(last_).next_ = node;
+        last_ = node;
+    }
+
+    void pushFront(Node* node)
+    {
+        require(node !is null, "cannot insert a null queue node");
+        ref link = forwardLinkOf!(Node, member)(node);
+        require(!link.linked_, "queue node is already linked");
+
+        link.next_ = first_;
+        link.linked_ = true;
+        first_ = node;
+        if (last_ is null)
+            last_ = node;
+    }
+
+    Node* popFront()
+    {
+        require(first_ !is null, "cannot pop an empty queue");
+        Node* result = first_;
+        ref link = forwardLinkOf!(Node, member)(result);
+        first_ = link.next_;
+        link = ForwardLink!Node.init;
+        if (first_ is null)
+            last_ = null;
+        return result;
+    }
 }
 
-ListCursor!Node reverseCursor(Node)(ref List!Node list) nothrow @nogc
+/// Intrusive LIFO stack using `Node.member` as its membership hook.
+struct Stack(Node, string member = "forwardLink")
 {
-    return ListCursor!Node(list.last, true);
+    static assert(__traits(hasMember, Node, member),
+        "Stack node is missing its " ~ member ~ " hook");
+    static assert(is(typeof(__traits(getMember, Node.init, member)) == ForwardLink!Node),
+        "Stack hook must be ForwardLink!Node");
+
+    private Node* top_;
+
+    @disable this(this);
+
+    bool empty() const pure @safe
+    {
+        return top_ is null;
+    }
+
+    Node* top() return pure
+    {
+        return top_;
+    }
+
+    void push(Node* node)
+    {
+        require(node !is null, "cannot insert a null stack node");
+        ref link = forwardLinkOf!(Node, member)(node);
+        require(!link.linked_, "stack node is already linked");
+
+        link.next_ = top_;
+        link.linked_ = true;
+        top_ = node;
+    }
+
+    Node* pop()
+    {
+        require(top_ !is null, "cannot pop an empty stack");
+        Node* result = top_;
+        ref link = forwardLinkOf!(Node, member)(result);
+        top_ = link.next_;
+        link = ForwardLink!Node.init;
+        return result;
+    }
 }
 
-struct Queue(Node)
-{
-    static assert(__traits(hasMember, Node, "next"));
-    Node* first;
-    Node* last;
-
-    bool empty() const pure nothrow @safe @nogc { return first is null; }
-}
-
-void pushBack(Node)(ref Queue!Node queue, Node* node) nothrow @nogc
-{
-    require(node !is null && node.next is null, "queue node is already linked");
-    if (queue.last is null)
-        queue.first = node;
-    else
-        queue.last.next = node;
-    queue.last = node;
-}
-
-void pushFront(Node)(ref Queue!Node queue, Node* node) nothrow @nogc
-{
-    require(node !is null && node.next is null, "queue node is already linked");
-    node.next = queue.first;
-    queue.first = node;
-    if (queue.last is null)
-        queue.last = node;
-}
-
-Node* popFront(Node)(ref Queue!Node queue) nothrow @nogc
-{
-    require(queue.first !is null, "cannot pop an empty queue");
-    Node* result = queue.first;
-    queue.first = result.next;
-    result.next = null;
-    if (queue.first is null)
-        queue.last = null;
-    return result;
-}
-
-struct Stack(Node)
-{
-    static assert(__traits(hasMember, Node, "next"));
-    Node* top;
-
-    bool empty() const pure nothrow @safe @nogc { return top is null; }
-}
-
-void push(Node)(ref Stack!Node stack, Node* node) nothrow @nogc
-{
-    require(node !is null && node.next is null, "stack node is already linked");
-    node.next = stack.top;
-    stack.top = node;
-}
-
-Node* pop(Node)(ref Stack!Node stack) nothrow @nogc
-{
-    require(stack.top !is null, "cannot pop an empty stack");
-    Node* result = stack.top;
-    stack.top = result.next;
-    result.next = null;
-    return result;
-}
-
-nothrow @nogc unittest
+unittest
 {
     struct Node
     {
-        Node* prev;
-        Node* next;
+        ListLink!Node listLink;
         int value;
     }
 
-    Node first = Node(null, null, 1);
-    Node second = Node(null, null, 2);
-    Node middle = Node(null, null, 3);
+    Node first;
+    first.value = 1;
+    Node second;
+    second.value = 2;
+    Node middle;
+    middle.value = 3;
+
     List!Node list;
     list.pushBack(&first);
     list.pushBack(&second);
     list.insertBefore(&second, &middle);
     assert(list.first.value == 1);
-    assert(list.last.value == 2 && list.first.next is &middle);
+    assert(list.last.value == 2 && list.first.listLink.next is &middle);
     assert(list.popFront() is &first);
-    assert(first.prev is null && first.next is null);
+    assert(!first.listLink.linked);
     assert(list.popBack() is &second);
     list.remove(&middle);
     assert(list.empty);
@@ -284,9 +441,31 @@ nothrow @nogc unittest
     left.popFront();
     left.popFront();
 
-    struct SingleNode { SingleNode* next; int value; }
-    SingleNode one = SingleNode(null, 1);
-    SingleNode two = SingleNode(null, 2);
+    struct MultiListNode
+    {
+        ListLink!MultiListNode firstLink;
+        ListLink!MultiListNode secondLink;
+    }
+
+    MultiListNode sharedNode;
+    List!(MultiListNode, "firstLink") firstList;
+    List!(MultiListNode, "secondLink") secondList;
+    firstList.pushBack(&sharedNode);
+    secondList.pushBack(&sharedNode);
+    assert(sharedNode.firstLink.linked && sharedNode.secondLink.linked);
+    firstList.popFront();
+    secondList.popFront();
+
+    struct SingleNode
+    {
+        ForwardLink!SingleNode forwardLink;
+        int value;
+    }
+
+    SingleNode one;
+    one.value = 1;
+    SingleNode two;
+    two.value = 2;
     Queue!SingleNode queue;
     queue.pushBack(&one);
     queue.pushFront(&two);

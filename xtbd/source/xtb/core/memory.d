@@ -9,7 +9,7 @@ import core.stdc.string : memcpy, memset;
 import xtb.core.panic : panic, require;
 import xtb.core.types : multiplyOverflows;
 
-alias Allocator = void* function(
+alias Allocator = extern(C) void* function(
     void* allocator,
     size_t newSize,
     void* oldPointer,
@@ -35,7 +35,7 @@ private size_t normalizedAlignment(size_t alignment) pure nothrow @safe @nogc
     return alignment < minimum ? minimum : alignment;
 }
 
-private void* mallocAllocatorProcedure(
+private extern(C) void* mallocAllocatorProcedure(
     void*,
     size_t newSize,
     void* oldPointer,
@@ -271,7 +271,8 @@ struct InstrumentedAllocator
         return scope AllocationRecord[] records,
     ) nothrow @nogc
     {
-        require(backing !is null, "instrumented allocator requires a backing allocator");
+        require(backing !is null && *backing !is null,
+            "instrumented allocator requires a valid backing allocator");
         InstrumentedAllocator result;
         result.allocator = &instrumentedAllocatorProcedure;
         result.backing = backing;
@@ -329,7 +330,7 @@ private AllocationRecord* freeRecord(ref InstrumentedAllocator allocator)
     return null;
 }
 
-private void* instrumentedAllocatorProcedure(
+private extern(C) void* instrumentedAllocatorProcedure(
     void* context,
     size_t newSize,
     void* oldPointer,

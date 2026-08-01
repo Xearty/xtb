@@ -281,6 +281,7 @@ termination signals as crashes.
 Allocation is a dependency. Preserve the useful shape of the C++ allocator:
 `Allocator` is a single realloc-style function-pointer type, while the handle
 passed through APIs is `Allocator*`--a pointer to that function-pointer slot.
+The callback uses C linkage so an allocator slot can safely cross the C ABI.
 Calling the allocator dereferences the slot and passes the handle itself back
 as the callback's opaque first argument. It is not a two-word
 `{ function, context }` pair.
@@ -288,7 +289,7 @@ as the callback's opaque first argument. It is not a two-word
 Conceptually, the operation is:
 
 ```d
-alias Allocator = void* function(
+alias Allocator = extern(C) void* function(
     void* allocator,
     size_t newSize,
     void* oldPointer,

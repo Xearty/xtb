@@ -83,7 +83,13 @@ nothrow @nogc:
     }
 }
 
-private void* rejectingAllocation(void*, size_t, void*, size_t, size_t,) @system
+private extern(C) void* rejectingAllocation(
+    void*,
+    size_t,
+    void*,
+    size_t,
+    size_t,
+) @system
 {
     return null;
 }

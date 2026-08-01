@@ -64,7 +64,8 @@ struct Arena
         size_t defaultChunkSize = 64 * 1024,
     ) nothrow @nogc
     {
-        require(backingAllocator !is null, "arena requires a backing allocator");
+        require(backingAllocator !is null && *backingAllocator !is null,
+            "arena requires a valid backing allocator");
         require(defaultChunkSize != 0, "arena chunk size must be nonzero");
 
         Arena result;
@@ -361,7 +362,7 @@ private bool alignedOffsetFor(
     return true;
 }
 
-private void* arenaAllocatorProcedure(
+private extern(C) void* arenaAllocatorProcedure(
     void* allocator,
     size_t newSize,
     void* oldPointer,

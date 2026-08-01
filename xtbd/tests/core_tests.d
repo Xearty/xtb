@@ -89,6 +89,19 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         ScratchScope first = ScratchScope.acquire();
         ScratchScope.acquire(first.allocator);
     }
+    if (cStringEqual(name, "intrusive-double-link"))
+    {
+        struct Node
+        {
+            ListLink!Node listLink;
+        }
+
+        Node node;
+        List!Node first;
+        List!Node second;
+        first.pushBack(&node);
+        second.pushBack(&node);
+    }
     version (linux)
     if (cStringEqual(name, "crash-segv-address"))
     {
@@ -318,6 +331,7 @@ extern(C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "double-pop");
         expectDeath(arguments[0], "non-lifo-pop");
         expectDeath(arguments[0], "scratch-conflict");
+        expectDeath(arguments[0], "intrusive-double-link");
         expectDeath(arguments[0], "cross-thread-pop");
         version (linux)
         {

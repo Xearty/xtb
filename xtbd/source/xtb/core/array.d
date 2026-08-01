@@ -74,7 +74,8 @@ struct Array(T)
 
     static Array create(Allocator* allocator) nothrow @nogc
     {
-        require(allocator !is null, "Array requires an allocator");
+        require(allocator !is null && *allocator !is null,
+            "Array requires a valid allocator");
         Array result;
         result.allocator_ = allocator;
         return result;

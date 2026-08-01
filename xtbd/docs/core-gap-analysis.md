@@ -82,11 +82,12 @@ ownership, hidden global state, and macro-oriented interfaces.
 
 ### Intrusive collections
 
-- typed doubly linked `List` with front/back insertion, insertion before/after
-  a node, removal, front/back pop, concatenation, and forward/reverse cursors;
-- typed intrusive queue with front/back push and front pop;
-- typed intrusive stack with push/pop;
-- membership and transition validation without C++ macro expansion.
+- typed doubly linked `List` with explicit reusable membership hooks,
+  front/back insertion, insertion before/after a node, removal, front/back pop,
+  concatenation, and forward/reverse cursors;
+- typed intrusive queue and stack with independent forward-link hooks;
+- exact singleton membership and transition validation without C++ macro
+  expansion.
 
 ### Printing and logging
 
