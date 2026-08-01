@@ -201,8 +201,9 @@ Serde tests additionally verify:
 - JSON escaping, UTF-8, Unicode surrogate pairs, whitespace, and strict
   rejection of comments/trailing commas are covered independently;
 - TOML comments, dotted/table paths, quoted keys, basic and literal strings,
-  scalar arrays, nested tables, and arrays of tables are covered within the
-  supported schema data model;
+  scalar arrays, inline nested tables, and arrays of inline tables are covered
+  within the supported schema data model; explicitly unsupported TOML value
+  kinds are rejected deterministically;
 - allocation failure at every allocation point leaves `Deserialized!T` empty
   and the instrumented allocator balanced;
 - destroying or resetting a successful `Deserialized!T` recursively releases

@@ -850,12 +850,15 @@ invalid option contracts remain programmer errors.
 The JSON backend emits and accepts strict UTF-8 JSON: no comments, trailing
 commas, non-finite floats, invalid surrogate pairs, or duplicate object keys.
 Pretty printing is policy only and never changes the data model. The TOML
-backend maps nested structs to tables and arrays of structs to arrays of
-tables; scalar arrays use TOML arrays. It accepts the documented TOML value
-subset represented by the schema and reports unsupported TOML value kinds
-such as date/time rather than coercing them. Parsers consume memory only and
-perform no filesystem access. File convenience functions, if added later,
-must compose `xtb.serde` with `xtb.os`.
+backend's deterministic encoding uses inline tables for nested structs and
+arrays of inline tables for struct collections; scalar arrays use TOML arrays.
+Decoding additionally accepts dotted keys and ordinary `[table]` headers.
+Basic and literal single-line strings, booleans, integers, floats, arrays, and
+inline tables comprise the supported TOML value model. Multiline strings,
+date/time values, and `[[array-of-table]]` syntax report `unsupportedValue`
+rather than being coerced or partially interpreted. Parsers consume memory
+only and perform no filesystem access. File convenience functions, if added
+later, must compose `xtb.serde` with `xtb.os`.
 
 ### Data and API style
 

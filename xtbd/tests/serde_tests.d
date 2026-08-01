@@ -8,6 +8,7 @@ import xtb.serde.casing;
 import xtb.serde.error;
 import xtb.serde.json;
 import xtb.serde.ownership;
+import xtb.serde.toml;
 import xtb.serde.traits;
 
 private size_t bufferSink(void* context, scope String bytes) nothrow @nogc
@@ -62,6 +63,27 @@ private struct CasingDocument
 {
     uint HTTPServerID;
     @rename("fixed-key") uint explicitName;
+}
+
+private struct Database
+{
+    @required String hostName;
+    ushort port;
+}
+
+private struct Server
+{
+    String name;
+    bool enabled;
+}
+
+@fieldCase(KeyCase.snake)
+private struct TomlDocument
+{
+    @required String applicationName;
+    Database database;
+    Server[] servers;
+    double ratio;
 }
 
 private void testJsonRoundTrip() nothrow @nogc
@@ -243,6 +265,116 @@ private void testJsonAllocationFailures() nothrow @nogc
     assert(reachedSuccess);
 }
 
+private void testTomlRoundTrip() nothrow @nogc
+{
+    Server[2] servers = [
+        Server("primary", true),
+        Server("backup", false),
+    ];
+    TomlDocument document;
+    document.applicationName = "demo";
+    document.database = Database("db.local", 5432);
+    document.servers = servers[];
+    document.ratio = 0.125;
+
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    SerdeError error = writeToml(writer, document);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "application_name = \"demo\"\n" ~
+            "database = { hostName = \"db.local\", port = 5432 }\n" ~
+            "servers = [{ name = \"primary\", enabled = true }, " ~
+            "{ name = \"backup\", enabled = false }]\n" ~
+            "ratio = 0.125"));
+
+    Deserialized!TomlDocument decoded;
+    error = readToml(encoded.view, mallocAllocator(), &decoded);
+    assert(error.ok);
+    assert(decoded.value.applicationName.equal("demo"));
+    assert(decoded.value.database.hostName.equal("db.local"));
+    assert(decoded.value.database.port == 5432);
+    assert(decoded.value.servers.length == 2);
+    assert(decoded.value.servers[1].name.equal("backup"));
+    assert(!decoded.value.servers[1].enabled);
+    assert(decoded.value.ratio == 0.125);
+}
+
+private void testTomlTablesAndSyntax() nothrow @nogc
+{
+    enum input =
+        "# application settings\n" ~
+        "application_name = 'table demo'\n" ~
+        "servers = [ { name = \"one\", enabled = true }, ]\n" ~
+        "ratio = +1_2.5e-1\n" ~
+        "\n" ~
+        "[database]\n" ~
+        "hostName = \"localhost\\u002einternal\"\n" ~
+        "port = 0x1538 # 5432\n";
+    Deserialized!TomlDocument decoded;
+    SerdeError error = readToml(input, mallocAllocator(), &decoded);
+    assert(error.ok);
+    assert(decoded.value.applicationName.equal("table demo"));
+    assert(decoded.value.database.hostName.equal("localhost.internal"));
+    assert(decoded.value.database.port == 5432);
+    assert(decoded.value.servers.length == 1);
+    assert(decoded.value.ratio == 1.25);
+
+    error = readToml(
+        "application_name = \"x\"\napplication_name = \"y\"\n",
+        mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.duplicateField);
+
+    error = readToml("ratio = 2026-08-01\n", mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.unsupportedValue);
+
+    error = readToml("[[database]]\nhost_name = \"x\"\n",
+        mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.unsupportedValue);
+
+    Deserialized!OptionalDocument optional;
+    error = readToml("[child]\nlabel = \"nested\"\nvalue = 17\n",
+        mallocAllocator(), &optional);
+    assert(error.ok);
+    assert(optional.value.child !is null);
+    assert(optional.value.child.label.equal("nested"));
+    assert(optional.value.child.value == 17);
+}
+
+private void testTomlAllocationFailures() nothrow @nogc
+{
+    enum input =
+        "application_name = \"allocated\"\n" ~
+        "database = { hostName = \"host\", port = 1 }\n" ~
+        "servers = [{ name = \"server\", enabled = true }]\n" ~
+        "ratio = 1.0\n";
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 16)
+    {
+        AllocationRecord[32] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        Deserialized!TomlDocument decoded;
+        SerdeError error = readToml(input, allocator.handle, &decoded);
+        if (error.ok)
+        {
+            decoded.deinit();
+            reachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(decoded.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+}
+
 extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
@@ -252,5 +384,8 @@ extern (C) int main()
     testJsonUnicodeAndNumbers();
     testJsonCasingAndOutputFailure();
     testJsonAllocationFailures();
+    testTomlRoundTrip();
+    testTomlTablesAndSyntax();
+    testTomlAllocationFailures();
     return 0;
 }
