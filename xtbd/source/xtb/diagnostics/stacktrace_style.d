@@ -1,5 +1,7 @@
 module xtb.diagnostics.stacktrace_style;
 
+nothrow @nogc:
+
 import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.core.print : Writer;
 import xtb.core.string : String, equal;
@@ -47,6 +49,8 @@ struct SignatureFormat
 
 struct StackTraceColors
 {
+nothrow @nogc:
+
     AnsiColor functionName;
     AnsiColor typeName;
     AnsiColor moduleName;
@@ -59,7 +63,7 @@ struct StackTraceColors
     AnsiColor warning;
 
     static StackTraceColors fromTheme(StackTraceTheme theme)
-    pure nothrow @safe @nogc
+    pure @safe
     {
         static foreach (definition; themeDefinitions)
             if (theme == definition.theme)
@@ -78,7 +82,7 @@ struct StackTraceColors
         ubyte decorationColor,
         ubyte addressColor,
         ubyte warningColor,
-    ) pure nothrow @safe @nogc
+    ) pure @safe
     {
         return StackTraceColors(
             AnsiColor(functionColor, true),
@@ -146,12 +150,16 @@ static foreach (leftIndex, left; themeDefinitions)
 
 struct AnsiColor
 {
+nothrow @nogc:
+
     ubyte index;
     bool enabled;
 }
 
 struct StackTraceStyle
 {
+nothrow @nogc:
+
     StackTraceColors colors;
     bool showProgramCounter;
     ModuleDisplay moduleDisplay;
@@ -160,7 +168,7 @@ struct StackTraceStyle
     size_t signatureColumns;
 
     static StackTraceStyle fromTheme(StackTraceTheme theme)
-    pure nothrow @safe @nogc
+    pure @safe
     {
         return StackTraceStyle(
             StackTraceColors.fromTheme(theme),
@@ -173,7 +181,7 @@ struct StackTraceStyle
     }
 }
 
-void beginAnsi(ref Writer writer, AnsiColor color) nothrow @nogc
+void beginAnsi(ref Writer writer, AnsiColor color)
 {
     if (!color.enabled)
         return;
@@ -182,7 +190,7 @@ void beginAnsi(ref Writer writer, AnsiColor color) nothrow @nogc
     writer.put('m');
 }
 
-void endAnsi(ref Writer writer, AnsiColor color) nothrow @nogc
+void endAnsi(ref Writer writer, AnsiColor color)
 {
     if (color.enabled)
         writer.put("\x1b[0m");
@@ -204,23 +212,23 @@ private struct SignatureToken
     size_t end;
 }
 
-private bool identifierStart(char value) pure nothrow @safe @nogc
+private bool identifierStart(char value) pure @safe
 {
     return value == '_' || value == '$' ||
         value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z';
 }
 
-private bool identifierPart(char value) pure nothrow @safe @nogc
+private bool identifierPart(char value) pure @safe
 {
     return identifierStart(value) || value >= '0' && value <= '9';
 }
 
-private bool space(char value) pure nothrow @safe @nogc
+private bool space(char value) pure @safe
 {
     return value == ' ' || value == '\t' || value == '\r' || value == '\n';
 }
 
-private bool keyword(String source) pure nothrow @system @nogc
+private bool keyword(String source) pure @system
 {
     switch (source)
     {
@@ -234,7 +242,7 @@ private bool keyword(String source) pure nothrow @system @nogc
     }
 }
 
-private bool primitiveType(String source) pure nothrow @system @nogc
+private bool primitiveType(String source) pure @system
 {
     switch (source)
     {
@@ -249,7 +257,7 @@ private bool primitiveType(String source) pure nothrow @system @nogc
 }
 
 private SignatureToken nextToken(String input, size_t start)
-pure nothrow @system @nogc
+pure @system
 {
     if (start >= input.length)
         return SignatureToken.init;
@@ -285,7 +293,7 @@ pure nothrow @system @nogc
 }
 
 private size_t nextNonSpace(String input, size_t start)
-pure nothrow @safe @nogc
+pure @safe
 {
     while (start < input.length && space(input[start]))
         ++start;
@@ -293,7 +301,7 @@ pure nothrow @safe @nogc
 }
 
 private bool isFunctionIdentifier(String input, size_t end)
-pure nothrow @safe @nogc
+pure @safe
 {
     size_t next = nextNonSpace(input, end);
     if (next < input.length && input[next] == '(')
@@ -304,14 +312,14 @@ pure nothrow @safe @nogc
 }
 
 private bool isModuleIdentifier(String input, size_t end)
-pure nothrow @safe @nogc
+pure @safe
 {
     const next = nextNonSpace(input, end);
     return next < input.length && input[next] == '.';
 }
 
 private bool aggregateIdentifier(String identifier)
-pure nothrow @safe @nogc
+pure @safe
 {
     return identifier.length != 0 &&
         (identifier[0] == '@' || identifier[0] >= 'A' && identifier[0] <= 'Z');
@@ -320,7 +328,7 @@ pure nothrow @safe @nogc
 private size_t visibleWidth(
     String signature,
     ModuleDisplay moduleDisplay,
-) pure nothrow @system @nogc
+) pure @system
 {
     size_t width;
     size_t offset;
@@ -359,7 +367,7 @@ private struct ParameterList
 }
 
 private ParameterList outerParameterList(String signature)
-pure nothrow @safe @nogc
+pure @safe
 {
     size_t depth;
     size_t candidate;
@@ -395,7 +403,7 @@ void writeSignature(
     scope const StackTraceColors* colors,
     ModuleDisplay moduleDisplay = ModuleDisplay.omitted,
     SignatureFormat format = SignatureFormat.init,
-) nothrow @nogc
+)
 {
     StackTraceColors plain;
     const StackTraceColors* activeColors = colors is null ? &plain : colors;
@@ -500,7 +508,7 @@ version (unittest) private struct TestSink
     size_t written;
 }
 
-version (unittest) private size_t testSink(void* context, scope String bytes) nothrow @nogc
+version (unittest) private size_t testSink(void* context, scope String bytes)
 {
     TestSink* sink = cast(TestSink*) context;
     const available = sink.storage.length - sink.written;
@@ -511,7 +519,7 @@ version (unittest) private size_t testSink(void* context, scope String bytes) no
     return amount;
 }
 
-nothrow @nogc unittest
+unittest
 {
     char[512] storage;
     TestSink output = TestSink(storage[]);

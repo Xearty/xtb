@@ -1,5 +1,7 @@
 module xtb.os.file;
 
+nothrow @nogc:
+
 import xtb.core.array : Array, clear, tryAppend, tryReserve;
 import xtb.core.panic : require;
 import xtb.core.string : StringBuf, checkedCString;
@@ -56,10 +58,12 @@ struct OpenOptions
 
 struct IoResult
 {
+nothrow @nogc:
+
     OsError error;
     size_t transferred;
 
-    bool complete(size_t requested) const pure nothrow @safe @nogc
+    bool complete(size_t requested) const pure @safe
     {
         return error.succeeded && transferred == requested;
     }
@@ -67,27 +71,29 @@ struct IoResult
 
 struct File
 {
+nothrow @nogc:
+
     private int descriptor_ = -1;
 
     @disable this(this);
 
-    ~this() nothrow @nogc
+    ~this()
     {
         deinit();
     }
 
-    void deinit() nothrow @nogc
+    void deinit()
     {
         close(&this);
     }
 
-    bool valid() const pure nothrow @safe @nogc
+    bool valid() const pure @safe
     {
         return descriptor_ >= 0;
     }
 }
 
-OsError close(File* file) nothrow @system @nogc
+OsError close(File* file) @system
 {
     require(file !is null, "File pointer is null");
     if (!file.valid)
@@ -107,7 +113,7 @@ OsError close(File* file) nothrow @system @nogc
     }
 }
 
-OsError flush(File* file) nothrow @system @nogc
+OsError flush(File* file) @system
 {
     require(file !is null && file.valid, "invalid File for flush");
     version (linux)
@@ -120,7 +126,7 @@ OsError flush(File* file) nothrow @system @nogc
         return unsupported();
 }
 
-OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
+OsError open(Path path, OpenOptions options, File* output) @system
 {
     require(output !is null, "File output pointer is null");
     const cleanupError = close(output);
@@ -156,7 +162,7 @@ OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
         return unsupported();
 }
 
-private bool valid(OpenOptions options) pure nothrow @safe @nogc
+private bool valid(OpenOptions options) pure @safe
 {
     if (cast(ubyte) options.createMode > cast(ubyte) CreateMode.createNew)
         return false;
@@ -169,7 +175,7 @@ private bool valid(OpenOptions options) pure nothrow @safe @nogc
     return true;
 }
 
-IoResult readSome(File* file, u8[] output) nothrow @system @nogc
+IoResult readSome(File* file, u8[] output) @system
 {
     require(file !is null && file.valid, "invalid File for read");
     version (linux)
@@ -190,7 +196,7 @@ IoResult readSome(File* file, u8[] output) nothrow @system @nogc
         return IoResult(unsupported(), 0);
 }
 
-IoResult writeSome(File* file, scope const(u8)[] input) nothrow @system @nogc
+IoResult writeSome(File* file, scope const(u8)[] input) @system
 {
     require(file !is null && file.valid, "invalid File for write");
     version (linux)
@@ -211,7 +217,7 @@ IoResult writeSome(File* file, scope const(u8)[] input) nothrow @system @nogc
         return IoResult(unsupported(), 0);
 }
 
-IoResult readAll(File* file, u8[] output) nothrow @system @nogc
+IoResult readAll(File* file, u8[] output) @system
 {
     size_t total;
     while (total < output.length)
@@ -224,7 +230,7 @@ IoResult readAll(File* file, u8[] output) nothrow @system @nogc
     return IoResult(OsError.init, total);
 }
 
-IoResult writeAll(File* file, scope const(u8)[] input) nothrow @system @nogc
+IoResult writeAll(File* file, scope const(u8)[] input) @system
 {
     size_t total;
     while (total < input.length)
@@ -237,7 +243,7 @@ IoResult writeAll(File* file, scope const(u8)[] input) nothrow @system @nogc
     return IoResult(OsError.init, total);
 }
 
-OsError metadata(File* file, FileMetadata* output) nothrow @system @nogc
+OsError metadata(File* file, FileMetadata* output) @system
 {
     require(file !is null && file.valid, "invalid File for metadata");
     require(output !is null, "FileMetadata output pointer is null");
@@ -256,7 +262,7 @@ OsError metadata(File* file, FileMetadata* output) nothrow @system @nogc
         return unsupported();
 }
 
-OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) nothrow @system @nogc
+OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) @system
 {
     require(output !is null, "FileMetadata output pointer is null");
     *output = FileMetadata.init;
@@ -283,7 +289,7 @@ OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) nothrow 
 version (linux) private bool convert(
     ref const NativeStat native,
     FileMetadata* output,
-) pure nothrow @system @nogc
+) pure @system
 {
     import core.sys.posix.sys.stat : S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
         S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK;
@@ -333,7 +339,7 @@ version (linux) private bool convert(
     return true;
 }
 
-OsError readEntireFile(Path path, ref Array!u8 output) nothrow @system @nogc
+OsError readEntireFile(Path path, ref Array!u8 output) @system
 {
     output.clear();
     File file;
@@ -371,7 +377,7 @@ OsError writeEntireFile(
     Path path,
     scope const(u8)[] input,
     CreateMode createMode = CreateMode.openOrCreate,
-) nothrow @system @nogc
+) @system
 {
     OpenOptions options;
     options.read = false;
@@ -393,7 +399,7 @@ OsError copyFile(
     Path destination,
     ref Array!u8 buffer,
     CreateMode createMode = CreateMode.openOrCreate,
-) nothrow @system @nogc
+) @system
 {
     OsError error = readEntireFile(source, buffer);
     if (error.failed)
@@ -401,7 +407,7 @@ OsError copyFile(
     return writeEntireFile(destination, buffer.slice, createMode);
 }
 
-version (linux) pure nothrow @system @nogc unittest
+version (linux) pure @system unittest
 {
     import core.sys.posix.sys.stat : S_IFREG;
 

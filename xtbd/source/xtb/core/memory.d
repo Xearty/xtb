@@ -1,5 +1,7 @@
 module xtb.core.memory;
 
+nothrow @nogc:
+
 import core.stdc.stdlib : free, malloc, realloc;
 
 version (Posix)
@@ -16,21 +18,21 @@ alias Allocator = extern (C) void* function(
     void* oldPointer,
     size_t oldSize,
     size_t alignment,
-) nothrow @nogc;
+);
 
 private __gshared Allocator mallocAllocatorSlot = &mallocAllocatorProcedure;
 
-Allocator* mallocAllocator() nothrow @nogc
+Allocator* mallocAllocator()
 {
     return &mallocAllocatorSlot;
 }
 
-private bool isPowerOfTwo(size_t value) pure nothrow @safe @nogc
+private bool isPowerOfTwo(size_t value) pure @safe
 {
     return value != 0 && (value & (value - 1)) == 0;
 }
 
-private size_t normalizedAlignment(size_t alignment) pure nothrow @safe @nogc
+private size_t normalizedAlignment(size_t alignment) pure @safe
 {
     const minimum = (void*).alignof;
     return alignment < minimum ? minimum : alignment;
@@ -42,7 +44,7 @@ private extern (C) void* mallocAllocatorProcedure(
     void* oldPointer,
     size_t oldSize,
     size_t alignment,
-) nothrow @nogc
+)
 {
     alignment = normalizedAlignment(alignment);
     if (!isPowerOfTwo(alignment))
@@ -97,7 +99,7 @@ void* tryReallocate(
     void* oldPointer,
     size_t oldSize,
     size_t alignment,
-) nothrow @nogc
+)
 {
     if (allocator is null || *allocator is null || !isPowerOfTwo(alignment) ||
         (oldPointer is null && oldSize != 0))
@@ -111,7 +113,7 @@ void* reallocate(
     void* oldPointer,
     size_t oldSize,
     size_t alignment,
-) nothrow @nogc
+)
 {
     void* result = tryReallocate(
         allocator,
@@ -129,7 +131,7 @@ void* tryAllocate(
     Allocator* allocator,
     size_t size,
     size_t alignment,
-) nothrow @nogc
+)
 {
     return tryReallocate(allocator, size, null, 0, alignment);
 }
@@ -138,19 +140,19 @@ void* allocate(
     Allocator* allocator,
     size_t size,
     size_t alignment,
-) nothrow @nogc
+)
 {
     return reallocate(allocator, size, null, 0, alignment);
 }
 
-T* tryAllocate(T)(Allocator* allocator, size_t count = 1) nothrow @nogc
+T* tryAllocate(T)(Allocator* allocator, size_t count = 1)
 {
     if (multiplyOverflows(T.sizeof, count))
         return null;
     return cast(T*) tryAllocate(allocator, T.sizeof * count, T.alignof);
 }
 
-T* allocate(T)(Allocator* allocator, size_t count = 1) nothrow @nogc
+T* allocate(T)(Allocator* allocator, size_t count = 1)
 {
     if (multiplyOverflows(T.sizeof, count))
         panic("allocation size overflow");
@@ -162,7 +164,7 @@ T* tryReallocate(T)(
     T* oldPointer,
     size_t oldCount,
     size_t newCount,
-) nothrow @nogc if (__traits(isPOD, T))
+) if (__traits(isPOD, T))
 {
     if (multiplyOverflows(T.sizeof, oldCount) ||
         multiplyOverflows(T.sizeof, newCount))
@@ -181,7 +183,7 @@ T* reallocate(T)(
     T* oldPointer,
     size_t oldCount,
     size_t newCount,
-) nothrow @nogc if (__traits(isPOD, T))
+) if (__traits(isPOD, T))
 {
     if (multiplyOverflows(T.sizeof, oldCount) ||
         multiplyOverflows(T.sizeof, newCount))
@@ -195,8 +197,7 @@ T* reallocate(T)(
     );
 }
 
-T* tryAllocateZeroed(T)(Allocator* allocator, size_t count = 1)
-nothrow @nogc if (__traits(isPOD, T))
+T* tryAllocateZeroed(T)(Allocator* allocator, size_t count = 1) if (__traits(isPOD, T))
 {
     T* result = allocator.tryAllocate!T(count);
     if (result !is null)
@@ -204,8 +205,7 @@ nothrow @nogc if (__traits(isPOD, T))
     return result;
 }
 
-T* allocateZeroed(T)(Allocator* allocator, size_t count = 1)
-nothrow @nogc if (__traits(isPOD, T))
+T* allocateZeroed(T)(Allocator* allocator, size_t count = 1) if (__traits(isPOD, T))
 {
     T* result = allocator.allocate!T(count);
     if (result !is null)
@@ -218,7 +218,7 @@ void deallocate(
     void* pointer,
     size_t oldSize,
     size_t alignment,
-) nothrow @nogc
+)
 {
     if (pointer is null)
         return;
@@ -227,7 +227,7 @@ void deallocate(
 }
 
 void deallocate(T)(Allocator* allocator, T* pointer, size_t count = 1)
-nothrow @nogc
+
 {
     if (multiplyOverflows(T.sizeof, count))
         panic("deallocation size overflow");
@@ -255,6 +255,8 @@ struct AllocatorStats
 
 struct InstrumentedAllocator
 {
+nothrow @nogc:
+
     Allocator allocator;
     private Allocator* backing;
     private AllocationRecord[] records;
@@ -266,7 +268,7 @@ struct InstrumentedAllocator
     static InstrumentedAllocator create(
         Allocator* backing,
         return scope AllocationRecord[] records,
-    ) nothrow @nogc
+    )
     {
         require(backing !is null && *backing !is null,
             "instrumented allocator requires a valid backing allocator");
@@ -279,27 +281,27 @@ struct InstrumentedAllocator
         return result;
     }
 
-    Allocator* handle() return nothrow @nogc
+    Allocator* handle() return
     {
         return &allocator;
     }
 
-    AllocatorStats stats() const pure nothrow @safe @nogc
+    AllocatorStats stats() const pure @safe
     {
         return stats_;
     }
 
-    void failAfter(size_t successfulCalls) nothrow @nogc
+    void failAfter(size_t successfulCalls)
     {
         successesBeforeFailure = successfulCalls;
     }
 
-    void allowAllocations() nothrow @nogc
+    void allowAllocations()
     {
         successesBeforeFailure = size_t.max;
     }
 
-    bool clean() const pure nothrow @safe @nogc
+    bool clean() const pure @safe
     {
         return stats_.outstandingAllocations == 0 && stats_.outstandingBytes == 0;
     }
@@ -310,7 +312,7 @@ static assert(InstrumentedAllocator.allocator.offsetof == 0);
 private AllocationRecord* findRecord(
     ref InstrumentedAllocator allocator,
     void* pointer,
-) nothrow @nogc
+)
 {
     foreach (ref record; allocator.records)
         if (record.pointer is pointer)
@@ -319,7 +321,7 @@ private AllocationRecord* findRecord(
 }
 
 private AllocationRecord* freeRecord(ref InstrumentedAllocator allocator)
-nothrow @nogc
+
 {
     foreach (ref record; allocator.records)
         if (record.pointer is null)
@@ -333,7 +335,7 @@ private extern (C) void* instrumentedAllocatorProcedure(
     void* oldPointer,
     size_t oldSize,
     size_t alignment,
-) nothrow @nogc
+)
 {
     InstrumentedAllocator* allocator = cast(InstrumentedAllocator*) context;
     AllocationRecord* oldRecord;
@@ -416,7 +418,7 @@ private extern (C) void* instrumentedAllocatorProcedure(
     return replacement;
 }
 
-nothrow @nogc unittest
+unittest
 {
     Allocator* allocator = mallocAllocator();
     int* values = allocator.allocate!int(4);
@@ -446,18 +448,22 @@ nothrow @nogc unittest
     assert(tracked.clean);
 }
 
-nothrow @nogc unittest
+unittest
 {
     struct PodWithInitializer
     {
+    nothrow @nogc:
+
         uint value = 0xFFFF_FFFF;
     }
 
     struct Owning
     {
+    nothrow @nogc:
+
         void* pointer;
 
-        ~this() nothrow @nogc
+        ~this()
         {
         }
     }

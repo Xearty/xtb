@@ -1,5 +1,7 @@
 module xtb.core.logger;
 
+nothrow @nogc:
+
 import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
 import xtb.core.print : BufferWriteResult, formatBuffer, writeBuffer;
 import xtb.core.string : String;
@@ -38,22 +40,25 @@ struct LogRecord
 
 struct LogResult
 {
+nothrow @nogc:
+
     LogStatus status;
     size_t written;
     size_t required;
 
-    bool delivered() const pure nothrow @safe @nogc
+    bool delivered() const pure @safe
     {
         return status == LogStatus.delivered || status == LogStatus.truncated;
     }
 }
 
-alias LogSink = bool function(void* context, scope const LogRecord* record)
-nothrow @nogc;
-alias LogFlush = bool function(void* context) nothrow @nogc;
+alias LogSink = bool function(void* context, scope const LogRecord* record);
+alias LogFlush = bool function(void* context);
 
 struct Logger
 {
+nothrow @nogc:
+
     private LogSink sink_;
     private LogFlush flush_;
     private void* context_;
@@ -69,7 +74,7 @@ struct Logger
         return scope char[] messageBuffer,
         LogLevel minimumLevel = LogLevel.info,
         LogFlush flush = null,
-    ) nothrow @nogc
+    )
     {
         Logger result;
         result.sink_ = sink;
@@ -80,18 +85,18 @@ struct Logger
         return result;
     }
 
-    bool valid() const pure nothrow @safe @nogc
+    bool valid() const pure @safe
     {
         return sink_ !is null;
     }
 
-    LogLevel minimumLevel() const pure nothrow @safe @nogc
+    LogLevel minimumLevel() const pure @safe
     {
         return minimumLevel_;
     }
 }
 
-private String levelName(LogLevel level) pure nothrow @safe @nogc
+private String levelName(LogLevel level) pure @safe
 {
     final switch (level)
     {
@@ -110,7 +115,7 @@ private String levelName(LogLevel level) pure nothrow @safe @nogc
     }
 }
 
-private String levelColor(LogLevel level) pure nothrow @safe @nogc
+private String levelColor(LogLevel level) pure @safe
 {
     final switch (level)
     {
@@ -130,12 +135,12 @@ private String levelColor(LogLevel level) pure nothrow @safe @nogc
 }
 
 bool enabled(ref const Logger logger, LogLevel level)
-pure nothrow @safe @nogc
+pure @safe
 {
     return logger.valid && level >= logger.minimumLevel_;
 }
 
-void setMinimumLevel(ref Logger logger, LogLevel level) nothrow @nogc
+void setMinimumLevel(ref Logger logger, LogLevel level)
 {
     logger.minimumLevel_ = level;
 }
@@ -145,7 +150,7 @@ void setSink(
     LogSink sink,
     void* context,
     LogFlush flush = null,
-) nothrow @nogc
+)
 {
     logger.sink_ = sink;
     logger.context_ = context;
@@ -156,7 +161,7 @@ private LogResult deliver(
     ref Logger logger,
     LogLevel level,
     BufferWriteResult formatted,
-) nothrow @nogc
+)
 {
     if (logger.delivering_)
         return LogResult(LogStatus.recursive, 0, formatted.required);
@@ -180,7 +185,7 @@ LogResult log(Args...)(
     ref Logger logger,
     LogLevel level,
     auto ref Args args,
-) nothrow @nogc
+)
 {
     if (!logger.valid)
         return LogResult(LogStatus.invalidLogger, 0, 0);
@@ -196,7 +201,7 @@ LogResult logf(string pattern, Args...)(
     ref Logger logger,
     LogLevel level,
     auto ref Args args,
-) nothrow @nogc
+)
 {
     if (!logger.valid)
         return LogResult(LogStatus.invalidLogger, 0, 0);
@@ -208,18 +213,18 @@ LogResult logf(string pattern, Args...)(
     return logger.deliver(level, formatted);
 }
 
-bool flush(ref Logger logger) nothrow @nogc
+bool flush(ref Logger logger)
 {
     return logger.valid && (logger.flush_ is null || logger.flush_(logger.context_));
 }
 
-private bool writeAll(FILE* file, String value) nothrow @nogc
+private bool writeAll(FILE* file, String value)
 {
     return value.length == 0 || fwrite(value.ptr, 1, value.length, file) == value.length;
 }
 
 private bool plainFileSink(void* context, scope const LogRecord* record)
-nothrow @nogc
+
 {
     FILE* file = cast(FILE*) context;
     if (file is null)
@@ -233,7 +238,7 @@ nothrow @nogc
 }
 
 private bool ansiFileSink(void* context, scope const LogRecord* record)
-nothrow @nogc
+
 {
     FILE* file = cast(FILE*) context;
     if (file is null)
@@ -248,7 +253,7 @@ nothrow @nogc
     return accepted;
 }
 
-private void lockFile(FILE* file) nothrow @nogc
+private void lockFile(FILE* file)
 {
     version (Posix)
     {
@@ -258,7 +263,7 @@ private void lockFile(FILE* file) nothrow @nogc
     }
 }
 
-private void unlockFile(FILE* file) nothrow @nogc
+private void unlockFile(FILE* file)
 {
     version (Posix)
     {
@@ -268,7 +273,7 @@ private void unlockFile(FILE* file) nothrow @nogc
     }
 }
 
-private bool fileFlush(void* context) nothrow @nogc
+private bool fileFlush(void* context)
 {
     FILE* file = cast(FILE*) context;
     return file !is null && fflush(file) == 0;
@@ -279,7 +284,7 @@ Logger fileLogger(
     return scope char[] messageBuffer,
     LogLevel minimumLevel = LogLevel.info,
     LogStyle style = LogStyle.plain,
-) nothrow @nogc
+)
 {
     return Logger.create(
         style == LogStyle.ansi ? &ansiFileSink : &plainFileSink,
@@ -294,7 +299,7 @@ Logger stderrLogger(
     return scope char[] messageBuffer,
     LogLevel minimumLevel = LogLevel.info,
     LogStyle style = LogStyle.plain,
-) nothrow @nogc
+)
 {
     return fileLogger(cast(FILE*) stderr, messageBuffer, minimumLevel, style);
 }
@@ -303,7 +308,7 @@ Logger stdoutLogger(
     return scope char[] messageBuffer,
     LogLevel minimumLevel = LogLevel.info,
     LogStyle style = LogStyle.plain,
-) nothrow @nogc
+)
 {
     return fileLogger(cast(FILE*) stdout, messageBuffer, minimumLevel, style);
 }
@@ -312,13 +317,15 @@ version (unittest)
 {
     private struct Capture
     {
+    nothrow @nogc:
+
         char[64] bytes;
         size_t length;
         LogLevel level;
     }
 
     private bool captureSink(void* context, scope const LogRecord* record)
-    nothrow @nogc
+
     {
         Capture* capture = cast(Capture*) context;
         capture.level = record.level;
@@ -331,18 +338,20 @@ version (unittest)
         return amount == record.message.length;
     }
 
-    private bool rejectSink(void*, scope const LogRecord*) nothrow @nogc
+    private bool rejectSink(void*, scope const LogRecord*)
     {
         return false;
     }
 
-    private bool rejectFlush(void*) nothrow @nogc
+    private bool rejectFlush(void*)
     {
         return false;
     }
 
     private struct RecursiveCapture
     {
+    nothrow @nogc:
+
         Logger* logger;
         LogStatus nestedStatus;
         char[16] outerMessage;
@@ -350,7 +359,7 @@ version (unittest)
     }
 
     private bool recursiveSink(void* context, scope const LogRecord* record)
-    nothrow @nogc
+
     {
         RecursiveCapture* capture = cast(RecursiveCapture*) context;
         capture.nestedStatus = (*capture.logger).log(LogLevel.error, "nested").status;
@@ -361,7 +370,7 @@ version (unittest)
     }
 }
 
-nothrow @nogc unittest
+unittest
 {
     import xtb.core.string : equal;
 

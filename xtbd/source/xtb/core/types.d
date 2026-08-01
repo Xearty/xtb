@@ -1,5 +1,7 @@
 module xtb.core.types;
 
+nothrow @nogc:
+
 alias u8 = ubyte;
 alias u16 = ushort;
 alias u32 = uint;
@@ -18,26 +20,26 @@ alias f64 = double;
 
 alias String = const(char)[];
 
-pure nothrow @safe @nogc
+pure @safe
 T min(T)(T left, T right)
 {
     return left < right ? left : right;
 }
 
-pure nothrow @safe @nogc
+pure @safe
 T max(T)(T left, T right)
 {
     return left > right ? left : right;
 }
 
-pure nothrow @safe @nogc
+pure @safe
 T clamp(T)(T value, T lower, T upper)
 {
     assert(lower <= upper, "invalid clamp range");
     return value < lower ? lower : value > upper ? upper : value;
 }
 
-pure nothrow @safe @nogc
+pure @safe
 bool growGeometric(size_t current, size_t required, size_t* result)
 {
     if (required <= current)
@@ -60,7 +62,7 @@ bool growGeometric(size_t current, size_t required, size_t* result)
     return true;
 }
 
-pure nothrow @safe @nogc
+pure @safe
 bool scaleBytes(size_t count, size_t multiplier, size_t* result)
 {
     if (multiplyOverflows(count, multiplier))
@@ -69,39 +71,39 @@ bool scaleBytes(size_t count, size_t multiplier, size_t* result)
     return true;
 }
 
-pure nothrow @safe @nogc bool kibibytes(size_t count, size_t* result)
+pure @safe bool kibibytes(size_t count, size_t* result)
 {
     return scaleBytes(count, 1024, result);
 }
 
-pure nothrow @safe @nogc bool mebibytes(size_t count, size_t* result)
+pure @safe bool mebibytes(size_t count, size_t* result)
 {
     return scaleBytes(count, 1024 * 1024, result);
 }
 
-pure nothrow @safe @nogc bool gibibytes(size_t count, size_t* result)
+pure @safe bool gibibytes(size_t count, size_t* result)
 {
     return scaleBytes(count, 1024UL * 1024 * 1024, result);
 }
 
-pure nothrow @safe @nogc bool tebibytes(size_t count, size_t* result)
+pure @safe bool tebibytes(size_t count, size_t* result)
 {
     return scaleBytes(count, 1024UL * 1024 * 1024 * 1024, result);
 }
 
-pure nothrow @safe @nogc
+pure @safe
 bool addOverflows(size_t left, size_t right)
 {
     return right > size_t.max - left;
 }
 
-pure nothrow @safe @nogc
+pure @safe
 bool multiplyOverflows(size_t left, size_t right)
 {
     return left != 0 && right > size_t.max / left;
 }
 
-nothrow @nogc unittest
+unittest
 {
     assert(!addOverflows(10, 20));
     assert(addOverflows(size_t.max, 1));

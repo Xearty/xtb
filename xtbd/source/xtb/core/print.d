@@ -1,12 +1,14 @@
 module xtb.core.print;
 
+nothrow @nogc:
+
 import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
 import xtb.core.string : String, StringBuf, append, clear, equal, tryAppend;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic, require;
 
-alias Sink = size_t function(void* context, scope String bytes) nothrow @nogc;
+alias Sink = size_t function(void* context, scope String bytes);
 
 struct WriteResult
 {
@@ -24,6 +26,8 @@ struct BufferWriteResult
 
 struct Writer
 {
+nothrow @nogc:
+
     enum bufferSize = 512;
 
     private Sink sink_;
@@ -33,7 +37,7 @@ struct Writer
     private size_t written_;
     private bool failed_;
 
-    static Writer fromSink(Sink sink, void* context) nothrow @nogc
+    static Writer fromSink(Sink sink, void* context)
     {
         Writer result;
         result.sink_ = sink;
@@ -42,22 +46,22 @@ struct Writer
         return result;
     }
 
-    static Writer fromFile(FILE* file) nothrow @nogc
+    static Writer fromFile(FILE* file)
     {
         return fromSink(&fileSink, cast(void*) file);
     }
 
-    bool ok() const pure nothrow @safe @nogc
+    bool ok() const pure @safe
     {
         return !failed_;
     }
 
-    size_t written() const pure nothrow @safe @nogc
+    size_t written() const pure @safe
     {
         return written_;
     }
 
-    void put(char value) nothrow @nogc
+    void put(char value)
     {
         if (failed_)
             return;
@@ -67,7 +71,7 @@ struct Writer
             buffer_[buffered_++] = value;
     }
 
-    void put(scope String bytes) nothrow @nogc
+    void put(scope String bytes)
     {
         if (failed_ || bytes.length == 0)
             return;
@@ -92,13 +96,13 @@ struct Writer
         }
     }
 
-    void repeat(char value, size_t count) nothrow @nogc
+    void repeat(char value, size_t count)
     {
         foreach (_; 0 .. count)
             put(value);
     }
 
-    void flush() nothrow @nogc
+    void flush()
     {
         if (failed_ || buffered_ == 0)
             return;
@@ -106,18 +110,18 @@ struct Writer
         buffered_ = 0;
     }
 
-    WriteResult finish() nothrow @nogc
+    WriteResult finish()
     {
         flush();
         return WriteResult(!failed_, written_);
     }
 
-    void value(T)(auto ref T value) nothrow @nogc
+    void value(T)(auto ref T value)
     {
         writeValue(this, value);
     }
 
-    private void emit(scope String bytes) nothrow @nogc
+    private void emit(scope String bytes)
     {
         size_t offset;
         while (offset < bytes.length)
@@ -139,7 +143,7 @@ struct Writer
     }
 }
 
-private size_t fileSink(void* context, scope String bytes) nothrow @nogc
+private size_t fileSink(void* context, scope String bytes)
 {
     FILE* file = cast(FILE*) context;
     if (file is null)
@@ -147,7 +151,7 @@ private size_t fileSink(void* context, scope String bytes) nothrow @nogc
     return fwrite(bytes.ptr, 1, bytes.length, file);
 }
 
-private size_t stringBufSink(void* context, scope String bytes) nothrow @nogc
+private size_t stringBufSink(void* context, scope String bytes)
 {
     StringBuf* buffer = cast(StringBuf*) context;
     if (buffer is null)
@@ -159,7 +163,7 @@ private size_t stringBufSink(void* context, scope String bytes) nothrow @nogc
 private size_t fallibleStringBufSink(
     void* context,
     scope String bytes,
-) nothrow @nogc
+)
 {
     StringBuf* buffer = cast(StringBuf*) context;
     return buffer !is null && (*buffer).tryAppend(bytes) ? bytes.length : 0;
@@ -173,7 +177,7 @@ private struct FixedBufferState
     bool overflow;
 }
 
-private size_t fixedBufferSink(void* context, scope String bytes) nothrow @nogc
+private size_t fixedBufferSink(void* context, scope String bytes)
 {
     FixedBufferState* state = cast(FixedBufferState*) context;
     if (state is null)
@@ -200,28 +204,28 @@ private size_t fixedBufferSink(void* context, scope String bytes) nothrow @nogc
     return bytes.length;
 }
 
-WriteResult write(Args...)(auto ref Args args) nothrow @nogc
+WriteResult write(Args...)(auto ref Args args)
 {
     return writeFile(cast(FILE*) stdout, args);
 }
 
-WriteResult writeln(Args...)(auto ref Args args) nothrow @nogc
+WriteResult writeln(Args...)(auto ref Args args)
 {
     return writelnFile(cast(FILE*) stdout, args);
 }
 
-WriteResult ewrite(Args...)(auto ref Args args) nothrow @nogc
+WriteResult ewrite(Args...)(auto ref Args args)
 {
     return writeFile(cast(FILE*) stderr, args);
 }
 
-WriteResult ewriteln(Args...)(auto ref Args args) nothrow @nogc
+WriteResult ewriteln(Args...)(auto ref Args args)
 {
     return writelnFile(cast(FILE*) stderr, args);
 }
 
 WriteResult writeFile(Args...)(FILE* file, auto ref Args args)
-nothrow @nogc
+
 {
     Writer writer = Writer.fromFile(file);
     static foreach (i; 0 .. Args.length)
@@ -230,7 +234,7 @@ nothrow @nogc
 }
 
 WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
-nothrow @nogc
+
 {
     Writer writer = Writer.fromFile(file);
     static foreach (i; 0 .. Args.length)
@@ -240,7 +244,7 @@ nothrow @nogc
 }
 
 WriteResult writeTo(Args...)(ref StringBuf buffer, auto ref Args args)
-nothrow @nogc
+
 {
     Writer writer = Writer.fromSink(&stringBufSink, &buffer);
     static foreach (i; 0 .. Args.length)
@@ -249,7 +253,7 @@ nothrow @nogc
 }
 
 BufferWriteResult writeBuffer(Args...)(char[] destination, auto ref Args args)
-nothrow @nogc
+
 {
     FixedBufferState state;
     state.destination = destination;
@@ -271,7 +275,7 @@ nothrow @nogc
 BufferWriteResult formatBuffer(string pattern, Args...)(
     char[] destination,
     auto ref Args args,
-) nothrow @nogc
+)
 {
     FixedBufferState state;
     state.destination = destination;
@@ -293,7 +297,7 @@ bool tryFormatString(string pattern, Args...)(
     Allocator* allocator,
     StringBuf* output,
     auto ref Args args,
-) nothrow @nogc
+)
 {
     require(output !is null, "StringBuf output pointer is null");
     output.deinit();
@@ -311,7 +315,7 @@ bool tryFormatString(string pattern, Args...)(
 StringBuf formatString(string pattern, Args...)(
     Allocator* allocator,
     auto ref Args args,
-) nothrow @nogc
+)
 {
     StringBuf result;
     if (!tryFormatString!pattern(allocator, &result, args))
@@ -319,12 +323,12 @@ StringBuf formatString(string pattern, Args...)(
     return result;
 }
 
-bool flushStdout() nothrow @nogc
+bool flushStdout()
 {
     return fflush(cast(FILE*) stdout) == 0;
 }
 
-bool flushStderr() nothrow @nogc
+bool flushStderr()
 {
     return fflush(cast(FILE*) stderr) == 0;
 }
@@ -335,7 +339,7 @@ private template Unqualified(T)
 }
 
 private void writeValue(T)(ref Writer writer, auto ref T value)
-nothrow @nogc
+
 {
     alias U = Unqualified!T;
     static if (__traits(compiles, value.formatTo(writer)))
@@ -397,7 +401,7 @@ private void writeInteger(T)(
     bool prefix,
     bool uppercase,
     ushort minimumDigits,
-) nothrow @nogc
+)
 {
     static assert(__traits(isIntegral, T) && T.sizeof <= ulong.sizeof);
     if (radix < 2 || radix > 36)
@@ -447,7 +451,7 @@ private void writeInteger(T)(
 }
 
 private void writeFloat(T)(ref Writer writer, T value, char mode, int precision)
-nothrow @nogc
+
 {
     static assert(__traits(isFloating, T));
     if (precision < 0)
@@ -483,7 +487,7 @@ nothrow @nogc
 }
 
 private void writePointer(ref Writer writer, const(void)* pointer)
-nothrow @nogc
+
 {
     if (pointer is null)
     {
@@ -500,7 +504,7 @@ nothrow @nogc
     );
 }
 
-private void writeCodePoint(ref Writer writer, dchar codePoint) nothrow @nogc
+private void writeCodePoint(ref Writer writer, dchar codePoint)
 {
     if (codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF))
         codePoint = 0xFFFD;
@@ -537,25 +541,27 @@ private void writeCodePoint(ref Writer writer, dchar codePoint) nothrow @nogc
 
 struct IntegerFormat(T)
 {
+nothrow @nogc:
+
     T value;
     ubyte radix = 10;
     bool prefix;
     bool uppercase;
     ushort minimumDigits = 1;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void formatTo(ref Writer writer) const
     {
         writeInteger(writer, value, radix, prefix, uppercase, minimumDigits);
     }
 
-    IntegerFormat digits(ushort count) const nothrow @nogc
+    IntegerFormat digits(ushort count) const
     {
         IntegerFormat result = this;
         result.minimumDigits = count;
         return result;
     }
 
-    IntegerFormat upper() const nothrow @nogc
+    IntegerFormat upper() const
     {
         IntegerFormat result = this;
         result.uppercase = true;
@@ -563,7 +569,7 @@ struct IntegerFormat(T)
     }
 }
 
-IntegerFormat!T radix(T)(T value, ubyte base) nothrow @nogc
+IntegerFormat!T radix(T)(T value, ubyte base)
 {
     static assert(__traits(isIntegral, T) && T.sizeof <= ulong.sizeof);
     IntegerFormat!T result;
@@ -572,14 +578,14 @@ IntegerFormat!T radix(T)(T value, ubyte base) nothrow @nogc
     return result;
 }
 
-IntegerFormat!T binary(T)(T value) nothrow @nogc
+IntegerFormat!T binary(T)(T value)
 {
     IntegerFormat!T result = radix(value, 2);
     result.prefix = true;
     return result;
 }
 
-IntegerFormat!T hexadecimal(T)(T value) nothrow @nogc
+IntegerFormat!T hexadecimal(T)(T value)
 {
     IntegerFormat!T result = radix(value, 16);
     result.prefix = true;
@@ -588,28 +594,30 @@ IntegerFormat!T hexadecimal(T)(T value) nothrow @nogc
 
 struct FloatFormat(T)
 {
+nothrow @nogc:
+
     T value;
     char mode;
     int precision;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void formatTo(ref Writer writer) const
     {
         writeFloat(writer, value, mode, precision);
     }
 }
 
-FloatFormat!T fixed(T)(T value, int precision = 6) nothrow @nogc
+FloatFormat!T fixed(T)(T value, int precision = 6)
 {
     return FloatFormat!T(value, 'f', precision);
 }
 
-FloatFormat!T scientific(T)(T value, int precision = 6) nothrow @nogc
+FloatFormat!T scientific(T)(T value, int precision = 6)
 {
     return FloatFormat!T(value, 'e', precision);
 }
 
 WriteResult format(string pattern, Args...)(auto ref Args args)
-nothrow @nogc
+
 {
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     writeFormat!(pattern, 0, 0)(writer, args);
@@ -617,7 +625,7 @@ nothrow @nogc
 }
 
 WriteResult formatln(string pattern, Args...)(auto ref Args args)
-nothrow @nogc
+
 {
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     writeFormat!(pattern, 0, 0)(writer, args);
@@ -628,7 +636,7 @@ nothrow @nogc
 WriteResult formatTo(string pattern, Args...)(
     ref StringBuf buffer,
     auto ref Args args,
-) nothrow @nogc
+)
 {
     Writer writer = Writer.fromSink(&stringBufSink, &buffer);
     writeFormat!(pattern, 0, 0)(writer, args);
@@ -640,7 +648,7 @@ private void writeFormat(
     size_t position,
     size_t argument,
     Args...,
-)(ref Writer writer, auto ref Args args) nothrow @nogc
+)(ref Writer writer, auto ref Args args)
 {
     static if (position == pattern.length)
     {
@@ -681,7 +689,7 @@ private void writeFormat(
 }
 
 private size_t nextSpecial(string pattern, size_t start)
-pure nothrow @safe @nogc
+pure @safe
 {
     size_t result = start;
     while (result < pattern.length && pattern[result] != '{' && pattern[result] != '}')
@@ -689,7 +697,7 @@ pure nothrow @safe @nogc
     return result;
 }
 
-nothrow @nogc unittest
+unittest
 {
     import xtb.core.memory : mallocAllocator;
 
@@ -713,9 +721,11 @@ nothrow @nogc unittest
 
     struct StatefulValue
     {
+    nothrow @nogc:
+
         size_t* calls;
 
-        void formatTo(ref Writer writer) nothrow @nogc
+        void formatTo(ref Writer writer)
         {
             ++*calls;
             writer.put("stateful");

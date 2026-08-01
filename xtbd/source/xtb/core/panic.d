@@ -1,10 +1,12 @@
 module xtb.core.panic;
 
+nothrow @nogc:
+
 import core.stdc.stdlib : abort, exit;
 import core.stdc.stdio : FILE, fflush, fwrite, stderr;
 import xtb.core.types : String;
 
-alias PanicHandler = void function(String message, void* context) nothrow @nogc;
+alias PanicHandler = void function(String message, void* context);
 
 struct PanicHook
 {
@@ -18,14 +20,14 @@ private __gshared PanicHook panicHook;
 private bool panicInFlight;
 
 PanicHook setPanicHandler(PanicHandler handler, void* context = null)
-nothrow @nogc
+
 {
     PanicHook previous = panicHook;
     panicHook = PanicHook(handler, context);
     return previous;
 }
 
-private void rawPanicWrite(String message) nothrow @nogc
+private void rawPanicWrite(String message)
 {
     enum prefix = "panic: ";
     fwrite(prefix.ptr, 1, prefix.length, cast(FILE*) stderr);
@@ -35,7 +37,7 @@ private void rawPanicWrite(String message) nothrow @nogc
     fwrite(newline.ptr, 1, newline.length, cast(FILE*) stderr);
 }
 
-noreturn panic(String message) nothrow @nogc
+noreturn panic(String message)
 {
     if (panicInFlight)
     {
@@ -53,7 +55,7 @@ noreturn panic(String message) nothrow @nogc
 }
 
 private void append(ref char[1024] buffer, ref size_t length, String value)
-nothrow @nogc
+
 {
     const available = buffer.length - length;
     const amount = value.length < available ? value.length : available;
@@ -63,7 +65,7 @@ nothrow @nogc
 }
 
 private void appendDecimal(ref char[1024] buffer, ref size_t length, size_t value)
-nothrow @nogc
+
 {
     char[32] digits;
     size_t begin = digits.length;
@@ -77,7 +79,7 @@ nothrow @nogc
 }
 
 private noreturn panicAt(String message, String file, size_t line)
-nothrow @nogc
+
 {
     char[1024] buffer;
     size_t length;
@@ -95,7 +97,7 @@ nothrow @nogc
 void require(string file = __FILE__, size_t line = __LINE__)(
     bool condition,
     String message,
-) nothrow @trusted @nogc
+) @trusted
 {
     if (!condition)
         panicAt(message, file, line);
@@ -104,7 +106,7 @@ void require(string file = __FILE__, size_t line = __LINE__)(
 noreturn unreachableCode(
     string file = __FILE__,
     size_t line = __LINE__,
-)() nothrow @trusted @nogc
+)() @trusted
 {
     panicAt("unreachable code reached", file, line);
 }

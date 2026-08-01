@@ -1,5 +1,7 @@
 module xtb.core.string;
 
+nothrow @nogc:
+
 public import xtb.core.types : String;
 
 import core.stdc.string : memcmp, memmove, strlen;
@@ -19,17 +21,16 @@ import xtb.core.panic : panic, require;
 
 enum notFound = size_t.max;
 
-alias SplitPredicate = size_t function(String rest, void* context)
-nothrow @nogc;
+alias SplitPredicate = size_t function(String rest, void* context);
 
-String fromCString(const(char)* value) nothrow @system @nogc
+String fromCString(const(char)* value) @system
 {
     require(value !is null, "null C string");
     return value[0 .. strlen(value)];
 }
 
 bool tryFromCString(const(char)* value, String* output)
-nothrow @system @nogc
+@system
 {
     require(output !is null, "String output pointer is null");
     if (value is null)
@@ -41,31 +42,31 @@ nothrow @system @nogc
     return true;
 }
 
-bool empty(String value) pure nothrow @safe @nogc
+bool empty(String value) pure @safe
 {
     return value.length == 0;
 }
 
-char front(String value) nothrow @system @nogc
+char front(String value) @system
 {
     require(value.length != 0, "front of empty String");
     return value[0];
 }
 
-char back(String value) nothrow @system @nogc
+char back(String value) @system
 {
     require(value.length != 0, "back of empty String");
     return value[value.length - 1];
 }
 
-bool equal(String left, String right) pure nothrow @system @nogc
+bool equal(String left, String right) pure @system
 {
     if (left.length != right.length)
         return false;
     return left.length == 0 || memcmp(left.ptr, right.ptr, left.length) == 0;
 }
 
-int compare(String left, String right) pure nothrow @system @nogc
+int compare(String left, String right) pure @system
 {
     const common = left.length < right.length ? left.length : right.length;
     if (common != 0)
@@ -80,36 +81,36 @@ int compare(String left, String right) pure nothrow @system @nogc
 }
 
 String slice(String value, size_t begin, size_t end)
-pure nothrow @safe @nogc
+pure @safe
 {
     assert(begin <= end && end <= value.length);
     return value[begin .. end];
 }
 
-String head(String value, size_t count) pure nothrow @safe @nogc
+String head(String value, size_t count) pure @safe
 {
     return value.slice(0, count < value.length ? count : value.length);
 }
 
-String tail(String value, size_t count) pure nothrow @safe @nogc
+String tail(String value, size_t count) pure @safe
 {
     const amount = count < value.length ? count : value.length;
     return value.slice(value.length - amount, value.length);
 }
 
-String truncateLeft(String value, size_t count) pure nothrow @safe @nogc
+String truncateLeft(String value, size_t count) pure @safe
 {
     const amount = count < value.length ? count : value.length;
     return value[amount .. $];
 }
 
-String truncateRight(String value, size_t count) pure nothrow @safe @nogc
+String truncateRight(String value, size_t count) pure @safe
 {
     const amount = count < value.length ? count : value.length;
     return value[0 .. value.length - amount];
 }
 
-size_t find(String value, String needle) pure nothrow @system @nogc
+size_t find(String value, String needle) pure @system
 {
     if (needle.length == 0)
         return 0;
@@ -124,7 +125,7 @@ size_t find(String value, String needle) pure nothrow @system @nogc
     return notFound;
 }
 
-size_t find(String value, char needle) pure nothrow @safe @nogc
+size_t find(String value, char needle) pure @safe
 {
     foreach (i, character; value)
     {
@@ -134,7 +135,7 @@ size_t find(String value, char needle) pure nothrow @safe @nogc
     return notFound;
 }
 
-size_t findLast(String value, String needle) pure nothrow @system @nogc
+size_t findLast(String value, String needle) pure @system
 {
     if (needle.length == 0)
         return value.length;
@@ -151,7 +152,7 @@ size_t findLast(String value, String needle) pure nothrow @system @nogc
     return notFound;
 }
 
-size_t findLast(String value, char needle) pure nothrow @safe @nogc
+size_t findLast(String value, char needle) pure @safe
 {
     size_t index = value.length;
     while (index != 0)
@@ -163,7 +164,7 @@ size_t findLast(String value, char needle) pure nothrow @safe @nogc
     return notFound;
 }
 
-String baseName(String value) pure nothrow @safe @nogc
+String baseName(String value) pure @safe
 {
     const slash = value.findLast('/');
     const backslash = value.findLast('\\');
@@ -174,7 +175,7 @@ String baseName(String value) pure nothrow @safe @nogc
     return separator == notFound ? value : value[separator + 1 .. $];
 }
 
-String stripExtension(String value) pure nothrow @safe @nogc
+String stripExtension(String value) pure @safe
 {
     const extension = value.findLast('.');
     const baseOffset = value.length - value.baseName.length;
@@ -182,39 +183,39 @@ String stripExtension(String value) pure nothrow @safe @nogc
         ? value : value[0 .. extension];
 }
 
-bool contains(String value, String needle) pure nothrow @system @nogc
+bool contains(String value, String needle) pure @system
 {
     return value.find(needle) != notFound;
 }
 
-bool contains(String value, char needle) pure nothrow @safe @nogc
+bool contains(String value, char needle) pure @safe
 {
     return value.find(needle) != notFound;
 }
 
-bool containsNul(String value) pure nothrow @safe @nogc
+bool containsNul(String value) pure @safe
 {
     return value.contains('\0');
 }
 
-bool startsWith(String value, String prefix) pure nothrow @system @nogc
+bool startsWith(String value, String prefix) pure @system
 {
     return prefix.length <= value.length && value[0 .. prefix.length].equal(prefix);
 }
 
-bool endsWith(String value, String suffix) pure nothrow @system @nogc
+bool endsWith(String value, String suffix) pure @system
 {
     return suffix.length <= value.length &&
         value[value.length - suffix.length .. $].equal(suffix);
 }
 
-private bool isAsciiWhitespace(char value) pure nothrow @safe @nogc
+private bool isAsciiWhitespace(char value) pure @safe
 {
     return value == ' ' || value == '\t' || value == '\n' ||
         value == '\r' || value == '\f' || value == '\v';
 }
 
-String trimLeft(String value) pure nothrow @safe @nogc
+String trimLeft(String value) pure @safe
 {
     size_t begin;
     while (begin < value.length && isAsciiWhitespace(value[begin]))
@@ -222,7 +223,7 @@ String trimLeft(String value) pure nothrow @safe @nogc
     return value[begin .. $];
 }
 
-String trimRight(String value) pure nothrow @safe @nogc
+String trimRight(String value) pure @safe
 {
     size_t end = value.length;
     while (end != 0 && isAsciiWhitespace(value[end - 1]))
@@ -230,12 +231,12 @@ String trimRight(String value) pure nothrow @safe @nogc
     return value[0 .. end];
 }
 
-String trim(String value) pure nothrow @safe @nogc
+String trim(String value) pure @safe
 {
     return value.trimLeft().trimRight();
 }
 
-bool tryCopy(String value, Allocator* allocator, String* output) nothrow @nogc
+bool tryCopy(String value, Allocator* allocator, String* output)
 {
     require(output !is null, "String output pointer is null");
     if (value.length == size_t.max)
@@ -250,7 +251,7 @@ bool tryCopy(String value, Allocator* allocator, String* output) nothrow @nogc
     return true;
 }
 
-String copy(String value, Allocator* allocator) nothrow @nogc
+String copy(String value, Allocator* allocator)
 {
     String result;
     if (!value.tryCopy(allocator, &result))
@@ -263,7 +264,7 @@ bool tryConcat(
     String right,
     Allocator* allocator,
     String* output,
-) nothrow @nogc
+)
 {
     require(output !is null, "String output pointer is null");
     if (right.length > size_t.max - left.length)
@@ -283,7 +284,7 @@ bool tryConcat(
     return true;
 }
 
-String concat(String left, String right, Allocator* allocator) nothrow @nogc
+String concat(String left, String right, Allocator* allocator)
 {
     String result;
     if (!left.tryConcat(right, allocator, &result))
@@ -297,7 +298,7 @@ bool tryReplace(
     String to,
     Allocator* allocator,
     String* output,
-) nothrow @nogc
+)
 {
     require(output !is null, "String output pointer is null");
     if (from.length == 0)
@@ -357,7 +358,7 @@ bool tryReplace(
 }
 
 String replace(String value, String from, String to, Allocator* allocator)
-nothrow @nogc
+
 {
     String result;
     if (!value.tryReplace(from, to, allocator, &result))
@@ -370,7 +371,7 @@ bool tryJoin(
     String separator,
     Allocator* allocator,
     String* output,
-) nothrow @nogc
+)
 {
     require(output !is null, "String output pointer is null");
     size_t length;
@@ -413,7 +414,7 @@ bool tryJoin(
 }
 
 String join(scope const(String)[] values, String separator, Allocator* allocator)
-nothrow @nogc
+
 {
     String result;
     if (!tryJoin(values, separator, allocator, &result))
@@ -421,7 +422,7 @@ nothrow @nogc
     return result;
 }
 
-private char escapedCharacter(char value) pure nothrow @safe @nogc
+private char escapedCharacter(char value) pure @safe
 {
     switch (value)
     {
@@ -455,7 +456,7 @@ private char escapedCharacter(char value) pure nothrow @safe @nogc
 }
 
 bool tryEscape(String value, Allocator* allocator, String* output)
-nothrow @nogc
+
 {
     require(output !is null, "String output pointer is null");
     size_t escapedCount;
@@ -487,7 +488,7 @@ nothrow @nogc
     return true;
 }
 
-String escape(String value, Allocator* allocator) nothrow @nogc
+String escape(String value, Allocator* allocator)
 {
     String result;
     if (!value.tryEscape(allocator, &result))
@@ -502,7 +503,7 @@ bool trySplitWhen(
     bool discardEmpty,
     Allocator* allocator,
     Array!String* output,
-) nothrow @nogc
+)
 {
     require(predicate !is null, "split predicate is null");
     require(output !is null, "split output is null");
@@ -547,7 +548,7 @@ Array!String splitWhen(
     void* context,
     bool discardEmpty,
     Allocator* allocator,
-) nothrow @nogc
+)
 {
     Array!String result;
     if (!value.trySplitWhen(predicate, context, discardEmpty, allocator, &result))
@@ -555,23 +556,23 @@ Array!String splitWhen(
     return result;
 }
 
-private size_t stringSeparator(String rest, void* context) nothrow @nogc
+private size_t stringSeparator(String rest, void* context)
 {
     String separator = *cast(String*) context;
     return rest.startsWith(separator) ? separator.length : 0;
 }
 
-private size_t characterSeparator(String rest, void* context) nothrow @nogc
+private size_t characterSeparator(String rest, void* context)
 {
     return rest.length != 0 && rest[0] == *cast(char*) context ? 1 : 0;
 }
 
-private bool isAsciiWhitespacePublic(char value) pure nothrow @safe @nogc
+private bool isAsciiWhitespacePublic(char value) pure @safe
 {
     return isAsciiWhitespace(value);
 }
 
-private size_t whitespaceSeparator(String rest, void*) nothrow @nogc
+private size_t whitespaceSeparator(String rest, void*)
 {
     size_t count;
     while (count < rest.length && isAsciiWhitespacePublic(rest[count]))
@@ -580,35 +581,37 @@ private size_t whitespaceSeparator(String rest, void*) nothrow @nogc
 }
 
 Array!String split(String value, String separator, Allocator* allocator)
-nothrow @nogc
+
 {
     require(separator.length != 0, "String separator must not be empty");
     return value.splitWhen(&stringSeparator, &separator, false, allocator);
 }
 
 Array!String split(String value, char separator, Allocator* allocator)
-nothrow @nogc
+
 {
     return value.splitWhen(&characterSeparator, &separator, false, allocator);
 }
 
-Array!String splitWhitespace(String value, Allocator* allocator) nothrow @nogc
+Array!String splitWhitespace(String value, Allocator* allocator)
 {
     return value.splitWhen(&whitespaceSeparator, null, true, allocator);
 }
 
-Array!String splitLines(String value, Allocator* allocator) nothrow @nogc
+Array!String splitLines(String value, Allocator* allocator)
 {
     return value.split('\n', allocator);
 }
 
 struct StringBuf
 {
+nothrow @nogc:
+
     private Array!char bytes_;
 
     @disable this(this);
 
-    static StringBuf create(Allocator* allocator) nothrow @nogc
+    static StringBuf create(Allocator* allocator)
     {
         StringBuf result;
         result.bytes_ = Array!char.create(allocator);
@@ -616,7 +619,7 @@ struct StringBuf
     }
 
     static StringBuf withCapacity(Allocator* allocator, size_t capacity)
-    nothrow @nogc
+
     {
         StringBuf result;
         result.bytes_ = Array!char.withCapacity(allocator, capacity);
@@ -624,7 +627,7 @@ struct StringBuf
     }
 
     static StringBuf fromString(Allocator* allocator, String value)
-    nothrow @nogc
+
     {
         StringBuf result = withCapacity(allocator, value.length);
         result.append(value);
@@ -635,120 +638,120 @@ struct StringBuf
         Allocator* allocator,
         String value,
         StringBuf* output,
-    ) nothrow @nogc
+    )
     {
         require(output !is null, "StringBuf output pointer is null");
         *output = create(allocator);
         return (*output).tryAppend(value);
     }
 
-    void deinit() nothrow @nogc
+    void deinit()
     {
         bytes_.deinit();
     }
 
-    size_t length() const pure nothrow @safe @nogc
+    size_t length() const pure @safe
     {
         return bytes_.length;
     }
 
-    size_t capacity() const pure nothrow @safe @nogc
+    size_t capacity() const pure @safe
     {
         return bytes_.capacity;
     }
 
-    bool empty() const pure nothrow @safe @nogc
+    bool empty() const pure @safe
     {
         return bytes_.empty;
     }
 
-    Allocator* allocator() return nothrow @nogc
+    Allocator* allocator() return
     {
         return bytes_.allocator;
     }
 
-    String view() const return nothrow @system @nogc
+    String view() const return @system
     {
         return bytes_.slice;
     }
 }
 
-void reserve(ref StringBuf buffer, size_t capacity) nothrow @nogc
+void reserve(ref StringBuf buffer, size_t capacity)
 {
     buffer.bytes_.reserveArray(capacity);
 }
 
-bool tryReserve(ref StringBuf buffer, size_t capacity) nothrow @nogc
+bool tryReserve(ref StringBuf buffer, size_t capacity)
 {
     return buffer.bytes_.tryReserveArray(capacity);
 }
 
-void append(ref StringBuf buffer, String value) nothrow @nogc
+void append(ref StringBuf buffer, String value)
 {
     buffer.bytes_.appendArray(value);
 }
 
-bool tryAppend(ref StringBuf buffer, String value) nothrow @nogc
+bool tryAppend(ref StringBuf buffer, String value)
 {
     return buffer.bytes_.tryAppendArray(value);
 }
 
-void append(ref StringBuf buffer, char value) nothrow @nogc
+void append(ref StringBuf buffer, char value)
 {
     buffer.bytes_.appendArray(value);
 }
 
-bool tryAppend(ref StringBuf buffer, char value) nothrow @nogc
+bool tryAppend(ref StringBuf buffer, char value)
 {
     return buffer.bytes_.tryAppendArray(value);
 }
 
-void appendByte(ref StringBuf buffer, char value) nothrow @nogc
+void appendByte(ref StringBuf buffer, char value)
 {
     buffer.append(value);
 }
 
-void appendAssumeCapacity(ref StringBuf buffer, String value) nothrow @nogc
+void appendAssumeCapacity(ref StringBuf buffer, String value)
 {
     buffer.bytes_.appendAssumeCapacityArray(value);
 }
 
-void appendAssumeCapacity(ref StringBuf buffer, char value) nothrow @nogc
+void appendAssumeCapacity(ref StringBuf buffer, char value)
 {
     buffer.bytes_.appendAssumeCapacityArray(value);
 }
 
-bool tryInsert(ref StringBuf buffer, size_t index, String value) nothrow @nogc
+bool tryInsert(ref StringBuf buffer, size_t index, String value)
 {
     return buffer.bytes_.tryInsertArray(index, value);
 }
 
-void insert(ref StringBuf buffer, size_t index, String value) nothrow @nogc
+void insert(ref StringBuf buffer, size_t index, String value)
 {
     buffer.bytes_.insertArray(index, value);
 }
 
-bool tryPrepend(ref StringBuf buffer, String value) nothrow @nogc
+bool tryPrepend(ref StringBuf buffer, String value)
 {
     return buffer.tryInsert(0, value);
 }
 
-void prepend(ref StringBuf buffer, String value) nothrow @nogc
+void prepend(ref StringBuf buffer, String value)
 {
     buffer.insert(0, value);
 }
 
-void clear(ref StringBuf buffer) nothrow @nogc
+void clear(ref StringBuf buffer)
 {
     buffer.bytes_.clearArray();
 }
 
-void resetAndRelease(ref StringBuf buffer) nothrow @nogc
+void resetAndRelease(ref StringBuf buffer)
 {
     buffer.bytes_.resetAndReleaseArray();
 }
 
-bool tryEscape(ref StringBuf buffer, String value) nothrow @nogc
+bool tryEscape(ref StringBuf buffer, String value)
 {
     bool aliasesBuffer;
     size_t sourceOffset;
@@ -792,13 +795,13 @@ bool tryEscape(ref StringBuf buffer, String value) nothrow @nogc
     return true;
 }
 
-void appendEscaped(ref StringBuf buffer, String value) nothrow @nogc
+void appendEscaped(ref StringBuf buffer, String value)
 {
     if (!buffer.tryEscape(value))
         panic("StringBuf allocation failed");
 }
 
-bool tryReplace(ref StringBuf buffer, String from, String to) nothrow @nogc
+bool tryReplace(ref StringBuf buffer, String from, String to)
 {
     require(from.length != 0, "replacement source must not be empty");
     String original = buffer.view;
@@ -896,13 +899,13 @@ bool tryReplace(ref StringBuf buffer, String from, String to) nothrow @nogc
     return true;
 }
 
-void replaceInPlace(ref StringBuf buffer, String from, String to) nothrow @nogc
+void replaceInPlace(ref StringBuf buffer, String from, String to)
 {
     if (!buffer.tryReplace(from, to))
         panic("StringBuf allocation failed");
 }
 
-const(char)* cString(ref StringBuf buffer) nothrow @system @nogc
+const(char)* cString(ref StringBuf buffer) @system
 {
     const oldLength = buffer.length;
     buffer.bytes_.resizeArray(oldLength + 1);
@@ -912,13 +915,13 @@ const(char)* cString(ref StringBuf buffer) nothrow @system @nogc
     return pointer;
 }
 
-const(char)* checkedCString(ref StringBuf buffer) nothrow @system @nogc
+const(char)* checkedCString(ref StringBuf buffer) @system
 {
     require(!buffer.view.containsNul, "String contains embedded NUL");
     return buffer.cString();
 }
 
-nothrow @nogc unittest
+unittest
 {
     import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
         deallocate, mallocAllocator;

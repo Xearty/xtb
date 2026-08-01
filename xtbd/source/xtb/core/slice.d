@@ -1,9 +1,11 @@
 module xtb.core.slice;
 
+nothrow @nogc:
+
 import xtb.core.panic : require;
 
 T[] subslice(T)(return scope T[] values, size_t offset, size_t count)
-nothrow @system @nogc
+@system
 {
     require(offset <= values.length, "slice offset out of bounds");
     require(count <= values.length - offset, "slice count out of bounds");
@@ -11,46 +13,46 @@ nothrow @system @nogc
 }
 
 T[] drop(T)(return scope T[] values, size_t count)
-pure nothrow @safe @nogc
+pure @safe
 {
     const amount = count < values.length ? count : values.length;
     return values[amount .. $];
 }
 
 T[] take(T)(return scope T[] values, size_t count)
-pure nothrow @safe @nogc
+pure @safe
 {
     const amount = count < values.length ? count : values.length;
     return values[0 .. amount];
 }
 
 T[] dropLast(T)(return scope T[] values, size_t count)
-pure nothrow @safe @nogc
+pure @safe
 {
     const amount = count < values.length ? count : values.length;
     return values[0 .. values.length - amount];
 }
 
 T[] takeLast(T)(return scope T[] values, size_t count)
-pure nothrow @safe @nogc
+pure @safe
 {
     const amount = count < values.length ? count : values.length;
     return values[values.length - amount .. $];
 }
 
-ref T front(T)(return scope T[] values) nothrow @system @nogc
+ref T front(T)(return scope T[] values) @system
 {
     require(values.length != 0, "front of empty slice");
     return values[0];
 }
 
-ref T back(T)(return scope T[] values) nothrow @system @nogc
+ref T back(T)(return scope T[] values) @system
 {
     require(values.length != 0, "back of empty slice");
     return values[values.length - 1];
 }
 
-nothrow @nogc unittest
+unittest
 {
     int[5] storage = [1, 2, 3, 4, 5];
     assert(storage[].subslice(1, 3) == [2, 3, 4]);

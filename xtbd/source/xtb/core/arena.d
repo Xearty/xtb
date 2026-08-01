@@ -1,5 +1,7 @@
 module xtb.core.arena;
 
+nothrow @nogc:
+
 import core.stdc.string : memcpy, memset;
 import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic, require;
@@ -17,12 +19,14 @@ private struct ArenaChunk
 
 struct ArenaStats
 {
+nothrow @nogc:
+
     size_t usedBytes;
     size_t reservedBytes;
     size_t peakUsedBytes;
     size_t chunkCount;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void formatTo(ref Writer writer) const
     {
         writer.put("ArenaStats(used=");
         writer.value(usedBytes);
@@ -38,13 +42,15 @@ struct ArenaStats
 
 private int tlsThreadMarker;
 
-private void* currentThreadToken() nothrow @nogc
+private void* currentThreadToken()
 {
     return &tlsThreadMarker;
 }
 
 struct Arena
 {
+nothrow @nogc:
+
     Allocator allocator;
     private Allocator* backingAllocator;
     private ArenaChunk* firstChunk;
@@ -59,7 +65,7 @@ struct Arena
 
     @disable this(this);
 
-    ~this() nothrow @nogc
+    ~this()
     {
         deinit();
     }
@@ -67,7 +73,7 @@ struct Arena
     static Arena create(
         Allocator* backingAllocator,
         size_t defaultChunkSize = 64 * 1024,
-    ) nothrow @nogc
+    )
     {
         require(backingAllocator !is null && *backingAllocator !is null,
             "arena requires a valid backing allocator");
@@ -80,13 +86,13 @@ struct Arena
         return result;
     }
 
-    Allocator* allocatorHandle() return nothrow @nogc
+    Allocator* allocatorHandle() return
     {
         return &allocator;
     }
 
     void* allocate(size_t size, size_t alignment = (void*).alignof)
-    nothrow @nogc
+
     {
         void* result = tryAllocate(size, alignment);
         if (size != 0 && result is null)
@@ -95,7 +101,7 @@ struct Arena
     }
 
     void* tryAllocate(size_t size, size_t alignment = (void*).alignof)
-    nothrow @nogc
+
     {
         if (size == 0)
             return null;
@@ -126,7 +132,7 @@ struct Arena
     }
 
     void* allocateZeroed(size_t size, size_t alignment = (void*).alignof)
-    nothrow @nogc
+
     {
         void* result = allocate(size, alignment);
         if (result !is null)
@@ -135,7 +141,7 @@ struct Arena
     }
 
     void* tryAllocateZeroed(size_t size, size_t alignment = (void*).alignof)
-    nothrow @nogc
+
     {
         void* result = tryAllocate(size, alignment);
         if (result !is null)
@@ -143,7 +149,7 @@ struct Arena
         return result;
     }
 
-    void clear() nothrow @nogc
+    void clear()
     {
         require(scopeDepth == 0, "cannot clear arena with active temporary scopes");
         for (ArenaChunk* chunk = firstChunk; chunk !is null; chunk = chunk.next)
@@ -153,7 +159,7 @@ struct Arena
         ++generation_;
     }
 
-    void deinit() nothrow @nogc
+    void deinit()
     {
         require(scopeDepth == 0, "cannot destroy arena with active temporary scopes");
         ArenaChunk* chunk = firstChunk;
@@ -180,7 +186,7 @@ struct Arena
         ++generation_;
     }
 
-    ArenaStats stats() const pure nothrow @safe @nogc
+    ArenaStats stats() const pure @safe
     {
         ArenaStats result;
         result.usedBytes = usedBytes_;
@@ -193,19 +199,19 @@ struct Arena
         return result;
     }
 
-    void setRetentionLimit(size_t bytes) nothrow @nogc
+    void setRetentionLimit(size_t bytes)
     {
         retentionLimit = bytes;
         if (scopeDepth == 0)
             trimToRetentionLimit();
     }
 
-    void setRewindPoisoning(bool enabled) nothrow @nogc
+    void setRewindPoisoning(bool enabled)
     {
         poisonRewoundMemory_ = enabled;
     }
 
-    void trim() nothrow @nogc
+    void trim()
     {
         require(scopeDepth == 0, "cannot trim arena with active temporary scopes");
         ArenaChunk* keep = currentChunk;
@@ -219,7 +225,7 @@ struct Arena
         keep.next = null;
     }
 
-    private void trimToRetentionLimit() nothrow @nogc
+    private void trimToRetentionLimit()
     {
         size_t reserved;
         ArenaChunk* previous;
@@ -249,7 +255,7 @@ struct Arena
         previous.next = chunk;
     }
 
-    private void releaseChunks(ArenaChunk* first) nothrow @nogc
+    private void releaseChunks(ArenaChunk* first)
     {
         ArenaChunk* chunk = first;
         while (chunk !is null)
@@ -265,7 +271,7 @@ struct Arena
     }
 
     private ArenaChunk* obtainChunk(size_t size, size_t alignment)
-    nothrow @nogc
+
     {
         ArenaChunk* tail = currentChunk;
         ArenaChunk* candidate = currentChunk is null
@@ -298,7 +304,7 @@ struct Arena
     }
 
     private ArenaChunk* createChunk(size_t capacity, size_t alignment)
-    nothrow @nogc
+
     {
         const padding = alignment - 1;
         if (addOverflows(ArenaChunk.sizeof, padding) ||
@@ -334,13 +340,13 @@ struct Arena
 
 static assert(Arena.allocator.offsetof == 0);
 
-private bool isPowerOfTwo(size_t value) pure nothrow @safe @nogc
+private bool isPowerOfTwo(size_t value) pure @safe
 {
     return value != 0 && (value & (value - 1)) == 0;
 }
 
 private bool alignUp(size_t value, size_t alignment, size_t* result)
-pure nothrow @safe @nogc
+pure @safe
 {
     const mask = alignment - 1;
     if (value > size_t.max - mask)
@@ -353,7 +359,7 @@ private bool alignedOffsetFor(
     ArenaChunk* chunk,
     size_t alignment,
     size_t* result,
-) pure nothrow @system @nogc
+) pure @system
 {
     const base = cast(size_t) chunk.data;
     if (chunk.offset > size_t.max - base)
@@ -371,7 +377,7 @@ private extern (C) void* arenaAllocatorProcedure(
     void* oldPointer,
     size_t oldSize,
     size_t alignment,
-) nothrow @nogc
+)
 {
     Arena* arena = cast(Arena*) allocator;
     if (newSize == 0)
@@ -390,6 +396,8 @@ private extern (C) void* arenaAllocatorProcedure(
 
 struct TempArena
 {
+nothrow @nogc:
+
     private Arena* arena_;
     private ArenaChunk* chunk_;
     private size_t offset_;
@@ -401,24 +409,24 @@ struct TempArena
 
     @disable this(this);
 
-    Arena* arena() return nothrow @nogc
+    Arena* arena() return
     {
         require(active_, "inactive temporary arena");
         return arena_;
     }
 
-    Allocator* allocator() return nothrow @nogc
+    Allocator* allocator() return
     {
         return arena().allocatorHandle();
     }
 
-    bool active() const pure nothrow @safe @nogc
+    bool active() const pure @safe
     {
         return active_;
     }
 }
 
-TempArena push(Arena* arena) nothrow @nogc
+TempArena push(Arena* arena)
 {
     require(arena !is null, "cannot push a null arena");
     TempArena result;
@@ -433,7 +441,7 @@ TempArena push(Arena* arena) nothrow @nogc
     return result;
 }
 
-void pop(ref TempArena temporary) nothrow @nogc
+void pop(ref TempArena temporary)
 {
     require(temporary.active_, "temporary arena already popped");
     Arena* arena = temporary.arena_;
@@ -487,7 +495,7 @@ void pop(ref TempArena temporary) nothrow @nogc
     temporary.active_ = false;
 }
 
-nothrow @nogc unittest
+unittest
 {
     import xtb.core.memory : mallocAllocator;
 

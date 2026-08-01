@@ -1,10 +1,12 @@
 module xtb.os.time;
 
+nothrow @nogc:
+
 import xtb.core.panic : require;
 import xtb.core.types : i64, u64;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 
-OsError monotonicNanoseconds(u64* output) nothrow @system @nogc
+OsError monotonicNanoseconds(u64* output) @system
 {
     require(output !is null, "monotonic clock output pointer is null");
     *output = 0;
@@ -22,7 +24,7 @@ OsError monotonicNanoseconds(u64* output) nothrow @system @nogc
         return unsupported();
 }
 
-OsError wallClockNanoseconds(i64* output) nothrow @system @nogc
+OsError wallClockNanoseconds(i64* output) @system
 {
     require(output !is null, "wall clock output pointer is null");
     *output = 0;
@@ -45,7 +47,7 @@ OsError wallClockNanoseconds(i64* output) nothrow @system @nogc
         return unsupported();
 }
 
-OsError sleepNanoseconds(u64 duration) nothrow @system @nogc
+OsError sleepNanoseconds(u64 duration) @system
 {
     version (linux)
     {

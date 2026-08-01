@@ -1,5 +1,7 @@
 module xtb.os.error;
 
+nothrow @nogc:
+
 enum OsErrorKind : ubyte
 {
     none,
@@ -17,26 +19,28 @@ enum OsErrorKind : ubyte
 
 struct OsError
 {
+nothrow @nogc:
+
     OsErrorKind kind;
     int nativeCode;
 
-    bool failed() const pure nothrow @safe @nogc
+    bool failed() const pure @safe
     {
         return kind != OsErrorKind.none;
     }
 
-    bool succeeded() const pure nothrow @safe @nogc
+    bool succeeded() const pure @safe
     {
         return kind == OsErrorKind.none;
     }
 }
 
-OsError unsupported() pure nothrow @safe @nogc
+OsError unsupported() pure @safe
 {
     return OsError(OsErrorKind.unsupported, 0);
 }
 
-version (linux) OsError fromErrno(int code) pure nothrow @safe @nogc
+version (linux) OsError fromErrno(int code) pure @safe
 {
     import core.stdc.errno : EACCES, EAGAIN, EEXIST, EINTR, EINVAL, EISDIR,
         ENOENT, ENOTDIR, EPERM;
@@ -78,12 +82,12 @@ version (linux) OsError fromErrno(int code) pure nothrow @safe @nogc
     return OsError(kind, code);
 }
 
-version (linux) pure nothrow @safe @nogc unittest
+version (linux) pure @safe unittest
 {
     assert(fromErrno(0).succeeded);
 }
 
-version (linux) OsError lastError() nothrow @system @nogc
+version (linux) OsError lastError() @system
 {
     import core.stdc.errno : errno;
 
@@ -94,7 +98,7 @@ version (linux)
 {
 }
 else
-    OsError lastError() pure nothrow @safe @nogc
+    OsError lastError() pure @safe
 {
     return unsupported();
 }

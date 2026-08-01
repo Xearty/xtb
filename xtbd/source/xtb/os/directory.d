@@ -1,5 +1,7 @@
 module xtb.os.directory;
 
+nothrow @nogc:
+
 import xtb.core.panic : require;
 import xtb.core.array : Array, resize;
 import xtb.core.memory : Allocator;
@@ -18,7 +20,7 @@ enum Access : ubyte
     execute,
 }
 
-alias DirectoryVisitor = bool function(Path path, FileType type, void* context) nothrow @nogc;
+alias DirectoryVisitor = bool function(Path path, FileType type, void* context);
 
 enum DirectoryStatus : ubyte
 {
@@ -42,6 +44,8 @@ struct DirectoryResult
 
 struct DirectoryIterator
 {
+nothrow @nogc:
+
     version (linux)
     {
         import core.sys.posix.dirent : DIR;
@@ -51,17 +55,17 @@ struct DirectoryIterator
 
     @disable this(this);
 
-    ~this() nothrow @nogc
+    ~this()
     {
         deinit();
     }
 
-    void deinit() nothrow @nogc
+    void deinit()
     {
         cast(void) close(&this);
     }
 
-    bool valid() const pure nothrow @safe @nogc
+    bool valid() const pure @safe
     {
         version (linux)
             return directory_ !is null;
@@ -70,7 +74,7 @@ struct DirectoryIterator
     }
 }
 
-OsError close(DirectoryIterator* iterator) nothrow @system @nogc
+OsError close(DirectoryIterator* iterator) @system
 {
     require(iterator !is null, "DirectoryIterator pointer is null");
     version (linux)
@@ -87,7 +91,7 @@ OsError close(DirectoryIterator* iterator) nothrow @system @nogc
         return OsError.init;
 }
 
-OsError openDirectory(Path path, DirectoryIterator* output) nothrow @system @nogc
+OsError openDirectory(Path path, DirectoryIterator* output) @system
 {
     require(output !is null, "DirectoryIterator output pointer is null");
     const cleanupError = close(output);
@@ -106,7 +110,7 @@ OsError openDirectory(Path path, DirectoryIterator* output) nothrow @system @nog
         return unsupported();
 }
 
-DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) nothrow @system @nogc
+DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) @system
 {
     require(iterator !is null && iterator.valid, "invalid DirectoryIterator");
     require(output !is null, "DirectoryEntry output pointer is null");
@@ -136,7 +140,7 @@ DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) nothro
         return DirectoryResult(DirectoryStatus.failed, unsupported());
 }
 
-version (linux) private FileType fromDirectoryType(ubyte value) pure nothrow @safe @nogc
+version (linux) private FileType fromDirectoryType(ubyte value) pure @safe
 {
     import core.sys.posix.dirent : DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK, DT_REG, DT_SOCK;
 
@@ -161,8 +165,8 @@ version (linux) private FileType fromDirectoryType(ubyte value) pure nothrow @sa
     }
 }
 
-OsError createDirectory(Path path, uint permissions = 0x1C0) // POSIX 0700
-nothrow @system @nogc
+OsError createDirectory(Path path, uint permissions = 0x1C0)  // POSIX 0700
+@system
 {
     version (linux)
     {
@@ -176,7 +180,7 @@ nothrow @system @nogc
         return unsupported();
 }
 
-OsError removeEmptyDirectory(Path path) nothrow @system @nogc
+OsError removeEmptyDirectory(Path path) @system
 {
     version (linux)
     {
@@ -190,7 +194,7 @@ OsError removeEmptyDirectory(Path path) nothrow @system @nogc
         return unsupported();
 }
 
-OsError removeFile(Path path) nothrow @system @nogc
+OsError removeFile(Path path) @system
 {
     version (linux)
     {
@@ -204,7 +208,7 @@ OsError removeFile(Path path) nothrow @system @nogc
         return unsupported();
 }
 
-OsError rename(Path source, Path destination) nothrow @system @nogc
+OsError rename(Path source, Path destination) @system
 {
     version (linux)
     {
@@ -219,7 +223,7 @@ OsError rename(Path source, Path destination) nothrow @system @nogc
         return unsupported();
 }
 
-OsError currentDirectory(ref StringBuf output) nothrow @system @nogc
+OsError currentDirectory(ref StringBuf output) @system
 {
     output.clear();
     version (linux)
@@ -238,7 +242,7 @@ OsError currentDirectory(ref StringBuf output) nothrow @system @nogc
         return unsupported();
 }
 
-OsError executablePath(ref StringBuf output) nothrow @system @nogc
+OsError executablePath(ref StringBuf output) @system
 {
     output.clear();
     version (linux)
@@ -266,7 +270,7 @@ OsError executablePath(ref StringBuf output) nothrow @system @nogc
         return unsupported();
 }
 
-OsError queryAccess(Path path, Access requested, bool* output) nothrow @system @nogc
+OsError queryAccess(Path path, Access requested, bool* output) @system
 {
     require(output !is null, "access output pointer is null");
     *output = false;
@@ -306,7 +310,7 @@ OsError queryAccess(Path path, Access requested, bool* output) nothrow @system @
         return unsupported();
 }
 
-OsError canonicalPath(Path path, ref StringBuf output) nothrow @system @nogc
+OsError canonicalPath(Path path, ref StringBuf output) @system
 {
     output.clear();
     version (linux)
@@ -328,7 +332,7 @@ OsError canonicalPath(Path path, ref StringBuf output) nothrow @system @nogc
 }
 
 OsError walkDirectory(Path root, Allocator* temporaryAllocator,
-    DirectoryVisitor visitor, void* context = null, size_t maximumDepth = 256) nothrow @system @nogc
+    DirectoryVisitor visitor, void* context = null, size_t maximumDepth = 256) @system
 {
     require(temporaryAllocator !is null, "directory traversal requires a temporary allocator");
     require(visitor !is null, "directory visitor is null");
@@ -337,7 +341,7 @@ OsError walkDirectory(Path root, Allocator* temporaryAllocator,
 }
 
 private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor visitor,
-    void* context, size_t depth, size_t maximumDepth, bool* keepGoing) nothrow @system @nogc
+    void* context, size_t depth, size_t maximumDepth, bool* keepGoing) @system
 {
     if (depth > maximumDepth)
         return OsError(OsErrorKind.invalidArgument, 0);

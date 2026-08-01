@@ -1,5 +1,7 @@
 module xtb.diagnostics.crash;
 
+nothrow @nogc:
+
 import core.stdc.signal : SIGABRT, SIGFPE, SIGILL, SIGSEGV, sig_atomic_t;
 import core.stdc.stdio : FILE, stderr;
 import xtb.core.panic : PanicHook, panic, setPanicHandler;
@@ -30,11 +32,13 @@ struct CrashHandlerOptions
 
 struct CrashHandlerScope
 {
+nothrow @nogc:
+
     private bool active_;
 
     @disable this(this);
 
-    ~this() nothrow @nogc
+    ~this()
     {
         deinit();
     }
@@ -42,7 +46,7 @@ struct CrashHandlerScope
     static CrashHandlerScope install(
         const(char)* permanentExecutablePath = null,
         CrashHandlerOptions options = CrashHandlerOptions.init,
-    ) nothrow @nogc
+    )
     {
         requireInstall(!globalState.active, "crash handlers already installed");
         globalState.context = StackTraceContext.create(permanentExecutablePath);
@@ -65,7 +69,7 @@ struct CrashHandlerScope
         return result;
     }
 
-    void deinit() nothrow @nogc
+    void deinit()
     {
         if (!active_)
             return;
@@ -95,13 +99,13 @@ private struct GlobalCrashState
 
 private __gshared GlobalCrashState globalState;
 
-private void requireInstall(bool condition, String message) nothrow @nogc
+private void requireInstall(bool condition, String message)
 {
     if (!condition)
         panic(message);
 }
 
-private void tracePanic(String message, void*) nothrow @nogc
+private void tracePanic(String message, void*)
 {
     if (globalState.previousPanic.handler !is null)
         globalState.previousPanic.handler(
@@ -135,7 +139,7 @@ version (linux)
         SIGSEGV,
     ];
 
-    private void installSignals() nothrow @nogc
+    private void installSignals()
     {
         sigaction_t action;
         sigemptyset(&action.sa_mask);
@@ -158,7 +162,7 @@ version (linux)
         cast(void) backtrace(warmup.ptr, cast(int) warmup.length);
     }
 
-    private void restoreInstalledSignals(size_t count) nothrow @nogc
+    private void restoreInstalledSignals(size_t count)
     {
         static foreach (reverseIndex; 0 .. handledSignals.length)
         {
@@ -173,13 +177,13 @@ version (linux)
         }
     }
 
-    private void restoreSignals() nothrow @nogc
+    private void restoreSignals()
     {
         foreach (index, signal; handledSignals)
             cast(void) sigaction(signal, &globalState.previousSignals[index], null);
     }
 
-    private String signalName(int signal) pure nothrow @safe @nogc
+    private String signalName(int signal) pure @safe
     {
         switch (signal)
         {
@@ -199,7 +203,7 @@ version (linux)
     }
 
     private size_t faultProgramCounter(void* rawContext)
-    nothrow @system @nogc
+    @system
     {
         if (rawContext is null)
             return 0;
@@ -222,7 +226,7 @@ version (linux)
             return 0;
     }
 
-    private void rawWrite(String bytes) nothrow @system @nogc
+    private void rawWrite(String bytes) @system
     {
         size_t offset;
         while (offset < bytes.length)
@@ -238,7 +242,7 @@ version (linux)
         }
     }
 
-    private void rawHex(size_t value) nothrow @system @nogc
+    private void rawHex(size_t value) @system
     {
         static immutable digits = "0123456789abcdef";
         char[2 + size_t.sizeof * 2] buffer;
@@ -252,7 +256,7 @@ version (linux)
         rawWrite(buffer[]);
     }
 
-    private void rawDecimal(size_t value) nothrow @system @nogc
+    private void rawDecimal(size_t value) @system
     {
         char[32] buffer;
         size_t begin = buffer.length;
@@ -265,7 +269,7 @@ version (linux)
         rawWrite(buffer[begin .. $]);
     }
 
-    private void rawAnsi(AnsiColor color) nothrow @system @nogc
+    private void rawAnsi(AnsiColor color) @system
     {
         if (!color.enabled)
             return;
@@ -274,13 +278,13 @@ version (linux)
         rawWrite("m");
     }
 
-    private void rawAnsiReset(AnsiColor color) nothrow @system @nogc
+    private void rawAnsiReset(AnsiColor color) @system
     {
         if (color.enabled)
             rawWrite("\x1b[0m");
     }
 
-    private void rawStyled(String text, AnsiColor color) nothrow @system @nogc
+    private void rawStyled(String text, AnsiColor color) @system
     {
         rawAnsi(color);
         rawWrite(text);
@@ -291,7 +295,7 @@ version (linux)
         int signal,
         siginfo_t*,
         void* rawContext,
-    ) nothrow @nogc
+    )
     {
         __gshared sig_atomic_t handling;
         if (handling != 0)

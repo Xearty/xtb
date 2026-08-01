@@ -1,5 +1,7 @@
 module xtb.core.thread_context;
 
+nothrow @nogc:
+
 import core.stdc.string : memset;
 import xtb.core.arena : Arena, TempArena, pop, push;
 import xtb.core.memory : Allocator, allocate, deallocate, mallocAllocator;
@@ -9,6 +11,8 @@ enum maxScratchArenas = 8;
 
 struct ThreadContext
 {
+nothrow @nogc:
+
     private Arena[maxScratchArenas] arenas;
     private size_t arenaCount;
     private Allocator* ownerAllocator;
@@ -16,13 +20,15 @@ struct ThreadContext
 
 private ThreadContext* tlsContext;
 
-ThreadContext* currentThreadContext() nothrow @nogc
+ThreadContext* currentThreadContext()
 {
     return tlsContext;
 }
 
 struct ThreadContextScope
 {
+nothrow @nogc:
+
     private ThreadContext* context_;
 
     @disable this(this);
@@ -31,7 +37,7 @@ struct ThreadContextScope
         size_t scratchArenaCount = 2,
         size_t scratchChunkSize = 64 * 1024,
         Allocator* backingAllocator = null,
-    ) nothrow @nogc
+    )
     {
         require(tlsContext is null, "thread context already installed");
         require(
@@ -55,7 +61,7 @@ struct ThreadContextScope
         return result;
     }
 
-    ~this() nothrow @nogc
+    ~this()
     {
         if (context_ is null)
             return;
@@ -73,7 +79,7 @@ struct ThreadContextScope
 }
 
 private Arena* selectScratchArena(scope Allocator*[] conflicts)
-nothrow @nogc
+
 {
     ThreadContext* context = tlsContext;
     if (context is null)
@@ -98,60 +104,62 @@ nothrow @nogc
     panic("no non-conflicting scratch arena");
 }
 
-Arena* scratchArena() nothrow @nogc
+Arena* scratchArena()
 {
     return selectScratchArena(null);
 }
 
-Arena* scratchArena(Allocator* conflict) nothrow @nogc
+Arena* scratchArena(Allocator* conflict)
 {
     Allocator*[1] conflicts = [conflict];
     return selectScratchArena(conflicts[]);
 }
 
-Arena* scratchArena(scope Allocator*[] conflicts) nothrow @nogc
+Arena* scratchArena(scope Allocator*[] conflicts)
 {
     return selectScratchArena(conflicts);
 }
 
 struct ScratchScope
 {
+nothrow @nogc:
+
     private TempArena temporary_;
 
     @disable this(this);
 
-    static ScratchScope acquire() nothrow @nogc
+    static ScratchScope acquire()
     {
         return fromArena(scratchArena());
     }
 
-    static ScratchScope acquire(Allocator* conflict) nothrow @nogc
+    static ScratchScope acquire(Allocator* conflict)
     {
         return fromArena(scratchArena(conflict));
     }
 
-    static ScratchScope acquire(scope Allocator*[] conflicts) nothrow @nogc
+    static ScratchScope acquire(scope Allocator*[] conflicts)
     {
         return fromArena(scratchArena(conflicts));
     }
 
-    ~this() nothrow @nogc
+    ~this()
     {
         if (temporary_.active)
             temporary_.pop();
     }
 
-    Arena* arena() return nothrow @nogc
+    Arena* arena() return
     {
         return temporary_.arena();
     }
 
-    Allocator* allocator() return nothrow @nogc
+    Allocator* allocator() return
     {
         return temporary_.allocator();
     }
 
-    private static ScratchScope fromArena(Arena* arena) nothrow @nogc
+    private static ScratchScope fromArena(Arena* arena)
     {
         ScratchScope result;
         result.temporary_ = arena.push();
@@ -159,7 +167,7 @@ struct ScratchScope
     }
 }
 
-nothrow @nogc unittest
+unittest
 {
     ThreadContextScope context = ThreadContextScope.acquire(3, 128);
     {

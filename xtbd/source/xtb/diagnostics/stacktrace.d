@@ -1,5 +1,7 @@
 module xtb.diagnostics.stacktrace;
 
+nothrow @nogc:
+
 import core.stdc.string : memcpy, strlen;
 import xtb.diagnostics.demangle : tryDemangleD;
 import xtb.core.print : Writer, hexadecimal;
@@ -26,9 +28,11 @@ struct StackTrace
 
 struct StackTraceContext
 {
+nothrow @nogc:
+
     version (linux) private BacktraceState* state;
 
-    bool available() const pure nothrow @safe @nogc
+    bool available() const pure @safe
     {
         version (linux)
             return state !is null;
@@ -39,7 +43,7 @@ struct StackTraceContext
     static StackTraceContext create(
         const(char)* permanentExecutablePath = null,
         bool threadSafe = true,
-    ) nothrow @nogc
+    )
     {
         StackTraceContext result;
         version (linux)
@@ -64,47 +68,49 @@ version (linux)
         void* data,
         const(char)* message,
         int errorNumber,
-    ) nothrow @nogc;
+    );
     private alias FullCallback = extern (C) int function(
         void* data,
         size_t programCounter,
         const(char)* filename,
         int line,
         const(char)* functionName,
-    ) nothrow @nogc;
+    );
     private alias SimpleCallback = extern (C) int function(
         void* data,
         size_t programCounter,
-    ) nothrow @nogc;
+    );
 
     extern (C) private BacktraceState* backtrace_create_state(
         const(char)* filename,
         int threaded,
         ErrorCallback errorCallback,
         void* data,
-    ) nothrow @nogc;
+    );
     extern (C) private int backtrace_full(
         BacktraceState* state,
         int skip,
         FullCallback callback,
         ErrorCallback errorCallback,
         void* data,
-    ) nothrow @nogc;
+    );
     extern (C) private int backtrace_simple(
         BacktraceState* state,
         int skip,
         SimpleCallback callback,
         ErrorCallback errorCallback,
         void* data,
-    ) nothrow @nogc;
+    );
 
     private extern (C) void creationError(void*, const(char)*, int)
-    nothrow @nogc
+
     {
     }
 
     private struct CaptureState
     {
+    nothrow @nogc:
+
         StackFrame[] frames;
         char[] text;
         size_t frameCount;
@@ -116,7 +122,7 @@ version (linux)
     }
 
     private String copyText(ref CaptureState state, const(char)* value)
-    nothrow @system @nogc
+    @system
     {
         if (value is null)
             return null;
@@ -147,7 +153,7 @@ version (linux)
         const(char)* filename,
         int line,
         const(char)* functionName,
-    ) nothrow @nogc
+    )
     {
         CaptureState* state = cast(CaptureState*) data;
         if (programCounter == size_t.max)
@@ -183,7 +189,7 @@ version (linux)
         void* data,
         const(char)*,
         int,
-    ) nothrow @nogc
+    )
     {
         CaptureState* state = cast(CaptureState*) data;
         state.backendError = true;
@@ -192,7 +198,7 @@ version (linux)
     private extern (C) int collectSimpleFrame(
         void* data,
         size_t programCounter,
-    ) nothrow @nogc
+    )
     {
         Dl_info information;
         const found = dladdr(cast(const(void)*) programCounter, &information);
@@ -206,7 +212,7 @@ version (linux)
     }
 
     private void collectExecInfo(ref CaptureState state, uint skipFrames)
-    nothrow @nogc
+
     {
         void*[128] addresses;
         const count = backtrace(addresses.ptr, cast(int) addresses.length);
@@ -224,7 +230,7 @@ StackTrace capture(
     return scope StackFrame[] frameStorage,
     return scope char[] textStorage,
     uint skipFrames = 0,
-) nothrow @nogc
+)
 {
     StackTrace result;
     version (linux)
@@ -278,7 +284,7 @@ StackTrace capture(
     return result;
 }
 
-private size_t decimalDigits(size_t value) pure nothrow @safe @nogc
+private size_t decimalDigits(size_t value) pure @safe
 {
     size_t result = 1;
     while (value >= 10)
@@ -289,7 +295,7 @@ private size_t decimalDigits(size_t value) pure nothrow @safe @nogc
     return result;
 }
 
-private void beginColor(ref Writer writer, AnsiColor color) nothrow @nogc
+private void beginColor(ref Writer writer, AnsiColor color)
 {
     writer.beginAnsi(color);
 }
@@ -298,7 +304,7 @@ private void endColor(
     ref Writer writer,
     scope const StackTraceColors*,
     AnsiColor color,
-) nothrow @nogc
+)
 {
     writer.endAnsi(color);
 }
@@ -309,7 +315,7 @@ void writeStackTrace(
     return scope char[] signatureStorage,
     scope const StackTraceStyle* requestedStyle = null,
 )
-nothrow @nogc
+
 {
     StackTraceStyle defaultStyle = StackTraceStyle.fromTheme(
         StackTraceTheme.gruvbox,
@@ -417,7 +423,7 @@ nothrow @nogc
     }
 }
 
-nothrow @nogc unittest
+unittest
 {
     version (linux)
     {
@@ -434,12 +440,14 @@ version (unittest)
 {
     private struct TraceCapture
     {
+    nothrow @nogc:
+
         char[2048] bytes;
         size_t length;
     }
 
     private size_t traceCaptureSink(void* context, scope String bytes)
-    nothrow @nogc
+
     {
         TraceCapture* capture = cast(TraceCapture*) context;
         const available = capture.bytes.length - capture.length;
@@ -450,7 +458,7 @@ version (unittest)
     }
 }
 
-nothrow @nogc unittest
+unittest
 {
     import xtb.core.string : equal;
 
@@ -475,7 +483,7 @@ nothrow @nogc unittest
     ));
 }
 
-version (linux) nothrow @nogc unittest
+version (linux) unittest
 {
     import core.stdc.stdlib : malloc;
 

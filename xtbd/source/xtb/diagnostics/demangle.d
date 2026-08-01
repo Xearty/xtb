@@ -1,5 +1,7 @@
 module xtb.diagnostics.demangle;
 
+nothrow @nogc:
+
 import xtb.core.string : String, equal;
 
 private enum maxRecursion = 64;
@@ -13,12 +15,14 @@ enum SignatureDetail
 
 private struct DemangleWriter
 {
+nothrow @nogc:
+
     char[] storage;
     size_t written;
     bool failed;
     bool discard;
 
-    void put(char value) nothrow @system @nogc
+    void put(char value) @system
     {
         if (discard)
             return;
@@ -30,7 +34,7 @@ private struct DemangleWriter
         storage[written++] = value;
     }
 
-    void put(String value) nothrow @system @nogc
+    void put(String value) @system
     {
         if (discard)
             return;
@@ -60,6 +64,8 @@ private struct FunctionAttributes
 
 private struct Demangler
 {
+nothrow @nogc:
+
     String input;
     size_t offset;
     size_t recursion;
@@ -68,7 +74,7 @@ private struct Demangler
     SignatureDetail detail;
     DemangleWriter output;
 
-    bool consume(char value) pure nothrow @system @nogc
+    bool consume(char value) pure @system
     {
         if (offset == input.length || input[offset] != value)
             return false;
@@ -76,13 +82,13 @@ private struct Demangler
         return true;
     }
 
-    bool startsWith(String value) pure nothrow @system @nogc
+    bool startsWith(String value) pure @system
     {
         return value.length <= input.length - offset &&
             input[offset .. offset + value.length].equal(value);
     }
 
-    bool qualifiedName() nothrow @system @nogc
+    bool qualifiedName() @system
     {
         bool found;
         while (symbolNameStart())
@@ -103,7 +109,7 @@ private struct Demangler
         return found && !output.failed;
     }
 
-    bool symbolNameStart() pure nothrow @system @nogc
+    bool symbolNameStart() pure @system
     {
         if (offset >= input.length)
             return false;
@@ -114,7 +120,7 @@ private struct Demangler
         return input[offset] == 'Q' && backReferenceTargetsIdentifier();
     }
 
-    bool symbolName() nothrow @system @nogc
+    bool symbolName() @system
     {
         if (startsWith("__T") || startsWith("__U"))
             return templateName();
@@ -128,7 +134,7 @@ private struct Demangler
         return lengthName();
     }
 
-    bool lengthName() nothrow @system @nogc
+    bool lengthName() @system
     {
         size_t length;
         if (!number(&length) || length == 0 || length > input.length - offset)
@@ -138,7 +144,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool templateName() nothrow @system @nogc
+    bool templateName() @system
     {
         offset += 3;
         lastTemplateName = offset;
@@ -161,7 +167,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool repeatedTemplateFunctionName() pure nothrow @system @nogc
+    bool repeatedTemplateFunctionName() pure @system
     {
         if (!hasLastTemplateName || offset >= input.length || input[offset] != 'Q')
             return false;
@@ -178,7 +184,7 @@ private struct Demangler
         return target == lastTemplateName && followsWithFunction;
     }
 
-    bool templateArgument() nothrow @system @nogc
+    bool templateArgument() @system
     {
         if (consume('H'))
             output.put("specialized ");
@@ -208,7 +214,7 @@ private struct Demangler
         return false;
     }
 
-    bool value() nothrow @system @nogc
+    bool value() @system
     {
         if (consume('n'))
         {
@@ -257,7 +263,7 @@ private struct Demangler
         return false;
     }
 
-    bool stringValue() nothrow @system @nogc
+    bool stringValue() @system
     {
         const widthCode = input[offset++];
         size_t characters;
@@ -276,7 +282,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool floatingValue() nothrow @system @nogc
+    bool floatingValue() @system
     {
         const start = offset;
         while (offset < input.length &&
@@ -289,7 +295,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool copyNumber(bool negative) nothrow @system @nogc
+    bool copyNumber(bool negative) @system
     {
         const start = offset;
         size_t ignored;
@@ -301,7 +307,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool number(size_t* result) pure nothrow @system @nogc
+    bool number(size_t* result) pure @system
     {
         if (result is null || offset == input.length || !digit(input[offset]))
             return false;
@@ -318,7 +324,7 @@ private struct Demangler
         return true;
     }
 
-    bool backReferenceTarget(size_t* target) pure nothrow @system @nogc
+    bool backReferenceTarget(size_t* target) pure @system
     {
         if (target is null || offset >= input.length || input[offset] != 'Q')
             return false;
@@ -350,7 +356,7 @@ private struct Demangler
         return *target < input.length;
     }
 
-    bool backReferenceTargetsIdentifier() pure nothrow @system @nogc
+    bool backReferenceTargetsIdentifier() pure @system
     {
         const savedOffset = offset;
         size_t target;
@@ -359,7 +365,7 @@ private struct Demangler
         return valid && digit(input[target]);
     }
 
-    bool identifierBackReference() nothrow @system @nogc
+    bool identifierBackReference() @system
     {
         const referenceOffset = offset;
         size_t target;
@@ -375,7 +381,7 @@ private struct Demangler
         return result && referenceOffset != target;
     }
 
-    bool typeBackReference() nothrow @system @nogc
+    bool typeBackReference() @system
     {
         size_t target;
         if (!backReferenceTarget(&target) || digit(input[target]))
@@ -395,7 +401,7 @@ private struct Demangler
         String callable = null,
         SignatureDetail functionDetail = SignatureDetail.full,
     )
-    nothrow @system @nogc
+    @system
     {
         String memberQualifier;
         if (offset < input.length && input[offset] == 'M')
@@ -480,7 +486,7 @@ private struct Demangler
     }
 
     bool functionAttributes(FunctionAttributes* attributes)
-    pure nothrow @system @nogc
+    pure @system
     {
         while (offset + 1 < input.length && input[offset] == 'N')
         {
@@ -526,7 +532,7 @@ private struct Demangler
     }
 
     void writeFunctionSuffix(FunctionAttributes attributes, char convention)
-    nothrow @system @nogc
+    @system
     {
         if (attributes.pure_)
             output.put(" pure");
@@ -567,7 +573,7 @@ private struct Demangler
         }
     }
 
-    bool parameter() nothrow @system @nogc
+    bool parameter() @system
     {
         if (consume('M'))
             output.put("scope ");
@@ -587,7 +593,7 @@ private struct Demangler
         return type();
     }
 
-    bool type() nothrow @system @nogc
+    bool type() @system
     {
         if (offset >= input.length)
             return false;
@@ -743,7 +749,7 @@ private struct Demangler
         }
     }
 
-    bool postfix(String suffix) nothrow @system @nogc
+    bool postfix(String suffix) @system
     {
         if (!type())
             return false;
@@ -751,7 +757,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool staticArray() nothrow @system @nogc
+    bool staticArray() @system
     {
         const numberStart = offset;
         size_t length;
@@ -766,7 +772,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool associativeArray() nothrow @system @nogc
+    bool associativeArray() @system
     {
         Demangler keyStart = this;
         keyStart.output = DemangleWriter(null, 0, false, true);
@@ -788,7 +794,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool tupleType() nothrow @system @nogc
+    bool tupleType() @system
     {
         output.put("Tuple!(");
         bool first = true;
@@ -806,7 +812,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    bool wrapped(String prefix, String suffix) nothrow @system @nogc
+    bool wrapped(String prefix, String suffix) @system
     {
         output.put(prefix);
         if (!type())
@@ -815,7 +821,7 @@ private struct Demangler
         return !output.failed;
     }
 
-    void skipTypeModifiers() pure nothrow @system @nogc
+    void skipTypeModifiers() pure @system
     {
         bool progress = true;
         while (progress)
@@ -836,7 +842,7 @@ private struct Demangler
         }
     }
 
-    bool mangledName() nothrow @system @nogc
+    bool mangledName() @system
     {
         if (!startsWith("_D"))
             return false;
@@ -852,17 +858,17 @@ private struct Demangler
     }
 }
 
-private bool digit(char value) pure nothrow @safe @nogc
+private bool digit(char value) pure @safe
 {
     return value >= '0' && value <= '9';
 }
 
-private bool hexDigit(char value) pure nothrow @safe @nogc
+private bool hexDigit(char value) pure @safe
 {
     return digit(value) || (value >= 'A' && value <= 'F');
 }
 
-private bool callConvention(char value) pure nothrow @safe @nogc
+private bool callConvention(char value) pure @safe
 {
     return value == 'F' || value == 'U' || value == 'W' ||
         value == 'R' || value == 'Y';
@@ -875,22 +881,22 @@ version (unittest) private int generatedSignature(
     int function(long),
     int[4],
     shared const(int)*,
-) pure nothrow @nogc
+) pure
 {
     return 0;
 }
 
-version (unittest) private int generatedTemplate(int value, T)(T input) pure nothrow @nogc
+version (unittest) private int generatedTemplate(int value, T)(T input) pure
 {
     return value + cast(int) input;
 }
 
-version (unittest) private bool generatedAliasTarget(scope const(float)[]) pure nothrow @nogc
+version (unittest) private bool generatedAliasTarget(scope const(float)[]) pure
 {
     return true;
 }
 
-version (unittest) private int generatedAliasTemplate(alias target)() pure nothrow @nogc
+version (unittest) private int generatedAliasTemplate(alias target)() pure
 {
     return target(null) ? 1 : 0;
 }
@@ -910,12 +916,12 @@ version (unittest) mixin(
         "private alias GeneratedLongType = X" ~ RepeatedIdentifier!20 ~ ";",
 );
 
-version (unittest) private GeneratedLongType generatedLongReturn() nothrow @nogc
+version (unittest) private GeneratedLongType generatedLongReturn()
 {
     return GeneratedLongType.init;
 }
 
-version (unittest) private bool containsEllipsis(String value) pure nothrow @safe @nogc
+version (unittest) private bool containsEllipsis(String value) pure @safe
 {
     if (value.length < 3)
         return false;
@@ -925,7 +931,7 @@ version (unittest) private bool containsEllipsis(String value) pure nothrow @saf
     return false;
 }
 
-version (unittest) private bool containsText(String value, String needle) pure nothrow @system @nogc
+version (unittest) private bool containsText(String value, String needle) pure @system
 {
     if (needle.length > value.length)
         return false;
@@ -940,7 +946,7 @@ bool tryDemangleD(
     return scope char[] storage,
     return scope String* result,
     SignatureDetail detail = SignatureDetail.overloadIdentity,
-) nothrow @system @nogc
+) @system
 {
     if (result is null)
         return false;
@@ -986,7 +992,7 @@ bool tryDemangleD(
     return true;
 }
 
-nothrow @nogc unittest
+unittest
 {
     char[2048] storage;
     String result;

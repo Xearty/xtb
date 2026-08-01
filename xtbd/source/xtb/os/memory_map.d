@@ -1,5 +1,7 @@
 module xtb.os.memory_map;
 
+nothrow @nogc:
+
 import xtb.core.panic : require;
 import xtb.core.string : StringBuf, checkedCString;
 import xtb.core.thread_context : ScratchScope;
@@ -9,33 +11,35 @@ import xtb.os.path : Path;
 
 struct MappedFile
 {
+nothrow @nogc:
+
     private void* address_;
     private size_t length_;
 
     @disable this(this);
 
-    ~this() nothrow @nogc
+    ~this()
     {
         deinit();
     }
 
-    void deinit() nothrow @nogc
+    void deinit()
     {
         cast(void) unmap(&this);
     }
 
-    const(u8)[] bytes() const return nothrow @system @nogc
+    const(u8)[] bytes() const return @system
     {
         return (cast(const(u8)*) address_)[0 .. length_];
     }
 
-    bool empty() const pure nothrow @safe @nogc
+    bool empty() const pure @safe
     {
         return length_ == 0;
     }
 }
 
-OsError unmap(MappedFile* mapping) nothrow @system @nogc
+OsError unmap(MappedFile* mapping) @system
 {
     require(mapping !is null, "MappedFile pointer is null");
     if (mapping.address_ is null)
@@ -58,7 +62,7 @@ OsError unmap(MappedFile* mapping) nothrow @system @nogc
         return unsupported();
 }
 
-OsError mapReadOnly(Path path, MappedFile* output) nothrow @system @nogc
+OsError mapReadOnly(Path path, MappedFile* output) @system
 {
     require(output !is null, "MappedFile output pointer is null");
     const cleanupError = unmap(output);

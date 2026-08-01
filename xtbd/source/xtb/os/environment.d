@@ -1,5 +1,7 @@
 module xtb.os.environment;
 
+nothrow @nogc:
+
 import xtb.core.panic : require;
 import xtb.core.string : String, StringBuf, checkedCString, fromCString;
 import xtb.core.thread_context : ScratchScope;
@@ -7,7 +9,7 @@ import xtb.os.error : OsError, OsErrorKind, unsupported;
 import xtb.os.path : Path;
 
 /// Returns a process-owned view, potentially invalidated by environment changes.
-OsError environmentVariable(String name, String* output) nothrow @system @nogc
+OsError environmentVariable(String name, String* output) @system
 {
     require(output !is null, "environment output pointer is null");
     *output = null;

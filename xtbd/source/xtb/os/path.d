@@ -1,5 +1,7 @@
 module xtb.os.path;
 
+nothrow @nogc:
+
 import xtb.core.panic : panic, require;
 import xtb.core.string : String, StringBuf, appendAssumeCapacity, containsNul,
     tryAppend, tryReserve;
@@ -7,9 +9,11 @@ import xtb.core.string : String, StringBuf, appendAssumeCapacity, containsNul,
 /// A borrowed native path without embedded NUL bytes.
 struct Path
 {
+nothrow @nogc:
+
     private String value_;
 
-    static Path fromString(String value) nothrow @nogc
+    static Path fromString(String value)
     {
         Path result;
         if (!tryFromString(value, &result))
@@ -17,7 +21,7 @@ struct Path
         return result;
     }
 
-    static bool tryFromString(String value, Path* output) nothrow @system @nogc
+    static bool tryFromString(String value, Path* output) @system
     {
         require(output !is null, "Path output pointer is null");
         *output = Path.init;
@@ -27,22 +31,22 @@ struct Path
         return true;
     }
 
-    String view() const return scope pure nothrow @safe @nogc
+    String view() const return scope pure @safe
     {
         return value_;
     }
 
-    bool empty() const pure nothrow @safe @nogc
+    bool empty() const pure @safe
     {
         return value_.length == 0;
     }
 
-    bool absolute() const pure nothrow @safe @nogc
+    bool absolute() const pure @safe
     {
         return value_.length != 0 && value_[0] == '/';
     }
 
-    Path fileName() const pure nothrow @safe @nogc
+    Path fileName() const pure @safe
     {
         size_t end = value_.length;
         while (end > 1 && value_[end - 1] == '/')
@@ -53,7 +57,7 @@ struct Path
         return Path(value_[begin .. end]);
     }
 
-    Path parent() const pure nothrow @safe @nogc
+    Path parent() const pure @safe
     {
         size_t end = value_.length;
         while (end > 1 && value_[end - 1] == '/')
@@ -66,7 +70,7 @@ struct Path
     }
 }
 
-bool tryAppendComponent(ref StringBuf output, Path component) nothrow @nogc
+bool tryAppendComponent(ref StringBuf output, Path component)
 {
     String value = component.view;
     size_t begin;
@@ -110,13 +114,13 @@ bool tryAppendComponent(ref StringBuf output, Path component) nothrow @nogc
     return true;
 }
 
-void appendComponent(ref StringBuf output, Path component) nothrow @nogc
+void appendComponent(ref StringBuf output, Path component)
 {
     if (!output.tryAppendComponent(component))
         panic("path allocation failed");
 }
 
-nothrow @nogc unittest
+unittest
 {
     import xtb.core.memory : mallocAllocator;
 
