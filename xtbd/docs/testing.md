@@ -124,7 +124,7 @@ after partial failure. In this project pay particular attention to:
   and limited to the documented fields;
 - integer overflow in byte/element size calculations;
 - exact-capacity and one-past-capacity allocator/container operations;
-- malformed, truncated, and adversarial BMP/JSON input;
+- malformed, truncated, and adversarial serialized input;
 - short reads/writes and operating-system error mapping;
 - repeated `create`/`deinit`, zero-state cleanup, and allocator failure;
 - owning-container destruction order, removal and shrinking of elaborate
@@ -183,6 +183,35 @@ Scratch-space tests additionally verify:
 - double pop/destruction, non-LIFO pop/destruction, a second thread context,
   and cross-thread use panic in tests that deliberately violate those
   contracts.
+
+Serde tests additionally verify:
+
+- every supported scalar, enum, nested struct, pointer, fixed array, and
+  dynamic-slice shape round-trips through each applicable backend;
+- rename, legacy alias, ignore, required, omit-default, and flatten attributes
+  compose correctly, with invalid or conflicting schemas rejected at compile
+  time;
+- preserve, camel, Pascal, snake, screaming-snake, and kebab key policies
+  handle acronym and existing-separator boundaries, with struct defaults,
+  document overrides, exact renames, and exact aliases tested separately;
+- unknown-field policy, duplicate keys, missing required fields, type
+  mismatches, integer overflow, non-finite floats, maximum depth, and maximum
+  collection length report the exact error category and useful source
+  position;
+- JSON escaping, UTF-8, Unicode surrogate pairs, whitespace, and strict
+  rejection of comments/trailing commas are covered independently;
+- TOML comments, dotted/table paths, quoted keys, basic and literal strings,
+  scalar arrays, nested tables, and arrays of tables are covered within the
+  supported schema data model;
+- allocation failure at every allocation point leaves `Deserialized!T` empty
+  and the instrumented allocator balanced;
+- destroying or resetting a successful `Deserialized!T` recursively releases
+  the root, copied strings, slices, and nullable pointer values exactly once;
+- serializers allocate nothing, propagate sink failure, produce deterministic
+  field order, and never emit a partial token after detecting an unsupported
+  value; and
+- JSON and TOML fuzz targets accept arbitrary byte slices under AddressSanitizer
+  with bounded depth and collection limits.
 
 Stack-trace tests use synthetic signatures to cover valid D linkage names,
 truncated length fields, unsupported encodings, empty output buffers, and ANSI

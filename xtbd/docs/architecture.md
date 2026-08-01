@@ -23,7 +23,8 @@ xtbd/
 │   ├── diagnostics/        # demangling, styled traces, crash observation
 │   ├── math/               # vectors, matrices, scalar algorithms, noise
 │   ├── os/                 # libc and platform adapters
-│   ├── codec/              # BMP, JSON, and future data formats
+│   ├── serde/              # attribute-driven structured data mapping
+│   ├── codec/              # image, audio, compression, and byte formats
 │   ├── window/             # window/input abstraction
 │   ├── graphics/           # graphics API adapter and resources
 │   └── renderer/           # backend-independent rendering policy
@@ -53,7 +54,7 @@ examples / applications
  /      \              |
 graphics window        |
  \      /               |
- codec / os             |
+serde / codec / os      |
       |                 |
      math               |
        \               /
@@ -68,8 +69,11 @@ graphics window        |
 - `math` depends on `core` only when it needs shared primitive/result types.
 - `os` owns operating-system and libc calls. Higher layers do not call libc
   directly unless they are themselves a foreign-library boundary.
-- `codec` is CPU-only parsing/encoding. It does not know about windows, OpenGL,
-  or renderer objects.
+- `serde` maps user-defined values to structured key-value formats. Its schema
+  and ownership rules are format-neutral; JSON, TOML, and future binary
+  backends provide syntax and representation policy.
+- `codec` transforms domain-specific byte formats such as images, audio, or
+  compressed data. It does not contain reflection-driven object mapping.
 - `window` wraps the chosen native window/input library and exposes opaque
   handles and value events.
 - `graphics` owns the graphics backend, GPU handles, and backend-specific
@@ -780,6 +784,79 @@ Pointer arithmetic, unions, C variadics, and foreign calls belong in small
 reviewable `@system` adapters. A safe wrapper validates lengths, ranges, enum
 values, nullability, and integer overflow before entering such an adapter.
 
+## Structured serialization
+
+`xtb.serde` is a schema-driven object mapper, not a general JSON or TOML DOM.
+It serializes concrete BetterC values by inspecting their fields at compile
+time and deserializes directly into the requested type. Runtime reflection,
+`TypeInfo`, registration, associative arrays, exceptions, and hidden GC
+allocation are forbidden. Backends share schema and ownership machinery but
+do not share a text-shaped intermediate representation; a future binary
+backend can therefore preserve field identifiers, fixed-width values, and
+other binary policies without pretending they are strings.
+
+The initial schema supports booleans, signed and unsigned integers,
+floating-point values, enums, `String`, structs, pointers as nullable values,
+fixed arrays, and dynamic slices. The root of a key-value document is a
+struct. Unsupported field types fail at compile time with the field and type
+in the diagnostic. Enums use their D member names in text formats by default.
+
+Fields use narrowly scoped UDAs from `xtb.serde.attributes`:
+
+- `@rename("wire_name")` changes the serialized key;
+- repeated `@aliasName("old_name")` values add decode-only legacy keys;
+- `@ignore` excludes a field in both directions;
+- `@required` rejects input that omits the field;
+- `@omitDefault` suppresses an equal-to-`T.init` value while encoding; and
+- `@flatten` merges a nested struct's fields into its parent map.
+
+Key spelling is controlled independently of field selection. `KeyCase`
+supports preserve, camel, Pascal, snake, screaming-snake, and kebab casing. A
+struct-level `@fieldCase(...)` declares its normal external convention, while
+a backend option can override casing for a whole document. Word splitting
+handles ordinary camel case, existing separators, and acronym boundaries such
+as `HTTPServerID` -> `http_server_id`. An explicit `@rename` and every
+decode-only alias are exact wire spellings and are never transformed again.
+
+Names and aliases must be nonempty and unique after flattening. `@ignore`
+cannot be combined with another serde UDA, and `@flatten` is valid only for a
+non-pointer struct field. These are compile-time schema errors. Unknown input
+keys and duplicate assignments are rejected by default; options may ignore
+unknown keys for forward compatibility, but never silently accept duplicate
+keys. Missing fields retain `T.init` unless marked `@required`.
+
+Text decoding may allocate for decoded strings, dynamic arrays, optional
+pointer values, and the root object. The primary result is
+`Deserialized!T`, a non-copyable RAII owner holding both `T*` and its explicit
+`Allocator*`. Its destructor recursively releases every allocation made by
+the backend, including after a partially failed parse; the output remains
+empty on failure. A `String` inside the result is still a read-only simple
+view, but its bytes are owned by the surrounding `Deserialized!T`, not by the
+slice itself. A view or pointer obtained from the result expires when that
+owner is reset or destroyed. User-defined structs with destructors are not
+automatically deserialized: their independent lifetime policy requires an
+explicit adapter rather than guessing how serde allocations interact with the
+destructor.
+
+Serialization writes to `Writer` and performs no allocation. Deserialization
+accepts a `String` input, explicit allocator, explicit output pointer, and
+limits for nesting and collection sizes. Expected problems return
+`SerdeError`, including a stable category plus byte offset and text
+line/column. Syntax errors, range errors, invalid UTF-8/escapes, unknown or
+duplicate fields, missing required fields, depth exhaustion, and allocation
+failure are recoverable results rather than panics. Null required pointers and
+invalid option contracts remain programmer errors.
+
+The JSON backend emits and accepts strict UTF-8 JSON: no comments, trailing
+commas, non-finite floats, invalid surrogate pairs, or duplicate object keys.
+Pretty printing is policy only and never changes the data model. The TOML
+backend maps nested structs to tables and arrays of structs to arrays of
+tables; scalar arrays use TOML arrays. It accepts the documented TOML value
+subset represented by the schema and reports unsupported TOML value kinds
+such as date/time rather than coercing them. Parsers consume memory only and
+perform no filesystem access. File convenience functions, if added later,
+must compose `xtb.serde` with `xtb.os`.
+
 ### Data and API style
 
 - Prefer structs, tagged unions, templates, and function composition; classes
@@ -829,13 +906,14 @@ compatibility requirements.
 | allocator, arena, slices, arrays, strings | `xtb.core` | explicit allocator and ownership; no process-global allocator |
 | panic, logger, printing, stack traces, thread context | `xtb.core` | explicit sinks/storage/contexts; scratch context and panic recursion are TLS, while panic observation is process-wide |
 | file and directory operations | `xtb.os` | platform-neutral API over per-platform adapters |
-| BMP and JSON | `xtb.codec.bmp`, `xtb.codec.json` | bounds-checked byte parsers, explicit errors, I/O-independent core |
+| structured serialization | `xtb.serde` | compile-time schemas, explicit ownership, JSON and TOML backends |
+| BMP and other media formats | `xtb.codec` | bounds-checked byte transforms with no reflection dependency |
 | vectors, matrices, noise | `xtb.math` | value types and pure allocation-free algorithms |
 | GLFW window/input | `xtb.window` | opaque handles, callback plus user-context pairs |
 | GL loading and shaders | `xtb.graphics.opengl` | generated/foreign binding isolated from safe resource wrappers |
 | camera, geometry, material, renderer | `xtb.renderer` | backend-neutral values and orchestration over `graphics` |
 
-Implement in dependency order: `core`, `math`, `os`, codecs, window/graphics,
+Implement in dependency order: `core`, `math`, `os`, serde/codecs, window/graphics,
 then renderer. A higher layer should not force premature abstractions into a
 lower one.
 

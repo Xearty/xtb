@@ -16,6 +16,11 @@ explicit errors, environment/path queries, and monotonic/wall clocks. Linux
 has the locally tested backend; other targets retain buildable APIs reporting
 unsupported operations.
 
+The `xtb.serde` package provides compile-time, attribute-driven mapping of
+BetterC structs to structured formats. It has no runtime registry or DOM;
+JSON and TOML backends traverse typed values directly, and decoded object
+graphs are held by explicit non-copyable `Deserialized!T` owners.
+
 Stack traces include caller-storage-bounded D demangling, allocation-free
 signature coloring,
 configurable ANSI themes, and explicitly installed panic/fatal-signal handlers.
