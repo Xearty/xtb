@@ -82,7 +82,7 @@ struct Array(T)
     }
 
     static Array withCapacity(Allocator* allocator, size_t capacity)
-        nothrow @nogc
+    nothrow @nogc
     {
         Array result = create(allocator);
         if (capacity != 0 && !result.tryReserve(capacity))
@@ -102,7 +102,7 @@ struct Array(T)
     }
 
     static Array withLength(Allocator* allocator, size_t length)
-        nothrow @nogc
+    nothrow @nogc
     {
         Array result = create(allocator);
         result.resize(length);
@@ -110,8 +110,7 @@ struct Array(T)
     }
 
     static Array fromSlice(U = T)(Allocator* allocator, scope const(T)[] values)
-        nothrow @nogc
-        if (is(U == T) && __traits(isCopyable, T))
+    nothrow @nogc if (is(U == T) && __traits(isCopyable, T))
     {
         Array result = withCapacity(allocator, values.length);
         result.append(values);
@@ -216,7 +215,7 @@ private void destroyElements(T)(T* data, size_t length) nothrow @nogc
 }
 
 private bool trySetCapacity(T)(ref Array!T array, size_t capacity)
-    nothrow @nogc
+nothrow @nogc
 {
     if (multiplyOverflows(capacity, T.sizeof))
         return false;
@@ -318,8 +317,7 @@ void appendAssumeCapacity(T)(ref Array!T array, T value) nothrow @nogc
     ++array.length_;
 }
 
-bool tryAppend(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc
-    if (__traits(isCopyable, T))
+bool tryAppend(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc if (__traits(isCopyable, T))
 {
     if (values.length > size_t.max - array.length_)
         return false;
@@ -364,8 +362,7 @@ bool tryAppend(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc
     return true;
 }
 
-void append(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc
-    if (__traits(isCopyable, T))
+void append(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc if (__traits(isCopyable, T))
 {
     if (!array.tryAppend(values))
         panic("Array allocation failed");
@@ -374,8 +371,7 @@ void append(T)(ref Array!T array, scope const(T)[] values) nothrow @nogc
 void appendAssumeCapacity(T)(
     ref Array!T array,
     scope const(T)[] values,
-) nothrow @nogc
-    if (__traits(isCopyable, T))
+) nothrow @nogc if (__traits(isCopyable, T))
 {
     require(values.length <= array.capacity_ - array.length_,
         "Array capacity exceeded");
@@ -424,8 +420,7 @@ bool tryInsert(T)(
     ref Array!T array,
     size_t index,
     scope const(T)[] values,
-) nothrow @nogc
-    if (__traits(isCopyable, T))
+) nothrow @nogc if (__traits(isCopyable, T))
 {
     require(index <= array.length_, "Array insert index out of bounds");
     if (values.length > size_t.max - array.length_)
@@ -467,8 +462,7 @@ bool tryInsert(T)(
         {
             const sourceEnd = sourceOffset + values.length;
             const leftCount = sourceOffset < index
-                ? (sourceEnd < index ? sourceEnd : index) - sourceOffset
-                : 0;
+                ? (sourceEnd < index ? sourceEnd : index) - sourceOffset : 0;
             const rightCount = values.length - leftCount;
             if (leftCount != 0)
                 memmove(array.data_ + index, array.data_ + sourceOffset,
@@ -505,8 +499,7 @@ void insert(T)(ref Array!T array, size_t index, T value) nothrow @nogc
 }
 
 void insert(T)(ref Array!T array, size_t index, scope const(T)[] values)
-    nothrow @nogc
-    if (__traits(isCopyable, T))
+nothrow @nogc if (__traits(isCopyable, T))
 {
     if (!array.tryInsert(index, values))
         panic("Array allocation failed");
@@ -549,7 +542,7 @@ void removeAt(T)(ref Array!T array, size_t index) nothrow @nogc
 }
 
 void removeRange(T)(ref Array!T array, size_t index, size_t count)
-    nothrow @nogc
+nothrow @nogc
 {
     require(index <= array.length_, "Array range index out of bounds");
     require(count <= array.length_ - index, "Array range count out of bounds");

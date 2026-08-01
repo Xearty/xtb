@@ -487,38 +487,38 @@ private struct Demangler
             const code = input[offset + 1];
             switch (code)
             {
-            case 'a':
-                attributes.pure_ = true;
-                break;
-            case 'b':
-                attributes.nothrow_ = true;
-                break;
-            case 'c':
-                attributes.ref_ = true;
-                break;
-            case 'd':
-                attributes.property = true;
-                break;
-            case 'e':
-                attributes.trusted = true;
-                break;
-            case 'f':
-                attributes.safe = true;
-                break;
-            case 'i':
-                attributes.nogc = true;
-                break;
-            case 'j':
-                attributes.return_ = true;
-                break;
-            case 'l':
-                attributes.scope_ = true;
-                break;
-            case 'm':
-                attributes.live = true;
-                break;
-            default:
-                return true;
+                case 'a':
+                    attributes.pure_ = true;
+                    break;
+                case 'b':
+                    attributes.nothrow_ = true;
+                    break;
+                case 'c':
+                    attributes.ref_ = true;
+                    break;
+                case 'd':
+                    attributes.property = true;
+                    break;
+                case 'e':
+                    attributes.trusted = true;
+                    break;
+                case 'f':
+                    attributes.safe = true;
+                    break;
+                case 'i':
+                    attributes.nogc = true;
+                    break;
+                case 'j':
+                    attributes.return_ = true;
+                    break;
+                case 'l':
+                    attributes.scope_ = true;
+                    break;
+                case 'm':
+                    attributes.live = true;
+                    break;
+                default:
+                    return true;
             }
             offset += 2;
         }
@@ -550,20 +550,20 @@ private struct Demangler
             output.put(" @live");
         switch (convention)
         {
-        case 'U':
-            output.put(" extern(C)");
-            break;
-        case 'W':
-            output.put(" extern(Windows)");
-            break;
-        case 'R':
-            output.put(" extern(C++)");
-            break;
-        case 'Y':
-            output.put(" extern(Objective-C)");
-            break;
-        default:
-            break;
+            case 'U':
+                output.put(" extern(C)");
+                break;
+            case 'W':
+                output.put(" extern(Windows)");
+                break;
+            case 'R':
+                output.put(" extern(C++)");
+                break;
+            case 'Y':
+                output.put(" extern(Objective-C)");
+                break;
+            default:
+                break;
         }
     }
 
@@ -640,106 +640,106 @@ private struct Demangler
         const code = input[offset++];
         switch (code)
         {
-        case 'v':
-            output.put("void");
-            return true;
-        case 'b':
-            output.put("bool");
-            return true;
-        case 'g':
-            output.put("byte");
-            return true;
-        case 'h':
-            output.put("ubyte");
-            return true;
-        case 's':
-            output.put("short");
-            return true;
-        case 't':
-            output.put("ushort");
-            return true;
-        case 'i':
-            output.put("int");
-            return true;
-        case 'k':
-            output.put("uint");
-            return true;
-        case 'l':
-            output.put("long");
-            return true;
-        case 'm':
-            output.put("ulong");
-            return true;
-        case 'a':
-            output.put("char");
-            return true;
-        case 'u':
-            output.put("wchar");
-            return true;
-        case 'w':
-            output.put("dchar");
-            return true;
-        case 'f':
-            output.put("float");
-            return true;
-        case 'd':
-            output.put("double");
-            return true;
-        case 'e':
-            output.put("real");
-            return true;
-        case 'o':
-            output.put("ifloat");
-            return true;
-        case 'p':
-            output.put("idouble");
-            return true;
-        case 'j':
-            output.put("ireal");
-            return true;
-        case 'q':
-            output.put("cfloat");
-            return true;
-        case 'r':
-            output.put("cdouble");
-            return true;
-        case 'c':
-            output.put("creal");
-            return true;
-        case 'n':
-            output.put("typeof(null)");
-            return true;
-        case 'P':
-            if (offset < input.length &&
-                (callConvention(input[offset]) || input[offset] == 'M'))
-                return type();
-            return postfix("*");
-        case 'A':
-            return postfix("[]");
-        case 'G':
-            return staticArray();
-        case 'H':
-            return associativeArray();
-        case 'I':
-        case 'S':
-        case 'C':
-        case 'E':
-        case 'T':
-            return qualifiedName();
-        case 'D':
-            skipTypeModifiers();
-            return functionType(true, "delegate");
-        case 'B':
-            return tupleType();
-        case 'F':
-        case 'U':
-        case 'W':
-        case 'R':
-        case 'Y':
-            --offset;
-            return functionType(true, "function");
-        default:
-            return false;
+            case 'v':
+                output.put("void");
+                return true;
+            case 'b':
+                output.put("bool");
+                return true;
+            case 'g':
+                output.put("byte");
+                return true;
+            case 'h':
+                output.put("ubyte");
+                return true;
+            case 's':
+                output.put("short");
+                return true;
+            case 't':
+                output.put("ushort");
+                return true;
+            case 'i':
+                output.put("int");
+                return true;
+            case 'k':
+                output.put("uint");
+                return true;
+            case 'l':
+                output.put("long");
+                return true;
+            case 'm':
+                output.put("ulong");
+                return true;
+            case 'a':
+                output.put("char");
+                return true;
+            case 'u':
+                output.put("wchar");
+                return true;
+            case 'w':
+                output.put("dchar");
+                return true;
+            case 'f':
+                output.put("float");
+                return true;
+            case 'd':
+                output.put("double");
+                return true;
+            case 'e':
+                output.put("real");
+                return true;
+            case 'o':
+                output.put("ifloat");
+                return true;
+            case 'p':
+                output.put("idouble");
+                return true;
+            case 'j':
+                output.put("ireal");
+                return true;
+            case 'q':
+                output.put("cfloat");
+                return true;
+            case 'r':
+                output.put("cdouble");
+                return true;
+            case 'c':
+                output.put("creal");
+                return true;
+            case 'n':
+                output.put("typeof(null)");
+                return true;
+            case 'P':
+                if (offset < input.length &&
+                    (callConvention(input[offset]) || input[offset] == 'M'))
+                    return type();
+                return postfix("*");
+            case 'A':
+                return postfix("[]");
+            case 'G':
+                return staticArray();
+            case 'H':
+                return associativeArray();
+            case 'I':
+            case 'S':
+            case 'C':
+            case 'E':
+            case 'T':
+                return qualifiedName();
+            case 'D':
+                skipTypeModifiers();
+                return functionType(true, "delegate");
+            case 'B':
+                return tupleType();
+            case 'F':
+            case 'U':
+            case 'W':
+            case 'R':
+            case 'Y':
+                --offset;
+                return functionType(true, "function");
+            default:
+                return false;
         }
     }
 

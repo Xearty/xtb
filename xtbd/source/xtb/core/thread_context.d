@@ -73,7 +73,7 @@ struct ThreadContextScope
 }
 
 private Arena* selectScratchArena(scope Allocator*[] conflicts)
-    nothrow @nogc
+nothrow @nogc
 {
     ThreadContext* context = tlsContext;
     if (context is null)

@@ -49,7 +49,7 @@ struct LogResult
 }
 
 alias LogSink = bool function(void* context, scope const LogRecord* record)
-    nothrow @nogc;
+nothrow @nogc;
 alias LogFlush = bool function(void* context) nothrow @nogc;
 
 struct Logger
@@ -95,12 +95,18 @@ private String levelName(LogLevel level) pure nothrow @safe @nogc
 {
     final switch (level)
     {
-        case LogLevel.trace: return "trace";
-        case LogLevel.debug_: return "debug";
-        case LogLevel.info: return "info";
-        case LogLevel.warning: return "warning";
-        case LogLevel.error: return "error";
-        case LogLevel.fatal: return "fatal";
+        case LogLevel.trace:
+            return "trace";
+        case LogLevel.debug_:
+            return "debug";
+        case LogLevel.info:
+            return "info";
+        case LogLevel.warning:
+            return "warning";
+        case LogLevel.error:
+            return "error";
+        case LogLevel.fatal:
+            return "fatal";
     }
 }
 
@@ -108,17 +114,23 @@ private String levelColor(LogLevel level) pure nothrow @safe @nogc
 {
     final switch (level)
     {
-        case LogLevel.trace: return "\x1b[90m";
-        case LogLevel.debug_: return "\x1b[94m";
-        case LogLevel.info: return "\x1b[32m";
-        case LogLevel.warning: return "\x1b[33m";
-        case LogLevel.error: return "\x1b[91m";
-        case LogLevel.fatal: return "\x1b[1;91m";
+        case LogLevel.trace:
+            return "\x1b[90m";
+        case LogLevel.debug_:
+            return "\x1b[94m";
+        case LogLevel.info:
+            return "\x1b[32m";
+        case LogLevel.warning:
+            return "\x1b[33m";
+        case LogLevel.error:
+            return "\x1b[91m";
+        case LogLevel.fatal:
+            return "\x1b[1;91m";
     }
 }
 
 bool enabled(ref const Logger logger, LogLevel level)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     return logger.valid && level >= logger.minimumLevel_;
 }
@@ -207,7 +219,7 @@ private bool writeAll(FILE* file, String value) nothrow @nogc
 }
 
 private bool plainFileSink(void* context, scope const LogRecord* record)
-    nothrow @nogc
+nothrow @nogc
 {
     FILE* file = cast(FILE*) context;
     return file !is null && writeAll(file, "[") &&
@@ -216,7 +228,7 @@ private bool plainFileSink(void* context, scope const LogRecord* record)
 }
 
 private bool ansiFileSink(void* context, scope const LogRecord* record)
-    nothrow @nogc
+nothrow @nogc
 {
     FILE* file = cast(FILE*) context;
     return file !is null && writeAll(file, levelColor(record.level)) &&
@@ -275,7 +287,7 @@ version (unittest)
     }
 
     private bool captureSink(void* context, scope const LogRecord* record)
-        nothrow @nogc
+    nothrow @nogc
     {
         Capture* capture = cast(Capture*) context;
         capture.level = record.level;
@@ -307,7 +319,7 @@ version (unittest)
     }
 
     private bool recursiveSink(void* context, scope const LogRecord* record)
-        nothrow @nogc
+    nothrow @nogc
     {
         RecursiveCapture* capture = cast(RecursiveCapture*) context;
         capture.nestedStatus = (*capture.logger).log(LogLevel.error, "nested").status;

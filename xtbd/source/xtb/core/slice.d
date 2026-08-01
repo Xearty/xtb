@@ -3,7 +3,7 @@ module xtb.core.slice;
 import xtb.core.panic : require;
 
 T[] subslice(T)(return scope T[] values, size_t offset, size_t count)
-    nothrow @system @nogc
+nothrow @system @nogc
 {
     require(offset <= values.length, "slice offset out of bounds");
     require(count <= values.length - offset, "slice count out of bounds");
@@ -11,28 +11,28 @@ T[] subslice(T)(return scope T[] values, size_t offset, size_t count)
 }
 
 T[] drop(T)(return scope T[] values, size_t count)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     const amount = count < values.length ? count : values.length;
     return values[amount .. $];
 }
 
 T[] take(T)(return scope T[] values, size_t count)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     const amount = count < values.length ? count : values.length;
     return values[0 .. amount];
 }
 
 T[] dropLast(T)(return scope T[] values, size_t count)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     const amount = count < values.length ? count : values.length;
     return values[0 .. values.length - amount];
 }
 
 T[] takeLast(T)(return scope T[] values, size_t count)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     const amount = count < values.length ? count : values.length;
     return values[values.length - amount .. $];

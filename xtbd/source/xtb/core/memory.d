@@ -1,6 +1,7 @@
 module xtb.core.memory;
 
 import core.stdc.stdlib : free, malloc, realloc;
+
 version (Posix)
     import core.sys.posix.stdlib : posix_memalign;
 else
@@ -9,7 +10,7 @@ import core.stdc.string : memcpy, memset;
 import xtb.core.panic : panic, require;
 import xtb.core.types : multiplyOverflows;
 
-alias Allocator = extern(C) void* function(
+alias Allocator = extern (C) void* function(
     void* allocator,
     size_t newSize,
     void* oldPointer,
@@ -35,7 +36,7 @@ private size_t normalizedAlignment(size_t alignment) pure nothrow @safe @nogc
     return alignment < minimum ? minimum : alignment;
 }
 
-private extern(C) void* mallocAllocatorProcedure(
+private extern (C) void* mallocAllocatorProcedure(
     void*,
     size_t newSize,
     void* oldPointer,
@@ -161,8 +162,7 @@ T* tryReallocate(T)(
     T* oldPointer,
     size_t oldCount,
     size_t newCount,
-) nothrow @nogc
-    if (__traits(isPOD, T))
+) nothrow @nogc if (__traits(isPOD, T))
 {
     if (multiplyOverflows(T.sizeof, oldCount) ||
         multiplyOverflows(T.sizeof, newCount))
@@ -181,8 +181,7 @@ T* reallocate(T)(
     T* oldPointer,
     size_t oldCount,
     size_t newCount,
-) nothrow @nogc
-    if (__traits(isPOD, T))
+) nothrow @nogc if (__traits(isPOD, T))
 {
     if (multiplyOverflows(T.sizeof, oldCount) ||
         multiplyOverflows(T.sizeof, newCount))
@@ -197,8 +196,7 @@ T* reallocate(T)(
 }
 
 T* tryAllocateZeroed(T)(Allocator* allocator, size_t count = 1)
-    nothrow @nogc
-    if (__traits(isPOD, T))
+nothrow @nogc if (__traits(isPOD, T))
 {
     T* result = allocator.tryAllocate!T(count);
     if (result !is null)
@@ -207,8 +205,7 @@ T* tryAllocateZeroed(T)(Allocator* allocator, size_t count = 1)
 }
 
 T* allocateZeroed(T)(Allocator* allocator, size_t count = 1)
-    nothrow @nogc
-    if (__traits(isPOD, T))
+nothrow @nogc if (__traits(isPOD, T))
 {
     T* result = allocator.allocate!T(count);
     if (result !is null)
@@ -230,7 +227,7 @@ void deallocate(
 }
 
 void deallocate(T)(Allocator* allocator, T* pointer, size_t count = 1)
-    nothrow @nogc
+nothrow @nogc
 {
     if (multiplyOverflows(T.sizeof, count))
         panic("deallocation size overflow");
@@ -322,7 +319,7 @@ private AllocationRecord* findRecord(
 }
 
 private AllocationRecord* freeRecord(ref InstrumentedAllocator allocator)
-    nothrow @nogc
+nothrow @nogc
 {
     foreach (ref record; allocator.records)
         if (record.pointer is null)
@@ -330,7 +327,7 @@ private AllocationRecord* freeRecord(ref InstrumentedAllocator allocator)
     return null;
 }
 
-private extern(C) void* instrumentedAllocatorProcedure(
+private extern (C) void* instrumentedAllocatorProcedure(
     void* context,
     size_t newSize,
     void* oldPointer,
@@ -467,9 +464,9 @@ nothrow @nogc unittest
 
     static assert(__traits(isPOD, PodWithInitializer));
     static assert(!__traits(compiles,
-        mallocAllocator().allocateZeroed!Owning()));
+            mallocAllocator().allocateZeroed!Owning()));
     static assert(!__traits(compiles,
-        mallocAllocator().reallocate!Owning(null, 0, 1)));
+            mallocAllocator().reallocate!Owning(null, 0, 1)));
 
     PodWithInitializer* value = mallocAllocator()
         .allocateZeroed!PodWithInitializer();

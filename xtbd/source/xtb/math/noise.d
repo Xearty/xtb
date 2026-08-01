@@ -27,7 +27,7 @@ nothrow @nogc:
     }
 
     static bool tryCreate(Allocator* allocator, size_t period, ulong seed,
-            ValueNoise1D* output, ulong stream = 0)
+        ValueNoise1D* output, ulong stream = 0)
     {
         require(output !is null, "ValueNoise1D output pointer is null");
         require(allocator !is null, "ValueNoise1D requires an allocator");
@@ -83,7 +83,7 @@ nothrow @nogc:
     }
 }
 
-private extern(C) void* rejectingAllocation(
+private extern (C) void* rejectingAllocation(
     void*,
     size_t,
     void*,

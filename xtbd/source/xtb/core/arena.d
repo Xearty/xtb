@@ -81,7 +81,7 @@ struct Arena
     }
 
     void* allocate(size_t size, size_t alignment = (void*).alignof)
-        nothrow @nogc
+    nothrow @nogc
     {
         void* result = tryAllocate(size, alignment);
         if (size != 0 && result is null)
@@ -90,7 +90,7 @@ struct Arena
     }
 
     void* tryAllocate(size_t size, size_t alignment = (void*).alignof)
-        nothrow @nogc
+    nothrow @nogc
     {
         if (size == 0)
             return null;
@@ -121,7 +121,7 @@ struct Arena
     }
 
     void* allocateZeroed(size_t size, size_t alignment = (void*).alignof)
-        nothrow @nogc
+    nothrow @nogc
     {
         void* result = allocate(size, alignment);
         if (result !is null)
@@ -130,7 +130,7 @@ struct Arena
     }
 
     void* tryAllocateZeroed(size_t size, size_t alignment = (void*).alignof)
-        nothrow @nogc
+    nothrow @nogc
     {
         void* result = tryAllocate(size, alignment);
         if (result !is null)
@@ -180,8 +180,7 @@ struct Arena
         ArenaStats result;
         result.usedBytes = usedBytes_;
         result.peakUsedBytes = peakUsedBytes_;
-        for (const(ArenaChunk)* chunk = firstChunk;
-            chunk !is null; chunk = chunk.next)
+        for (const(ArenaChunk)* chunk = firstChunk; chunk !is null; chunk = chunk.next)
         {
             result.reservedBytes += chunk.capacity;
             ++result.chunkCount;
@@ -261,12 +260,11 @@ struct Arena
     }
 
     private ArenaChunk* obtainChunk(size_t size, size_t alignment)
-        nothrow @nogc
+    nothrow @nogc
     {
         ArenaChunk* tail = currentChunk;
         ArenaChunk* candidate = currentChunk is null
-            ? firstChunk
-            : currentChunk.next;
+            ? firstChunk : currentChunk.next;
 
         while (candidate !is null)
         {
@@ -295,7 +293,7 @@ struct Arena
     }
 
     private ArenaChunk* createChunk(size_t capacity, size_t alignment)
-        nothrow @nogc
+    nothrow @nogc
     {
         const padding = alignment - 1;
         if (addOverflows(ArenaChunk.sizeof, padding) ||
@@ -313,7 +311,7 @@ struct Arena
         chunk.allocationSize = allocationSize;
         chunk.capacity = capacity;
 
-        const start = cast(size_t) (cast(ubyte*) chunk + ArenaChunk.sizeof);
+        const start = cast(size_t)(cast(ubyte*) chunk + ArenaChunk.sizeof);
         size_t alignedStart;
         if (!alignUp(start, alignment, &alignedStart))
         {
@@ -337,7 +335,7 @@ private bool isPowerOfTwo(size_t value) pure nothrow @safe @nogc
 }
 
 private bool alignUp(size_t value, size_t alignment, size_t* result)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     const mask = alignment - 1;
     if (value > size_t.max - mask)
@@ -362,7 +360,7 @@ private bool alignedOffsetFor(
     return true;
 }
 
-private extern(C) void* arenaAllocatorProcedure(
+private extern (C) void* arenaAllocatorProcedure(
     void* allocator,
     size_t newSize,
     void* oldPointer,
@@ -514,6 +512,7 @@ nothrow @nogc unittest
     arena.deinit();
 
     import xtb.core.memory : AllocationRecord, InstrumentedAllocator;
+
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
         mallocAllocator(), records[],

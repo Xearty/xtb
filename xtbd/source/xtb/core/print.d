@@ -176,8 +176,7 @@ private size_t fixedBufferSink(void* context, scope String bytes) nothrow @nogc
         state.required += bytes.length;
 
     const capacity = state.destination.length == 0
-        ? 0
-        : state.destination.length - 1;
+        ? 0 : state.destination.length - 1;
     if (state.written < capacity)
     {
         const available = capacity - state.written;
@@ -213,7 +212,7 @@ WriteResult ewriteln(Args...)(auto ref Args args) nothrow @nogc
 }
 
 WriteResult writeFile(Args...)(FILE* file, auto ref Args args)
-    nothrow @nogc
+nothrow @nogc
 {
     Writer writer = Writer.fromFile(file);
     static foreach (i; 0 .. Args.length)
@@ -222,7 +221,7 @@ WriteResult writeFile(Args...)(FILE* file, auto ref Args args)
 }
 
 WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
-    nothrow @nogc
+nothrow @nogc
 {
     Writer writer = Writer.fromFile(file);
     static foreach (i; 0 .. Args.length)
@@ -232,7 +231,7 @@ WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
 }
 
 WriteResult writeTo(Args...)(ref StringBuf buffer, auto ref Args args)
-    nothrow @nogc
+nothrow @nogc
 {
     Writer writer = Writer.fromSink(&stringBufSink, &buffer);
     static foreach (i; 0 .. Args.length)
@@ -241,7 +240,7 @@ WriteResult writeTo(Args...)(ref StringBuf buffer, auto ref Args args)
 }
 
 BufferWriteResult writeBuffer(Args...)(char[] destination, auto ref Args args)
-    nothrow @nogc
+nothrow @nogc
 {
     FixedBufferState state;
     state.destination = destination;
@@ -335,7 +334,7 @@ private template Unqualified(T)
 }
 
 private void writeValue(T)(ref Writer writer, auto ref T value)
-    nothrow @nogc
+nothrow @nogc
 {
     alias U = Unqualified!T;
     static if (__traits(compiles, value.formatTo(writer)))
@@ -386,7 +385,7 @@ private void writeValue(T)(ref Writer writer, auto ref T value)
     else
     {
         static assert(false, "unsupported printable type: " ~ U.stringof ~
-            "; define `void formatTo(ref Writer) const nothrow @nogc`");
+                "; define `void formatTo(ref Writer) const nothrow @nogc`");
     }
 }
 
@@ -418,11 +417,10 @@ private void writeInteger(T)(
     char[65] reversed;
     size_t count;
     String digits = uppercase
-        ? "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        : "0123456789abcdefghijklmnopqrstuvwxyz";
+        ? "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ" : "0123456789abcdefghijklmnopqrstuvwxyz";
     do
     {
-        reversed[count++] = digits[cast(size_t) (magnitude % radix)];
+        reversed[count++] = digits[cast(size_t)(magnitude % radix)];
         magnitude /= radix;
     }
     while (magnitude != 0);
@@ -448,7 +446,7 @@ private void writeInteger(T)(
 }
 
 private void writeFloat(T)(ref Writer writer, T value, char mode, int precision)
-    nothrow @nogc
+nothrow @nogc
 {
     static assert(__traits(isFloating, T));
     if (precision < 0)
@@ -484,7 +482,7 @@ private void writeFloat(T)(ref Writer writer, T value, char mode, int precision)
 }
 
 private void writePointer(ref Writer writer, const(void)* pointer)
-    nothrow @nogc
+nothrow @nogc
 {
     if (pointer is null)
     {
@@ -497,7 +495,7 @@ private void writePointer(ref Writer writer, const(void)* pointer)
         16,
         true,
         false,
-        cast(ushort) (size_t.sizeof * 2),
+        cast(ushort)(size_t.sizeof * 2),
     );
 }
 
@@ -514,23 +512,23 @@ private void writeCodePoint(ref Writer writer, dchar codePoint) nothrow @nogc
     }
     else if (codePoint <= 0x7FF)
     {
-        bytes[0] = cast(char) (0xC0 | (codePoint >> 6));
-        bytes[1] = cast(char) (0x80 | (codePoint & 0x3F));
+        bytes[0] = cast(char)(0xC0 | (codePoint >> 6));
+        bytes[1] = cast(char)(0x80 | (codePoint & 0x3F));
         count = 2;
     }
     else if (codePoint <= 0xFFFF)
     {
-        bytes[0] = cast(char) (0xE0 | (codePoint >> 12));
-        bytes[1] = cast(char) (0x80 | ((codePoint >> 6) & 0x3F));
-        bytes[2] = cast(char) (0x80 | (codePoint & 0x3F));
+        bytes[0] = cast(char)(0xE0 | (codePoint >> 12));
+        bytes[1] = cast(char)(0x80 | ((codePoint >> 6) & 0x3F));
+        bytes[2] = cast(char)(0x80 | (codePoint & 0x3F));
         count = 3;
     }
     else
     {
-        bytes[0] = cast(char) (0xF0 | (codePoint >> 18));
-        bytes[1] = cast(char) (0x80 | ((codePoint >> 12) & 0x3F));
-        bytes[2] = cast(char) (0x80 | ((codePoint >> 6) & 0x3F));
-        bytes[3] = cast(char) (0x80 | (codePoint & 0x3F));
+        bytes[0] = cast(char)(0xF0 | (codePoint >> 18));
+        bytes[1] = cast(char)(0x80 | ((codePoint >> 12) & 0x3F));
+        bytes[2] = cast(char)(0x80 | ((codePoint >> 6) & 0x3F));
+        bytes[3] = cast(char)(0x80 | (codePoint & 0x3F));
         count = 4;
     }
     writer.put(bytes[0 .. count]);
@@ -610,7 +608,7 @@ FloatFormat!T scientific(T)(T value, int precision = 6) nothrow @nogc
 }
 
 WriteResult format(string pattern, Args...)(auto ref Args args)
-    nothrow @nogc
+nothrow @nogc
 {
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     writeFormat!(pattern, 0, 0)(writer, args);
@@ -618,7 +616,7 @@ WriteResult format(string pattern, Args...)(auto ref Args args)
 }
 
 WriteResult formatln(string pattern, Args...)(auto ref Args args)
-    nothrow @nogc
+nothrow @nogc
 {
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     writeFormat!(pattern, 0, 0)(writer, args);
@@ -682,7 +680,7 @@ private void writeFormat(
 }
 
 private size_t nextSpecial(string pattern, size_t start)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     size_t result = start;
     while (result < pattern.length && pattern[result] != '{' && pattern[result] != '}')

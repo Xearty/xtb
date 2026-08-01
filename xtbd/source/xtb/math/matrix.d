@@ -112,7 +112,7 @@ pure Matrix4 transposed(Matrix4 m)
 {
     return Matrix4(Vector4(m.c0.x, m.c1.x, m.c2.x, m.c3.x), Vector4(m.c0.y,
             m.c1.y, m.c2.y, m.c3.y), Vector4(m.c0.z, m.c1.z, m.c2.z, m.c3.z),
-            Vector4(m.c0.w, m.c1.w, m.c2.w, m.c3.w));
+        Vector4(m.c0.w, m.c1.w, m.c2.w, m.c3.w));
 }
 
 pure float determinant(Matrix2 m)
@@ -132,9 +132,9 @@ pure float determinant(Matrix4 m)
     const i = m.c0.z, j = m.c1.z, k = m.c2.z, l = m.c3.z;
     const n = m.c0.w, o = m.c1.w, p = m.c2.w, q = m.c3.w;
     return a * (f * (k * q - l * p) - g * (j * q - l * o) + h * (j * p - k * o)) - b * (
-            e * (k * q - l * p) - g * (i * q - l * n) + h * (i * p - k * n)) + c * (
-            e * (j * q - l * o) - f * (i * q - l * n) + h * (i * o - j * n)) - d * (
-            e * (j * p - k * o) - f * (i * p - k * n) + g * (i * o - j * n));
+        e * (k * q - l * p) - g * (i * q - l * n) + h * (i * p - k * n)) + c * (
+        e * (j * q - l * o) - f * (i * q - l * n) + h * (i * o - j * n)) - d * (
+        e * (j * p - k * o) - f * (i * p - k * n) + g * (i * o - j * n));
 }
 
 pure @system bool tryInverse(Matrix2 m, Matrix2* output)
@@ -199,9 +199,9 @@ pure @system bool tryInverse(Matrix4 m, Matrix4* output)
         }
     }
     *output = Matrix4(Vector4(rows[0][4], rows[1][4], rows[2][4], rows[3][4]),
-            Vector4(rows[0][5], rows[1][5], rows[2][5], rows[3][5]),
-            Vector4(rows[0][6], rows[1][6], rows[2][6], rows[3][6]),
-            Vector4(rows[0][7], rows[1][7], rows[2][7], rows[3][7]));
+        Vector4(rows[0][5], rows[1][5], rows[2][5], rows[3][5]),
+        Vector4(rows[0][6], rows[1][6], rows[2][6], rows[3][6]),
+        Vector4(rows[0][7], rows[1][7], rows[2][7], rows[3][7]));
     return true;
 }
 
@@ -225,7 +225,7 @@ pure @system bool tryAffineInverse(Matrix4 m, Matrix4* output)
         return false;
     const translation = -(linearInverse * m.c3.xyz);
     *output = Matrix4(linearInverse.c0.withW(0), linearInverse.c1.withW(0),
-            linearInverse.c2.withW(0), translation.withW(1));
+        linearInverse.c2.withW(0), translation.withW(1));
     return true;
 }
 
@@ -239,7 +239,7 @@ pure Matrix4 translation(Vector3 offset)
 pure Matrix4 scaling(Vector3 factors)
 {
     return Matrix4(Vector4(factors.x, 0, 0, 0), Vector4(0, factors.y, 0, 0),
-            Vector4(0, 0, factors.z, 0), Vector4(0, 0, 0, 1));
+        Vector4(0, 0, factors.z, 0), Vector4(0, 0, 0, 1));
 }
 
 pure Matrix4 scaling(float factor)
@@ -275,8 +275,8 @@ Matrix4 rotation(Vector3 axis, float angle)
         return Matrix4.identity;
     const c = cosf(angle), s = sinf(angle), t = 1 - c, x = axis.x, y = axis.y, z = axis.z;
     return Matrix4(Vector4(x * x * t + c, y * x * t + z * s, z * x * t - y * s, 0),
-            Vector4(x * y * t - z * s, y * y * t + c, z * y * t + x * s, 0),
-            Vector4(x * z * t + y * s, y * z * t - x * s, z * z * t + c, 0), Vector4(0, 0, 0, 1));
+        Vector4(x * y * t - z * s, y * y * t + c, z * y * t + x * s, 0),
+        Vector4(x * z * t + y * s, y * z * t - x * s, z * z * t + c, 0), Vector4(0, 0, 0, 1));
 }
 
 Matrix4 rotation(float yaw, float pitch, float roll)
@@ -309,8 +309,8 @@ pure Matrix4 orthographic(float left, float right, float bottom, float top, floa
     assert(right != left && top != bottom && far != near);
     return Matrix4(Vector4(2 / (right - left), 0, 0, 0), Vector4(0,
             2 / (top - bottom), 0, 0), Vector4(0, 0, -2 / (far - near), 0),
-            Vector4(-(right + left) / (right - left),
-                -(top + bottom) / (top - bottom), -(far + near) / (far - near), 1));
+        Vector4(-(right + left) / (right - left),
+            -(top + bottom) / (top - bottom), -(far + near) / (far - near), 1));
 }
 
 pure Matrix4 orthographic2D(float left, float right, float bottom, float top)
@@ -329,8 +329,8 @@ Matrix4 perspective(float verticalFov, float aspect, float near, float far)
     assert(verticalFov > 0 && aspect > 0 && near > 0 && far > near);
     const f = 1 / tanf(verticalFov / 2);
     return Matrix4(Vector4(f / aspect, 0, 0, 0), Vector4(0, f, 0, 0),
-            Vector4(0, 0, (far + near) / (near - far), -1), Vector4(0, 0,
-                (2 * far * near) / (near - far), 0));
+        Vector4(0, 0, (far + near) / (near - far), -1), Vector4(0, 0,
+            (2 * far * near) / (near - far), 0));
 }
 
 Matrix4 lookAt(Vector3 eye, Vector3 target, Vector3 up)
@@ -339,9 +339,9 @@ Matrix4 lookAt(Vector3 eye, Vector3 target, Vector3 up)
     const side = cross(forward, up).normalized;
     const correctedUp = cross(side, forward);
     return Matrix4(Vector4(side.x, correctedUp.x, -forward.x, 0),
-            Vector4(side.y, correctedUp.y, -forward.y, 0), Vector4(side.z,
-                correctedUp.z, -forward.z, 0), Vector4(-dot(side, eye),
-                -dot(correctedUp, eye), dot(forward, eye), 1));
+        Vector4(side.y, correctedUp.y, -forward.y, 0), Vector4(side.z,
+            correctedUp.z, -forward.z, 0), Vector4(-dot(side, eye),
+            -dot(correctedUp, eye), dot(forward, eye), 1));
 }
 
 private pure bool close(float a, float b, float epsilon = 0.0001f)
@@ -362,7 +362,7 @@ private pure bool close(float a, float b, float epsilon = 0.0001f)
     assert(!Matrix3.init.tryInverse(&inverse));
     Matrix4 generalInverse;
     const general = Matrix4(Vector4(1, 2, 3, 4), Vector4(0, 1, 4, 2),
-            Vector4(5, 6, 0, 1), Vector4(1, 0, 2, 1));
+        Vector4(5, 6, 0, 1), Vector4(1, 0, 2, 1));
     assert(general.tryInverse(&generalInverse));
     const generalIdentity = general * generalInverse;
     assert(close(generalIdentity.c0.x, 1) && close(generalIdentity.c1.y, 1)

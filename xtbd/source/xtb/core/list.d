@@ -109,8 +109,8 @@ struct List(Node, string member = "listLink")
 
     private bool contains(Node* node)
     {
-        for (Node* current = first_; current !is null;
-            current = listLinkOf!(Node, member)(current).next_)
+        for (Node* current = first_; current !is null; current = listLinkOf!(Node, member)(current)
+            .next_)
         {
             if (current is node)
                 return true;

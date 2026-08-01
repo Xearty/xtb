@@ -108,7 +108,8 @@ DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) nothro
             errno = 0;
             const native = readdir(iterator.directory_);
             if (native is null)
-                return errno == 0 ? DirectoryResult(DirectoryStatus.finished, OsError.init) : DirectoryResult(
+                return errno == 0 ? DirectoryResult(DirectoryStatus.finished, OsError.init)
+                    : DirectoryResult(
                         DirectoryStatus.failed, lastError());
             String name = fromCString(native.d_name.ptr);
             if (name == "." || name == "..")
@@ -128,22 +129,22 @@ version (linux) private FileType fromDirectoryType(ubyte value) pure nothrow @sa
 
     switch (value)
     {
-    case DT_REG:
-        return FileType.regular;
-    case DT_DIR:
-        return FileType.directory;
-    case DT_LNK:
-        return FileType.symbolicLink;
-    case DT_CHR:
-        return FileType.characterDevice;
-    case DT_BLK:
-        return FileType.blockDevice;
-    case DT_FIFO:
-        return FileType.fifo;
-    case DT_SOCK:
-        return FileType.socket;
-    default:
-        return FileType.unknown;
+        case DT_REG:
+            return FileType.regular;
+        case DT_DIR:
+            return FileType.directory;
+        case DT_LNK:
+            return FileType.symbolicLink;
+        case DT_CHR:
+            return FileType.characterDevice;
+        case DT_BLK:
+            return FileType.blockDevice;
+        case DT_FIFO:
+            return FileType.fifo;
+        case DT_SOCK:
+            return FileType.socket;
+        default:
+            return FileType.unknown;
     }
 }
 
@@ -265,18 +266,18 @@ OsError queryAccess(Path path, Access requested, bool* output) nothrow @system @
         int mode;
         final switch (requested)
         {
-        case Access.exists:
-            mode = F_OK;
-            break;
-        case Access.read:
-            mode = R_OK;
-            break;
-        case Access.write:
-            mode = W_OK;
-            break;
-        case Access.execute:
-            mode = X_OK;
-            break;
+            case Access.exists:
+                mode = F_OK;
+                break;
+            case Access.read:
+                mode = R_OK;
+                break;
+            case Access.write:
+                mode = W_OK;
+                break;
+            case Access.execute:
+                mode = X_OK;
+                break;
         }
         if (access(native.checkedCString, mode) == 0)
         {
@@ -314,7 +315,7 @@ OsError canonicalPath(Path path, ref StringBuf output) nothrow @system @nogc
 }
 
 OsError walkDirectory(Path root, Allocator* temporaryAllocator,
-        DirectoryVisitor visitor, void* context = null, size_t maximumDepth = 256) nothrow @system @nogc
+    DirectoryVisitor visitor, void* context = null, size_t maximumDepth = 256) nothrow @system @nogc
 {
     require(temporaryAllocator !is null, "directory traversal requires a temporary allocator");
     require(visitor !is null, "directory visitor is null");
@@ -323,7 +324,7 @@ OsError walkDirectory(Path root, Allocator* temporaryAllocator,
 }
 
 private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor visitor,
-        void* context, size_t depth, size_t maximumDepth, bool* keepGoing) nothrow @system @nogc
+    void* context, size_t depth, size_t maximumDepth, bool* keepGoing) nothrow @system @nogc
 {
     if (depth > maximumDepth)
         return OsError(OsErrorKind.invalidArgument, 0);
@@ -362,7 +363,7 @@ private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor 
         if (type == FileType.directory)
         {
             error = walk(path, temporaryAllocator, visitor, context, depth + 1,
-                    maximumDepth, keepGoing);
+                maximumDepth, keepGoing);
             if (error.failed)
                 return error;
             if (!*keepGoing)

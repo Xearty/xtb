@@ -23,7 +23,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
     if (error.failed)
     {
         formatln!"cannot open directory: error={} native={}"(cast(uint) error.kind,
-                error.nativeCode);
+            error.nativeCode);
         return 1;
     }
 
@@ -36,7 +36,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
         if (result.status == DirectoryStatus.failed)
         {
             formatln!"iteration failed: error={} native={}"(cast(uint) result.error.kind,
-                    result.error.nativeCode);
+                result.error.nativeCode);
             return 1;
         }
         formatln!"type={} name={}"(cast(uint) entry.type, entry.name);

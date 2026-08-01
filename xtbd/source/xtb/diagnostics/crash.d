@@ -183,18 +183,18 @@ version (linux)
     {
         switch (signal)
         {
-        case SIGABRT:
-            return "SIGABRT";
-        case SIGBUS:
-            return "SIGBUS";
-        case SIGFPE:
-            return "SIGFPE";
-        case SIGILL:
-            return "SIGILL";
-        case SIGSEGV:
-            return "SIGSEGV";
-        default:
-            return "unknown signal";
+            case SIGABRT:
+                return "SIGABRT";
+            case SIGBUS:
+                return "SIGBUS";
+            case SIGFPE:
+                return "SIGFPE";
+            case SIGILL:
+                return "SIGILL";
+            case SIGSEGV:
+                return "SIGSEGV";
+            default:
+                return "unknown signal";
         }
     }
 

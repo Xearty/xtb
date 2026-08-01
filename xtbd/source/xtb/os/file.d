@@ -250,7 +250,7 @@ OsError metadata(Path path, bool followLinks, FileMetadata* output) nothrow @sys
         StringBuf nativePath = StringBuf.fromString(scratch.allocator, path.view);
         stat_t native;
         const state = followLinks ? stat(nativePath.checkedCString, &native) : lstat(
-                nativePath.checkedCString, &native);
+            nativePath.checkedCString, &native);
         if (state != 0)
             return lastError();
         *output = convert(native);
@@ -268,34 +268,34 @@ version (linux) private FileMetadata convert(ref const(NativeStat) native) pure 
     FileType type;
     switch (native.st_mode & S_IFMT)
     {
-    case S_IFREG:
-        type = FileType.regular;
-        break;
-    case S_IFDIR:
-        type = FileType.directory;
-        break;
-    case S_IFLNK:
-        type = FileType.symbolicLink;
-        break;
-    case S_IFCHR:
-        type = FileType.characterDevice;
-        break;
-    case S_IFBLK:
-        type = FileType.blockDevice;
-        break;
-    case S_IFIFO:
-        type = FileType.fifo;
-        break;
-    case S_IFSOCK:
-        type = FileType.socket;
-        break;
-    default:
-        type = FileType.unknown;
-        break;
+        case S_IFREG:
+            type = FileType.regular;
+            break;
+        case S_IFDIR:
+            type = FileType.directory;
+            break;
+        case S_IFLNK:
+            type = FileType.symbolicLink;
+            break;
+        case S_IFCHR:
+            type = FileType.characterDevice;
+            break;
+        case S_IFBLK:
+            type = FileType.blockDevice;
+            break;
+        case S_IFIFO:
+            type = FileType.fifo;
+            break;
+        case S_IFSOCK:
+            type = FileType.socket;
+            break;
+        default:
+            type = FileType.unknown;
+            break;
     }
     return FileMetadata(type, cast(u64) native.st_size,
-            cast(u64) native.st_mtime * 1_000_000_000UL + cast(u64) native.st_mtimensec,
-            cast(u32) native.st_mode & 0xFFF);
+        cast(u64) native.st_mtime * 1_000_000_000UL + cast(u64) native.st_mtimensec,
+        cast(u32) native.st_mode & 0xFFF);
 }
 
 OsError readEntireFile(Path path, ref Array!u8 output) nothrow @system @nogc
@@ -334,7 +334,8 @@ OsError writeEntireFile(Path path, scope const(u8)[] input, bool exclusive = fal
         return error;
     const result = (&file).writeAll(input);
     return result.complete(input.length) ? OsError.init : result.error.failed
-        ? result.error : OsError(OsErrorKind.system, 0);
+        ? result.error
+        : OsError(OsErrorKind.system, 0);
 }
 
 OsError copyFile(Path source, Path destination, ref Array!u8 buffer, bool exclusive = false) nothrow @system @nogc

@@ -17,7 +17,7 @@ struct Point
     }
 }
 
-extern(C) int main() nothrow @nogc
+extern (C) int main() nothrow @nogc
 {
     writeln("hello from BetterC");
     formatln!"integer={}, hex={}, ratio={}"(

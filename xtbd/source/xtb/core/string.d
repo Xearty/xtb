@@ -20,7 +20,7 @@ import xtb.core.panic : panic, require;
 enum notFound = size_t.max;
 
 alias SplitPredicate = size_t function(String rest, void* context)
-    nothrow @nogc;
+nothrow @nogc;
 
 String fromCString(const(char)* value) nothrow @system @nogc
 {
@@ -29,7 +29,7 @@ String fromCString(const(char)* value) nothrow @system @nogc
 }
 
 bool tryFromCString(const(char)* value, String* output)
-    nothrow @system @nogc
+nothrow @system @nogc
 {
     require(output !is null, "String output pointer is null");
     if (value is null)
@@ -80,7 +80,7 @@ int compare(String left, String right) pure nothrow @system @nogc
 }
 
 String slice(String value, size_t begin, size_t end)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     assert(begin <= end && end <= value.length);
     return value[begin .. end];
@@ -167,8 +167,10 @@ String baseName(String value) pure nothrow @safe @nogc
 {
     const slash = value.findLast('/');
     const backslash = value.findLast('\\');
-    const separator = slash == notFound ? backslash :
-        backslash == notFound ? slash : slash > backslash ? slash : backslash;
+    size_t separator = slash;
+    if (separator == notFound ||
+        (backslash != notFound && backslash > separator))
+        separator = backslash;
     return separator == notFound ? value : value[separator + 1 .. $];
 }
 
@@ -354,7 +356,7 @@ bool tryReplace(
 }
 
 String replace(String value, String from, String to, Allocator* allocator)
-    nothrow @nogc
+nothrow @nogc
 {
     String result;
     if (!value.tryReplace(from, to, allocator, &result))
@@ -410,7 +412,7 @@ bool tryJoin(
 }
 
 String join(scope const(String)[] values, String separator, Allocator* allocator)
-    nothrow @nogc
+nothrow @nogc
 {
     String result;
     if (!tryJoin(values, separator, allocator, &result))
@@ -422,24 +424,37 @@ private char escapedCharacter(char value) pure nothrow @safe @nogc
 {
     switch (value)
     {
-        case '\a': return 'a';
-        case '\b': return 'b';
-        case '\x1b': return 'e';
-        case '\f': return 'f';
-        case '\n': return 'n';
-        case '\r': return 'r';
-        case '\t': return 't';
-        case '\v': return 'v';
-        case '\\': return '\\';
-        case '\'': return '\'';
-        case '"': return '"';
-        case '?': return '?';
-        default: return '\0';
+        case '\a':
+            return 'a';
+        case '\b':
+            return 'b';
+        case '\x1b':
+            return 'e';
+        case '\f':
+            return 'f';
+        case '\n':
+            return 'n';
+        case '\r':
+            return 'r';
+        case '\t':
+            return 't';
+        case '\v':
+            return 'v';
+        case '\\':
+            return '\\';
+        case '\'':
+            return '\'';
+        case '"':
+            return '"';
+        case '?':
+            return '?';
+        default:
+            return '\0';
     }
 }
 
 bool tryEscape(String value, Allocator* allocator, String* output)
-    nothrow @nogc
+nothrow @nogc
 {
     require(output !is null, "String output pointer is null");
     size_t escapedCount;
@@ -564,14 +579,14 @@ private size_t whitespaceSeparator(String rest, void*) nothrow @nogc
 }
 
 Array!String split(String value, String separator, Allocator* allocator)
-    nothrow @nogc
+nothrow @nogc
 {
     require(separator.length != 0, "String separator must not be empty");
     return value.splitWhen(&stringSeparator, &separator, false, allocator);
 }
 
 Array!String split(String value, char separator, Allocator* allocator)
-    nothrow @nogc
+nothrow @nogc
 {
     return value.splitWhen(&characterSeparator, &separator, false, allocator);
 }
@@ -600,7 +615,7 @@ struct StringBuf
     }
 
     static StringBuf withCapacity(Allocator* allocator, size_t capacity)
-        nothrow @nogc
+    nothrow @nogc
     {
         StringBuf result;
         result.bytes_ = Array!char.withCapacity(allocator, capacity);
@@ -608,7 +623,7 @@ struct StringBuf
     }
 
     static StringBuf fromString(Allocator* allocator, String value)
-        nothrow @nogc
+    nothrow @nogc
     {
         StringBuf result = withCapacity(allocator, value.length);
         result.append(value);

@@ -44,33 +44,33 @@ version (linux) OsError fromErrno(int code) pure nothrow @safe @nogc
     OsErrorKind kind = OsErrorKind.system;
     switch (code)
     {
-    case ENOENT:
-        kind = OsErrorKind.notFound;
-        break;
-    case EACCES:
-    case EPERM:
-        kind = OsErrorKind.permissionDenied;
-        break;
-    case EEXIST:
-        kind = OsErrorKind.alreadyExists;
-        break;
-    case EINVAL:
-        kind = OsErrorKind.invalidArgument;
-        break;
-    case EINTR:
-        kind = OsErrorKind.interrupted;
-        break;
-    case EAGAIN:
-        kind = OsErrorKind.wouldBlock;
-        break;
-    case ENOTDIR:
-        kind = OsErrorKind.notDirectory;
-        break;
-    case EISDIR:
-        kind = OsErrorKind.isDirectory;
-        break;
-    default:
-        break;
+        case ENOENT:
+            kind = OsErrorKind.notFound;
+            break;
+        case EACCES:
+        case EPERM:
+            kind = OsErrorKind.permissionDenied;
+            break;
+        case EEXIST:
+            kind = OsErrorKind.alreadyExists;
+            break;
+        case EINVAL:
+            kind = OsErrorKind.invalidArgument;
+            break;
+        case EINTR:
+            kind = OsErrorKind.interrupted;
+            break;
+        case EAGAIN:
+            kind = OsErrorKind.wouldBlock;
+            break;
+        case ENOTDIR:
+            kind = OsErrorKind.notDirectory;
+            break;
+        case EISDIR:
+            kind = OsErrorKind.isDirectory;
+            break;
+        default:
+            break;
     }
     return OsError(kind, code);
 }

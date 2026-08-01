@@ -224,13 +224,13 @@ private bool keyword(String source) pure nothrow @system @nogc
 {
     switch (source)
     {
-    case "const", "immutable", "inout", "shared", "scope", "return",
+        case "const", "immutable", "inout", "shared", "scope", "return",
         "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
         "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
         "typeof":
-        return true;
-    default:
-        return false;
+            return true;
+        default:
+            return false;
     }
 }
 
@@ -238,13 +238,13 @@ private bool primitiveType(String source) pure nothrow @system @nogc
 {
     switch (source)
     {
-    case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
+        case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
         "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
         "dchar", "float", "double", "real", "ifloat", "idouble",
         "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
-        return true;
-    default:
-        return false;
+            return true;
+        default:
+            return false;
     }
 }
 
@@ -446,24 +446,24 @@ void writeSignature(
         AnsiColor color;
         final switch (token.kind)
         {
-        case SignatureTokenKind.identifier:
-            color = isFunctionIdentifier(signature, token.end)
-                ? activeColors.functionName
-                : isModuleIdentifier(signature, token.end)
-                ? aggregateIdentifier(token.source)
-                ? activeColors.typeName : activeColors.moduleName : activeColors.typeName;
-            break;
-        case SignatureTokenKind.type:
-            color = activeColors.typeName;
-            break;
-        case SignatureTokenKind.keyword:
-            color = activeColors.keyword;
-            break;
-        case SignatureTokenKind.punctuation:
-            color = activeColors.punctuation;
-            break;
-        case SignatureTokenKind.space:
-            break;
+            case SignatureTokenKind.identifier:
+                color = isFunctionIdentifier(signature, token.end)
+                    ? activeColors.functionName
+                    : isModuleIdentifier(signature, token.end)
+                    ? aggregateIdentifier(token.source)
+                    ? activeColors.typeName : activeColors.moduleName : activeColors.typeName;
+                break;
+            case SignatureTokenKind.type:
+                color = activeColors.typeName;
+                break;
+            case SignatureTokenKind.keyword:
+                color = activeColors.keyword;
+                break;
+            case SignatureTokenKind.punctuation:
+                color = activeColors.punctuation;
+                break;
+            case SignatureTokenKind.space:
+                break;
         }
         writer.beginAnsi(color);
         writer.put(token.source);

@@ -2,7 +2,7 @@ module examples.core_demo;
 
 import xtb.core;
 
-extern(C) int main() nothrow @nogc
+extern (C) int main() nothrow @nogc
 {
     ThreadContextScope context = ThreadContextScope.acquire();
     ScratchScope scratch = ScratchScope.acquire();
