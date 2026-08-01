@@ -51,6 +51,14 @@ ownership, hidden global state, and macro-oriented interfaces.
 - generic `subslice`, `drop`, `take`, `dropLast`, `takeLast`, `front`, and
   `back` UFCS algorithms.
 
+### Optional values
+
+- `Option!T` with checked value access, pointer inspection, move-aware `set`,
+  `take`, and `reset` operations;
+- copyability inherited from `T`, including non-copyable owning values;
+- normal compiler-generated destruction through always-valid `T.init` storage;
+- JSON null and TOML omission support through `xtb.serde`.
+
 ### Strings
 
 - mandatory read-only `String = const(char)[]` values;

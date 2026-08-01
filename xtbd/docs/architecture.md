@@ -796,13 +796,25 @@ backend can therefore preserve field identifiers, fixed-width values, and
 other binary policies without pretending they are strings.
 
 Schemas support booleans, signed and unsigned integers, floating-point values,
-enums, nested structs, fixed arrays, and two deliberate ownership families.
-Document-owned schemas use `String`, dynamic slices, and pointers as nullable
-values. Self-owning schemas use `StringBuf` and `Array!T`; they do not contain
-raw owning pointers or slices. The root of a key-value document is a struct.
-Unsupported or mixed ownership shapes fail at compile time with the field and
-type in the diagnostic. Enums use their D member names in text formats by
-default.
+enums, nested structs, fixed arrays, and `Option!T`, plus two deliberate
+ownership families. Document-owned schemas use `String`, dynamic slices, and
+legacy nullable pointers. Self-owning schemas use `StringBuf` and `Array!T`;
+they do not contain raw owning pointers or slices. `Option!T` is the preferred
+nullable representation in either family and recursively adopts the ownership
+model of `T`. The root of a key-value document is a struct. Unsupported or
+mixed ownership shapes fail at compile time with the field and type in the
+diagnostic. Enums use their D member names in text formats by default.
+
+`Option!T` is an ordinary BetterC value. `Option.init` is absent, `set` replaces
+its value by move, `reset` destroys the current value, and `take` transfers it
+out. Access through `value` checks that it is present. The option always
+contains valid `T.init` storage, which lets compiler-generated destruction
+handle owning `T` without a manually managed union. It is copyable exactly
+when `T` is copyable. JSON encodes an absent option as `null` and accepts
+`null`; TOML has no null value, so it omits absent option fields and makes an
+option present whenever its key is decoded. A missing field remains absent.
+`@required Option!T` requires the key to occur; in JSON, an explicitly present
+`null` still satisfies that key-presence rule while leaving the option absent.
 
 Fields use narrowly scoped UDAs from `xtb.serde.attributes`:
 
@@ -848,10 +860,11 @@ failure, and replaces the caller's previous output by move only after the
 whole document succeeds. The previous value therefore remains intact on
 syntax, schema, range, limit, or allocation failure. The resulting struct can
 be mutated, moved, reset, and extended using the normal `StringBuf` and
-`Array!T` APIs. Every owning container in a successful result is initialized
-with the decode allocator even when its field was absent, including containers
-inside nested records and fixed or dynamic owning arrays. Appending to an
-absent optional collection or string therefore requires no repair step.
+`Array!T` APIs. Every direct owning container in a successful result is
+initialized with the decode allocator even when its field was absent,
+including containers inside nested records and fixed or dynamic owning arrays.
+An absent `Option!T` must be made present with `set` before its value is
+accessed.
 
 Serde permits compiler-generated destruction arising from supported owning
 fields. A user-defined destructor remains unsupported because the decoder

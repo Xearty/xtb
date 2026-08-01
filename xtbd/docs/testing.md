@@ -188,6 +188,10 @@ Serde tests additionally verify:
 
 - every supported scalar, enum, nested struct, pointer, fixed array, and
   dynamic-slice shape round-trips through each applicable backend;
+- `Option!T` covers trivial, borrowed, and move-only owning values; JSON null
+  and missing fields remain absent, TOML omits absent values, nested optional
+  tables decode correctly, and `@required` checks key presence independently
+  of JSON nullness;
 - rename, legacy alias, ignore, required, omit-default, and flatten attributes
   compose correctly, with invalid or conflicting schemas rejected at compile
   time;
@@ -209,8 +213,9 @@ Serde tests additionally verify:
 - destroying or resetting a successful `Deserialized!T` recursively releases
   the root, copied strings, slices, and nullable pointer values exactly once;
 - owning decodes populate `StringBuf`, `Array!T`, nested owning structs, and
-  fixed arrays without an ownership wrapper; the result remains freely
-  mutable and normal RAII destruction releases every nested allocation;
+  fixed arrays, including those nested in `Option!T`, without an ownership
+  wrapper; the result remains freely mutable and normal RAII destruction
+  releases every nested allocation;
 - absent owning fields retain the decode allocator and can grow immediately,
   while omit-default compares empty owning containers without allocating;
 - any owning decode failure destroys the temporary partial graph, balances the

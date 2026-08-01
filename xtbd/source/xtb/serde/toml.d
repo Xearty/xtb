@@ -10,6 +10,7 @@ import core.lifetime : move;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array : Array, tryResize;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
+import xtb.core.option : Option;
 import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string : StringBuf;
@@ -22,8 +23,9 @@ import xtb.serde.ownership : Deserialized, abandonDeserialized,
     deserializationAllocator, prepareDeserialized;
 import xtb.serde.traits : ArrayElement, FieldType, Unqualified, fieldHas,
     fieldMatches, fieldName, isArray, isDynamicArray, isFixedArray,
-    isSerdeStruct, isString, isStringBuf, initializeOwnedValue, schemaCase,
-    validateBorrowedSchema, validateOwnedSchema, validateSchema;
+    isOption, isSerdeStruct, isString, isStringBuf, initializeOwnedValue,
+    OptionElement, schemaCase, validateBorrowedSchema, validateOwnedSchema,
+    validateSchema;
 
 struct TomlWriteOptions
 {
@@ -175,6 +177,12 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
+    else static if (isOption!U)
+    {
+        if (value.hasValue != expected.hasValue)
+            return false;
+        return !value.hasValue || valuesEqual(value.value, expected.value);
+    }
     else static if (isDynamicArray!U)
     {
         if (value.length != expected.length)
@@ -273,7 +281,7 @@ private void encodeRootField(T, size_t index, F)(
     static if (fieldHas!(T, index, OmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
-    if (nullPointer(value))
+    if (absentValue(value))
         return;
     if (*wrote)
         encoder.writer.put('\n');
@@ -283,9 +291,11 @@ private void encodeRootField(T, size_t index, F)(
     *wrote = true;
 }
 
-private bool nullPointer(T)(scope const ref T value) pure @safe
+private bool absentValue(T)(scope const ref T value) pure @safe
 {
-    static if (is(Unqualified!T == Pointee*, Pointee))
+    static if (isOption!T)
+        return value.empty;
+    else static if (is(Unqualified!T == Pointee*, Pointee))
         return value is null;
     else
         return false;
@@ -346,6 +356,13 @@ private void encodeValue(T)(ref TomlEncoder encoder, scope const ref T value, si
         encoder.writer.value(value);
     else static if (__traits(isFloating, U))
         encodeFloat(encoder, value);
+    else static if (isOption!U)
+    {
+        if (value.empty)
+            encoder.fail(SerdeErrorKind.unsupportedValue);
+        else
+            encodeValue(encoder, value.value, depth);
+    }
     else static if (is(U == Pointee*, Pointee))
     {
         if (value is null)
@@ -402,7 +419,7 @@ private void encodeInlineField(T, size_t index, F)(
     static if (fieldHas!(T, index, OmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
-    if (nullPointer(value))
+    if (absentValue(value))
         return;
     if (*wrote)
         encoder.writer.put(", ");
@@ -640,6 +657,8 @@ private size_t nodeWidth(T, size_t index)() pure @safe
         return tomlNodeCount!F;
     else static if (isSerdeStruct!F)
         return 1 + tomlNodeCount!F;
+    else static if (isOption!F && isSerdeStruct!(OptionElement!F))
+        return 1 + tomlNodeCount!(OptionElement!F);
     else static if (is(Unqualified!F == Pointee*, Pointee) && isSerdeStruct!Pointee)
         return 1 + tomlNodeCount!Pointee;
     else
@@ -894,6 +913,13 @@ private void decodePathField(T, size_t index)(
         *matched = true;
         static if (isSerdeStruct!F)
             decodeInlineTable(parser, &output.tupleof[index], 0, seen + ordinal + 1);
+        else static if (isOption!F && isSerdeStruct!(OptionElement!F))
+        {
+            decodeInlineTable(parser, &output.tupleof[index].storage(), 0,
+                seen + ordinal + 1);
+            if (parser.error.ok)
+                output.tupleof[index].markPresent();
+        }
         else static if (is(Unqualified!F == Pointee*, Pointee) &&
             isSerdeStruct!Pointee)
         {
@@ -914,6 +940,14 @@ private void decodePathField(T, size_t index)(
         seen[ordinal] = true;
         decodePath(parser, &output.tupleof[index], prefix, prefixLength,
             suffix, suffixLength, nextPrefix, nextSuffix, seen, ordinal + 1, matched);
+    }
+    else static if (isOption!F && isSerdeStruct!(OptionElement!F))
+    {
+        output.tupleof[index].markPresent();
+        seen[ordinal] = true;
+        decodePath(parser, &output.tupleof[index].storage(), prefix, prefixLength,
+            suffix, suffixLength, nextPrefix, nextSuffix, seen, ordinal + 1,
+            matched);
     }
     else static if (is(Unqualified!F == Pointee*, Pointee) && isSerdeStruct!Pointee)
     {
@@ -974,6 +1008,12 @@ private void validateRequiredField(T, size_t index)(
                     validateRequired(parser, &output.tupleof[index], seen,
                         ordinal + 1);
             }
+            else static if (isOption!F && isSerdeStruct!(OptionElement!F))
+            {
+                if (seen[ordinal] && output.tupleof[index].hasValue)
+                    validateRequired(parser, &output.tupleof[index].storage(), seen,
+                        ordinal + 1);
+            }
             else static if (is(Unqualified!F == Pointee*, Pointee) &&
                 isSerdeStruct!Pointee)
             {
@@ -1011,6 +1051,8 @@ private void decodeValue(T)(ref TomlParser parser, T* output, size_t depth)
         decodeInteger(parser, output);
     else static if (__traits(isFloating, U))
         decodeFloat(parser, output);
+    else static if (isOption!U)
+        decodeOption!(OptionElement!U)(parser, cast(U*) output, depth);
     else static if (is(U == Pointee*, Pointee))
         decodePointer(parser, output, depth);
     else static if (isArray!U)
@@ -1021,6 +1063,17 @@ private void decodeValue(T)(ref TomlParser parser, T* output, size_t depth)
         decodeFixedArray(parser, output, depth);
     else static if (isSerdeStruct!U)
         decodeInlineTable(parser, output, depth);
+}
+
+private void decodeOption(T)(
+    ref TomlParser parser,
+    Option!T* output,
+    size_t depth,
+)
+{
+    decodeValue(parser, &(*output).storage(), depth);
+    if (parser.error.ok)
+        (*output).markPresent();
 }
 
 private void decodeInlineTable(T)(

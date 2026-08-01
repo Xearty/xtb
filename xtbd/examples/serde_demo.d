@@ -3,6 +3,7 @@ module examples.serde_demo;
 import core.lifetime : move;
 import xtb.core.array : Array, append;
 import xtb.core.memory : Allocator, mallocAllocator;
+import xtb.core.option : Option, set;
 import xtb.core.print : Writer, writeln;
 import xtb.core.string : String, StringBuf, append, clear, equal;
 import xtb.serde : Deserialized, KeyCase, SerdeError, aliasName, fieldCase,
@@ -32,6 +33,8 @@ private struct ServiceConfig
     Array!Endpoint replicaEndpoints;
     Array!StringBuf featureFlags;
     int[3] retryDelays;
+    Option!StringBuf deploymentNote;
+    Option!Endpoint fallbackEndpoint;
     @omitDefault bool tracingEnabled;
     @ignore uint runtimeRequests;
 }
@@ -94,6 +97,7 @@ private bool demonstrateOwningDecode() nothrow @nogc
         "  ],\n" ~
         "  \"feature_flags\": [\"audit\", \"metrics\"],\n" ~
         "  \"retry_delays\": [1, 5, 30],\n" ~
+        "  \"deployment_note\": null,\n" ~
         "  \"tracing_enabled\": true\n" ~
         "}";
 
@@ -117,6 +121,12 @@ private bool demonstrateOwningDecode() nothrow @nogc
     config.tracingEnabled = false;
     ++config.runtimeRequests;
 
+    writeln("optional deployment note present: ",
+        config.deploymentNote.hasValue);
+    StringBuf deploymentNote = StringBuf.fromString(allocator,
+        "promote after health checks");
+    config.deploymentNote.set(move(deploymentNote));
+
     StringBuf feature = StringBuf.fromString(allocator, "compression");
     config.featureFlags.append(move(feature));
 
@@ -128,6 +138,13 @@ private bool demonstrateOwningDecode() nothrow @nogc
     StringBuf canary = StringBuf.fromString(allocator, "canary");
     replica.labels.append(move(canary));
     config.replicaEndpoints.append(move(replica));
+
+    Endpoint fallback;
+    fallback.hostName = StringBuf.fromString(allocator, "fallback.internal");
+    fallback.port = 443;
+    fallback.protocol = Protocol.https;
+    fallback.labels = Array!StringBuf.create(allocator);
+    config.fallbackEndpoint.set(move(fallback));
 
     if (!writeFormats(config))
         return false;

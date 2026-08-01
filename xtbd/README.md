@@ -19,7 +19,8 @@ unsupported operations.
 The `xtb.serde` package provides compile-time, attribute-driven mapping of
 BetterC structs to structured formats. It has no runtime registry or DOM;
 JSON and TOML backends traverse typed values directly, and decoded object
-graphs are held by explicit non-copyable `Deserialized!T` owners.
+graphs are held by explicit non-copyable `Deserialized!T` owners. `Option!T`
+provides nullable values in both document-owned and self-owning schemas.
 
 Stack traces include caller-storage-bounded D demangling, allocation-free
 signature coloring,
@@ -86,7 +87,8 @@ Directory traversal streams entries rather than allocating a linked list. See
 Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
 `Deserialized!T` with `String` and slices for one document-owned graph, or
 decode directly into an ordinary RAII struct containing `StringBuf` and
-`Array!T` for independently owned, freely mutable data. See
+`Array!T` for independently owned, freely mutable data. Use `Option!T` for
+nullable fields; JSON maps absence to `null`, while TOML omits absent fields. See
 `examples/serde_demo.d`.
 
 The remaining C++ core capability audit and proposed implementation milestone

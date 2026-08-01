@@ -5,6 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array : Array;
 import xtb.core.memory : Allocator;
+import xtb.core.option : Option;
 import xtb.core.string : StringBuf;
 import xtb.core.types : String;
 import xtb.serde.attributes;
@@ -30,6 +31,16 @@ template ArrayElement(T)
 
 enum isArray(T) = is(Unqualified!T == Array!Element, Element);
 
+template OptionElement(T)
+{
+    static if (is(Unqualified!T == Option!Element, Element))
+        alias OptionElement = Element;
+    else
+        static assert(false, T.stringof ~ " is not an Option");
+}
+
+enum isOption(T) = is(Unqualified!T == Option!Element, Element);
+
 enum isDynamicArray(T) = is(Unqualified!T == Element[], Element) &&
     !is(Element == char) && !is(Element == const(char)) &&
     !is(Element == immutable(char));
@@ -39,7 +50,8 @@ enum isFixedArray(T) = is(Unqualified!T == Element[N], Element, size_t N) &&
     !is(Element == immutable(char));
 
 enum isSerdeStruct(T) = is(Unqualified!T == struct) && !isStringBuf!T &&
-    !isArray!T && !__traits(hasMember, Unqualified!T, "__dtor");
+    !isArray!T && !isOption!T &&
+    !__traits(hasMember, Unqualified!T, "__dtor");
 
 private bool containsAttribute(A, Attributes...)(Attributes attributes)
 pure @safe
@@ -164,6 +176,8 @@ private bool supportedValue(T)() pure @safe
     static if (isString!U || isStringBuf!U || is(U == bool) || is(U == enum) ||
         __traits(isIntegral, U) || __traits(isFloating, U))
         return true;
+    else static if (isOption!U)
+        return supportedValue!(OptionElement!U);
     else static if (is(U == Pointee*, Pointee))
         return supportedValue!Pointee;
     else static if (isDynamicArray!U)
@@ -209,6 +223,8 @@ private bool borrowedValue(T)() pure @safe
     static if (isString!U || is(U == bool) || is(U == enum) ||
         __traits(isIntegral, U) || __traits(isFloating, U))
         return true;
+    else static if (isOption!U)
+        return borrowedValue!(OptionElement!U);
     else static if (is(U == Pointee*, Pointee))
         return borrowedValue!Pointee;
     else static if (isDynamicArray!U)
@@ -233,6 +249,8 @@ private bool ownedValue(T)() pure @safe
     static if (isStringBuf!U || is(U == bool) || is(U == enum) ||
         __traits(isIntegral, U) || __traits(isFloating, U))
         return true;
+    else static if (isOption!U)
+        return ownedValue!(OptionElement!U);
     else static if (isArray!U)
         return ownedValue!(ArrayElement!U);
     else static if (isFixedArray!U)
@@ -271,6 +289,8 @@ package(xtb.serde) void initializeOwnedValue(T)(
     alias U = Unqualified!T;
     static if (isStringBuf!U)
         *cast(StringBuf*) output = StringBuf.create(allocator);
+    else static if (isOption!U)
+        initializeOwnedValue(allocator, &(*output).storage());
     else static if (isArray!U)
         *cast(U*) output = U.create(allocator);
     else static if (isFixedArray!U)

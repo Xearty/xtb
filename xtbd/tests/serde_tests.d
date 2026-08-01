@@ -3,6 +3,7 @@ module tests.serde_tests;
 import core.lifetime : move;
 import xtb.core.array : Array, append;
 import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
+import xtb.core.option : Option, set;
 import xtb.core.print : Writer;
 import xtb.core.string : String, StringBuf, append, clear, equal;
 import xtb.serde.attributes;
@@ -59,6 +60,15 @@ private struct OptionalChild
 private struct OptionalDocument
 {
     OptionalChild* child;
+}
+
+@fieldCase(KeyCase.snake)
+private struct OptionalValues
+{
+    Option!String title;
+    Option!int priority;
+    Option!OptionalChild child;
+    @required Option!bool explicitToggle;
 }
 
 private struct CasingDocument
@@ -132,9 +142,20 @@ private struct OwnedDocument
     @omitDefault bool tracingEnabled;
 }
 
+@fieldCase(KeyCase.snake)
+private struct OwnedOptionalValues
+{
+    Option!StringBuf title;
+    Option!OwnedEndpoint endpoint;
+    Option!uint revision;
+    @required Option!bool explicitToggle;
+}
+
 static assert(!__traits(compiles, validateSchema!ConflictingNames()));
 static assert(__traits(compiles, validateSchema!StaticInitializer()));
 static assert(__traits(compiles, validateOwnedSchema!OwnedDocument()));
+static assert(__traits(compiles, validateOwnedSchema!OwnedOptionalValues()));
+static assert(__traits(compiles, validateBorrowedSchema!OptionalValues()));
 static assert(!__traits(compiles, validateBorrowedSchema!OwnedDocument()));
 static assert(!__traits(compiles, validateOwnedSchema!Settings()));
 static assert(!__traits(compiles, (ref Deserialized!Settings value) {
@@ -351,6 +372,46 @@ private void testJsonAllocationFailures() nothrow @nogc
     assert(defaultAllocator.clean);
 }
 
+private void testJsonOptions() nothrow @nogc
+{
+    Deserialized!OptionalValues decoded;
+    SerdeError error = readJson(
+        "{\"title\":\"deploy\",\"priority\":null," ~
+            "\"child\":{\"label\":\"worker\",\"value\":7}," ~
+            "\"explicit_toggle\":false}",
+        mallocAllocator(),
+        &decoded,
+    );
+    assert(error.ok);
+    assert(decoded.value.title.hasValue);
+    assert(decoded.value.title.value.equal("deploy"));
+    assert(decoded.value.priority.empty);
+    assert(decoded.value.child.hasValue);
+    assert(decoded.value.child.value.label.equal("worker"));
+    assert(decoded.value.child.value.value == 7);
+    assert(decoded.value.explicitToggle.hasValue);
+    assert(!decoded.value.explicitToggle.value);
+
+    // A required option requires the key, not a non-null JSON value.
+    error = readJson("{\"explicit_toggle\":null}", mallocAllocator(), &decoded);
+    assert(error.ok);
+    assert(decoded.value.explicitToggle.empty);
+    error = readJson("{}", mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.missingRequiredField);
+
+    OptionalValues value;
+    value.title.set("release");
+    value.priority.set(4);
+    value.explicitToggle.set(true);
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, value);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "{\"title\":\"release\",\"priority\":4,\"child\":null," ~
+            "\"explicit_toggle\":true}"));
+}
+
 private void testTomlRoundTrip() nothrow @nogc
 {
     Server[2] servers = [
@@ -455,6 +516,116 @@ private void testTomlAllocationFailures() nothrow @nogc
         }
         assert(allocator.clean);
         assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+}
+
+private void testTomlOptions() nothrow @nogc
+{
+    enum input =
+        "title = \"deploy\"\n" ~
+        "explicit_toggle = false\n" ~
+        "\n" ~
+        "[child]\n" ~
+        "label = \"worker\"\n" ~
+        "value = 7\n";
+    Deserialized!OptionalValues decoded;
+    SerdeError error = readToml(input, mallocAllocator(), &decoded);
+    assert(error.ok);
+    assert(decoded.value.title.hasValue);
+    assert(decoded.value.title.value.equal("deploy"));
+    assert(decoded.value.priority.empty);
+    assert(decoded.value.child.hasValue);
+    assert(decoded.value.child.value.label.equal("worker"));
+    assert(decoded.value.child.value.value == 7);
+    assert(decoded.value.explicitToggle.hasValue);
+    assert(!decoded.value.explicitToggle.value);
+
+    OptionalValues value;
+    value.priority.set(4);
+    value.explicitToggle.set(true);
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, value);
+    assert(error.ok);
+    assert(encoded.view.equal("priority = 4\nexplicit_toggle = true"));
+
+    error = readToml("priority = 1\n", mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.missingRequiredField);
+}
+
+private void testOwnedOptionsAndFailures() nothrow @nogc
+{
+    enum jsonInput =
+        "{\"title\":null,\"endpoint\":{\"host_name\":\"api.internal\"," ~
+        "\"port\":8443,\"labels\":[\"tls\"]},\"revision\":3," ~
+        "\"explicit_toggle\":true}";
+    enum tomlInput =
+        "title = \"scheduler\"\n" ~
+        "explicit_toggle = true\n" ~
+        "\n" ~
+        "[endpoint]\n" ~
+        "host_name = \"jobs.internal\"\n" ~
+        "port = 7000\n" ~
+        "labels = [\"stable\"]\n";
+
+    AllocationRecord[128] records;
+    InstrumentedAllocator allocator = InstrumentedAllocator.create(
+        mallocAllocator(), records[]);
+    {
+        OwnedOptionalValues value;
+        SerdeError error = readJson(jsonInput, allocator.handle, &value);
+        assert(error.ok);
+        assert(value.title.empty);
+        assert(value.endpoint.hasValue);
+        assert(value.endpoint.value.hostName.view.equal("api.internal"));
+        assert(value.endpoint.value.labels[0].view.equal("tls"));
+        assert(value.revision.value == 3);
+
+        StringBuf title = StringBuf.fromString(allocator.handle, "release");
+        value.title.set(move(title));
+        value.endpoint.value.hostName.append(".test");
+
+        StringBuf encoded = StringBuf.create(allocator.handle);
+        Writer writer = Writer.fromSink(&bufferSink, &encoded);
+        error = writeJson(writer, value);
+        assert(error.ok);
+        assert(encoded.view.equal(
+                "{\"title\":\"release\",\"endpoint\":{" ~
+                "\"host_name\":\"api.internal.test\",\"port\":8443," ~
+                "\"labels\":[\"tls\"]},\"revision\":3," ~
+                "\"explicit_toggle\":true}"));
+
+        error = readToml(tomlInput, allocator.handle, &value);
+        assert(error.ok);
+        assert(value.title.value.view.equal("scheduler"));
+        assert(value.endpoint.hasValue);
+        assert(value.endpoint.value.hostName.view.equal("jobs.internal"));
+        assert(value.endpoint.value.labels[0].view.equal("stable"));
+        assert(value.revision.empty);
+    }
+    assert(allocator.clean);
+    assert(allocator.stats.invalidCalls == 0);
+
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 24)
+    {
+        AllocationRecord[128] failureRecords;
+        InstrumentedAllocator failureAllocator = InstrumentedAllocator.create(
+            mallocAllocator(), failureRecords[]);
+        failureAllocator.failAfter(allowed);
+        {
+            OwnedOptionalValues value;
+            SerdeError error = readJson(jsonInput, failureAllocator.handle, &value);
+            if (error.ok)
+                reachedSuccess = true;
+            else
+                assert(error.kind == SerdeErrorKind.allocationFailure);
+        }
+        assert(failureAllocator.clean);
+        assert(failureAllocator.stats.invalidCalls == 0);
         if (reachedSuccess)
             break;
     }
@@ -682,12 +853,15 @@ extern (C) int main()
     testJsonUnicodeAndNumbers();
     testJsonCasingAndOutputFailure();
     testJsonAllocationFailures();
+    testJsonOptions();
     testTomlRoundTrip();
     testTomlTablesAndSyntax();
     testTomlAllocationFailures();
+    testTomlOptions();
     testOwnedJsonRoundTripAndMutation();
     testOwnedTomlRoundTripAndReplacement();
     testOwnedDecodeIsTransactional();
     testOwnedAllocationFailures();
+    testOwnedOptionsAndFailures();
     return 0;
 }

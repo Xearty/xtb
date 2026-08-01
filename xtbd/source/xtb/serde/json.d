@@ -10,6 +10,7 @@ import core.lifetime : move;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array : Array, tryResize;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
+import xtb.core.option : Option, reset;
 import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string : StringBuf;
@@ -22,8 +23,9 @@ import xtb.serde.ownership : Deserialized, abandonDeserialized,
     deserializationAllocator, prepareDeserialized;
 import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
     fieldHas, fieldMatches, fieldName, fieldOrdinal, isArray, isDynamicArray,
-    isFixedArray, isSerdeStruct, isString, isStringBuf, initializeOwnedValue,
-    schemaCase, serializedFieldCount, validateBorrowedSchema,
+    isFixedArray, isOption, isSerdeStruct, isString, isStringBuf,
+    initializeOwnedValue, OptionElement, schemaCase, serializedFieldCount,
+    validateBorrowedSchema,
     validateOwnedSchema, validateSchema;
 
 struct JsonWriteOptions
@@ -194,6 +196,12 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
+    else static if (isOption!U)
+    {
+        if (value.hasValue != expected.hasValue)
+            return false;
+        return !value.hasValue || valuesEqual(value.value, expected.value);
+    }
     else static if (isDynamicArray!U)
     {
         if (value.length != expected.length)
@@ -265,6 +273,13 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
         encoder.writer.value(value);
     else static if (__traits(isFloating, U))
         encodeFloat(encoder, value);
+    else static if (isOption!U)
+    {
+        if (value.empty)
+            encoder.writer.put("null");
+        else
+            encodeValue(encoder, value.value, depth);
+    }
     else static if (is(U == Pointee*, Pointee))
     {
         if (value is null)
@@ -542,6 +557,8 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeInteger(parser, output);
     else static if (__traits(isFloating, U))
         decodeFloat(parser, output);
+    else static if (isOption!U)
+        decodeOption!(OptionElement!U)(parser, cast(U*) output, depth);
     else static if (is(U == Pointee*, Pointee))
         decodePointer(parser, output, depth);
     else static if (isArray!U)
@@ -552,6 +569,22 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeFixedArray(parser, output, depth);
     else static if (isSerdeStruct!U)
         decodeObject(parser, output, depth);
+}
+
+private void decodeOption(T)(
+    ref JsonParser parser,
+    Option!T* output,
+    size_t depth,
+)
+{
+    if (matchLiteral(parser, "null"))
+    {
+        (*output).reset();
+        return;
+    }
+    decodeValue(parser, &(*output).storage(), depth);
+    if (parser.error.ok)
+        (*output).markPresent();
 }
 
 private void decodeObject(T)(ref JsonParser parser, T* output, size_t depth)
