@@ -5,7 +5,7 @@ version (Posix)
     import core.sys.posix.stdlib : posix_memalign;
 else
     import core.stdc.stdlib : aligned_alloc;
-import core.stdc.string : memcpy;
+import core.stdc.string : memcpy, memset;
 import xtb.core.panic : panic, require;
 import xtb.core.types : multiplyOverflows;
 
@@ -162,6 +162,7 @@ T* tryReallocate(T)(
     size_t oldCount,
     size_t newCount,
 ) nothrow @nogc
+    if (__traits(isPOD, T))
 {
     if (multiplyOverflows(T.sizeof, oldCount) ||
         multiplyOverflows(T.sizeof, newCount))
@@ -181,6 +182,7 @@ T* reallocate(T)(
     size_t oldCount,
     size_t newCount,
 ) nothrow @nogc
+    if (__traits(isPOD, T))
 {
     if (multiplyOverflows(T.sizeof, oldCount) ||
         multiplyOverflows(T.sizeof, newCount))
@@ -196,20 +198,21 @@ T* reallocate(T)(
 
 T* tryAllocateZeroed(T)(Allocator* allocator, size_t count = 1)
     nothrow @nogc
+    if (__traits(isPOD, T))
 {
     T* result = allocator.tryAllocate!T(count);
     if (result !is null)
-        foreach (i; 0 .. count)
-            result[i] = T.init;
+        memset(result, 0, T.sizeof * count);
     return result;
 }
 
 T* allocateZeroed(T)(Allocator* allocator, size_t count = 1)
     nothrow @nogc
+    if (__traits(isPOD, T))
 {
     T* result = allocator.allocate!T(count);
-    foreach (i; 0 .. count)
-        result[i] = T.init;
+    if (result !is null)
+        memset(result, 0, T.sizeof * count);
     return result;
 }
 
@@ -443,4 +446,32 @@ nothrow @nogc unittest
     assert(tracked.stats.failedCalls == 1);
     tracked.handle.deallocate(trackedValues, 4);
     assert(tracked.clean);
+}
+
+nothrow @nogc unittest
+{
+    struct PodWithInitializer
+    {
+        uint value = 0xFFFF_FFFF;
+    }
+
+    struct Owning
+    {
+        void* pointer;
+
+        ~this() nothrow @nogc
+        {
+        }
+    }
+
+    static assert(__traits(isPOD, PodWithInitializer));
+    static assert(!__traits(compiles,
+        mallocAllocator().allocateZeroed!Owning()));
+    static assert(!__traits(compiles,
+        mallocAllocator().reallocate!Owning(null, 0, 1)));
+
+    PodWithInitializer* value = mallocAllocator()
+        .allocateZeroed!PodWithInitializer();
+    assert(value.value == 0);
+    mallocAllocator().deallocate(value);
 }

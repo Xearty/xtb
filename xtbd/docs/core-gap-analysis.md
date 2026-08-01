@@ -22,7 +22,7 @@ ownership, hidden global state, and macro-oriented interfaces.
 - malloc-backed allocation, reallocation, and deallocation;
 - typed and byte-count allocation APIs;
 - typed element-count reallocation;
-- zeroed allocation;
+- byte-zeroed allocation constrained to POD element types;
 - fallible and panicking variants;
 - overflow, alignment, and old-allocation validation;
 - caller-storage-backed `InstrumentedAllocator` with deterministic failure

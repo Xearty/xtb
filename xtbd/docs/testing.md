@@ -122,6 +122,8 @@ after partial failure. In this project pay particular attention to:
 - owning-container destruction order, removal and shrinking of elaborate
   elements, relocation without double destruction, move-only elements, and
   copy-constrained slice operations;
+- byte-zeroed allocation produces all-zero POD storage and rejects elaborate
+  element types at compile time;
 - foreign enum/range validation and callback user-context preservation.
 
 Allocator-aware code should be tested with a small instrumented allocator that

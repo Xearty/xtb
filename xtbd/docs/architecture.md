@@ -322,6 +322,13 @@ explicitly or uses an owning object that already stores that handle. Document
 how long the allocator slot and its containing state must remain alive. Do not
 introduce a mutable global "current allocator."
 
+Typed allocation returns raw storage; it does not construct elements. Typed
+reallocation is restricted to POD representations, and
+`allocateZeroed!T` is available only when `T` is POD. Zeroed allocation means
+every byte is zero, not `T.init`: types with destructors, postblits, assignment
+hooks, or other lifetime semantics must be constructed explicitly in raw
+storage and destroyed before deallocation.
+
 Use these representations consistently:
 
 - `T[]`/`const(T)[]`: borrowed slice; document lifetime and mutability.
