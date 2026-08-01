@@ -48,6 +48,7 @@ test-release:
     ./build/core_tests_release
     ldc2 {{common_flags}} -unittest -O3 -release tests/math_tests.d {{math_test_source_files}} -of=build/math_tests_release
     ./build/math_tests_release
+    status=0; bash -c './build/math_tests_release --panic-random-bound >/dev/null 2>&1' >/dev/null 2>&1 || status=$?; test "$status" -eq 134
     ldc2 {{common_flags}} -unittest -O3 -release tests/os_tests.d {{os_test_source_files}} -of=build/os_tests_release
     ./build/os_tests_release
 

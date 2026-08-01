@@ -3,6 +3,7 @@ module xtb.math.scalar;
 @safe nothrow @nogc:
 
 import core.stdc.math : floorf;
+import xtb.core.panic : require;
 import xtb.core.types : i32;
 
 enum float pi = 3.14159265358979323846f;
@@ -19,13 +20,13 @@ pure float max(float a, float b)
     return a > b ? a : b;
 }
 
-pure float clamp(float value, float lower, float upper)
+float clamp(float value, float lower, float upper)
 {
-    assert(lower <= upper, "invalid clamp range");
+    require(lower <= upper, "invalid clamp range");
     return value < lower ? lower : value > upper ? upper : value;
 }
 
-pure float saturate(float value)
+float saturate(float value)
 {
     return clamp(value, 0, 1);
 }
@@ -65,13 +66,18 @@ pure float degrees(float radians_)
     return radians_ * (180 / pi);
 }
 
-pure float smoothstep(float edge0, float edge1, float value)
+pure bool isFinite(float value)
+{
+    return value == value && value >= -float.max && value <= float.max;
+}
+
+float smoothstep(float edge0, float edge1, float value)
 {
     const t = saturate(inverseLerp(edge0, edge1, value));
     return t * t * (3 - 2 * t);
 }
 
-pure float smootherstep(float edge0, float edge1, float value)
+float smootherstep(float edge0, float edge1, float value)
 {
     const t = saturate(inverseLerp(edge0, edge1, value));
     return t * t * t * (t * (t * 6 - 15) + 10);
@@ -79,20 +85,21 @@ pure float smootherstep(float edge0, float edge1, float value)
 
 float repeat(float value, float period)
 {
-    assert(period > 0, "repeat period must be positive");
+    require(period > 0 && period.isFinite, "repeat period must be positive and finite");
     return value - floorf(value / period) * period;
 }
 
-pure i32 repeat(i32 value, i32 period)
+i32 repeat(i32 value, i32 period)
 {
-    assert(period > 0, "repeat period must be positive");
+    require(period > 0, "repeat period must be positive");
     const remainder = value % period;
     return remainder < 0 ? remainder + period : remainder;
 }
 
 float pingPong(float value, float length)
 {
-    assert(length > 0, "ping-pong length must be positive");
+    require(length > 0 && length.isFinite,
+        "ping-pong length must be positive and finite");
     const folded = repeat(value, 2 * length);
     return length - (folded > length ? folded - length : length - folded);
 }

@@ -1,11 +1,15 @@
 module xtb.math.random;
 
+nothrow @safe @nogc:
+
+import xtb.core.panic : require;
 import xtb.core.types : u32, u64;
+import xtb.math.scalar : isFinite;
 
 /// Small deterministic PCG-XSH-RR generator. Its sequence is stable API.
 struct Random
 {
-pure nothrow @safe @nogc:
+nothrow @safe @nogc:
 
     private u64 state_;
     private u64 increment_;
@@ -31,7 +35,7 @@ pure nothrow @safe @nogc:
 
     u32 below(u32 bound)
     {
-        assert(bound != 0, "random bound must be nonzero");
+        require(bound != 0, "random bound must be nonzero");
         const threshold = -bound % bound;
         for (;;)
         {
@@ -49,8 +53,14 @@ pure nothrow @safe @nogc:
 
     float between(float lower, float upper)
     {
-        assert(lower <= upper, "invalid random range");
-        return lower + (upper - lower) * unit();
+        require(lower.isFinite && upper.isFinite && lower <= upper,
+            "random range must be finite and ordered");
+        if (lower == upper)
+            return lower;
+        const t = unit();
+        if (lower < 0 && upper > 0)
+            return lower * (1 - t) + upper * t;
+        return lower + (upper - lower) * t;
     }
 }
 
@@ -75,4 +85,10 @@ nothrow @safe @nogc unittest
         const realValue = range.unit();
         assert(realValue >= 0 && realValue < 1);
     }
+    foreach (_; 0 .. 100)
+    {
+        const value = range.between(-float.max, float.max);
+        assert(value.isFinite && value >= -float.max && value <= float.max);
+    }
+    assert(range.between(7, 7) == 7);
 }

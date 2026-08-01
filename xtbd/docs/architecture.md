@@ -96,12 +96,31 @@ Matrices are column-major and multiply column vectors. `a * b * point` applies
 Projection functions use the OpenGL-style right-handed clip convention with
 depth in `[-1, 1]`. Inversion is fallible and writes through an explicit
 output pointer: singular matrices return `false` without fabricating a matrix.
-The affine inverse additionally rejects non-affine inputs.
+The output remains untouched on failure. Inversion normalizes the input scale
+and rejects pivots or normalized determinants at or below
+`inverseRelativeTolerance`, currently eight float epsilons; callers needing
+ill-conditioned matrices must use a wider representation or domain-specific
+solver. The affine inverse additionally rejects non-affine inputs.
+
+Vector lengths use scale-normalized norms so large or subnormal finite vectors
+do not overflow or underflow merely while being normalized. `tryLookAt` rejects
+non-finite inputs, coincident eye/target positions, zero up vectors, and up/view
+directions parallel within the inverse tolerance. `lookAt` is the panicking
+wrapper for call sites where such input is a programming error.
+
+`rotationYawPitchRoll` uses radians and composes local roll about +Z, then pitch
+about +X, then the library's clockwise-positive yaw about +Y; applying it to
+the default forward vector agrees with `directionFromDegrees`. Transform UFCS
+helpers state multiplication side explicitly: `preTranslated` means
+`translation * base`, while `postTranslated` means `base * translation`, with
+equivalent names for scale and rotation.
 
 `Random` implements a stable PCG32 sequence. Callers always supply a seed and
 may supply an independent stream; there is no process-global random state.
 `unit()` returns values in `[0, 1)`, and `below(bound)` uses rejection sampling
-instead of modulo-biased range reduction.
+instead of modulo-biased range reduction. `between` requires finite ordered
+endpoints and uses sign-aware interpolation, so the full `[-float.max,
+float.max]` range does not overflow while forming its span.
 
 `ValueNoise1D` owns its periodic lattice through an explicit `Allocator*` and
 is non-copyable. Its integer lattice values lie in `[-1, 1]`; `sample` uses a

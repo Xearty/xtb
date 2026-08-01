@@ -95,7 +95,7 @@ nothrow @nogc
 void require(string file = __FILE__, size_t line = __LINE__)(
     bool condition,
     String message,
-) nothrow @nogc
+) nothrow @trusted @nogc
 {
     if (!condition)
         panicAt(message, file, line);
@@ -104,7 +104,7 @@ void require(string file = __FILE__, size_t line = __LINE__)(
 noreturn unreachableCode(
     string file = __FILE__,
     size_t line = __LINE__,
-)() nothrow @nogc
+)() nothrow @trusted @nogc
 {
     panicAt("unreachable code reached", file, line);
 }

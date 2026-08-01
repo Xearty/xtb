@@ -2,8 +2,9 @@ module xtb.math.vector;
 
 @safe nothrow @nogc:
 
-import core.stdc.math : acosf, cosf, sinf, sqrtf;
-import xtb.math.scalar : clamp, degrees, lerp, max, min, radians;
+import core.stdc.math : acosf, cosf, fabsf, sinf, sqrtf;
+import xtb.core.panic : require;
+import xtb.math.scalar : clamp, degrees, isFinite, lerp, max, min, radians;
 
 struct Vector2
 {
@@ -242,37 +243,101 @@ pure float lengthSquared(Vector4 v)
     return dot(v, v);
 }
 
+private pure bool finiteComponent(float value)
+{
+    return value == value && value >= -float.max && value <= float.max;
+}
+
+pure bool isFinite(Vector2 v)
+{
+    return finiteComponent(v.x) && finiteComponent(v.y);
+}
+
+pure bool isFinite(Vector3 v)
+{
+    return finiteComponent(v.x) && finiteComponent(v.y) && finiteComponent(v.z);
+}
+
+pure bool isFinite(Vector4 v)
+{
+    return finiteComponent(v.x) && finiteComponent(v.y) &&
+        finiteComponent(v.z) && finiteComponent(v.w);
+}
+
 float length(Vector2 v)
 {
-    return sqrtf(v.lengthSquared);
+    if (v.x != v.x || v.y != v.y)
+        return float.nan;
+    const ax = fabsf(v.x), ay = fabsf(v.y);
+    const scale = max(ax, ay);
+    if (scale == 0)
+        return 0;
+    if (scale == float.infinity)
+        return float.infinity;
+    const x = ax / scale, y = ay / scale;
+    return scale * sqrtf(x * x + y * y);
 }
 
 float length(Vector3 v)
 {
-    return sqrtf(v.lengthSquared);
+    if (v.x != v.x || v.y != v.y || v.z != v.z)
+        return float.nan;
+    const ax = fabsf(v.x), ay = fabsf(v.y), az = fabsf(v.z);
+    const scale = max(ax, max(ay, az));
+    if (scale == 0)
+        return 0;
+    if (scale == float.infinity)
+        return float.infinity;
+    const x = ax / scale, y = ay / scale, z = az / scale;
+    return scale * sqrtf(x * x + y * y + z * z);
 }
 
 float length(Vector4 v)
 {
-    return sqrtf(v.lengthSquared);
+    if (v.x != v.x || v.y != v.y || v.z != v.z || v.w != v.w)
+        return float.nan;
+    const ax = fabsf(v.x), ay = fabsf(v.y), az = fabsf(v.z), aw = fabsf(v.w);
+    const scale = max(max(ax, ay), max(az, aw));
+    if (scale == 0)
+        return 0;
+    if (scale == float.infinity)
+        return float.infinity;
+    const x = ax / scale, y = ay / scale, z = az / scale, w = aw / scale;
+    return scale * sqrtf(x * x + y * y + z * z + w * w);
 }
 
 Vector2 normalized(Vector2 v)
 {
-    const n = v.length;
-    return n == 0 ? Vector2.init : v / n;
+    if (!v.isFinite)
+        return Vector2(float.nan, float.nan);
+    const scale = max(fabsf(v.x), fabsf(v.y));
+    if (scale == 0)
+        return Vector2.init;
+    const scaled = v / scale;
+    return scaled / sqrtf(dot(scaled, scaled));
 }
 
 Vector3 normalized(Vector3 v)
 {
-    const n = v.length;
-    return n == 0 ? Vector3.init : v / n;
+    if (!v.isFinite)
+        return Vector3(float.nan, float.nan, float.nan);
+    const scale = max(fabsf(v.x), max(fabsf(v.y), fabsf(v.z)));
+    if (scale == 0)
+        return Vector3.init;
+    const scaled = v / scale;
+    return scaled / sqrtf(dot(scaled, scaled));
 }
 
 Vector4 normalized(Vector4 v)
 {
-    const n = v.length;
-    return n == 0 ? Vector4.init : v / n;
+    if (!v.isFinite)
+        return Vector4(float.nan, float.nan, float.nan, float.nan);
+    const scale = max(max(fabsf(v.x), fabsf(v.y)),
+        max(fabsf(v.z), fabsf(v.w)));
+    if (scale == 0)
+        return Vector4.init;
+    const scaled = v / scale;
+    return scaled / sqrtf(dot(scaled, scaled));
 }
 
 pure float distanceSquared(Vector2 a, Vector2 b)
@@ -307,46 +372,48 @@ float distance(Vector4 a, Vector4 b)
 
 float angle(Vector2 a, Vector2 b)
 {
-    const d = a.length * b.length;
-    return d == 0 ? 0 : acosf(clamp(dot(a, b) / d, -1, 1));
+    const unitA = a.normalized, unitB = b.normalized;
+    return unitA == Vector2.init || unitB == Vector2.init
+        ? 0 : acosf(clamp(dot(unitA, unitB), -1, 1));
 }
 
 float angle(Vector3 a, Vector3 b)
 {
-    const d = a.length * b.length;
-    return d == 0 ? 0 : acosf(clamp(dot(a, b) / d, -1, 1));
+    const unitA = a.normalized, unitB = b.normalized;
+    return unitA == Vector3.init || unitB == Vector3.init
+        ? 0 : acosf(clamp(dot(unitA, unitB), -1, 1));
 }
 
 float projectionLength(Vector2 a, Vector2 onto)
 {
-    const n = onto.length;
-    return n == 0 ? 0 : dot(a, onto) / n;
+    const unit = onto.normalized;
+    return unit == Vector2.init ? 0 : dot(a, unit);
 }
 
 float projectionLength(Vector3 a, Vector3 onto)
 {
-    const n = onto.length;
-    return n == 0 ? 0 : dot(a, onto) / n;
+    const unit = onto.normalized;
+    return unit == Vector3.init ? 0 : dot(a, unit);
 }
 
-pure Vector2 projectedOnto(Vector2 a, Vector2 onto)
+Vector2 projectedOnto(Vector2 a, Vector2 onto)
 {
-    const d = dot(onto, onto);
-    return d == 0 ? Vector2.init : onto * (dot(a, onto) / d);
+    const unit = onto.normalized;
+    return unit == Vector2.init ? Vector2.init : unit * dot(a, unit);
 }
 
-pure Vector3 projectedOnto(Vector3 a, Vector3 onto)
+Vector3 projectedOnto(Vector3 a, Vector3 onto)
 {
-    const d = dot(onto, onto);
-    return d == 0 ? Vector3.init : onto * (dot(a, onto) / d);
+    const unit = onto.normalized;
+    return unit == Vector3.init ? Vector3.init : unit * dot(a, unit);
 }
 
-pure Vector2 rejectedFrom(Vector2 a, Vector2 onto)
+Vector2 rejectedFrom(Vector2 a, Vector2 onto)
 {
     return a - a.projectedOnto(onto);
 }
 
-pure Vector3 rejectedFrom(Vector3 a, Vector3 onto)
+Vector3 rejectedFrom(Vector3 a, Vector3 onto)
 {
     return a - a.projectedOnto(onto);
 }
@@ -423,6 +490,8 @@ pure Vector4 clamp(Vector4 v, Vector4 lo, Vector4 hi)
 
 Vector3 directionFromDegrees(float yaw, float pitch)
 {
+    require(yaw.isFinite && pitch.isFinite,
+        "direction angles must be finite");
     const y = radians(yaw), p = radians(pitch);
     return Vector3(sinf(y) * cosf(p), sinf(p), -cosf(y) * cosf(p));
 }
@@ -439,4 +508,13 @@ unittest
     assert(cross(Vector3(1, 0, 0), Vector3(0, 1, 0)) == Vector3(0, 0, 1));
     assert(Vector3.init.normalized == Vector3.init);
     assert(Vector3(3, 0, 0).projectedOnto(Vector3(0, 2, 0)) == Vector3.init);
+    const huge = float.max;
+    const hugeUnit = Vector3(huge, huge, 0).normalized;
+    assert(hugeUnit.length > 0.9999f && hugeUnit.length < 1.0001f);
+    const tinyUnit = Vector3(1e-30f, -1e-30f, 0).normalized;
+    assert(tinyUnit.length > 0.9999f && tinyUnit.length < 1.0001f);
+    const projected = Vector3(4, 3, 2).projectedOnto(
+        Vector3(huge, 0, 0),
+    );
+    assert(projected.x == 4 && projected.y == 0 && projected.z == 0);
 }
