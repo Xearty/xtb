@@ -170,33 +170,12 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
 }
 
 version (Posix)
-private void expectDeath(const(char)* executable, const(char)* name)
-    nothrow @nogc
-{
-    const process = fork();
-    assert(process >= 0);
-    if (process == 0)
-    {
-        execl(
-            executable,
-            executable,
-            "--death-case".ptr,
-            name,
-            cast(const(char)*) null,
-        );
-        _exit(126);
-    }
-    int status;
-    assert(waitpid(process, &status, 0) == process);
-    assert(status != 0);
-}
-
-version (Posix)
 private struct DeathOutput
 {
     char[32 * 1024] storage;
     size_t length;
     int signal;
+    bool truncated;
 
     String text() return scope pure nothrow @system @nogc
     {
@@ -215,7 +194,8 @@ private DeathOutput captureDeath(const(char)* executable, const(char)* name)
     if (process == 0)
     {
         close(descriptors[0]);
-        assert(dup2(descriptors[1], STDERR_FILENO) == STDERR_FILENO);
+        if (dup2(descriptors[1], STDERR_FILENO) != STDERR_FILENO)
+            _exit(125);
         close(descriptors[1]);
         execl(
             executable,
@@ -229,16 +209,23 @@ private DeathOutput captureDeath(const(char)* executable, const(char)* name)
 
     close(descriptors[1]);
     DeathOutput output;
-    while (output.length < output.storage.length)
+    char[4096] overflowStorage;
+    for (;;)
     {
+        char[] destination = output.length < output.storage.length
+            ? output.storage[output.length .. $]
+            : overflowStorage[];
         const amount = read(
             descriptors[0],
-            output.storage.ptr + output.length,
-            output.storage.length - output.length,
+            destination.ptr,
+            destination.length,
         );
         if (amount <= 0)
             break;
-        output.length += cast(size_t) amount;
+        if (output.length < output.storage.length)
+            output.length += cast(size_t) amount;
+        else
+            output.truncated = true;
     }
     close(descriptors[0]);
 
@@ -250,6 +237,17 @@ private DeathOutput captureDeath(const(char)* executable, const(char)* name)
     assert(terminatingSignal != 0 && terminatingSignal != 0x7f);
     output.signal = terminatingSignal;
     return output;
+}
+
+version (Posix)
+private void expectDeath(
+    const(char)* executable,
+    const(char)* name,
+    int expectedSignal = SIGABRT,
+) nothrow @nogc
+{
+    DeathOutput output = captureDeath(executable, name);
+    assert(output.signal == expectedSignal);
 }
 
 version (Posix)
