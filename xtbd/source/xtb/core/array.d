@@ -7,7 +7,7 @@ import core.lifetime : emplace, move, moveEmplace;
 import core.stdc.string : memmove;
 import xtb.core.memory : Allocator, deallocate, tryAllocate, tryReallocate;
 import xtb.core.panic : panic, require;
-import xtb.core.types : multiplyOverflows;
+import xtb.core.numeric : multiplyOverflows;
 
 version (unittest)
 {
@@ -223,7 +223,6 @@ private void destroyElements(T)(T* data, size_t length)
 }
 
 private bool trySetCapacity(T)(ref Array!T array, size_t capacity)
-
 {
     if (multiplyOverflows(capacity, T.sizeof))
         return false;
@@ -549,7 +548,6 @@ void removeAt(T)(ref Array!T array, size_t index)
 }
 
 void removeRange(T)(ref Array!T array, size_t index, size_t count)
-
 {
     require(index <= array.length_, "Array range index out of bounds");
     require(count <= array.length_ - index, "Array range count out of bounds");

@@ -6,7 +6,7 @@ import core.stdc.string : memcpy, memset;
 import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic, require;
 import xtb.core.print : Writer;
-import xtb.core.types : addOverflows;
+import xtb.core.numeric : addOverflows;
 
 private struct ArenaChunk
 {

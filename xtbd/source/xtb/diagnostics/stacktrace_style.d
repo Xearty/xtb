@@ -3,6 +3,7 @@ module xtb.diagnostics.stacktrace_style;
 nothrow @nogc:
 
 import xtb.diagnostics.demangle : SignatureDetail;
+import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string : String, equal;
 
@@ -63,12 +64,13 @@ nothrow @nogc:
     AnsiColor warning;
 
     static StackTraceColors fromTheme(StackTraceTheme theme)
-    pure @safe
+    @safe
     {
         static foreach (definition; themeDefinitions)
             if (theme == definition.theme)
                 return definition.colors;
-        assert(false, "invalid stack-trace theme");
+        require(false, "invalid stack-trace theme");
+        return StackTraceColors.init;
     }
 
     static StackTraceColors fromAnsi8(
@@ -168,7 +170,7 @@ nothrow @nogc:
     size_t signatureColumns;
 
     static StackTraceStyle fromTheme(StackTraceTheme theme)
-    pure @safe
+    @safe
     {
         return StackTraceStyle(
             StackTraceColors.fromTheme(theme),

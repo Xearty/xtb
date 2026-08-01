@@ -10,7 +10,7 @@ else
     import core.stdc.stdlib : aligned_alloc;
 import core.stdc.string : memcpy, memset;
 import xtb.core.panic : panic, require;
-import xtb.core.types : multiplyOverflows;
+import xtb.core.numeric : multiplyOverflows;
 
 alias Allocator = extern (C) void* function(
     void* allocator,
@@ -227,7 +227,6 @@ void deallocate(
 }
 
 void deallocate(T)(Allocator* allocator, T* pointer, size_t count = 1)
-
 {
     if (multiplyOverflows(T.sizeof, count))
         panic("deallocation size overflow");
@@ -321,7 +320,6 @@ private AllocationRecord* findRecord(
 }
 
 private AllocationRecord* freeRecord(ref InstrumentedAllocator allocator)
-
 {
     foreach (ref record; allocator.records)
         if (record.pointer is null)

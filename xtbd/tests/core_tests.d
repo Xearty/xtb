@@ -1,6 +1,7 @@
 module tests.core_tests;
 
 import xtb.core.types;
+import xtb.core.numeric;
 import xtb.core.panic : panic, require;
 import xtb.core.metadata;
 import xtb.core.slice;
@@ -64,6 +65,10 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
 {
     if (cStringEqual(name, "panic"))
         require(false, "intentional death test");
+    if (cStringEqual(name, "numeric-clamp"))
+        clamp(0, 1, 0);
+    if (cStringEqual(name, "numeric-overflow"))
+        tebibytes(size_t.max);
     if (cStringEqual(name, "scratch-without-context"))
         ScratchScope.acquire();
     if (cStringEqual(name, "double-pop"))
@@ -278,6 +283,8 @@ extern (C) int main(int argumentCount, char** arguments)
 
     static foreach (testFunction; __traits(getUnitTests, xtb.core.types))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.numeric))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.metadata))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.slice))
@@ -319,6 +326,8 @@ extern (C) int main(int argumentCount, char** arguments)
         assert(workerAllocator is mallocAllocator());
 
         expectDeath(arguments[0], "panic");
+        expectDeath(arguments[0], "numeric-clamp");
+        expectDeath(arguments[0], "numeric-overflow");
         expectDeath(arguments[0], "scratch-without-context");
         expectDeath(arguments[0], "double-pop");
         expectDeath(arguments[0], "non-lifo-pop");

@@ -81,21 +81,23 @@ int compare(String left, String right) pure @system
 }
 
 String slice(String value, size_t begin, size_t end)
-pure @safe
+@safe
 {
-    assert(begin <= end && end <= value.length);
+    require(begin <= end, "String slice begin exceeds end");
+    require(end <= value.length, "String slice end out of bounds");
     return value[begin .. end];
 }
 
 String head(String value, size_t count) pure @safe
 {
-    return value.slice(0, count < value.length ? count : value.length);
+    const amount = count < value.length ? count : value.length;
+    return value[0 .. amount];
 }
 
 String tail(String value, size_t count) pure @safe
 {
     const amount = count < value.length ? count : value.length;
-    return value.slice(value.length - amount, value.length);
+    return value[value.length - amount .. value.length];
 }
 
 String truncateLeft(String value, size_t count) pure @safe
@@ -358,7 +360,6 @@ bool tryReplace(
 }
 
 String replace(String value, String from, String to, Allocator* allocator)
-
 {
     String result;
     if (!value.tryReplace(from, to, allocator, &result))
@@ -414,7 +415,6 @@ bool tryJoin(
 }
 
 String join(scope const(String)[] values, String separator, Allocator* allocator)
-
 {
     String result;
     if (!tryJoin(values, separator, allocator, &result))
@@ -456,7 +456,6 @@ private char escapedCharacter(char value) pure @safe
 }
 
 bool tryEscape(String value, Allocator* allocator, String* output)
-
 {
     require(output !is null, "String output pointer is null");
     size_t escapedCount;
@@ -581,14 +580,12 @@ private size_t whitespaceSeparator(String rest, void*)
 }
 
 Array!String split(String value, String separator, Allocator* allocator)
-
 {
     require(separator.length != 0, "String separator must not be empty");
     return value.splitWhen(&stringSeparator, &separator, false, allocator);
 }
 
 Array!String split(String value, char separator, Allocator* allocator)
-
 {
     return value.splitWhen(&characterSeparator, &separator, false, allocator);
 }

@@ -1,6 +1,7 @@
 module xtb.core;
 
 public import xtb.core.types;
+public import xtb.core.numeric;
 public import xtb.core.metadata;
 public import xtb.core.slice;
 public import xtb.core.panic;

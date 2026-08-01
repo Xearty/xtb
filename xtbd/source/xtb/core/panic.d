@@ -20,7 +20,6 @@ private __gshared PanicHook panicHook;
 private bool panicInFlight;
 
 PanicHook setPanicHandler(PanicHandler handler, void* context = null)
-
 {
     PanicHook previous = panicHook;
     panicHook = PanicHook(handler, context);
@@ -55,7 +54,6 @@ noreturn panic(String message)
 }
 
 private void append(ref char[1024] buffer, ref size_t length, String value)
-
 {
     const available = buffer.length - length;
     const amount = value.length < available ? value.length : available;
@@ -65,7 +63,6 @@ private void append(ref char[1024] buffer, ref size_t length, String value)
 }
 
 private void appendDecimal(ref char[1024] buffer, ref size_t length, size_t value)
-
 {
     char[32] digits;
     size_t begin = digits.length;
@@ -79,7 +76,6 @@ private void appendDecimal(ref char[1024] buffer, ref size_t length, size_t valu
 }
 
 private noreturn panicAt(String message, String file, size_t line)
-
 {
     char[1024] buffer;
     size_t length;

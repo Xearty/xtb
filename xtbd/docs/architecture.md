@@ -82,6 +82,26 @@ neutral abstraction downward rather than adding mutual imports. Foreign
 bindings live beside their adapter (for example `xtb.graphics.opengl.binding`)
 and are not treated as general-purpose core modules.
 
+Within core, `xtb.core.types` is a dependency-free leaf containing only the
+primitive aliases, including `String`. Generic scalar and checked-arithmetic
+operations live in `xtb.core.numeric`; that module may use the panic contract
+layer without forcing panic to depend on containers or builders. `xtb.core`
+publicly imports both modules, while implementation modules import the narrow
+module that owns the declaration they use.
+
+The ordinary byte-unit helpers return their result directly and panic on
+overflow:
+
+```d
+size_t bytes = mebibytes(4);
+```
+
+Code that genuinely recovers from an unrepresentable size uses the explicitly
+fallible `tryKibibytes`, `tryMebibytes`, `tryGibibytes`, or `tryTebibytes`
+variant with an output pointer. Their output is reset to zero on arithmetic
+failure. The multiplication helper is private; callers should not manually
+assemble a unit conversion protocol around a generic `scaleBytes` function.
+
 ## Math and deterministic noise
 
 `xtb.math` is a BetterC value layer. `Vector2`, `Vector3`, `Vector4`,
@@ -403,6 +423,12 @@ accessors in a wrapper struct:
 ```d
 alias String = const(char)[];
 ```
+
+The alias is declared in the dependency-free `xtb.core.types` module and
+publicly re-exported by `xtb.core.string`. It cannot contain member functions;
+the string algorithms are free functions deliberately designed for UFCS, so
+`text.trim()` retains member-like call syntax without wrapping the native
+slice or weakening literal interoperability.
 
 `String` does not own, allocate, reallocate, free, or mutate its storage.
 Constness prevents user code from modifying bytes through the view. Copying it
