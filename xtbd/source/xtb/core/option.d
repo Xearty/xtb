@@ -1,0 +1,144 @@
+module xtb.core.option;
+
+nothrow @nogc:
+
+import core.lifetime : move, moveEmplace;
+import xtb.core.panic : require;
+
+struct Option(T)
+{
+nothrow @nogc:
+
+    private bool present_;
+    private T value_;
+
+    static if (!__traits(isCopyable, T))
+        @disable this(this);
+
+    static Option none()
+    {
+        return Option.init;
+    }
+
+    static Option some(T value)
+    {
+        Option result;
+        result.set(move(value));
+        return result;
+    }
+
+    bool hasValue() const pure @safe
+    {
+        return present_;
+    }
+
+    bool empty() const pure @safe
+    {
+        return !present_;
+    }
+
+    ref T value() return @system
+    {
+        require(present_, "empty Option has no value");
+        return value_;
+    }
+
+    ref const(T) value() const return @system
+    {
+        require(present_, "empty Option has no value");
+        return value_;
+    }
+
+    T* pointer() return @system
+    {
+        return present_ ? &value_ : null;
+    }
+
+    const(T)* pointer() const return @system
+    {
+        return present_ ? &value_ : null;
+    }
+
+    package(xtb) ref T storage() return @system
+    {
+        return value_;
+    }
+
+    package(xtb) void markPresent()
+    {
+        present_ = true;
+    }
+}
+
+void set(T)(ref Option!T option, T value)
+{
+    move(value, option.value_);
+    option.present_ = true;
+}
+
+void reset(T)(ref Option!T option)
+{
+    T empty;
+    move(empty, option.value_);
+    option.present_ = false;
+}
+
+T take(T)(ref Option!T option)
+{
+    require(option.present_, "cannot take an empty Option");
+    T result = void;
+    moveEmplace(option.value_, result);
+    static if (__traits(isPOD, T))
+        option.value_ = T.init;
+    option.present_ = false;
+    return result;
+}
+
+Option!T some(T)(T value)
+{
+    return Option!T.some(move(value));
+}
+
+Option!T none(T)()
+{
+    return Option!T.none();
+}
+
+unittest
+{
+    import xtb.core.memory : mallocAllocator;
+    import xtb.core.string : StringBuf, append, equal;
+
+    Option!int number;
+    assert(number.empty);
+    assert(number.pointer is null);
+    number.set(42);
+    assert(number.hasValue);
+    assert(number.value == 42);
+    assert(number.pointer is &number.value());
+    assert(number.take == 42);
+    assert(number.empty);
+    assert(number.pointer is null);
+
+    Option!int copied = some(7);
+    Option!int copiedAgain = copied;
+    copied.set(9);
+    assert(copied.value == 9);
+    assert(copiedAgain.value == 7);
+    copied.reset();
+    assert(copied.empty);
+
+    StringBuf source = StringBuf.fromString(mallocAllocator(), "owned");
+    Option!StringBuf text = some(move(source));
+    assert(source.allocator is null);
+    assert(text.value.view.equal("owned"));
+    text.value.append(" value");
+    StringBuf extracted = text.take();
+    assert(text.empty);
+    assert(extracted.view.equal("owned value"));
+    text.set(move(extracted));
+    text.reset();
+    assert(text.empty);
+
+    static assert(!__traits(compiles, (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
+}

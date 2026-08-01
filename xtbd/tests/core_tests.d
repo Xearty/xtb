@@ -9,6 +9,7 @@ import xtb.core.memory;
 import xtb.core.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
+import xtb.core.option;
 import xtb.core.list;
 import xtb.core.logger;
 import xtb.core.string;
