@@ -50,16 +50,16 @@ private void demonstrateValueState()
     Option!int implicitNone;
     Option!int staticNone = Option!int.none();
     Option!int genericNone = none!int();
-    assert(implicitNone.empty && staticNone.empty && genericNone.empty);
-    assert(!implicitNone.hasValue);
+    assert(implicitNone.isNone && implicitNone.empty);
+    assert(staticNone.isNone && genericNone.isNone);
     assert(implicitNone.pointer is null);
 
     Option!int number = some(10);
     Option!int staticSome = Option!int.some(20);
-    assert(number.hasValue && staticSome.value == 20);
+    assert(number.isSome && staticSome.isSome && staticSome.value == 20);
 
     // value returns a checked reference. Calling it while empty is a contract
-    // violation and panics, so test hasValue/empty or use pointer first.
+    // violation and panics, so test isSome/isNone/empty or use pointer first.
     number.value += 1;
     if (int* value = number.pointer)
         *value += 9;
@@ -101,13 +101,13 @@ private void demonstrateCopyingAndNesting()
     Option!(Option!int) missingInner = some(none!int());
     Option!(Option!int) presentInner = some(some(123));
     assert(missingOuter.empty);
-    assert(missingInner.hasValue && missingInner.value.empty);
+    assert(missingInner.isSome && missingInner.value.isNone);
     assert(presentInner.value.value == 123);
 
     // Option only tracks its own presence bit. If T is itself nullable, a
     // present Option can legitimately contain T.init.
     Option!(int*) presentNullPointer = some(cast(int*) null);
-    assert(presentNullPointer.hasValue);
+    assert(presentNullPointer.isSome);
     assert(presentNullPointer.value is null);
     writeln("nested states and present-null pointer are distinct in memory");
 }
@@ -209,7 +209,7 @@ private bool demonstrateSerde(Allocator* allocator)
     );
     if (!error.ok)
         return false;
-    assert(fromToml.enabled.hasValue && !fromToml.enabled.value);
+    assert(fromToml.enabled.isSome && !fromToml.enabled.value);
     assert(fromToml.channelName.value.view.equal("stable"));
     assert(fromToml.retryCount.empty);
 

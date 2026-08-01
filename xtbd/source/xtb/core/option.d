@@ -43,14 +43,19 @@ nothrow @nogc:
         return result;
     }
 
-    bool hasValue() const pure @safe
+    bool isSome() const pure @safe
     {
         return present_;
     }
 
-    bool empty() const pure @safe
+    bool isNone() const pure @safe
     {
         return !present_;
+    }
+
+    bool empty() const pure @safe
+    {
+        return isNone;
     }
 
     ref T value() return @system
@@ -126,10 +131,10 @@ unittest
     import xtb.core.string : StringBuf, append, equal;
 
     Option!int number;
-    assert(number.empty);
+    assert(number.isNone && number.empty);
     assert(number.pointer is null);
     number.set(42);
-    assert(number.hasValue);
+    assert(number.isSome);
     assert(number.value == 42);
     assert(number.pointer is &number.value());
     assert(number.take == 42);

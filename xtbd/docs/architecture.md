@@ -805,12 +805,13 @@ model of `T`. The root of a key-value document is a struct. Unsupported or
 mixed ownership shapes fail at compile time with the field and type in the
 diagnostic. Enums use their D member names in text formats by default.
 
-`Option!T` is an ordinary BetterC value. `Option.init` is absent, `set` replaces
-its value by move, `reset` destroys the current value, and `take` transfers it
-out. Access through `value` checks that it is present. The option always
-contains valid `T.init` storage, which lets compiler-generated destruction
-handle owning `T` without a manually managed union. It is copyable exactly
-when `T` is copyable. JSON encodes an absent option as `null` and accepts
+`Option!T` is an ordinary BetterC value. `Option.init` is absent; `isSome` and
+`isNone` are the primary state queries, while `empty` is an alias for `isNone`.
+`set` replaces its value by move, `reset` destroys the current value, and
+`take` transfers it out. Access through `value` checks that it is present. The
+option always contains valid `T.init` storage, which lets compiler-generated
+destruction handle owning `T` without a manually managed union. It is copyable
+exactly when `T` is copyable. JSON encodes an absent option as `null` and accepts
 `null`; TOML has no null value, so it omits absent option fields and makes an
 option present whenever its key is decoded. A missing field remains absent.
 `@required Option!T` requires the key to occur; in JSON, an explicitly present

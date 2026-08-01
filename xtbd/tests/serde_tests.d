@@ -383,13 +383,13 @@ private void testJsonOptions() nothrow @nogc
         &decoded,
     );
     assert(error.ok);
-    assert(decoded.value.title.hasValue);
+    assert(decoded.value.title.isSome);
     assert(decoded.value.title.value.equal("deploy"));
     assert(decoded.value.priority.empty);
-    assert(decoded.value.child.hasValue);
+    assert(decoded.value.child.isSome);
     assert(decoded.value.child.value.label.equal("worker"));
     assert(decoded.value.child.value.value == 7);
-    assert(decoded.value.explicitToggle.hasValue);
+    assert(decoded.value.explicitToggle.isSome);
     assert(!decoded.value.explicitToggle.value);
 
     // A required option requires the key, not a non-null JSON value.
@@ -534,13 +534,13 @@ private void testTomlOptions() nothrow @nogc
     Deserialized!OptionalValues decoded;
     SerdeError error = readToml(input, mallocAllocator(), &decoded);
     assert(error.ok);
-    assert(decoded.value.title.hasValue);
+    assert(decoded.value.title.isSome);
     assert(decoded.value.title.value.equal("deploy"));
     assert(decoded.value.priority.empty);
-    assert(decoded.value.child.hasValue);
+    assert(decoded.value.child.isSome);
     assert(decoded.value.child.value.label.equal("worker"));
     assert(decoded.value.child.value.value == 7);
-    assert(decoded.value.explicitToggle.hasValue);
+    assert(decoded.value.explicitToggle.isSome);
     assert(!decoded.value.explicitToggle.value);
 
     OptionalValues value;
@@ -579,7 +579,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         SerdeError error = readJson(jsonInput, allocator.handle, &value);
         assert(error.ok);
         assert(value.title.empty);
-        assert(value.endpoint.hasValue);
+        assert(value.endpoint.isSome);
         assert(value.endpoint.value.hostName.view.equal("api.internal"));
         assert(value.endpoint.value.labels[0].view.equal("tls"));
         assert(value.revision.value == 3);
@@ -601,7 +601,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         error = readToml(tomlInput, allocator.handle, &value);
         assert(error.ok);
         assert(value.title.value.view.equal("scheduler"));
-        assert(value.endpoint.hasValue);
+        assert(value.endpoint.isSome);
         assert(value.endpoint.value.hostName.view.equal("jobs.internal"));
         assert(value.endpoint.value.labels[0].view.equal("stable"));
         assert(value.revision.empty);

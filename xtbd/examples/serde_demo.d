@@ -122,7 +122,7 @@ private bool demonstrateOwningDecode() nothrow @nogc
     ++config.runtimeRequests;
 
     writeln("optional deployment note present: ",
-        config.deploymentNote.hasValue);
+        config.deploymentNote.isSome);
     StringBuf deploymentNote = StringBuf.fromString(allocator,
         "promote after health checks");
     config.deploymentNote.set(move(deploymentNote));

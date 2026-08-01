@@ -179,9 +179,9 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     }
     else static if (isOption!U)
     {
-        if (value.hasValue != expected.hasValue)
+        if (value.isSome != expected.isSome)
             return false;
-        return !value.hasValue || valuesEqual(value.value, expected.value);
+        return value.isNone || valuesEqual(value.value, expected.value);
     }
     else static if (isDynamicArray!U)
     {
@@ -1010,7 +1010,7 @@ private void validateRequiredField(T, size_t index)(
             }
             else static if (isOption!F && isSerdeStruct!(OptionElement!F))
             {
-                if (seen[ordinal] && output.tupleof[index].hasValue)
+                if (seen[ordinal] && output.tupleof[index].isSome)
                     validateRequired(parser, &output.tupleof[index].storage(), seen,
                         ordinal + 1);
             }
