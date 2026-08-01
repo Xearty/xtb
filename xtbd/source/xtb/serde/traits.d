@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.types : String;
 import xtb.serde.attributes;
-import xtb.serde.casing : matchesCased;
+import xtb.serde.casing : casedNamesEqual, matchesCased;
 
 template Unqualified(T)
 {
@@ -180,6 +180,86 @@ void validateSchema(T)()
         "@fieldCase(KeyCase.schema) is not a concrete casing policy");
     static foreach (index; 0 .. U.tupleof.length)
         validateFieldSchema!(U, index)();
+    static foreach (left; 0 .. serializedFieldCount!U)
+        static foreach (right; left + 1 .. serializedFieldCount!U)
+            static assert(!leafNamesOverlap!U(left, right),
+                "serialized field names and aliases must be unique after flattening");
+}
+
+private bool fieldsOverlap(A, size_t left, B, size_t right)() pure @safe
+{
+    enum leftCase = fieldHas!(A, left, Rename) ? KeyCase.preserve : schemaCase!A;
+    enum rightCase = fieldHas!(B, right, Rename) ? KeyCase.preserve : schemaCase!B;
+    if (casedNamesEqual(fieldName!(A, left), leftCase,
+            fieldName!(B, right), rightCase))
+        return true;
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(A, left)))
+        static if (is(typeof(attribute) == AliasName))
+            if (fieldMatches!(B, right)(attribute.value, KeyCase.schema))
+                return true;
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(B, right)))
+        static if (is(typeof(attribute) == AliasName))
+            if (fieldMatches!(A, left)(attribute.value, KeyCase.schema))
+                return true;
+    return false;
+}
+
+private bool fieldOverlapsOrdinal(A, size_t left, B)(size_t ordinal)
+pure @safe
+{
+    size_t base;
+    static foreach (index; 0 .. Unqualified!B.tupleof.length)
+    {
+        static if (!fieldHas!(B, index, Ignore))
+        {
+            static if (fieldHas!(B, index, Flatten))
+            {
+                if (ordinal >= base && ordinal < base +
+                    serializedFieldCount!(FieldType!(B, index)))
+                    return fieldOverlapsOrdinal!(A, left, FieldType!(B, index))(
+                        ordinal - base);
+                base += serializedFieldCount!(FieldType!(B, index));
+            }
+            else
+            {
+                if (ordinal == base)
+                    return fieldsOverlap!(A, left, B, index);
+                ++base;
+            }
+        }
+    }
+    return false;
+}
+
+private bool leafOverlapAcross(A, B)(size_t left, size_t right) pure @safe
+{
+    size_t base;
+    static foreach (index; 0 .. Unqualified!A.tupleof.length)
+    {
+        static if (!fieldHas!(A, index, Ignore))
+        {
+            static if (fieldHas!(A, index, Flatten))
+            {
+                if (left >= base && left < base +
+                    serializedFieldCount!(FieldType!(A, index)))
+                    return leafOverlapAcross!(FieldType!(A, index), B)(
+                        left - base, right);
+                base += serializedFieldCount!(FieldType!(A, index));
+            }
+            else
+            {
+                if (left == base)
+                    return fieldOverlapsOrdinal!(A, index, B)(right);
+                ++base;
+            }
+        }
+    }
+    return false;
+}
+
+private bool leafNamesOverlap(T)(size_t left, size_t right) pure @safe
+{
+    return leafOverlapAcross!(T, T)(left, right);
 }
 
 private void validateFieldSchema(T, size_t index)()

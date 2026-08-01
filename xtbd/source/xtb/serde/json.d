@@ -15,7 +15,7 @@ import xtb.serde.attributes : AliasName, Flatten, Ignore, KeyCase, OmitDefault,
 import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
-    prepareDeserialized;
+    deserializationAllocator, prepareDeserialized;
 import xtb.serde.traits : FieldSymbol, FieldType, Unqualified, fieldHas,
     fieldMatches, fieldName, fieldOrdinal, isDynamicArray, isFixedArray,
     isSerdeStruct, isString, schemaCase, serializedFieldCount, validateSchema;
@@ -85,7 +85,7 @@ SerdeError readJson(T)(
 
     JsonParser parser;
     parser.input = input;
-    parser.allocator = allocator;
+    parser.allocator = deserializationAllocator(output);
     parser.options = options;
     parser.line = 1;
     parser.column = 1;
@@ -129,17 +129,34 @@ nothrow @nogc:
     }
 }
 
-private bool isDefaultValue(T)(scope const ref T value) pure @safe
+private bool valuesEqual(T, E)(scope const ref T value, scope const E expected)
+pure @safe
 {
     alias U = Unqualified!T;
-    static if (isString!U || isDynamicArray!U)
-        return value.length == 0;
+    static if (isString!U)
+    {
+        if (value.length != expected.length)
+            return false;
+        foreach (index, character; value)
+            if (character != expected[index])
+                return false;
+        return true;
+    }
+    else static if (isDynamicArray!U)
+    {
+        if (value.length != expected.length)
+            return false;
+        foreach (index, ref const element; value)
+            if (!valuesEqual(element, expected[index]))
+                return false;
+        return true;
+    }
     else static if (is(U == Pointee*, Pointee))
-        return value is null;
+        return value is expected;
     else static if (isFixedArray!U)
     {
-        foreach (ref const element; value)
-            if (!isDefaultValue(element))
+        foreach (index, ref const element; value)
+            if (!valuesEqual(element, expected[index]))
                 return false;
         return true;
     }
@@ -147,12 +164,12 @@ private bool isDefaultValue(T)(scope const ref T value) pure @safe
     {
         static foreach (index; 0 .. U.tupleof.length)
             static if (!fieldHas!(U, index, Ignore))
-                if (!isDefaultValue(value.tupleof[index]))
+                if (!valuesEqual(value.tupleof[index], expected.tupleof[index]))
                     return false;
         return true;
     }
     else
-        return value == U.init;
+        return value == expected;
 }
 
 private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, size_t depth)
@@ -226,7 +243,7 @@ private void encodeOneField(T, size_t index, F)(
 )
 {
     enum omit = fieldHas!(T, index, OmitDefault);
-    if (omit && isDefaultValue(value))
+    if (omit && valuesEqual(value, Unqualified!T.init.tupleof[index]))
         return;
     if (*wrote)
         encoder.writer.put(',');
@@ -984,7 +1001,8 @@ private void skipValue(ref JsonParser parser, size_t depth)
     if (matchLiteral(parser, "true") || matchLiteral(parser, "false") ||
         matchLiteral(parser, "null"))
         return;
-    scanNumber(parser);
+    if (!scanNumber(parser))
+        return;
 }
 
 private void decodeString(ref JsonParser parser, String* output)

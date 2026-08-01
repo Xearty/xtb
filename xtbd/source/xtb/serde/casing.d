@@ -149,6 +149,32 @@ pure @safe
     return index == candidate.length;
 }
 
+bool casedNamesEqual(
+    scope String left,
+    KeyCase leftCase,
+    scope String right,
+    KeyCase rightCase,
+) pure @safe
+{
+    CaseCursor leftCursor = CaseCursor(left, leftCase == KeyCase.schema
+            ? KeyCase.preserve : leftCase);
+    CaseCursor rightCursor = CaseCursor(right, rightCase == KeyCase.schema
+            ? KeyCase.preserve : rightCase);
+    char leftCharacter;
+    char rightCharacter;
+    for (;;)
+    {
+        const hasLeft = leftCursor.next(&leftCharacter);
+        const hasRight = rightCursor.next(&rightCharacter);
+        if (hasLeft != hasRight)
+            return false;
+        if (!hasLeft)
+            return true;
+        if (leftCharacter != rightCharacter)
+            return false;
+    }
+}
+
 unittest
 {
     assert(matchesCased("http_server_id", "HTTPServerID", KeyCase.snake));

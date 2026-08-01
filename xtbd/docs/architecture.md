@@ -827,13 +827,16 @@ keys. Missing fields retain `T.init` unless marked `@required`.
 
 Text decoding may allocate for decoded strings, dynamic arrays, optional
 pointer values, and the root object. The primary result is
-`Deserialized!T`, a non-copyable RAII owner holding both `T*` and its explicit
-`Allocator*`. Its destructor recursively releases every allocation made by
-the backend, including after a partially failed parse; the output remains
-empty on failure. A `String` inside the result is still a read-only simple
-view, but its bytes are owned by the surrounding `Deserialized!T`, not by the
-slice itself. A view or pointer obtained from the result expires when that
-owner is reset or destroyed. User-defined structs with destructors are not
+`Deserialized!T`, a non-copyable RAII owner holding both `T*` and an internal
+allocation tracker over its explicit `Allocator*`. The tracker records only
+allocations made by that decode, so destruction and partial-failure cleanup do
+not mistake a static field initializer or other default pointer for owned
+memory. Its destructor releases the exact allocation set made by the backend;
+the output remains empty on failure. A `String` inside the result is still a
+read-only simple view, but newly decoded bytes are owned by the surrounding
+`Deserialized!T`, not by the slice itself. A view or pointer obtained from the
+result expires when that owner is reset or destroyed. User-defined structs
+with destructors are not
 automatically deserialized: their independent lifetime policy requires an
 explicit adapter rather than guessing how serde allocations interact with the
 destructor.

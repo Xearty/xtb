@@ -2,7 +2,7 @@ module tests.serde_tests;
 
 import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
 import xtb.core.print : Writer;
-import xtb.core.string : String, StringBuf, append, equal;
+import xtb.core.string : String, StringBuf, append, clear, equal;
 import xtb.serde.attributes;
 import xtb.serde.casing;
 import xtb.serde.error;
@@ -61,7 +61,7 @@ private struct OptionalDocument
 
 private struct CasingDocument
 {
-    uint HTTPServerID;
+    uint httpServerID;
     @rename("fixed-key") uint explicitName;
 }
 
@@ -85,6 +85,35 @@ private struct TomlDocument
     Server[] servers;
     double ratio;
 }
+
+private struct DefaultsDocument
+{
+    @omitDefault int retryCount = 3;
+    bool enabled;
+}
+
+@fieldCase(KeyCase.snake)
+private struct ConflictingNames
+{
+    int fieldName;
+    int field_name;
+}
+
+private struct StaticInitializer
+{
+    String text = "static storage";
+}
+
+align(64) private struct AlignedDocument
+{
+    int value;
+}
+
+static assert(!__traits(compiles, validateSchema!ConflictingNames()));
+static assert(__traits(compiles, validateSchema!StaticInitializer()));
+static assert(!__traits(compiles, (ref Deserialized!Settings value) {
+        Deserialized!Settings copy = value;
+    }));
 
 private void testJsonRoundTrip() nothrow @nogc
 {
@@ -227,11 +256,24 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
     readOptions.keyCase = KeyCase.snake;
     error = readJson(encoded.view, mallocAllocator(), &decoded, readOptions);
     assert(error.ok);
-    assert(decoded.value.HTTPServerID == 7);
+    assert(decoded.value.httpServerID == 7);
 
     Writer failed = Writer.fromSink(&failingSink, null);
     error = writeJson(failed, value, options);
     assert(error.kind == SerdeErrorKind.outputFailure);
+
+    DefaultsDocument defaults;
+    StringBuf omitted = StringBuf.create(mallocAllocator());
+    Writer omittedWriter = Writer.fromSink(&bufferSink, &omitted);
+    error = writeJson(omittedWriter, defaults);
+    assert(error.ok);
+    assert(omitted.view.equal("{\"enabled\":false}"));
+    defaults.retryCount = 0;
+    omitted.clear();
+    omittedWriter = Writer.fromSink(&bufferSink, &omitted);
+    error = writeJson(omittedWriter, defaults);
+    assert(error.ok);
+    assert(omitted.view.equal("{\"retryCount\":0,\"enabled\":false}"));
 }
 
 private void testJsonAllocationFailures() nothrow @nogc
@@ -263,6 +305,24 @@ private void testJsonAllocationFailures() nothrow @nogc
             break;
     }
     assert(reachedSuccess);
+
+    AllocationRecord[8] defaultRecords;
+    InstrumentedAllocator defaultAllocator = InstrumentedAllocator.create(
+        mallocAllocator(), defaultRecords[]);
+    Deserialized!StaticInitializer initialized;
+    SerdeError error = readJson("{}", defaultAllocator.handle, &initialized);
+    assert(error.ok);
+    assert(initialized.value.text.equal("static storage"));
+    initialized.deinit();
+    assert(defaultAllocator.clean);
+    assert(defaultAllocator.stats.invalidCalls == 0);
+
+    Deserialized!AlignedDocument aligned;
+    error = readJson("{\"value\":7}", defaultAllocator.handle, &aligned);
+    assert(error.ok);
+    assert((cast(size_t) aligned.pointer & 63) == 0);
+    aligned.deinit();
+    assert(defaultAllocator.clean);
 }
 
 private void testTomlRoundTrip() nothrow @nogc
