@@ -16,18 +16,20 @@ import xtb.core.print : Writer;
 import xtb.core.string : StringBuf;
 import xtb.core.types : String;
 import xtb.serde.attributes : AliasName, Flatten, Ignore, KeyCase, OmitDefault,
-    Rename, Required;
+    Rename, Required, TagLayout;
 import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
     deserializationAllocator, prepareDeserialized;
 import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
     applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName, fieldHas,
-    fieldMatches, fieldName, fieldOrdinal, fieldShouldOmit, isArray,
-    isDynamicArray, isFixedArray, isOption, isSerdeStruct, isString, isStringBuf,
-    initializeOwnedValue, OptionElement, schemaCase, serializedFieldCount,
-    validateBorrowedSchema,
-    validateOwnedSchema, validateSchema;
+    fieldMatches, fieldName, fieldOrdinal, fieldShouldOmit, discriminantIndex,
+    DiscriminantType, fieldAdapterCount, fieldDefaultValueCount, FieldAdapter,
+    isArray, isDefaultValueAttribute, isDynamicArray, isFixedArray, isOption,
+    isSerdeStruct, isString, isStringBuf, isTaggedUnion, initializeOwnedValue,
+    OptionElement, payloadIndex, PayloadType, schemaCase, serializedFieldCount,
+    taggedUnionLayout, unionCaseIsActive, UnionMemberType,
+    validateBorrowedSchema, validateOwnedSchema, validateSchema;
 
 struct JsonWriteOptions
 {
@@ -249,7 +251,18 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
 private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
 @system
 {
-    static if (hasElaborateDestructor!(Unqualified!F))
+    static if (fieldDefaultValueCount!(T, index) != 0)
+    {
+        bool result;
+        static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+            static if (isDefaultValueAttribute!(typeof(attribute)))
+                {
+                auto expected = attribute.value;
+                result = valuesEqual(value, expected);
+            }
+        return result;
+    }
+    else static if (hasElaborateDestructor!(Unqualified!F))
     {
         Unqualified!F defaults;
         return valuesEqual(value, defaults);
@@ -296,8 +309,100 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
         encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
+    else static if (isTaggedUnion!U)
+        encodeTaggedUnion(encoder, value, depth);
     else static if (isSerdeStruct!U)
         encodeObject(encoder, value, depth);
+}
+
+private void encodeTaggedUnion(T)(
+    ref JsonEncoder encoder,
+    scope const ref T value,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    if (depth >= encoder.options.maxDepth)
+    {
+        encoder.fail(SerdeErrorKind.depthLimit);
+        return;
+    }
+    encoder.writer.put('{');
+    encoder.newline(depth + 1);
+    static if (taggedUnionLayout!U == TagLayout.external)
+    {
+        encodeEnum(encoder, value.tupleof[discriminantIndex!U]);
+        encoder.writer.put(encoder.options.pretty ? ": " : ":");
+        encodeActiveUnionCase(encoder, value, depth + 1);
+    }
+    else
+    {
+        encodeFieldName!(U, discriminantIndex!U)(encoder);
+        encoder.writer.put(encoder.options.pretty ? ": " : ":");
+        encodeEnum(encoder, value.tupleof[discriminantIndex!U]);
+        static if (taggedUnionLayout!U == TagLayout.adjacent)
+        {
+            encoder.writer.put(',');
+            encoder.newline(depth + 1);
+            encodeFieldName!(U, payloadIndex!U)(encoder);
+            encoder.writer.put(encoder.options.pretty ? ": " : ":");
+            encodeActiveUnionCase(encoder, value, depth + 1);
+        }
+        else
+        {
+            bool wrote = true;
+            encodeActiveUnionFields(encoder, value, depth, &wrote);
+        }
+    }
+    encoder.newline(depth);
+    encoder.writer.put('}');
+}
+
+private void encodeActiveUnionCase(T)(
+    ref JsonEncoder encoder,
+    scope const ref T value,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    alias P = PayloadType!U;
+    bool found;
+    static foreach (index; 0 .. P.tupleof.length)
+    {
+        if (!found && unionCaseIsActive!(P, index)(
+                value.tupleof[discriminantIndex!U]))
+        {
+            encodeValue(encoder,
+                value.tupleof[payloadIndex!U].tupleof[index], depth);
+            found = true;
+        }
+    }
+    if (!found)
+        encoder.fail(SerdeErrorKind.unknownVariant);
+}
+
+private void encodeActiveUnionFields(T)(
+    ref JsonEncoder encoder,
+    scope const ref T value,
+    size_t depth,
+    bool* wrote,
+)
+{
+    alias U = Unqualified!T;
+    alias P = PayloadType!U;
+    bool found;
+    static foreach (index; 0 .. P.tupleof.length)
+    {
+        if (!found && unionCaseIsActive!(P, index)(
+                value.tupleof[discriminantIndex!U]))
+        {
+            encodeFields(encoder,
+                value.tupleof[payloadIndex!U].tupleof[index], depth, wrote);
+            found = true;
+        }
+    }
+    if (!found)
+        encoder.fail(SerdeErrorKind.unknownVariant);
 }
 
 private void encodeObject(T)(ref JsonEncoder encoder, scope const ref T value, size_t depth)
@@ -347,12 +452,32 @@ private void encodeOneField(T, size_t index, F)(
     static if (fieldHas!(T, index, OmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
-    if (*wrote)
-        encoder.writer.put(',');
-    encoder.newline(depth + 1);
-    encodeFieldName!(T, index)(encoder);
-    encoder.writer.put(encoder.options.pretty ? ": " : ":");
-    encodeValue(encoder, value, depth + 1);
+    static if (fieldAdapterCount!(T, index) != 0)
+    {
+        alias Adapter = FieldAdapter!(T, index);
+        Adapter.Representation representation;
+        const kind = Adapter.encode(value, &representation);
+        if (kind != SerdeErrorKind.none)
+        {
+            encoder.fail(kind);
+            return;
+        }
+        if (*wrote)
+            encoder.writer.put(',');
+        encoder.newline(depth + 1);
+        encodeFieldName!(T, index)(encoder);
+        encoder.writer.put(encoder.options.pretty ? ": " : ":");
+        encodeValue(encoder, representation, depth + 1);
+    }
+    else
+    {
+        if (*wrote)
+            encoder.writer.put(',');
+        encoder.newline(depth + 1);
+        encodeFieldName!(T, index)(encoder);
+        encoder.writer.put(encoder.options.pretty ? ": " : ":");
+        encodeValue(encoder, value, depth + 1);
+    }
     *wrote = true;
 }
 
@@ -585,6 +710,8 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeDynamicArray(parser, output, depth);
     else static if (isFixedArray!U)
         decodeFixedArray(parser, output, depth);
+    else static if (isTaggedUnion!U)
+        decodeTaggedUnion(parser, output, depth);
     else static if (isSerdeStruct!U)
         decodeObject(parser, output, depth);
 }
@@ -605,8 +732,361 @@ private void decodeOption(T)(
         (*output).markPresent();
 }
 
+private void decodeTaggedUnion(T)(
+    ref JsonParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    static if (taggedUnionLayout!U == TagLayout.external)
+        decodeExternalTaggedUnion(parser, output, depth);
+    else
+    {
+        DiscriminantType!U tag;
+        JsonParser scanner = parser;
+        scanTaggedDiscriminant!U(scanner, &tag, depth);
+        if (!scanner.error.ok)
+        {
+            parser.error = scanner.error;
+            return;
+        }
+        output.tupleof[discriminantIndex!U] = tag;
+        bool found;
+        alias P = PayloadType!U;
+        static foreach (index; 0 .. P.tupleof.length)
+        {
+            if (!found && unionCaseIsActive!(P, index)(tag))
+            {
+                static if (taggedUnionLayout!U == TagLayout.adjacent)
+                    decodeAdjacentTaggedCase!(U, index)(parser, output, depth);
+                else
+                    decodeInternalTaggedCase!(U, index)(parser, output, depth);
+                found = true;
+            }
+        }
+        if (!found)
+            parser.fail(SerdeErrorKind.unknownVariant);
+    }
+}
+
+private void decodeExternalTaggedUnion(T)(
+    ref JsonParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    if (depth >= parser.options.limits.maxDepth)
+    {
+        parser.fail(SerdeErrorKind.depthLimit);
+        return;
+    }
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    parser.skipWhitespace();
+    String name;
+    bool owned;
+    decodeStringToken(parser, &name, &owned);
+    if (parser.error.ok)
+        decodeTaggedEnumName(parser, name,
+            &output.tupleof[discriminantIndex!U]);
+    if (owned)
+        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
+    if (!parser.error.ok)
+        return;
+    parser.skipWhitespace();
+    if (!parser.consume(':'))
+    {
+        parser.fail(SerdeErrorKind.invalidSyntax);
+        return;
+    }
+    parser.skipWhitespace();
+    decodeActiveTaggedCase(parser, output, depth + 1);
+    if (!parser.error.ok)
+        return;
+    parser.skipWhitespace();
+    if (!parser.consume('}'))
+        parser.fail(SerdeErrorKind.invalidSyntax);
+}
+
+private void scanTaggedDiscriminant(T)(
+    ref JsonParser parser,
+    DiscriminantType!T* tag,
+    size_t depth,
+)
+{
+    if (depth >= parser.options.limits.maxDepth)
+    {
+        parser.fail(SerdeErrorKind.depthLimit);
+        return;
+    }
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    parser.skipWhitespace();
+    bool seen;
+    size_t fields;
+    while (!parser.consume('}'))
+    {
+        if (fields++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        String key;
+        bool owned;
+        decodeStringToken(parser, &key, &owned);
+        parser.skipWhitespace();
+        if (parser.error.ok && !parser.consume(':'))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.skipWhitespace();
+        if (parser.error.ok && fieldMatches!(T, discriminantIndex!T)(
+                key, parser.options.keyCase))
+        {
+            if (seen)
+                parser.fail(SerdeErrorKind.duplicateField, key);
+            else
+            {
+                seen = true;
+                decodeTaggedEnum(parser, tag);
+            }
+        }
+        else if (parser.error.ok)
+            skipValue(parser, depth + 1);
+        if (owned)
+            parser.allocator.deallocate(cast(char*) key.ptr, key.length + 1);
+        if (!parser.error.ok)
+            return;
+        parser.skipWhitespace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    if (!seen)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+}
+
+private void decodeActiveTaggedCase(T)(
+    ref JsonParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    alias P = PayloadType!U;
+    bool found;
+    static foreach (index; 0 .. P.tupleof.length)
+    {
+        if (!found && unionCaseIsActive!(P, index)(
+                output.tupleof[discriminantIndex!U]))
+        {
+            decodeValue(parser,
+                &output.tupleof[payloadIndex!U].tupleof[index], depth);
+            found = true;
+        }
+    }
+    if (!found)
+        parser.fail(SerdeErrorKind.unknownVariant);
+}
+
+private void decodeAdjacentTaggedCase(T, size_t caseIndex)(
+    ref JsonParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    bool seenTag;
+    bool seenPayload;
+    size_t fields;
+    parser.skipWhitespace();
+    while (!parser.consume('}'))
+    {
+        if (fields++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        String key;
+        bool owned;
+        decodeStringToken(parser, &key, &owned);
+        parser.skipWhitespace();
+        if (parser.error.ok && !parser.consume(':'))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.skipWhitespace();
+        if (parser.error.ok && fieldMatches!(T, discriminantIndex!T)(
+                key, parser.options.keyCase))
+        {
+            if (seenTag)
+                parser.fail(SerdeErrorKind.duplicateField, key);
+            else
+            {
+                DiscriminantType!T tag;
+                decodeTaggedEnum(parser, &tag);
+                if (parser.error.ok && tag != output.tupleof[discriminantIndex!T])
+                    parser.fail(SerdeErrorKind.unknownVariant);
+                seenTag = true;
+            }
+        }
+        else if (parser.error.ok && fieldMatches!(T, payloadIndex!T)(
+                key, parser.options.keyCase))
+        {
+            if (seenPayload)
+                parser.fail(SerdeErrorKind.duplicateField, key);
+            else
+            {
+                decodeValue(parser,
+                    &output.tupleof[payloadIndex!T].tupleof[caseIndex],
+                    depth + 1);
+                seenPayload = true;
+            }
+        }
+        else if (parser.error.ok)
+        {
+            if (parser.options.limits.ignoreUnknownFields)
+                skipValue(parser, depth + 1);
+            else
+                parser.fail(SerdeErrorKind.unknownField, key);
+        }
+        if (owned)
+            parser.allocator.deallocate(cast(char*) key.ptr, key.length + 1);
+        if (!parser.error.ok)
+            return;
+        parser.skipWhitespace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    if (!seenTag)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+    else if (!seenPayload)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, payloadIndex!T));
+}
+
+private void decodeInternalTaggedCase(T, size_t caseIndex)(
+    ref JsonParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias P = PayloadType!T;
+    alias C = UnionMemberType!(P, caseIndex);
+    applySchemaDefaults(
+        &output.tupleof[payloadIndex!T].tupleof[caseIndex]);
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    bool seenTag;
+    bool[serializedFieldCount!C] seen;
+    size_t fields;
+    parser.skipWhitespace();
+    while (!parser.consume('}'))
+    {
+        if (fields++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        String key;
+        bool owned;
+        decodeStringToken(parser, &key, &owned);
+        parser.skipWhitespace();
+        if (parser.error.ok && !parser.consume(':'))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.skipWhitespace();
+        if (parser.error.ok && fieldMatches!(T, discriminantIndex!T)(
+                key, parser.options.keyCase))
+        {
+            if (seenTag)
+                parser.fail(SerdeErrorKind.duplicateField, key);
+            else
+            {
+                DiscriminantType!T tag;
+                decodeTaggedEnum(parser, &tag);
+                if (parser.error.ok && tag != output.tupleof[discriminantIndex!T])
+                    parser.fail(SerdeErrorKind.unknownVariant);
+                seenTag = true;
+            }
+        }
+        else if (parser.error.ok)
+        {
+            bool matched;
+            decodeField(parser,
+                &output.tupleof[payloadIndex!T].tupleof[caseIndex],
+                key, seen.ptr, 0, depth + 1, &matched);
+            if (!matched && parser.error.ok)
+            {
+                if (parser.options.limits.ignoreUnknownFields)
+                    skipValue(parser, depth + 1);
+                else
+                    parser.fail(SerdeErrorKind.unknownField, key);
+            }
+        }
+        if (owned)
+            parser.allocator.deallocate(cast(char*) key.ptr, key.length + 1);
+        if (!parser.error.ok)
+            return;
+        parser.skipWhitespace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    if (!seenTag)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+    else
+        validateRequired(parser,
+            &output.tupleof[payloadIndex!T].tupleof[caseIndex], seen.ptr, 0);
+}
+
 private void decodeObject(T)(ref JsonParser parser, T* output, size_t depth)
 {
+    applySchemaDefaults(output);
     if (depth >= parser.options.limits.maxDepth)
     {
         parser.fail(SerdeErrorKind.depthLimit);
@@ -718,9 +1198,48 @@ private void decodeField(T)(
                     }
                     seen[ordinal] = true;
                     *matched = true;
-                    decodeValue(parser, &output.tupleof[index], depth);
+                    static if (fieldAdapterCount!(T, index) != 0)
+                        decodeAdaptedValue!(T, index)(parser,
+                            &output.tupleof[index], depth);
+                    else
+                        decodeValue(parser, &output.tupleof[index], depth);
                 }
             }
+        }
+    }
+}
+
+private void decodeAdaptedValue(T, size_t index, F)(
+    ref JsonParser parser,
+    F* output,
+    size_t depth,
+)
+{
+    alias Adapter = FieldAdapter!(T, index);
+    alias Representation = Adapter.Representation;
+    Representation representation;
+    static if (isString!Representation)
+    {
+        bool owned;
+        decodeStringToken(parser, cast(String*)&representation, &owned);
+        if (parser.error.ok)
+        {
+            const kind = Adapter.decode(representation, parser.allocator, output);
+            if (kind != SerdeErrorKind.none)
+                parser.fail(kind);
+        }
+        if (owned)
+            parser.allocator.deallocate(cast(char*) representation.ptr,
+                representation.length + 1);
+    }
+    else
+    {
+        decodeValue(parser, &representation, depth);
+        if (parser.error.ok)
+        {
+            const kind = Adapter.decode(representation, parser.allocator, output);
+            if (kind != SerdeErrorKind.none)
+                parser.fail(kind);
         }
     }
 }
@@ -929,21 +1448,45 @@ private void decodeEnum(T)(ref JsonParser parser, T* output)
     String name;
     bool owned;
     decodeStringToken(parser, &name, &owned);
-    if (!parser.error.ok)
-        return;
+    if (parser.error.ok && !assignEnumName(name,
+            parser.options.variantCase, output))
+        parser.fail(SerdeErrorKind.typeMismatch);
+    if (owned)
+        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
+}
+
+private void decodeTaggedEnum(T)(ref JsonParser parser, T* output)
+{
+    String name;
+    bool owned;
+    decodeStringToken(parser, &name, &owned);
+    if (parser.error.ok)
+        decodeTaggedEnumName(parser, name, output);
+    if (owned)
+        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
+}
+
+private void decodeTaggedEnumName(T)(
+    ref JsonParser parser,
+    scope String name,
+    T* output,
+)
+{
+    if (!assignEnumName(name, parser.options.variantCase, output))
+        parser.fail(SerdeErrorKind.unknownVariant);
+}
+
+private bool assignEnumName(T)(scope String name, KeyCase casing, T* output)
+{
     bool found;
     static foreach (member; __traits(allMembers, T))
         static if (__traits(compiles, __traits(getMember, T, member)))
-            if (!found && enumMemberMatches!(T, member)(name,
-                    parser.options.variantCase))
+            if (!found && enumMemberMatches!(T, member)(name, casing))
                 {
                 *output = __traits(getMember, T, member);
                 found = true;
             }
-    if (owned)
-        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
-    if (!found)
-        parser.fail(SerdeErrorKind.typeMismatch);
+    return found;
 }
 
 private void decodeDynamicArray(T)(ref JsonParser parser, T* output, size_t depth)

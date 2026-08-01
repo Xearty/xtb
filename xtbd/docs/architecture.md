@@ -803,7 +803,14 @@ they do not contain raw owning pointers or slices. `Option!T` is the preferred
 nullable representation in either family and recursively adopts the ownership
 model of `T`. The root of a key-value document is a struct. Unsupported or
 mixed ownership shapes fail at compile time with the field and type in the
-diagnostic. Enums use their D member names in text formats by default.
+diagnostic.
+
+Enums use their D member names in text formats by default. `@variantCase`
+sets an enum's external casing independently of field-key casing. `@rename`
+on an enum member replaces its encoded spelling, and repeated `@aliasName`
+attributes preserve decode compatibility with former spellings. Explicit
+renames and aliases are exact and are never case-transformed. Empty or
+overlapping member names and aliases are compile-time schema errors.
 
 `Option!T` is an ordinary BetterC value. `Option.init` is absent; `isSome` and
 `isNone` are the state queries used by ordinary option code. `empty` is an alias
@@ -825,7 +832,13 @@ Fields use narrowly scoped UDAs from `xtb.serde.attributes`:
 - repeated `@aliasName("old_name")` values add decode-only legacy keys;
 - `@ignore` excludes a field in both directions;
 - `@required` rejects input that omits the field;
-- `@omitDefault` suppresses an equal-to-`T.init` value while encoding; and
+- `@defaultValue(value)` supplies a missing field's explicit decode default;
+- `@omitDefault` suppresses the field initializer or explicit
+  `@defaultValue` while encoding;
+- `@omitIf!predicate` suppresses a field when its accessible, allocation-free
+  predicate returns true;
+- `@withSerde!Adapter` maps one field through a user-defined scalar
+  representation; and
 - `@flatten` merges a nested struct's fields into its parent map.
 
 Key spelling is controlled independently of field selection. `KeyCase`
@@ -841,7 +854,83 @@ cannot be combined with another serde UDA, and `@flatten` is valid only for a
 non-pointer struct field. These are compile-time schema errors. Unknown input
 keys and duplicate assignments are rejected by default; options may ignore
 unknown keys for forward compatibility, but never silently accept duplicate
-keys. Missing fields retain `T.init` unless marked `@required`.
+keys. Missing fields retain the D field initializer unless `@defaultValue`
+overrides it or `@required` rejects the omission. `@omitIf` and
+`@omitDefault` are mutually exclusive.
+
+A serde adapter is an explicit exception to structural reflection. It must
+declare `Representation` as `String`, a boolean, a number, or an enum and
+provide these operations:
+
+```d
+static SerdeErrorKind encode(
+    scope const ref Value value,
+    Representation* output,
+);
+
+static SerdeErrorKind decode(
+    scope const ref Representation value,
+    Allocator* allocator,
+    Value* output,
+);
+```
+
+Adapters are appropriate for opaque identifiers, validated units, timestamps,
+and other values whose wire form must not mirror their fields. They return
+errors explicitly and receive the decode allocator; they do not write JSON or
+TOML themselves. The representation is borrowed only for the duration of the
+call and must not be retained; an adapter that needs persistent storage uses
+the supplied allocator explicitly. This keeps the adapter reusable across backends. Structural
+adapter representations are deliberately deferred until a format-neutral
+streaming value interface is justified.
+
+### Tagged unions
+
+A tagged union is a struct annotated with `@taggedUnion(layout)`. It contains
+exactly one enum field marked `@discriminant` and one D union field marked
+`@payload`. Every payload member uses `@caseOf(Enum.member)`. The markers bind
+the actual D fields: `@rename` and casing can change their external names
+without changing which fields control the union.
+
+Three layouts are supported:
+
+```text
+external: { "created": { "id": 7 } }
+internal: { "event_type": "created", "id": 7 }
+adjacent: { "event_type": "created", "event_data": { "id": 7 } }
+```
+
+External tagging accepts every supported case value. Internal tagging requires
+ordinary struct cases because their fields are merged beside the tag. Adjacent
+tagging preserves a separate payload value. Decoders accept the discriminant
+before or after payload fields and diagnose absent tags, duplicate tags,
+unknown variants, name collisions, incomplete case mappings, and duplicate
+discriminant values. Untagged trial decoding is not supported: it is ambiguous,
+has poor failure diagnostics, and requires speculative parsing.
+
+Raw D unions do not destroy only their active member. Consequently the current
+tagged-union schema accepts document-owned borrowed cases and rejects direct
+self-owning cases at compile time. A future `SumType` may provide active-member
+construction and destruction while implementing this same schema contract;
+serde does not require such a container today.
+
+JSON and TOML both support all three layouts at document roots and as nested
+values. TOML uses inline tables for nested tagged values and ordinary root
+assignments for root tagged documents.
+
+Binary byte-string values, numeric field identifiers, and automatic schema
+version comparison are not part of the current model. If binary values are
+added later they must be distinct from `String` and must specify each text
+backend's encoding explicitly rather than silently treating arbitrary bytes as
+UTF-8.
+
+Schema evolution is a documented compatibility contract, not runtime
+migration machinery. Adding defaulted data remains decodable by new readers;
+adding required data is breaking; renames retain compatibility through
+decode-only aliases; removed fields require an intentional unknown-field
+policy; and removing or respelling variants requires an explicit fallback or
+alias. The library does not compare two compiled schema revisions and claim
+that arbitrary source edits are compatible.
 
 Text decoding offers two lifetime models. A document-owned decode writes a
 `Deserialized!T`, a non-copyable RAII owner holding both `T*` and an internal
@@ -881,7 +970,8 @@ limits for nesting and collection sizes. Expected problems return
 line/column. Syntax errors, range errors, invalid UTF-8/escapes, unknown or
 duplicate fields, missing required fields, depth exhaustion, and allocation
 failure are recoverable results rather than panics. Null required pointers and
-invalid option contracts remain programmer errors.
+invalid option contracts remain programmer errors. An unknown tagged-union
+discriminant reports `unknownVariant`, independently of an unknown map key.
 
 The JSON backend emits and accepts strict UTF-8 JSON: no comments, trailing
 commas, non-finite floats, invalid surrogate pairs, or duplicate object keys.

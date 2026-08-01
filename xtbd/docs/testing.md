@@ -192,9 +192,9 @@ Serde tests additionally verify:
   and missing fields remain absent, TOML omits absent values, nested optional
   tables decode correctly, and `@required` checks key presence independently
   of JSON nullness;
-- rename, legacy alias, ignore, required, omit-default, and flatten attributes
-  compose correctly, with invalid or conflicting schemas rejected at compile
-  time;
+- rename, legacy alias, ignore, required, explicit-default, omit-default,
+  omission-predicate, adapter, and flatten attributes compose correctly, with
+  invalid or conflicting schemas rejected at compile time;
 - preserve, camel, Pascal, snake, screaming-snake, and kebab key policies
   handle acronym and existing-separator boundaries, with struct defaults,
   document overrides, exact renames, and exact aliases tested separately;
@@ -202,6 +202,12 @@ Serde tests additionally verify:
   mismatches, integer overflow, non-finite floats, maximum depth, and maximum
   collection length report the exact error category and useful source
   position;
+- external, internal, and adjacent tagged unions round-trip at roots and in
+  nested values, accept tag-after-payload ordering, preserve enum aliases and
+  casing, and reject missing, duplicate, unmapped, or unknown discriminants;
+- raw owning union cases, incomplete case maps, duplicate discriminant values,
+  internal non-struct cases, name collisions, and malformed adapters fail at
+  compile time;
 - JSON escaping, UTF-8, Unicode surrogate pairs, whitespace, and strict
   rejection of comments/trailing commas are covered independently;
 - TOML comments, dotted/table paths, quoted keys, basic and literal strings,
@@ -225,6 +231,9 @@ Serde tests additionally verify:
 - serializers allocate nothing, propagate sink failure, produce deterministic
   field order, and never emit a partial token after detecting an unsupported
   value; and
+- the shared backend-contract harness runs the same casing, alias, required,
+  default, omission, option, nested-value, unknown-field, and round-trip cases
+  against JSON and TOML, while backend-specific grammar tests remain separate;
 - JSON and TOML fuzz targets accept arbitrary byte slices under AddressSanitizer
   with bounded depth and collection limits.
 

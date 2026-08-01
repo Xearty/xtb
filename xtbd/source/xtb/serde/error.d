@@ -14,6 +14,7 @@ enum SerdeErrorKind : ubyte
     invalidNumber,
     numberOutOfRange,
     typeMismatch,
+    unknownVariant,
     unknownField,
     duplicateField,
     missingRequiredField,

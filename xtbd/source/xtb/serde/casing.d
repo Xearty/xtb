@@ -74,6 +74,12 @@ nothrow @nogc:
             const value = source[at];
             if (isSeparator(value))
             {
+                if (casing == KeyCase.preserve)
+                {
+                    emitted = true;
+                    *output = value;
+                    return true;
+                }
                 if (emitted)
                     pendingSeparator = true;
                 continue;
@@ -177,6 +183,7 @@ bool casedNamesEqual(
 
 unittest
 {
+    assert(matchesCased("already_named", "already_named", KeyCase.preserve));
     assert(matchesCased("http_server_id", "HTTPServerID", KeyCase.snake));
     assert(matchesCased("HTTP_SERVER_ID", "HTTPServerID", KeyCase.screamingSnake));
     assert(matchesCased("http-server-id", "HTTPServerID", KeyCase.kebab));

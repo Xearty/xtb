@@ -16,17 +16,20 @@ import xtb.core.print : Writer;
 import xtb.core.string : StringBuf;
 import xtb.core.types : String;
 import xtb.serde.attributes : Flatten, Ignore, KeyCase, OmitDefault, Rename,
-    Required;
+    Required, TagLayout;
 import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
     deserializationAllocator, prepareDeserialized;
-import xtb.serde.traits : ArrayElement, FieldType, Unqualified, fieldHas,
+import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified, fieldHas,
     applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName,
-    fieldMatches, fieldName, fieldShouldOmit, isArray, isDynamicArray,
-    isFixedArray, isOption, isSerdeStruct, isString, isStringBuf,
-    initializeOwnedValue, OptionElement, schemaCase, validateBorrowedSchema,
-    validateOwnedSchema, validateSchema;
+    discriminantIndex, DiscriminantType, fieldMatches, fieldName,
+    fieldShouldOmit, fieldAdapterCount, fieldDefaultValueCount, FieldAdapter,
+    isArray, isDefaultValueAttribute, isDynamicArray, isFixedArray, isOption,
+    isSerdeStruct, isString, isStringBuf, isTaggedUnion, initializeOwnedValue,
+    OptionElement, payloadIndex, PayloadType, schemaCase, serializedFieldCount,
+    taggedUnionLayout, unionCaseIsActive, UnionMemberType,
+    validateBorrowedSchema, validateOwnedSchema, validateSchema;
 
 struct TomlWriteOptions
 {
@@ -96,10 +99,15 @@ SerdeError readToml(T)(
     parser.options = options;
     parser.line = 1;
     parser.column = 1;
-    bool[tomlNodeCount!T] seen;
-    parseDocument(parser, value, seen.ptr);
-    if (parser.error.ok)
-        validateRequired(parser, value, seen.ptr, 0);
+    static if (isTaggedUnion!T)
+        decodeTaggedDocument(parser, value);
+    else
+    {
+        bool[tomlNodeCount!T] seen;
+        parseDocument(parser, value, seen.ptr);
+        if (parser.error.ok)
+            validateRequired(parser, value, seen.ptr, 0);
+    }
     parser.clearTablePath();
     if (!parser.error.ok)
     {
@@ -230,7 +238,18 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
 private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
 @system
 {
-    static if (hasElaborateDestructor!(Unqualified!F))
+    static if (fieldDefaultValueCount!(T, index) != 0)
+    {
+        bool result;
+        static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+            static if (isDefaultValueAttribute!(typeof(attribute)))
+                {
+                auto expected = attribute.value;
+                result = valuesEqual(value, expected);
+            }
+        return result;
+    }
+    else static if (hasElaborateDestructor!(Unqualified!F))
     {
         Unqualified!F defaults;
         return valuesEqual(value, defaults);
@@ -244,15 +263,52 @@ private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
 
 private void encodeRoot(T)(ref TomlEncoder encoder, scope const ref T value)
 {
-    bool wrote;
-    static foreach (index; 0 .. Unqualified!T.tupleof.length)
+    static if (isTaggedUnion!T)
+        encodeTaggedRoot(encoder, value);
+    else
     {
-        static if (!fieldHas!(T, index, Ignore))
+        bool wrote;
+        static foreach (index; 0 .. Unqualified!T.tupleof.length)
         {
-            static if (fieldHas!(T, index, Flatten))
-                encodeFlattened(encoder, value.tupleof[index], &wrote, 0);
-            else
-                encodeRootField!(T, index)(encoder, value.tupleof[index], &wrote);
+            static if (!fieldHas!(T, index, Ignore))
+            {
+                static if (fieldHas!(T, index, Flatten))
+                    encodeFlattened(encoder, value.tupleof[index], &wrote, 0);
+                else
+                    encodeRootField!(T, index)(encoder, value.tupleof[index], &wrote);
+            }
+        }
+    }
+}
+
+private void encodeTaggedRoot(T)(
+    ref TomlEncoder encoder,
+    scope const ref T value,
+)
+{
+    alias U = Unqualified!T;
+    static if (taggedUnionLayout!U == TagLayout.external)
+    {
+        encodeEnum(encoder, value.tupleof[discriminantIndex!U]);
+        encoder.writer.put(" = ");
+        encodeActiveUnionCase(encoder, value, 0);
+    }
+    else
+    {
+        encodeKey!(U, discriminantIndex!U)(encoder);
+        encoder.writer.put(" = ");
+        encodeEnum(encoder, value.tupleof[discriminantIndex!U]);
+        encoder.writer.put('\n');
+        static if (taggedUnionLayout!U == TagLayout.adjacent)
+        {
+            encodeKey!(U, payloadIndex!U)(encoder);
+            encoder.writer.put(" = ");
+            encodeActiveUnionCase(encoder, value, 0);
+        }
+        else
+        {
+            bool wrote;
+            encodeActiveUnionRootFields(encoder, value, &wrote);
         }
     }
 }
@@ -290,11 +346,30 @@ private void encodeRootField(T, size_t index, F)(
             return;
     if (absentValue(value))
         return;
-    if (*wrote)
-        encoder.writer.put('\n');
-    encodeKey!(T, index)(encoder);
-    encoder.writer.put(" = ");
-    encodeValue(encoder, value, depth);
+    static if (fieldAdapterCount!(T, index) != 0)
+    {
+        alias Adapter = FieldAdapter!(T, index);
+        Adapter.Representation representation;
+        const kind = Adapter.encode(value, &representation);
+        if (kind != SerdeErrorKind.none)
+        {
+            encoder.fail(kind);
+            return;
+        }
+        if (*wrote)
+            encoder.writer.put('\n');
+        encodeKey!(T, index)(encoder);
+        encoder.writer.put(" = ");
+        encodeValue(encoder, representation, depth);
+    }
+    else
+    {
+        if (*wrote)
+            encoder.writer.put('\n');
+        encodeKey!(T, index)(encoder);
+        encoder.writer.put(" = ");
+        encodeValue(encoder, value, depth);
+    }
     *wrote = true;
 }
 
@@ -381,8 +456,115 @@ private void encodeValue(T)(ref TomlEncoder encoder, scope const ref T value, si
         encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
+    else static if (isTaggedUnion!U)
+        encodeTaggedInline(encoder, value, depth);
     else static if (isSerdeStruct!U)
         encodeInlineTable(encoder, value, depth);
+}
+
+private void encodeTaggedInline(T)(
+    ref TomlEncoder encoder,
+    scope const ref T value,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    encoder.writer.put("{ ");
+    static if (taggedUnionLayout!U == TagLayout.external)
+    {
+        encodeEnum(encoder, value.tupleof[discriminantIndex!U]);
+        encoder.writer.put(" = ");
+        encodeActiveUnionCase(encoder, value, depth + 1);
+    }
+    else
+    {
+        encodeKey!(U, discriminantIndex!U)(encoder);
+        encoder.writer.put(" = ");
+        encodeEnum(encoder, value.tupleof[discriminantIndex!U]);
+        static if (taggedUnionLayout!U == TagLayout.adjacent)
+        {
+            encoder.writer.put(", ");
+            encodeKey!(U, payloadIndex!U)(encoder);
+            encoder.writer.put(" = ");
+            encodeActiveUnionCase(encoder, value, depth + 1);
+        }
+        else
+        {
+            bool wrote = true;
+            encodeActiveUnionInlineFields(encoder, value, depth, &wrote);
+        }
+    }
+    encoder.writer.put(" }");
+}
+
+private void encodeActiveUnionCase(T)(
+    ref TomlEncoder encoder,
+    scope const ref T value,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    alias P = PayloadType!U;
+    bool found;
+    static foreach (index; 0 .. P.tupleof.length)
+    {
+        if (!found && unionCaseIsActive!(P, index)(
+                value.tupleof[discriminantIndex!U]))
+        {
+            encodeValue(encoder,
+                value.tupleof[payloadIndex!U].tupleof[index], depth);
+            found = true;
+        }
+    }
+    if (!found)
+        encoder.fail(SerdeErrorKind.unknownVariant);
+}
+
+private void encodeActiveUnionInlineFields(T)(
+    ref TomlEncoder encoder,
+    scope const ref T value,
+    size_t depth,
+    bool* wrote,
+)
+{
+    alias U = Unqualified!T;
+    alias P = PayloadType!U;
+    bool found;
+    static foreach (index; 0 .. P.tupleof.length)
+    {
+        if (!found && unionCaseIsActive!(P, index)(
+                value.tupleof[discriminantIndex!U]))
+        {
+            encodeInlineFields(encoder,
+                value.tupleof[payloadIndex!U].tupleof[index], depth, wrote);
+            found = true;
+        }
+    }
+    if (!found)
+        encoder.fail(SerdeErrorKind.unknownVariant);
+}
+
+private void encodeActiveUnionRootFields(T)(
+    ref TomlEncoder encoder,
+    scope const ref T value,
+    bool* wrote,
+)
+{
+    alias U = Unqualified!T;
+    alias P = PayloadType!U;
+    bool found;
+    static foreach (index; 0 .. P.tupleof.length)
+    {
+        if (!found && unionCaseIsActive!(P, index)(
+                value.tupleof[discriminantIndex!U]))
+        {
+            encodeFlattened(encoder,
+                value.tupleof[payloadIndex!U].tupleof[index], wrote, 0);
+            found = true;
+        }
+    }
+    if (!found)
+        encoder.fail(SerdeErrorKind.unknownVariant);
 }
 
 private void encodeInlineTable(T)(
@@ -430,11 +612,30 @@ private void encodeInlineField(T, size_t index, F)(
             return;
     if (absentValue(value))
         return;
-    if (*wrote)
-        encoder.writer.put(", ");
-    encodeKey!(T, index)(encoder);
-    encoder.writer.put(" = ");
-    encodeValue(encoder, value, depth + 1);
+    static if (fieldAdapterCount!(T, index) != 0)
+    {
+        alias Adapter = FieldAdapter!(T, index);
+        Adapter.Representation representation;
+        const kind = Adapter.encode(value, &representation);
+        if (kind != SerdeErrorKind.none)
+        {
+            encoder.fail(kind);
+            return;
+        }
+        if (*wrote)
+            encoder.writer.put(", ");
+        encodeKey!(T, index)(encoder);
+        encoder.writer.put(" = ");
+        encodeValue(encoder, representation, depth + 1);
+    }
+    else
+    {
+        if (*wrote)
+            encoder.writer.put(", ");
+        encodeKey!(T, index)(encoder);
+        encoder.writer.put(" = ");
+        encodeValue(encoder, value, depth + 1);
+    }
     *wrote = true;
 }
 
@@ -675,6 +876,13 @@ private size_t nodeWidth(T, size_t index)() pure @safe
         return 0;
     else static if (fieldHas!(T, index, Flatten))
         return tomlNodeCount!F;
+    else static if (isTaggedUnion!F)
+        return 1;
+    else static if (isOption!F && isTaggedUnion!(OptionElement!F))
+        return 1;
+    else static if (is(Unqualified!F == TaggedPointee*, TaggedPointee) &&
+        isTaggedUnion!TaggedPointee)
+        return 1;
     else static if (isSerdeStruct!F)
         return 1 + tomlNodeCount!F;
     else static if (isOption!F && isSerdeStruct!(OptionElement!F))
@@ -705,6 +913,291 @@ pure @safe
 }
 
 private enum nodeOrdinal(T, size_t index) = countNodesBefore!(T, index);
+
+private void decodeTaggedDocument(T)(ref TomlParser parser, T* output)
+{
+    alias U = Unqualified!T;
+    static if (taggedUnionLayout!U == TagLayout.external)
+        decodeExternalTaggedDocument(parser, output);
+    else
+    {
+        DiscriminantType!U tag;
+        TomlParser scanner = parser;
+        scanDocumentDiscriminant!U(scanner, &tag);
+        if (!scanner.error.ok)
+        {
+            parser.error = scanner.error;
+            return;
+        }
+        output.tupleof[discriminantIndex!U] = tag;
+        alias P = PayloadType!U;
+        bool found;
+        static foreach (index; 0 .. P.tupleof.length)
+        {
+            if (!found && unionCaseIsActive!(P, index)(tag))
+            {
+                static if (taggedUnionLayout!U == TagLayout.adjacent)
+                    decodeAdjacentTaggedDocumentCase!(U, index)(parser, output);
+                else
+                    decodeInternalTaggedDocumentCase!(U, index)(parser, output);
+                found = true;
+            }
+        }
+        if (!found)
+            parser.fail(SerdeErrorKind.unknownVariant);
+    }
+}
+
+private void decodeExternalTaggedDocument(T)(
+    ref TomlParser parser,
+    T* output,
+)
+{
+    alias U = Unqualified!T;
+    parser.spaceAndComments();
+    if (parser.atEnd || parser.peek == '[')
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    ParsedKey[64] key;
+    size_t keyLength;
+    parseKeyPath(parser, key[], &keyLength);
+    if (parser.error.ok && keyLength != 1)
+        parser.fail(SerdeErrorKind.invalidSyntax);
+    if (parser.error.ok)
+        decodeTaggedEnumName(parser, key[0].value,
+            &output.tupleof[discriminantIndex!U]);
+    parser.horizontalSpace();
+    if (parser.error.ok && !parser.consume('='))
+        parser.fail(SerdeErrorKind.invalidSyntax);
+    parser.horizontalSpace();
+    if (parser.error.ok)
+        decodeActiveTaggedCase(parser, output, 0);
+    preserveDiagnostic(parser, key[], keyLength);
+    clearKeys(parser, key[], keyLength);
+    if (parser.error.ok)
+        finishDocumentEntry(parser);
+    if (parser.error.ok && !parser.atEnd)
+        parser.fail(SerdeErrorKind.invalidSyntax);
+}
+
+private void scanDocumentDiscriminant(T)(
+    ref TomlParser parser,
+    DiscriminantType!T* tag,
+)
+{
+    parser.spaceAndComments();
+    bool seen;
+    size_t assignments;
+    while (!parser.atEnd && parser.error.ok)
+    {
+        if (parser.peek == '[')
+        {
+            parser.fail(SerdeErrorKind.unsupportedValue);
+            break;
+        }
+        if (assignments++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            break;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, discriminantIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seen)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                seen = true;
+                decodeTaggedEnum(parser, tag);
+            }
+        }
+        else if (parser.error.ok)
+            skipValue(parser, 0);
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (parser.error.ok)
+            finishDocumentEntry(parser);
+    }
+    if (parser.error.ok && !seen)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+}
+
+private void decodeAdjacentTaggedDocumentCase(T, size_t caseIndex)(
+    ref TomlParser parser,
+    T* output,
+)
+{
+    parser.spaceAndComments();
+    bool seenTag;
+    bool seenPayload;
+    size_t assignments;
+    while (!parser.atEnd && parser.error.ok)
+    {
+        if (parser.peek == '[')
+        {
+            parser.fail(SerdeErrorKind.unsupportedValue);
+            break;
+        }
+        if (assignments++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            break;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, discriminantIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seenTag)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                DiscriminantType!T tag;
+                decodeTaggedEnum(parser, &tag);
+                if (parser.error.ok && tag != output.tupleof[discriminantIndex!T])
+                    parser.fail(SerdeErrorKind.unknownVariant);
+                seenTag = true;
+            }
+        }
+        else if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, payloadIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seenPayload)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                decodeValue(parser,
+                    &output.tupleof[payloadIndex!T].tupleof[caseIndex], 0);
+                seenPayload = true;
+            }
+        }
+        else if (parser.error.ok)
+        {
+            if (parser.options.limits.ignoreUnknownFields)
+                skipValue(parser, 0);
+            else
+                parser.fail(SerdeErrorKind.unknownField,
+                    key[keyLength - 1].value);
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (parser.error.ok)
+            finishDocumentEntry(parser);
+    }
+    if (parser.error.ok && !seenTag)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+    else if (parser.error.ok && !seenPayload)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, payloadIndex!T));
+}
+
+private void decodeInternalTaggedDocumentCase(T, size_t caseIndex)(
+    ref TomlParser parser,
+    T* output,
+)
+{
+    alias P = PayloadType!T;
+    alias C = UnionMemberType!(P, caseIndex);
+    applySchemaDefaults(
+        &output.tupleof[payloadIndex!T].tupleof[caseIndex]);
+    parser.spaceAndComments();
+    bool seenTag;
+    bool[tomlNodeCount!C] seen;
+    size_t assignments;
+    while (!parser.atEnd && parser.error.ok)
+    {
+        if (parser.peek == '[')
+        {
+            parser.fail(SerdeErrorKind.unsupportedValue);
+            break;
+        }
+        if (assignments++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            break;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, discriminantIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seenTag)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                DiscriminantType!T tag;
+                decodeTaggedEnum(parser, &tag);
+                if (parser.error.ok && tag != output.tupleof[discriminantIndex!T])
+                    parser.fail(SerdeErrorKind.unknownVariant);
+                seenTag = true;
+            }
+        }
+        else if (parser.error.ok)
+        {
+            bool matched;
+            decodePath(parser,
+                &output.tupleof[payloadIndex!T].tupleof[caseIndex],
+                null, 0, key[], keyLength, 0, 0, seen.ptr, 0, &matched);
+            if (!matched && parser.error.ok)
+            {
+                if (parser.options.limits.ignoreUnknownFields)
+                    skipValue(parser, 0);
+                else
+                    parser.fail(SerdeErrorKind.unknownField,
+                        key[keyLength - 1].value);
+            }
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (parser.error.ok)
+            finishDocumentEntry(parser);
+    }
+    if (parser.error.ok && !seenTag)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+    else if (parser.error.ok)
+        validateRequired(parser,
+            &output.tupleof[payloadIndex!T].tupleof[caseIndex], seen.ptr, 0);
+}
+
+private void finishDocumentEntry(ref TomlParser parser)
+{
+    parser.horizontalSpace();
+    if (parser.peek == '#')
+        while (!parser.atEnd && parser.peek != '\n')
+            parser.take();
+    if (!parser.atEnd && parser.peek != '\n' && parser.peek != '\r')
+    {
+        parser.fail(SerdeErrorKind.invalidSyntax);
+        return;
+    }
+    parser.spaceAndComments();
+}
 
 private void parseDocument(T)(ref TomlParser parser, T* output, bool* seen)
 {
@@ -931,10 +1424,35 @@ private void decodePathField(T, size_t index)(
         }
         seen[ordinal] = true;
         *matched = true;
-        static if (isSerdeStruct!F)
+        static if (fieldAdapterCount!(T, index) != 0)
+            decodeAdaptedValue!(T, index)(parser, &output.tupleof[index], 0);
+        else static if (isTaggedUnion!F)
+            decodeTaggedInline(parser, &output.tupleof[index], 0);
+        else static if (isOption!F && isTaggedUnion!(OptionElement!F))
+        {
+            applySchemaDefaults(&output.tupleof[index].storage());
+            decodeTaggedInline(parser, &output.tupleof[index].storage(), 0);
+            if (parser.error.ok)
+                output.tupleof[index].markPresent();
+        }
+        else static if (is(Unqualified!F == TaggedPointee*, TaggedPointee) &&
+            isTaggedUnion!TaggedPointee)
+        {
+            output.tupleof[index] = parser.allocator.tryAllocate!TaggedPointee();
+            if (output.tupleof[index] is null)
+            {
+                parser.fail(SerdeErrorKind.allocationFailure);
+                return;
+            }
+            *output.tupleof[index] = TaggedPointee.init;
+            applySchemaDefaults(output.tupleof[index]);
+            decodeTaggedInline(parser, output.tupleof[index], 0);
+        }
+        else static if (isSerdeStruct!F)
             decodeInlineTable(parser, &output.tupleof[index], 0, seen + ordinal + 1);
         else static if (isOption!F && isSerdeStruct!(OptionElement!F))
         {
+            applySchemaDefaults(&output.tupleof[index].storage());
             decodeInlineTable(parser, &output.tupleof[index].storage(), 0,
                 seen + ordinal + 1);
             if (parser.error.ok)
@@ -950,11 +1468,17 @@ private void decodePathField(T, size_t index)(
                 return;
             }
             *output.tupleof[index] = Pointee.init;
+            applySchemaDefaults(output.tupleof[index]);
             decodeInlineTable(parser, output.tupleof[index], 0, seen + ordinal + 1);
         }
         else
             decodeValue(parser, &output.tupleof[index], 0);
     }
+    else static if (isTaggedUnion!F ||
+        (isOption!F && isTaggedUnion!(OptionElement!F)) ||
+        (is(Unqualified!F == TaggedPointee*, TaggedPointee) &&
+            isTaggedUnion!TaggedPointee))
+        return;
     else static if (isSerdeStruct!F)
     {
         seen[ordinal] = true;
@@ -963,7 +1487,11 @@ private void decodePathField(T, size_t index)(
     }
     else static if (isOption!F && isSerdeStruct!(OptionElement!F))
     {
-        output.tupleof[index].markPresent();
+        if (output.tupleof[index].isNone)
+        {
+            applySchemaDefaults(&output.tupleof[index].storage());
+            output.tupleof[index].markPresent();
+        }
         seen[ordinal] = true;
         decodePath(parser, &output.tupleof[index].storage(), prefix, prefixLength,
             suffix, suffixLength, nextPrefix, nextSuffix, seen, ordinal + 1,
@@ -980,6 +1508,7 @@ private void decodePathField(T, size_t index)(
                 return;
             }
             *output.tupleof[index] = Pointee.init;
+            applySchemaDefaults(output.tupleof[index]);
         }
         seen[ordinal] = true;
         decodePath(parser, output.tupleof[index], prefix, prefixLength,
@@ -1022,7 +1551,13 @@ private void validateRequiredField(T, size_t index)(
                     parser.fail(SerdeErrorKind.missingRequiredField,
                         fieldName!(T, index));
             alias F = FieldType!(T, index);
-            static if (isSerdeStruct!F)
+            static if (isTaggedUnion!F ||
+                (isOption!F && isTaggedUnion!(OptionElement!F)) ||
+                (is(Unqualified!F == TaggedPointee*, TaggedPointee) &&
+                    isTaggedUnion!TaggedPointee))
+            {
+            }
+            else static if (isSerdeStruct!F)
             {
                 if (seen[ordinal])
                     validateRequired(parser, &output.tupleof[index], seen,
@@ -1081,8 +1616,45 @@ private void decodeValue(T)(ref TomlParser parser, T* output, size_t depth)
         decodeDynamicArray(parser, output, depth);
     else static if (isFixedArray!U)
         decodeFixedArray(parser, output, depth);
+    else static if (isTaggedUnion!U)
+        decodeTaggedInline(parser, output, depth);
     else static if (isSerdeStruct!U)
         decodeInlineTable(parser, output, depth);
+}
+
+private void decodeAdaptedValue(T, size_t index, F)(
+    ref TomlParser parser,
+    F* output,
+    size_t depth,
+)
+{
+    alias Adapter = FieldAdapter!(T, index);
+    alias Representation = Adapter.Representation;
+    Representation representation;
+    static if (isString!Representation)
+    {
+        bool owned;
+        decodeStringToken(parser, cast(String*)&representation, &owned);
+        if (parser.error.ok)
+        {
+            const kind = Adapter.decode(representation, parser.allocator, output);
+            if (kind != SerdeErrorKind.none)
+                parser.fail(kind);
+        }
+        if (owned)
+            parser.allocator.deallocate(cast(char*) representation.ptr,
+                representation.length + 1);
+    }
+    else
+    {
+        decodeValue(parser, &representation, depth);
+        if (parser.error.ok)
+        {
+            const kind = Adapter.decode(representation, parser.allocator, output);
+            if (kind != SerdeErrorKind.none)
+                parser.fail(kind);
+        }
+    }
 }
 
 private void decodeOption(T)(
@@ -1096,6 +1668,355 @@ private void decodeOption(T)(
         (*output).markPresent();
 }
 
+private void decodeTaggedInline(T)(
+    ref TomlParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    static if (taggedUnionLayout!U == TagLayout.external)
+        decodeExternalTaggedInline(parser, output, depth);
+    else
+    {
+        DiscriminantType!U tag;
+        TomlParser scanner = parser;
+        scanner.tablePathLength = 0;
+        scanInlineDiscriminant!U(scanner, &tag, depth);
+        if (!scanner.error.ok)
+        {
+            parser.error = scanner.error;
+            return;
+        }
+        output.tupleof[discriminantIndex!U] = tag;
+        bool found;
+        alias P = PayloadType!U;
+        static foreach (index; 0 .. P.tupleof.length)
+        {
+            if (!found && unionCaseIsActive!(P, index)(tag))
+            {
+                static if (taggedUnionLayout!U == TagLayout.adjacent)
+                    decodeAdjacentTaggedInlineCase!(U, index)(
+                        parser, output, depth);
+                else
+                    decodeInternalTaggedInlineCase!(U, index)(
+                        parser, output, depth);
+                found = true;
+            }
+        }
+        if (!found)
+            parser.fail(SerdeErrorKind.unknownVariant);
+    }
+}
+
+private void decodeExternalTaggedInline(T)(
+    ref TomlParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    parser.horizontalSpace();
+    ParsedKey[64] key;
+    size_t keyLength;
+    parseKeyPath(parser, key[], &keyLength);
+    if (parser.error.ok && keyLength != 1)
+        parser.fail(SerdeErrorKind.invalidSyntax);
+    if (parser.error.ok)
+        decodeTaggedEnumName(parser, key[0].value,
+            &output.tupleof[discriminantIndex!U]);
+    parser.horizontalSpace();
+    if (parser.error.ok && !parser.consume('='))
+        parser.fail(SerdeErrorKind.invalidSyntax);
+    parser.horizontalSpace();
+    if (parser.error.ok)
+        decodeActiveTaggedCase(parser, output, depth + 1);
+    preserveDiagnostic(parser, key[], keyLength);
+    clearKeys(parser, key[], keyLength);
+    if (!parser.error.ok)
+        return;
+    parser.horizontalSpace();
+    if (!parser.consume('}'))
+        parser.fail(SerdeErrorKind.invalidSyntax);
+}
+
+private void scanInlineDiscriminant(T)(
+    ref TomlParser parser,
+    DiscriminantType!T* tag,
+    size_t depth,
+)
+{
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    parser.horizontalSpace();
+    bool seen;
+    size_t fields;
+    while (!parser.consume('}'))
+    {
+        if (fields++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, discriminantIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seen)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                seen = true;
+                decodeTaggedEnum(parser, tag);
+            }
+        }
+        else if (parser.error.ok)
+            skipValue(parser, depth + 1);
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (!parser.error.ok)
+            return;
+        parser.horizontalSpace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.horizontalSpace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    if (!seen)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+}
+
+private void decodeActiveTaggedCase(T)(
+    ref TomlParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias U = Unqualified!T;
+    alias P = PayloadType!U;
+    bool found;
+    static foreach (index; 0 .. P.tupleof.length)
+    {
+        if (!found && unionCaseIsActive!(P, index)(
+                output.tupleof[discriminantIndex!U]))
+        {
+            decodeValue(parser,
+                &output.tupleof[payloadIndex!U].tupleof[index], depth);
+            found = true;
+        }
+    }
+    if (!found)
+        parser.fail(SerdeErrorKind.unknownVariant);
+}
+
+private void decodeAdjacentTaggedInlineCase(T, size_t caseIndex)(
+    ref TomlParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    bool seenTag;
+    bool seenPayload;
+    size_t fields;
+    parser.horizontalSpace();
+    while (!parser.consume('}'))
+    {
+        if (fields++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, discriminantIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seenTag)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                DiscriminantType!T tag;
+                decodeTaggedEnum(parser, &tag);
+                if (parser.error.ok && tag != output.tupleof[discriminantIndex!T])
+                    parser.fail(SerdeErrorKind.unknownVariant);
+                seenTag = true;
+            }
+        }
+        else if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, payloadIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seenPayload)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                decodeValue(parser,
+                    &output.tupleof[payloadIndex!T].tupleof[caseIndex],
+                    depth + 1);
+                seenPayload = true;
+            }
+        }
+        else if (parser.error.ok)
+        {
+            if (parser.options.limits.ignoreUnknownFields)
+                skipValue(parser, depth + 1);
+            else
+                parser.fail(SerdeErrorKind.unknownField,
+                    key[keyLength - 1].value);
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (!parser.error.ok)
+            return;
+        parser.horizontalSpace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.horizontalSpace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    if (!seenTag)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+    else if (!seenPayload)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, payloadIndex!T));
+}
+
+private void decodeInternalTaggedInlineCase(T, size_t caseIndex)(
+    ref TomlParser parser,
+    T* output,
+    size_t depth,
+)
+{
+    alias P = PayloadType!T;
+    alias C = UnionMemberType!(P, caseIndex);
+    applySchemaDefaults(
+        &output.tupleof[payloadIndex!T].tupleof[caseIndex]);
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    bool seenTag;
+    bool[tomlNodeCount!C] seen;
+    size_t fields;
+    parser.horizontalSpace();
+    while (!parser.consume('}'))
+    {
+        if (fields++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        if (parser.error.ok && keyLength == 1 &&
+            fieldMatches!(T, discriminantIndex!T)(key[0].value,
+                parser.options.keyCase))
+        {
+            if (seenTag)
+                parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+            else
+            {
+                DiscriminantType!T tag;
+                decodeTaggedEnum(parser, &tag);
+                if (parser.error.ok && tag != output.tupleof[discriminantIndex!T])
+                    parser.fail(SerdeErrorKind.unknownVariant);
+                seenTag = true;
+            }
+        }
+        else if (parser.error.ok)
+        {
+            bool matched;
+            decodePath(parser,
+                &output.tupleof[payloadIndex!T].tupleof[caseIndex],
+                null, 0, key[], keyLength, 0, 0, seen.ptr, 0, &matched);
+            if (!matched && parser.error.ok)
+            {
+                if (parser.options.limits.ignoreUnknownFields)
+                    skipValue(parser, depth + 1);
+                else
+                    parser.fail(SerdeErrorKind.unknownField,
+                        key[keyLength - 1].value);
+            }
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (!parser.error.ok)
+            return;
+        parser.horizontalSpace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.horizontalSpace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    if (!seenTag)
+        parser.fail(SerdeErrorKind.missingRequiredField,
+            fieldName!(T, discriminantIndex!T));
+    else
+        validateRequired(parser,
+            &output.tupleof[payloadIndex!T].tupleof[caseIndex], seen.ptr, 0);
+}
+
 private void decodeInlineTable(T)(
     ref TomlParser parser,
     T* output,
@@ -1103,6 +2024,7 @@ private void decodeInlineTable(T)(
     bool* externalSeen = null,
 )
 {
+    applySchemaDefaults(output);
     if (!parser.consume('{'))
     {
         parser.fail(SerdeErrorKind.typeMismatch);
@@ -1354,21 +2276,45 @@ private void decodeEnum(T)(ref TomlParser parser, T* output)
     String name;
     bool owned;
     decodeStringToken(parser, &name, &owned, true);
-    if (!parser.error.ok)
-        return;
+    if (parser.error.ok && !assignEnumName(name,
+            parser.options.variantCase, output))
+        parser.fail(SerdeErrorKind.typeMismatch);
+    if (owned)
+        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
+}
+
+private void decodeTaggedEnum(T)(ref TomlParser parser, T* output)
+{
+    String name;
+    bool owned;
+    decodeStringToken(parser, &name, &owned, true);
+    if (parser.error.ok)
+        decodeTaggedEnumName(parser, name, output);
+    if (owned)
+        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
+}
+
+private void decodeTaggedEnumName(T)(
+    ref TomlParser parser,
+    scope String name,
+    T* output,
+)
+{
+    if (!assignEnumName(name, parser.options.variantCase, output))
+        parser.fail(SerdeErrorKind.unknownVariant);
+}
+
+private bool assignEnumName(T)(scope String name, KeyCase casing, T* output)
+{
     bool found;
     static foreach (member; __traits(allMembers, T))
         static if (__traits(compiles, __traits(getMember, T, member)))
-            if (!found && enumMemberMatches!(T, member)(name,
-                    parser.options.variantCase))
+            if (!found && enumMemberMatches!(T, member)(name, casing))
                 {
                 *output = __traits(getMember, T, member);
                 found = true;
             }
-    if (owned)
-        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
-    if (!found)
-        parser.fail(SerdeErrorKind.typeMismatch);
+    return found;
 }
 
 private void decodeDynamicArray(T)(ref TomlParser parser, T* output, size_t depth)

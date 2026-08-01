@@ -6,9 +6,10 @@ import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option, set;
 import xtb.core.print : Writer, writeln;
 import xtb.core.string : String, StringBuf, append, clear, equal;
-import xtb.serde : Deserialized, KeyCase, SerdeError, aliasName, fieldCase,
-    ignore, omitDefault, readJson, readToml, rename, required, writeJson,
-    writeToml;
+import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind, TagLayout,
+    aliasName, caseOf, discriminant, fieldCase, ignore, omitDefault, payload,
+    readJson, readToml, rename, required, taggedUnion, variantCase, withSerde,
+    writeJson, writeToml;
 
 private enum Protocol
 {
@@ -44,6 +45,74 @@ private struct BorrowedReport
 {
     @required String reportName;
     int[] samples;
+}
+
+@variantCase(KeyCase.snake)
+private enum ChangeKind
+{
+    serviceStarted,
+    @rename("stopped") @aliasName("service_stopped") serviceStopped,
+}
+
+private struct StartedChange
+{
+    String service;
+    ushort port;
+}
+
+private struct StoppedChange
+{
+    String service;
+    int exitCode;
+}
+
+private union ChangePayload
+{
+    @caseOf(ChangeKind.serviceStarted) StartedChange started;
+    @caseOf(ChangeKind.serviceStopped) StoppedChange stopped;
+}
+
+@taggedUnion(TagLayout.adjacent)
+private struct ServiceChange
+{
+    @discriminant @rename("change_type") ChangeKind kind;
+    @payload @rename("change") ChangePayload data;
+}
+
+private struct Percentage
+{
+    ubyte value;
+}
+
+struct PercentageSerde
+{
+    alias Representation = uint;
+
+    static SerdeErrorKind encode(
+        scope const ref Percentage value,
+        uint* output,
+    ) nothrow @nogc
+    {
+        *output = value.value;
+        return SerdeErrorKind.none;
+    }
+
+    static SerdeErrorKind decode(
+        scope const ref uint value,
+        Allocator*,
+        Percentage* output,
+    ) nothrow @nogc
+    {
+        if (value > 100)
+            return SerdeErrorKind.numberOutOfRange;
+        output.value = cast(ubyte) value;
+        return SerdeErrorKind.none;
+    }
+}
+
+private struct Health
+{
+    @withSerde!PercentageSerde Percentage readiness;
 }
 
 private size_t appendSink(void* context, scope String bytes) nothrow @nogc
@@ -179,11 +248,43 @@ private bool demonstrateDocumentOwnedDecode() nothrow @nogc
     return true;
 }
 
+private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
+{
+    Deserialized!ServiceChange change;
+    SerdeError error = readJson(
+        "{\"change\":{\"service\":\"gateway\",\"port\":8443}," ~
+            "\"change_type\":\"service_started\"}",
+        mallocAllocator(), &change);
+    if (!error.ok)
+        return false;
+    writeln("tagged change: ", change.value.data.started.service,
+        ":", change.value.data.started.port);
+
+    ServiceChange stopped;
+    stopped.kind = ChangeKind.serviceStopped;
+    stopped.data.stopped = StoppedChange("worker", 17);
+    StringBuf toml = StringBuf.create(mallocAllocator());
+    Writer tomlWriter = Writer.fromSink(&appendSink, &toml);
+    error = writeToml(tomlWriter, stopped);
+    if (!error.ok)
+        return false;
+    writeln("tagged TOML:\n", toml.view);
+
+    Health health;
+    error = readJson("{\"readiness\":98}", mallocAllocator(), &health);
+    if (!error.ok)
+        return false;
+    writeln("adapted readiness: ", health.readiness.value, "%");
+    return true;
+}
+
 extern (C) int main()
 {
     if (!demonstrateOwningDecode())
         return 1;
     if (!demonstrateDocumentOwnedDecode())
+        return 1;
+    if (!demonstrateTaggedUnionAndAdapter())
         return 1;
     return 0;
 }

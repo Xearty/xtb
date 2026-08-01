@@ -1,8 +1,10 @@
 module tests.serde_tests;
 
 import core.lifetime : move;
+import tests.serde_backend_contract : runSerdeBackendContracts;
 import xtb.core.array : Array, append;
-import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
+import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
+    mallocAllocator;
 import xtb.core.option : Option, set;
 import xtb.core.print : Writer;
 import xtb.core.string : String, StringBuf, append, clear, equal;
@@ -48,6 +50,204 @@ private struct PolicyDocument
 {
     DeploymentMode mode;
     @defaultValue(7) @omitIf!omitSeven int retryLimit;
+}
+
+private struct Percentage
+{
+    ubyte value;
+}
+
+struct PercentageSerde
+{
+    alias Representation = uint;
+
+    static SerdeErrorKind encode(
+        scope const ref Percentage value,
+        uint* output,
+    ) nothrow @nogc
+    {
+        *output = value.value;
+        return SerdeErrorKind.none;
+    }
+
+    static SerdeErrorKind decode(
+        scope const ref uint value,
+        Allocator*,
+        Percentage* output,
+    ) nothrow @nogc
+    {
+        if (value > 100)
+            return SerdeErrorKind.numberOutOfRange;
+        output.value = cast(ubyte) value;
+        return SerdeErrorKind.none;
+    }
+}
+
+private struct AdapterDocument
+{
+    @withSerde!PercentageSerde Percentage percentage;
+}
+
+static assert(fieldAdapterCount!(AdapterDocument, 0) == 1);
+
+private struct SwitchState
+{
+    bool enabled;
+}
+
+struct SwitchStateSerde
+{
+    alias Representation = String;
+
+    static SerdeErrorKind encode(
+        scope const ref SwitchState value,
+        String* output,
+    ) nothrow @nogc
+    {
+        *output = value.enabled ? "enabled" : "disabled";
+        return SerdeErrorKind.none;
+    }
+
+    static SerdeErrorKind decode(
+        scope const ref String value,
+        Allocator*,
+        SwitchState* output,
+    ) nothrow @nogc
+    {
+        if (value.equal("enabled"))
+            output.enabled = true;
+        else if (value.equal("disabled"))
+            output.enabled = false;
+        else
+            return SerdeErrorKind.typeMismatch;
+        return SerdeErrorKind.none;
+    }
+}
+
+private struct StringAdapterDocument
+{
+    @withSerde!SwitchStateSerde SwitchState state;
+}
+
+private struct ExplicitNestedDefault
+{
+    @defaultValue(11) int value;
+}
+
+private struct NestedDefaultsDocument
+{
+    ExplicitNestedDefault* pointer;
+    ExplicitNestedDefault[] items;
+}
+
+@variantCase(KeyCase.snake)
+private enum EventKind
+{
+    recordCreated,
+    @rename("removed") @aliasName("record_deleted") recordDeleted,
+}
+
+private struct CreatedEvent
+{
+    int id;
+    String displayName;
+}
+
+private struct DeletedEvent
+{
+    int id;
+    bool permanent;
+}
+
+private union EventPayload
+{
+    @caseOf(EventKind.recordCreated) CreatedEvent created;
+    @caseOf(EventKind.recordDeleted) DeletedEvent deleted;
+}
+
+@taggedUnion(TagLayout.external)
+private struct ExternalEvent
+{
+    @discriminant EventKind kind;
+    @payload EventPayload data;
+}
+
+@taggedUnion(TagLayout.internal)
+private struct InternalEvent
+{
+    @discriminant @rename("event_type") EventKind kind;
+    @payload EventPayload data;
+}
+
+@taggedUnion(TagLayout.adjacent)
+private struct AdjacentEvent
+{
+    @discriminant @rename("event_type") EventKind kind;
+    @payload @rename("event_data") EventPayload data;
+}
+
+private struct ExternalEnvelope
+{
+    ExternalEvent event;
+}
+
+private struct InternalEnvelope
+{
+    InternalEvent event;
+}
+
+private struct AdjacentEnvelope
+{
+    AdjacentEvent event;
+}
+
+private enum ScalarKind
+{
+    integer,
+}
+
+private union ScalarPayload
+{
+    @caseOf(ScalarKind.integer) int integer;
+}
+
+@taggedUnion(TagLayout.internal)
+private struct InvalidInternalUnion
+{
+    @discriminant ScalarKind kind;
+    @payload ScalarPayload data;
+}
+
+private union IncompletePayload
+{
+    @caseOf(EventKind.recordCreated) CreatedEvent created;
+}
+
+@taggedUnion(TagLayout.adjacent)
+private struct IncompleteUnion
+{
+    @discriminant EventKind kind;
+    @payload IncompletePayload data;
+}
+
+struct InvalidSerdeAdapter
+{
+    alias Representation = uint;
+
+    static bool encode(scope const ref Percentage, uint*)
+    {
+        return true;
+    }
+
+    static bool decode(scope const ref uint, Allocator*, Percentage*)
+    {
+        return true;
+    }
+}
+
+private struct InvalidAdapterDocument
+{
+    @withSerde!InvalidSerdeAdapter Percentage percentage;
 }
 
 @fieldCase(KeyCase.snake)
@@ -174,6 +374,14 @@ static assert(__traits(compiles, validateSchema!StaticInitializer()));
 static assert(__traits(compiles, validateOwnedSchema!OwnedDocument()));
 static assert(__traits(compiles, validateOwnedSchema!OwnedOptionalValues()));
 static assert(__traits(compiles, validateBorrowedSchema!OptionalValues()));
+static assert(__traits(compiles, validateBorrowedSchema!ExternalEvent()));
+static assert(__traits(compiles, validateBorrowedSchema!InternalEvent()));
+static assert(__traits(compiles, validateBorrowedSchema!AdjacentEvent()));
+static assert(!__traits(compiles, validateOwnedSchema!AdjacentEvent()));
+static assert(!__traits(compiles,
+        validateBorrowedSchema!InvalidInternalUnion()));
+static assert(!__traits(compiles, validateBorrowedSchema!IncompleteUnion()));
+static assert(!__traits(compiles, validateSchema!InvalidAdapterDocument()));
 static assert(!__traits(compiles, validateBorrowedSchema!OwnedDocument()));
 static assert(!__traits(compiles, validateOwnedSchema!Settings()));
 static assert(!__traits(compiles, (ref Deserialized!Settings value) {
@@ -211,6 +419,226 @@ private void testSharedPolicies() nothrow @nogc
     assert(error.ok);
     assert(fromToml.value.mode == DeploymentMode.blueGreen);
     assert(fromToml.value.retryLimit == 7);
+
+    AdapterDocument adapted = AdapterDocument(Percentage(75));
+    json.clear();
+    jsonWriter = Writer.fromSink(&bufferSink, &json);
+    error = writeJson(jsonWriter, adapted);
+    assert(error.ok);
+    assert(json.view.equal("{\"percentage\":75}"));
+    AdapterDocument ownedJson;
+    error = readJson(json.view, mallocAllocator(), &ownedJson);
+    assert(error.ok);
+    assert(ownedJson.percentage.value == 75);
+
+    toml.clear();
+    tomlWriter = Writer.fromSink(&bufferSink, &toml);
+    error = writeToml(tomlWriter, adapted);
+    assert(error.ok);
+    assert(toml.view.equal("percentage = 75"));
+    AdapterDocument ownedToml;
+    error = readToml(toml.view, mallocAllocator(), &ownedToml);
+    assert(error.ok);
+    assert(ownedToml.percentage.value == 75);
+
+    error = readJson("{\"percentage\":101}", mallocAllocator(), &ownedJson);
+    assert(error.kind == SerdeErrorKind.numberOutOfRange);
+    error = readToml("percentage = 101", mallocAllocator(), &ownedToml);
+    assert(error.kind == SerdeErrorKind.numberOutOfRange);
+
+    AllocationRecord[16] adapterRecords;
+    InstrumentedAllocator adapterAllocator = InstrumentedAllocator.create(
+        mallocAllocator(), adapterRecords[]);
+    {
+        StringAdapterDocument stringAdapted;
+        error = readJson("{\"state\":\"en\\u0061bled\"}",
+            adapterAllocator.handle, &stringAdapted);
+        assert(error.ok);
+        assert(stringAdapted.state.enabled);
+        error = readToml("state = \"disabled\"", adapterAllocator.handle,
+            &stringAdapted);
+        assert(error.ok);
+        assert(!stringAdapted.state.enabled);
+    }
+    assert(adapterAllocator.clean);
+    assert(adapterAllocator.stats.invalidCalls == 0);
+
+    Deserialized!NestedDefaultsDocument jsonDefaults;
+    error = readJson("{\"pointer\":{},\"items\":[{}]}",
+        mallocAllocator(), &jsonDefaults);
+    assert(error.ok);
+    assert(jsonDefaults.value.pointer.value == 11);
+    assert(jsonDefaults.value.items[0].value == 11);
+
+    Deserialized!NestedDefaultsDocument tomlDefaults;
+    error = readToml("pointer = {}\nitems = [{}]\n",
+        mallocAllocator(), &tomlDefaults);
+    assert(error.ok);
+    assert(tomlDefaults.value.pointer.value == 11);
+    assert(tomlDefaults.value.items[0].value == 11);
+}
+
+private void testJsonTaggedUnions() nothrow @nogc
+{
+    ExternalEvent external;
+    external.kind = EventKind.recordCreated;
+    external.data.created = CreatedEvent(17, "new record");
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    SerdeError error = writeJson(writer, external);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "{\"record_created\":{\"id\":17,\"displayName\":\"new record\"}}"));
+
+    Deserialized!ExternalEvent decodedExternal;
+    error = readJson(encoded.view, mallocAllocator(), &decodedExternal);
+    assert(error.ok);
+    assert(decodedExternal.value.kind == EventKind.recordCreated);
+    assert(decodedExternal.value.data.created.id == 17);
+    assert(decodedExternal.value.data.created.displayName.equal("new record"));
+
+    InternalEvent internal;
+    internal.kind = EventKind.recordDeleted;
+    internal.data.deleted = DeletedEvent(9, true);
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, internal);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "{\"event_type\":\"removed\",\"id\":9,\"permanent\":true}"));
+
+    Deserialized!InternalEvent decodedInternal;
+    error = readJson(
+        "{\"permanent\":true,\"id\":9,\"event_type\":\"record_deleted\"}",
+        mallocAllocator(), &decodedInternal);
+    assert(error.ok);
+    assert(decodedInternal.value.kind == EventKind.recordDeleted);
+    assert(decodedInternal.value.data.deleted.id == 9);
+    assert(decodedInternal.value.data.deleted.permanent);
+
+    AdjacentEvent adjacent;
+    adjacent.kind = EventKind.recordCreated;
+    adjacent.data.created = CreatedEvent(23, "adjacent");
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, adjacent);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "{\"event_type\":\"record_created\",\"event_data\":{" ~
+            "\"id\":23,\"displayName\":\"adjacent\"}}"));
+
+    Deserialized!AdjacentEvent decodedAdjacent;
+    error = readJson(
+        "{\"event_data\":{\"id\":23,\"displayName\":\"adjacent\"}," ~
+            "\"event_type\":\"record_created\"}",
+        mallocAllocator(), &decodedAdjacent);
+    assert(error.ok);
+    assert(decodedAdjacent.value.kind == EventKind.recordCreated);
+    assert(decodedAdjacent.value.data.created.id == 23);
+
+    error = readJson(
+        "{\"event_type\":\"missing\",\"event_data\":{}}",
+        mallocAllocator(), &decodedAdjacent);
+    assert(error.kind == SerdeErrorKind.unknownVariant);
+    assert(decodedAdjacent.empty);
+}
+
+private void testTomlTaggedUnions() nothrow @nogc
+{
+    ExternalEnvelope external;
+    external.event.kind = EventKind.recordCreated;
+    external.event.data.created = CreatedEvent(17, "new record");
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    SerdeError error = writeToml(writer, external);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "event = { \"record_created\" = { id = 17, " ~
+            "displayName = \"new record\" } }"));
+
+    Deserialized!ExternalEnvelope decodedExternal;
+    error = readToml(encoded.view, mallocAllocator(), &decodedExternal);
+    assert(error.ok);
+    assert(decodedExternal.value.event.kind == EventKind.recordCreated);
+    assert(decodedExternal.value.event.data.created.id == 17);
+
+    InternalEnvelope internal;
+    internal.event.kind = EventKind.recordDeleted;
+    internal.event.data.deleted = DeletedEvent(9, true);
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, internal);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "event = { event_type = \"removed\", id = 9, permanent = true }"));
+
+    Deserialized!InternalEnvelope decodedInternal;
+    error = readToml(
+        "event = { permanent = true, id = 9, " ~
+            "event_type = \"record_deleted\" }",
+        mallocAllocator(), &decodedInternal);
+    assert(error.ok);
+    assert(decodedInternal.value.event.kind == EventKind.recordDeleted);
+    assert(decodedInternal.value.event.data.deleted.permanent);
+
+    AdjacentEnvelope adjacent;
+    adjacent.event.kind = EventKind.recordCreated;
+    adjacent.event.data.created = CreatedEvent(23, "adjacent");
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, adjacent);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "event = { event_type = \"record_created\", event_data = { " ~
+            "id = 23, displayName = \"adjacent\" } }"));
+
+    Deserialized!AdjacentEnvelope decodedAdjacent;
+    error = readToml(
+        "event = { event_data = { id = 23, displayName = \"adjacent\" }, " ~
+            "event_type = \"record_created\" }",
+        mallocAllocator(), &decodedAdjacent);
+    assert(error.ok);
+    assert(decodedAdjacent.value.event.kind == EventKind.recordCreated);
+    assert(decodedAdjacent.value.event.data.created.id == 23);
+
+    error = readToml(
+        "event = { event_type = \"missing\", event_data = {} }",
+        mallocAllocator(), &decodedAdjacent);
+    assert(error.kind == SerdeErrorKind.unknownVariant);
+    assert(decodedAdjacent.empty);
+
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, adjacent.event);
+    assert(error.ok);
+    assert(encoded.view.equal(
+            "event_type = \"record_created\"\n" ~
+            "event_data = { id = 23, displayName = \"adjacent\" }"));
+    Deserialized!AdjacentEvent rootAdjacent;
+    error = readToml(
+        "event_data = { id = 23, displayName = \"adjacent\" }\n" ~
+            "event_type = \"record_created\"\n",
+        mallocAllocator(), &rootAdjacent);
+    assert(error.ok);
+    assert(rootAdjacent.value.data.created.id == 23);
+
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, external.event);
+    assert(error.ok);
+    Deserialized!ExternalEvent rootExternal;
+    error = readToml(encoded.view, mallocAllocator(), &rootExternal);
+    assert(error.ok);
+    assert(rootExternal.value.data.created.id == 17);
+
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, internal.event);
+    assert(error.ok);
+    Deserialized!InternalEvent rootInternal;
+    error = readToml(encoded.view, mallocAllocator(), &rootInternal);
+    assert(error.ok);
+    assert(rootInternal.value.data.deleted.id == 9);
 }
 
 private void testJsonRoundTrip() nothrow @nogc
@@ -899,7 +1327,10 @@ extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
         testFunction();
+    runSerdeBackendContracts();
     testSharedPolicies();
+    testJsonTaggedUnions();
+    testTomlTaggedUnions();
     testJsonRoundTrip();
     testJsonPolicies();
     testJsonUnicodeAndNumbers();
