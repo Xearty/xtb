@@ -83,8 +83,11 @@ install `ThreadContextScope`, which supplies temporary C-string storage.
 Directory traversal streams entries rather than allocating a linked list. See
 `examples/os_demo.d`.
 
-Import `xtb.serde` for attribute-driven JSON and TOML mapping. Decoded values
-are allocator-owned through `Deserialized!T`; see `examples/serde_demo.d`.
+Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
+`Deserialized!T` with `String` and slices for one document-owned graph, or
+decode directly into an ordinary RAII struct containing `StringBuf` and
+`Array!T` for independently owned, freely mutable data. See
+`examples/serde_demo.d`.
 
 The remaining C++ core capability audit and proposed implementation milestone
 are maintained in `docs/core-gap-analysis.md`.
