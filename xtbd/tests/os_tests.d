@@ -7,10 +7,11 @@ import xtb.os.memory_map;
 import xtb.os.path;
 import xtb.os.time;
 import xtb.core.array : Array;
+import xtb.core.arena : Arena, TempArena, pop, push;
 import xtb.core.memory : mallocAllocator;
 import xtb.core.print : formatTo;
 import xtb.core.string : String, StringBuf, append;
-import xtb.core.thread_context : ThreadContextScope;
+import xtb.core.thread_context : ThreadContextScope, scratchArena;
 import xtb.core.types : u64, u8;
 
 version (linux) private bool countEntry(Path, FileType, void* context) nothrow @system @nogc
@@ -99,6 +100,24 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(canonical.view.length != 0);
     StringBuf executable = StringBuf.create(mallocAllocator());
     assert(executablePath(executable).succeeded && executable.view.length != 0);
+
+    Arena* outputArena = scratchArena();
+    outputArena.setRewindPoisoning(true);
+    TempArena outputTemporary = outputArena.push();
+    {
+        StringBuf scratchCanonical = StringBuf.create(outputTemporary.allocator);
+        assert(canonicalPath(rootPath, scratchCanonical).succeeded);
+        assert(scratchCanonical.view.length != 0);
+        assert(scratchCanonical.view[0] != cast(char) 0xDD);
+
+        StringBuf scratchExecutable = StringBuf.create(outputTemporary.allocator);
+        assert(executablePath(scratchExecutable).succeeded);
+        assert(scratchExecutable.view.length != 0);
+        assert(scratchExecutable.view[0] != cast(char) 0xDD);
+    }
+    outputTemporary.pop();
+    outputArena.setRewindPoisoning(false);
+
     String environmentPath;
     assert(environmentVariable("PATH", &environmentPath).succeeded);
     assert(environmentPath.length != 0);

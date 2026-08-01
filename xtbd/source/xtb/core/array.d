@@ -433,6 +433,7 @@ bool tryInsert(T)(
         return true;
 
     bool aliasesArray;
+    size_t sourceOffset;
     if (values.length != 0 && array.data_ !is null)
     {
         const sourceAddress = cast(size_t) values.ptr;
@@ -445,7 +446,9 @@ bool tryInsert(T)(
             if (byteOffset % T.sizeof != 0 ||
                 values.length > array.length_ - byteOffset / T.sizeof)
                 return false;
-            return false;
+            sourceOffset = byteOffset / T.sizeof;
+            static if (!__traits(isPOD, T))
+                return false;
         }
     }
 
@@ -459,7 +462,24 @@ bool tryInsert(T)(
         if (following != 0)
             memmove(array.data_ + index + values.length,
                 array.data_ + index, following * T.sizeof);
-        if (values.length != 0)
+        if (aliasesArray)
+        {
+            const sourceEnd = sourceOffset + values.length;
+            const leftCount = sourceOffset < index
+                ? (sourceEnd < index ? sourceEnd : index) - sourceOffset
+                : 0;
+            const rightCount = values.length - leftCount;
+            if (leftCount != 0)
+                memmove(array.data_ + index, array.data_ + sourceOffset,
+                    leftCount * T.sizeof);
+            if (rightCount != 0)
+            {
+                const rightSource = sourceOffset + leftCount + values.length;
+                memmove(array.data_ + index + leftCount,
+                    array.data_ + rightSource, rightCount * T.sizeof);
+            }
+        }
+        else
             memmove(array.data_ + index, values.ptr, values.length * T.sizeof);
     }
     else
@@ -605,6 +625,13 @@ nothrow @nogc unittest
     assert(values.empty);
     values.resetAndRelease();
     assert(values.capacity == 0);
+
+    Array!int selfInserted = Array!int.fromSlice(
+        mallocAllocator(),
+        [1, 2, 3, 4, 5, 6, 7, 8],
+    );
+    selfInserted.insert(2, selfInserted.slice[1 .. 4]);
+    assert(selfInserted.slice == [1, 2, 2, 3, 4, 3, 4, 5, 6, 7, 8]);
 
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(

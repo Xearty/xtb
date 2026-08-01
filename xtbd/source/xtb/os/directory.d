@@ -231,7 +231,7 @@ OsError executablePath(ref StringBuf output) nothrow @system @nogc
     {
         import core.sys.posix.unistd : readlink;
 
-        ScratchScope scratch = ScratchScope.acquire();
+        ScratchScope scratch = ScratchScope.acquire(output.allocator);
         Array!char buffer = Array!char.withLength(scratch.allocator, 256);
         for (;;)
         {
@@ -300,7 +300,7 @@ OsError canonicalPath(Path path, ref StringBuf output) nothrow @system @nogc
         import core.stdc.stdlib : free;
         import core.sys.posix.stdlib : realpath;
 
-        ScratchScope scratch = ScratchScope.acquire();
+        ScratchScope scratch = ScratchScope.acquire(output.allocator);
         StringBuf native = StringBuf.fromString(scratch.allocator, path.view);
         char* resolved = realpath(native.checkedCString, null);
         if (resolved is null)

@@ -719,19 +719,7 @@ bool tryPrepend(ref StringBuf buffer, String value) nothrow @nogc
 
 void prepend(ref StringBuf buffer, String value) nothrow @nogc
 {
-    if (value.length == 0)
-        return;
-    if (value.length > size_t.max - buffer.length)
-        panic("StringBuf size overflow");
-
-    const oldLength = buffer.length;
-    buffer.bytes_.resizeArray(oldLength + value.length);
-    memmove(
-        buffer.bytes_.slice.ptr + value.length,
-        buffer.bytes_.slice.ptr,
-        oldLength,
-    );
-    memmove(buffer.bytes_.slice.ptr, value.ptr, value.length);
+    buffer.insert(0, value);
 }
 
 void clear(ref StringBuf buffer) nothrow @nogc
@@ -746,6 +734,22 @@ void resetAndRelease(ref StringBuf buffer) nothrow @nogc
 
 bool tryEscape(ref StringBuf buffer, String value) nothrow @nogc
 {
+    bool aliasesBuffer;
+    size_t sourceOffset;
+    if (value.length != 0 && buffer.length != 0)
+    {
+        const sourceAddress = cast(size_t) value.ptr;
+        const beginAddress = cast(size_t) buffer.view.ptr;
+        const byteOffset = sourceAddress - beginAddress;
+        aliasesBuffer = sourceAddress >= beginAddress && byteOffset < buffer.length;
+        if (aliasesBuffer)
+        {
+            if (value.length > buffer.length - byteOffset)
+                return false;
+            sourceOffset = byteOffset;
+        }
+    }
+
     size_t escapedCount;
     foreach (character; value)
         if (escapedCharacter(character) != '\0')
@@ -756,6 +760,8 @@ bool tryEscape(ref StringBuf buffer, String value) nothrow @nogc
     const required = buffer.length + value.length + escapedCount;
     if (!buffer.tryReserve(required))
         return false;
+    if (aliasesBuffer)
+        value = buffer.view[sourceOffset .. sourceOffset + value.length];
     foreach (character; value)
     {
         const escaped = escapedCharacter(character);
@@ -947,6 +953,20 @@ nothrow @nogc unittest
     buffer.appendEscaped("\n");
     assert(buffer.view.endsWith("\\n"));
     assert(buffer.cString()[buffer.length] == '\0');
+
+    StringBuf selfPrepend = StringBuf.fromString(
+        mallocAllocator(),
+        "abcdefgh",
+    );
+    selfPrepend.prepend(selfPrepend.view);
+    assert(selfPrepend.view.equal("abcdefghabcdefgh"));
+
+    StringBuf selfEscape = StringBuf.fromString(
+        mallocAllocator(),
+        "a\nbcdefg",
+    );
+    selfEscape.appendEscaped(selfEscape.view);
+    assert(selfEscape.view.equal("a\nbcdefga\\nbcdefg"));
 
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(

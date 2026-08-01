@@ -1,7 +1,8 @@
 module xtb.os.path;
 
 import xtb.core.panic : panic, require;
-import xtb.core.string : String, StringBuf, containsNul, tryAppend;
+import xtb.core.string : String, StringBuf, appendAssumeCapacity, containsNul,
+    tryAppend, tryReserve;
 
 /// A borrowed native path without embedded NUL bytes.
 struct Path
@@ -75,10 +76,37 @@ bool tryAppendComponent(ref StringBuf output, Path component) nothrow @nogc
         --end;
     if (begin == end)
         return true;
+
     const current = output.view;
-    if (current.length != 0 && current[$ - 1] != '/' && !output.tryAppend('/'))
+    const separator = current.length != 0 && current[$ - 1] != '/';
+    const componentLength = end - begin;
+    if (componentLength > size_t.max - output.length - separator)
         return false;
-    return output.tryAppend(value[begin .. end]);
+
+    bool aliasesOutput;
+    size_t sourceOffset;
+    if (value.length != 0 && current.length != 0)
+    {
+        const sourceAddress = cast(size_t) value.ptr;
+        const beginAddress = cast(size_t) current.ptr;
+        const byteOffset = sourceAddress - beginAddress;
+        aliasesOutput = sourceAddress >= beginAddress && byteOffset < current.length;
+        if (aliasesOutput)
+        {
+            if (value.length > current.length - byteOffset)
+                return false;
+            sourceOffset = byteOffset;
+        }
+    }
+
+    if (!output.tryReserve(output.length + separator + componentLength))
+        return false;
+    if (aliasesOutput)
+        value = output.view[sourceOffset .. sourceOffset + value.length];
+    if (separator)
+        output.appendAssumeCapacity('/');
+    output.appendAssumeCapacity(value[begin .. end]);
+    return true;
 }
 
 void appendComponent(ref StringBuf output, Path component) nothrow @nogc
@@ -99,6 +127,11 @@ nothrow @nogc unittest
     joined.appendComponent(Path.fromString("/xtbd/"));
     joined.appendComponent(Path.fromString("file"));
     assert(joined.view == "/tmp/xtbd/file");
+
+    StringBuf selfJoined = StringBuf.fromString(mallocAllocator(), "root/abc");
+    selfJoined.appendComponent(Path.fromString(selfJoined.view[5 .. $]));
+    assert(selfJoined.view == "root/abc/abc");
+
     Path rejected;
     assert(!Path.tryFromString("bad\0path", &rejected));
 }
