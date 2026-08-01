@@ -225,7 +225,6 @@ WriteResult ewriteln(Args...)(auto ref Args args)
 }
 
 WriteResult writeFile(Args...)(FILE* file, auto ref Args args)
-
 {
     Writer writer = Writer.fromFile(file);
     static foreach (i; 0 .. Args.length)
@@ -234,7 +233,6 @@ WriteResult writeFile(Args...)(FILE* file, auto ref Args args)
 }
 
 WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
-
 {
     Writer writer = Writer.fromFile(file);
     static foreach (i; 0 .. Args.length)
@@ -244,7 +242,6 @@ WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
 }
 
 WriteResult writeTo(Args...)(ref StringBuf buffer, auto ref Args args)
-
 {
     Writer writer = Writer.fromSink(&stringBufSink, &buffer);
     static foreach (i; 0 .. Args.length)
@@ -253,7 +250,6 @@ WriteResult writeTo(Args...)(ref StringBuf buffer, auto ref Args args)
 }
 
 BufferWriteResult writeBuffer(Args...)(char[] destination, auto ref Args args)
-
 {
     FixedBufferState state;
     state.destination = destination;
@@ -339,7 +335,6 @@ private template Unqualified(T)
 }
 
 private void writeValue(T)(ref Writer writer, auto ref T value)
-
 {
     alias U = Unqualified!T;
     static if (__traits(compiles, value.formatTo(writer)))
@@ -451,7 +446,6 @@ private void writeInteger(T)(
 }
 
 private void writeFloat(T)(ref Writer writer, T value, char mode, int precision)
-
 {
     static assert(__traits(isFloating, T));
     if (precision < 0)
@@ -487,7 +481,6 @@ private void writeFloat(T)(ref Writer writer, T value, char mode, int precision)
 }
 
 private void writePointer(ref Writer writer, const(void)* pointer)
-
 {
     if (pointer is null)
     {
@@ -617,7 +610,6 @@ FloatFormat!T scientific(T)(T value, int precision = 6)
 }
 
 WriteResult format(string pattern, Args...)(auto ref Args args)
-
 {
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     writeFormat!(pattern, 0, 0)(writer, args);
@@ -625,7 +617,6 @@ WriteResult format(string pattern, Args...)(auto ref Args args)
 }
 
 WriteResult formatln(string pattern, Args...)(auto ref Args args)
-
 {
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     writeFormat!(pattern, 0, 0)(writer, args);

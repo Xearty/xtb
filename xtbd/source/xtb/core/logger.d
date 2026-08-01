@@ -224,7 +224,6 @@ private bool writeAll(FILE* file, String value)
 }
 
 private bool plainFileSink(void* context, scope const LogRecord* record)
-
 {
     FILE* file = cast(FILE*) context;
     if (file is null)
@@ -238,7 +237,6 @@ private bool plainFileSink(void* context, scope const LogRecord* record)
 }
 
 private bool ansiFileSink(void* context, scope const LogRecord* record)
-
 {
     FILE* file = cast(FILE*) context;
     if (file is null)

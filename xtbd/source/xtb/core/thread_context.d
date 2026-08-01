@@ -79,7 +79,6 @@ nothrow @nogc:
 }
 
 private Arena* selectScratchArena(scope Allocator*[] conflicts)
-
 {
     ThreadContext* context = tlsContext;
     if (context is null)

@@ -315,7 +315,6 @@ void writeStackTrace(
     return scope char[] signatureStorage,
     scope const StackTraceStyle* requestedStyle = null,
 )
-
 {
     StackTraceStyle defaultStyle = StackTraceStyle.fromTheme(
         StackTraceTheme.gruvbox,
