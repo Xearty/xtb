@@ -50,8 +50,11 @@ private void demonstrateValueState()
     Option!int implicitNone;
     Option!int staticNone = Option!int.none();
     Option!int genericNone = none!int();
-    assert(implicitNone.isNone && implicitNone.empty);
+    assert(implicitNone.isNone);
     assert(staticNone.isNone && genericNone.isNone);
+    // `empty` exists for range-oriented generic code. Direct Option code should
+    // communicate intent with isNone instead.
+    assert(implicitNone.empty);
     assert(implicitNone.pointer is null);
 
     Option!int number = some(10);
@@ -59,7 +62,7 @@ private void demonstrateValueState()
     assert(number.isSome && staticSome.isSome && staticSome.value == 20);
 
     // value returns a checked reference. Calling it while empty is a contract
-    // violation and panics, so test isSome/isNone/empty or use pointer first.
+    // violation and panics, so test isSome/isNone or use pointer first.
     number.value += 1;
     if (int* value = number.pointer)
         *value += 9;
@@ -76,12 +79,12 @@ private void demonstrateValueState()
     number.set(42);
     assert(number.value == 42);
     number.reset();
-    assert(number.empty && number.pointer is null);
+    assert(number.isNone && number.pointer is null);
 
     // take transfers the value out and leaves the Option empty.
     number.set(99);
     int extracted = number.take();
-    assert(extracted == 99 && number.empty);
+    assert(extracted == 99 && number.isNone);
     writeln("taken number: ", extracted);
 }
 
@@ -100,7 +103,7 @@ private void demonstrateCopyingAndNesting()
     Option!(Option!int) missingOuter;
     Option!(Option!int) missingInner = some(none!int());
     Option!(Option!int) presentInner = some(some(123));
-    assert(missingOuter.empty);
+    assert(missingOuter.isNone);
     assert(missingInner.isSome && missingInner.value.isNone);
     assert(presentInner.value.value == 123);
 
@@ -126,12 +129,12 @@ private void demonstrateOwningValues(Allocator* allocator)
     static assert(!__traits(compiles, (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
 
     StringBuf extracted = text.take();
-    assert(text.empty && extracted.view.equal("alpha-beta"));
+    assert(text.isNone && extracted.view.equal("alpha-beta"));
 
     // set takes its argument by value. Pass move(...) for an owning T.
     text.set(move(extracted));
     text.reset();
-    assert(text.empty);
+    assert(text.isNone);
 }
 
 private void demonstrateDestruction()
@@ -155,7 +158,7 @@ private void demonstrateDestruction()
 
         // take transfers destruction responsibility to the returned value.
         LifetimeProbe extracted = tracked.take();
-        assert(tracked.empty && destructions == 2);
+        assert(tracked.isNone && destructions == 2);
     }
     assert(destructions == 3);
     writeln("destructions after replace, reset, and taken-value scope exit: ",
@@ -197,9 +200,9 @@ private bool demonstrateSerde(Allocator* allocator)
     );
     if (!error.ok)
         return false;
-    assert(fromJson.enabled.empty);
+    assert(fromJson.enabled.isNone);
     assert(fromJson.channelName.value.view.equal("nightly"));
-    assert(fromJson.retryCount.empty);
+    assert(fromJson.retryCount.isNone);
 
     OptionalConfig fromToml;
     error = readToml(
@@ -211,9 +214,9 @@ private bool demonstrateSerde(Allocator* allocator)
         return false;
     assert(fromToml.enabled.isSome && !fromToml.enabled.value);
     assert(fromToml.channelName.value.view.equal("stable"));
-    assert(fromToml.retryCount.empty);
+    assert(fromToml.retryCount.isNone);
 
-    writeln("required JSON null -> empty: ", fromJson.enabled.empty);
+    writeln("required JSON null -> none: ", fromJson.enabled.isNone);
     writeln("decoded TOML channel: ", fromToml.channelName.value.view);
     return true;
 }

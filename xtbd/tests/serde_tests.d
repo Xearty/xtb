@@ -385,7 +385,7 @@ private void testJsonOptions() nothrow @nogc
     assert(error.ok);
     assert(decoded.value.title.isSome);
     assert(decoded.value.title.value.equal("deploy"));
-    assert(decoded.value.priority.empty);
+    assert(decoded.value.priority.isNone);
     assert(decoded.value.child.isSome);
     assert(decoded.value.child.value.label.equal("worker"));
     assert(decoded.value.child.value.value == 7);
@@ -395,7 +395,7 @@ private void testJsonOptions() nothrow @nogc
     // A required option requires the key, not a non-null JSON value.
     error = readJson("{\"explicit_toggle\":null}", mallocAllocator(), &decoded);
     assert(error.ok);
-    assert(decoded.value.explicitToggle.empty);
+    assert(decoded.value.explicitToggle.isNone);
     error = readJson("{}", mallocAllocator(), &decoded);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
 
@@ -536,7 +536,7 @@ private void testTomlOptions() nothrow @nogc
     assert(error.ok);
     assert(decoded.value.title.isSome);
     assert(decoded.value.title.value.equal("deploy"));
-    assert(decoded.value.priority.empty);
+    assert(decoded.value.priority.isNone);
     assert(decoded.value.child.isSome);
     assert(decoded.value.child.value.label.equal("worker"));
     assert(decoded.value.child.value.value == 7);
@@ -578,7 +578,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         OwnedOptionalValues value;
         SerdeError error = readJson(jsonInput, allocator.handle, &value);
         assert(error.ok);
-        assert(value.title.empty);
+        assert(value.title.isNone);
         assert(value.endpoint.isSome);
         assert(value.endpoint.value.hostName.view.equal("api.internal"));
         assert(value.endpoint.value.labels[0].view.equal("tls"));
@@ -604,7 +604,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         assert(value.endpoint.isSome);
         assert(value.endpoint.value.hostName.view.equal("jobs.internal"));
         assert(value.endpoint.value.labels[0].view.equal("stable"));
-        assert(value.revision.empty);
+        assert(value.revision.isNone);
     }
     assert(allocator.clean);
     assert(allocator.stats.invalidCalls == 0);

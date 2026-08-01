@@ -806,7 +806,9 @@ mixed ownership shapes fail at compile time with the field and type in the
 diagnostic. Enums use their D member names in text formats by default.
 
 `Option!T` is an ordinary BetterC value. `Option.init` is absent; `isSome` and
-`isNone` are the primary state queries, while `empty` is an alias for `isNone`.
+`isNone` are the state queries used by ordinary option code. `empty` is an alias
+for `isNone` provided only for compatibility with range-oriented generic code;
+do not use it when directly inspecting an option.
 `set` replaces its value by move, `reset` destroys the current value, and
 `take` transfers it out. Access through `value` checks that it is present. The
 option always contains valid `T.init` storage, which lets compiler-generated

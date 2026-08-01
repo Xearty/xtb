@@ -53,6 +53,8 @@ nothrow @nogc:
         return !present_;
     }
 
+    /// This function exists only for compatibility with range-oriented generic
+    /// code. Use `isNone` when directly inspecting an `Option`.
     bool empty() const pure @safe
     {
         return isNone;
@@ -138,7 +140,7 @@ unittest
     assert(number.value == 42);
     assert(number.pointer is &number.value());
     assert(number.take == 42);
-    assert(number.empty);
+    assert(number.isNone);
     assert(number.pointer is null);
 
     Option!int copied = some(7);
@@ -147,7 +149,7 @@ unittest
     assert(copied.value == 9);
     assert(copiedAgain.value == 7);
     copied.reset();
-    assert(copied.empty);
+    assert(copied.isNone);
 
     StringBuf source = StringBuf.fromString(mallocAllocator(), "owned");
     Option!StringBuf text = some(move(source));
@@ -155,11 +157,11 @@ unittest
     assert(text.value.view.equal("owned"));
     text.value.append(" value");
     StringBuf extracted = text.take();
-    assert(text.empty);
+    assert(text.isNone);
     assert(extracted.view.equal("owned value"));
     text.set(move(extracted));
     text.reset();
-    assert(text.empty);
+    assert(text.isNone);
 
     int destructions;
     {
@@ -171,7 +173,7 @@ unittest
         TrackedOptionValue second = TrackedOptionValue(&destructions, true);
         tracked.set(move(second));
         TrackedOptionValue taken = tracked.take();
-        assert(tracked.empty);
+        assert(tracked.isNone);
         assert(destructions == 1);
     }
     assert(destructions == 2);

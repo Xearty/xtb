@@ -53,8 +53,9 @@ ownership, hidden global state, and macro-oriented interfaces.
 
 ### Optional values
 
-- `Option!T` with `isSome`, `isNone`, and `empty` state queries, checked value
-  access, pointer inspection, and move-aware `set`, `take`, and `reset`;
+- `Option!T` with `isSome` and `isNone` state queries, range-compatible `empty`,
+  checked value access, pointer inspection, and move-aware `set`, `take`, and
+  `reset`;
 - copyability inherited from `T`, including non-copyable owning values;
 - normal compiler-generated destruction through always-valid `T.init` storage;
 - JSON null and TOML omission support through `xtb.serde`.
