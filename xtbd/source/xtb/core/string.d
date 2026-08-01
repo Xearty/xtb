@@ -178,7 +178,8 @@ String stripExtension(String value) pure nothrow @safe @nogc
 {
     const extension = value.findLast('.');
     const baseOffset = value.length - value.baseName.length;
-    return extension == notFound || extension < baseOffset ? value : value[0 .. extension];
+    return extension == notFound || extension <= baseOffset
+        ? value : value[0 .. extension];
 }
 
 bool contains(String value, String needle) pure nothrow @system @nogc
@@ -929,6 +930,8 @@ nothrow @nogc unittest
     assert(text.endsWith("  "));
     assert("a/b/file.tar".baseName.equal("file.tar"));
     assert("a/b/file.tar".stripExtension.equal("a/b/file"));
+    assert("a/b/.gitignore".stripExtension.equal("a/b/.gitignore"));
+    assert("a/b/.config.json".stripExtension.equal("a/b/.config"));
     assert("one two one".findLast("one") == 8);
     assert("hello".front == 'h' && "hello".back == 'o');
     assert("".empty);

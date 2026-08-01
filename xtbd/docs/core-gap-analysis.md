@@ -96,13 +96,14 @@ ownership, hidden global state, and macro-oriented interfaces.
 - checked short-write handling and required/truncated counts;
 - integers, arbitrary radix, binary/hex wrappers, floating-point modes,
   pointers, strings, and opt-in custom `formatTo` values;
-- compile-time checked `{}` formatting and allocator-owned formatted strings;
+- compile-time checked `{}` formatting and one-pass owned `StringBuf` results;
 - one complete structured `LogRecord` per sink invocation;
 - severity kept separate from message text;
 - explicit caller-provided message storage;
 - filtered, delivered, truncated, failed, recursive, and invalid logger status;
 - complete-message callbacks, stdout/stderr/file factories, plain/ANSI styles,
   threshold mutation, sink replacement, and flush;
+- serialized POSIX file records and non-terminating `critical` severity;
 - no mutable process-global logger.
 
 ### Panic and contracts

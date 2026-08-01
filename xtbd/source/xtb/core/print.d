@@ -2,8 +2,8 @@ module xtb.core.print;
 
 import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
-import xtb.core.string : String, StringBuf, append, clear, equal;
-import xtb.core.memory : Allocator, deallocate, tryAllocate;
+import xtb.core.string : String, StringBuf, append, clear, equal, tryAppend;
+import xtb.core.memory : Allocator;
 import xtb.core.panic : panic, require;
 
 alias Sink = size_t function(void* context, scope String bytes) nothrow @nogc;
@@ -156,6 +156,15 @@ private size_t stringBufSink(void* context, scope String bytes) nothrow @nogc
     return bytes.length;
 }
 
+private size_t fallibleStringBufSink(
+    void* context,
+    scope String bytes,
+) nothrow @nogc
+{
+    StringBuf* buffer = cast(StringBuf*) context;
+    return buffer !is null && (*buffer).tryAppend(bytes) ? bytes.length : 0;
+}
+
 private struct FixedBufferState
 {
     char[] destination;
@@ -282,37 +291,29 @@ BufferWriteResult formatBuffer(string pattern, Args...)(
 
 bool tryFormatString(string pattern, Args...)(
     Allocator* allocator,
-    String* output,
+    StringBuf* output,
     auto ref Args args,
 ) nothrow @nogc
 {
-    require(output !is null, "String output pointer is null");
-    char[] emptyDestination;
-    const measured = formatBuffer!pattern(emptyDestination, args);
-    if (measured.required == size_t.max)
-        return false;
-    char* destination = allocator.tryAllocate!char(measured.required + 1);
-    if (destination is null)
-        return false;
-    const formatted = formatBuffer!pattern(
-        destination[0 .. measured.required + 1],
-        args,
-    );
-    if (!formatted.ok || formatted.truncated)
+    require(output !is null, "StringBuf output pointer is null");
+    output.deinit();
+    *output = StringBuf.create(allocator);
+    Writer writer = Writer.fromSink(&fallibleStringBufSink, output);
+    writeFormat!(pattern, 0, 0)(writer, args);
+    if (!writer.finish().ok)
     {
-        allocator.deallocate(destination, measured.required + 1);
+        output.deinit();
         return false;
     }
-    *output = destination[0 .. formatted.written];
     return true;
 }
 
-String formatString(string pattern, Args...)(
+StringBuf formatString(string pattern, Args...)(
     Allocator* allocator,
     auto ref Args args,
 ) nothrow @nogc
 {
-    String result;
+    StringBuf result;
     if (!tryFormatString!pattern(allocator, &result, args))
         panic("String formatting failed");
     return result;
@@ -385,7 +386,7 @@ nothrow @nogc
     else
     {
         static assert(false, "unsupported printable type: " ~ U.stringof ~
-                "; define `void formatTo(ref Writer) const nothrow @nogc`");
+                "; define `void formatTo(ref Writer) nothrow @nogc`");
     }
 }
 
@@ -690,7 +691,7 @@ pure nothrow @safe @nogc
 
 nothrow @nogc unittest
 {
-    import xtb.core.memory : deallocate, mallocAllocator;
+    import xtb.core.memory : mallocAllocator;
 
     StringBuf buffer = StringBuf.create(mallocAllocator());
     buffer.writeTo("answer=", 42, ", hex=", hexadecimal(255));
@@ -707,11 +708,26 @@ nothrow @nogc unittest
     assert(result.required == 9);
     assert(fixedBuffer[7] == '\0');
 
-    String allocated = formatString!"{}:{}"(mallocAllocator(), "item", 9);
-    assert(allocated.equal("item:9"));
-    mallocAllocator().deallocate(
-        cast(void*) allocated.ptr,
-        allocated.length + 1,
-        char.alignof,
+    StringBuf allocated = formatString!"{}:{}"(mallocAllocator(), "item", 9);
+    assert(allocated.view.equal("item:9"));
+
+    struct StatefulValue
+    {
+        size_t* calls;
+
+        void formatTo(ref Writer writer) nothrow @nogc
+        {
+            ++*calls;
+            writer.put("stateful");
+        }
+    }
+
+    size_t calls;
+    StatefulValue value = StatefulValue(&calls);
+    StringBuf stateful = formatString!"{}"(
+        mallocAllocator(),
+        value,
     );
+    assert(stateful.view.equal("stateful"));
+    assert(calls == 1);
 }

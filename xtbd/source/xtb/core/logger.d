@@ -11,7 +11,7 @@ enum LogLevel : ubyte
     info,
     warning,
     error,
-    fatal,
+    critical,
 }
 
 enum LogStatus : ubyte
@@ -105,8 +105,8 @@ private String levelName(LogLevel level) pure nothrow @safe @nogc
             return "warning";
         case LogLevel.error:
             return "error";
-        case LogLevel.fatal:
-            return "fatal";
+        case LogLevel.critical:
+            return "critical";
     }
 }
 
@@ -124,7 +124,7 @@ private String levelColor(LogLevel level) pure nothrow @safe @nogc
             return "\x1b[33m";
         case LogLevel.error:
             return "\x1b[91m";
-        case LogLevel.fatal:
+        case LogLevel.critical:
             return "\x1b[1;91m";
     }
 }
@@ -222,19 +222,50 @@ private bool plainFileSink(void* context, scope const LogRecord* record)
 nothrow @nogc
 {
     FILE* file = cast(FILE*) context;
-    return file !is null && writeAll(file, "[") &&
+    if (file is null)
+        return false;
+    lockFile(file);
+    const accepted = writeAll(file, "[") &&
         writeAll(file, levelName(record.level)) && writeAll(file, "] ") &&
         writeAll(file, record.message) && writeAll(file, "\n");
+    unlockFile(file);
+    return accepted;
 }
 
 private bool ansiFileSink(void* context, scope const LogRecord* record)
 nothrow @nogc
 {
     FILE* file = cast(FILE*) context;
-    return file !is null && writeAll(file, levelColor(record.level)) &&
-        writeAll(file, "[") && writeAll(file, levelName(record.level)) &&
+    if (file is null)
+        return false;
+    lockFile(file);
+    const accepted = writeAll(file, levelColor(record.level)) &&
+        writeAll(file, "[") && writeAll(
+            file, levelName(record.level)) &&
         writeAll(file, "]\x1b[0m ") && writeAll(file, record.message) &&
         writeAll(file, "\n");
+    unlockFile(file);
+    return accepted;
+}
+
+private void lockFile(FILE* file) nothrow @nogc
+{
+    version (Posix)
+    {
+        import core.sys.posix.stdio : flockfile;
+
+        flockfile(file);
+    }
+}
+
+private void unlockFile(FILE* file) nothrow @nogc
+{
+    version (Posix)
+    {
+        import core.sys.posix.stdio : funlockfile;
+
+        funlockfile(file);
+    }
 }
 
 private bool fileFlush(void* context) nothrow @nogc

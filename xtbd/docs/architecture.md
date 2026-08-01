@@ -464,6 +464,11 @@ the allocator contract. Ownership transfer, if needed, uses an explicitly
 named move/release operation that leaves the source empty; ordinary assignment
 must not duplicate ownership.
 
+The zero state may be queried, cleared, moved, or destroyed, but it has no
+allocator and therefore cannot grow. Fallible growth returns `false`; panicking
+growth reports the missing allocator. Construct it with `create`,
+`withCapacity`, or `fromString` before appending.
+
 All mutation occurs through `StringBuf`, never through `String`. Free functions
 that modify a buffer use `ref StringBuf` as their first parameter so they work
 naturally with UFCS. This is the narrow exception to the project's pointer-for-
@@ -504,6 +509,11 @@ when composition or allocation reuse matters. Convenience functions may return
 `StringBuf` by move. Utilities returning an allocator-backed `String` document
 that the allocator, not the view, owns its bytes and when those bytes become
 invalid.
+
+`formatString` returns a `StringBuf`, not an owning-looking `String` view. It
+formats directly into that builder in one pass, so a custom `formatTo` function
+is invoked exactly once. `tryFormatString` leaves a zero `StringBuf` on
+allocation or sink failure.
 
 #### C strings and termination
 
