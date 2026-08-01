@@ -4,7 +4,7 @@ license "BSL-1.0"
 targetType "staticLibrary"
 sourcePaths "source"
 buildOptions "betterC"
-dflags "-preview=dip1000" platform="ldc"
+dflags "-preview=dip1000" "-w" "-de" platform="ldc"
 libs "backtrace" platform="linux"
 
 configuration "library" {

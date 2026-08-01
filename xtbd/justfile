@@ -4,56 +4,67 @@ source_files := `find source -name '*.d' -print | sort | tr '\n' ' '`
 math_source_files := `printf '%s ' source/xtb/math/random.d; find source -name '*.d' ! -path 'source/xtb/math/random.d' -print | sort | tr '\n' ' '`
 os_source_files := `printf '%s ' source/xtb/os/path.d; find source -name '*.d' ! -path 'source/xtb/os/path.d' -print | sort | tr '\n' ' '`
 lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/core/stacktrace_style.d' -print | sort | tr '\n' ' '`
+format_files := `find source tests examples -name '*.d' -print | sort | tr '\n' ' '`
 platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
+common_flags := "-betterC -boundscheck=on -w -de -preview=dip1000 -I=source"
 
 default: check
 
 format:
-    dfmt --inplace source/xtb/math/*.d source/xtb/os/*.d tests/math_tests.d tests/os_tests.d examples/math_demo.d examples/os_demo.d
+    dfmt --config . --inplace {{format_files}}
 
 build:
     mkdir -p build
-    ldc2 -betterC -boundscheck=on -wi -de -oq -I=source -lib {{source_files}} -of=build/libxtbd.a
+    ldc2 {{common_flags}} -oq -lib {{source_files}} -of=build/libxtbd.a
 
 test:
     mkdir -p build
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source tests/core_tests.d {{source_files}} {{platform_libs}} -of=build/core_tests
+    ldc2 {{common_flags}} -unittest tests/core_tests.d {{source_files}} {{platform_libs}} -of=build/core_tests
     ./build/core_tests
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests
+    ldc2 {{common_flags}} -unittest tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests
     ./build/math_tests
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests
+    ldc2 {{common_flags}} -unittest tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests
     ./build/os_tests
 
 test-optimized:
     mkdir -p build
-    ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source tests/core_tests.d {{source_files}} {{platform_libs}} -of=build/core_tests_optimized
+    ldc2 {{common_flags}} -unittest -O3 tests/core_tests.d {{source_files}} {{platform_libs}} -of=build/core_tests_optimized
     ./build/core_tests_optimized
-    ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_optimized
+    ldc2 {{common_flags}} -unittest -O3 tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_optimized
     ./build/math_tests_optimized
-    ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests_optimized
+    ldc2 {{common_flags}} -unittest -O3 tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests_optimized
     ./build/os_tests_optimized
+
+test-release:
+    mkdir -p build
+    ldc2 {{common_flags}} -unittest -O3 -release tests/core_tests.d {{source_files}} {{platform_libs}} -of=build/core_tests_release
+    ./build/core_tests_release
+    ldc2 {{common_flags}} -unittest -O3 -release tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_release
+    ./build/math_tests_release
+    ldc2 {{common_flags}} -unittest -O3 -release tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests_release
+    ./build/os_tests_release
 
 test-darwin-build:
     mkdir -p build
-    ldc2 -betterC -mtriple=aarch64-apple-darwin -boundscheck=on -wi -de -oq -I=source -lib {{source_files}} -of=build/libxtbd_aarch64_darwin.a
+    ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{source_files}} -of=build/libxtbd_aarch64_darwin.a
 
 test-sanitize:
     mkdir -p build
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
+    ldc2 {{common_flags}} -unittest -fsanitize=address {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
     ./build/core_tests_asan
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_asan
+    ldc2 {{common_flags}} -unittest -fsanitize=address tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_asan
     ./build/math_tests_asan
-    ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=address -I=source tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests_asan
+    ldc2 {{common_flags}} -unittest -fsanitize=address tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests_asan
     ./build/os_tests_asan
 
 test-ubsan:
     mkdir -p build
     if ldc2 -betterC -fsanitize=undefined -c source/xtb/core/types.d -of=build/ubsan_probe.o >/dev/null 2>&1; then \
-        ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
+        ldc2 {{common_flags}} -unittest -fsanitize=undefined {{source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
         ./build/core_tests_ubsan; \
-        ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_ubsan; \
+        ldc2 {{common_flags}} -unittest -fsanitize=undefined tests/math_tests.d {{math_source_files}} {{platform_libs}} -of=build/math_tests_ubsan; \
         ./build/math_tests_ubsan; \
-        ldc2 -betterC -unittest -boundscheck=on -wi -de -fsanitize=undefined -I=source tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests_ubsan; \
+        ldc2 {{common_flags}} -unittest -fsanitize=undefined tests/os_tests.d {{os_source_files}} {{platform_libs}} -of=build/os_tests_ubsan; \
         ./build/os_tests_ubsan; \
     else \
         echo "UBSan is not supported by this LDC build; skipped"; \
@@ -62,16 +73,16 @@ test-ubsan:
 test-abi:
     mkdir -p build
     clang -std=c11 -Wall -Wextra -Werror -c tests/abi_allocator.c -o build/abi_allocator_c.o
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} tests/abi_allocator.d build/abi_allocator_c.o {{platform_libs}} -of=build/abi_allocator
+    ldc2 {{common_flags}} {{source_files}} tests/abi_allocator.d build/abi_allocator_c.o {{platform_libs}} -of=build/abi_allocator
     ./build/abi_allocator
 
 examples:
     mkdir -p build
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/core_demo.d {{platform_libs}} -of=build/core_demo
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/print_demo.d {{platform_libs}} -of=build/print_demo
-    ldc2 -betterC -g -boundscheck=on -wi -de -I=source {{source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/math_demo.d {{platform_libs}} -of=build/math_demo
-    ldc2 -betterC -boundscheck=on -wi -de -I=source {{source_files}} examples/os_demo.d {{platform_libs}} -of=build/os_demo
+    ldc2 {{common_flags}} {{source_files}} examples/core_demo.d {{platform_libs}} -of=build/core_demo
+    ldc2 {{common_flags}} {{source_files}} examples/print_demo.d {{platform_libs}} -of=build/print_demo
+    ldc2 {{common_flags}} -g {{source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
+    ldc2 {{common_flags}} {{source_files}} examples/math_demo.d {{platform_libs}} -of=build/math_demo
+    ldc2 {{common_flags}} {{source_files}} examples/os_demo.d {{platform_libs}} -of=build/os_demo
     ./build/core_demo
     ./build/print_demo
     ./build/stacktrace_demo
@@ -82,4 +93,4 @@ lint:
     dscanner --syntaxCheck source/xtb/core/stacktrace_style.d
     dscanner lint --config dscanner.ini --styleCheck {{lint_files}}
 
-check: lint build test test-optimized test-darwin-build test-abi test-ubsan examples
+check: lint build test test-optimized test-release test-darwin-build test-abi test-sanitize test-ubsan examples

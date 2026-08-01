@@ -10,6 +10,7 @@
     supportedSystems = [
       "x86_64-linux"
       "aarch64-linux"
+      "x86_64-darwin"
       "aarch64-darwin"
     ];
     forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
@@ -30,7 +31,7 @@
         buildPhase = ''
           runHook preBuild
           mkdir -p build
-          ldc2 -betterC -boundscheck=on -wi -de -oq -I=source \
+          ldc2 -betterC -boundscheck=on -w -de -preview=dip1000 -oq -I=source \
             -lib $(find source -name '*.d' -print | sort) \
             -of=build/libxtbd.a
           runHook postBuild
@@ -53,53 +54,19 @@
         pname = "xtbd-tests";
         version = "0.1.0";
         src = self;
-        nativeBuildInputs = [pkgs.ldc pkgs.clang];
+        nativeBuildInputs = [
+          pkgs.ldc
+          pkgs.clang
+          pkgs.just
+          pkgs.dscanner
+          pkgs.dformat
+        ];
         buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.libbacktrace];
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
-          ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source \
-            tests/core_tests.d $(find source -name '*.d' -print | sort) \
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
-            -of=core-tests
-          ./core-tests
-          ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source \
-            tests/math_tests.d source/xtb/math/random.d \
-            $(find source -name '*.d' ! -path 'source/xtb/math/random.d' -print | sort) \
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
-            -of=math-tests
-          ./math-tests
-          ldc2 -betterC -unittest -boundscheck=on -wi -de -I=source \
-            tests/os_tests.d source/xtb/os/path.d \
-            $(find source -name '*.d' ! -path 'source/xtb/os/path.d' -print | sort) \
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
-            -of=os-tests
-          ./os-tests
-          ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source \
-            tests/core_tests.d $(find source -name '*.d' -print | sort) \
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
-            -of=core-tests-optimized
-          ./core-tests-optimized
-          ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source \
-            tests/math_tests.d source/xtb/math/random.d \
-            $(find source -name '*.d' ! -path 'source/xtb/math/random.d' -print | sort) \
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
-            -of=math-tests-optimized
-          ./math-tests-optimized
-          ldc2 -betterC -unittest -O3 -boundscheck=on -wi -de -I=source \
-            tests/os_tests.d source/xtb/os/path.d \
-            $(find source -name '*.d' ! -path 'source/xtb/os/path.d' -print | sort) \
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
-            -of=os-tests-optimized
-          ./os-tests-optimized
-          clang -std=c11 -Wall -Wextra -Werror \
-            -c tests/abi_allocator.c -o abi-allocator-c.o
-          ldc2 -betterC -boundscheck=on -wi -de -I=source \
-            $(find source -name '*.d' -print | sort) \
-            tests/abi_allocator.d abi-allocator-c.o \
-            ${pkgs.lib.optionalString pkgs.stdenv.isLinux "-L${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"} \
-            -of=abi-allocator
-          ./abi-allocator
+          ${pkgs.lib.optionalString pkgs.stdenv.isLinux "export XTB_LIBBACKTRACE=${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"}
+          just check
           runHook postBuild
         '';
         installPhase = ''
@@ -111,35 +78,34 @@
 
     devShells = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      linkedBacktrace =
-        if pkgs.stdenv.isLinux
-        then
-          pkgs.runCommand "libbacktrace-linked" {} ''
-            mkdir -p $out/lib
-            ln -s ${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0 $out/lib/libbacktrace.so
-          ''
-        else pkgs.libbacktrace;
+      linkedBacktrace = pkgs.runCommand "libbacktrace-linked" {} ''
+        mkdir -p $out/lib
+        ln -s ${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0 $out/lib/libbacktrace.so
+      '';
     in {
       default = pkgs.mkShell {
         name = "xtbd";
         strictDeps = true;
 
-        packages = with pkgs; [
-          ldc
-          dub
-          dscanner
-          dformat
-          just
-          pkg-config
-          clang-tools
-          lldb
-          linkedBacktrace
-        ];
+        packages = with pkgs;
+          [
+            ldc
+            dub
+            dscanner
+            dformat
+            just
+            pkg-config
+            clang-tools
+            lldb
+          ]
+          ++ lib.optionals stdenv.isLinux [linkedBacktrace];
 
         shellHook = ''
-          export XTB_LIBBACKTRACE=${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0
-          export LIBRARY_PATH=${linkedBacktrace}/lib''${LIBRARY_PATH:+:}$LIBRARY_PATH
-          export LD_LIBRARY_PATH=${pkgs.libbacktrace}/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
+          ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+            export XTB_LIBBACKTRACE=${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0
+            export LIBRARY_PATH=${linkedBacktrace}/lib''${LIBRARY_PATH:+:}$LIBRARY_PATH
+            export LD_LIBRARY_PATH=${pkgs.libbacktrace}/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
+          ''}
           echo "xtbd BetterC shell: $(ldc2 --version | head -n 1)"
         '';
       };
