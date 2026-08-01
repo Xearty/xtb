@@ -59,6 +59,11 @@ struct Arena
 
     @disable this(this);
 
+    ~this() nothrow @nogc
+    {
+        deinit();
+    }
+
     static Arena create(
         Allocator* backingAllocator,
         size_t defaultChunkSize = 64 * 1024,
