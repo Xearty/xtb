@@ -22,8 +22,9 @@ import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
     deserializationAllocator, prepareDeserialized;
 import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
-    fieldHas, fieldMatches, fieldName, fieldOrdinal, isArray, isDynamicArray,
-    isFixedArray, isOption, isSerdeStruct, isString, isStringBuf,
+    applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName, fieldHas,
+    fieldMatches, fieldName, fieldOrdinal, fieldShouldOmit, isArray,
+    isDynamicArray, isFixedArray, isOption, isSerdeStruct, isString, isStringBuf,
     initializeOwnedValue, OptionElement, schemaCase, serializedFieldCount,
     validateBorrowedSchema,
     validateOwnedSchema, validateSchema;
@@ -33,6 +34,7 @@ struct JsonWriteOptions
     bool pretty;
     ubyte indentWidth = 2;
     KeyCase keyCase = KeyCase.schema;
+    KeyCase variantCase = KeyCase.schema;
     size_t maxDepth = 64;
 }
 
@@ -40,6 +42,7 @@ struct JsonReadOptions
 {
     SerdeLimits limits;
     KeyCase keyCase = KeyCase.schema;
+    KeyCase variantCase = KeyCase.schema;
 }
 
 private SerdeError success() pure @safe
@@ -90,6 +93,7 @@ SerdeError readJson(T)(
     T* value;
     if (!prepareDeserialized(allocator, output, &value))
         return simpleError(SerdeErrorKind.allocationFailure);
+    applySchemaDefaults(value);
 
     JsonParser parser;
     parser.input = input;
@@ -131,6 +135,7 @@ SerdeError readJson(T)(
 
     T decoded;
     initializeOwnedValue(allocator, &decoded);
+    applySchemaDefaults(&decoded);
     JsonParser parser;
     parser.input = input;
     parser.allocator = allocator;
@@ -337,6 +342,8 @@ private void encodeOneField(T, size_t index, F)(
     bool* wrote,
 )
 {
+    if (fieldShouldOmit!(T, index)(value))
+        return;
     static if (fieldHas!(T, index, OmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
@@ -463,7 +470,18 @@ private void encodeEnum(T)(ref JsonEncoder encoder, T value)
         static if (__traits(compiles, __traits(getMember, T, name)))
             if (!found && value == __traits(getMember, T, name))
                 {
-                encodeString(encoder, name);
+                encoder.writer.put('"');
+                enum renamed = enumMemberName!(T, name) != name;
+                if (renamed)
+                    encoder.writer.put(enumMemberName!(T, name));
+                else
+                    {
+                    const casing = encoder.options.variantCase == KeyCase.schema
+                        ? enumCase!T
+                        : encoder.options.variantCase;
+                    (*encoder.writer).writeCased(enumMemberName!(T, name), casing);
+                }
+                encoder.writer.put('"');
                 found = true;
             }
     }
@@ -916,7 +934,8 @@ private void decodeEnum(T)(ref JsonParser parser, T* output)
     bool found;
     static foreach (member; __traits(allMembers, T))
         static if (__traits(compiles, __traits(getMember, T, member)))
-            if (!found && equalBytes(name, member))
+            if (!found && enumMemberMatches!(T, member)(name,
+                    parser.options.variantCase))
                 {
                 *output = __traits(getMember, T, member);
                 found = true;

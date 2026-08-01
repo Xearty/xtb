@@ -32,6 +32,24 @@ private enum Mode
     verbose,
 }
 
+@variantCase(KeyCase.snake)
+private enum DeploymentMode
+{
+    blueGreen,
+    @rename("rolling-update") @aliasName("rolling") rollingUpdate,
+}
+
+bool omitSeven(scope const ref int value) nothrow @nogc pure @safe
+{
+    return value == 7;
+}
+
+private struct PolicyDocument
+{
+    DeploymentMode mode;
+    @defaultValue(7) @omitIf!omitSeven int retryLimit;
+}
+
 @fieldCase(KeyCase.snake)
 private struct Identity
 {
@@ -161,6 +179,39 @@ static assert(!__traits(compiles, validateOwnedSchema!Settings()));
 static assert(!__traits(compiles, (ref Deserialized!Settings value) {
         Deserialized!Settings copy = value;
     }));
+
+private void testSharedPolicies() nothrow @nogc
+{
+    PolicyDocument value;
+    value.mode = DeploymentMode.rollingUpdate;
+    value.retryLimit = 7;
+
+    StringBuf json = StringBuf.create(mallocAllocator());
+    Writer jsonWriter = Writer.fromSink(&bufferSink, &json);
+    SerdeError error = writeJson(jsonWriter, value);
+    assert(error.ok);
+    assert(json.view.equal("{\"mode\":\"rolling-update\"}"));
+
+    Deserialized!PolicyDocument fromJson;
+    error = readJson("{\"mode\":\"rolling\"}", mallocAllocator(),
+        &fromJson);
+    assert(error.ok);
+    assert(fromJson.value.mode == DeploymentMode.rollingUpdate);
+    assert(fromJson.value.retryLimit == 7);
+
+    StringBuf toml = StringBuf.create(mallocAllocator());
+    Writer tomlWriter = Writer.fromSink(&bufferSink, &toml);
+    error = writeToml(tomlWriter, value);
+    assert(error.ok);
+    assert(toml.view.equal("mode = \"rolling-update\""));
+
+    Deserialized!PolicyDocument fromToml;
+    error = readToml("mode = \"blue_green\"", mallocAllocator(),
+        &fromToml);
+    assert(error.ok);
+    assert(fromToml.value.mode == DeploymentMode.blueGreen);
+    assert(fromToml.value.retryLimit == 7);
+}
 
 private void testJsonRoundTrip() nothrow @nogc
 {
@@ -848,6 +899,7 @@ extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
         testFunction();
+    testSharedPolicies();
     testJsonRoundTrip();
     testJsonPolicies();
     testJsonUnicodeAndNumbers();

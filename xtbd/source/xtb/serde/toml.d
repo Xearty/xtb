@@ -22,14 +22,16 @@ import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
     deserializationAllocator, prepareDeserialized;
 import xtb.serde.traits : ArrayElement, FieldType, Unqualified, fieldHas,
-    fieldMatches, fieldName, isArray, isDynamicArray, isFixedArray,
-    isOption, isSerdeStruct, isString, isStringBuf, initializeOwnedValue,
-    OptionElement, schemaCase, validateBorrowedSchema, validateOwnedSchema,
-    validateSchema;
+    applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName,
+    fieldMatches, fieldName, fieldShouldOmit, isArray, isDynamicArray,
+    isFixedArray, isOption, isSerdeStruct, isString, isStringBuf,
+    initializeOwnedValue, OptionElement, schemaCase, validateBorrowedSchema,
+    validateOwnedSchema, validateSchema;
 
 struct TomlWriteOptions
 {
     KeyCase keyCase = KeyCase.schema;
+    KeyCase variantCase = KeyCase.schema;
     size_t maxDepth = 64;
 }
 
@@ -37,6 +39,7 @@ struct TomlReadOptions
 {
     SerdeLimits limits;
     KeyCase keyCase = KeyCase.schema;
+    KeyCase variantCase = KeyCase.schema;
 }
 
 private SerdeError success() pure @safe
@@ -85,6 +88,7 @@ SerdeError readToml(T)(
     T* value;
     if (!prepareDeserialized(allocator, output, &value))
         return simpleError(SerdeErrorKind.allocationFailure);
+    applySchemaDefaults(value);
 
     TomlParser parser;
     parser.input = input;
@@ -123,6 +127,7 @@ SerdeError readToml(T)(
 
     T decoded;
     initializeOwnedValue(allocator, &decoded);
+    applySchemaDefaults(&decoded);
     TomlParser parser;
     parser.input = input;
     parser.allocator = allocator;
@@ -278,6 +283,8 @@ private void encodeRootField(T, size_t index, F)(
     size_t depth = 0,
 )
 {
+    if (fieldShouldOmit!(T, index)(value))
+        return;
     static if (fieldHas!(T, index, OmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
@@ -416,6 +423,8 @@ private void encodeInlineField(T, size_t index, F)(
     bool* wrote,
 )
 {
+    if (fieldShouldOmit!(T, index)(value))
+        return;
     static if (fieldHas!(T, index, OmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
@@ -532,7 +541,18 @@ private void encodeEnum(T)(ref TomlEncoder encoder, T value)
         static if (__traits(compiles, __traits(getMember, T, name)))
             if (!found && value == __traits(getMember, T, name))
                 {
-                encodeString(encoder, name);
+                enum renamed = enumMemberName!(T, name) != name;
+                if (renamed)
+                    encodeString(encoder, enumMemberName!(T, name));
+                else
+                    {
+                    const casing = encoder.options.variantCase == KeyCase.schema
+                        ? enumCase!T
+                        : encoder.options.variantCase;
+                    encoder.writer.put('"');
+                    (*encoder.writer).writeCased(enumMemberName!(T, name), casing);
+                    encoder.writer.put('"');
+                }
                 found = true;
             }
     if (!found)
@@ -1339,7 +1359,8 @@ private void decodeEnum(T)(ref TomlParser parser, T* output)
     bool found;
     static foreach (member; __traits(allMembers, T))
         static if (__traits(compiles, __traits(getMember, T, member)))
-            if (!found && equalBytes(name, member))
+            if (!found && enumMemberMatches!(T, member)(name,
+                    parser.options.variantCase))
                 {
                 *output = __traits(getMember, T, member);
                 found = true;

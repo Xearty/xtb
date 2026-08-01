@@ -92,6 +92,50 @@ enum fieldAttributeCount(T, size_t index, A) = countAttribute!A(
         __traits(getAttributes, FieldSymbol!(T, index)),
     );
 
+template isDefaultValueAttribute(A)
+{
+    static if (is(A == DefaultValue!Value, Value))
+        enum isDefaultValueAttribute = true;
+    else
+        enum isDefaultValueAttribute = false;
+}
+
+template isOmitIfAttribute(A)
+{
+    static if (is(A == OmitIf!predicate, alias predicate))
+        enum isOmitIfAttribute = true;
+    else
+        enum isOmitIfAttribute = false;
+}
+
+private size_t countDefaultValues(Attributes...)(Attributes attributes)
+pure @safe
+{
+    size_t result;
+    static foreach (attribute; attributes)
+        static if (isDefaultValueAttribute!(typeof(attribute)))
+            ++result;
+    return result;
+}
+
+private size_t countOmitPredicates(Attributes...)(Attributes attributes)
+pure @safe
+{
+    size_t result;
+    static foreach (attribute; attributes)
+        static if (isOmitIfAttribute!(typeof(attribute)))
+            ++result;
+    return result;
+}
+
+enum fieldDefaultValueCount(T, size_t index) = countDefaultValues(
+        __traits(getAttributes, FieldSymbol!(T, index)),
+    );
+
+enum fieldOmitPredicateCount(T, size_t index) = countOmitPredicates(
+        __traits(getAttributes, FieldSymbol!(T, index)),
+    );
+
 string fieldName(T, size_t index)() pure @safe
 {
     string result = __traits(identifier, Unqualified!T.tupleof[index]);
@@ -127,6 +171,85 @@ KeyCase schemaCase(T)() pure @safe
         static if (is(typeof(attribute) == FieldCase))
             result = attribute.value;
     return result;
+}
+
+KeyCase enumCase(T)() pure @safe
+{
+    KeyCase result = KeyCase.preserve;
+    static foreach (attribute; __traits(getAttributes, Unqualified!T))
+        static if (is(typeof(attribute) == VariantCase))
+            result = attribute.value;
+    return result;
+}
+
+template EnumMemberSymbol(T, string member)
+{
+    alias EnumMemberSymbol = __traits(getMember, Unqualified!T, member);
+}
+
+string enumMemberName(T, string member)() pure @safe
+{
+    string result = member;
+    static foreach (attribute; __traits(getAttributes,
+            EnumMemberSymbol!(T, member)))
+        static if (is(typeof(attribute) == Rename))
+            result = attribute.value;
+    return result;
+}
+
+bool enumMemberMatches(T, string member)(
+    scope String candidate,
+    KeyCase overrideCase = KeyCase.schema,
+) pure @safe
+{
+    enum renamed = containsAttribute!Rename(__traits(getAttributes,
+                EnumMemberSymbol!(T, member)));
+    const casing = overrideCase == KeyCase.schema ? enumCase!T : overrideCase;
+    if (renamed
+        ? stringEqual(candidate, enumMemberName!(T, member)) : matchesCased(candidate, enumMemberName!(
+            T, member), casing))
+        return true;
+    static foreach (attribute; __traits(getAttributes,
+            EnumMemberSymbol!(T, member)))
+        static if (is(typeof(attribute) == AliasName))
+            if (stringEqual(candidate, attribute.value))
+                return true;
+    return false;
+}
+
+package(xtb.serde) void applySchemaDefaults(T)(T* output)
+{
+    alias U = Unqualified!T;
+    static if (isSerdeStruct!U)
+    {
+        static foreach (index; 0 .. U.tupleof.length)
+        {
+            static if (!fieldHas!(U, index, Ignore))
+            {
+                static foreach (attribute; __traits(getAttributes, FieldSymbol!(U, index)))
+                    static if (isDefaultValueAttribute!(typeof(attribute)))
+                        output.tupleof[index] = attribute.value;
+                static if (fieldDefaultValueCount!(U, index) == 0 &&
+                    isSerdeStruct!(FieldType!(U, index)))
+                    applySchemaDefaults(&output.tupleof[index]);
+            }
+        }
+    }
+}
+
+bool fieldShouldOmit(T, size_t index, F)(scope const ref F value)
+{
+    bool result;
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+        static if (isOmitIfAttribute!(typeof(attribute)))
+            if (attribute.test(value))
+                result = true;
+    return result;
+}
+
+private bool invokeOmitPredicate(alias predicate, F)(scope const ref F value)
+{
+    return predicate(value);
 }
 
 private bool stringEqual(scope String left, scope String right) pure @safe
@@ -390,7 +513,9 @@ private void validateFieldSchema(T, size_t index)()
         fieldAttributeCount!(T, index, Ignore) +
         fieldAttributeCount!(T, index, Required) +
         fieldAttributeCount!(T, index, OmitDefault) +
-        fieldAttributeCount!(T, index, Flatten);
+        fieldAttributeCount!(T, index, Flatten) +
+        fieldDefaultValueCount!(T, index) +
+        fieldOmitPredicateCount!(T, index);
 
     static assert(fieldAttributeCount!(T, index, Rename) <= 1,
         "a serde field may have at most one @rename");
@@ -398,15 +523,38 @@ private void validateFieldSchema(T, size_t index)()
         "@ignore cannot be combined with another serde attribute");
     static assert(!flattened || isSerdeStruct!F,
         "@flatten requires a struct field without a destructor");
+    static assert(fieldDefaultValueCount!(T, index) <= 1,
+        "a serde field may have at most one @defaultValue");
+    static assert(fieldOmitPredicateCount!(T, index) <= 1,
+        "a serde field may have at most one @omitIf");
+    static assert(fieldDefaultValueCount!(T, index) == 0 ||
+            !hasElaborateDestructor!(
+                Unqualified!F),
+        "@defaultValue currently requires a field without an elaborate destructor");
+    static assert(fieldDefaultValueCount!(T, index) == 0 || !flattened,
+        "@defaultValue cannot be combined with @flatten");
+    static assert(fieldOmitPredicateCount!(T, index) == 0 ||
+            fieldAttributeCount!(T, index, OmitDefault) == 0,
+        "@omitIf cannot be combined with @omitDefault");
     static assert(ignored || isSupportedValue!F,
         "unsupported serde field type: " ~ F.stringof);
     static if (!ignored)
         static assert(fieldName!(T, index).length != 0,
             "serialized field names must not be empty");
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+    {
         static if (is(typeof(attribute) == AliasName))
             static assert(attribute.value.length != 0,
                 "serialized field aliases must not be empty");
+        else static if (isDefaultValueAttribute!(typeof(attribute)))
+            static assert(is(typeof(attribute.value) : Unqualified!F),
+                "@defaultValue must be assignable to its field type");
+        else static if (isOmitIfAttribute!(typeof(attribute)))
+            static assert(__traits(compiles,
+                    invokeOmitPredicate!(typeof(attribute).test, F)(
+                    *cast(const(F)*) null)),
+                "@omitIf predicate must accept the field by const reference");
+    }
     static if (flattened)
         validateSchema!F();
 }

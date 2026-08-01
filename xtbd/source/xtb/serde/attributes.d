@@ -24,6 +24,16 @@ struct OmitDefault
 {
 }
 
+struct DefaultValue(T)
+{
+    T value;
+}
+
+struct OmitIf(alias predicate)
+{
+    alias test = predicate;
+}
+
 struct Flatten
 {
 }
@@ -44,6 +54,11 @@ struct FieldCase
     KeyCase value;
 }
 
+struct VariantCase
+{
+    KeyCase value;
+}
+
 Rename rename(string value) pure @safe
 {
     return Rename(value);
@@ -59,7 +74,18 @@ FieldCase fieldCase(KeyCase value) pure @safe
     return FieldCase(value);
 }
 
+VariantCase variantCase(KeyCase value) pure @safe
+{
+    return VariantCase(value);
+}
+
+DefaultValue!T defaultValue(T)(T value) pure @safe
+{
+    return DefaultValue!T(value);
+}
+
 enum ignore = Ignore();
 enum required = Required();
 enum omitDefault = OmitDefault();
+enum omitIf(alias predicate) = OmitIf!predicate();
 enum flatten = Flatten();
