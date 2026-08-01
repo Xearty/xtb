@@ -13,7 +13,9 @@ struct PanicHook
     void* context;
 }
 
-private PanicHook panicHook;
+// Installation is process-wide and must be changed only while application
+// worker threads are stopped. Recursion remains local to the panicking thread.
+private __gshared PanicHook panicHook;
 private bool panicInFlight;
 
 PanicHook setPanicHandler(PanicHandler handler, void* context = null)

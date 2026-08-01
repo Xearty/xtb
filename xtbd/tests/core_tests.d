@@ -35,6 +35,19 @@ private extern(C) void* popOnOtherThread(void* context) nothrow @nogc
     return null;
 }
 
+version (Posix)
+private extern(C) void* panicOnOtherThread(void*) nothrow @nogc
+{
+    panic("intentional worker diagnostic panic");
+}
+
+version (Posix)
+private extern(C) void* captureMallocAllocator(void* context) nothrow @nogc
+{
+    *cast(Allocator**) context = mallocAllocator();
+    return null;
+}
+
 private bool cStringEqual(const(char)* left, const(char)* right)
     nothrow @system @nogc
 {
@@ -129,6 +142,18 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         options.signalTraceMode = SignalTraceMode.faultAddressOnly;
         scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
         panic("intentional diagnostic panic");
+    }
+    version (linux)
+    if (cStringEqual(name, "diagnostic-panic-thread"))
+    {
+        CrashHandlerOptions options;
+        options.signalTraceMode = SignalTraceMode.faultAddressOnly;
+        scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
+        pthread_t thread;
+        if (pthread_create(&thread, null, &panicOnOtherThread, null) != 0)
+            panic("pthread_create failed");
+        pthread_join(thread, null);
+        panic("worker panic unexpectedly returned");
     }
     version (Posix)
     if (cStringEqual(name, "cross-thread-pop"))
@@ -279,6 +304,17 @@ extern(C) int main(int argumentCount, char** arguments)
 
     version (Posix)
     {
+        Allocator* workerAllocator;
+        pthread_t allocatorThread;
+        assert(pthread_create(
+            &allocatorThread,
+            null,
+            &captureMallocAllocator,
+            &workerAllocator,
+        ) == 0);
+        assert(pthread_join(allocatorThread, null) == 0);
+        assert(workerAllocator is mallocAllocator());
+
         expectDeath(arguments[0], "panic");
         expectDeath(arguments[0], "scratch-without-context");
         expectDeath(arguments[0], "double-pop");
@@ -295,6 +331,14 @@ extern(C) int main(int argumentCount, char** arguments)
             assert(panicOutput.text.contains("Stack trace"));
             assert(panicOutput.text.contains("intentional diagnostic panic"));
             assert(panicOutput.text.contains("<rich panic trace printed above>"));
+            DeathOutput workerPanic = captureDeath(
+                arguments[0],
+                "diagnostic-panic-thread",
+            );
+            assert(workerPanic.signal == SIGABRT);
+            assert(workerPanic.text.contains("Stack trace"));
+            assert(workerPanic.text.contains("intentional worker diagnostic panic"));
+            assert(workerPanic.text.contains("<rich panic trace printed above>"));
             DeathOutput addressOnly = captureDeath(
                 arguments[0],
                 "crash-segv-address",

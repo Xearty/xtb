@@ -174,6 +174,8 @@ LogResult log(Args...)(
         return LogResult(LogStatus.invalidLogger, 0, 0);
     if (level < logger.minimumLevel_)
         return LogResult(LogStatus.filtered, 0, 0);
+    if (logger.delivering_)
+        return LogResult(LogStatus.recursive, 0, 0);
     const formatted = writeBuffer(logger.messageBuffer_, args);
     return logger.deliver(level, formatted);
 }
@@ -188,6 +190,8 @@ LogResult logf(string pattern, Args...)(
         return LogResult(LogStatus.invalidLogger, 0, 0);
     if (level < logger.minimumLevel_)
         return LogResult(LogStatus.filtered, 0, 0);
+    if (logger.delivering_)
+        return LogResult(LogStatus.recursive, 0, 0);
     const formatted = formatBuffer!pattern(logger.messageBuffer_, args);
     return logger.deliver(level, formatted);
 }
@@ -298,13 +302,18 @@ version (unittest)
     {
         Logger* logger;
         LogStatus nestedStatus;
+        char[16] outerMessage;
+        size_t outerLength;
     }
 
-    private bool recursiveSink(void* context, scope const LogRecord*)
+    private bool recursiveSink(void* context, scope const LogRecord* record)
         nothrow @nogc
     {
         RecursiveCapture* capture = cast(RecursiveCapture*) context;
         capture.nestedStatus = (*capture.logger).log(LogLevel.error, "nested").status;
+        capture.outerLength = record.message.length;
+        foreach (index, character; record.message)
+            capture.outerMessage[index] = character;
         return true;
     }
 }
@@ -349,4 +358,5 @@ nothrow @nogc unittest
     recursive.logger = &recursiveLogger;
     assert(recursiveLogger.log(LogLevel.error, "outer").status == LogStatus.delivered);
     assert(recursive.nestedStatus == LogStatus.recursive);
+    assert(recursive.outerMessage[0 .. recursive.outerLength].equal("outer"));
 }

@@ -17,7 +17,7 @@ alias Allocator = void* function(
     size_t alignment,
 ) nothrow @nogc;
 
-private Allocator mallocAllocatorSlot = &mallocAllocatorProcedure;
+private __gshared Allocator mallocAllocatorSlot = &mallocAllocatorProcedure;
 
 Allocator* mallocAllocator() nothrow @nogc
 {

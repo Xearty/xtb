@@ -106,7 +106,7 @@ ownership, hidden global state, and macro-oriented interfaces.
 
 ### Panic and contracts
 
-- thread-local panic hook and context;
+- process-wide panic hook with a thread-local recursion guard;
 - allocation-free formatted panic messages;
 - source-location-bearing runtime preconditions;
 - dedicated unreachable-code panic;
