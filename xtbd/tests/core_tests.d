@@ -12,10 +12,10 @@ import xtb.core.list;
 import xtb.core.logger;
 import xtb.core.string;
 import xtb.core.print;
-import xtb.core.demangle;
-import xtb.core.stacktrace_style;
-import xtb.core.stacktrace;
-import xtb.core.crash;
+import xtb.diagnostics.demangle;
+import xtb.diagnostics.stacktrace_style;
+import xtb.diagnostics.stacktrace;
+import xtb.diagnostics.crash;
 
 version (Posix)
 {
@@ -27,29 +27,26 @@ version (Posix)
         fork, pipe, read;
 }
 
-version (Posix)
-private extern(C) void* popOnOtherThread(void* context) nothrow @nogc
+version (Posix) private extern (C) void* popOnOtherThread(void* context) nothrow @nogc
 {
     TempArena* temporary = cast(TempArena*) context;
     (*temporary).pop();
     return null;
 }
 
-version (Posix)
-private extern(C) void* panicOnOtherThread(void*) nothrow @nogc
+version (Posix) private extern (C) void* panicOnOtherThread(void*) nothrow @nogc
 {
     panic("intentional worker diagnostic panic");
 }
 
-version (Posix)
-private extern(C) void* captureMallocAllocator(void* context) nothrow @nogc
+version (Posix) private extern (C) void* captureMallocAllocator(void* context) nothrow @nogc
 {
     *cast(Allocator**) context = mallocAllocator();
     return null;
 }
 
 private bool cStringEqual(const(char)* left, const(char)* right)
-    nothrow @system @nogc
+nothrow @system @nogc
 {
     if (left is null || right is null)
         return left is right;
@@ -103,87 +100,86 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         second.pushBack(&node);
     }
     version (linux)
-    if (cStringEqual(name, "crash-segv-address"))
-    {
-        CrashHandlerOptions options;
-        options.signalTraceMode = SignalTraceMode.faultAddressOnly;
-        scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
-        raise(SIGSEGV);
-        panic("fatal signal unexpectedly returned");
-    }
+        if (cStringEqual(name, "crash-segv-address"))
+        {
+            CrashHandlerOptions options;
+            options.signalTraceMode = SignalTraceMode.faultAddressOnly;
+            scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
+            raise(SIGSEGV);
+            panic("fatal signal unexpectedly returned");
+        }
     version (linux)
-    if (cStringEqual(name, "crash-segv-unwind"))
-    {
-        CrashHandlerOptions options;
-        options.signalTraceMode = SignalTraceMode.attemptStackUnwind;
-        scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
-        raise(SIGSEGV);
-        panic("fatal signal unexpectedly returned");
-    }
+        if (cStringEqual(name, "crash-segv-unwind"))
+        {
+            CrashHandlerOptions options;
+            options.signalTraceMode = SignalTraceMode.attemptStackUnwind;
+            scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
+            raise(SIGSEGV);
+            panic("fatal signal unexpectedly returned");
+        }
     version (linux)
-    if (cStringEqual(name, "crash-abrt"))
-    {
-        scope CrashHandlerScope handlers = CrashHandlerScope.install();
-        raise(SIGABRT);
-        panic("fatal signal unexpectedly returned");
-    }
+        if (cStringEqual(name, "crash-abrt"))
+        {
+            scope CrashHandlerScope handlers = CrashHandlerScope.install();
+            raise(SIGABRT);
+            panic("fatal signal unexpectedly returned");
+        }
     version (linux)
-    if (cStringEqual(name, "crash-bus"))
-    {
-        scope CrashHandlerScope handlers = CrashHandlerScope.install();
-        raise(SIGBUS);
-        panic("fatal signal unexpectedly returned");
-    }
+        if (cStringEqual(name, "crash-bus"))
+        {
+            scope CrashHandlerScope handlers = CrashHandlerScope.install();
+            raise(SIGBUS);
+            panic("fatal signal unexpectedly returned");
+        }
     version (linux)
-    if (cStringEqual(name, "crash-fpe"))
-    {
-        scope CrashHandlerScope handlers = CrashHandlerScope.install();
-        raise(SIGFPE);
-        panic("fatal signal unexpectedly returned");
-    }
+        if (cStringEqual(name, "crash-fpe"))
+        {
+            scope CrashHandlerScope handlers = CrashHandlerScope.install();
+            raise(SIGFPE);
+            panic("fatal signal unexpectedly returned");
+        }
     version (linux)
-    if (cStringEqual(name, "crash-ill"))
-    {
-        scope CrashHandlerScope handlers = CrashHandlerScope.install();
-        raise(SIGILL);
-        panic("fatal signal unexpectedly returned");
-    }
+        if (cStringEqual(name, "crash-ill"))
+        {
+            scope CrashHandlerScope handlers = CrashHandlerScope.install();
+            raise(SIGILL);
+            panic("fatal signal unexpectedly returned");
+        }
     version (linux)
-    if (cStringEqual(name, "diagnostic-panic"))
-    {
-        CrashHandlerOptions options;
-        options.signalTraceMode = SignalTraceMode.faultAddressOnly;
-        scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
-        panic("intentional diagnostic panic");
-    }
+        if (cStringEqual(name, "diagnostic-panic"))
+        {
+            CrashHandlerOptions options;
+            options.signalTraceMode = SignalTraceMode.faultAddressOnly;
+            scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
+            panic("intentional diagnostic panic");
+        }
     version (linux)
-    if (cStringEqual(name, "diagnostic-panic-thread"))
-    {
-        CrashHandlerOptions options;
-        options.signalTraceMode = SignalTraceMode.faultAddressOnly;
-        scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
-        pthread_t thread;
-        if (pthread_create(&thread, null, &panicOnOtherThread, null) != 0)
-            panic("pthread_create failed");
-        pthread_join(thread, null);
-        panic("worker panic unexpectedly returned");
-    }
+        if (cStringEqual(name, "diagnostic-panic-thread"))
+        {
+            CrashHandlerOptions options;
+            options.signalTraceMode = SignalTraceMode.faultAddressOnly;
+            scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
+            pthread_t thread;
+            if (pthread_create(&thread, null, &panicOnOtherThread, null) != 0)
+                panic("pthread_create failed");
+            pthread_join(thread, null);
+            panic("worker panic unexpectedly returned");
+        }
     version (Posix)
-    if (cStringEqual(name, "cross-thread-pop"))
-    {
-        Arena arena = Arena.create(mallocAllocator(), 64);
-        TempArena temporary = (&arena).push();
-        pthread_t thread;
-        if (pthread_create(&thread, null, &popOnOtherThread, &temporary) != 0)
-            panic("pthread_create failed");
-        pthread_join(thread, null);
-        panic("cross-thread pop unexpectedly returned");
-    }
+        if (cStringEqual(name, "cross-thread-pop"))
+        {
+            Arena arena = Arena.create(mallocAllocator(), 64);
+            TempArena temporary = (&arena).push();
+            pthread_t thread;
+            if (pthread_create(&thread, null, &popOnOtherThread, &temporary) != 0)
+                panic("pthread_create failed");
+            pthread_join(thread, null);
+            panic("cross-thread pop unexpectedly returned");
+        }
     panic("unknown death case");
 }
 
-version (Posix)
-private struct DeathOutput
+version (Posix) private struct DeathOutput
 {
     char[32 * 1024] storage;
     size_t length;
@@ -196,9 +192,8 @@ private struct DeathOutput
     }
 }
 
-version (Posix)
-private DeathOutput captureDeath(const(char)* executable, const(char)* name)
-    nothrow @system @nogc
+version (Posix) private DeathOutput captureDeath(const(char)* executable, const(char)* name)
+nothrow @system @nogc
 {
     int[2] descriptors;
     assert(pipe(descriptors) == 0);
@@ -226,8 +221,7 @@ private DeathOutput captureDeath(const(char)* executable, const(char)* name)
     for (;;)
     {
         char[] destination = output.length < output.storage.length
-            ? output.storage[output.length .. $]
-            : overflowStorage[];
+            ? output.storage[output.length .. $] : overflowStorage[];
         const amount = read(
             descriptors[0],
             destination.ptr,
@@ -252,8 +246,7 @@ private DeathOutput captureDeath(const(char)* executable, const(char)* name)
     return output;
 }
 
-version (Posix)
-private void expectDeath(
+version (Posix) private void expectDeath(
     const(char)* executable,
     const(char)* name,
     int expectedSignal = SIGABRT,
@@ -263,8 +256,7 @@ private void expectDeath(
     assert(output.signal == expectedSignal);
 }
 
-version (Posix)
-private void expectSignalDiagnostic(
+version (Posix) private void expectSignalDiagnostic(
     const(char)* executable,
     const(char)* deathCase,
     int expectedSignal,
@@ -279,7 +271,7 @@ private void expectSignalDiagnostic(
     assert(output.text.contains("<faulting instruction>"));
 }
 
-extern(C) int main(int argumentCount, char** arguments)
+extern (C) int main(int argumentCount, char** arguments)
 {
     if (argumentCount == 3 && cStringEqual(arguments[1], "--death-case"))
         runDeathCase(arguments[2]);
@@ -306,11 +298,11 @@ extern(C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.print))
         testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.demangle))
+    static foreach (testFunction; __traits(getUnitTests, xtb.diagnostics.demangle))
         testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.stacktrace_style))
+    static foreach (testFunction; __traits(getUnitTests, xtb.diagnostics.stacktrace_style))
         testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.stacktrace))
+    static foreach (testFunction; __traits(getUnitTests, xtb.diagnostics.stacktrace))
         testFunction();
 
     version (Posix)
@@ -318,10 +310,10 @@ extern(C) int main(int argumentCount, char** arguments)
         Allocator* workerAllocator;
         pthread_t allocatorThread;
         assert(pthread_create(
-            &allocatorThread,
-            null,
-            &captureMallocAllocator,
-            &workerAllocator,
+                &allocatorThread,
+                null,
+                &captureMallocAllocator,
+                &workerAllocator,
         ) == 0);
         assert(pthread_join(allocatorThread, null) == 0);
         assert(workerAllocator is mallocAllocator());
@@ -361,7 +353,7 @@ extern(C) int main(int argumentCount, char** arguments)
             assert(addressOnly.text.contains("Stack trace (signal context):"));
             assert(addressOnly.text.contains("<faulting instruction>"));
             assert(addressOnly.text.contains(
-                "<fault-address-only mode: stack unwinding disabled>",
+                    "<fault-address-only mode: stack unwinding disabled>",
             ));
 
             DeathOutput unwound = captureDeath(

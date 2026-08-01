@@ -1,14 +1,14 @@
-module xtb.core.crash;
+module xtb.diagnostics.crash;
 
 import core.stdc.signal : SIGABRT, SIGFPE, SIGILL, SIGSEGV, sig_atomic_t;
 import core.stdc.stdio : FILE, stderr;
 import xtb.core.panic : PanicHook, panic, setPanicHandler;
 import xtb.core.print : Writer;
-import xtb.core.stacktrace : StackFrame, StackTrace, StackTraceContext,
+import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
-import xtb.core.stacktrace_style : AnsiColor, ModuleDisplay, StackTraceStyle,
+import xtb.diagnostics.stacktrace_style : AnsiColor, ModuleDisplay, StackTraceStyle,
     StackTraceTheme, SignatureLayout;
-import xtb.core.demangle : SignatureDetail;
+import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.core.string : String;
 
 enum SignalTraceMode
@@ -90,8 +90,7 @@ private struct GlobalCrashState
     bool tracesPanics;
     bool active;
     sig_atomic_t panicTraceWritten;
-    version (linux)
-        sigaction_t[handledSignals.length] previousSignals;
+    version (linux) sigaction_t[handledSignals.length] previousSignals;
 }
 
 private __gshared GlobalCrashState globalState;
@@ -114,7 +113,8 @@ private void tracePanic(String message, void*) nothrow @nogc
     StackFrame[64] frames;
     char[16 * 1024] text;
     StackTrace trace = globalState.context.capture(frames[], text[], 3);
-    writer.writeStackTrace(&trace, &globalState.style);
+    char[32 * 1024] signatureStorage;
+    writer.writeStackTrace(&trace, signatureStorage[], &globalState.style);
     cast(void) writer.finish();
     globalState.panicTraceWritten = 1;
 }
@@ -142,14 +142,35 @@ version (linux)
         action.sa_sigaction = &handleSignal;
         action.sa_flags = SA_SIGINFO | SA_RESETHAND;
         foreach (index, signal; handledSignals)
-            requireInstall(
-                sigaction(signal, &action, &globalState.previousSignals[index]) == 0,
-                "failed to install crash signal handler",
-            );
+        {
+            const installed = sigaction(
+                signal,
+                &action,
+                &globalState.previousSignals[index],
+            ) == 0;
+            if (!installed)
+                restoreInstalledSignals(index);
+            requireInstall(installed, "failed to install crash signal handler");
+        }
 
         // Force the platform unwinder's lazy setup outside signal context.
         void*[1] warmup;
         cast(void) backtrace(warmup.ptr, cast(int) warmup.length);
+    }
+
+    private void restoreInstalledSignals(size_t count) nothrow @nogc
+    {
+        static foreach (reverseIndex; 0 .. handledSignals.length)
+        {
+            if (count > handledSignals.length - reverseIndex - 1)
+                cast(void) sigaction(
+                    handledSignals[handledSignals.length - reverseIndex - 1],
+                    &globalState.previousSignals[
+                    handledSignals.length - reverseIndex - 1
+            ],
+                    null,
+                );
+        }
     }
 
     private void restoreSignals() nothrow @nogc
@@ -162,17 +183,23 @@ version (linux)
     {
         switch (signal)
         {
-            case SIGABRT: return "SIGABRT";
-            case SIGBUS: return "SIGBUS";
-            case SIGFPE: return "SIGFPE";
-            case SIGILL: return "SIGILL";
-            case SIGSEGV: return "SIGSEGV";
-            default: return "unknown signal";
+        case SIGABRT:
+            return "SIGABRT";
+        case SIGBUS:
+            return "SIGBUS";
+        case SIGFPE:
+            return "SIGFPE";
+        case SIGILL:
+            return "SIGILL";
+        case SIGSEGV:
+            return "SIGSEGV";
+        default:
+            return "unknown signal";
         }
     }
 
     private size_t faultProgramCounter(void* rawContext)
-        nothrow @system @nogc
+    nothrow @system @nogc
     {
         if (rawContext is null)
             return 0;
@@ -180,11 +207,13 @@ version (linux)
         version (X86_64)
         {
             import core.sys.posix.ucontext : REG_RIP;
+
             return cast(size_t) context.uc_mcontext.gregs[REG_RIP];
         }
         else version (X86)
         {
             import core.sys.posix.ucontext : REG_EIP;
+
             return cast(size_t) context.uc_mcontext.gregs[REG_EIP];
         }
         else version (AArch64)
@@ -229,7 +258,7 @@ version (linux)
         size_t begin = buffer.length;
         do
         {
-            buffer[--begin] = cast(char) ('0' + value % 10);
+            buffer[--begin] = cast(char)('0' + value % 10);
             value /= 10;
         }
         while (value != 0);
@@ -258,7 +287,7 @@ version (linux)
         rawAnsiReset(color);
     }
 
-    private extern(C) void handleSignal(
+    private extern (C) void handleSignal(
         int signal,
         siginfo_t*,
         void* rawContext,

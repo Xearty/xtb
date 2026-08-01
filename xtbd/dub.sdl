@@ -5,33 +5,60 @@ targetType "staticLibrary"
 sourcePaths "source"
 buildOptions "betterC"
 dflags "-preview=dip1000" "-w" "-de" platform="ldc"
-libs "backtrace" platform="linux"
 
 configuration "library" {
     targetType "staticLibrary"
+    libs "backtrace" platform="linux"
+}
+
+configuration "core" {
+    targetType "staticLibrary"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
+}
+
+configuration "diagnostics" {
+    targetType "staticLibrary"
+    excludedSourceFiles "source/xtb/math/*.d" "source/xtb/os/*.d"
+    libs "backtrace" platform="linux"
+}
+
+configuration "math" {
+    targetType "staticLibrary"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/os/*.d"
+}
+
+configuration "os" {
+    targetType "staticLibrary"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d"
 }
 
 configuration "core-demo" {
     targetType "executable"
     mainSourceFile "examples/core_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
 }
 
 configuration "print-demo" {
     targetType "executable"
     mainSourceFile "examples/print_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
 }
 
 configuration "stacktrace-demo" {
     targetType "executable"
     mainSourceFile "examples/stacktrace_demo.d"
+    excludedSourceFiles "source/xtb/math/*.d" "source/xtb/os/*.d"
+    libs "backtrace" platform="linux"
 }
 
 configuration "math-demo" {
     targetType "executable"
     mainSourceFile "examples/math_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/os/*.d"
 }
 
 configuration "os-demo" {
     targetType "executable"
     mainSourceFile "examples/os_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d"
 }

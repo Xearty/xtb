@@ -1,6 +1,6 @@
-module xtb.core.stacktrace_style;
+module xtb.diagnostics.stacktrace_style;
 
-import xtb.core.demangle : SignatureDetail;
+import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.core.print : Writer;
 import xtb.core.string : String, equal;
 
@@ -42,7 +42,6 @@ struct SignatureFormat
 {
     SignatureLayout layout = SignatureLayout.multiline;
     size_t maxColumns = 100;
-    size_t initialColumn;
     size_t continuationIndent = 4;
 }
 
@@ -60,7 +59,7 @@ struct StackTraceColors
     AnsiColor warning;
 
     static StackTraceColors fromTheme(StackTraceTheme theme)
-        pure nothrow @safe @nogc
+    pure nothrow @safe @nogc
     {
         static foreach (definition; themeDefinitions)
             if (theme == definition.theme)
@@ -161,7 +160,7 @@ struct StackTraceStyle
     size_t signatureColumns;
 
     static StackTraceStyle fromTheme(StackTraceTheme theme)
-        pure nothrow @safe @nogc
+    pure nothrow @safe @nogc
     {
         return StackTraceStyle(
             StackTraceColors.fromTheme(theme),
@@ -225,13 +224,13 @@ private bool keyword(String source) pure nothrow @system @nogc
 {
     switch (source)
     {
-        case "const", "immutable", "inout", "shared", "scope", "return",
-            "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
-            "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
-            "typeof":
-            return true;
-        default:
-            return false;
+    case "const", "immutable", "inout", "shared", "scope", "return",
+        "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
+        "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
+        "typeof":
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -239,18 +238,18 @@ private bool primitiveType(String source) pure nothrow @system @nogc
 {
     switch (source)
     {
-        case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
-            "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
-            "dchar", "float", "double", "real", "ifloat", "idouble",
-            "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
-            return true;
-        default:
-            return false;
+    case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
+        "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
+        "dchar", "float", "double", "real", "ifloat", "idouble",
+        "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
+        return true;
+    default:
+        return false;
     }
 }
 
 private SignatureToken nextToken(String input, size_t start)
-    pure nothrow @system @nogc
+pure nothrow @system @nogc
 {
     if (start >= input.length)
         return SignatureToken.init;
@@ -286,7 +285,7 @@ private SignatureToken nextToken(String input, size_t start)
 }
 
 private size_t nextNonSpace(String input, size_t start)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     while (start < input.length && space(input[start]))
         ++start;
@@ -294,7 +293,7 @@ private size_t nextNonSpace(String input, size_t start)
 }
 
 private bool isFunctionIdentifier(String input, size_t end)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     size_t next = nextNonSpace(input, end);
     if (next < input.length && input[next] == '(')
@@ -305,14 +304,14 @@ private bool isFunctionIdentifier(String input, size_t end)
 }
 
 private bool isModuleIdentifier(String input, size_t end)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     const next = nextNonSpace(input, end);
     return next < input.length && input[next] == '.';
 }
 
 private bool aggregateIdentifier(String identifier)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     return identifier.length != 0 &&
         (identifier[0] == '@' || identifier[0] >= 'A' && identifier[0] <= 'Z');
@@ -360,7 +359,7 @@ private struct ParameterList
 }
 
 private ParameterList outerParameterList(String signature)
-    pure nothrow @safe @nogc
+pure nothrow @safe @nogc
 {
     size_t depth;
     size_t candidate;
@@ -447,25 +446,24 @@ void writeSignature(
         AnsiColor color;
         final switch (token.kind)
         {
-            case SignatureTokenKind.identifier:
-                color = isFunctionIdentifier(signature, token.end)
-                    ? activeColors.functionName
-                    : isModuleIdentifier(signature, token.end)
-                        ? aggregateIdentifier(token.source)
-                            ? activeColors.typeName : activeColors.moduleName
-                        : activeColors.typeName;
-                break;
-            case SignatureTokenKind.type:
-                color = activeColors.typeName;
-                break;
-            case SignatureTokenKind.keyword:
-                color = activeColors.keyword;
-                break;
-            case SignatureTokenKind.punctuation:
-                color = activeColors.punctuation;
-                break;
-            case SignatureTokenKind.space:
-                break;
+        case SignatureTokenKind.identifier:
+            color = isFunctionIdentifier(signature, token.end)
+                ? activeColors.functionName
+                : isModuleIdentifier(signature, token.end)
+                ? aggregateIdentifier(token.source)
+                ? activeColors.typeName : activeColors.moduleName : activeColors.typeName;
+            break;
+        case SignatureTokenKind.type:
+            color = activeColors.typeName;
+            break;
+        case SignatureTokenKind.keyword:
+            color = activeColors.keyword;
+            break;
+        case SignatureTokenKind.punctuation:
+            color = activeColors.punctuation;
+            break;
+        case SignatureTokenKind.space:
+            break;
         }
         writer.beginAnsi(color);
         writer.put(token.source);
@@ -496,15 +494,13 @@ void writeSignature(
     }
 }
 
-version (unittest)
-private struct TestSink
+version (unittest) private struct TestSink
 {
     char[] storage;
     size_t written;
 }
 
-version (unittest)
-private size_t testSink(void* context, scope String bytes) nothrow @nogc
+version (unittest) private size_t testSink(void* context, scope String bytes) nothrow @nogc
 {
     TestSink* sink = cast(TestSink*) context;
     const available = sink.storage.length - sink.written;
@@ -559,11 +555,11 @@ nothrow @nogc unittest
         "render(int, delegate(int, long) -> void, const(char)[]) -> bool nothrow",
         &plain,
         ModuleDisplay.omitted,
-        SignatureFormat(SignatureLayout.multiline, 30, 0, 4),
+        SignatureFormat(SignatureLayout.multiline, 30, 4),
     );
     assert(multilineWriter.finish().ok);
     assert(multilineStorage[0 .. multilineOutput.written].equal(
-        "render(\n        int,\n        delegate(int, long) -> void,\n" ~
+            "render(\n        int,\n        delegate(int, long) -> void,\n" ~
             "        const(char)[]\n    ) -> bool nothrow",
     ));
 
@@ -574,11 +570,11 @@ nothrow @nogc unittest
         "call(int, const(char)[], long)",
         &plain,
         ModuleDisplay.omitted,
-        SignatureFormat(SignatureLayout.singleLine, 1, 0, 4),
+        SignatureFormat(SignatureLayout.singleLine, 1, 4),
     );
     assert(singleWriter.finish().ok);
     assert(singleStorage[0 .. singleOutput.written].equal(
-        "call(int, const(char)[], long)",
+            "call(int, const(char)[], long)",
     ));
 
     enum boundarySignature = "call(int, const(char)[], long)";
@@ -592,9 +588,8 @@ nothrow @nogc unittest
         SignatureFormat(
             SignatureLayout.multiline,
             boundarySignature.length,
-            80,
             4,
-        ),
+    ),
     );
     assert(boundaryWriter.finish().ok);
     assert(boundaryStorage[0 .. boundaryOutput.written].equal(boundarySignature));

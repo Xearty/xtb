@@ -2,7 +2,6 @@ module xtb.core.panic;
 
 import core.stdc.stdlib : abort, exit;
 import core.stdc.stdio : FILE, fflush, fwrite, stderr;
-import xtb.core.print : formatBuffer;
 import xtb.core.types : String;
 
 alias PanicHandler = void function(String message, void* context) nothrow @nogc;
@@ -19,7 +18,7 @@ private __gshared PanicHook panicHook;
 private bool panicInFlight;
 
 PanicHook setPanicHandler(PanicHandler handler, void* context = null)
-    nothrow @nogc
+nothrow @nogc
 {
     PanicHook previous = panicHook;
     panicHook = PanicHook(handler, context);
@@ -53,12 +52,44 @@ noreturn panic(String message) nothrow @nogc
     abort();
 }
 
-noreturn panicf(string pattern, Args...)(auto ref Args args)
-    nothrow @nogc
+private void append(ref char[1024] buffer, ref size_t length, String value)
+nothrow @nogc
+{
+    const available = buffer.length - length;
+    const amount = value.length < available ? value.length : available;
+    foreach (index; 0 .. amount)
+        buffer[length + index] = value[index];
+    length += amount;
+}
+
+private void appendDecimal(ref char[1024] buffer, ref size_t length, size_t value)
+nothrow @nogc
+{
+    char[32] digits;
+    size_t begin = digits.length;
+    do
+    {
+        digits[--begin] = cast(char)('0' + value % 10);
+        value /= 10;
+    }
+    while (value != 0);
+    append(buffer, length, digits[begin .. $]);
+}
+
+private noreturn panicAt(String message, String file, size_t line)
+nothrow @nogc
 {
     char[1024] buffer;
-    const result = formatBuffer!pattern(buffer[], args);
-    panic(buffer[0 .. result.written]);
+    size_t length;
+    append(buffer, length, message);
+    append(buffer, length, " (");
+    append(buffer, length, file);
+    append(buffer, length, ":");
+    appendDecimal(buffer, length, line);
+    append(buffer, length, ")");
+    if (length == buffer.length)
+        buffer[$ - 3 .. $] = "...";
+    panic(buffer[0 .. length]);
 }
 
 void require(string file = __FILE__, size_t line = __LINE__)(
@@ -67,7 +98,7 @@ void require(string file = __FILE__, size_t line = __LINE__)(
 ) nothrow @nogc
 {
     if (!condition)
-        panicf!"{} ({}:{})"(message, file, line);
+        panicAt(message, file, line);
 }
 
 noreturn unreachableCode(
@@ -75,5 +106,5 @@ noreturn unreachableCode(
     size_t line = __LINE__,
 )() nothrow @nogc
 {
-    panicf!"unreachable code reached ({}:{})"(file, line);
+    panicAt("unreachable code reached", file, line);
 }

@@ -1,4 +1,4 @@
-module xtb.core.demangle;
+module xtb.diagnostics.demangle;
 
 import xtb.core.string : String, equal;
 
@@ -16,9 +16,12 @@ private struct DemangleWriter
     char[] storage;
     size_t written;
     bool failed;
+    bool discard;
 
     void put(char value) nothrow @system @nogc
     {
+        if (discard)
+            return;
         if (written == storage.length)
         {
             failed = true;
@@ -29,6 +32,8 @@ private struct DemangleWriter
 
     void put(String value) nothrow @system @nogc
     {
+        if (discard)
+            return;
         if (value.length > storage.length - written)
         {
             failed = true;
@@ -181,9 +186,8 @@ private struct Demangler
             return type();
         if (consume('V'))
         {
-            char[1024] ignoredType;
             DemangleWriter savedOutput = output;
-            output = DemangleWriter(ignoredType[]);
+            output = DemangleWriter(null, 0, false, true);
             const validType = type();
             output = savedOutput;
             if (!validType)
@@ -304,7 +308,7 @@ private struct Demangler
         size_t numberValue;
         while (offset < input.length && digit(input[offset]))
         {
-            const next = cast(size_t) (input[offset] - '0');
+            const next = cast(size_t)(input[offset] - '0');
             if (numberValue > (size_t.max - next) / 10)
                 return false;
             numberValue = numberValue * 10 + next;
@@ -326,10 +330,10 @@ private struct Demangler
             const character = input[offset++];
             size_t digitValue;
             if (character >= 'A' && character <= 'Z')
-                digitValue = cast(size_t) (character - 'A');
+                digitValue = cast(size_t)(character - 'A');
             else if (character >= 'a' && character <= 'z')
             {
-                digitValue = cast(size_t) (character - 'a');
+                digitValue = cast(size_t)(character - 'a');
                 finished = true;
             }
             else
@@ -391,23 +395,27 @@ private struct Demangler
         String callable = null,
         SignatureDetail functionDetail = SignatureDetail.full,
     )
-        nothrow @system @nogc
+    nothrow @system @nogc
     {
         String memberQualifier;
         if (offset < input.length && input[offset] == 'M')
         {
             ++offset;
-            if (consume('x')) memberQualifier = " const";
-            else if (consume('y')) memberQualifier = " immutable";
+            if (consume('x'))
+                memberQualifier = " const";
+            else if (consume('y'))
+                memberQualifier = " immutable";
             else if (consume('O'))
             {
-                if (consume('x')) memberQualifier = " shared const";
+                if (consume('x'))
+                    memberQualifier = " shared const";
                 else if (startsWith("Ng"))
                 {
                     offset += 2;
                     memberQualifier = " shared inout";
                 }
-                else memberQualifier = " shared";
+                else
+                    memberQualifier = " shared";
             }
             else if (startsWith("Ng"))
             {
@@ -453,13 +461,13 @@ private struct Demangler
         if (hasReturn)
         {
             DemangleWriter savedOutput;
-            char[1024] ignoredReturn;
             if (functionDetail == SignatureDetail.overloadIdentity)
             {
                 savedOutput = output;
-                output = DemangleWriter(ignoredReturn[]);
+                output = DemangleWriter(null, 0, false, true);
             }
-            else output.put(" -> ");
+            else
+                output.put(" -> ");
             const validReturn = type();
             if (functionDetail == SignatureDetail.overloadIdentity)
                 output = savedOutput;
@@ -472,24 +480,45 @@ private struct Demangler
     }
 
     bool functionAttributes(FunctionAttributes* attributes)
-        pure nothrow @system @nogc
+    pure nothrow @system @nogc
     {
         while (offset + 1 < input.length && input[offset] == 'N')
         {
             const code = input[offset + 1];
             switch (code)
             {
-                case 'a': attributes.pure_ = true; break;
-                case 'b': attributes.nothrow_ = true; break;
-                case 'c': attributes.ref_ = true; break;
-                case 'd': attributes.property = true; break;
-                case 'e': attributes.trusted = true; break;
-                case 'f': attributes.safe = true; break;
-                case 'i': attributes.nogc = true; break;
-                case 'j': attributes.return_ = true; break;
-                case 'l': attributes.scope_ = true; break;
-                case 'm': attributes.live = true; break;
-                default: return true;
+            case 'a':
+                attributes.pure_ = true;
+                break;
+            case 'b':
+                attributes.nothrow_ = true;
+                break;
+            case 'c':
+                attributes.ref_ = true;
+                break;
+            case 'd':
+                attributes.property = true;
+                break;
+            case 'e':
+                attributes.trusted = true;
+                break;
+            case 'f':
+                attributes.safe = true;
+                break;
+            case 'i':
+                attributes.nogc = true;
+                break;
+            case 'j':
+                attributes.return_ = true;
+                break;
+            case 'l':
+                attributes.scope_ = true;
+                break;
+            case 'm':
+                attributes.live = true;
+                break;
+            default:
+                return true;
             }
             offset += 2;
         }
@@ -497,25 +526,44 @@ private struct Demangler
     }
 
     void writeFunctionSuffix(FunctionAttributes attributes, char convention)
-        nothrow @system @nogc
+    nothrow @system @nogc
     {
-        if (attributes.pure_) output.put(" pure");
-        if (attributes.nothrow_) output.put(" nothrow");
-        if (attributes.ref_) output.put(" ref");
-        if (attributes.property) output.put(" @property");
-        if (attributes.nogc) output.put(" @nogc");
-        if (attributes.return_) output.put(" return");
-        if (attributes.scope_) output.put(" scope");
-        if (attributes.trusted) output.put(" @trusted");
-        if (attributes.safe) output.put(" @safe");
-        if (attributes.live) output.put(" @live");
+        if (attributes.pure_)
+            output.put(" pure");
+        if (attributes.nothrow_)
+            output.put(" nothrow");
+        if (attributes.ref_)
+            output.put(" ref");
+        if (attributes.property)
+            output.put(" @property");
+        if (attributes.nogc)
+            output.put(" @nogc");
+        if (attributes.return_)
+            output.put(" return");
+        if (attributes.scope_)
+            output.put(" scope");
+        if (attributes.trusted)
+            output.put(" @trusted");
+        if (attributes.safe)
+            output.put(" @safe");
+        if (attributes.live)
+            output.put(" @live");
         switch (convention)
         {
-            case 'U': output.put(" extern(C)"); break;
-            case 'W': output.put(" extern(Windows)"); break;
-            case 'R': output.put(" extern(C++)"); break;
-            case 'Y': output.put(" extern(Objective-C)"); break;
-            default: break;
+        case 'U':
+            output.put(" extern(C)");
+            break;
+        case 'W':
+            output.put(" extern(Windows)");
+            break;
+        case 'R':
+            output.put(" extern(C++)");
+            break;
+        case 'Y':
+            output.put(" extern(Objective-C)");
+            break;
+        default:
+            break;
         }
     }
 
@@ -528,10 +576,14 @@ private struct Demangler
             offset += 2;
             output.put("return ");
         }
-        if (consume('I')) output.put("in ");
-        else if (consume('J')) output.put("out ");
-        else if (consume('K')) output.put("ref ");
-        else if (consume('L')) output.put("lazy ");
+        if (consume('I'))
+            output.put("in ");
+        else if (consume('J'))
+            output.put("out ");
+        else if (consume('K'))
+            output.put("ref ");
+        else if (consume('L'))
+            output.put("lazy ");
         return type();
     }
 
@@ -548,7 +600,8 @@ private struct Demangler
         }
         if (consume('O'))
         {
-            if (consume('x')) return wrapped("shared const(", ")");
+            if (consume('x'))
+                return wrapped("shared const(", ")");
             if (startsWith("Ng"))
             {
                 offset += 2;
@@ -556,8 +609,10 @@ private struct Demangler
             }
             return wrapped("shared(", ")");
         }
-        if (consume('x')) return wrapped("const(", ")");
-        if (consume('y')) return wrapped("immutable(", ")");
+        if (consume('x'))
+            return wrapped("const(", ")");
+        if (consume('y'))
+            return wrapped("immutable(", ")");
         if (startsWith("Nn"))
         {
             offset += 2;
@@ -585,54 +640,106 @@ private struct Demangler
         const code = input[offset++];
         switch (code)
         {
-            case 'v': output.put("void"); return true;
-            case 'b': output.put("bool"); return true;
-            case 'g': output.put("byte"); return true;
-            case 'h': output.put("ubyte"); return true;
-            case 's': output.put("short"); return true;
-            case 't': output.put("ushort"); return true;
-            case 'i': output.put("int"); return true;
-            case 'k': output.put("uint"); return true;
-            case 'l': output.put("long"); return true;
-            case 'm': output.put("ulong"); return true;
-            case 'a': output.put("char"); return true;
-            case 'u': output.put("wchar"); return true;
-            case 'w': output.put("dchar"); return true;
-            case 'f': output.put("float"); return true;
-            case 'd': output.put("double"); return true;
-            case 'e': output.put("real"); return true;
-            case 'o': output.put("ifloat"); return true;
-            case 'p': output.put("idouble"); return true;
-            case 'j': output.put("ireal"); return true;
-            case 'q': output.put("cfloat"); return true;
-            case 'r': output.put("cdouble"); return true;
-            case 'c': output.put("creal"); return true;
-            case 'n': output.put("typeof(null)"); return true;
-            case 'P':
-                if (offset < input.length &&
-                    (callConvention(input[offset]) || input[offset] == 'M'))
-                    return type();
-                return postfix("*");
-            case 'A': return postfix("[]");
-            case 'G': return staticArray();
-            case 'H': return associativeArray();
-            case 'I':
-            case 'S':
-            case 'C':
-            case 'E':
-            case 'T': return qualifiedName();
-            case 'D':
-                skipTypeModifiers();
-                return functionType(true, "delegate");
-            case 'B': return tupleType();
-            case 'F':
-            case 'U':
-            case 'W':
-            case 'R':
-            case 'Y':
-                --offset;
-                return functionType(true, "function");
-            default: return false;
+        case 'v':
+            output.put("void");
+            return true;
+        case 'b':
+            output.put("bool");
+            return true;
+        case 'g':
+            output.put("byte");
+            return true;
+        case 'h':
+            output.put("ubyte");
+            return true;
+        case 's':
+            output.put("short");
+            return true;
+        case 't':
+            output.put("ushort");
+            return true;
+        case 'i':
+            output.put("int");
+            return true;
+        case 'k':
+            output.put("uint");
+            return true;
+        case 'l':
+            output.put("long");
+            return true;
+        case 'm':
+            output.put("ulong");
+            return true;
+        case 'a':
+            output.put("char");
+            return true;
+        case 'u':
+            output.put("wchar");
+            return true;
+        case 'w':
+            output.put("dchar");
+            return true;
+        case 'f':
+            output.put("float");
+            return true;
+        case 'd':
+            output.put("double");
+            return true;
+        case 'e':
+            output.put("real");
+            return true;
+        case 'o':
+            output.put("ifloat");
+            return true;
+        case 'p':
+            output.put("idouble");
+            return true;
+        case 'j':
+            output.put("ireal");
+            return true;
+        case 'q':
+            output.put("cfloat");
+            return true;
+        case 'r':
+            output.put("cdouble");
+            return true;
+        case 'c':
+            output.put("creal");
+            return true;
+        case 'n':
+            output.put("typeof(null)");
+            return true;
+        case 'P':
+            if (offset < input.length &&
+                (callConvention(input[offset]) || input[offset] == 'M'))
+                return type();
+            return postfix("*");
+        case 'A':
+            return postfix("[]");
+        case 'G':
+            return staticArray();
+        case 'H':
+            return associativeArray();
+        case 'I':
+        case 'S':
+        case 'C':
+        case 'E':
+        case 'T':
+            return qualifiedName();
+        case 'D':
+            skipTypeModifiers();
+            return functionType(true, "delegate");
+        case 'B':
+            return tupleType();
+        case 'F':
+        case 'U':
+        case 'W':
+        case 'R':
+        case 'Y':
+            --offset;
+            return functionType(true, "function");
+        default:
+            return false;
         }
     }
 
@@ -661,20 +768,22 @@ private struct Demangler
 
     bool associativeArray() nothrow @system @nogc
     {
-        char[1024] keyStorage;
-        DemangleWriter savedOutput = output;
-        output = DemangleWriter(keyStorage[]);
-        if (!type())
-        {
-            output = savedOutput;
+        Demangler keyStart = this;
+        keyStart.output = DemangleWriter(null, 0, false, true);
+        Demangler parsedKey = keyStart;
+        if (!parsedKey.type())
             return false;
-        }
-        const key = keyStorage[0 .. output.written];
-        output = savedOutput;
+        offset = parsedKey.offset;
+        lastTemplateName = parsedKey.lastTemplateName;
+        hasLastTemplateName = parsedKey.hasLastTemplateName;
         if (!type())
             return false;
         output.put('[');
-        output.put(key);
+        Demangler renderedKey = keyStart;
+        renderedKey.output = output;
+        if (!renderedKey.type())
+            return false;
+        output = renderedKey.output;
         output.put(']');
         return !output.failed;
     }
@@ -759,8 +868,7 @@ private bool callConvention(char value) pure nothrow @safe @nogc
         value == 'R' || value == 'Y';
 }
 
-version (unittest)
-private int generatedSignature(
+version (unittest) private int generatedSignature(
     ref const(int)[],
     int[String],
     int delegate(float),
@@ -772,26 +880,42 @@ private int generatedSignature(
     return 0;
 }
 
-version (unittest)
-private int generatedTemplate(int value, T)(T input) pure nothrow @nogc
+version (unittest) private int generatedTemplate(int value, T)(T input) pure nothrow @nogc
 {
     return value + cast(int) input;
 }
 
-version (unittest)
-private bool generatedAliasTarget(scope const(float)[]) pure nothrow @nogc
+version (unittest) private bool generatedAliasTarget(scope const(float)[]) pure nothrow @nogc
 {
     return true;
 }
 
-version (unittest)
-private int generatedAliasTemplate(alias target)() pure nothrow @nogc
+version (unittest) private int generatedAliasTemplate(alias target)() pure nothrow @nogc
 {
     return target(null) ? 1 : 0;
 }
 
-version (unittest)
-private bool containsEllipsis(String value) pure nothrow @safe @nogc
+version (unittest) private template RepeatedIdentifier(size_t chunks)
+{
+    static if (chunks == 0)
+        enum RepeatedIdentifier = "";
+    else
+        enum RepeatedIdentifier =
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" ~
+            RepeatedIdentifier!(chunks - 1);
+}
+
+version (unittest) mixin(
+    "private struct X" ~ RepeatedIdentifier!20 ~ " {} " ~
+        "private alias GeneratedLongType = X" ~ RepeatedIdentifier!20 ~ ";",
+);
+
+version (unittest) private GeneratedLongType generatedLongReturn() nothrow @nogc
+{
+    return GeneratedLongType.init;
+}
+
+version (unittest) private bool containsEllipsis(String value) pure nothrow @safe @nogc
 {
     if (value.length < 3)
         return false;
@@ -801,8 +925,7 @@ private bool containsEllipsis(String value) pure nothrow @safe @nogc
     return false;
 }
 
-version (unittest)
-private bool containsText(String value, String needle) pure nothrow @system @nogc
+version (unittest) private bool containsText(String value, String needle) pure nothrow @system @nogc
 {
     if (needle.length > value.length)
         return false;
@@ -848,10 +971,10 @@ bool tryDemangleD(
             mangled[demangler.offset] == 'M')
         {
             if (!demangler.functionType(
-                true,
-                null,
-                detail,
-            ))
+                    true,
+                    null,
+                    detail,
+                ))
                 return false;
         }
         else if (!demangler.type())
@@ -868,58 +991,58 @@ nothrow @nogc unittest
     char[2048] storage;
     String result;
     assert(tryDemangleD(
-        "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
+            "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextAxaZi",
-        storage[],
-        &result,
+            storage[],
+            &result,
     ));
     assert(result.equal(
-        "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
+            "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
             "StackTraceContext, const(char)[])",
     ));
     assert(tryDemangleD(
-        "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
+            "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextAxaZi",
-        storage[],
-        &result,
-        SignatureDetail.overloadIdentityAndReturn,
+            storage[],
+            &result,
+            SignatureDetail.overloadIdentityAndReturn,
     ));
     assert(result.equal(
-        "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
+            "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
             "StackTraceContext, const(char)[]) -> int",
     ));
     assert(tryDemangleD(
-        "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
+            "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextAxaZi",
-        storage[],
-        &result,
-        SignatureDetail.full,
+            storage[],
+            &result,
+            SignatureDetail.full,
     ));
     assert(result.equal(
-        "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
+            "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
             "StackTraceContext, const(char)[]) -> int nothrow @nogc",
     ));
 
     assert(tryDemangleD(
-        "_D8examples15stacktrace_demo16buildRenderGraphFNbNiKS3xtb4core" ~
+            "_D8examples15stacktrace_demo16buildRenderGraphFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextKSQDpQDj12AssetRequestPiZi",
-        storage[],
-        &result,
+            storage[],
+            &result,
     ));
     assert(result.equal(
-        "examples.stacktrace_demo.buildRenderGraph(ref xtb.core.stacktrace." ~
+            "examples.stacktrace_demo.buildRenderGraph(ref xtb.core.stacktrace." ~
             "StackTraceContext, ref examples.stacktrace_demo.AssetRequest, " ~
             "int*)",
     ));
 
     assert(tryDemangleD(
-        "_D8examples15stacktrace_demo__T13dispatchTypedTiZQsFNbNiK" ~
+            "_D8examples15stacktrace_demo__T13dispatchTypedTiZQsFNbNiK" ~
             "S3xtb4core10stacktrace17StackTraceContextKSQDuQDo12AssetRequestMAxiZi",
-        storage[],
-        &result,
+            storage[],
+            &result,
     ));
     assert(result.equal(
-        "examples.stacktrace_demo.dispatchTyped!(int)(ref " ~
+            "examples.stacktrace_demo.dispatchTyped!(int)(ref " ~
             "xtb.core.stacktrace.StackTraceContext, ref examples.stacktrace_demo." ~
             "AssetRequest, scope const(int)[])",
     ));
@@ -949,10 +1072,28 @@ nothrow @nogc unittest
     assert(!result.containsText("generatedAliasTarget(scope const(float)[]) ->"));
 
     assert(tryDemangleD(
-        generatedAliasInstantiation.mangleof,
-        storage[],
-        &result,
-        SignatureDetail.full,
+            generatedAliasInstantiation.mangleof,
+            storage[],
+            &result,
+            SignatureDetail.full,
     ));
     assert(result.containsText("generatedAliasTarget(scope const(float)[]) -> bool"));
+
+    char[256] identityStorage;
+    assert(tryDemangleD(
+            generatedLongReturn.mangleof,
+            identityStorage[],
+            &result,
+            SignatureDetail.overloadIdentity,
+    ));
+    assert(result.containsText("generatedLongReturn()"));
+
+    char[4096] longStorage;
+    assert(tryDemangleD(
+            generatedLongReturn.mangleof,
+            longStorage[],
+            &result,
+            SignatureDetail.overloadIdentityAndReturn,
+    ));
+    assert(result.length > 1024);
 }

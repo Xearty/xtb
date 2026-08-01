@@ -25,21 +25,18 @@
         pname = "xtbd";
         version = "0.1.0";
         src = self;
-        nativeBuildInputs = [pkgs.ldc];
+        nativeBuildInputs = [pkgs.ldc pkgs.just];
         buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.libbacktrace];
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
-          mkdir -p build
-          ldc2 -betterC -boundscheck=on -w -de -preview=dip1000 -oq -I=source \
-            -lib $(find source -name '*.d' -print | sort) \
-            -of=build/libxtbd.a
+          just build
           runHook postBuild
         '';
         installPhase = ''
           runHook preInstall
           mkdir -p $out/lib $out/include
-          cp build/libxtbd.a $out/lib/
+          cp build/libxtbd_*.a $out/lib/
           cp -R source/xtb $out/include/
           runHook postInstall
         '';

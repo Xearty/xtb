@@ -125,7 +125,7 @@ ownership, hidden global state, and macro-oriented interfaces.
   Linux;
 - execinfo/dladdr fallback when debug information is unavailable;
 - truncation and backend-error reporting;
-- bounded D demangling with overload-oriented, return-type, and full detail;
+- caller-sized D demangling with overload-oriented, return-type, and full detail;
 - optional module qualifiers and source-style multiline signatures;
 - non-allocating token-colored `Writer` rendering;
 - the complete embedded theme catalog plus a plain theme;

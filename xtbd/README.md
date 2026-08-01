@@ -3,8 +3,8 @@
 `xtbd` is a small foundational D library designed for `-betterC`: explicit
 allocators, arenas and thread-local scratch scopes, owning arrays and string
 builders, read-only `String` views, intrusive lists, panic/logging facilities,
-allocation-free formatted output, structured logging, panic contracts, and
-explicit caller-storage-backed stack traces.
+allocation-free formatted output, structured logging, and panic contracts.
+Optional stack traces and crash observation live in `xtb.diagnostics`.
 
 The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
 camera, and projection operations, plus a stable deterministic random generator
@@ -16,7 +16,8 @@ explicit errors, environment/path queries, and monotonic/wall clocks. Linux
 has the locally tested backend; other targets retain buildable APIs reporting
 unsupported operations.
 
-Stack traces include bounded D demangling, allocation-free signature coloring,
+Stack traces include caller-storage-bounded D demangling, allocation-free
+signature coloring,
 configurable ANSI themes, and explicitly installed panic/fatal-signal handlers.
 See `examples/stacktrace_demo.d` and the diagnostics section of
 `docs/architecture.md` for the safety tradeoff between fault-address-only and
@@ -48,7 +49,7 @@ Alternatively, run `nix develop` from `xtbd` and then use the same `just`
 commands. The project-local `.envrc` deliberately selects the independent
 `xtbd` flake instead of inheriting the adjacent C++ project's environment.
 
-`just check` lints, builds the static library, runs every unit test, and builds
+`just check` lints, builds the package archives, runs every unit test, and builds
 and runs the examples. Individual commands are `just build`, `just test`,
 `just lint`, and `just examples`. A reproducible package and test derivation are
 also available through `nix build` and `nix flake check`.
@@ -60,6 +61,11 @@ module such as `xtb.core.arena`. All consuming targets must also compile with
 `-betterC`. See `examples/core_demo.d` and `examples/print_demo.d` for complete
 runnable programs, and `docs/architecture.md` for ownership and scratch-space
 contracts.
+
+Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
+crash observation. On Linux those targets link libbacktrace; core-only, math,
+and OS targets do not. `just build` produces independent `libxtbd_core`,
+`libxtbd_diagnostics`, `libxtbd_math`, and `libxtbd_os` archives.
 
 Import `xtb.math` for the stable math surface. Matrices are column-major and
 multiply column vectors; transformations compose right-to-left. See

@@ -19,7 +19,8 @@ Use conventional D package layout:
 ```text
 xtbd/
 ├── source/xtb/             # production modules
-│   ├── core/               # memory, containers, text, diagnostics
+│   ├── core/               # memory, containers, text, printing, logging
+│   ├── diagnostics/        # demangling, styled traces, crash observation
 │   ├── math/               # vectors, matrices, scalar algorithms, noise
 │   ├── os/                 # libc and platform adapters
 │   ├── codec/              # BMP, JSON, and future data formats
@@ -47,21 +48,23 @@ Dependencies flow downward:
 
 ```text
 examples / applications
-          |
-       renderer
-      /        \
- graphics    window
-      \        /
-       codec / os
-           |
-          math
-           |
-          core
-           |
-       C ABI / libc
+      /              \
+ renderer         diagnostics
+ /      \              |
+graphics window        |
+ \      /               |
+ codec / os             |
+      |                 |
+     math               |
+       \               /
+             core
+              |
+          C ABI / libc
 ```
 
 - `core` depends only on language features and selected `core.stdc` bindings.
+- `diagnostics` depends on `core` plus its explicitly selected platform
+  unwinder. Core must never import diagnostics or require libbacktrace.
 - `math` depends on `core` only when it needs shared primitive/result types.
 - `os` owns operating-system and libc calls. Higher layers do not call libc
   directly unless they are themselves a foreign-library boundary.
@@ -169,6 +172,9 @@ registration.
 
 Stack traces use caller-provided frame and text storage. Symbol capture,
 demangling, signature tokenization, styling, and rendering must not allocate.
+`writeStackTrace` additionally receives a caller-owned signature workspace,
+which it reuses for every frame. A workspace too small for one complete name
+causes that frame to retain its mangled linkage name; it never inserts `...`.
 The D demangler implements relative identifier/type back-references, template
 types and values, qualifiers, arrays, pointers, functions, delegates, tuples,
 calling conventions, parameter storage classes, and function attributes. It
@@ -206,8 +212,8 @@ its indentation do not count toward the limit. A signature whose visible width
 is exactly the configured limit remains on one line. Select
 `SignatureLayout.singleLine` for machine-oriented output or terminals that
 handle horizontal scrolling. Direct `writeSignature` callers configure the
-same behavior with `SignatureFormat`, including their initial column and base
-indentation. A zero column limit is treated as unbounded.
+same behavior with `SignatureFormat.maxColumns` and `continuationIndent`. A
+zero column limit is treated as unbounded.
 
 ```text
 Renderer.submit(
@@ -237,8 +243,11 @@ allowed.
 removes lowercase package/module prefixes while retaining aggregate ownership,
 so `examples.app.SceneLoader.load(ref xtb.core.Context)` is displayed as
 `SceneLoader.load(ref Context)`. Demangling itself always retains the complete
-qualified name. Set `moduleDisplay = ModuleDisplay.full` when disambiguation or
-copying the exact qualified signature is more important than compact output.
+qualified name. D linkage names do not encode the boundary between modules and
+enclosing aggregates, so omission deliberately follows the idiomatic D naming
+convention: lowercase qualifiers are modules and uppercase qualifiers are
+types. Projects using lowercase aggregate names or uppercase module names must
+select `ModuleDisplay.full`. Use that mode whenever exact qualification matters.
 
 Fatal diagnostics require explicit process startup:
 
@@ -252,6 +261,10 @@ programming error. Scope destruction restores the previous panic and signal
 handlers. A panic occurs in ordinary execution context, so its hook may use
 libbacktrace and the complete styled renderer before `abort` terminates the
 process.
+
+Signal installation is transactional: if installing any handler fails, every
+handler installed earlier in that attempt is restored before the installation
+panic is raised.
 
 Linux fatal-signal handling has a stricter contract. `write`, `_exit`, and the
 signal metadata path are async-signal-safe; libbacktrace, allocation, stdio,

@@ -1,12 +1,12 @@
 module examples.stacktrace_demo;
 
 import core.stdc.stdio : FILE, stdout;
-import xtb.core.crash : CrashHandlerScope;
-import xtb.core.demangle : SignatureDetail;
+import xtb.diagnostics.crash : CrashHandlerScope;
+import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.core.print : Writer;
-import xtb.core.stacktrace : StackFrame, StackTrace, StackTraceContext,
+import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
-import xtb.core.stacktrace_style : StackTraceStyle, StackTraceTheme;
+import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;
 import xtb.core.string : String;
 
 private enum AssetKind : ubyte
@@ -33,7 +33,7 @@ private struct RenderResult
     AssetMetadata metadata;
 }
 
-private alias ErrorHook = extern(C) void function(int, const(char)*);
+private alias ErrorHook = extern (C) void function(int, const(char)*);
 private alias SampleFilter = bool function(scope const(float)[]) pure nothrow @nogc;
 private alias CompletionHook = void delegate(
     ref const(AssetRequest),
@@ -69,7 +69,7 @@ private struct RenderBackend
     }
 }
 
-private extern(C) void reportError(int, const(char)*) nothrow @nogc
+private extern (C) void reportError(int, const(char)*) nothrow @nogc
 {
 }
 
@@ -91,7 +91,8 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
     style.signatureDetail = SignatureDetail.overloadIdentityAndReturn;
-    writer.writeStackTrace(&trace, &style);
+    char[64 * 1024] signatureStorage;
+    writer.writeStackTrace(&trace, signatureStorage[], &style);
     return writer.finish().ok ? 0 : 1;
 }
 
@@ -237,7 +238,7 @@ private int runApplication(ref StackTraceContext context) nothrow @nogc
     return loadScene(context, "assets/scene.xtb", 42);
 }
 
-extern(C) int main(int argumentCount, char** arguments)
+extern (C) int main(int argumentCount, char** arguments)
 {
     const(char)* executable = argumentCount == 0 ? null : arguments[0];
     scope CrashHandlerScope crashHandlers = CrashHandlerScope.install(executable);
