@@ -1,12 +1,61 @@
-# Code review — 2026-08-01
+# Code review and remediation — 2026-08-01
 
-## Verdict
+## Current status
 
-The project has a coherent BetterC direction, a useful explicit allocator
-model, and substantially better tests than a typical early port. It is not yet
-safe to treat as a production core library. The current test suite passes, but
-targeted adversarial programs found memory-safety defects, a logger corruption
-bug, and process/thread lifetime mistakes that the suite does not exercise.
+This file preserves the original adversarial review below so the reasons for
+the changes remain inspectable. Every accepted finding that can be exercised
+on the local x86-64 Linux host has now been remediated. The implementation was
+not made compatible merely for compatibility's sake: the rejected C++
+behaviors remain listed in `core-gap-analysis.md`.
+
+The remediation landed in review-sized commits:
+
+- `69cfc64` fixes aliased mutation and scratch-output conflicts;
+- `f2c56f5`, `4aad509`, and `ad8a053` fix process-wide panic observation,
+  exact subprocess diagnostics, and the strict build/test matrix;
+- `4144b38` fixes the C allocator ABI and intrusive membership model;
+- `3773fb2` separates optional diagnostics, removes internal demangler size
+  ceilings, and makes crash installation transactional;
+- `4d9cc46`, `26f1e20`, and `9867387` correct arena ownership, OS/resource
+  semantics, and math contracts/numerics;
+- `3d1f4b8` fixes one-pass formatting and logging semantics;
+- `93bf354` centralizes the common BetterC attributes;
+- `15d0d53` separates primitive aliases from numeric utilities and makes byte
+  units ergonomic while keeping checked alternatives;
+- `0732f5d` adds ASan/libFuzzer targets for demangling and mutable containers.
+
+Two limitations are deliberate and documented rather than hidden. Module
+qualifier omission uses D naming convention because linkage names do not encode
+the module/aggregate boundary; exact output remains selectable. Linux's
+attempted signal-context unwind remains explicitly best-effort, while the
+fault-address-only mode is the deterministic restricted path.
+
+Runtime execution has been completed on x86-64 Linux. AArch64 Darwin is locally
+cross-compiled, not executed; native builders are still required before making
+execution claims for Darwin or AArch64 Linux. Long-running fuzz campaigns are
+also continuous verification work rather than a finite completion claim.
+
+Final verification passed with LDC 1.41.0:
+
+- `nix develop --command just check`;
+- `nix build --print-build-logs`;
+- `nix flake check --print-build-logs` on the locally compatible system;
+- every Dub library and example configuration.
+
+The gate includes strict warnings/deprecations, debug, optimized, and release
+tests, exact panic/signal subprocess assertions, C ABI linkage, ASan, both fuzz
+smoke targets, the AArch64 Darwin cross-build, and runnable examples. UBSan is
+probed but explicitly skipped because this pinned LDC rejects
+`-fsanitize=undefined`.
+
+## Original verdict at review time
+
+The project had a coherent BetterC direction, a useful explicit allocator
+model, and substantially better tests than a typical early port. It was not yet
+safe to treat as a production core library. The then-current test suite passed,
+but targeted adversarial programs found memory-safety defects, a logger
+corruption bug, and process/thread lifetime mistakes that the suite did not
+exercise.
 
 The ordering below is prescriptive. Fix the blockers before adding more library
 surface. Do not preserve an API merely because it has already been written.
