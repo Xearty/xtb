@@ -7,7 +7,7 @@ import xtb.core.string : String, StringBuf, append, checkedCString, clear, fromC
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
-import xtb.os.file : FileType;
+import xtb.os.file : FileMetadata, FileType, SymlinkMode, metadata;
 import xtb.os.path : Path, appendComponent;
 
 enum Access : ubyte
@@ -58,14 +58,7 @@ struct DirectoryIterator
 
     void deinit() nothrow @nogc
     {
-        version (linux)
-        {
-            import core.sys.posix.dirent : closedir;
-
-            if (directory_ !is null)
-                closedir(directory_);
-            directory_ = null;
-        }
+        cast(void) close(&this);
     }
 
     bool valid() const pure nothrow @safe @nogc
@@ -77,10 +70,29 @@ struct DirectoryIterator
     }
 }
 
+OsError close(DirectoryIterator* iterator) nothrow @system @nogc
+{
+    require(iterator !is null, "DirectoryIterator pointer is null");
+    version (linux)
+    {
+        import core.sys.posix.dirent : closedir;
+
+        if (iterator.directory_ is null)
+            return OsError.init;
+        auto directory = iterator.directory_;
+        iterator.directory_ = null;
+        return closedir(directory) == 0 ? OsError.init : lastError();
+    }
+    else
+        return OsError.init;
+}
+
 OsError openDirectory(Path path, DirectoryIterator* output) nothrow @system @nogc
 {
     require(output !is null, "DirectoryIterator output pointer is null");
-    output.deinit();
+    const cleanupError = close(output);
+    if (cleanupError.failed)
+        return cleanupError;
     version (linux)
     {
         import core.sys.posix.dirent : opendir;
@@ -98,6 +110,7 @@ DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) nothro
 {
     require(iterator !is null && iterator.valid, "invalid DirectoryIterator");
     require(output !is null, "DirectoryEntry output pointer is null");
+    *output = DirectoryEntry.init;
     version (linux)
     {
         import core.stdc.errno : errno;
@@ -333,6 +346,7 @@ private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor 
     if (error.failed)
         return error;
     DirectoryEntry entry;
+    StringBuf full = StringBuf.create(temporaryAllocator);
     for (;;)
     {
         const result = (&iterator).next(&entry);
@@ -341,16 +355,15 @@ private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor 
         if (result.status == DirectoryStatus.failed)
             return result.error;
 
-        StringBuf full = StringBuf.fromString(temporaryAllocator, root.view);
+        full.clear();
+        full.append(root.view);
         full.appendComponent(Path.fromString(entry.name));
         const path = Path.fromString(full.view);
         FileType type = entry.type;
         if (type == FileType.unknown)
         {
-            import xtb.os.file : FileMetadata, metadata;
-
             FileMetadata information;
-            error = metadata(path, false, &information);
+            error = metadata(path, SymlinkMode.noFollow, &information);
             if (error.failed)
                 return error;
             type = information.type;

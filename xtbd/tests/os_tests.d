@@ -9,10 +9,9 @@ import xtb.os.time;
 import xtb.core.array : Array;
 import xtb.core.arena : Arena, TempArena, pop, push;
 import xtb.core.memory : mallocAllocator;
-import xtb.core.print : formatTo;
-import xtb.core.string : String, StringBuf, append;
+import xtb.core.string : String, StringBuf, append, fromCString;
 import xtb.core.thread_context : ThreadContextScope, scratchArena;
-import xtb.core.types : u64, u8;
+import xtb.core.types : i64, u64, u8;
 
 version (linux) private bool countEntry(Path, FileType, void* context) nothrow @system @nogc
 {
@@ -22,17 +21,20 @@ version (linux) private bool countEntry(Path, FileType, void* context) nothrow @
 
 version (linux) private void runLinuxIntegration() nothrow @system @nogc
 {
-    import core.sys.posix.unistd : getpid;
+    import core.sys.posix.stdlib : mkdtemp;
     import xtb.os.environment : environmentVariable;
 
     ThreadContextScope context = ThreadContextScope.acquire();
-    StringBuf root = StringBuf.create(mallocAllocator());
-    root.formatTo!"/tmp/xtbd-os-{}"(getpid());
-    const rootPath = Path.fromString(root.view);
-    OsError error = createDirectory(rootPath);
-    assert(error.succeeded);
+    enum rootPattern = "/tmp/xtbd-os-XXXXXX";
+    char[rootPattern.length + 1] rootStorage;
+    rootStorage[0 .. rootPattern.length] = rootPattern;
+    rootStorage[$ - 1] = '\0';
+    const createdRoot = mkdtemp(rootStorage.ptr);
+    assert(createdRoot !is null);
+    const rootPath = Path.fromString(fromCString(createdRoot));
+    OsError error;
 
-    StringBuf first = StringBuf.fromString(mallocAllocator(), root.view);
+    StringBuf first = StringBuf.fromString(mallocAllocator(), rootPath.view);
     first.append("/first.bin");
     const firstPath = Path.fromString(first.view);
     const u8[6] contents = [0, 1, 2, 3, 0, 255];
@@ -48,7 +50,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(open(firstPath, invalidOptions, &explicitFile).kind == OsErrorKind.invalidArgument);
 
     FileMetadata information;
-    assert(metadata(firstPath, true, &information).succeeded);
+    assert(metadata(firstPath, SymlinkMode.follow, &information).succeeded);
     assert(information.type == FileType.regular && information.size == contents.length);
 
     Array!u8 loaded = Array!u8.create(mallocAllocator());
@@ -58,14 +60,17 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     MappedFile mapping;
     assert(mapReadOnly(firstPath, &mapping).succeeded);
     assert(mapping.bytes == contents[]);
-    mapping.deinit();
+    assert(unmap(&mapping).succeeded);
+    assert(unmap(&mapping).succeeded);
 
-    StringBuf second = StringBuf.fromString(mallocAllocator(), root.view);
+    StringBuf second = StringBuf.fromString(mallocAllocator(), rootPath.view);
     second.append("/second.bin");
     const secondPath = Path.fromString(second.view);
-    assert(copyFile(firstPath, secondPath, loaded, true).succeeded);
+    assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).succeeded);
+    assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).kind ==
+            OsErrorKind.alreadyExists);
 
-    StringBuf renamed = StringBuf.fromString(mallocAllocator(), root.view);
+    StringBuf renamed = StringBuf.fromString(mallocAllocator(), rootPath.view);
     renamed.append("/renamed.bin");
     const renamedPath = Path.fromString(renamed.view);
     assert(rename(secondPath, renamedPath).succeeded);
@@ -84,9 +89,11 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         ++entries;
     }
     assert(entries == 2);
-    iterator.deinit();
+    assert(close(&iterator).succeeded);
+    assert(close(&iterator).succeeded);
     size_t walked;
-    assert(walkDirectory(rootPath, mallocAllocator(), &countEntry, &walked).succeeded);
+    Arena walkArena = Arena.create(mallocAllocator(), 256);
+    assert(walkDirectory(rootPath, walkArena.allocatorHandle, &countEntry, &walked).succeeded);
     assert(walked == 2);
 
     bool exists;
@@ -100,6 +107,10 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(canonical.view.length != 0);
     StringBuf executable = StringBuf.create(mallocAllocator());
     assert(executablePath(executable).succeeded && executable.view.length != 0);
+
+    Array!u8 procStatus = Array!u8.create(mallocAllocator());
+    assert(readEntireFile(Path.fromString("/proc/self/status"), procStatus).succeeded);
+    assert(procStatus.length != 0);
 
     Arena* outputArena = scratchArena();
     outputArena.setRewindPoisoning(true);
@@ -126,7 +137,8 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(monotonicNanoseconds(&before).succeeded);
     assert(sleepNanoseconds(1_000_000).succeeded);
     assert(monotonicNanoseconds(&after).succeeded && after >= before);
-    assert(wallClockNanoseconds(&after).succeeded && after != 0);
+    i64 wallTime;
+    assert(wallClockNanoseconds(&wallTime).succeeded && wallTime != 0);
 
     assert(removeFile(firstPath).succeeded);
     assert(removeFile(renamedPath).succeeded);
@@ -136,6 +148,10 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
 extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.os.path))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.os.error))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.os.file))
         testFunction();
     version (linux)
         runLinuxIntegration();

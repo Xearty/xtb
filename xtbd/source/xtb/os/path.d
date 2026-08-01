@@ -20,6 +20,7 @@ struct Path
     static bool tryFromString(String value, Path* output) nothrow @system @nogc
     {
         require(output !is null, "Path output pointer is null");
+        *output = Path.init;
         if (value.containsNul)
             return false;
         output.value_ = value;

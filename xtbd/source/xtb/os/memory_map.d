@@ -21,15 +21,7 @@ struct MappedFile
 
     void deinit() nothrow @nogc
     {
-        version (linux)
-        {
-            import core.sys.posix.sys.mman : munmap;
-
-            if (address_ !is null)
-                munmap(address_, length_);
-        }
-        address_ = null;
-        length_ = 0;
+        cast(void) unmap(&this);
     }
 
     const(u8)[] bytes() const return nothrow @system @nogc
@@ -43,10 +35,35 @@ struct MappedFile
     }
 }
 
+OsError unmap(MappedFile* mapping) nothrow @system @nogc
+{
+    require(mapping !is null, "MappedFile pointer is null");
+    if (mapping.address_ is null)
+    {
+        mapping.length_ = 0;
+        return OsError.init;
+    }
+
+    void* address = mapping.address_;
+    size_t length = mapping.length_;
+    mapping.address_ = null;
+    mapping.length_ = 0;
+    version (linux)
+    {
+        import core.sys.posix.sys.mman : munmap;
+
+        return munmap(address, length) == 0 ? OsError.init : lastError();
+    }
+    else
+        return unsupported();
+}
+
 OsError mapReadOnly(Path path, MappedFile* output) nothrow @system @nogc
 {
     require(output !is null, "MappedFile output pointer is null");
-    output.deinit();
+    const cleanupError = unmap(output);
+    if (cleanupError.failed)
+        return cleanupError;
     version (linux)
     {
         import core.sys.posix.fcntl : O_RDONLY, open;

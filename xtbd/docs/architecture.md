@@ -135,24 +135,34 @@ library to compile.
 `File`, `DirectoryIterator`, and `MappedFile` are non-copyable RAII owners with
 valid empty states and idempotent `deinit`. Operations that mutate or advance
 them take explicit pointers. `IoResult` distinguishes partial progress from
-failure; complete I/O loops over short transfers and interruptions. Whole-file
-helpers use caller-owned `Array!ubyte`, preserving embedded NUL bytes and
-making allocation explicit.
+failure; complete I/O loops over short transfers and interruptions. Explicit
+`close` and `unmap` operations report cleanup errors, while destructors are
+best-effort fallbacks. Whole-file helpers use caller-owned `Array!ubyte`, read
+until EOF, preserve embedded NUL bytes, and make allocation explicit. File
+metadata is only a capacity hint and never defines how many bytes exist.
+
+Policy choices use enums: `CreateMode` distinguishes opening, creating when
+missing, and creating a new file exclusively; `SymlinkMode` states whether
+metadata follows a symbolic link. Do not replace these with positional Boolean
+arguments.
 
 Directory enumeration is streaming. `DirectoryEntry.name` borrows libc's entry
 buffer and expires when the iterator advances or closes. There is deliberately
 no linked-list result. `walkDirectory` performs depth-first traversal through a
 non-allocating callback receiving a temporary full `Path`; that path must not
 escape the callback. Traversal receives an explicit temporary allocator so
-arbitrary directory depth does not consume nested scratch arenas. Callers
-needing persistence copy entries into their chosen container and allocator.
+arbitrary directory depth does not consume nested scratch arenas. It reuses one
+path buffer per active depth, keeping monotonic-arena consumption proportional
+to depth rather than entry count. Callers needing persistence copy entries into
+their chosen container and allocator.
 
 `environmentVariable` returns a process-owned borrowed view that later
 environment mutation can invalidate. `currentDirectory`, `executablePath`, and
 `canonicalPath` write owned bytes into a supplied `StringBuf`. Read-only maps
 remain valid until their `MappedFile` is destroyed. Monotonic timestamps serve
-elapsed-time measurement; wall-clock timestamps are Unix-epoch nanoseconds and
-may jump when the system clock changes.
+elapsed-time measurement; wall-clock and file-modification timestamps are
+signed Unix-epoch nanoseconds, represent pre-epoch values, and may jump when
+the system clock changes.
 
 ## BetterC design rules
 

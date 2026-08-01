@@ -1,6 +1,6 @@
 module xtb.os.file;
 
-import xtb.core.array : Array, clear, tryResize;
+import xtb.core.array : Array, clear, tryAppend, tryReserve;
 import xtb.core.panic : require;
 import xtb.core.string : StringBuf, checkedCString;
 import xtb.core.thread_context : ScratchScope;
@@ -26,18 +26,30 @@ struct FileMetadata
 {
     FileType type;
     u64 size;
-    u64 modifiedNanoseconds;
+    i64 modifiedNanoseconds;
     u32 permissions;
+}
+
+enum CreateMode : ubyte
+{
+    openExisting,
+    openOrCreate,
+    createNew,
+}
+
+enum SymlinkMode : ubyte
+{
+    noFollow,
+    follow,
 }
 
 struct OpenOptions
 {
     bool read = true;
     bool write;
-    bool create;
+    CreateMode createMode;
     bool truncate;
     bool append;
-    bool exclusive;
     bool closeOnExec = true;
     u16 permissions = 0x180; // POSIX 0600
 }
@@ -111,7 +123,9 @@ OsError flush(File* file) nothrow @system @nogc
 OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
 {
     require(output !is null, "File output pointer is null");
-    output.deinit();
+    const cleanupError = close(output);
+    if (cleanupError.failed)
+        return cleanupError;
     if (!valid(options))
         return OsError(OsErrorKind.invalidArgument, 0);
     version (linux)
@@ -122,13 +136,13 @@ OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
         ScratchScope scratch = ScratchScope.acquire();
         StringBuf native = StringBuf.fromString(scratch.allocator, path.view);
         int flags = options.read && options.write ? O_RDWR : options.write ? O_WRONLY : O_RDONLY;
-        if (options.create)
+        if (options.createMode != CreateMode.openExisting)
             flags |= O_CREAT;
         if (options.truncate)
             flags |= O_TRUNC;
         if (options.append)
             flags |= O_APPEND;
-        if (options.exclusive)
+        if (options.createMode == CreateMode.createNew)
             flags |= O_EXCL;
         if (options.closeOnExec)
             flags |= O_CLOEXEC;
@@ -144,11 +158,13 @@ OsError open(Path path, OpenOptions options, File* output) nothrow @system @nogc
 
 private bool valid(OpenOptions options) pure nothrow @safe @nogc
 {
+    if (cast(ubyte) options.createMode > cast(ubyte) CreateMode.createNew)
+        return false;
     if (!options.read && !options.write)
         return false;
     if ((options.truncate || options.append) && !options.write)
         return false;
-    if (options.exclusive && !options.create)
+    if (options.truncate && options.append)
         return false;
     return true;
 }
@@ -225,6 +241,7 @@ OsError metadata(File* file, FileMetadata* output) nothrow @system @nogc
 {
     require(file !is null && file.valid, "invalid File for metadata");
     require(output !is null, "FileMetadata output pointer is null");
+    *output = FileMetadata.init;
     version (linux)
     {
         import core.sys.posix.sys.stat : fstat, stat_t;
@@ -232,16 +249,19 @@ OsError metadata(File* file, FileMetadata* output) nothrow @system @nogc
         stat_t native;
         if (fstat(file.descriptor_, &native) != 0)
             return lastError();
-        *output = convert(native);
-        return OsError.init;
+        return convert(native, output)
+            ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
     }
     else
         return unsupported();
 }
 
-OsError metadata(Path path, bool followLinks, FileMetadata* output) nothrow @system @nogc
+OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) nothrow @system @nogc
 {
     require(output !is null, "FileMetadata output pointer is null");
+    *output = FileMetadata.init;
+    if (cast(ubyte) symlinks > cast(ubyte) SymlinkMode.follow)
+        return OsError(OsErrorKind.invalidArgument, 0);
     version (linux)
     {
         import core.sys.posix.sys.stat : lstat, stat, stat_t;
@@ -249,18 +269,21 @@ OsError metadata(Path path, bool followLinks, FileMetadata* output) nothrow @sys
         ScratchScope scratch = ScratchScope.acquire();
         StringBuf nativePath = StringBuf.fromString(scratch.allocator, path.view);
         stat_t native;
-        const state = followLinks ? stat(nativePath.checkedCString, &native) : lstat(
-            nativePath.checkedCString, &native);
+        const state = symlinks == SymlinkMode.follow
+            ? stat(nativePath.checkedCString, &native) : lstat(nativePath.checkedCString, &native);
         if (state != 0)
             return lastError();
-        *output = convert(native);
-        return OsError.init;
+        return convert(native, output)
+            ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
     }
     else
         return unsupported();
 }
 
-version (linux) private FileMetadata convert(ref const(NativeStat) native) pure nothrow @system @nogc
+version (linux) private bool convert(
+    ref const NativeStat native,
+    FileMetadata* output,
+) pure nothrow @system @nogc
 {
     import core.sys.posix.sys.stat : S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
         S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK;
@@ -293,9 +316,21 @@ version (linux) private FileMetadata convert(ref const(NativeStat) native) pure 
             type = FileType.unknown;
             break;
     }
-    return FileMetadata(type, cast(u64) native.st_size,
-        cast(u64) native.st_mtime * 1_000_000_000UL + cast(u64) native.st_mtimensec,
-        cast(u32) native.st_mode & 0xFFF);
+    if (native.st_size < 0 || native.st_mtimensec < 0 ||
+        native.st_mtimensec >= 1_000_000_000)
+        return false;
+    const seconds = cast(i64) native.st_mtime;
+    enum i64 nanosecondsPerSecond = 1_000_000_000L;
+    if (seconds < i64.min / nanosecondsPerSecond ||
+        seconds > i64.max / nanosecondsPerSecond)
+        return false;
+    *output = FileMetadata(
+        type,
+        cast(u64) native.st_size,
+        seconds * nanosecondsPerSecond + cast(i64) native.st_mtimensec,
+        cast(u32) native.st_mode & 0xFFF,
+    );
+    return true;
 }
 
 OsError readEntireFile(Path path, ref Array!u8 output) nothrow @system @nogc
@@ -306,28 +341,43 @@ OsError readEntireFile(Path path, ref Array!u8 output) nothrow @system @nogc
     if (error.failed)
         return error;
     FileMetadata information;
-    error = (&file).metadata(&information);
-    if (error.failed)
-        return error;
-    if (information.size > size_t.max || !output.tryResize(cast(size_t) information.size))
-        return OsError(OsErrorKind.system, 0);
-    const result = (&file).readAll(output.slice);
-    if (result.error.failed || result.transferred != output.length)
+    if ((&file).metadata(&information).succeeded && information.size != 0)
     {
-        output.clear();
-        return result.error.failed ? result.error : OsError(OsErrorKind.system, 0);
+        if (information.size > size_t.max ||
+            !output.tryReserve(cast(size_t) information.size))
+            return OsError(OsErrorKind.system, 0);
     }
-    return OsError.init;
+
+    u8[64 * 1024] chunk;
+    for (;;)
+    {
+        const result = (&file).readSome(chunk[]);
+        if (result.error.failed)
+        {
+            output.clear();
+            return result.error;
+        }
+        if (result.transferred == 0)
+            return OsError.init;
+        if (!output.tryAppend(chunk[0 .. result.transferred]))
+        {
+            output.clear();
+            return OsError(OsErrorKind.system, 0);
+        }
+    }
 }
 
-OsError writeEntireFile(Path path, scope const(u8)[] input, bool exclusive = false) nothrow @system @nogc
+OsError writeEntireFile(
+    Path path,
+    scope const(u8)[] input,
+    CreateMode createMode = CreateMode.openOrCreate,
+) nothrow @system @nogc
 {
     OpenOptions options;
     options.read = false;
     options.write = true;
-    options.create = true;
+    options.createMode = createMode;
     options.truncate = true;
-    options.exclusive = exclusive;
     File file;
     OsError error = open(path, options, &file);
     if (error.failed)
@@ -338,10 +388,31 @@ OsError writeEntireFile(Path path, scope const(u8)[] input, bool exclusive = fal
         : OsError(OsErrorKind.system, 0);
 }
 
-OsError copyFile(Path source, Path destination, ref Array!u8 buffer, bool exclusive = false) nothrow @system @nogc
+OsError copyFile(
+    Path source,
+    Path destination,
+    ref Array!u8 buffer,
+    CreateMode createMode = CreateMode.openOrCreate,
+) nothrow @system @nogc
 {
     OsError error = readEntireFile(source, buffer);
     if (error.failed)
         return error;
-    return writeEntireFile(destination, buffer.slice, exclusive);
+    return writeEntireFile(destination, buffer.slice, createMode);
+}
+
+version (linux) pure nothrow @system @nogc unittest
+{
+    import core.sys.posix.sys.stat : S_IFREG;
+
+    NativeStat native;
+    native.st_mode = S_IFREG | 0x180;
+    native.st_size = 7;
+    native.st_mtime = -1;
+    native.st_mtimensec = 500_000_000;
+    FileMetadata result;
+    assert(convert(native, &result));
+    assert(result.type == FileType.regular);
+    assert(result.size == 7);
+    assert(result.modifiedNanoseconds == -500_000_000);
 }

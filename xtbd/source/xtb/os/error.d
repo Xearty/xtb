@@ -41,6 +41,9 @@ version (linux) OsError fromErrno(int code) pure nothrow @safe @nogc
     import core.stdc.errno : EACCES, EAGAIN, EEXIST, EINTR, EINVAL, EISDIR,
         ENOENT, ENOTDIR, EPERM;
 
+    if (code == 0)
+        return OsError.init;
+
     OsErrorKind kind = OsErrorKind.system;
     switch (code)
     {
@@ -73,6 +76,11 @@ version (linux) OsError fromErrno(int code) pure nothrow @safe @nogc
             break;
     }
     return OsError(kind, code);
+}
+
+version (linux) pure nothrow @safe @nogc unittest
+{
+    assert(fromErrno(0).succeeded);
 }
 
 version (linux) OsError lastError() nothrow @system @nogc

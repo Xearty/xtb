@@ -10,6 +10,7 @@ import xtb.os.path : Path;
 OsError environmentVariable(String name, String* output) nothrow @system @nogc
 {
     require(output !is null, "environment output pointer is null");
+    *output = null;
     Path key;
     if (!Path.tryFromString(name, &key))
         return OsError(OsErrorKind.invalidArgument, 0);
@@ -21,10 +22,7 @@ OsError environmentVariable(String name, String* output) nothrow @system @nogc
         StringBuf native = StringBuf.fromString(scratch.allocator, key.view);
         const value = getenv(native.checkedCString);
         if (value is null)
-        {
-            *output = null;
             return OsError(OsErrorKind.notFound, 0);
-        }
         *output = fromCString(value);
         return OsError.init;
     }

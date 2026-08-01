@@ -1,12 +1,13 @@
 module xtb.os.time;
 
 import xtb.core.panic : require;
-import xtb.core.types : u64;
-import xtb.os.error : OsError, lastError, unsupported;
+import xtb.core.types : i64, u64;
+import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 
 OsError monotonicNanoseconds(u64* output) nothrow @system @nogc
 {
     require(output !is null, "monotonic clock output pointer is null");
+    *output = 0;
     version (linux)
     {
         import core.sys.posix.time : CLOCK_MONOTONIC, clock_gettime, timespec;
@@ -21,9 +22,10 @@ OsError monotonicNanoseconds(u64* output) nothrow @system @nogc
         return unsupported();
 }
 
-OsError wallClockNanoseconds(u64* output) nothrow @system @nogc
+OsError wallClockNanoseconds(i64* output) nothrow @system @nogc
 {
     require(output !is null, "wall clock output pointer is null");
+    *output = 0;
     version (linux)
     {
         import core.sys.posix.time : CLOCK_REALTIME, clock_gettime, timespec;
@@ -31,7 +33,12 @@ OsError wallClockNanoseconds(u64* output) nothrow @system @nogc
         timespec value;
         if (clock_gettime(CLOCK_REALTIME, &value) != 0)
             return lastError();
-        *output = cast(u64) value.tv_sec * 1_000_000_000UL + value.tv_nsec;
+        const seconds = cast(i64) value.tv_sec;
+        enum i64 nanosecondsPerSecond = 1_000_000_000L;
+        if (seconds < i64.min / nanosecondsPerSecond ||
+            seconds > i64.max / nanosecondsPerSecond)
+            return OsError(OsErrorKind.invalidArgument, 0);
+        *output = seconds * nanosecondsPerSecond + cast(i64) value.tv_nsec;
         return OsError.init;
     }
     else
