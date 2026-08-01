@@ -89,7 +89,9 @@ Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
 decode directly into an ordinary RAII struct containing `StringBuf` and
 `Array!T` for independently owned, freely mutable data. Use `Option!T` for
 nullable fields; JSON maps absence to `null`, while TOML omits absent fields. See
-`examples/serde_demo.d`.
+`examples/serde_demo.d`. The dedicated `examples/option_demo.d` covers every
+`Option!T` state transition, copy and move behavior, destruction, nesting,
+pointer access, and backend-specific serialization rules.
 
 The remaining C++ core capability audit and proposed implementation milestone
 are maintained in `docs/core-gap-analysis.md`.

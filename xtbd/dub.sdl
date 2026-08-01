@@ -74,3 +74,9 @@ configuration "serde-demo" {
     mainSourceFile "examples/serde_demo.d"
     excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
 }
+
+configuration "option-demo" {
+    targetType "executable"
+    mainSourceFile "examples/option_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/os/*.d"
+}

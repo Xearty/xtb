@@ -119,12 +119,14 @@ examples:
     ldc2 {{common_flags}} {{core_source_files}} {{math_source_files}} examples/math_demo.d -of=build/math_demo
     ldc2 {{common_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
     ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
+    ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/option_demo.d -of=build/option_demo
     ./build/core_demo
     ./build/print_demo
     ./build/stacktrace_demo
     ./build/math_demo
     ./build/os_demo source
     ./build/serde_demo
+    ./build/option_demo
 
 lint:
     dscanner --syntaxCheck source/xtb/diagnostics/stacktrace_style.d
