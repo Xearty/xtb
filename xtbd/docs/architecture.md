@@ -233,6 +233,20 @@ waits or terminates so errors and exit status remain observable. Process output
 is bytes, never implicitly a `String`, because arbitrary programs may emit NUL
 or invalid UTF-8.
 
+`communicate` drives nonblocking child stdin, stdout, stderr, and process
+readiness together. Its `CaptureBuffer` values borrow fixed caller storage;
+when storage fills, communication records truncation and continues draining so
+the child cannot deadlock. Input and capture storage must not overlap. Timeout
+states distinguish resumable ownership from policies that terminate and reap.
+
+`Pipeline` owns allocator-backed child and status slots while borrowing its
+`Command[]` or `PipelineStage[]` only during `spawnPipeline`. Intermediate
+parent pipe ends close as soon as the adjacent child has inherited its mapping.
+The owner records statuses in stage order and applies either last-stage or
+every-stage success policy. Its blocking wait has the same output-drain warning
+as `ChildProcess.wait`; managed multi-stream pipeline communication remains a
+separate later layer.
+
 ## BetterC design rules
 
 ### ABI and entry points

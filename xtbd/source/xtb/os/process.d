@@ -30,6 +30,9 @@ enum ProcessOperation : ubyte
     wait,
     requestTermination,
     kill,
+    communicate,
+    pipelineSpawn,
+    pipelineWait,
 }
 
 enum noStageIndex = size_t.max;
@@ -378,6 +381,11 @@ nothrow @nogc:
         return kind_ == ExitKind.signaled;
     }
 
+    bool available() const pure @safe
+    {
+        return kind_ != ExitKind.none;
+    }
+
     u32 exitCode() const @safe
     {
         require(exited, "signaled process has no exit code");
@@ -444,6 +452,21 @@ nothrow @nogc:
         return ProcessId(cast(u64) processId_);
     }
 
+    bool hasStdinPipe() const pure @safe
+    {
+        return stdinPipe_.valid;
+    }
+
+    bool hasStdoutPipe() const pure @safe
+    {
+        return stdoutPipe_.valid;
+    }
+
+    bool hasStderrPipe() const pure @safe
+    {
+        return stderrPipe_.valid;
+    }
+
     PipeWriter* stdinPipe() return @system
     {
         return stdinPipe_.valid ? &stdinPipe_ : null;
@@ -474,6 +497,11 @@ nothrow @nogc:
 ProcessError validate(scope const(Command) command) @system
 {
     return validateCommand(command);
+}
+
+ProcessError validate(scope const(SpawnOptions) options) @system
+{
+    return validateOptions(options);
 }
 
 ProcessError spawn(

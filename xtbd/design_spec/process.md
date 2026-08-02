@@ -747,8 +747,12 @@ CommunicateResult communicate(
 );
 ```
 
-A null capture means drain and discard when that pipe exists. When a capture
-fills, the helper marks it truncated and always continues draining/discarding.
+A null capture means drain and discard when that pipe exists. The input slice
+and both complete capture-storage slices must not overlap; stdout and stderr
+captures must also be distinct and non-overlapping. Rejecting aliasing prevents
+captured output from overwriting input that has not yet reached the child.
+When a capture fills, the helper marks it truncated and always continues
+draining/discarding.
 There is no `drainAfterTruncation = false` option: callers wanting backpressure
 or early closure use the manual pipe API. Always draining is what makes the
 convenience contract safe.
@@ -920,15 +924,29 @@ enum PipelineSuccess : ubyte
     everyStage,
 }
 
-struct PipelineSpec
+struct PipelineOptions
 {
-    const(PipelineStage)[] stages;
     InputRoute stdin;
     OutputRoute stdout;
     ErrorRoute stderr;
     PipelineSuccess success;
     ProcessIsolation isolation;
+    SignalMaskPolicy signalMask;
 }
+
+ProcessError spawnPipeline(
+    scope const(PipelineStage)[] stages,
+    scope const(PipelineOptions) options,
+    Allocator* allocator,
+    Pipeline* output,
+);
+
+ProcessError spawnPipeline(
+    scope const(Command)[] commands,
+    scope const(PipelineOptions) options,
+    Allocator* allocator,
+    Pipeline* output,
+);
 
 enum PipelineErrorMode : ubyte
 {
@@ -1001,10 +1019,42 @@ PipelineRunOptions withTerminationGrace(
 ) pure @safe;
 ```
 
-The convenience overload accepting `const(Command)[]` constructs uniform
-stages in scratch storage. Fixed D arrays and `Array!Command` already provide
-ergonomic construction; do not add the archive's sticky-error
-`PipelineBuilder` until a real call site proves it improves usage.
+These are the implemented slice-borrowing entry points. The `Command[]`
+overload gives every stage the default stderr policy; use `PipelineStage[]`
+only where one or more stages need an override. Both slices and all command
+text remain borrowed only until `spawnPipeline` returns. The returned owner
+contains native resources and allocator-owned child/status slots, but no
+references to either description slice. Do not add the archive's sticky-error
+`PipelineBuilder`.
+
+The explicit argument arrays are intentionally retained for the first
+slice-borrowing implementation, but they are not the intended final spelling
+for fixed commands. A later allocation-free convenience layer should support:
+
+```d
+auto plan = pipeline(
+    command("generate", "--count", "1000"),
+    command("filter", "--matching", pattern),
+    command("sort", "--stable"),
+);
+```
+
+`command(String, arguments...)` means PATH lookup, while a `Path` executable
+selects exact lookup. Its inferred wrapper owns a fixed array of `String`
+descriptors but continues to borrow the characters. It must not store a slice
+pointing into its own array, because copying such a self-referential value
+would leave the slice aimed at the old object. Instead, `runPipeline` creates
+temporary borrowed `Command` views at the operation boundary while the
+scope-qualified wrappers remain alive.
+
+Plain commands use default stage policy. An explicit `stage(command(...))`
+wrapper is reserved for uncommon per-stage configuration such as a stderr
+override. Do not use a shell-like string, overloaded `|`, a fixed-capacity
+public `Command`, or hidden allocation to shorten the call site. Runtime-sized
+programs continue using borrowed `Command[]`; a genuinely allocator-owned
+dynamic command builder may be added separately if real call sites require
+one. This convenience layer is deferred until after fixed-buffer communication
+and slice-borrowing pipelines are complete.
 
 `Pipeline` owns an allocator-backed array of child/process slots and exit
 statuses plus the exposed first-stdin/final-stdout/stage-stderr endpoints. It
@@ -1022,9 +1072,17 @@ already changed files, sent messages, or produced other side effects.
 
 Intermediate parent pipe ends are closed immediately after the next stage is
 successfully connected. EOF must never depend on a forgotten intermediate
-writer in the parent. Pipeline communication concurrently pumps first-stage
-stdin, final-stage stdout, and every captured stderr stream. Exit statuses are
-reported in stage order even when processes finish out of order.
+writer in the parent. `tryWaitPipeline` observes every stage without blocking;
+`waitPipeline` waits for every remaining stage and records exit statuses in
+stage order. As with waiting on one child, it must not be called while exposed
+stdout or a piped stage stderr can fill. The later managed pipeline
+communication operation will pump first-stage stdin, final-stage stdout, and
+every captured stderr stream concurrently.
+
+`requestPipelineTermination`, `killPipeline`, and their `...AndWait` variants
+target every still-live stage. Pipeline success is a query over the recorded
+statuses: `lastStage` follows conventional shell behavior while `everyStage`
+requires all stages to succeed.
 
 On POSIX, isolated pipeline stages may each own an isolated process group when
 forming one race-free common group is unavailable; cleanup then signals every
@@ -1129,15 +1187,15 @@ kill.
 ## Scratch and allocation
 
 Every operation that converts strings, constructs `argv`/environment blocks,
-builds native poll arrays, or creates temporary pipeline stages acquires a
-`ScratchScope` internally. There are no public `spawnScratchSize`,
+or creates temporary pipeline stages acquires a `ScratchScope` internally.
+Fixed-buffer child communication uses a fixed native poll set on its own stack
+and does not require scratch. There are no public `spawnScratchSize`,
 `runScratchSize`, or `scope u8[] scratch` parameters.
 
 The dependency is operation-specific rather than package-global. Creating,
-closing, reading, or writing a pipe and waiting for or signaling one child do
-not require scratch. Spawn, portable multi-endpoint polling, communicate, run,
-and pipeline construction/communication do require an installed thread
-context.
+closing, reading, or writing a pipe, waiting or signaling, and fixed-buffer
+communication do not require scratch. Spawn, portable multi-endpoint polling,
+run, and pipeline construction require an installed thread context.
 
 The calling thread must have installed `ThreadContextScope`. Missing context,
 no non-conflicting arena, or failure to grow a scratch arena is a panic under
@@ -1148,8 +1206,7 @@ Scratch conflicts are mandatory when persistent process output is allocated
 during the scope:
 
 - `spawn` uses zero conflicts because no D allocation escapes the call;
-- fixed-buffer `communicate` uses zero conflicts because it does not allocate
-  from the caller's buffers;
+- fixed-buffer `communicate` does not acquire scratch;
 - `run` acquires scratch with its output allocator as a conflict;
 - an owning pipeline uses its storage/output allocator as a conflict; and
 - an operation writing into pre-existing owners lists every distinct allocator

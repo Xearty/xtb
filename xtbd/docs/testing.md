@@ -66,6 +66,10 @@ Process integration tests compile `tests/support/process_helper.d` as a
 dedicated BetterC executable. Use its length-unambiguous argv/environment
 output and binary stream modes instead of depending on shell parsing or the
 host behavior of `echo`, `cat`, and `sleep`.
+Its flood mode deliberately exceeds stdin, stdout, and stderr pipe capacities
+at the same time, proving that communication makes progress in every direction.
+Pipeline tests cover both borrowed `Command[]` and `PipelineStage[]`, failure
+rollback, allocator failure, per-stage status/success policy, and RAII reaping.
 
 ```d
 module tests.core_runner;

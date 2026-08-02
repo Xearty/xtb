@@ -8,7 +8,7 @@ import core.stdc.stdlib : getenv;
 import core.stdc.string : strcmp, strlen;
 import core.sys.posix.time : nanosleep, timespec;
 import core.sys.posix.unistd : STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
-    getcwd, read, write;
+    getcwd, nativeClose = close, read, write;
 
 private bool equal(const(char)* left, const(char)* right) @system
 {
@@ -103,6 +103,22 @@ private int copyInput() @system
     }
 }
 
+private int floodThenCopy() @system
+{
+    enum chunkCount = 128;
+    ubyte[1024] output;
+    ubyte[1024] error;
+    output[] = 'O';
+    error[] = 'E';
+    foreach (_; 0 .. chunkCount)
+    {
+        if (!writeEntire(STDOUT_FILENO, output.ptr, output.length) ||
+            !writeEntire(STDERR_FILENO, error.ptr, error.length))
+            return 120;
+    }
+    return copyInput();
+}
+
 private int emitCurrentDirectory() @system
 {
     char[4096] buffer;
@@ -140,6 +156,14 @@ extern (C) int main(int argumentCount, char** arguments) @system
         return emitEnvironment(argumentCount, arguments);
     if (equal(arguments[1], "copy"))
         return copyInput();
+    if (equal(arguments[1], "flood-copy"))
+        return floodThenCopy();
+    if (equal(arguments[1], "close-input"))
+    {
+        if (nativeClose(STDIN_FILENO) != 0)
+            return 125;
+        return writeEntire(STDOUT_FILENO, "closed".ptr, 6) ? 0 : 120;
+    }
     if (equal(arguments[1], "emit"))
     {
         enum ubyte[8] output = ['o', 'u', 't', 0, 'd', 'a', 't', 'a'];
@@ -161,5 +185,11 @@ extern (C) int main(int argumentCount, char** arguments) @system
     }
     if (equal(arguments[1], "sleep-ms") && argumentCount == 3)
         return sleepMilliseconds(arguments[2]);
+    if (equal(arguments[1], "delayed-emit") && argumentCount == 3)
+    {
+        const sleepResult = sleepMilliseconds(arguments[2]);
+        return sleepResult == 0 &&
+            writeEntire(STDOUT_FILENO, "delayed".ptr, 7) ? 0 : 120;
+    }
     return 2;
 }
