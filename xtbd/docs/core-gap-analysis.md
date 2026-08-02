@@ -70,8 +70,9 @@ ownership, hidden global state, and macro-oriented interfaces.
 - fallible/panicking reserve and insertion, distinct insert/replace/already
   present results, lookup returning an explicit mutable value pointer, removal,
   clear, shrinking, and capacity release;
-- immutable key access and mutable-value/read-only cursors with documented
-  structural invalidation;
+- immutable key access, direct `foreach` with explicitly mutable value refs,
+  pointer-item `foreach` ranges, and mutable-value/read-only cursors with
+  documented structural invalidation;
 - move-aware non-POD value relocation and destruction, collision-heavy tests,
   strong-state allocation-failure tests, sanitizer coverage, and fuzzing.
 

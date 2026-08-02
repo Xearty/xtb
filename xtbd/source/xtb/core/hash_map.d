@@ -264,6 +264,58 @@ nothrow @nogc:
             capacity_,
         );
     }
+
+    /// Returns an input range whose items contain explicit key/value pointers.
+    HashMapPointerRange!(K, V) pointerItems() return
+    {
+        return HashMapPointerRange!(K, V)(cursor());
+    }
+
+    /// Returns the read-only pointer-item range for a const map.
+    ConstHashMapPointerRange!(K, V) pointerItems() const return
+    {
+        return ConstHashMapPointerRange!(K, V)(cursor());
+    }
+
+    /// Supports `foreach (ref const key, ref value; map)`. The key remains
+    /// immutable while the explicit `ref value` permits in-place mutation.
+    /// Structural mutation of the map from the loop body is invalid.
+    int opApply(
+        scope int delegate(ref const(K), ref V) nothrow @nogc callback,
+    )
+    {
+        foreach (index; 0 .. capacity_)
+        {
+            if (states_[index] != SlotState.occupied)
+                continue;
+            const result = callback(
+                entries_[index].key,
+                entries_[index].value,
+            );
+            if (result != 0)
+                return result;
+        }
+        return 0;
+    }
+
+    /// Supports read-only iteration over a const map.
+    int opApply(
+        scope int delegate(ref const(K), ref const(V)) nothrow @nogc callback,
+    ) const
+    {
+        foreach (index; 0 .. capacity_)
+        {
+            if (states_[index] != SlotState.occupied)
+                continue;
+            const result = callback(
+                entries_[index].key,
+                entries_[index].value,
+            );
+            if (result != 0)
+                return result;
+        }
+        return 0;
+    }
 }
 
 private void constructMove(T)(T* destination, ref T source)
@@ -741,6 +793,60 @@ nothrow @nogc:
     }
 }
 
+struct HashMapPointerItem(K, V)
+{
+    const(K)* key;
+    V* value;
+}
+
+struct ConstHashMapPointerItem(K, V)
+{
+    const(K)* key;
+    const(V)* value;
+}
+
+/// Input range for pointer-oriented mutable-map iteration.
+struct HashMapPointerRange(K, V)
+{
+    private HashMapCursor!(K, V) cursor_;
+
+    bool empty() const pure @safe
+    {
+        return !cursor_.valid;
+    }
+
+    HashMapPointerItem!(K, V) front() return
+    {
+        return HashMapPointerItem!(K, V)(cursor_.key, cursor_.value);
+    }
+
+    void popFront()
+    {
+        cursor_.advance();
+    }
+}
+
+/// Input range for pointer-oriented const-map iteration.
+struct ConstHashMapPointerRange(K, V)
+{
+    private ConstHashMapCursor!(K, V) cursor_;
+
+    bool empty() const pure @safe
+    {
+        return !cursor_.valid;
+    }
+
+    ConstHashMapPointerItem!(K, V) front() const return
+    {
+        return ConstHashMapPointerItem!(K, V)(cursor_.key, cursor_.value);
+    }
+
+    void popFront()
+    {
+        cursor_.advance();
+    }
+}
+
 private struct SetMarker
 {
 }
@@ -831,6 +937,51 @@ nothrow @nogc:
     ConstHashSetCursor!K cursor() const return
     {
         return ConstHashSetCursor!K(map_.cursor());
+    }
+
+    /// Returns an input range of const pointers to set elements.
+    HashSetPointerRange!K pointerItems() return
+    {
+        return HashSetPointerRange!K(cursor());
+    }
+
+    /// Returns the pointer range for a const set.
+    ConstHashSetPointerRange!K pointerItems() const return
+    {
+        return ConstHashSetPointerRange!K(cursor());
+    }
+
+    /// Supports `foreach (ref const value; set)`. Set elements are immutable
+    /// because changing one in place would invalidate its probe position.
+    int opApply(
+        scope int delegate(ref const(K)) nothrow @nogc callback,
+    )
+    {
+        foreach (index; 0 .. map_.capacity_)
+        {
+            if (map_.states_[index] != SlotState.occupied)
+                continue;
+            const result = callback(map_.entries_[index].key);
+            if (result != 0)
+                return result;
+        }
+        return 0;
+    }
+
+    /// Supports the same read-only iteration through a const set.
+    int opApply(
+        scope int delegate(ref const(K)) nothrow @nogc callback,
+    ) const
+    {
+        foreach (index; 0 .. map_.capacity_)
+        {
+            if (map_.states_[index] != SlotState.occupied)
+                continue;
+            const result = callback(map_.entries_[index].key);
+            if (result != 0)
+                return result;
+        }
+        return 0;
     }
 }
 
@@ -942,6 +1093,46 @@ struct ConstHashSetCursor(K)
     }
 }
 
+struct HashSetPointerRange(K)
+{
+    private HashSetCursor!K cursor_;
+
+    bool empty() const pure @safe
+    {
+        return !cursor_.valid;
+    }
+
+    const(K)* front() const return
+    {
+        return cursor_.value;
+    }
+
+    void popFront()
+    {
+        cursor_.advance();
+    }
+}
+
+struct ConstHashSetPointerRange(K)
+{
+    private ConstHashSetCursor!K cursor_;
+
+    bool empty() const pure @safe
+    {
+        return !cursor_.valid;
+    }
+
+    const(K)* front() const return
+    {
+        return cursor_.value;
+    }
+
+    void popFront()
+    {
+        cursor_.advance();
+    }
+}
+
 unittest
 {
     import xtb.core.memory : mallocAllocator;
@@ -973,10 +1164,53 @@ unittest
     assert(total != 0);
     assert(*counts.find("one") == 2);
 
+    size_t foreachVisited;
+    foreach (ref const key, ref value; counts)
+    {
+        assert(key.length != 0);
+        value += 10;
+        ++foreachVisited;
+    }
+    assert(foreachVisited == counts.length);
+    assert(*counts.find("one") == 12);
+
+    size_t pointerVisited;
+    foreach (item; counts.pointerItems)
+    {
+        assert(item.key !is null && item.value !is null);
+        *item.value += 100;
+        ++pointerVisited;
+    }
+    assert(pointerVisited == counts.length);
+    assert(*counts.find("one") == 112);
+    size_t breakVisited;
+    foreach (ref const key, ref value; counts)
+    {
+        assert(key.length != 0 && value >= 100);
+        ++breakVisited;
+        break;
+    }
+    assert(breakVisited == 1);
+
     const(HashMap!(String, int))* readOnlyCounts = &counts;
     auto readOnlyCursor = (*readOnlyCounts).cursor();
     static assert(is(typeof(readOnlyCursor.value()) == const(int)*));
     assert(readOnlyCursor.valid);
+    size_t constVisited;
+    foreach (ref const key, ref const value; *readOnlyCounts)
+    {
+        assert(key.length != 0 && value >= 10);
+        ++constVisited;
+    }
+    assert(constVisited == counts.length);
+    size_t constPointerVisited;
+    foreach (item; (*readOnlyCounts).pointerItems)
+    {
+        static assert(is(typeof(item.value) == const(int)*));
+        assert(item.key !is null && item.value !is null);
+        ++constPointerVisited;
+    }
+    assert(constPointerVisited == counts.length);
 
     assert(counts.remove("two"));
     assert(!counts.remove("two"));
@@ -1121,6 +1355,30 @@ unittest
         ++visited;
     }
     assert(visited == 2);
+    size_t foreachVisited;
+    foreach (ref const value; values)
+    {
+        assert(value == 3 || value == 7);
+        ++foreachVisited;
+    }
+    assert(foreachVisited == values.length);
+    size_t pointerVisited;
+    foreach (value; values.pointerItems)
+    {
+        assert(value !is null && (*value == 3 || *value == 7));
+        ++pointerVisited;
+    }
+    assert(pointerVisited == values.length);
+    const(HashSet!int)* readOnlyValues = &values;
+    size_t constSetVisited;
+    foreach (ref const value; *readOnlyValues)
+    {
+        assert(value == 3 || value == 7);
+        ++constSetVisited;
+    }
+    foreach (value; (*readOnlyValues).pointerItems)
+        assert(value !is null && (*value == 3 || *value == 7));
+    assert(constSetVisited == values.length);
     assert(values.remove(3));
     assert(!values.contains(3));
     values.shrinkToFit();

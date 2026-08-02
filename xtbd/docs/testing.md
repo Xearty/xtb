@@ -131,8 +131,9 @@ after partial failure. In this project pay particular attention to:
   elements, relocation without double destruction, move-only elements, and
   copy-constrained slice operations;
 - hash-container growth, replacement, duplicate insertion, tombstone reuse,
-  removal, shrinking, cursor coverage, immutable keys, explicit value-pointer
-  mutation, deterministic/custom hashing, and seeded hashing;
+  removal, shrinking, cursor and ref/pointer `foreach` coverage, immutable
+  keys, explicit value-pointer/ref mutation, deterministic/custom hashing, and
+  seeded hashing;
 - constant-hash collision chains and allocation failure during each table
   allocation, with the previous table and every live value preserved;
 - hash-map value destruction on replacement, removal, clear, release, and

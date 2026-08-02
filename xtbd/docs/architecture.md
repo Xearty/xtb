@@ -1007,7 +1007,12 @@ later, must compose `xtb.serde` with `xtb.os`.
   `String` view or stable handle when the underlying resource is owning.
   `String` keys borrow their bytes, so those bytes must outlive the entry.
   Lookup returns `V*` (or `const(V)*` through a const map) to keep mutation
-  explicit. Hash and equality policies are compile-time types with
+  explicit. Direct iteration uses
+  `foreach (ref const key, ref value; map)`; the `ref` at the call site is the
+  explicit mutation marker. `foreach (item; map.pointerItems)` is the
+  pointer-oriented alternative and exposes `const(K)* key` plus `V* value`.
+  A set similarly offers `ref const` elements or a `pointerItems` range of
+  `const(K)*`. Hash and equality policies are compile-time types with
   `nothrow @nogc` pointer-based calls and copyable destructor-free state.
   `HashSeed.init` is deliberately deterministic, while `seeded` permits
   process-specific layouts. The built-in hash remains non-cryptographic under

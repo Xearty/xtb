@@ -17,14 +17,20 @@ extern (C) int main() nothrow @nogc
     inventory.set("pears", 8);
 
     formatln!"inventory ({} kinds):"(inventory.length);
-    for (auto item = inventory.cursor(); item.valid; item.advance())
-        formatln!"  {}: {}"(*item.key, *item.value);
+    foreach (ref const name, ref count; inventory)
+        formatln!"  {}: {}"(name, count);
 
     HashSet!String labels = HashSet!String.create(mallocAllocator());
     labels.add("fresh");
     labels.add("local");
     labels.add("fresh");
     formatln!"unique labels: {}"(labels.length);
+    foreach (ref const label; labels)
+        formatln!"  {}"(label);
+
+    // Choose pointer-oriented foreach when pointer access is more convenient.
+    foreach (item; inventory.pointerItems)
+        assert(item.key !is null && item.value !is null);
 
     // String keys are borrowed views. These literals live for the program's
     // duration; dynamic key bytes must likewise outlive their table entry.
