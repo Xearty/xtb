@@ -106,6 +106,21 @@ variant with an output pointer. Their output is reset to zero on arithmetic
 failure. The multiplication helper is private; callers should not manually
 assemble a unit conversion protocol around a generic `scaleBytes` function.
 
+`xtb.core.duration` owns the platform-neutral `Duration` value. A `Duration`
+is a finite, nonnegative span stored as nanoseconds in one `u64`; it is not a
+wall-clock timestamp, monotonic instant, deadline, or representation of
+infinity. `Duration.init` is zero. Construct values with explicit unit helpers
+such as `milliseconds(250)` and `seconds(2)`. Floating-point counts are rejected
+at compile time so conversion never hides rounding policy.
+
+Duration addition, subtraction, integral multiplication, and integral division
+return values directly. Negative input, division by zero, underflow, and
+overflow are contract violations and panic. Queries beginning with `whole`,
+such as `wholeMilliseconds`, deliberately truncate the smaller remainder;
+`totalNanoseconds` is exact. APIs that need an infinite or immediate wait use a
+separate tagged policy value around `Duration` rather than assigning sentinel
+meanings to `Duration.init` or `Duration.max`.
+
 ## Math and deterministic noise
 
 `xtb.math` is a BetterC value layer. `Vector2`, `Vector3`, `Vector4`,

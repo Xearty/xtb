@@ -42,5 +42,8 @@ extern (C) int main() nothrow @nogc
     formatln!"enabled permissions: {}"(permissions.enabledCount);
     foreach (permission; permissions)
         formatln!"permission bit position: {}"(cast(int) permission);
+
+    const timeout = milliseconds(2_000);
+    formatln!"timeout: {} ms"(timeout.wholeMilliseconds);
     return 0;
 }

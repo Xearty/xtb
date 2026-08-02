@@ -3,8 +3,9 @@
 `xtbd` is a small foundational D library designed for `-betterC`: explicit
 allocators, arenas and thread-local scratch scopes, owning arrays and string
 builders, hash maps and sets, read-only `String` views, intrusive lists,
-strongly typed bit flags, panic/logging facilities, allocation-free formatted
-output, structured logging, and panic contracts.
+strongly typed bit flags, finite checked `Duration` values, panic/logging
+facilities, allocation-free formatted output, structured logging, and panic
+contracts.
 Optional stack traces and crash observation live in `xtb.diagnostics`.
 
 The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
@@ -80,6 +81,11 @@ and `toggled` to derive a changed value without changing the original.
 `foreach (flag; flags)` visits enabled values in enum declaration order.
 Use `flags.enabledCount` for the number currently enabled and
 `Flags.declaredCount` for the number of atomic enum members.
+
+Use `milliseconds(250)`, `seconds(2)`, and the other explicit unit helpers to
+construct `Duration` values. Arithmetic is checked and floating-point counts
+are intentionally rejected. `Duration` represents only finite nonnegative
+spans; timeout policies add infinity or immediacy as separate tagged states.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,

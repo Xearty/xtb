@@ -2,6 +2,7 @@ module tests.core_tests;
 
 import xtb.core.types;
 import xtb.core.numeric;
+import xtb.core.duration;
 import xtb.core.panic : panic, require;
 import xtb.core.metadata;
 import xtb.core.slice;
@@ -79,6 +80,20 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         clamp(0, 1, 0);
     if (cStringEqual(name, "numeric-overflow"))
         tebibytes(size_t.max);
+    if (cStringEqual(name, "duration-negative"))
+        milliseconds(-1);
+    if (cStringEqual(name, "duration-conversion-overflow"))
+        days(u64.max);
+    if (cStringEqual(name, "duration-addition-overflow"))
+        Duration.max + nanoseconds(1);
+    if (cStringEqual(name, "duration-subtraction-underflow"))
+        Duration.init - nanoseconds(1);
+    if (cStringEqual(name, "duration-multiplication-overflow"))
+        Duration.max * 2;
+    if (cStringEqual(name, "duration-negative-scale"))
+        seconds(1) * -1;
+    if (cStringEqual(name, "duration-division-by-zero"))
+        seconds(1) / 0;
     if (cStringEqual(name, "bit-flags-invalid-value"))
     {
         FlagSet!DeathFlag flags;
@@ -304,6 +319,8 @@ extern (C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.numeric))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.duration))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.metadata))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.slice))
@@ -355,6 +372,13 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "panic");
         expectDeath(arguments[0], "numeric-clamp");
         expectDeath(arguments[0], "numeric-overflow");
+        expectDeath(arguments[0], "duration-negative");
+        expectDeath(arguments[0], "duration-conversion-overflow");
+        expectDeath(arguments[0], "duration-addition-overflow");
+        expectDeath(arguments[0], "duration-subtraction-underflow");
+        expectDeath(arguments[0], "duration-multiplication-overflow");
+        expectDeath(arguments[0], "duration-negative-scale");
+        expectDeath(arguments[0], "duration-division-by-zero");
         expectDeath(arguments[0], "bit-flags-invalid-value");
         expectDeath(arguments[0], "bit-flags-invalid-mask");
         expectDeath(arguments[0], "bit-flags-null-output");
