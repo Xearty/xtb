@@ -603,6 +603,42 @@ formats directly into that builder in one pass, so a custom `formatTo` function
 is invoked exactly once. `tryFormatString` leaves a zero `StringBuf` on
 allocation or sink failure.
 
+#### Formatting and interpolation
+
+Prefer D interpolated expression sequences for readable, type-safe local
+formatting:
+
+```d
+writeln(i"loaded $(count) records from $(path)");
+buffer.formatTo(i"address=$(hexadecimal(address)), ratio=$(fixed(ratio, 3))");
+StringBuf owned = formatString(allocator, i"$(name): $(value)");
+```
+
+An `i"..."` expression is not a `String` and must not be stored as one. At a
+function call it expands into compile-time literal/expression markers and the
+already-evaluated expression values. The printer writes literal marker text,
+ignores the header, footer, and expression-source metadata, and sends each
+value through the ordinary `formatTo` dispatch. It never parses or evaluates
+the source text stored in an expression marker. Consequently expressions are
+evaluated exactly once by D, nested interpolated sequences compose naturally,
+and interpolation itself requires neither a runtime format parser nor an
+allocation.
+
+`write`, `writeln`, `ewrite`, `ewriteln`, `writeFile`, `writelnFile`,
+`StringBuf.writeTo`, and `writeBuffer` accept interpolated sequences directly.
+The `format`, `formatln`, `StringBuf.formatTo`, `formatBuffer`, `formatString`,
+and `tryFormatString` overloads do as well. A fixed-buffer result reports the
+same written, required, and truncation values regardless of whether its input
+uses interpolation or ordinary arguments. An owned result always requires an
+explicit allocator.
+
+Formatting policy stays explicit in expressions. Use wrappers such as
+`hexadecimal(value)`, `.digits(width)`, `fixed(value, precision)`, and custom
+values implementing `formatTo(ref Writer)`; do not add a second formatting
+mini-language inside the interpolation text. Keep the compile-time
+`formatln!"...{}..."` family for call sites where positional placeholders are
+clearer or an existing format string is already the natural representation.
+
 #### C strings and termination
 
 `String` is not NUL-terminated by contract and must never be passed

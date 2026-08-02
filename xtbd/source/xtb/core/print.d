@@ -4,11 +4,18 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
+import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
+    InterpolationFooter, InterpolationHeader;
 import xtb.core.string : String, StringBuf, append, clear, equal, tryAppend;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic, require;
 
 alias Sink = size_t function(void* context, scope String bytes);
+
+version (unittest) private template InterpolationTestSequence(Values...)
+{
+    alias InterpolationTestSequence = Values;
+}
 
 struct WriteResult
 {
@@ -227,16 +234,14 @@ WriteResult ewriteln(Args...)(auto ref Args args)
 WriteResult writeFile(Args...)(FILE* file, auto ref Args args)
 {
     Writer writer = Writer.fromFile(file);
-    static foreach (i; 0 .. Args.length)
-        writeValue(writer, args[i]);
+    writeArguments(writer, args);
     return writer.finish();
 }
 
 WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
 {
     Writer writer = Writer.fromFile(file);
-    static foreach (i; 0 .. Args.length)
-        writeValue(writer, args[i]);
+    writeArguments(writer, args);
     writer.put('\n');
     return writer.finish();
 }
@@ -244,8 +249,7 @@ WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
 WriteResult writeTo(Args...)(ref StringBuf buffer, auto ref Args args)
 {
     Writer writer = Writer.fromSink(&stringBufSink, &buffer);
-    static foreach (i; 0 .. Args.length)
-        writeValue(writer, args[i]);
+    writeArguments(writer, args);
     return writer.finish();
 }
 
@@ -257,8 +261,7 @@ BufferWriteResult writeBuffer(Args...)(char[] destination, auto ref Args args)
         destination[0] = '\0';
 
     Writer writer = Writer.fromSink(&fixedBufferSink, &state);
-    static foreach (i; 0 .. Args.length)
-        writeValue(writer, args[i]);
+    writeArguments(writer, args);
     const result = writer.finish();
     return BufferWriteResult(
         result.ok && !state.overflow,
@@ -289,6 +292,16 @@ BufferWriteResult formatBuffer(string pattern, Args...)(
     );
 }
 
+BufferWriteResult formatBuffer(Sequence...)(
+    char[] destination,
+    InterpolationHeader,
+    auto ref Sequence sequence,
+    InterpolationFooter,
+)
+{
+    return destination.writeBuffer(sequence);
+}
+
 bool tryFormatString(string pattern, Args...)(
     Allocator* allocator,
     StringBuf* output,
@@ -308,6 +321,27 @@ bool tryFormatString(string pattern, Args...)(
     return true;
 }
 
+bool tryFormatString(Sequence...)(
+    Allocator* allocator,
+    StringBuf* output,
+    InterpolationHeader,
+    auto ref Sequence sequence,
+    InterpolationFooter,
+)
+{
+    require(output !is null, "StringBuf output pointer is null");
+    output.deinit();
+    *output = StringBuf.create(allocator);
+    Writer writer = Writer.fromSink(&fallibleStringBufSink, output);
+    writeArguments(writer, sequence);
+    if (!writer.finish().ok)
+    {
+        output.deinit();
+        return false;
+    }
+    return true;
+}
+
 StringBuf formatString(string pattern, Args...)(
     Allocator* allocator,
     auto ref Args args,
@@ -315,6 +349,19 @@ StringBuf formatString(string pattern, Args...)(
 {
     StringBuf result;
     if (!tryFormatString!pattern(allocator, &result, args))
+        panic("String formatting failed");
+    return result;
+}
+
+StringBuf formatString(Sequence...)(
+    Allocator* allocator,
+    InterpolationHeader header,
+    auto ref Sequence sequence,
+    InterpolationFooter footer,
+)
+{
+    StringBuf result;
+    if (!tryFormatString(allocator, &result, header, sequence, footer))
         panic("String formatting failed");
     return result;
 }
@@ -334,10 +381,28 @@ private template Unqualified(T)
     alias Unqualified = typeof(cast() T.init);
 }
 
+private void writeArguments(Args...)(ref Writer writer, auto ref Args args)
+{
+    static foreach (i; 0 .. Args.length)
+        writeValue(writer, args[i]);
+}
+
 private void writeValue(T)(ref Writer writer, auto ref T value)
 {
     alias U = Unqualified!T;
-    static if (__traits(compiles, value.formatTo(writer)))
+    static if (is(U == InterpolationHeader) || is(U == InterpolationFooter))
+    {
+    }
+    else static if (is(U == InterpolatedLiteral!text, string text))
+    {
+        writer.put(text);
+    }
+    else static if (is(U == InterpolatedExpression!expression, string expression))
+    {
+        // Source text is metadata only. The compiler passes its evaluated
+        // value or values as the following sequence elements.
+    }
+    else static if (__traits(compiles, value.formatTo(writer)))
     {
         value.formatTo(writer);
     }
@@ -616,10 +681,33 @@ WriteResult format(string pattern, Args...)(auto ref Args args)
     return writer.finish();
 }
 
+WriteResult format(Sequence...)(
+    InterpolationHeader,
+    auto ref Sequence sequence,
+    InterpolationFooter,
+)
+{
+    Writer writer = Writer.fromFile(cast(FILE*) stdout);
+    writeArguments(writer, sequence);
+    return writer.finish();
+}
+
 WriteResult formatln(string pattern, Args...)(auto ref Args args)
 {
     Writer writer = Writer.fromFile(cast(FILE*) stdout);
     writeFormat!(pattern, 0, 0)(writer, args);
+    writer.put('\n');
+    return writer.finish();
+}
+
+WriteResult formatln(Sequence...)(
+    InterpolationHeader,
+    auto ref Sequence sequence,
+    InterpolationFooter,
+)
+{
+    Writer writer = Writer.fromFile(cast(FILE*) stdout);
+    writeArguments(writer, sequence);
     writer.put('\n');
     return writer.finish();
 }
@@ -631,6 +719,18 @@ WriteResult formatTo(string pattern, Args...)(
 {
     Writer writer = Writer.fromSink(&stringBufSink, &buffer);
     writeFormat!(pattern, 0, 0)(writer, args);
+    return writer.finish();
+}
+
+WriteResult formatTo(Sequence...)(
+    ref StringBuf buffer,
+    InterpolationHeader,
+    auto ref Sequence sequence,
+    InterpolationFooter,
+)
+{
+    Writer writer = Writer.fromSink(&stringBufSink, &buffer);
+    writeArguments(writer, sequence);
     return writer.finish();
 }
 
@@ -690,7 +790,8 @@ pure @safe
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
+        mallocAllocator;
 
     StringBuf buffer = StringBuf.create(mallocAllocator());
     buffer.writeTo("answer=", 42, ", hex=", hexadecimal(255));
@@ -731,4 +832,99 @@ unittest
     );
     assert(stateful.view.equal("stateful"));
     assert(calls == 1);
+
+    int answer = 42;
+    buffer.clear();
+    buffer.writeTo(i"answer=$(answer), hex=$(hexadecimal(answer))");
+    assert(buffer.view.equal("answer=42, hex=0x2a"));
+
+    struct CountedExpression
+    {
+    nothrow @nogc:
+
+        size_t* evaluations;
+
+        int evaluate()
+        {
+            ++*evaluations;
+            return 7;
+        }
+    }
+
+    size_t evaluations;
+    CountedExpression counted = CountedExpression(&evaluations);
+    buffer.clear();
+    buffer.formatTo(i"once=$(counted.evaluate()), custom=$(value)");
+    assert(buffer.view.equal("once=7, custom=stateful"));
+    assert(evaluations == 1);
+    assert(calls == 2);
+
+    buffer.clear();
+    buffer.writeTo(i"outer [$(i"inner=$(answer)")] done");
+    assert(buffer.view.equal("outer [inner=42] done"));
+
+    buffer.clear();
+    buffer.writeTo("prefix ", i"$(answer)", " suffix");
+    assert(buffer.view.equal("prefix 42 suffix"));
+
+    buffer.clear();
+    buffer.writeTo(
+        i"expanded=$(InterpolationTestSequence!(answer, answer))",
+    );
+    assert(buffer.view.equal("expanded=4242"));
+
+    buffer.clear();
+    buffer.writeTo(i"");
+    assert(buffer.empty);
+
+    char[12] interpolatedFixed;
+    const interpolatedFixedResult = interpolatedFixed[].formatBuffer(
+        i"value=$(answer)",
+    );
+    assert(interpolatedFixedResult.ok);
+    assert(!interpolatedFixedResult.truncated);
+    assert(interpolatedFixedResult.written == 8);
+    assert(interpolatedFixedResult.required == 8);
+    assert(interpolatedFixed[0 .. 8] == "value=42");
+    assert(interpolatedFixed[8] == '\0');
+
+    char[8] truncatedInterpolation;
+    const truncatedInterpolationResult = truncatedInterpolation[].formatBuffer(
+        i"value=$(answer)",
+    );
+    assert(truncatedInterpolationResult.ok);
+    assert(truncatedInterpolationResult.truncated);
+    assert(truncatedInterpolationResult.written == 7);
+    assert(truncatedInterpolationResult.required == 8);
+    assert(truncatedInterpolation[0 .. 7] == "value=4");
+    assert(truncatedInterpolation[7] == '\0');
+
+    StringBuf interpolated = formatString(
+        mallocAllocator(),
+        i"owned: $(answer), $(fixed(1.25, 2))",
+    );
+    assert(interpolated.view.equal("owned: 42, 1.25"));
+
+    StringBuf fallibleInterpolated;
+    assert(tryFormatString(
+            mallocAllocator(),
+            &fallibleInterpolated,
+            i"try: $(binary(5))",
+    ));
+    assert(fallibleInterpolated.view.equal("try: 0b101"));
+
+    AllocationRecord[4] records;
+    InstrumentedAllocator failing = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+    failing.failAfter(0);
+    StringBuf failedInterpolated;
+    assert(!tryFormatString(
+            failing.handle,
+            &failedInterpolated,
+            i"allocation required: $(answer)",
+    ));
+    assert(failedInterpolated.empty);
+    assert(failing.clean);
 }

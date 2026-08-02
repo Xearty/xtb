@@ -1,6 +1,8 @@
 module examples.print_demo;
 
 import xtb.core.print;
+import xtb.core.memory : mallocAllocator;
+import xtb.core.string : String, StringBuf;
 
 struct Point
 {
@@ -26,5 +28,35 @@ extern (C) int main() nothrow @nogc
         fixed(1.0 / 3.0, 4),
     );
     writeln("custom value: ", Point(12, -7));
+
+    String name = "interpolation";
+    int count = 3;
+    writeln(i"native $(name): count=$(count), point=$(Point(4, 9))");
+    formatln(i"wrappers stay explicit: hex=$(hexadecimal(48879).upper()), ratio=$(fixed(1.0 / 3.0, 3))");
+    writeln(i"nested sequences: [$(i"$(name):$(count)")]");
+
+    StringBuf text = formatString(
+        mallocAllocator(),
+        i"owned output: $(name) has $(count) values",
+    );
+    writeln(text.view);
+
+    StringBuf builder = StringBuf.create(mallocAllocator());
+    builder.formatTo(i"builder output: $(Point(-2, 8))");
+    writeln(builder.view);
+
+    char[24] storage;
+    const fixedResult = storage[].formatBuffer(i"fixed output: $(count)");
+    writeln(
+        "fixed buffer: ",
+        storage[0 .. fixedResult.written],
+        ", required=",
+        fixedResult.required,
+        ", truncated=",
+        fixedResult.truncated,
+    );
+
+    builder.deinit();
+    text.deinit();
     return 0;
 }

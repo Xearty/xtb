@@ -7,7 +7,8 @@ os_source_files := `find source/xtb/os -name '*.d' -print | sort | tr '\n' ' '`
 serde_source_files := `find source/xtb/serde -name '*.d' -print | sort | tr '\n' ' '`
 serde_test_files := "tests/serde_tests.d tests/serde_backend_contract.d"
 fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/hash.d source/xtb/core/hash_map.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d"
-lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' -print | sort | tr '\n' ' '`
+lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' ! -path 'source/xtb/core/print.d' ! -path 'examples/print_demo.d' -print | sort | tr '\n' ' '`
+interpolation_files := "source/xtb/core/print.d examples/print_demo.d"
 fuzz_files := `find fuzz -name '*.d' -print | sort | tr '\n' ' '`
 format_files := `find source tests examples fuzz -name '*.d' -print | sort | tr '\n' ' '`
 platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
@@ -139,6 +140,8 @@ examples:
     ./build/hash_demo
 
 lint:
+    mkdir -p build/obj
+    ldc2 {{common_flags}} -o- {{interpolation_files}}
     dscanner --syntaxCheck source/xtb/diagnostics/stacktrace_style.d
     dscanner --syntaxCheck {{fuzz_files}}
     dscanner lint --config dscanner.ini --styleCheck {{lint_files}}

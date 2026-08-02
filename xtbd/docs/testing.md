@@ -14,6 +14,13 @@ BetterC does not emit `ModuleInfo`, so the ordinary runtime test discovery used
 by `dub test` must not be assumed. Test executables explicitly enumerate their
 modules and invoke unit tests with `__traits(getUnitTests, module_)`.
 
+The pinned D-Scanner 0.15 parser does not understand interpolated expression
+sequence literals yet. `just lint` therefore sends only the interpolation-
+bearing printer module and example through LDC's warning-as-error semantic
+check and sends every other supported file through D-Scanner. Keep that
+exception list narrow and remove it when D-Scanner can parse `i"..."`; all
+printer unit tests and build variants still compile those files with LDC.
+
 ## Colocated unit tests
 
 Put tests immediately after the declaration or small group of declarations
@@ -184,6 +191,14 @@ String tests enforce the type boundary as well as textual behavior:
   through `String`;
 - mutating operations compile with direct UFCS (`buffer.append(value)`) using
   only the allowed first-parameter `ref` receiver.
+
+Printer tests cover interpolated expression sequences through direct output,
+`StringBuf`, fixed-buffer, and allocator-owned sinks. Include empty and nested
+sequences, expressions with side effects, custom `formatTo` values, numeric
+format wrappers, mixed ordinary/interpolated arguments, exact fixed-buffer
+accounting, truncation, and injected allocation failure. Assert that every
+expression and custom formatter runs exactly once and that expression-source
+metadata is never emitted or evaluated by the printer.
 
 Scratch-space tests additionally verify:
 
