@@ -5,6 +5,9 @@ This document records the comparison between C++ `libs/xtb_core` and the D
 The D implementation preserves useful capabilities while rejecting unsafe
 ownership, hidden global state, and macro-oriented interfaces.
 
+Future general-purpose additions are ranked separately in
+[`standard-library-roadmap.md`](standard-library-roadmap.md).
+
 ## Implemented portable core
 
 ### Metadata and scalar utilities
