@@ -10,6 +10,7 @@ import xtb.core.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
 import xtb.core.option;
+import xtb.core.bit_flags;
 import xtb.core.list;
 import xtb.core.hash;
 import xtb.core.hash_map;
@@ -64,6 +65,12 @@ nothrow @system @nogc
     return left[index] == right[index];
 }
 
+private enum DeathFlag
+{
+    first,
+    third = 2,
+}
+
 private noreturn runDeathCase(const(char)* name) nothrow @nogc
 {
     if (cStringEqual(name, "panic"))
@@ -72,6 +79,15 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         clamp(0, 1, 0);
     if (cStringEqual(name, "numeric-overflow"))
         tebibytes(size_t.max);
+    if (cStringEqual(name, "bit-flags-invalid-value"))
+    {
+        BitFlags!DeathFlag flags;
+        flags.enable(cast(DeathFlag) 1);
+    }
+    if (cStringEqual(name, "bit-flags-invalid-mask"))
+        BitFlags!DeathFlag.fromBits(0b010);
+    if (cStringEqual(name, "bit-flags-null-output"))
+        BitFlags!DeathFlag.tryFromBits(0, null);
     if (cStringEqual(name, "scratch-without-context"))
         ScratchScope.acquire();
     if (cStringEqual(name, "double-pop"))
@@ -300,7 +316,15 @@ extern (C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.array))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.option))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.bit_flags))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.list))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.hash))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.hash_map))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.logger))
         testFunction();
@@ -331,6 +355,9 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "panic");
         expectDeath(arguments[0], "numeric-clamp");
         expectDeath(arguments[0], "numeric-overflow");
+        expectDeath(arguments[0], "bit-flags-invalid-value");
+        expectDeath(arguments[0], "bit-flags-invalid-mask");
+        expectDeath(arguments[0], "bit-flags-null-output");
         expectDeath(arguments[0], "scratch-without-context");
         expectDeath(arguments[0], "double-pop");
         expectDeath(arguments[0], "non-lifo-pop");

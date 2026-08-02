@@ -2,6 +2,13 @@ module examples.core_demo;
 
 import xtb.core;
 
+private enum Permission
+{
+    read,
+    write,
+    execute,
+}
+
 extern (C) int main() nothrow @nogc
 {
     ThreadContextScope context = ThreadContextScope.acquire();
@@ -27,5 +34,10 @@ extern (C) int main() nothrow @nogc
     char[128] logStorage;
     Logger logger = stderrLogger(logStorage[], LogLevel.info);
     logger.logf!"processed {} values"(LogLevel.info, numbers.length);
+
+    alias Permissions = BitFlags!Permission;
+    auto permissions = Permissions.of(Permission.read, Permission.write);
+    permissions.enable(Permission.execute);
+    formatln!"enabled permissions: {}"(permissions.count);
     return 0;
 }

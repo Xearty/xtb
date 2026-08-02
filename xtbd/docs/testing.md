@@ -140,7 +140,10 @@ after partial failure. In this project pay particular attention to:
   scope exit without double destruction;
 - byte-zeroed allocation produces all-zero POD storage and rejects elaborate
   element types at compile time;
-- foreign enum/range validation and callback user-context preservation.
+- foreign enum/range validation and callback user-context preservation;
+- bit-flag sparse positions, inferred and explicit storage widths, raw-mask
+  validation, truncation, set algebra, and release-mode rejection of
+  cast-created undeclared enum values before any shift.
 
 Allocator-aware code should be tested with a small instrumented allocator that
 can count allocations, detect leaks/double frees, enforce alignment, and fail

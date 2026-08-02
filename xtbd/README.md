@@ -3,8 +3,8 @@
 `xtbd` is a small foundational D library designed for `-betterC`: explicit
 allocators, arenas and thread-local scratch scopes, owning arrays and string
 builders, hash maps and sets, read-only `String` views, intrusive lists,
-panic/logging facilities, allocation-free formatted output, structured
-logging, and panic contracts.
+strongly typed bit flags, panic/logging facilities, allocation-free formatted
+output, structured logging, and panic contracts.
 Optional stack traces and crash observation live in `xtb.diagnostics`.
 
 The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
@@ -69,6 +69,12 @@ module such as `xtb.core.arena`. All consuming targets must also compile with
 `-betterC`. See `examples/core_demo.d`, `examples/hash_demo.d`, and
 `examples/print_demo.d` for complete runnable programs, and
 `docs/architecture.md` for ownership and scratch-space contracts.
+
+`BitFlags!E` treats enum values as bit positions and chooses the smallest
+fitting unsigned storage type by default. Specify its storage type explicitly
+for ABI or serialized layouts. Invalid cast-created enum values panic instead
+of shifting by an unchecked position; raw masks can be decoded strictly or
+with undeclared bits deliberately truncated.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,

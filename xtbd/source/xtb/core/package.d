@@ -10,6 +10,7 @@ public import xtb.core.arena;
 public import xtb.core.thread_context;
 public import xtb.core.array;
 public import xtb.core.option;
+public import xtb.core.bit_flags;
 public import xtb.core.list;
 public import xtb.core.hash;
 public import xtb.core.hash_map;

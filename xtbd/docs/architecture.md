@@ -1020,6 +1020,19 @@ later, must compose `xtb.serde` with `xtb.os`.
   custom policy. Insertions and reserve operations keep the old table intact
   when allocation fails. Structural mutation invalidates cursors and storage
   pointers, and iteration order is unspecified.
+- Use `BitFlags!E` for a small, allocation-free set of enum flags. Enum values
+  are bit positions rather than masks, so sequential enum declarations map to
+  consecutive bits and composite enum members are not supported. Positions
+  must be non-negative, unique, and no greater than 63. The default storage is
+  the smallest fitting unsigned integer; specify `ubyte`, `ushort`, `uint`, or
+  `ulong` explicitly wherever size is part of an ABI or persistent format.
+  `BitFlags.init` is empty. Mutate individual flags through the UFCS verbs
+  `enable`, `disable`, and `toggle`; use `clear` and `fill` for the whole set.
+  Casts can manufacture undeclared D enum values, so every flag-taking
+  operation validates before shifting and panics on an invalid value in every
+  build mode. Use `tryFromBits` for recoverable raw-input validation,
+  `fromBits` for trusted masks whose invalidity is a contract violation, and
+  `fromBitsTruncated` only when intentionally discarding unknown bits.
 - Make state transitions explicit with verbs such as `create`, `reset`,
   `read`, `finish`, and `deinit`.
 - Use `create(allocator)` for resource-owning factories and
