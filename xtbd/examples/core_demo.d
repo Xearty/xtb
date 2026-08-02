@@ -35,10 +35,12 @@ extern (C) int main() nothrow @nogc
     Logger logger = stderrLogger(logStorage[], LogLevel.info);
     logger.logf!"processed {} values"(LogLevel.info, numbers.length);
 
-    alias Permissions = BitFlags!Permission;
+    alias Permissions = FlagSet!Permission;
     auto permissions = Permissions.of(Permission.read)
         .enabled(Permission.write);
     permissions.enable(Permission.execute);
     formatln!"enabled permissions: {}"(permissions.count);
+    foreach (permission; permissions)
+        formatln!"permission bit position: {}"(cast(int) permission);
     return 0;
 }

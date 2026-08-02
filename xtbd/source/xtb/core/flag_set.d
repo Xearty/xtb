@@ -13,7 +13,7 @@
  *     administer = 7,
  * }
  *
- * alias Permissions = BitFlags!Permission;
+ * alias Permissions = FlagSet!Permission;
  * auto permissions = Permissions.of(Permission.read, Permission.write);
  * permissions.enable(Permission.execute);
  * ---
@@ -23,7 +23,7 @@
  * the highest declared position. Specify `Storage` explicitly when its size
  * is part of an ABI or serialized representation.
  */
-module xtb.core.bit_flags;
+module xtb.core.flag_set;
 
 nothrow @nogc:
 
@@ -34,7 +34,7 @@ private template EnumBaseType(E)
     static if (is(E Base == enum))
         alias EnumBaseType = Base;
     else
-        static assert(false, "BitFlags requires an enum, not " ~ E.stringof);
+        static assert(false, "FlagSet requires an enum, not " ~ E.stringof);
 }
 
 private enum bool isStorageType(T) =
@@ -49,7 +49,7 @@ private template declaredPosition(Base, alias member)
     else
     {
         static assert(cast(long) member >= 0,
-            "BitFlags positions must not be negative");
+            "FlagSet positions must not be negative");
         enum ulong declaredPosition = cast(ulong) cast(long) member;
     }
 }
@@ -79,21 +79,21 @@ private template DefaultFlagStorage(E)
         alias DefaultFlagStorage = ulong;
     else
         static assert(false,
-            "BitFlags!(" ~ E.stringof ~ ") has a position beyond bit 63");
+            "FlagSet!(" ~ E.stringof ~ ") has a position beyond bit 63");
 }
 
 /**
  * A set of the flags declared by `Flag`.
  *
- * `BitFlags.init` is an empty set. This is a plain copyable value containing
+ * `FlagSet.init` is an empty set. This is a plain copyable value containing
  * only its integer mask; it allocates nothing and owns no resources.
  */
-struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
+struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
 {
     static assert(is(Flag == enum),
-        "BitFlags requires an enum, not " ~ Flag.stringof);
+        "FlagSet requires an enum, not " ~ Flag.stringof);
     static assert(isStorageType!Storage,
-        "BitFlags storage must be ubyte, ushort, uint, or ulong");
+        "FlagSet storage must be ubyte, ushort, uint, or ulong");
 
     alias FlagType = Flag;
     alias StorageType = Storage;
@@ -109,7 +109,7 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
     {
         static assert(declaredPosition!(FlagBase,
                 __traits(getMember, Flag, name)) < bitCapacity,
-            "BitFlags!(" ~ Flag.stringof ~ ", " ~ Storage.stringof ~
+            "FlagSet!(" ~ Flag.stringof ~ ", " ~ Storage.stringof ~
                 "): flag '" ~ name ~ "' does not fit in storage");
     }
 
@@ -121,7 +121,7 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
             {
                 static assert(__traits(getMember, Flag, leftName) !=
                         __traits(getMember, Flag, rightName),
-                    "BitFlags!(" ~ Flag.stringof ~ "): flags '" ~
+                    "FlagSet!(" ~ Flag.stringof ~ "): flags '" ~
                         leftName ~ "' and '" ~ rightName ~
                         "' use the same bit position");
             }
@@ -145,9 +145,9 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
 
     private Storage bits_;
 
-    private static BitFlags fromValidBits(Storage raw) pure @safe
+    private static FlagSet fromValidBits(Storage raw) pure @safe
     {
-        BitFlags result;
+        FlagSet result;
         result.bits_ = raw;
         return result;
     }
@@ -179,24 +179,24 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
     private static Storage maskOf(Flag flag) @safe
     {
         Storage mask;
-        require(tryMaskOf(flag, &mask), "invalid BitFlags enum value");
+        require(tryMaskOf(flag, &mask), "invalid FlagSet enum value");
         return mask;
     }
 
     /// Returns a set containing every declared flag.
-    static BitFlags all() pure @safe
+    static FlagSet all() pure @safe
     {
         return fromValidBits(validMask);
     }
 
     /// Returns a set containing all supplied flags.
-    static BitFlags of(Flags...)(Flags flags) @safe
+    static FlagSet of(Flags...)(Flags flags) @safe
     {
-        BitFlags result;
+        FlagSet result;
         static foreach (index, Argument; Flags)
         {
             static assert(is(Argument == Flag),
-                "BitFlags.of accepts only " ~ Flag.stringof ~ " values");
+                "FlagSet.of accepts only " ~ Flag.stringof ~ " values");
             result.bits_ = cast(Storage)(
                 result.bits_ | maskOf(flags[index])
             );
@@ -216,9 +216,9 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
      * Returns `false` and leaves `output` unchanged for an invalid mask.
      * `output` is required and a null pointer is a programmer error.
      */
-    static bool tryFromBits(Storage raw, scope BitFlags* output) @safe
+    static bool tryFromBits(Storage raw, scope FlagSet* output) @safe
     {
-        require(output !is null, "BitFlags output must not be null");
+        require(output !is null, "FlagSet output must not be null");
         if (!acceptsBits(raw))
             return false;
         output.bits_ = raw;
@@ -226,14 +226,14 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
     }
 
     /// Decodes a raw mask and panics if it contains an undeclared bit.
-    static BitFlags fromBits(Storage raw) @safe
+    static FlagSet fromBits(Storage raw) @safe
     {
-        require(acceptsBits(raw), "BitFlags mask contains undeclared bits");
+        require(acceptsBits(raw), "FlagSet mask contains undeclared bits");
         return fromValidBits(raw);
     }
 
     /// Decodes a raw mask after discarding all undeclared bits.
-    static BitFlags fromBitsTruncated(Storage raw) pure @safe
+    static FlagSet fromBitsTruncated(Storage raw) pure @safe
     {
         return fromValidBits(cast(Storage)(raw & validMask));
     }
@@ -270,13 +270,13 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
     }
 
     /// Returns whether every flag in `subset` is enabled.
-    bool containsAll(BitFlags subset) const pure @safe
+    bool containsAll(FlagSet subset) const pure @safe
     {
         return (bits_ & subset.bits_) == subset.bits_;
     }
 
     /// Returns whether at least one flag in `other` is enabled here.
-    bool intersects(BitFlags other) const pure @safe
+    bool intersects(FlagSet other) const pure @safe
     {
         return (bits_ & other.bits_) != 0;
     }
@@ -295,7 +295,7 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
     }
 
     /// Set union (`|`), intersection (`&`), difference (`-`), or symmetric difference (`^`).
-    BitFlags opBinary(string operation)(BitFlags other) const pure @safe
+    FlagSet opBinary(string operation)(FlagSet other) const pure @safe
     {
         static if (operation == "|")
             return fromValidBits(cast(Storage)(bits_ | other.bits_));
@@ -307,11 +307,11 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
             return fromValidBits(cast(Storage)(bits_ ^ other.bits_));
         else
             static assert(false,
-                "unsupported BitFlags binary operator: " ~ operation);
+                "unsupported FlagSet binary operator: " ~ operation);
     }
 
     /// Applies set union, intersection, difference, or symmetric difference in place.
-    ref BitFlags opOpAssign(string operation)(BitFlags other) return pure @safe
+    ref FlagSet opOpAssign(string operation)(FlagSet other) return pure @safe
     {
         static if (operation == "|")
             bits_ = cast(Storage)(bits_ | other.bits_);
@@ -323,42 +323,62 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
             bits_ = cast(Storage)(bits_ ^ other.bits_);
         else
             static assert(false,
-                "unsupported BitFlags assignment operator: " ~ operation);
+                "unsupported FlagSet assignment operator: " ~ operation);
         return this;
     }
 
     /// Complements declared flags while leaving unused storage bits clear.
-    BitFlags opUnary(string operation)() const pure @safe
+    FlagSet opUnary(string operation)() const pure @safe
     {
         static if (operation == "~")
             return fromValidBits(cast(Storage)(cast(Storage)(~bits_) & validMask));
         else
             static assert(false,
-                "unsupported BitFlags unary operator: " ~ operation);
+                "unsupported FlagSet unary operator: " ~ operation);
+    }
+
+    /**
+     * Iterates enabled flags by value in enum declaration order.
+     *
+     * The enabled mask is captured when iteration starts, so changing the
+     * original set inside the loop does not change which values are visited.
+     */
+    int opApply(scope int delegate(Flag) nothrow @nogc callback) const
+    {
+        const iterationBits = bits_;
+        int result;
+        static foreach (name; __traits(allMembers, Flag))
+        {
+            if (result == 0 && (iterationBits & cast(Storage)(cast(Storage) 1 <<
+                    declaredPosition!(FlagBase,
+                    __traits(getMember, Flag, name)))) != 0)
+                result = callback(__traits(getMember, Flag, name));
+        }
+        return result;
     }
 }
 
 /// Enables `flag`. An invalid enum value is a programmer error and panics.
-void enable(Flag, Storage)(ref BitFlags!(Flag, Storage) flags, Flag flag) @safe
+void enable(Flag, Storage)(ref FlagSet!(Flag, Storage) flags, Flag flag) @safe
 {
     flags.bits_ = cast(Storage)(flags.bits_ | flags.maskOf(flag));
 }
 
 /// Disables `flag`. An invalid enum value is a programmer error and panics.
-void disable(Flag, Storage)(ref BitFlags!(Flag, Storage) flags, Flag flag) @safe
+void disable(Flag, Storage)(ref FlagSet!(Flag, Storage) flags, Flag flag) @safe
 {
     flags.bits_ = cast(Storage)(flags.bits_ & cast(Storage)(~flags.maskOf(flag)));
 }
 
 /// Toggles `flag`. An invalid enum value is a programmer error and panics.
-void toggle(Flag, Storage)(ref BitFlags!(Flag, Storage) flags, Flag flag) @safe
+void toggle(Flag, Storage)(ref FlagSet!(Flag, Storage) flags, Flag flag) @safe
 {
     flags.bits_ = cast(Storage)(flags.bits_ ^ flags.maskOf(flag));
 }
 
 /// Returns a copy of `flags` with `flag` enabled.
-BitFlags!(Flag, Storage) enabled(Flag, Storage)(
-    BitFlags!(Flag, Storage) flags,
+FlagSet!(Flag, Storage) enabled(Flag, Storage)(
+    FlagSet!(Flag, Storage) flags,
     Flag flag,
 ) @safe
 {
@@ -367,8 +387,8 @@ BitFlags!(Flag, Storage) enabled(Flag, Storage)(
 }
 
 /// Returns a copy of `flags` with `flag` disabled.
-BitFlags!(Flag, Storage) disabled(Flag, Storage)(
-    BitFlags!(Flag, Storage) flags,
+FlagSet!(Flag, Storage) disabled(Flag, Storage)(
+    FlagSet!(Flag, Storage) flags,
     Flag flag,
 ) @safe
 {
@@ -377,8 +397,8 @@ BitFlags!(Flag, Storage) disabled(Flag, Storage)(
 }
 
 /// Returns a copy of `flags` with `flag` toggled.
-BitFlags!(Flag, Storage) toggled(Flag, Storage)(
-    BitFlags!(Flag, Storage) flags,
+FlagSet!(Flag, Storage) toggled(Flag, Storage)(
+    FlagSet!(Flag, Storage) flags,
     Flag flag,
 ) @safe
 {
@@ -387,13 +407,13 @@ BitFlags!(Flag, Storage) toggled(Flag, Storage)(
 }
 
 /// Disables every flag.
-void clear(Flag, Storage)(ref BitFlags!(Flag, Storage) flags) pure @safe
+void clear(Flag, Storage)(ref FlagSet!(Flag, Storage) flags) pure @safe
 {
     flags.bits_ = 0;
 }
 
 /// Enables every declared flag.
-void fill(Flag, Storage)(ref BitFlags!(Flag, Storage) flags) pure @safe
+void fill(Flag, Storage)(ref FlagSet!(Flag, Storage) flags) pure @safe
 {
     flags.bits_ = flags.validMask;
 }
@@ -408,7 +428,11 @@ version (unittest)
         administer = 7,
     }
 
-    private alias Permissions = BitFlags!Permission;
+    private alias Permissions = FlagSet!Permission;
+    private enum readWrite = Permissions.of(
+            Permission.read,
+            Permission.write,
+        );
 
     unittest
     {
@@ -416,6 +440,8 @@ version (unittest)
         static assert(Permissions.flagCount == 4);
         static assert(Permissions.validMask == 0b1000_0111);
         static assert(Permissions.sizeof == ubyte.sizeof);
+        static assert(is(typeof(readWrite) == Permissions));
+        static assert(readWrite.bits == 0b0000_0011);
 
         auto permissions = Permissions.of(Permission.read, Permission.write);
         assert(permissions.bits == 0b0000_0011);
@@ -488,6 +514,59 @@ version (unittest)
         assert(changed.isEmpty);
     }
 
+    unittest
+    {
+        const selected = Permissions.of(
+            Permission.administer,
+            Permission.execute,
+            Permission.read,
+        );
+        Permission[4] visited;
+        size_t visitCount;
+        foreach (permission; selected)
+            visited[visitCount++] = permission;
+
+        assert(visitCount == 3);
+        assert(visited[0] == Permission.read);
+        assert(visited[1] == Permission.execute);
+        assert(visited[2] == Permission.administer);
+
+        visitCount = 0;
+        foreach (permission; Permissions.init)
+            ++visitCount;
+        assert(visitCount == 0);
+
+        foreach (permission; Permissions.all)
+        {
+            ++visitCount;
+            if (visitCount == 2)
+                break;
+        }
+        assert(visitCount == 2);
+    }
+
+    unittest
+    {
+        auto changing = Permissions.of(Permission.read, Permission.write);
+        auto changingPointer = &changing;
+        Permission[2] visited;
+        size_t visitCount;
+        foreach (permission; changing)
+        {
+            visited[visitCount++] = permission;
+            (*changingPointer).disable(Permission.write);
+            (*changingPointer).enable(Permission.administer);
+        }
+
+        assert(visitCount == 2);
+        assert(visited[0] == Permission.read);
+        assert(visited[1] == Permission.write);
+        assert(changing == Permissions.of(
+                Permission.read,
+                Permission.administer,
+        ));
+    }
+
     private enum WideFlag : ulong
     {
         low,
@@ -506,10 +585,10 @@ version (unittest)
         high = 16,
     }
 
-    static assert(BitFlags!WideFlag.sizeof == ulong.sizeof);
-    static assert(BitFlags!MediumFlag.sizeof == ushort.sizeof);
-    static assert(BitFlags!LargeFlag.sizeof == uint.sizeof);
-    static assert(BitFlags!(Permission, ushort).sizeof == ushort.sizeof);
+    static assert(FlagSet!WideFlag.sizeof == ulong.sizeof);
+    static assert(FlagSet!MediumFlag.sizeof == ushort.sizeof);
+    static assert(FlagSet!LargeFlag.sizeof == uint.sizeof);
+    static assert(FlagSet!(Permission, ushort).sizeof == ushort.sizeof);
 
     private enum NineFlags
     {
@@ -546,10 +625,10 @@ version (unittest)
         invalid = 64,
     }
 
-    static assert(!__traits(compiles, BitFlags!(NineFlags, ubyte).init));
-    static assert(!__traits(compiles, BitFlags!(OutOfRangeFlag, ubyte).init));
-    static assert(!__traits(compiles, BitFlags!(DuplicatePosition, ubyte).init));
-    static assert(!__traits(compiles, BitFlags!NegativePosition.init));
-    static assert(!__traits(compiles, BitFlags!BeyondMaximum.init));
-    static assert(!__traits(compiles, BitFlags!(Permission, byte).init));
+    static assert(!__traits(compiles, FlagSet!(NineFlags, ubyte).init));
+    static assert(!__traits(compiles, FlagSet!(OutOfRangeFlag, ubyte).init));
+    static assert(!__traits(compiles, FlagSet!(DuplicatePosition, ubyte).init));
+    static assert(!__traits(compiles, FlagSet!NegativePosition.init));
+    static assert(!__traits(compiles, FlagSet!BeyondMaximum.init));
+    static assert(!__traits(compiles, FlagSet!(Permission, byte).init));
 }

@@ -1020,17 +1020,24 @@ later, must compose `xtb.serde` with `xtb.os`.
   custom policy. Insertions and reserve operations keep the old table intact
   when allocation fails. Structural mutation invalidates cursors and storage
   pointers, and iteration order is unspecified.
-- Use `BitFlags!E` for a small, allocation-free set of enum flags. Enum values
+- Use `FlagSet!E` for a small, allocation-free set of enum flags. Enum values
   are bit positions rather than masks, so sequential enum declarations map to
   consecutive bits and composite enum members are not supported. Positions
   must be non-negative, unique, and no greater than 63. The default storage is
   the smallest fitting unsigned integer; specify `ubyte`, `ushort`, `uint`, or
   `ulong` explicitly wherever size is part of an ABI or persistent format.
-  `BitFlags.init` is empty. Mutate individual flags through the UFCS verbs
+  `FlagSet.init` is empty. Mutate individual flags through the UFCS verbs
   `enable`, `disable`, and `toggle`; use `clear` and `fill` for the whole set.
   The corresponding `enabled`, `disabled`, and `toggled` functions return a
   changed value while leaving their input unchanged. `of(flag)` constructs a
   singleton set; there is no second singleton factory.
+  `foreach (flag; flags)` yields enabled flags by value in enum declaration
+  order. Iteration snapshots the starting mask, so changing the source set in
+  the loop body does not change the current traversal.
+  Keep the flag enum atomic. Declare named combinations as manifest values of
+  the set type, for example
+  `enum readWrite = Permissions.of(Permission.read, Permission.write)`, rather
+  than adding an overlapping `Permission.readWrite` enum member.
   Casts can manufacture undeclared D enum values, so every flag-taking
   operation validates before shifting and panics on an invalid value in every
   build mode. Use `tryFromBits` for recoverable raw-input validation,

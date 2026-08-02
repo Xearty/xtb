@@ -70,13 +70,14 @@ module such as `xtb.core.arena`. All consuming targets must also compile with
 `examples/print_demo.d` for complete runnable programs, and
 `docs/architecture.md` for ownership and scratch-space contracts.
 
-`BitFlags!E` treats enum values as bit positions and chooses the smallest
+`FlagSet!E` treats enum values as bit positions and chooses the smallest
 fitting unsigned storage type by default. Specify its storage type explicitly
 for ABI or serialized layouts. Invalid cast-created enum values panic instead
 of shifting by an unchecked position; raw masks can be decoded strictly or
 with undeclared bits deliberately truncated.
 Use `enable`, `disable`, and `toggle` to mutate a set, or `enabled`, `disabled`,
 and `toggled` to derive a changed value without changing the original.
+`foreach (flag; flags)` visits enabled values in enum declaration order.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,

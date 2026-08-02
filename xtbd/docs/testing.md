@@ -143,7 +143,9 @@ after partial failure. In this project pay particular attention to:
 - foreign enum/range validation and callback user-context preservation;
 - bit-flag sparse positions, inferred and explicit storage widths, raw-mask
   validation, truncation, set algebra, and release-mode rejection of
-  cast-created undeclared enum values before any shift.
+  cast-created undeclared enum values before any shift;
+- flag-set iteration order, empty/full traversal, `break`, and snapshot
+  behavior when the source set changes inside the loop.
 
 Allocator-aware code should be tested with a small instrumented allocator that
 can count allocations, detect leaks/double frees, enforce alignment, and fail

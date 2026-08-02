@@ -10,7 +10,7 @@ import xtb.core.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
 import xtb.core.option;
-import xtb.core.bit_flags;
+import xtb.core.flag_set;
 import xtb.core.list;
 import xtb.core.hash;
 import xtb.core.hash_map;
@@ -81,13 +81,13 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         tebibytes(size_t.max);
     if (cStringEqual(name, "bit-flags-invalid-value"))
     {
-        BitFlags!DeathFlag flags;
+        FlagSet!DeathFlag flags;
         flags.enable(cast(DeathFlag) 1);
     }
     if (cStringEqual(name, "bit-flags-invalid-mask"))
-        BitFlags!DeathFlag.fromBits(0b010);
+        FlagSet!DeathFlag.fromBits(0b010);
     if (cStringEqual(name, "bit-flags-null-output"))
-        BitFlags!DeathFlag.tryFromBits(0, null);
+        FlagSet!DeathFlag.tryFromBits(0, null);
     if (cStringEqual(name, "scratch-without-context"))
         ScratchScope.acquire();
     if (cStringEqual(name, "double-pop"))
@@ -318,7 +318,7 @@ extern (C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.option))
         testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.bit_flags))
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.flag_set))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.list))
         testFunction();
