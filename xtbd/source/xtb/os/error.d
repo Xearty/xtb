@@ -45,7 +45,8 @@ OsError unsupported() pure @safe
 version (linux) OsError fromErrno(int code) pure @safe
 {
     import core.stdc.errno : EACCES, EAGAIN, EEXIST, EINTR, EINVAL, EISDIR,
-        EMFILE, ENFILE, ENOENT, ENOMEM, ENOSPC, ENOTDIR, EPERM, EPIPE;
+        ECHILD, EMFILE, ENFILE, ENOENT, ENOMEM, ENOSPC, ENOTDIR, EPERM,
+        EPIPE, ESRCH;
 
     if (code == 0)
         return OsError.init;
@@ -54,6 +55,8 @@ version (linux) OsError fromErrno(int code) pure @safe
     switch (code)
     {
         case ENOENT:
+        case ECHILD:
+        case ESRCH:
             kind = OsErrorKind.notFound;
             break;
         case EACCES:

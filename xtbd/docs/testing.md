@@ -55,11 +55,17 @@ modules in that shard and lists them explicitly. Explicit enumeration is
 intentional: it replaces unavailable `ModuleInfo` discovery and makes omissions
 visible in review.
 
-The explicit runners are `core_tests.d`, `math_tests.d`, and `os_tests.d`.
+The explicit runners are `core_tests.d`, `math_tests.d`, `os_tests.d`, and
+`serde_tests.d`.
 The OS runner creates a process-unique directory below `/tmp`, touches only
 paths inside it, and removes every created file and directory before returning.
 Platform runtime assertions are backend-versioned; the same runner remains a
 compile check where no native backend exists.
+
+Process integration tests compile `tests/support/process_helper.d` as a
+dedicated BetterC executable. Use its length-unambiguous argv/environment
+output and binary stream modes instead of depending on shell parsing or the
+host behavior of `echo`, `cat`, and `sleep`.
 
 ```d
 module tests.core_runner;

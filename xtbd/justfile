@@ -28,6 +28,7 @@ build:
 
 test:
     mkdir -p build/obj
+    ldc2 {{common_flags}} tests/support/process_helper.d -of=build/process_test_helper
     ldc2 {{common_flags}} -unittest tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests
     ./build/core_tests
     ldc2 {{common_flags}} -unittest tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests
@@ -39,6 +40,7 @@ test:
 
 test-optimized:
     mkdir -p build/obj
+    ldc2 {{common_flags}} -O3 tests/support/process_helper.d -of=build/process_test_helper
     ldc2 {{common_flags}} -unittest -O3 tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_optimized
     ./build/core_tests_optimized
     ldc2 {{common_flags}} -unittest -O3 tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_optimized
@@ -50,6 +52,7 @@ test-optimized:
 
 test-release:
     mkdir -p build/obj
+    ldc2 {{common_flags}} -O3 -release tests/support/process_helper.d -of=build/process_test_helper
     ldc2 {{common_flags}} -unittest -O3 -release tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_release
     ./build/core_tests_release
     ldc2 {{common_flags}} -unittest -O3 -release tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_release
@@ -70,6 +73,7 @@ test-darwin-build:
 
 test-sanitize:
     mkdir -p build/obj
+    ldc2 {{common_flags}} tests/support/process_helper.d -of=build/process_test_helper
     ldc2 {{common_flags}} -unittest -fsanitize=address {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
     ./build/core_tests_asan
     ldc2 {{common_flags}} -unittest -fsanitize=address tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_asan
@@ -81,6 +85,7 @@ test-sanitize:
 
 test-ubsan:
     mkdir -p build/obj
+    ldc2 {{common_flags}} tests/support/process_helper.d -of=build/process_test_helper
     if ldc2 -betterC -fsanitize=undefined -c source/xtb/core/types.d -of=build/ubsan_probe.o >/dev/null 2>&1; then \
         ldc2 {{common_flags}} -unittest -fsanitize=undefined {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
         ./build/core_tests_ubsan; \
@@ -119,6 +124,7 @@ examples:
     ldc2 {{common_flags}} -g {{core_source_files}} {{diagnostics_source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
     ldc2 {{common_flags}} {{core_source_files}} {{math_source_files}} examples/math_demo.d -of=build/math_demo
     ldc2 {{common_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
+    ldc2 {{common_flags}} {{core_source_files}} {{os_source_files}} examples/process_demo.d -of=build/process_demo
     ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
     ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/option_demo.d -of=build/option_demo
     ldc2 {{common_flags}} {{core_source_files}} examples/hash_demo.d -of=build/hash_demo
@@ -127,6 +133,7 @@ examples:
     ./build/stacktrace_demo
     ./build/math_demo
     ./build/os_demo source
+    ./build/process_demo
     ./build/serde_demo
     ./build/option_demo
     ./build/hash_demo

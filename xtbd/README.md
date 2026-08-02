@@ -14,9 +14,11 @@ and allocator-owned periodic value noise.
 
 The `xtb.os` package provides borrowed validated paths, RAII files and memory
 maps, binary-safe complete I/O, metadata, streaming directory traversal,
-explicit errors, environment/path queries, and monotonic/wall clocks. Linux
-has the locally tested backend; other targets retain buildable APIs reporting
-unsupported operations.
+explicit errors, environment/path queries, monotonic/wall clocks, RAII pipes,
+and direct child-process creation. The process API keeps argv values separate,
+supports explicit standard-stream routing and environments, and provides
+nonblocking, timed, and blocking waits. Linux has the locally tested backend;
+other targets retain buildable APIs reporting unsupported operations.
 
 The `xtb.serde` package provides compile-time, attribute-driven mapping of
 BetterC structs to structured formats. It has no runtime registry or DOM;
@@ -105,7 +107,8 @@ multiply column vectors; transformations compose right-to-left. See
 Import `xtb.os` for platform services. Threads making path-based OS calls must
 install `ThreadContextScope`, which supplies temporary C-string storage.
 Directory traversal streams entries rather than allocating a linked list. See
-`examples/os_demo.d`.
+`examples/os_demo.d`. Direct process creation requires the same thread context
+for temporary argv/environment construction; see `examples/process_demo.d`.
 
 Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
 `Deserialized!T` with `String` and slices for one document-owned graph, or

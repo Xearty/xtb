@@ -222,6 +222,17 @@ elapsed-time measurement; wall-clock and file-modification timestamps are
 signed Unix-epoch nanoseconds, represent pre-epoch values, and may jump when
 the system clock changes.
 
+`Command`, `Environment`, and the standard-stream route types are borrowed
+process descriptions. Spawn validates them, builds native argv/environment
+storage in an internal `ScratchScope`, and returns a non-copyable
+`ChildProcess`. A child owns both its direct-child reap obligation and any
+parent pipe endpoints created by `piped` routes. Successful waits consume only
+the reap obligation so remaining output can still be drained. Dropping a live
+child is a last-resort force-kill-and-reap operation; ordinary code explicitly
+waits or terminates so errors and exit status remain observable. Process output
+is bytes, never implicitly a `String`, because arbitrary programs may emit NUL
+or invalid UTF-8.
+
 ## BetterC design rules
 
 ### ABI and entry points

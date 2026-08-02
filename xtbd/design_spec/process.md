@@ -417,8 +417,8 @@ struct Command
     private Environment environment_;
     private ExecutableLookup lookup_;
 
-    static Command exact(Path executable, scope const(String)[] arguments = null);
-    static Command search(String executable, scope const(String)[] arguments = null);
+    static Command exact(Path executable, const(String)[] arguments = null);
+    static Command search(String executable, const(String)[] arguments = null);
 }
 ```
 
@@ -435,6 +435,8 @@ command.setEnvironment(environment);
 ```
 
 These setters borrow; they do not allocate or retain temporary scratch.
+The constructors likewise retain the argument slice, so that parameter cannot
+be `scope`; callers keep it alive until spawn returns.
 `validate(Command)` is available when an application wants to diagnose a
 configuration before spawning. Spawn validates again.
 
@@ -488,6 +490,8 @@ neither NUL nor `=`. Values may be empty but not contain NUL. A remove entry
 must have an empty value. Duplicate effective names are rejected instead of
 using an undocumented first/last-wins rule. Name comparison follows the target
 environment rules and is documented by the backend.
+`inherit` rejects nonempty entries instead of silently ignoring them; use
+`overlay` to modify the inherited environment.
 
 Reading the process environment is inherently shared state. On POSIX, callers
 must not mutate `environ` concurrently with an inherit/overlay spawn. The
@@ -1182,9 +1186,9 @@ Linux requirements:
 - use `posix_spawn_file_actions_addchdir_np` for working-directory support;
 - never temporarily change the parent's current directory or environment;
 - use the error value returned by `posix_spawn` rather than assuming `errno`;
-- use `waitpid` macros/bindings to decode status instead of open-coded bit
-  layouts; and
-- use pidfds for readiness/signaling when available at runtime, with a tested
+- keep the Linux wait-status encoding in one named, tested backend helper when
+  the BetterC bindings expose libc macros as unavailable runtime symbols; and
+- use pidfds for readiness when available at runtime, with a tested
   targeted-`waitpid` fallback for older kernels.
 
 Strict child descriptor inheritance is a security property. If the backend

@@ -91,6 +91,11 @@ nothrow @nogc:
     {
         return descriptor_ >= 0;
     }
+
+    package(xtb) int nativeDescriptor() const pure @safe
+    {
+        return descriptor_;
+    }
 }
 
 OsError close(File* file) @system
