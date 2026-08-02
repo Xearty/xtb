@@ -5,6 +5,7 @@ import xtb.os.error;
 import xtb.os.file;
 import xtb.os.memory_map;
 import xtb.os.path;
+import xtb.os.pipe;
 import xtb.os.time;
 import xtb.core.array : Array;
 import xtb.core.arena : Arena, TempArena, pop, push;
@@ -152,6 +153,8 @@ extern (C) int main()
     static foreach (testFunction; __traits(getUnitTests, xtb.os.error))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.os.file))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.os.pipe))
         testFunction();
     version (linux)
         runLinuxIntegration();

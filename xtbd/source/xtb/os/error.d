@@ -13,6 +13,8 @@ enum OsErrorKind : ubyte
     wouldBlock,
     notDirectory,
     isDirectory,
+    resourceExhausted,
+    brokenPipe,
     unsupported,
     system,
 }
@@ -43,7 +45,7 @@ OsError unsupported() pure @safe
 version (linux) OsError fromErrno(int code) pure @safe
 {
     import core.stdc.errno : EACCES, EAGAIN, EEXIST, EINTR, EINVAL, EISDIR,
-        ENOENT, ENOTDIR, EPERM;
+        EMFILE, ENFILE, ENOENT, ENOMEM, ENOSPC, ENOTDIR, EPERM, EPIPE;
 
     if (code == 0)
         return OsError.init;
@@ -75,6 +77,15 @@ version (linux) OsError fromErrno(int code) pure @safe
             break;
         case EISDIR:
             kind = OsErrorKind.isDirectory;
+            break;
+        case EMFILE:
+        case ENFILE:
+        case ENOMEM:
+        case ENOSPC:
+            kind = OsErrorKind.resourceExhausted;
+            break;
+        case EPIPE:
+            kind = OsErrorKind.brokenPipe;
             break;
         default:
             break;
