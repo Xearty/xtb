@@ -166,7 +166,7 @@ bytes including invalid UTF-8 and NUL.
 
 Copyable borrowed descriptions and policy values are passed as
 `scope const(T)` values. This includes `Command`, `SpawnOptions`,
-`CommunicateOptions`, `RunOptions`, `PipelineSpec`, and pipeline run options.
+`CommunicateOptions`, `RunOptions`, `PipelineSpec`, and `PipelineRunOptions`.
 Their copies are shallow descriptors, and `scope` prevents their referenced
 data from escaping. Do not expose a required `const(T)*` merely to avoid this
 small copy: it introduces meaningless nullability and forces `&value` at a
@@ -190,9 +190,27 @@ Other mutations, including process state transitions, use pointers so the call
 site makes consumption visible:
 
 ```d
-WaitResult waited = waitFor(&child, Timeout.afterMilliseconds(500));
+WaitResult waited = waitFor(&child, Timeout.after(milliseconds(500)));
 ProcessError error = terminateAndWait(&child, &status);
 ```
+
+Options are ordinary copyable policy values, not separate builder owners.
+Every options type has a useful `.init`, and commonly useful presets may be
+static factories such as `RunOptions.capture()`. Free UFCS transformations take
+an options value, modify its copy, and return that copy:
+
+```d
+RunOptions options = RunOptions.capture()
+    .withTimeout(milliseconds(2_000))
+    .withCaptureLimit(mebibytes(4))
+    .mergingStderr();
+```
+
+These transformations are allocation-free and cannot accumulate a hidden
+error. Public fields remain available for direct aggregate construction and
+unusual combinations. Do not introduce a stateful `RunOptionsBuilder`, sticky
+validity flag, required finalization call, or setters that mutate a temporary
+through a pointer.
 
 ## Errors and expected states
 
@@ -252,8 +270,10 @@ and leaves every borrowed or caller-owned input untouched.
 
 ## Timeouts
 
-Extend `xtb.os.time` with a tagged value whose zero state means infinite; do
-not use an `milliseconds + infinite bool` pair:
+Process waiting uses the finite, nonnegative `Duration` from
+`xtb.core.duration`. Extend `xtb.os.time` with a tagged policy value whose zero
+state means infinite; do not assign a sentinel meaning to `Duration.init` or
+use a `duration + infinite bool` pair:
 
 ```d
 enum TimeoutKind : ubyte
@@ -266,14 +286,19 @@ enum TimeoutKind : ubyte
 struct Timeout
 {
     private TimeoutKind kind_;
-    private u64 nanoseconds_;
+    private Duration duration_;
 
     static Timeout infinite() pure @safe;
     static Timeout immediate() pure @safe;
-    static Timeout afterNanoseconds(u64 value) pure @safe;
-    static Timeout afterMilliseconds(u64 value) pure @safe;
+    static Timeout after(Duration duration) pure @safe;
 }
 ```
+
+`Timeout.init` and `Timeout.infinite` are equivalent. `Timeout.immediate`
+requests one nonblocking observation. `Timeout.after(Duration.init)` is
+normalized to `Timeout.immediate`; a finite timeout therefore always contains
+a nonzero `Duration`. Accessors expose the kind and require the finite state
+before returning its duration.
 
 A finite timeout is relative to entry into the operation. The backend converts
 it once to a monotonic absolute deadline, saturating only the deadline addition
@@ -281,10 +306,8 @@ after explicitly checking overflow. Failure to read the monotonic clock is an
 error. Repeated `EINTR` processing recomputes the remaining duration against
 the same deadline, so signals cannot extend the timeout.
 
-Unit-converting factories validate before multiplication. The ordinary
-`afterMilliseconds` factory panics when its argument cannot be represented in
-nanoseconds, matching the project's direct numeric helpers; an explicitly
-named `tryAfterMilliseconds` variant may be provided for data-driven input.
+Unit conversion belongs only to the core helpers such as `milliseconds`;
+`Timeout` must not duplicate those factories.
 
 ## Pipes
 
@@ -582,6 +605,18 @@ struct SpawnOptions
     SignalMaskPolicy signalMask;
 }
 
+SpawnOptions withStdin(SpawnOptions options, InputRoute route) pure @safe;
+SpawnOptions withStdout(SpawnOptions options, OutputRoute route) pure @safe;
+SpawnOptions withStderr(SpawnOptions options, ErrorRoute route) pure @safe;
+SpawnOptions withIsolation(
+    SpawnOptions options,
+    ProcessIsolation isolation,
+) pure @safe;
+SpawnOptions withSignalMask(
+    SpawnOptions options,
+    SignalMaskPolicy policy,
+) pure @safe;
+
 ProcessError spawn(
     scope const(Command) command,
     scope const(SpawnOptions) options,
@@ -674,8 +709,22 @@ struct CommunicateOptions
 {
     Timeout timeout;
     TimeoutAction timeoutAction;
-    u64 terminationGraceNanoseconds;
+    Duration terminationGrace;
 }
+
+CommunicateOptions withTimeout(
+    CommunicateOptions options,
+    Duration duration,
+) pure @safe;
+CommunicateOptions withoutTimeout(CommunicateOptions options) pure @safe;
+CommunicateOptions withTimeoutAction(
+    CommunicateOptions options,
+    TimeoutAction action,
+) pure @safe;
+CommunicateOptions withTerminationGrace(
+    CommunicateOptions options,
+    Duration duration,
+) pure @safe;
 
 struct CommunicateResult
 {
@@ -772,8 +821,33 @@ struct RunOptions
     size_t maxStderrBytes = 16 * 1024 * 1024;
     ProcessIsolation isolation = ProcessIsolation.isolatedTree;
     TimeoutAction timeoutAction = TimeoutAction.kill;
-    u64 terminationGraceNanoseconds;
+    Duration terminationGrace;
+
+    static RunOptions capture() pure @safe;
+    static RunOptions inherited() pure @safe;
 }
+
+RunOptions withTimeout(RunOptions options, Duration duration) pure @safe;
+RunOptions withoutTimeout(RunOptions options) pure @safe;
+RunOptions withInputMode(RunOptions options, RunInputMode mode) pure @safe;
+RunOptions withOutputMode(RunOptions options, RunOutputMode mode) pure @safe;
+RunOptions withErrorMode(RunOptions options, RunErrorMode mode) pure @safe;
+RunOptions withCaptureLimit(RunOptions options, size_t bytes) pure @safe;
+RunOptions withStdoutLimit(RunOptions options, size_t bytes) pure @safe;
+RunOptions withStderrLimit(RunOptions options, size_t bytes) pure @safe;
+RunOptions withIsolation(
+    RunOptions options,
+    ProcessIsolation isolation,
+) pure @safe;
+RunOptions withTimeoutAction(
+    RunOptions options,
+    TimeoutAction action,
+) pure @safe;
+RunOptions withTerminationGrace(
+    RunOptions options,
+    Duration duration,
+) pure @safe;
+RunOptions mergingStderr(RunOptions options) pure @safe;
 
 ProcessError run(
     scope const(Command) command,
@@ -799,6 +873,14 @@ immediate EOF), uses an infinite timeout, limits each capture to 16 MiB, and
 uses isolated-tree cleanup so a finite timeout cannot leave descendants holding
 capture pipes. A caller must opt into unlimited capture by setting
 `size_t.max`; no convenience API silently grows without a bound.
+
+`RunOptions.capture()` is the explicit spelling of `.init` and
+`RunOptions.inherited()` changes all three standard streams to inherited while
+preserving the remaining safety defaults. `withCaptureLimit` applies the same
+bound to stdout and stderr; the stream-specific variants allow asymmetric
+bounds. `mergingStderr` selects `RunErrorMode.mergeWithStdout`. The timeout
+action and grace transformations are separate because grace is ignored unless
+the selected action performs cooperative termination before forceful cleanup.
 
 `run` composes spawn and communicate and never returns a live child. On native
 or allocation failure it kills/reaps any started child, destroys partial owned
@@ -843,6 +925,76 @@ struct PipelineSpec
     PipelineSuccess success;
     ProcessIsolation isolation;
 }
+
+enum PipelineErrorMode : ubyte
+{
+    captureEach,
+    inherited,
+    discard,
+}
+
+struct PipelineRunOptions
+{
+    Timeout timeout = Timeout.init;
+    RunInputMode stdinMode = RunInputMode.provided;
+    RunOutputMode stdoutMode = RunOutputMode.capture;
+    PipelineErrorMode stderrMode = PipelineErrorMode.captureEach;
+    size_t maxStdoutBytes = 16 * 1024 * 1024;
+    size_t maxStderrBytesPerStage = 16 * 1024 * 1024;
+    PipelineSuccess success = PipelineSuccess.lastStage;
+    ProcessIsolation isolation = ProcessIsolation.isolatedTree;
+    TimeoutAction timeoutAction = TimeoutAction.kill;
+    Duration terminationGrace;
+
+    static PipelineRunOptions capture() pure @safe;
+    static PipelineRunOptions inherited() pure @safe;
+}
+
+PipelineRunOptions withTimeout(
+    PipelineRunOptions options,
+    Duration duration,
+) pure @safe;
+PipelineRunOptions withoutTimeout(PipelineRunOptions options) pure @safe;
+PipelineRunOptions withInputMode(
+    PipelineRunOptions options,
+    RunInputMode mode,
+) pure @safe;
+PipelineRunOptions withOutputMode(
+    PipelineRunOptions options,
+    RunOutputMode mode,
+) pure @safe;
+PipelineRunOptions withErrorMode(
+    PipelineRunOptions options,
+    PipelineErrorMode mode,
+) pure @safe;
+PipelineRunOptions withCaptureLimit(
+    PipelineRunOptions options,
+    size_t bytes,
+) pure @safe;
+PipelineRunOptions withStdoutLimit(
+    PipelineRunOptions options,
+    size_t bytes,
+) pure @safe;
+PipelineRunOptions withStderrLimitPerStage(
+    PipelineRunOptions options,
+    size_t bytes,
+) pure @safe;
+PipelineRunOptions withSuccessPolicy(
+    PipelineRunOptions options,
+    PipelineSuccess success,
+) pure @safe;
+PipelineRunOptions withIsolation(
+    PipelineRunOptions options,
+    ProcessIsolation isolation,
+) pure @safe;
+PipelineRunOptions withTimeoutAction(
+    PipelineRunOptions options,
+    TimeoutAction action,
+) pure @safe;
+PipelineRunOptions withTerminationGrace(
+    PipelineRunOptions options,
+    Duration duration,
+) pure @safe;
 ```
 
 The convenience overload accepting `const(Command)[]` constructs uniform
@@ -876,10 +1028,51 @@ owned group. The public contract is tree cleanup for each stage, not a promise
 that all stages share one native group identifier. Windows uses one job object
 when supported.
 
-The one-shot `runPipeline` mirrors `run`: it uses explicit output allocation,
-bounded capture, no live owner on return, and an owning array of every stage's
-`ExitStatus`. The pipeline success policy is a query on those statuses; it is
-not a spawn/communication error.
+The one-shot `runPipeline` mirrors `run`, but keeps its own options type because
+captured stderr and success policy are stage-aware. `PipelineErrorMode` does
+not have a merge-with-stdout state: merging an intermediate stage's stderr into
+its stdout would corrupt the byte stream sent to the next stage. The captured
+stderr limit applies independently to each stage, making the total worst-case
+storage explicit from the stage count.
+
+```d
+struct PipelineStageOutput
+{
+    ExitStatus exitStatus;
+    Array!u8 stderr;
+    bool stderrTruncated;
+}
+
+struct PipelineOutput
+{
+    @disable this(this);
+
+    RunState state;
+    Array!u8 stdout;
+    bool stdoutTruncated;
+    size_t inputWritten;
+    Array!PipelineStageOutput stages;
+
+    void deinit();
+}
+
+ProcessError runPipeline(
+    scope const(Command)[] commands,
+    scope const(u8)[] input,
+    scope const(PipelineRunOptions) options,
+    Allocator* allocator,
+    PipelineOutput* output,
+);
+```
+
+`PipelineRunOptions.capture()` is equivalent to `.init`.
+`PipelineRunOptions.inherited()` changes all standard streams to inherited.
+`withCaptureLimit` applies its bound to final stdout and independently to each
+stage's stderr; the two specific limit transformations allow asymmetric bounds.
+The operation uses explicit output allocation, bounded capture, no live owner
+on return, and an owning stage output for every input command. The pipeline
+success policy is a query on those statuses; it is not a spawn/communication
+error.
 
 ## Shell execution
 
@@ -1062,8 +1255,8 @@ ThreadContextScope thread = ThreadContextScope.acquire();
 String[2] arguments = ["--format", "short"];
 Command command = Command.search("tool", arguments[]);
 
-RunOptions options = RunOptions.captureDefaults();
-options.timeout = Timeout.afterMilliseconds(2_000);
+RunOptions options = RunOptions.capture()
+    .withTimeout(milliseconds(2_000));
 
 RunOutput output;
 ProcessError error = run(
@@ -1082,10 +1275,10 @@ if (!output.exitStatus.succeeded)
 ### Managed streaming
 
 ```d
-SpawnOptions options;
-options.stdin = InputRoute.piped();
-options.stdout = OutputRoute.piped();
-options.stderr = ErrorRoute.piped();
+SpawnOptions options = SpawnOptions.init
+    .withStdin(InputRoute.piped())
+    .withStdout(OutputRoute.piped())
+    .withStderr(ErrorRoute.piped());
 
 ChildProcess child;
 ProcessError error = spawn(command, options, &child);
@@ -1109,7 +1302,8 @@ Command[2] commands = [
 PipelineOutput output;
 ProcessError error = runPipeline(
     commands[],
-    PipelineRunOptions.captureDefaults(),
+    null,
+    PipelineRunOptions.capture(),
     mallocAllocator(),
     &output,
 );
