@@ -102,8 +102,8 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
     /// Number of bits in the selected storage type.
     enum size_t bitCapacity = Storage.sizeof * 8;
 
-    /// Number of named flags in the enum.
-    enum size_t flagCount = __traits(allMembers, Flag).length;
+    /// Number of atomic flags declared by the enum.
+    enum size_t declaredCount = __traits(allMembers, Flag).length;
 
     static foreach (name; __traits(allMembers, Flag))
     {
@@ -281,11 +281,11 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
         return (bits_ & other.bits_) != 0;
     }
 
-    /// Returns the number of enabled flags.
-    uint count() const pure @safe
+    /// Returns the number of flags enabled in this value.
+    size_t enabledCount() const pure @safe
     {
         Storage remaining = bits_;
-        uint result;
+        size_t result;
         while (remaining != 0)
         {
             remaining = cast(Storage)(remaining & (remaining - 1));
@@ -437,7 +437,7 @@ version (unittest)
     unittest
     {
         static assert(Permissions.bitCapacity == 8);
-        static assert(Permissions.flagCount == 4);
+        static assert(Permissions.declaredCount == 4);
         static assert(Permissions.validMask == 0b1000_0111);
         static assert(Permissions.sizeof == ubyte.sizeof);
         static assert(is(typeof(readWrite) == Permissions));
@@ -448,7 +448,7 @@ version (unittest)
         assert(permissions.contains(Permission.read));
         assert(permissions.contains(Permission.write));
         assert(!permissions.contains(Permission.execute));
-        assert(permissions.count == 2);
+        assert(permissions.enabledCount == 2);
 
         permissions.enable(Permission.execute);
         assert(permissions.bits == 0b0000_0111);

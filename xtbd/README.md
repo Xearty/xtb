@@ -78,6 +78,8 @@ with undeclared bits deliberately truncated.
 Use `enable`, `disable`, and `toggle` to mutate a set, or `enabled`, `disabled`,
 and `toggled` to derive a changed value without changing the original.
 `foreach (flag; flags)` visits enabled values in enum declaration order.
+Use `flags.enabledCount` for the number currently enabled and
+`Flags.declaredCount` for the number of atomic enum members.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,

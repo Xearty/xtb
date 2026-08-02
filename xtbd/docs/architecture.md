@@ -1038,6 +1038,9 @@ later, must compose `xtb.serde` with `xtb.os`.
   the set type, for example
   `enum readWrite = Permissions.of(Permission.read, Permission.write)`, rather
   than adding an overlapping `Permission.readWrite` enum member.
+  `enabledCount` reports the population of one set value, `declaredCount`
+  reports the number of atomic enum members, and `bitCapacity` reports the
+  selected storage width.
   Casts can manufacture undeclared D enum values, so every flag-taking
   operation validates before shifting and panics on an invalid value in every
   build mode. Use `tryFromBits` for recoverable raw-input validation,
