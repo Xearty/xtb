@@ -164,6 +164,27 @@ spawn operation returns; the spawned process never borrows D memory. Output is
 `u8[]`/`Array!u8`, not `StringBuf`, because a child may emit arbitrary binary
 bytes including invalid UTF-8 and NUL.
 
+Copyable borrowed descriptions and policy values are passed as
+`scope const(T)` values. This includes `Command`, `SpawnOptions`,
+`CommunicateOptions`, `RunOptions`, `PipelineSpec`, and pipeline run options.
+Their copies are shallow descriptors, and `scope` prevents their referenced
+data from escaping. Do not expose a required `const(T)*` merely to avoid this
+small copy: it introduces meaningless nullability and forces `&value` at a
+call site where no mutation occurs. The native ABI remains free to lower a
+value argument indirectly.
+
+The project does not use `in` as shorthand for this contract. Modern `in`
+acquires scope semantics only with `-preview=in`, while this project currently
+enables DIP1000 without that separate preview. Spelling `scope const(T)` keeps
+the source-level lifetime contract explicit and independent of compiler
+argument-passing choices.
+
+Pointers remain appropriate for mutable outputs/state transitions, optional
+objects, the intrusive `Allocator*` handle, accessors returning an interior
+owner, and borrowed non-copyable resource identity. For example,
+`scope const(ChildProcess)*` may identify the one owned native process for a
+non-consuming signal operation; copying a `ChildProcess` value is forbidden.
+
 Mutating UFCS operations may use `ref` only for their first owning receiver.
 Other mutations, including process state transitions, use pointers so the call
 site makes consumption visible:
@@ -562,8 +583,8 @@ struct SpawnOptions
 }
 
 ProcessError spawn(
-    scope const(Command)* command,
-    scope const(SpawnOptions)* options,
+    scope const(Command) command,
+    scope const(SpawnOptions) options,
     ChildProcess* output,
 );
 
@@ -669,7 +690,7 @@ CommunicateResult communicate(
     scope const(u8)[] input,
     CaptureBuffer* stdoutCapture,
     CaptureBuffer* stderrCapture,
-    scope const(CommunicateOptions)* options,
+    scope const(CommunicateOptions) options,
 );
 ```
 
@@ -755,17 +776,17 @@ struct RunOptions
 }
 
 ProcessError run(
-    scope const(Command)* command,
+    scope const(Command) command,
     scope const(u8)[] input,
-    scope const(RunOptions)* options,
+    scope const(RunOptions) options,
     Allocator* allocator,
     RunOutput* output,
 );
 
 RunOutput runOrPanic(
-    scope const(Command)* command,
+    scope const(Command) command,
     scope const(u8)[] input,
-    scope const(RunOptions)* options,
+    scope const(RunOptions) options,
     Allocator* allocator,
 );
 ```
@@ -1046,9 +1067,9 @@ options.timeout = Timeout.afterMilliseconds(2_000);
 
 RunOutput output;
 ProcessError error = run(
-    &command,
+    command,
     null,
-    &options,
+    options,
     mallocAllocator(),
     &output,
 );
@@ -1067,7 +1088,7 @@ options.stdout = OutputRoute.piped();
 options.stderr = ErrorRoute.piped();
 
 ChildProcess child;
-ProcessError error = spawn(&command, &options, &child);
+ProcessError error = spawn(command, options, &child);
 if (error.failed)
     return 1;
 
