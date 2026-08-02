@@ -36,7 +36,8 @@ extern (C) int main() nothrow @nogc
     logger.logf!"processed {} values"(LogLevel.info, numbers.length);
 
     alias Permissions = BitFlags!Permission;
-    auto permissions = Permissions.of(Permission.read, Permission.write);
+    auto permissions = Permissions.of(Permission.read)
+        .enabled(Permission.write);
     permissions.enable(Permission.execute);
     formatln!"enabled permissions: {}"(permissions.count);
     return 0;

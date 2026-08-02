@@ -1028,6 +1028,9 @@ later, must compose `xtb.serde` with `xtb.os`.
   `ulong` explicitly wherever size is part of an ABI or persistent format.
   `BitFlags.init` is empty. Mutate individual flags through the UFCS verbs
   `enable`, `disable`, and `toggle`; use `clear` and `fill` for the whole set.
+  The corresponding `enabled`, `disabled`, and `toggled` functions return a
+  changed value while leaving their input unchanged. `of(flag)` constructs a
+  singleton set; there is no second singleton factory.
   Casts can manufacture undeclared D enum values, so every flag-taking
   operation validates before shifting and panics on an invalid value in every
   build mode. Use `tryFromBits` for recoverable raw-input validation,

@@ -75,6 +75,8 @@ fitting unsigned storage type by default. Specify its storage type explicitly
 for ABI or serialized layouts. Invalid cast-created enum values panic instead
 of shifting by an unchecked position; raw masks can be decoded strictly or
 with undeclared bits deliberately truncated.
+Use `enable`, `disable`, and `toggle` to mutate a set, or `enabled`, `disabled`,
+and `toggled` to derive a changed value without changing the original.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,

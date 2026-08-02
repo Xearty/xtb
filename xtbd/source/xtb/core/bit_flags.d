@@ -189,12 +189,6 @@ struct BitFlags(Flag, Storage = DefaultFlagStorage!Flag)
         return fromValidBits(validMask);
     }
 
-    /// Returns a set containing only `flag`.
-    static BitFlags one(Flag flag) @safe
-    {
-        return fromValidBits(maskOf(flag));
-    }
-
     /// Returns a set containing all supplied flags.
     static BitFlags of(Flags...)(Flags flags) @safe
     {
@@ -362,6 +356,36 @@ void toggle(Flag, Storage)(ref BitFlags!(Flag, Storage) flags, Flag flag) @safe
     flags.bits_ = cast(Storage)(flags.bits_ ^ flags.maskOf(flag));
 }
 
+/// Returns a copy of `flags` with `flag` enabled.
+BitFlags!(Flag, Storage) enabled(Flag, Storage)(
+    BitFlags!(Flag, Storage) flags,
+    Flag flag,
+) @safe
+{
+    flags.enable(flag);
+    return flags;
+}
+
+/// Returns a copy of `flags` with `flag` disabled.
+BitFlags!(Flag, Storage) disabled(Flag, Storage)(
+    BitFlags!(Flag, Storage) flags,
+    Flag flag,
+) @safe
+{
+    flags.disable(flag);
+    return flags;
+}
+
+/// Returns a copy of `flags` with `flag` toggled.
+BitFlags!(Flag, Storage) toggled(Flag, Storage)(
+    BitFlags!(Flag, Storage) flags,
+    Flag flag,
+) @safe
+{
+    flags.toggle(flag);
+    return flags;
+}
+
 /// Disables every flag.
 void clear(Flag, Storage)(ref BitFlags!(Flag, Storage) flags) pure @safe
 {
@@ -414,9 +438,9 @@ version (unittest)
 
     unittest
     {
-        const read = Permissions.one(Permission.read);
-        const write = Permissions.one(Permission.write);
-        const execute = Permissions.one(Permission.execute);
+        const read = Permissions.of(Permission.read);
+        const write = Permissions.of(Permission.write);
+        const execute = Permissions.of(Permission.execute);
 
         assert((read | write).bits == 0b0000_0011);
         assert(((read | write) & write) == write);
@@ -425,7 +449,7 @@ version (unittest)
         assert((~Permissions.init).isFull);
         assert((~Permissions.all).isEmpty);
 
-        auto combined = Permissions.one(Permission.read);
+        auto combined = Permissions.of(Permission.read);
         combined |= write;
         combined |= execute;
         combined &= read | execute;
@@ -435,7 +459,7 @@ version (unittest)
 
     unittest
     {
-        Permissions decoded = Permissions.one(Permission.write);
+        Permissions decoded = Permissions.of(Permission.write);
         assert(Permissions.acceptsBits(0b1000_0101));
         assert(Permissions.tryFromBits(0b1000_0101, &decoded));
         assert(decoded.bits == 0b1000_0101);
@@ -450,6 +474,18 @@ version (unittest)
         assert(Permissions.isDeclared(Permission.administer));
         assert(!Permissions.isDeclared(cast(Permission) 3));
         assert(!Permissions.isDeclared(cast(Permission)-1));
+    }
+
+    unittest
+    {
+        const original = Permissions.of(Permission.read);
+        const changed = original
+            .enabled(Permission.write)
+            .toggled(Permission.read)
+            .disabled(Permission.write);
+
+        assert(original == Permissions.of(Permission.read));
+        assert(changed.isEmpty);
     }
 
     private enum WideFlag : ulong
