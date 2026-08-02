@@ -94,6 +94,8 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         seconds(1) * -1;
     if (cStringEqual(name, "duration-division-by-zero"))
         seconds(1) / 0;
+    if (cStringEqual(name, "string-bytes-null-output"))
+        StringBuf.tryFromBytesUnchecked(mallocAllocator(), null, null);
     if (cStringEqual(name, "bit-flags-invalid-value"))
     {
         FlagSet!DeathFlag flags;
@@ -379,6 +381,7 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "duration-multiplication-overflow");
         expectDeath(arguments[0], "duration-negative-scale");
         expectDeath(arguments[0], "duration-division-by-zero");
+        expectDeath(arguments[0], "string-bytes-null-output");
         expectDeath(arguments[0], "bit-flags-invalid-value");
         expectDeath(arguments[0], "bit-flags-invalid-mask");
         expectDeath(arguments[0], "bit-flags-null-output");

@@ -493,12 +493,30 @@ The zero value is the valid empty string. Expected failure is represented by a
 Embedded NUL bytes are allowed and `length` never includes an optional C
 terminator.
 
-Strings are byte-addressed. Text-producing APIs emit UTF-8, but the core view
-does not silently validate, normalize, count code points, or reinterpret bytes.
-APIs requiring valid UTF-8 validate explicitly and report an error. File paths
-and other platform byte strings may use `String` without pretending that
-every sequence is Unicode. Unicode-aware iteration and transformation belong
-in explicitly named utilities.
+Strings are byte-addressed. The intended ordinary contract is valid UTF-8, but
+the `String` alias cannot enforce that invariant by construction yet. Text-
+producing APIs emit UTF-8. APIs do not silently normalize or count code points;
+operations needing Unicode semantics validate explicitly until shared UTF-8
+validation is available. File paths and other platform byte strings should use
+their own byte-oriented abstractions rather than pretending every sequence is
+Unicode. Unicode-aware iteration and transformation belong in explicitly named
+utilities.
+
+Binary data crosses into the string API only through visibly unchecked
+boundaries:
+
+```d
+String borrowed = bytes.asStringUnchecked();
+StringBuf owned = StringBuf.fromBytesUnchecked(allocator, bytes);
+```
+
+`asStringUnchecked` performs no allocation or UTF-8 validation and returns a
+read-only view with exactly the source slice's lifetime. Mutation through a
+different alias remains observable. `fromBytesUnchecked` copies the exact bytes
+into independent owned storage; its `tryFromBytesUnchecked` counterpart reports
+allocation failure. Embedded NUL and invalid UTF-8 are preserved. Values made
+through these escape hatches must not be passed to APIs requiring valid UTF-8
+without validation. Do not scatter equivalent casts through user code.
 
 #### `StringBuf`: owned mutable storage
 

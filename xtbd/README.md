@@ -87,6 +87,11 @@ construct `Duration` values. Arithmetic is checked and floating-point counts
 are intentionally rejected. `Duration` represents only finite nonnegative
 spans; timeout policies add infinity or immediacy as separate tagged states.
 
+Binary bytes may be borrowed explicitly as `String` with
+`asStringUnchecked`, or copied into an owned `StringBuf` with
+`StringBuf.fromBytesUnchecked`. Both preserve bytes exactly and deliberately
+skip UTF-8 validation.
+
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,
 and OS targets do not. `just build` produces independent `libxtbd_core`,

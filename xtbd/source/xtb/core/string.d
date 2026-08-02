@@ -5,6 +5,7 @@ nothrow @nogc:
 public import xtb.core.types : String;
 
 import core.stdc.string : memcmp, memmove, strlen;
+import xtb.core.types : u8;
 import xtb.core.array : Array;
 import xtb.core.array : appendArray = append;
 import xtb.core.array : appendAssumeCapacityArray = appendAssumeCapacity;
@@ -22,6 +23,13 @@ import xtb.core.panic : panic, require;
 enum notFound = size_t.max;
 
 alias SplitPredicate = size_t function(String rest, void* context);
+
+/// Borrows arbitrary bytes as string storage without validating UTF-8.
+String asStringUnchecked(return scope const(u8)[] bytes)
+pure @trusted
+{
+    return cast(String) bytes;
+}
 
 String fromCString(const(char)* value) @system
 {
@@ -642,6 +650,30 @@ nothrow @nogc:
         return (*output).tryAppend(value);
     }
 
+    /// Copies arbitrary bytes without validating UTF-8.
+    static StringBuf fromBytesUnchecked(
+        Allocator* allocator,
+        scope const(u8)[] bytes,
+    )
+    {
+        StringBuf result;
+        if (!tryFromBytesUnchecked(allocator, bytes, &result))
+            panic("StringBuf allocation failed");
+        return result;
+    }
+
+    /// Fallible counterpart to `fromBytesUnchecked`.
+    static bool tryFromBytesUnchecked(
+        Allocator* allocator,
+        scope const(u8)[] bytes,
+        StringBuf* output,
+    )
+    {
+        require(output !is null, "StringBuf output pointer is null");
+        *output = create(allocator);
+        return (*output).bytes_.tryAppendArray(bytes.asStringUnchecked);
+    }
+
     package(xtb) static StringBuf adopt(
         Allocator* allocator,
         char* data,
@@ -951,6 +983,28 @@ unittest
     String cView = fromCString("native".ptr);
     assert(cView.equal("native"));
 
+    u8[4] binary = ['a', 0xff, 0, 'z'];
+    String unchecked = binary[].asStringUnchecked;
+    assert(unchecked.ptr is cast(const(char)*) binary.ptr);
+    assert(unchecked.length == binary.length);
+    assert(cast(u8) unchecked[1] == 0xff && unchecked[2] == '\0');
+
+    StringBuf copiedBytes = StringBuf.fromBytesUnchecked(
+        mallocAllocator(),
+        binary[],
+    );
+    binary[0] = 'b';
+    assert(unchecked[0] == 'b');
+    assert(copiedBytes.view[0] == 'a');
+    assert(cast(u8) copiedBytes.view[1] == 0xff);
+    assert(copiedBytes.view[2] == '\0');
+
+    StringBuf emptyBytes = StringBuf.fromBytesUnchecked(
+        mallocAllocator(),
+        null,
+    );
+    assert(emptyBytes.empty);
+
     String escaped = "a\n\t\\b".escape(mallocAllocator());
     assert(escaped.equal("a\\n\\t\\\\b"));
     mallocAllocator().deallocate(cast(void*) escaped.ptr, escaped.length + 1);
@@ -1006,4 +1060,12 @@ unittest
     String failedOutput = "unchanged";
     assert(!"copy".tryCopy(failing.handle, &failedOutput));
     assert(failedOutput.equal("unchanged"));
+
+    StringBuf failedBytes;
+    assert(!StringBuf.tryFromBytesUnchecked(
+            failing.handle,
+            binary[],
+            &failedBytes,
+    ));
+    assert(failedBytes.empty);
 }
