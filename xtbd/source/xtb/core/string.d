@@ -18,6 +18,7 @@ import xtb.core.array : tryAppendArray = tryAppend;
 import xtb.core.array : tryInsertArray = tryInsert;
 import xtb.core.array : tryReserveArray = tryReserve;
 import xtb.core.memory : Allocator, allocate, tryAllocate;
+import xtb.core.hash : hashValue;
 import xtb.core.panic : panic, require;
 
 enum notFound = size_t.max;
@@ -711,9 +712,24 @@ nothrow @nogc:
         return bytes_.allocator;
     }
 
-    String view() const return @system
+    String view() const return pure @system
     {
         return bytes_.slice;
+    }
+
+    bool opEquals(scope String other) const pure @trusted
+    {
+        return view.equal(other);
+    }
+
+    bool opEquals(scope ref const StringBuf other) const pure @trusted
+    {
+        return view.equal(other.view);
+    }
+
+    size_t toHash() const pure @trusted
+    {
+        return hashValue(view);
     }
 }
 
@@ -1026,14 +1042,33 @@ unittest
     assert(words[0].equal("alpha") && words[1].equal("beta"));
 
     StringBuf buffer = StringBuf.fromString(mallocAllocator(), "hello");
+    assert(buffer == "hello");
+    assert("hello" == buffer);
+    assert(buffer != "other");
+
+    char[5] mutableText = "hello";
+    assert(buffer == mutableText[]);
+    assert(mutableText[] == buffer);
+
+    StringBuf same = StringBuf.fromString(mallocAllocator(), "hello");
+    StringBuf different = StringBuf.fromString(mallocAllocator(), "Hello");
+    assert(buffer == same && same == buffer);
+    assert(buffer != different && different != buffer);
+    assert(buffer.toHash == same.toHash);
+
+    StringBuf emptyBuffer = StringBuf.create(mallocAllocator());
+    String emptyString;
+    assert(emptyBuffer == emptyString);
+    assert(emptyString == emptyBuffer);
+
     buffer.append(',');
     buffer.append(" world");
     buffer.prepend("say: ");
-    assert(buffer.view.equal("say: hello, world"));
+    assert(buffer == "say: hello, world");
     buffer.replaceInPlace("world", "BetterC library");
-    assert(buffer.view.equal("say: hello, BetterC library"));
+    assert(buffer == "say: hello, BetterC library");
     buffer.replaceInPlace("BetterC library", "D");
-    assert(buffer.view.equal("say: hello, D"));
+    assert(buffer == "say: hello, D");
     buffer.appendEscaped("\n");
     assert(buffer.view.endsWith("\\n"));
     assert(buffer.cString()[buffer.length] == '\0');
@@ -1043,14 +1078,14 @@ unittest
         "abcdefgh",
     );
     selfPrepend.prepend(selfPrepend.view);
-    assert(selfPrepend.view.equal("abcdefghabcdefgh"));
+    assert(selfPrepend == "abcdefghabcdefgh");
 
     StringBuf selfEscape = StringBuf.fromString(
         mallocAllocator(),
         "a\nbcdefg",
     );
     selfEscape.appendEscaped(selfEscape.view);
-    assert(selfEscape.view.equal("a\nbcdefga\\nbcdefg"));
+    assert(selfEscape == "a\nbcdefga\\nbcdefg");
 
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(

@@ -180,12 +180,12 @@ nothrow @nogc:
         return allocator_;
     }
 
-    T[] slice() return @system
+    T[] slice() return pure @system
     {
         return data_[0 .. length_];
     }
 
-    const(T)[] slice() const return @system
+    const(T)[] slice() const return pure @system
     {
         return data_[0 .. length_];
     }

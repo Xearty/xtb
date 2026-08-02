@@ -398,7 +398,7 @@ private void testSharedPolicies() nothrow @nogc
     Writer jsonWriter = Writer.fromSink(&bufferSink, &json);
     SerdeError error = writeJson(jsonWriter, value);
     assert(error.ok);
-    assert(json.view.equal("{\"mode\":\"rolling-update\"}"));
+    assert(json == "{\"mode\":\"rolling-update\"}");
 
     Deserialized!PolicyDocument fromJson;
     error = readJson("{\"mode\":\"rolling\"}", mallocAllocator(),
@@ -411,7 +411,7 @@ private void testSharedPolicies() nothrow @nogc
     Writer tomlWriter = Writer.fromSink(&bufferSink, &toml);
     error = writeToml(tomlWriter, value);
     assert(error.ok);
-    assert(toml.view.equal("mode = \"rolling-update\""));
+    assert(toml == "mode = \"rolling-update\"");
 
     Deserialized!PolicyDocument fromToml;
     error = readToml("mode = \"blue_green\"", mallocAllocator(),
@@ -425,7 +425,7 @@ private void testSharedPolicies() nothrow @nogc
     jsonWriter = Writer.fromSink(&bufferSink, &json);
     error = writeJson(jsonWriter, adapted);
     assert(error.ok);
-    assert(json.view.equal("{\"percentage\":75}"));
+    assert(json == "{\"percentage\":75}");
     AdapterDocument ownedJson;
     error = readJson(json.view, mallocAllocator(), &ownedJson);
     assert(error.ok);
@@ -435,7 +435,7 @@ private void testSharedPolicies() nothrow @nogc
     tomlWriter = Writer.fromSink(&bufferSink, &toml);
     error = writeToml(tomlWriter, adapted);
     assert(error.ok);
-    assert(toml.view.equal("percentage = 75"));
+    assert(toml == "percentage = 75");
     AdapterDocument ownedToml;
     error = readToml(toml.view, mallocAllocator(), &ownedToml);
     assert(error.ok);
@@ -487,8 +487,8 @@ private void testJsonTaggedUnions() nothrow @nogc
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, external);
     assert(error.ok);
-    assert(encoded.view.equal(
-            "{\"record_created\":{\"id\":17,\"displayName\":\"new record\"}}"));
+    assert(encoded ==
+            "{\"record_created\":{\"id\":17,\"displayName\":\"new record\"}}");
 
     Deserialized!ExternalEvent decodedExternal;
     error = readJson(encoded.view, mallocAllocator(), &decodedExternal);
@@ -504,8 +504,8 @@ private void testJsonTaggedUnions() nothrow @nogc
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, internal);
     assert(error.ok);
-    assert(encoded.view.equal(
-            "{\"event_type\":\"removed\",\"id\":9,\"permanent\":true}"));
+    assert(encoded ==
+            "{\"event_type\":\"removed\",\"id\":9,\"permanent\":true}");
 
     Deserialized!InternalEvent decodedInternal;
     error = readJson(
@@ -523,9 +523,9 @@ private void testJsonTaggedUnions() nothrow @nogc
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, adjacent);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "{\"event_type\":\"record_created\",\"event_data\":{" ~
-            "\"id\":23,\"displayName\":\"adjacent\"}}"));
+            "\"id\":23,\"displayName\":\"adjacent\"}}");
 
     Deserialized!AdjacentEvent decodedAdjacent;
     error = readJson(
@@ -552,9 +552,9 @@ private void testTomlTaggedUnions() nothrow @nogc
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, external);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "event = { \"record_created\" = { id = 17, " ~
-            "displayName = \"new record\" } }"));
+            "displayName = \"new record\" } }");
 
     Deserialized!ExternalEnvelope decodedExternal;
     error = readToml(encoded.view, mallocAllocator(), &decodedExternal);
@@ -569,8 +569,8 @@ private void testTomlTaggedUnions() nothrow @nogc
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, internal);
     assert(error.ok);
-    assert(encoded.view.equal(
-            "event = { event_type = \"removed\", id = 9, permanent = true }"));
+    assert(encoded ==
+            "event = { event_type = \"removed\", id = 9, permanent = true }");
 
     Deserialized!InternalEnvelope decodedInternal;
     error = readToml(
@@ -588,9 +588,9 @@ private void testTomlTaggedUnions() nothrow @nogc
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, adjacent);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "event = { event_type = \"record_created\", event_data = { " ~
-            "id = 23, displayName = \"adjacent\" } }"));
+            "id = 23, displayName = \"adjacent\" } }");
 
     Deserialized!AdjacentEnvelope decodedAdjacent;
     error = readToml(
@@ -611,9 +611,9 @@ private void testTomlTaggedUnions() nothrow @nogc
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, adjacent.event);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "event_type = \"record_created\"\n" ~
-            "event_data = { id = 23, displayName = \"adjacent\" }"));
+            "event_data = { id = 23, displayName = \"adjacent\" }");
     Deserialized!AdjacentEvent rootAdjacent;
     error = readToml(
         "event_data = { id = 23, displayName = \"adjacent\" }\n" ~
@@ -659,7 +659,7 @@ private void testJsonRoundTrip() nothrow @nogc
     writeOptions.pretty = true;
     SerdeError error = writeJson(writer, settings, writeOptions);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "{\n" ~
             "  \"api-version\": 3,\n" ~
             "  \"active\": true,\n" ~
@@ -675,7 +675,7 @@ private void testJsonRoundTrip() nothrow @nogc
             "    7,\n" ~
             "    9\n" ~
             "  ]\n" ~
-            "}"));
+            "}");
 
     Deserialized!Settings decoded;
     error = readJson(encoded.view, mallocAllocator(), &decoded);
@@ -775,7 +775,7 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
     options.keyCase = KeyCase.snake;
     SerdeError error = writeJson(writer, value, options);
     assert(error.ok);
-    assert(encoded.view.equal("{\"http_server_id\":7,\"fixed-key\":9}"));
+    assert(encoded == "{\"http_server_id\":7,\"fixed-key\":9}");
 
     Deserialized!CasingDocument decoded;
     JsonReadOptions readOptions;
@@ -793,13 +793,13 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
     Writer omittedWriter = Writer.fromSink(&bufferSink, &omitted);
     error = writeJson(omittedWriter, defaults);
     assert(error.ok);
-    assert(omitted.view.equal("{\"enabled\":false}"));
+    assert(omitted == "{\"enabled\":false}");
     defaults.retryCount = 0;
     omitted.clear();
     omittedWriter = Writer.fromSink(&bufferSink, &omitted);
     error = writeJson(omittedWriter, defaults);
     assert(error.ok);
-    assert(omitted.view.equal("{\"retryCount\":0,\"enabled\":false}"));
+    assert(omitted == "{\"retryCount\":0,\"enabled\":false}");
 }
 
 private void testJsonAllocationFailures() nothrow @nogc
@@ -886,9 +886,9 @@ private void testJsonOptions() nothrow @nogc
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, value);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "{\"title\":\"release\",\"priority\":4,\"child\":null," ~
-            "\"explicit_toggle\":true}"));
+            "\"explicit_toggle\":true}");
 }
 
 private void testTomlRoundTrip() nothrow @nogc
@@ -907,12 +907,12 @@ private void testTomlRoundTrip() nothrow @nogc
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, document);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "application_name = \"demo\"\n" ~
             "database = { hostName = \"db.local\", port = 5432 }\n" ~
             "servers = [{ name = \"primary\", enabled = true }, " ~
             "{ name = \"backup\", enabled = false }]\n" ~
-            "ratio = 0.125"));
+            "ratio = 0.125");
 
     Deserialized!TomlDocument decoded;
     error = readToml(encoded.view, mallocAllocator(), &decoded);
@@ -1029,7 +1029,7 @@ private void testTomlOptions() nothrow @nogc
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, value);
     assert(error.ok);
-    assert(encoded.view.equal("priority = 4\nexplicit_toggle = true"));
+    assert(encoded == "priority = 4\nexplicit_toggle = true");
 
     error = readToml("priority = 1\n", mallocAllocator(), &decoded);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
@@ -1059,8 +1059,8 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         assert(error.ok);
         assert(value.title.isNone);
         assert(value.endpoint.isSome);
-        assert(value.endpoint.value.hostName.view.equal("api.internal"));
-        assert(value.endpoint.value.labels[0].view.equal("tls"));
+        assert(value.endpoint.value.hostName == "api.internal");
+        assert(value.endpoint.value.labels[0] == "tls");
         assert(value.revision.value == 3);
 
         StringBuf title = StringBuf.fromString(allocator.handle, "release");
@@ -1071,18 +1071,18 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         Writer writer = Writer.fromSink(&bufferSink, &encoded);
         error = writeJson(writer, value);
         assert(error.ok);
-        assert(encoded.view.equal(
+        assert(encoded ==
                 "{\"title\":\"release\",\"endpoint\":{" ~
                 "\"host_name\":\"api.internal.test\",\"port\":8443," ~
                 "\"labels\":[\"tls\"]},\"revision\":3," ~
-                "\"explicit_toggle\":true}"));
+                "\"explicit_toggle\":true}");
 
         error = readToml(tomlInput, allocator.handle, &value);
         assert(error.ok);
-        assert(value.title.value.view.equal("scheduler"));
+        assert(value.title.value == "scheduler");
         assert(value.endpoint.isSome);
-        assert(value.endpoint.value.hostName.view.equal("jobs.internal"));
-        assert(value.endpoint.value.labels[0].view.equal("stable"));
+        assert(value.endpoint.value.hostName == "jobs.internal");
+        assert(value.endpoint.value.labels[0] == "stable");
         assert(value.revision.isNone);
     }
     assert(allocator.clean);
@@ -1127,12 +1127,12 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
     OwnedDocument document;
     SerdeError error = readJson(input, mallocAllocator(), &document);
     assert(error.ok);
-    assert(document.applicationName.view.equal("control plane"));
-    assert(document.primaryEndpoint.hostName.view.equal("api.internal"));
+    assert(document.applicationName == "control plane");
+    assert(document.primaryEndpoint.hostName == "api.internal");
     assert(document.primaryEndpoint.labels.length == 2);
     assert(document.replicaEndpoints.length == 2);
-    assert(document.replicaEndpoints[1].hostName.view.equal("api-2.internal"));
-    assert(document.featureFlags[0].view.equal("audit"));
+    assert(document.replicaEndpoints[1].hostName == "api-2.internal");
+    assert(document.featureFlags[0] == "audit");
 
     document.applicationName.clear();
     document.applicationName.append("edge plane");
@@ -1148,7 +1148,7 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, document);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "{\"application_name\":\"edge plane\"," ~
             "\"primary_endpoint\":{\"host_name\":\"api.internal.test\"," ~
             "\"port\":8443,\"labels\":[\"primary\",\"tls\"]}," ~
@@ -1157,7 +1157,7 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
             "{\"host_name\":\"api-2.internal\",\"port\":9443," ~
             "\"labels\":[\"canary\"]}]," ~
             "\"feature_flags\":[\"audit\",\"telemetry\",\"compression\"]," ~
-            "\"retry_delays\":[1,5,60]}"));
+            "\"retry_delays\":[1,5,60]}");
 }
 
 private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
@@ -1182,13 +1182,13 @@ private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
     OwnedDocument document;
     SerdeError error = readToml(first, mallocAllocator(), &document);
     assert(error.ok);
-    assert(document.applicationName.view.equal("scheduler"));
+    assert(document.applicationName == "scheduler");
     assert(document.replicaEndpoints.length == 1);
 
     error = readToml(replacement, mallocAllocator(), &document);
     assert(error.ok);
-    assert(document.applicationName.view.equal("worker"));
-    assert(document.primaryEndpoint.hostName.view.equal("worker.internal"));
+    assert(document.applicationName == "worker");
+    assert(document.primaryEndpoint.hostName == "worker.internal");
     assert(document.replicaEndpoints.empty);
     assert(document.featureFlags.length == 2);
     assert(document.tracingEnabled);
@@ -1198,14 +1198,14 @@ private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, document);
     assert(error.ok);
-    assert(encoded.view.equal(
+    assert(encoded ==
             "application_name = \"worker\"\n" ~
             "primary_endpoint = { host_name = \"worker.internal\", port = 9000, " ~
             "labels = [] }\n" ~
             "replica_endpoints = []\n" ~
             "feature_flags = [\"batch-v2\", \"priority\"]\n" ~
             "retry_delays = [1, 3, 9]\n" ~
-            "tracing_enabled = true"));
+            "tracing_enabled = true");
 }
 
 private void testOwnedDecodeIsTransactional() nothrow @nogc
@@ -1224,7 +1224,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
         &document,
     );
     assert(error.kind == SerdeErrorKind.typeMismatch);
-    assert(document.applicationName.view.equal("preserved"));
+    assert(document.applicationName == "preserved");
 
     error = readToml(
         "application_name = \"replacement\"\n" ~
@@ -1234,7 +1234,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
         &document,
     );
     assert(error.kind == SerdeErrorKind.typeMismatch);
-    assert(document.applicationName.view.equal("preserved"));
+    assert(document.applicationName == "preserved");
 
     error = readJson(
         "{\"application_name\":\"replacement succeeded\"}",
@@ -1242,7 +1242,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
         &document,
     );
     assert(error.ok);
-    assert(document.applicationName.view.equal("replacement succeeded"));
+    assert(document.applicationName == "replacement succeeded");
     assert(document.primaryEndpoint.hostName.allocator is allocator.handle);
     assert(document.featureFlags.allocator is allocator.handle);
     assert(document.description.allocator is allocator.handle);
@@ -1250,9 +1250,9 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
     document.primaryEndpoint.hostName.append("initialized after decode");
     StringBuf lateFlag = StringBuf.fromString(allocator.handle, "late");
     document.featureFlags.append(move(lateFlag));
-    assert(document.primaryEndpoint.hostName.view.equal(
-            "initialized after decode"));
-    assert(document.featureFlags[0].view.equal("late"));
+    assert(document.primaryEndpoint.hostName ==
+            "initialized after decode");
+    assert(document.featureFlags[0] == "late");
     destroy(document);
     assert(allocator.clean);
     assert(allocator.stats.invalidCalls == 0);
@@ -1278,7 +1278,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
             SerdeError error = readJson(input, allocator.handle, &document);
             if (error.ok)
             {
-                assert(document.applicationName.view.equal("owned"));
+                assert(document.applicationName == "owned");
                 reachedSuccess = true;
             }
             else
@@ -1309,7 +1309,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
             SerdeError error = readToml(tomlInput, allocator.handle, &document);
             if (error.ok)
             {
-                assert(document.applicationName.view.equal("owned"));
+                assert(document.applicationName == "owned");
                 reachedSuccess = true;
             }
             else

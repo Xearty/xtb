@@ -102,7 +102,7 @@ private void runBackendContract(Backend)()
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = Backend.write(writer, value);
     assert(error.ok);
-    assert(encoded.view.equal(Backend.expected));
+    assert(encoded == Backend.expected);
 
     Deserialized!ContractDocument roundTrip;
     error = Backend.read(encoded.view, mallocAllocator(), &roundTrip);

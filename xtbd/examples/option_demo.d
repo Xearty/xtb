@@ -6,7 +6,7 @@ import core.lifetime : move;
 import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option, none, reset, set, some, take;
 import xtb.core.print : Writer, writeln;
-import xtb.core.string : String, StringBuf, append, equal;
+import xtb.core.string : String, StringBuf, append;
 import xtb.serde : KeyCase, SerdeError, fieldCase, readJson, readToml,
     required, writeJson, writeToml;
 
@@ -129,7 +129,7 @@ private void demonstrateOwningValues(Allocator* allocator)
     static assert(!__traits(compiles, (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
 
     StringBuf extracted = text.take();
-    assert(text.isNone && extracted.view.equal("alpha-beta"));
+    assert(text.isNone && extracted == "alpha-beta");
 
     // set takes its argument by value. Pass move(...) for an owning T.
     text.set(move(extracted));
@@ -178,8 +178,8 @@ private bool demonstrateSerde(Allocator* allocator)
         return false;
 
     // JSON writes every absent Option as null.
-    assert(json.view.equal(
-            "{\"enabled\":true,\"channel_name\":null,\"retry_count\":3}"));
+    assert(json ==
+            "{\"enabled\":true,\"channel_name\":null,\"retry_count\":3}");
     writeln("JSON options: ", json.view);
 
     StringBuf toml = StringBuf.create(allocator);
@@ -189,7 +189,7 @@ private bool demonstrateSerde(Allocator* allocator)
         return false;
 
     // TOML has no null, so absent option fields are omitted.
-    assert(toml.view.equal("enabled = true\nretry_count = 3"));
+    assert(toml == "enabled = true\nretry_count = 3");
     writeln("TOML options:\n", toml.view);
 
     OptionalConfig fromJson;
@@ -201,7 +201,7 @@ private bool demonstrateSerde(Allocator* allocator)
     if (!error.ok)
         return false;
     assert(fromJson.enabled.isNone);
-    assert(fromJson.channelName.value.view.equal("nightly"));
+    assert(fromJson.channelName.value == "nightly");
     assert(fromJson.retryCount.isNone);
 
     OptionalConfig fromToml;
@@ -213,7 +213,7 @@ private bool demonstrateSerde(Allocator* allocator)
     if (!error.ok)
         return false;
     assert(fromToml.enabled.isSome && !fromToml.enabled.value);
-    assert(fromToml.channelName.value.view.equal("stable"));
+    assert(fromToml.channelName.value == "stable");
     assert(fromToml.retryCount.isNone);
 
     writeln("required JSON null -> none: ", fromJson.enabled.isNone);

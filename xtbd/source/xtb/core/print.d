@@ -6,7 +6,7 @@ import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
 import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
     InterpolationFooter, InterpolationHeader;
-import xtb.core.string : String, StringBuf, append, clear, equal, tryAppend;
+import xtb.core.string : String, StringBuf, append, clear, tryAppend;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic, require;
 
@@ -795,10 +795,10 @@ unittest
 
     StringBuf buffer = StringBuf.create(mallocAllocator());
     buffer.writeTo("answer=", 42, ", hex=", hexadecimal(255));
-    assert(buffer.view.equal("answer=42, hex=0xff"));
+    assert(buffer == "answer=42, hex=0xff");
     buffer.clear();
     buffer.formatTo!"{} + {} = {}"(2, 3, 5);
-    assert(buffer.view.equal("2 + 3 = 5"));
+    assert(buffer == "2 + 3 = 5");
 
     char[8] fixedBuffer;
     const result = fixedBuffer[].writeBuffer("abcdefghi");
@@ -809,7 +809,7 @@ unittest
     assert(fixedBuffer[7] == '\0');
 
     StringBuf allocated = formatString!"{}:{}"(mallocAllocator(), "item", 9);
-    assert(allocated.view.equal("item:9"));
+    assert(allocated == "item:9");
 
     struct StatefulValue
     {
@@ -830,13 +830,13 @@ unittest
         mallocAllocator(),
         value,
     );
-    assert(stateful.view.equal("stateful"));
+    assert(stateful == "stateful");
     assert(calls == 1);
 
     int answer = 42;
     buffer.clear();
     buffer.writeTo(i"answer=$(answer), hex=$(hexadecimal(answer))");
-    assert(buffer.view.equal("answer=42, hex=0x2a"));
+    assert(buffer == "answer=42, hex=0x2a");
 
     struct CountedExpression
     {
@@ -855,23 +855,23 @@ unittest
     CountedExpression counted = CountedExpression(&evaluations);
     buffer.clear();
     buffer.formatTo(i"once=$(counted.evaluate()), custom=$(value)");
-    assert(buffer.view.equal("once=7, custom=stateful"));
+    assert(buffer == "once=7, custom=stateful");
     assert(evaluations == 1);
     assert(calls == 2);
 
     buffer.clear();
     buffer.writeTo(i"outer [$(i"inner=$(answer)")] done");
-    assert(buffer.view.equal("outer [inner=42] done"));
+    assert(buffer == "outer [inner=42] done");
 
     buffer.clear();
     buffer.writeTo("prefix ", i"$(answer)", " suffix");
-    assert(buffer.view.equal("prefix 42 suffix"));
+    assert(buffer == "prefix 42 suffix");
 
     buffer.clear();
     buffer.writeTo(
         i"expanded=$(InterpolationTestSequence!(answer, answer))",
     );
-    assert(buffer.view.equal("expanded=4242"));
+    assert(buffer == "expanded=4242");
 
     buffer.clear();
     buffer.writeTo(i"");
@@ -903,7 +903,7 @@ unittest
         mallocAllocator(),
         i"owned: $(answer), $(fixed(1.25, 2))",
     );
-    assert(interpolated.view.equal("owned: 42, 1.25"));
+    assert(interpolated == "owned: 42, 1.25");
 
     StringBuf fallibleInterpolated;
     assert(tryFormatString(
@@ -911,7 +911,7 @@ unittest
             &fallibleInterpolated,
             i"try: $(binary(5))",
     ));
-    assert(fallibleInterpolated.view.equal("try: 0b101"));
+    assert(fallibleInterpolated == "try: 0b101");
 
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(

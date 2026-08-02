@@ -185,6 +185,9 @@ String tests enforce the type boundary as well as textual behavior:
   lifetime;
 - zero-length strings, embedded NUL, invalid UTF-8, and multibyte UTF-8 are
   covered according to each API's byte/Unicode contract;
+- `StringBuf` equality with literals, mutable and immutable `String` slices,
+  and other buffers is tested in both operand orders, including inequality and
+  null-string/empty-buffer equivalence;
 - C conversion adds exactly one terminator outside logical length, rejects
   embedded NUL when required, and respects scratch lifetime;
 - compile-time checks reject copying an owning `StringBuf` and reject mutation

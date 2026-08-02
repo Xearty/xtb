@@ -224,7 +224,7 @@ private bool demonstrateOwningDecode() nothrow @nogc
         allocator,
         &config,
     );
-    if (error.ok || !config.serviceName.view.equal("edge-gateway"))
+    if (error.ok || config.serviceName != "edge-gateway")
         return false;
     writeln("failed replacement preserved the parsed value at ",
         error.line, ":", error.column);

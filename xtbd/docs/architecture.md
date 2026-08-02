@@ -586,6 +586,18 @@ conversion that hides this borrowing relationship. To preserve text after the
 buffer changes or dies, initialize a different `StringBuf` from the view
 using the destination allocator.
 
+Use `==` and `!=` for ordinary content comparisons. `String` receives D's
+built-in slice equality, while `StringBuf` overloads equality against both
+`String` and another `StringBuf`. Mixed equality is symmetric, so both
+`buffer == "text"` and `"text" == buffer` are valid. Every form compares the
+exact bytes and length without allocating; it does not normalize or transcode
+Unicode. A null `String` and an empty `StringBuf` compare equal because both
+represent the same zero-length byte sequence. Keep `equal` as the explicit
+algorithm/UFCS primitive, but do not create a borrowed view merely to compare
+an owned buffer. `StringBuf.toHash` hashes those same bytes and therefore stays
+consistent with equality. Since mutation changes the hash, never mutate a
+buffer while an external hash table is using its contents as a key.
+
 Copying a `String` into owned storage is explicit:
 
 ```d

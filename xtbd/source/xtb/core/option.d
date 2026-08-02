@@ -130,7 +130,7 @@ Option!T none(T)()
 unittest
 {
     import xtb.core.memory : mallocAllocator;
-    import xtb.core.string : StringBuf, append, equal;
+    import xtb.core.string : StringBuf, append;
 
     Option!int number;
     assert(number.isNone && number.empty);
@@ -154,11 +154,11 @@ unittest
     StringBuf source = StringBuf.fromString(mallocAllocator(), "owned");
     Option!StringBuf text = some(move(source));
     assert(source.allocator is null);
-    assert(text.value.view.equal("owned"));
+    assert(text.value == "owned");
     text.value.append(" value");
     StringBuf extracted = text.take();
     assert(text.isNone);
-    assert(extracted.view.equal("owned value"));
+    assert(extracted == "owned value");
     text.set(move(extracted));
     text.reset();
     assert(text.isNone);
