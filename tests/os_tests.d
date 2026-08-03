@@ -267,7 +267,7 @@ version (linux) private void runProcessIntegration(
     {
         ChildProcess child;
         const error = spawn(
-            Command.exact(Path.fromString("/definitely/missing/xtbd-helper")),
+            Command.exact(Path.fromString("/definitely/missing/xtb-helper")),
             SpawnOptions.init,
             &child,
         );
@@ -611,7 +611,7 @@ version (linux) private void runPipelineIntegration(
         String[1] copyArguments = ["copy"];
         Command[2] commands = [
             Command.exact(Path.fromString(helperExecutable), copyArguments[]),
-            Command.exact(Path.fromString("/missing/xtbd-pipeline-stage")),
+            Command.exact(Path.fromString("/missing/xtb-pipeline-stage")),
         ];
         Pipeline pipeline;
         const error = spawnPipeline(
@@ -653,7 +653,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     import xtb.os.environment : environmentVariable;
 
     ThreadContextScope context = ThreadContextScope.acquire();
-    enum rootPattern = "/tmp/xtbd-os-XXXXXX";
+    enum rootPattern = "/tmp/xtb-os-XXXXXX";
     char[rootPattern.length + 1] rootStorage;
     rootStorage[0 .. rootPattern.length] = rootPattern;
     rootStorage[$ - 1] = '\0';

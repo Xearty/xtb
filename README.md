@@ -1,6 +1,6 @@
-# xtbd
+# xtb
 
-`xtbd` is a small foundational D library designed for `-betterC`: explicit
+`xtb` is a small foundational D library designed for `-betterC`: explicit
 allocators, arenas and thread-local scratch scopes, owning arrays and string
 builders, hash maps and sets, read-only `String` views, intrusive lists,
 strongly typed bit flags, finite checked `Duration` values, panic/logging
@@ -46,9 +46,10 @@ Long signatures use source-style multiline parameter lists beyond 100 columns
 by default. Set `StackTraceStyle.signatureColumns` to another limit, or select
 `SignatureLayout.singleLine` through `StackTraceStyle.signatureLayout`.
 
-The project is independent from the adjacent C++ sources. Public modules live
-under `source/xtb`, focused unit tests are colocated with those modules, and
-`tests/core_tests.d`, `tests/utf8_tests.d`, `tests/math_tests.d`,
+The archived C++ implementation remains under `archive/cpp` for historical
+reference only. The D project at the repository root is independent from it;
+public modules live under `source/xtb`, and focused unit tests are colocated
+there. `tests/core_tests.d`, `tests/utf8_tests.d`, `tests/math_tests.d`,
 `tests/os_tests.d`, and `tests/serde_tests.d` are the explicit BetterC test
 runners.
 
@@ -59,9 +60,8 @@ direnv allow
 just check
 ```
 
-Alternatively, run `nix develop` from `xtbd` and then use the same `just`
-commands. The project-local `.envrc` deliberately selects the independent
-`xtbd` flake instead of inheriting the adjacent C++ project's environment.
+Alternatively, run `nix develop` from the repository root and then use the same
+`just` commands. The project-local `.envrc` selects the root `xtb` flake.
 
 `just check` lints, builds the package archives, runs debug, optimized, release,
 ABI, sanitizer, cross-build, and fuzz checks, then builds and runs the examples.
@@ -121,8 +121,8 @@ violates those unchecked APIs' preconditions; arbitrary binary ownership uses
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,
-and OS targets do not. `just build` produces independent `libxtbd_core`,
-`libxtbd_diagnostics`, `libxtbd_math`, `libxtbd_os`, and `libxtbd_serde`
+and OS targets do not. `just build` produces independent `libxtb_core`,
+`libxtb_diagnostics`, `libxtb_math`, `libxtb_os`, and `libxtb_serde`
 archives.
 
 Import `xtb.math` for the stable math surface. Matrices are column-major and

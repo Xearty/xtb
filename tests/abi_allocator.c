@@ -30,7 +30,7 @@ static void *c_allocator(
 
 static Allocator allocator_slot = c_allocator;
 
-Allocator *xtbd_test_c_allocator(void)
+Allocator *xtb_test_c_allocator(void)
 {
     return &allocator_slot;
 }

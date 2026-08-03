@@ -1,4 +1,4 @@
-name "xtbd"
+name "xtb"
 description "BetterC-first foundational libraries"
 license "BSL-1.0"
 targetType "staticLibrary"

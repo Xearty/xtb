@@ -129,9 +129,9 @@ unittest
     assert(Path.fromString("/tmp/file.txt/").fileName.view == "file.txt");
     assert(Path.fromString("/tmp/file.txt/").parent.view == "/tmp");
     StringBuf joined = StringBuf.fromString(mallocAllocator(), "/tmp/");
-    joined.appendComponent(Path.fromString("/xtbd/"));
+    joined.appendComponent(Path.fromString("/xtb/"));
     joined.appendComponent(Path.fromString("file"));
-    assert(joined.view == "/tmp/xtbd/file");
+    assert(joined.view == "/tmp/xtb/file");
 
     StringBuf selfJoined = StringBuf.fromString(mallocAllocator(), "root/abc");
     selfJoined.appendComponent(Path.fromString(selfJoined.view[5 .. $]));

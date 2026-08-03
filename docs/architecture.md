@@ -2,10 +2,11 @@
 
 ## Purpose
 
-`xtbd` is an independent D library collection inspired by the capabilities of
-the adjacent C++ project. It is not a line-for-line port and must never import,
-generate from, or build files in that project. Design new APIs around D's
-strengths while keeping every production target compatible with `-betterC`.
+`xtb` is an independent D library collection inspired by the capabilities of
+the archived C++ project under `archive/cpp`. It is not a line-for-line port
+and must never import, generate from, or build files in that project. Design
+new APIs around D's strengths while keeping every production target compatible
+with `-betterC`.
 
 BetterC removes the garbage collector, exceptions, classes, `TypeInfo`,
 `ModuleInfo`, associative arrays, built-in threading, and module constructors.
@@ -17,7 +18,7 @@ and test paths both compile with `-betterC` so violations are caught early.
 Use conventional D package layout:
 
 ```text
-xtbd/
+xtb/
 ├── source/xtb/             # production modules
 │   ├── core/               # memory, containers, text, printing, logging
 │   ├── diagnostics/        # demangling, styled traces, crash observation
@@ -31,6 +32,7 @@ xtbd/
 ├── tests/                  # runners, fixtures, integration/regression tests
 ├── examples/               # small programs using only public APIs
 ├── docs/
+├── archive/cpp/            # read-only historical C++ implementation
 ├── dub.sdl
 ├── flake.nix
 └── justfile

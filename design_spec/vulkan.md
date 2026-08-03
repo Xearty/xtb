@@ -105,12 +105,12 @@ the graphics package.
 ## Generated Vulkan bindings
 
 Raw declarations must be generated from a pinned revision of Khronos `vk.xml`,
-not copied from the adjacent C++ project or manually maintained. The repository
+not copied from the archived C++ project or manually maintained. The repository
 must record both the registry revision and the Vulkan header/specification
 version represented by the generated source.
 
 Generated D source is committed. Regeneration is a maintainer operation exposed
-through the xtbd flake and justfile; normal builds must not download the
+through the xtb flake and justfile; normal builds must not download the
 registry, run a generator, or require an installed SDK.
 
 Generation must preserve the foreign API spelling:

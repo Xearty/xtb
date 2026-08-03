@@ -1,7 +1,0 @@
-/.dub/
-/build/
-/.direnv/
-/result
-/*.a
-/*.o
-/xtbd

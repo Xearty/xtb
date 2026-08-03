@@ -31,11 +31,11 @@ format:
 
 build:
     mkdir -p build/obj/build
-    ldc2 {{build_flags}} -oq -lib {{core_source_files}} -of=build/libxtbd_core.a
-    ldc2 {{build_flags}} -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics.a
-    ldc2 {{build_flags}} -oq -lib {{math_source_files}} -of=build/libxtbd_math.a
-    ldc2 {{build_flags}} -oq -lib {{os_source_files}} -of=build/libxtbd_os.a
-    ldc2 {{build_flags}} -oq -lib {{serde_source_files}} -of=build/libxtbd_serde.a
+    ldc2 {{build_flags}} -oq -lib {{core_source_files}} -of=build/libxtb_core.a
+    ldc2 {{build_flags}} -oq -lib {{diagnostics_source_files}} -of=build/libxtb_diagnostics.a
+    ldc2 {{build_flags}} -oq -lib {{math_source_files}} -of=build/libxtb_math.a
+    ldc2 {{build_flags}} -oq -lib {{os_source_files}} -of=build/libxtb_os.a
+    ldc2 {{build_flags}} -oq -lib {{serde_source_files}} -of=build/libxtb_serde.a
 
 test:
     mkdir -p build/obj/test
@@ -82,11 +82,11 @@ test-release:
 
 test-darwin-build:
     mkdir -p build/obj/darwin
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{core_source_files}} -of=build/libxtbd_core_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{math_source_files}} -of=build/libxtbd_math_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{os_source_files}} -of=build/libxtbd_os_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{serde_source_files}} -of=build/libxtbd_serde_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{core_source_files}} -of=build/libxtb_core_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{diagnostics_source_files}} -of=build/libxtb_diagnostics_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{math_source_files}} -of=build/libxtb_math_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{os_source_files}} -of=build/libxtb_os_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{serde_source_files}} -of=build/libxtb_serde_aarch64_darwin.a
 
 test-sanitize:
     mkdir -p build/obj/asan
