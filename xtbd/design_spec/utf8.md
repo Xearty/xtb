@@ -33,6 +33,11 @@ UTF-8 buffer and builder. Both remain byte-addressed:
 - embedded NUL is valid UTF-8 and remains part of the string;
 - code-point work is requested through explicitly named APIs.
 
+The exact byte-oriented string surface and the intentionally unchecked parts
+of the alias are specified in [`string.md`](string.md). This design follows
+Rust's separation of encoded bytes, Unicode scalar values, and grapheme
+clusters while preserving D literal interoperability.
+
 Keeping `String` as an alias preserves literal interoperability, trivial copy
 semantics, and temporary views into `StringBuf`. It also means the compiler
 cannot attach a proof of UTF-8 validity to a value. A cast, built-in slice, or
@@ -170,9 +175,10 @@ and require exact tests. A caller interested only in validity may use
 `isValidUtf8`; parsers should retain `Utf8Error` so they can map its offset into
 their own diagnostics.
 
-Invalid offsets passed to offset-based APIs are programmer errors and use
-`require`. Invalid bytes found at a valid offset return `Utf8Error`. This keeps
-API misuse distinct from untrusted input.
+Invalid offsets passed to decoding or mutating APIs are programmer errors and
+use `require`. `isCodePointBoundary` is the deliberate checked-query exception
+and returns `false` beyond the end. Invalid bytes found at a valid decoding
+offset return `Utf8Error`. This keeps API misuse distinct from untrusted input.
 
 ## Proposed public API
 
@@ -228,10 +234,10 @@ struct DecodedCodePoint
 struct EncodedCodePoint
 {
     private char[4] bytes_;
-    private u8 length_;
+    private u8 byteLength_;
 
-    String view() const return scope pure @safe;
-    u8 length() const pure @safe;
+    char[4] codeUnits() const pure @safe;
+    u8 byteLength() const pure @safe;
 }
 
 Utf8Error validateUtf8(scope String candidate) pure @safe;
@@ -245,13 +251,13 @@ Utf8StringResult asString(return scope const(u8)[] bytes) pure @trusted;
 Utf8Error decodeCodePoint(
     scope String candidate,
     size_t byteOffset,
-    DecodedCodePoint* output,
+    scope DecodedCodePoint* output,
 ) @safe;
 
 Utf8Error decodePreviousCodePoint(
     scope String candidate,
-    size_t endOffset,
-    DecodedCodePoint* output,
+    size_t endByteOffset,
+    scope DecodedCodePoint* output,
 ) @safe;
 
 bool isCodePointBoundary(
@@ -259,8 +265,18 @@ bool isCodePointBoundary(
     size_t byteOffset,
 ) @safe;
 
+size_t floorCodePointBoundary(
+    scope String value,
+    size_t byteOffset,
+) @safe;
+
+size_t ceilCodePointBoundary(
+    scope String value,
+    size_t byteOffset,
+) @safe;
+
 bool isUnicodeScalar(dchar value) pure @safe;
-bool tryEncodeUtf8(dchar value, EncodedCodePoint* output) @safe;
+bool tryEncodeUtf8(dchar value, scope EncodedCodePoint* output) @safe;
 EncodedCodePoint encodeUtf8(dchar value) @safe;
 u8 encodedUtf8Length(dchar value) @safe;
 
@@ -277,6 +293,20 @@ struct CodePointRange
 }
 
 CodePointRange codePoints(return scope String value) pure @safe;
+
+struct CodePointOffsetRange
+{
+    bool empty() const pure @safe;
+    DecodedCodePoint front() const @safe;
+    DecodedCodePoint back() const @safe;
+    void popFront() @safe;
+    void popBack() @safe;
+    CodePointOffsetRange save() const pure @safe;
+}
+
+CodePointOffsetRange codePointsWithOffsets(
+    return scope String value,
+) pure @safe;
 ```
 
 The API deliberately does not introduce a universal `Result!T`. The specific
@@ -363,21 +393,26 @@ at `byteOffset`. It requires `byteOffset < candidate.length`. On success,
 `output.byteOffset == byteOffset` and `output.byteLength` is between one and
 four.
 
-`decodePreviousCodePoint(candidate, endOffset, output)` decodes the sequence
-ending immediately before `endOffset`. It requires
-`0 < endOffset && endOffset <= candidate.length`. It scans backward by at most
+`decodePreviousCodePoint(candidate, endByteOffset, output)` decodes the sequence
+ending immediately before `endByteOffset`. It requires
+`0 < endByteOffset && endByteOffset <= candidate.length`. It scans backward by at most
 four bytes, then validates the complete sequence and requires it to end exactly
-at `endOffset`.
+at `endByteOffset`.
 
 Both functions are safe on malformed input and report a recoverable error. They
 never assume alignment and never read outside the supplied slice. This makes
 them suitable for parsers that need an error offset without validating the
 entire document first.
 
-`isCodePointBoundary(value, offset)` requires `offset <= value.length`. For
-valid UTF-8, zero and `value.length` are boundaries; an interior offset is a
-boundary exactly when its byte is not a continuation byte. The operation is
-constant time. When the input itself may be malformed, validate it first.
+`isCodePointBoundary(value, byteOffset)` follows Rust's query semantics: zero
+and `value.length` are boundaries, an interior offset is a boundary exactly
+when its byte is not a continuation byte, and an offset beyond the end returns
+`false`. The operation is O(1). When input may be malformed, validate it first.
+
+`floorCodePointBoundary` and `ceilCodePointBoundary` clamp an offset beyond the
+end to `value.length`, then return the nearest boundary at or below/above it.
+They inspect at most three adjacent bytes and are O(1) for valid UTF-8. These
+operations preserve scalar encodings, not grapheme clusters.
 
 ## Traversal
 
@@ -395,6 +430,9 @@ while (!range.empty)
     use(range.back);
     range.popBack();
 }
+
+foreach (decoded; text.codePointsWithOffsets)
+    use(decoded.byteOffset, decoded.byteLength, decoded.value);
 ```
 
 `CodePointRange` is a copyable, non-owning bidirectional cursor over a `String`.
@@ -412,6 +450,12 @@ a replacement character or reading invalid memory. Recoverable traversal of
 untrusted bytes uses `decodeCodePoint` or validates once before constructing the
 range.
 
+`CodePointOffsetRange` has the same borrowing and traversal contract but yields
+`DecodedCodePoint`. Its offsets remain relative to the original `String`, even
+during reverse traversal or after either end advances. This is the
+code-point-named equivalent of Rust's `char_indices`; the index is a byte
+offset, not a scalar ordinal.
+
 `codePointCount` traverses valid UTF-8 and returns the number of Unicode scalar
 values. It is O(bytes), performs no allocation, and panics if the `String`
 contract was violated. It is intentionally distinct from `String.length`.
@@ -423,9 +467,10 @@ but may form one grapheme cluster. The API must not call code points
 
 ## Encoding and `StringBuf`
 
-`EncodedCodePoint` owns up to four inline bytes and exposes only its initialized
-prefix through `view`. It requires no allocator and prevents callers from
-mistaking unused array bytes for encoded text.
+`EncodedCodePoint` owns up to four inline bytes. `codeUnits` returns its complete
+four-byte storage by value and `byteLength` identifies the initialized prefix.
+Returning the array by value avoids a slice that could outlive a temporary
+`EncodedCodePoint`. It requires no allocator.
 
 `StringBuf` gains Unicode-scalar overloads:
 
@@ -456,7 +501,7 @@ ordinary `append(char)`.
 Operations accepting `String`--append, prepend, insert, replace, and
 construction from `String`--assume their inputs already satisfy the `String`
 contract and do not rescan them. Operations using a byte offset to create or
-modify text must require a code-point boundary. This includes `String.slice`
+modify text must require a code-point boundary. This includes `sliceBytes`
 endpoints and `StringBuf.insert` positions. Byte offsets returned by searching
 valid UTF-8 for valid UTF-8 are safe boundaries because UTF-8 is self-
 synchronizing.
@@ -572,7 +617,11 @@ cover:
 - invalid `dchar` values rejected without partially modifying output;
 - code-point boundary checks at zero, end, every leading byte, and every
   continuation byte;
+- floor/ceiling boundary rounding at every byte of one- through four-byte
+  sequences and beyond the end;
 - code-point count differing from byte length and from grapheme count;
+- offset-producing traversal in both directions with offsets relative to the
+  original string;
 - `StringBuf` scalar append at all widths, capacity boundaries, aliasing, and
   injected allocation failure;
 - byte-indexed string/buffer operations accepting boundaries and rejecting

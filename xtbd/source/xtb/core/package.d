@@ -15,6 +15,7 @@ public import xtb.core.flag_set;
 public import xtb.core.list;
 public import xtb.core.hash;
 public import xtb.core.hash_map;
+public import xtb.core.utf8;
 public import xtb.core.string;
 public import xtb.core.print;
 public import xtb.core.logger;
