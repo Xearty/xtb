@@ -8,7 +8,7 @@ import xtb.core.memory : Allocator, allocate;
 import xtb.core.option : Option, reset, set, some;
 import xtb.core.panic : require;
 import xtb.core.string : String, StringBuf, append, checkedCString, clear,
-    contains, containsNul, equal, fromCString;
+    contains, containsCodeUnit, containsNul, equal, fromCString;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
@@ -711,7 +711,7 @@ private ProcessError validateCommand(scope const(Command) command) @system
     foreach (i, entry; command.environment_.entries)
     {
         if (entry.name.length == 0 || entry.name.containsNul ||
-            entry.name.contains('=') || entry.value.containsNul ||
+            entry.name.containsCodeUnit('=') || entry.value.containsNul ||
             cast(u8) entry.action > cast(
                 u8) EnvironmentAction.remove ||
             (entry.action == EnvironmentAction.remove && entry.value.length != 0) ||
@@ -871,7 +871,7 @@ version (linux) private ProcessError spawnLinux(
 
     int processId;
     if (command.lookup_ == ExecutableLookup.searchPath &&
-        !command.executable_.contains('/'))
+        !command.executable_.containsCodeUnit('/'))
         error = spawnSearchPath(
             &spawnState,
             command.executable_,
@@ -1134,8 +1134,10 @@ version (linux) private OsError buildEnvironment(
     size_t length;
     foreach (i; 0 .. inheritedCount)
     {
-        const original = fromCString(inherited[i]);
-        const name = environmentEntryName(original);
+        const checked = fromCString(inherited[i]);
+        if (checked.failed)
+            return OsError(OsErrorKind.invalidData, 0);
+        const name = environmentEntryName(checked.value);
         const index = findEnvironmentEntry(environment.entries, name);
         if (index == size_t.max)
             result[length++] = inherited[i];
@@ -1204,7 +1206,10 @@ version (linux) private String environmentValue(
 {
     for (size_t i; environment[i]!is null; ++i)
     {
-        const entry = fromCString(environment[i]);
+        const checked = fromCString(environment[i]);
+        if (checked.failed)
+            continue;
+        const entry = checked.value;
         if (entry.length > name.length && entry[name.length] == '=' &&
             entry[0 .. name.length].equal(name))
             return entry[name.length + 1 .. $];

@@ -16,6 +16,7 @@ import xtb.core.list;
 import xtb.core.hash;
 import xtb.core.hash_map;
 import xtb.core.logger;
+import xtb.core.utf8;
 import xtb.core.string;
 import xtb.core.print;
 import xtb.diagnostics.demangle;
@@ -96,6 +97,25 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         seconds(1) / 0;
     if (cStringEqual(name, "string-bytes-null-output"))
         StringBuf.tryFromBytesUnchecked(mallocAllocator(), null, null);
+    if (cStringEqual(name, "string-split-slice"))
+        "é".sliceBytes(1, 2);
+    if (cStringEqual(name, "string-split-insert"))
+    {
+        StringBuf text = StringBuf.fromString(mallocAllocator(), "é");
+        text.insert(1, "x");
+    }
+    if (cStringEqual(name, "string-split-truncate"))
+    {
+        StringBuf text = StringBuf.fromString(mallocAllocator(), "é");
+        text.truncateBytes(1);
+    }
+    if (cStringEqual(name, "string-non-ascii-char"))
+    {
+        StringBuf text = StringBuf.create(mallocAllocator());
+        text.append(cast(char) 0xc3);
+    }
+    if (cStringEqual(name, "print-invalid-code-point"))
+        write(cast(dchar) 0xd800);
     if (cStringEqual(name, "bit-flags-invalid-value"))
     {
         FlagSet!DeathFlag flags;
@@ -382,6 +402,11 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "duration-negative-scale");
         expectDeath(arguments[0], "duration-division-by-zero");
         expectDeath(arguments[0], "string-bytes-null-output");
+        expectDeath(arguments[0], "string-split-slice");
+        expectDeath(arguments[0], "string-split-insert");
+        expectDeath(arguments[0], "string-split-truncate");
+        expectDeath(arguments[0], "string-non-ascii-char");
+        expectDeath(arguments[0], "print-invalid-code-point");
         expectDeath(arguments[0], "bit-flags-invalid-value");
         expectDeath(arguments[0], "bit-flags-invalid-mask");
         expectDeath(arguments[0], "bit-flags-null-output");

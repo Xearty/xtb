@@ -5,7 +5,8 @@ nothrow @nogc:
 import xtb.core.panic : require;
 import xtb.core.array : Array, resize;
 import xtb.core.memory : Allocator;
-import xtb.core.string : String, StringBuf, append, checkedCString, clear, fromCString;
+import xtb.core.string : String, StringBuf, append, asString, checkedCString,
+    clear, fromCString;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
@@ -128,7 +129,13 @@ DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) @syste
                 return errno == 0 ? DirectoryResult(DirectoryStatus.finished, OsError.init)
                     : DirectoryResult(
                         DirectoryStatus.failed, lastError());
-            String name = fromCString(native.d_name.ptr);
+            const checked = fromCString(native.d_name.ptr);
+            if (checked.failed)
+                return DirectoryResult(
+                    DirectoryStatus.failed,
+                    OsError(OsErrorKind.invalidData, 0),
+                );
+            const name = checked.value;
             if (name == "." || name == "..")
                 continue;
             output.name = name;
@@ -234,7 +241,13 @@ OsError currentDirectory(ref StringBuf output) @system
         char* buffer = getcwd(null, 0);
         if (buffer is null)
             return lastError();
-        output.append(fromCString(buffer));
+        const checked = fromCString(buffer);
+        if (checked.failed)
+        {
+            free(buffer);
+            return OsError(OsErrorKind.invalidData, 0);
+        }
+        output.append(checked.value);
         free(buffer);
         return OsError.init;
     }
@@ -258,7 +271,11 @@ OsError executablePath(ref StringBuf output) @system
                 return lastError();
             if (cast(size_t) amount < buffer.length)
             {
-                output.append(buffer.slice[0 .. cast(size_t) amount]);
+                const checked = (cast(const(ubyte)[])
+                    buffer.slice[0 .. cast(size_t) amount]).asString;
+                if (checked.failed)
+                    return OsError(OsErrorKind.invalidData, 0);
+                output.append(checked.value);
                 return OsError.init;
             }
             if (buffer.length > size_t.max / 2)
@@ -323,7 +340,13 @@ OsError canonicalPath(Path path, ref StringBuf output) @system
         char* resolved = realpath(native.checkedCString, null);
         if (resolved is null)
             return lastError();
-        output.append(fromCString(resolved));
+        const checked = fromCString(resolved);
+        if (checked.failed)
+        {
+            free(resolved);
+            return OsError(OsErrorKind.invalidData, 0);
+        }
+        output.append(checked.value);
         free(resolved);
         return OsError.init;
     }

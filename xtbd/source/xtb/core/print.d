@@ -6,11 +6,14 @@ import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
 import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
     InterpolationFooter, InterpolationHeader;
-import xtb.core.string : String, StringBuf, append, clear, tryAppend;
+import xtb.core.string : String, StringBuf, appendUtf8Fragment, clear,
+    tryAppendUtf8Fragment;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic, require;
+import xtb.core.types : u8;
+import xtb.core.utf8 : encodeUtf8, isValidUtf8;
 
-alias Sink = size_t function(void* context, scope String bytes);
+alias Sink = size_t function(void* context, scope const(u8)[] bytes);
 
 version (unittest) private template InterpolationTestSequence(Values...)
 {
@@ -128,7 +131,13 @@ nothrow @nogc:
         writeValue(this, value);
     }
 
-    private void emit(scope String bytes)
+    private void emit(scope String text)
+    @trusted
+    {
+        emitBytes(cast(const(u8)[]) text);
+    }
+
+    private void emitBytes(scope const(u8)[] bytes)
     {
         size_t offset;
         while (offset < bytes.length)
@@ -150,7 +159,7 @@ nothrow @nogc:
     }
 }
 
-private size_t fileSink(void* context, scope String bytes)
+private size_t fileSink(void* context, scope const(u8)[] bytes)
 {
     FILE* file = cast(FILE*) context;
     if (file is null)
@@ -158,22 +167,23 @@ private size_t fileSink(void* context, scope String bytes)
     return fwrite(bytes.ptr, 1, bytes.length, file);
 }
 
-private size_t stringBufSink(void* context, scope String bytes)
+private size_t stringBufSink(void* context, scope const(u8)[] bytes)
 {
     StringBuf* buffer = cast(StringBuf*) context;
     if (buffer is null)
         return 0;
-    (*buffer).append(bytes);
+    (*buffer).appendUtf8Fragment(bytes);
     return bytes.length;
 }
 
 private size_t fallibleStringBufSink(
     void* context,
-    scope String bytes,
+    scope const(u8)[] bytes,
 )
 {
     StringBuf* buffer = cast(StringBuf*) context;
-    return buffer !is null && (*buffer).tryAppend(bytes) ? bytes.length : 0;
+    return buffer !is null && (*buffer).tryAppendUtf8Fragment(bytes)
+        ? bytes.length : 0;
 }
 
 private struct FixedBufferState
@@ -184,7 +194,7 @@ private struct FixedBufferState
     bool overflow;
 }
 
-private size_t fixedBufferSink(void* context, scope String bytes)
+private size_t fixedBufferSink(void* context, scope const(u8)[] bytes)
 {
     FixedBufferState* state = cast(FixedBufferState*) context;
     if (state is null)
@@ -209,6 +219,17 @@ private size_t fixedBufferSink(void* context, scope String bytes)
         state.destination[state.written] = '\0';
 
     return bytes.length;
+}
+
+private void finishFixedBuffer(FixedBufferState* state)
+@trusted
+{
+    require(state !is null, "fixed buffer state is null");
+    while (state.written != 0 &&
+        !isValidUtf8(cast(String) state.destination[0 .. state.written]))
+        --state.written;
+    if (state.destination.length != 0)
+        state.destination[state.written] = '\0';
 }
 
 WriteResult write(Args...)(auto ref Args args)
@@ -263,6 +284,7 @@ BufferWriteResult writeBuffer(Args...)(char[] destination, auto ref Args args)
     Writer writer = Writer.fromSink(&fixedBufferSink, &state);
     writeArguments(writer, args);
     const result = writer.finish();
+    finishFixedBuffer(&state);
     return BufferWriteResult(
         result.ok && !state.overflow,
         state.overflow || state.required > state.written,
@@ -284,6 +306,7 @@ BufferWriteResult formatBuffer(string pattern, Args...)(
     Writer writer = Writer.fromSink(&fixedBufferSink, &state);
     writeFormat!(pattern, 0, 0)(writer, args);
     const result = writer.finish();
+    finishFixedBuffer(&state);
     return BufferWriteResult(
         result.ok && !state.overflow,
         state.overflow || state.required > state.written,
@@ -564,37 +587,9 @@ private void writePointer(ref Writer writer, const(void)* pointer)
 
 private void writeCodePoint(ref Writer writer, dchar codePoint)
 {
-    if (codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF))
-        codePoint = 0xFFFD;
-    char[4] bytes;
-    size_t count;
-    if (codePoint <= 0x7F)
-    {
-        bytes[0] = cast(char) codePoint;
-        count = 1;
-    }
-    else if (codePoint <= 0x7FF)
-    {
-        bytes[0] = cast(char)(0xC0 | (codePoint >> 6));
-        bytes[1] = cast(char)(0x80 | (codePoint & 0x3F));
-        count = 2;
-    }
-    else if (codePoint <= 0xFFFF)
-    {
-        bytes[0] = cast(char)(0xE0 | (codePoint >> 12));
-        bytes[1] = cast(char)(0x80 | ((codePoint >> 6) & 0x3F));
-        bytes[2] = cast(char)(0x80 | (codePoint & 0x3F));
-        count = 3;
-    }
-    else
-    {
-        bytes[0] = cast(char)(0xF0 | (codePoint >> 18));
-        bytes[1] = cast(char)(0x80 | ((codePoint >> 12) & 0x3F));
-        bytes[2] = cast(char)(0x80 | ((codePoint >> 6) & 0x3F));
-        bytes[3] = cast(char)(0x80 | (codePoint & 0x3F));
-        count = 4;
-    }
-    writer.put(bytes[0 .. count]);
+    const encoded = encodeUtf8(codePoint);
+    const codeUnits = encoded.codeUnits;
+    writer.put(codeUnits[0 .. encoded.byteLength]);
 }
 
 struct IntegerFormat(T)
@@ -807,6 +802,23 @@ unittest
     assert(result.written == 7);
     assert(result.required == 9);
     assert(fixedBuffer[7] == '\0');
+
+    char[4] truncatedScalar;
+    const scalarResult = truncatedScalar[].writeBuffer("A🙂");
+    assert(scalarResult.ok);
+    assert(scalarResult.truncated);
+    assert(scalarResult.written == 1);
+    assert(scalarResult.required == 5);
+    assert(truncatedScalar[0 .. 1] == "A");
+    assert(truncatedScalar[1] == '\0');
+
+    char[6] exactScalar;
+    const exactScalarResult = exactScalar[].writeBuffer("A🙂");
+    assert(exactScalarResult.ok);
+    assert(!exactScalarResult.truncated);
+    assert(exactScalarResult.written == 5);
+    assert(exactScalarResult.required == 5);
+    assert(exactScalar[0 .. 5] == "A🙂");
 
     StringBuf allocated = formatString!"{}:{}"(mallocAllocator(), "item", 9);
     assert(allocated == "item:9");

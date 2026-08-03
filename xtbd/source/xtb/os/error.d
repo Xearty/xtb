@@ -9,6 +9,7 @@ enum OsErrorKind : ubyte
     permissionDenied,
     alreadyExists,
     invalidArgument,
+    invalidData,
     interrupted,
     wouldBlock,
     notDirectory,

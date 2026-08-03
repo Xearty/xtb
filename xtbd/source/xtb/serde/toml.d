@@ -15,6 +15,8 @@ import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string : StringBuf;
 import xtb.core.types : String;
+import xtb.core.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
+    isValidUtf8;
 import xtb.serde.attributes : Flatten, Ignore, KeyCase, OmitDefault, Rename,
     Required, TagLayout;
 import xtb.serde.casing : writeCased;
@@ -183,9 +185,9 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     }
     else static if (isStringBuf!U)
     {
-        if (value.length != expected.length)
+        if (value.byteLength != expected.byteLength)
             return false;
-        foreach (index; 0 .. value.length)
+        foreach (index; 0 .. value.byteLength)
             if (value.view[index] != expected.view[index])
                 return false;
         return true;
@@ -657,7 +659,7 @@ private void encodeArray(Element)(
 
 private void encodeString(ref TomlEncoder encoder, scope String value)
 {
-    if (!validUtf8(value))
+    if (!isValidUtf8(value))
     {
         encoder.fail(SerdeErrorKind.invalidUtf8);
         return;
@@ -2599,15 +2601,20 @@ private void decodeStringToken(
         }
         else
         {
-            const width = utf8Width(parser.input, parser.position);
-            if (width == 0)
+            DecodedCodePoint decoded;
+            const utf8Error = decodeCodePoint(
+                parser.input,
+                parser.position,
+                &decoded,
+            );
+            if (utf8Error.failed)
             {
                 parser.fail(SerdeErrorKind.invalidUtf8);
                 return;
             }
-            foreach (_; 0 .. width)
+            foreach (_; 0 .. decoded.byteLength)
                 parser.take();
-            decodedLength += width;
+            decodedLength += decoded.byteLength;
         }
         if (decodedLength > parser.options.limits.maxCollectionLength)
         {
@@ -2750,82 +2757,10 @@ private void decodeEscapeBytes(
 
 private void appendUtf8(char* output, size_t* position, uint value)
 {
-    if (value < 0x80)
-        output[(*position)++] = cast(char) value;
-    else if (value < 0x800)
-    {
-        output[(*position)++] = cast(char)(0xc0 | (value >> 6));
-        output[(*position)++] = cast(char)(0x80 | (value & 0x3f));
-    }
-    else if (value < 0x10000)
-    {
-        output[(*position)++] = cast(char)(0xe0 | (value >> 12));
-        output[(*position)++] = cast(char)(0x80 | ((value >> 6) & 0x3f));
-        output[(*position)++] = cast(char)(0x80 | (value & 0x3f));
-    }
-    else
-    {
-        output[(*position)++] = cast(char)(0xf0 | (value >> 18));
-        output[(*position)++] = cast(char)(0x80 | ((value >> 12) & 0x3f));
-        output[(*position)++] = cast(char)(0x80 | ((value >> 6) & 0x3f));
-        output[(*position)++] = cast(char)(0x80 | (value & 0x3f));
-    }
-}
-
-private bool validUtf8(scope String value) pure @safe
-{
-    size_t position;
-    while (position < value.length)
-    {
-        const width = utf8Width(value, position);
-        if (width == 0)
-            return false;
-        position += width;
-    }
-    return true;
-}
-
-private size_t utf8Width(scope String value, size_t position) pure @safe
-{
-    const first = cast(ubyte) value[position];
-    if (first < 0x80)
-        return 1;
-    size_t width;
-    uint minimum;
-    uint codePoint;
-    if (first >= 0xc2 && first <= 0xdf)
-    {
-        width = 2;
-        minimum = 0x80;
-        codePoint = first & 0x1f;
-    }
-    else if (first >= 0xe0 && first <= 0xef)
-    {
-        width = 3;
-        minimum = 0x800;
-        codePoint = first & 0x0f;
-    }
-    else if (first >= 0xf0 && first <= 0xf4)
-    {
-        width = 4;
-        minimum = 0x10000;
-        codePoint = first & 0x07;
-    }
-    else
-        return 0;
-    if (width > value.length - position)
-        return 0;
-    foreach (index; 1 .. width)
-    {
-        const next = cast(ubyte) value[position + index];
-        if ((next & 0xc0) != 0x80)
-            return 0;
-        codePoint = (codePoint << 6) | (next & 0x3f);
-    }
-    if (codePoint < minimum || codePoint > 0x10ffff ||
-        (codePoint >= 0xd800 && codePoint <= 0xdfff))
-        return 0;
-    return width;
+    const encoded = encodeUtf8(cast(dchar) value);
+    const codeUnits = encoded.codeUnits;
+    foreach (index; 0 .. encoded.byteLength)
+        output[(*position)++] = codeUnits[index];
 }
 
 private bool equalBytes(scope String left, scope String right) pure @safe

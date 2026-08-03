@@ -6,7 +6,8 @@ import core.lifetime : move;
 import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option, none, reset, set, some, take;
 import xtb.core.print : Writer, writeln;
-import xtb.core.string : String, StringBuf, append;
+import xtb.core.string : String, StringBuf, append, asStringUnchecked;
+import xtb.core.types : u8;
 import xtb.serde : KeyCase, SerdeError, fieldCase, readJson, readToml,
     required, writeJson, writeToml;
 
@@ -36,10 +37,10 @@ private struct OptionalConfig
     Option!uint retryCount;
 }
 
-private size_t appendSink(void* context, scope String bytes)
+private size_t appendSink(void* context, scope const(u8)[] bytes)
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes);
+    (*output).append(bytes.asStringUnchecked);
     return bytes.length;
 }
 

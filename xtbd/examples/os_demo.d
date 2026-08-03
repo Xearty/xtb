@@ -6,7 +6,19 @@ import xtb.os;
 extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
 {
     ThreadContextScope context = ThreadContextScope.acquire();
-    const input = argumentCount > 1 ? fromCString(arguments[1]) : ".";
+    String input = ".";
+    if (argumentCount > 1)
+    {
+        const checked = fromCString(arguments[1]);
+        if (checked.failed)
+        {
+            formatln!"path is not valid UTF-8 at byte {}"(
+                checked.error.byteOffset,
+            );
+            return 1;
+        }
+        input = checked.value;
+    }
     const root = Path.fromString(input);
 
     StringBuf canonical = StringBuf.create(mallocAllocator());

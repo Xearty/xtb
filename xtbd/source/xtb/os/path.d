@@ -85,7 +85,7 @@ bool tryAppendComponent(ref StringBuf output, Path component)
     const current = output.view;
     const separator = current.length != 0 && current[$ - 1] != '/';
     const componentLength = end - begin;
-    if (componentLength > size_t.max - output.length - separator)
+    if (componentLength > size_t.max - output.byteLength - separator)
         return false;
 
     bool aliasesOutput;
@@ -104,7 +104,7 @@ bool tryAppendComponent(ref StringBuf output, Path component)
         }
     }
 
-    if (!output.tryReserve(output.length + separator + componentLength))
+    if (!output.tryReserve(output.byteLength + separator + componentLength))
         return false;
     if (aliasesOutput)
         value = output.view[sourceOffset .. sourceOffset + value.length];

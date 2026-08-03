@@ -5,15 +5,16 @@ nothrow @nogc:
 import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option;
 import xtb.core.print : Writer;
-import xtb.core.string : String, StringBuf, append, equal;
+import xtb.core.string : String, StringBuf, append, asStringUnchecked, equal;
+import xtb.core.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind,
     aliasName, defaultValue, fieldCase, omitDefault, readJson, readToml,
     required, writeJson, writeToml;
 
-private size_t bufferSink(void* context, scope String bytes)
+private size_t bufferSink(void* context, scope const(u8)[] bytes)
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes);
+    (*output).append(bytes.asStringUnchecked);
     return bytes.length;
 }
 

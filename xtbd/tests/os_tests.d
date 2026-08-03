@@ -657,7 +657,9 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     rootStorage[$ - 1] = '\0';
     const createdRoot = mkdtemp(rootStorage.ptr);
     assert(createdRoot !is null);
-    const rootPath = Path.fromString(fromCString(createdRoot));
+    const checkedRoot = fromCString(createdRoot);
+    assert(checkedRoot.succeeded);
+    const rootPath = Path.fromString(checkedRoot.value);
     OsError error;
 
     StringBuf first = StringBuf.fromString(mallocAllocator(), rootPath.view);

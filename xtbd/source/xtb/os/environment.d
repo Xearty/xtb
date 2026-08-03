@@ -25,7 +25,10 @@ OsError environmentVariable(String name, String* output) @system
         const value = getenv(native.checkedCString);
         if (value is null)
             return OsError(OsErrorKind.notFound, 0);
-        *output = fromCString(value);
+        const checked = fromCString(value);
+        if (checked.failed)
+            return OsError(OsErrorKind.invalidData, 0);
+        *output = checked.value;
         return OsError.init;
     }
     else

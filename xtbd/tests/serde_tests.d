@@ -7,7 +7,9 @@ import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
     mallocAllocator;
 import xtb.core.option : Option, set;
 import xtb.core.print : Writer;
-import xtb.core.string : String, StringBuf, append, clear, equal;
+import xtb.core.string : String, StringBuf, append, asStringUnchecked, clear,
+    equal;
+import xtb.core.types : u8;
 import xtb.serde.attributes;
 import xtb.serde.casing;
 import xtb.serde.error;
@@ -16,14 +18,14 @@ import xtb.serde.ownership;
 import xtb.serde.toml;
 import xtb.serde.traits;
 
-private size_t bufferSink(void* context, scope String bytes) nothrow @nogc
+private size_t bufferSink(void* context, scope const(u8)[] bytes) nothrow @nogc
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes);
+    (*output).append(bytes.asStringUnchecked);
     return bytes.length;
 }
 
-private size_t failingSink(void*, scope String) nothrow @nogc
+private size_t failingSink(void*, scope const(u8)[]) nothrow @nogc
 {
     return 0;
 }

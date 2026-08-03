@@ -6,13 +6,23 @@ math_source_files := `find source/xtb/math -name '*.d' -print | sort | tr '\n' '
 os_source_files := `find source/xtb/os -name '*.d' -print | sort | tr '\n' ' '`
 serde_source_files := `find source/xtb/serde -name '*.d' -print | sort | tr '\n' ' '`
 serde_test_files := "tests/serde_tests.d tests/serde_backend_contract.d"
-fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/hash.d source/xtb/core/hash_map.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d"
+fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/hash.d source/xtb/core/hash_map.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d source/xtb/core/utf8.d"
 lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' ! -path 'source/xtb/core/print.d' ! -path 'examples/print_demo.d' -print | sort | tr '\n' ' '`
 interpolation_files := "source/xtb/core/print.d examples/print_demo.d"
 fuzz_files := `find fuzz -name '*.d' -print | sort | tr '\n' ' '`
 format_files := `find source tests examples fuzz -name '*.d' -print | sort | tr '\n' ' '`
 platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
-common_flags := "-betterC -boundscheck=on -w -de -preview=dip1000 -I=source -od=build/obj"
+common_flags := "-betterC -boundscheck=on -w -de -preview=dip1000 -I=source"
+build_flags := common_flags + " -od=build/obj/build"
+test_flags := common_flags + " -od=build/obj/test"
+optimized_flags := common_flags + " -od=build/obj/optimized"
+release_flags := common_flags + " -od=build/obj/release"
+darwin_flags := common_flags + " -od=build/obj/darwin"
+asan_flags := common_flags + " -od=build/obj/asan"
+ubsan_flags := common_flags + " -od=build/obj/ubsan"
+fuzz_flags := common_flags + " -od=build/obj/fuzz"
+abi_flags := common_flags + " -od=build/obj/abi"
+example_flags := common_flags + " -od=build/obj/examples"
 
 default: check
 
@@ -20,115 +30,125 @@ format:
     dfmt --config . --inplace {{format_files}}
 
 build:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} -oq -lib {{core_source_files}} -of=build/libxtbd_core.a
-    ldc2 {{common_flags}} -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics.a
-    ldc2 {{common_flags}} -oq -lib {{math_source_files}} -of=build/libxtbd_math.a
-    ldc2 {{common_flags}} -oq -lib {{os_source_files}} -of=build/libxtbd_os.a
-    ldc2 {{common_flags}} -oq -lib {{serde_source_files}} -of=build/libxtbd_serde.a
+    mkdir -p build/obj/build
+    ldc2 {{build_flags}} -oq -lib {{core_source_files}} -of=build/libxtbd_core.a
+    ldc2 {{build_flags}} -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics.a
+    ldc2 {{build_flags}} -oq -lib {{math_source_files}} -of=build/libxtbd_math.a
+    ldc2 {{build_flags}} -oq -lib {{os_source_files}} -of=build/libxtbd_os.a
+    ldc2 {{build_flags}} -oq -lib {{serde_source_files}} -of=build/libxtbd_serde.a
 
 test:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{common_flags}} -unittest tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests
+    mkdir -p build/obj/test
+    ldc2 {{test_flags}} tests/support/process_helper.d -of=build/process_test_helper
+    ldc2 {{test_flags}} -unittest tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests
+    ./build/utf8_tests
+    ldc2 {{test_flags}} -unittest tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests
     ./build/core_tests
-    ldc2 {{common_flags}} -unittest tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests
+    ldc2 {{test_flags}} -unittest tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests
     ./build/math_tests
-    ldc2 {{common_flags}} -unittest tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests
+    ldc2 {{test_flags}} -unittest tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests
     ./build/os_tests
-    ldc2 {{common_flags}} -unittest {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests
+    ldc2 {{test_flags}} -unittest {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests
     ./build/serde_tests
 
 test-optimized:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} -O3 tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{common_flags}} -unittest -O3 tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_optimized
+    mkdir -p build/obj/optimized
+    ldc2 {{optimized_flags}} -O3 tests/support/process_helper.d -of=build/process_test_helper
+    ldc2 {{optimized_flags}} -unittest -O3 tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_optimized
+    ./build/utf8_tests_optimized
+    ldc2 {{optimized_flags}} -unittest -O3 tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_optimized
     ./build/core_tests_optimized
-    ldc2 {{common_flags}} -unittest -O3 tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_optimized
+    ldc2 {{optimized_flags}} -unittest -O3 tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_optimized
     ./build/math_tests_optimized
-    ldc2 {{common_flags}} -unittest -O3 tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_optimized
+    ldc2 {{optimized_flags}} -unittest -O3 tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_optimized
     ./build/os_tests_optimized
-    ldc2 {{common_flags}} -unittest -O3 {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_optimized
+    ldc2 {{optimized_flags}} -unittest -O3 {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_optimized
     ./build/serde_tests_optimized
 
 test-release:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} -O3 -release tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{common_flags}} -unittest -O3 -release tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_release
+    mkdir -p build/obj/release
+    ldc2 {{release_flags}} -O3 -release tests/support/process_helper.d -of=build/process_test_helper
+    ldc2 {{release_flags}} -unittest -O3 -release tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_release
+    ./build/utf8_tests_release
+    ldc2 {{release_flags}} -unittest -O3 -release tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_release
     ./build/core_tests_release
-    ldc2 {{common_flags}} -unittest -O3 -release tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_release
+    ldc2 {{release_flags}} -unittest -O3 -release tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_release
     ./build/math_tests_release
     status=0; bash -c './build/math_tests_release --panic-random-bound >/dev/null 2>&1' >/dev/null 2>&1 || status=$?; test "$status" -eq 134
-    ldc2 {{common_flags}} -unittest -O3 -release tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_release
+    ldc2 {{release_flags}} -unittest -O3 -release tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_release
     ./build/os_tests_release
-    ldc2 {{common_flags}} -unittest -O3 -release {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_release
+    ldc2 {{release_flags}} -unittest -O3 -release {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_release
     ./build/serde_tests_release
 
 test-darwin-build:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{core_source_files}} -of=build/libxtbd_core_aarch64_darwin.a
-    ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics_aarch64_darwin.a
-    ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{math_source_files}} -of=build/libxtbd_math_aarch64_darwin.a
-    ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{os_source_files}} -of=build/libxtbd_os_aarch64_darwin.a
-    ldc2 {{common_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{serde_source_files}} -of=build/libxtbd_serde_aarch64_darwin.a
+    mkdir -p build/obj/darwin
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{core_source_files}} -of=build/libxtbd_core_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{diagnostics_source_files}} -of=build/libxtbd_diagnostics_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{math_source_files}} -of=build/libxtbd_math_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{os_source_files}} -of=build/libxtbd_os_aarch64_darwin.a
+    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{serde_source_files}} -of=build/libxtbd_serde_aarch64_darwin.a
 
 test-sanitize:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{common_flags}} -unittest -fsanitize=address {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
+    mkdir -p build/obj/asan
+    ldc2 {{asan_flags}} tests/support/process_helper.d -of=build/process_test_helper
+    ldc2 {{asan_flags}} -unittest -fsanitize=address tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_asan
+    ./build/utf8_tests_asan
+    ldc2 {{asan_flags}} -unittest -fsanitize=address {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
     ./build/core_tests_asan
-    ldc2 {{common_flags}} -unittest -fsanitize=address tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_asan
+    ldc2 {{asan_flags}} -unittest -fsanitize=address tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_asan
     ./build/math_tests_asan
-    ldc2 {{common_flags}} -unittest -fsanitize=address tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_asan
+    ldc2 {{asan_flags}} -unittest -fsanitize=address tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_asan
     ./build/os_tests_asan
-    ldc2 {{common_flags}} -unittest -fsanitize=address {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_asan
+    ldc2 {{asan_flags}} -unittest -fsanitize=address {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_asan
     ./build/serde_tests_asan
 
 test-ubsan:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} tests/support/process_helper.d -of=build/process_test_helper
+    mkdir -p build/obj/ubsan
+    ldc2 {{ubsan_flags}} tests/support/process_helper.d -of=build/process_test_helper
     if ldc2 -betterC -fsanitize=undefined -c source/xtb/core/types.d -of=build/ubsan_probe.o >/dev/null 2>&1; then \
-        ldc2 {{common_flags}} -unittest -fsanitize=undefined {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
+        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_ubsan; \
+        ./build/utf8_tests_ubsan; \
+        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
         ./build/core_tests_ubsan; \
-        ldc2 {{common_flags}} -unittest -fsanitize=undefined tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_ubsan; \
+        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_ubsan; \
         ./build/math_tests_ubsan; \
-        ldc2 {{common_flags}} -unittest -fsanitize=undefined tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_ubsan; \
+        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_ubsan; \
         ./build/os_tests_ubsan; \
-        ldc2 {{common_flags}} -unittest -fsanitize=undefined {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_ubsan; \
+        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_ubsan; \
         ./build/serde_tests_ubsan; \
     else \
         echo "UBSan is not supported by this LDC build; skipped"; \
     fi
 
 fuzz-smoke:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/demangle_fuzz.d source/xtb/diagnostics/demangle.d {{fuzz_core_source_files}} -of=build/demangle_fuzz.o
+    mkdir -p build/obj/fuzz
+    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/demangle_fuzz.d source/xtb/diagnostics/demangle.d {{fuzz_core_source_files}} -of=build/demangle_fuzz.o
     clang++ -fsanitize=fuzzer,address build/demangle_fuzz.o -o build/demangle_fuzz
     ./build/demangle_fuzz -runs=1000 -max_len=512
-    ldc2 {{common_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/container_fuzz.d {{fuzz_core_source_files}} -of=build/container_fuzz.o
+    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/container_fuzz.d {{fuzz_core_source_files}} -of=build/container_fuzz.o
     clang++ -fsanitize=fuzzer,address build/container_fuzz.o -o build/container_fuzz
     ./build/container_fuzz -runs=1000 -max_len=512
-    ldc2 {{common_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/serde_fuzz.d {{core_source_files}} {{serde_source_files}} -of=build/serde_fuzz.o
+    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/serde_fuzz.d {{core_source_files}} {{serde_source_files}} -of=build/serde_fuzz.o
     clang++ -fsanitize=fuzzer,address build/serde_fuzz.o -o build/serde_fuzz
     ./build/serde_fuzz -runs=2000 -max_len=2048
 
 test-abi:
-    mkdir -p build/obj
+    mkdir -p build/obj/abi
     clang -std=c11 -Wall -Wextra -Werror -c tests/abi_allocator.c -o build/abi_allocator_c.o
-    ldc2 {{common_flags}} {{core_source_files}} tests/abi_allocator.d build/abi_allocator_c.o -of=build/abi_allocator
+    ldc2 {{abi_flags}} {{core_source_files}} tests/abi_allocator.d build/abi_allocator_c.o -of=build/abi_allocator
     ./build/abi_allocator
 
 examples:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} {{core_source_files}} examples/core_demo.d -of=build/core_demo
-    ldc2 {{common_flags}} {{core_source_files}} examples/print_demo.d -of=build/print_demo
-    ldc2 {{common_flags}} -g {{core_source_files}} {{diagnostics_source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
-    ldc2 {{common_flags}} {{core_source_files}} {{math_source_files}} examples/math_demo.d -of=build/math_demo
-    ldc2 {{common_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
-    ldc2 {{common_flags}} {{core_source_files}} {{os_source_files}} examples/process_demo.d -of=build/process_demo
-    ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
-    ldc2 {{common_flags}} {{core_source_files}} {{serde_source_files}} examples/option_demo.d -of=build/option_demo
-    ldc2 {{common_flags}} {{core_source_files}} examples/hash_demo.d -of=build/hash_demo
+    mkdir -p build/obj/examples
+    ldc2 {{example_flags}} {{core_source_files}} examples/core_demo.d -of=build/core_demo
+    ldc2 {{example_flags}} {{core_source_files}} examples/print_demo.d -of=build/print_demo
+    ldc2 {{example_flags}} -g {{core_source_files}} {{diagnostics_source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
+    ldc2 {{example_flags}} {{core_source_files}} {{math_source_files}} examples/math_demo.d -of=build/math_demo
+    ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
+    ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/process_demo.d -of=build/process_demo
+    ldc2 {{example_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
+    ldc2 {{example_flags}} {{core_source_files}} {{serde_source_files}} examples/option_demo.d -of=build/option_demo
+    ldc2 {{example_flags}} {{core_source_files}} examples/hash_demo.d -of=build/hash_demo
     ./build/core_demo
     ./build/print_demo
     ./build/stacktrace_demo

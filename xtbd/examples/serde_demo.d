@@ -5,7 +5,9 @@ import xtb.core.array : Array, append;
 import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option, set;
 import xtb.core.print : Writer, writeln;
-import xtb.core.string : String, StringBuf, append, clear, equal;
+import xtb.core.string : String, StringBuf, append, asStringUnchecked, clear,
+    equal;
+import xtb.core.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind, TagLayout,
     aliasName, caseOf, discriminant, fieldCase, ignore, omitDefault, payload,
     readJson, readToml, rename, required, taggedUnion, variantCase, withSerde,
@@ -115,10 +117,10 @@ private struct Health
     @withSerde!PercentageSerde Percentage readiness;
 }
 
-private size_t appendSink(void* context, scope String bytes) nothrow @nogc
+private size_t appendSink(void* context, scope const(u8)[] bytes) nothrow @nogc
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes);
+    (*output).append(bytes.asStringUnchecked);
     return bytes.length;
 }
 

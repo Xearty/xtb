@@ -367,6 +367,22 @@ nothrow @nogc:
     {
         return this;
     }
+
+    int opApply(scope int delegate(dchar) nothrow @nogc callback) const
+    @system
+    {
+        require(callback !is null, "code point iteration callback is null");
+        CodePointRange range;
+        range.remaining_ = remaining_;
+        while (!range.empty)
+        {
+            const control = callback(range.front);
+            if (control != 0)
+                return control;
+            range.popFront();
+        }
+        return 0;
+    }
 }
 
 CodePointRange codePoints(return scope String value) pure @safe
@@ -423,6 +439,25 @@ nothrow @nogc:
     {
         return this;
     }
+
+    int opApply(scope int delegate(DecodedCodePoint) nothrow @nogc callback) const
+    @system
+    {
+        require(callback !is null,
+            "code point offset iteration callback is null");
+        CodePointOffsetRange range;
+        range.original_ = original_;
+        range.beginByteOffset_ = beginByteOffset_;
+        range.endByteOffset_ = endByteOffset_;
+        while (!range.empty)
+        {
+            const control = callback(range.front);
+            if (control != 0)
+                return control;
+            range.popFront();
+        }
+        return 0;
+    }
 }
 
 CodePointOffsetRange codePointsWithOffsets(return scope String value)
@@ -434,106 +469,95 @@ pure @safe
     return result;
 }
 
-version (unittest) private void assertUtf8Error(
-    scope const(u8)[] bytes,
-    Utf8ErrorKind kind,
-    size_t byteOffset,
-) @trusted
-{
-    const error = validateUtf8(bytes);
-    assert(error.kind == kind);
-    assert(error.byteOffset == byteOffset);
-}
-
-unittest
-{
+version (unittest) enum utf8TestBody = q{
     assert(validateUtf8(String.init).succeeded);
-    assert(validateUtf8("ASCII\0text").succeeded);
-    assert(validateUtf8("Aé🙂").succeeded);
-    assert("Aé🙂".codePointCount == 3);
+        assert(validateUtf8("ASCII\0text").succeeded);
+        assert(validateUtf8("Aé🙂").succeeded);
+        assert("Aé🙂".codePointCount == 3);
 
-    assertUtf8Error([0x80], Utf8ErrorKind.unexpectedContinuation, 0);
-    assertUtf8Error([0xbf], Utf8ErrorKind.unexpectedContinuation, 0);
-    assertUtf8Error([0xc0, 0x80], Utf8ErrorKind.invalidLeadingByte, 0);
-    assertUtf8Error([0xc1, 0xbf], Utf8ErrorKind.invalidLeadingByte, 0);
-    assertUtf8Error([0xf5, 0x80, 0x80, 0x80], Utf8ErrorKind.invalidLeadingByte, 0);
-    assertUtf8Error([0xff], Utf8ErrorKind.invalidLeadingByte, 0);
-    assertUtf8Error([0xc2], Utf8ErrorKind.truncatedSequence, 1);
-    assertUtf8Error([0xe1, 0x80], Utf8ErrorKind.truncatedSequence, 2);
-    assertUtf8Error([0xf1, 0x80, 0x80], Utf8ErrorKind.truncatedSequence, 3);
-    assertUtf8Error([0xc2, 0x20], Utf8ErrorKind.invalidContinuation, 1);
-    assertUtf8Error([0xe1, 0x80, 0x20], Utf8ErrorKind.invalidContinuation, 2);
-    assertUtf8Error([0xf1, 0x80, 0x80, 0x20], Utf8ErrorKind.invalidContinuation, 3);
-    assertUtf8Error([0xe0, 0x9f, 0xbf], Utf8ErrorKind.overlongEncoding, 0);
-    assertUtf8Error([0xf0, 0x8f, 0xbf, 0xbf], Utf8ErrorKind.overlongEncoding, 0);
-    assertUtf8Error([0xed, 0xa0, 0x80], Utf8ErrorKind.surrogateCodePoint, 0);
-    assertUtf8Error([0xf4, 0x90, 0x80, 0x80], Utf8ErrorKind.codePointOutOfRange, 0);
-    assertUtf8Error(['o', 'k', 0xc2], Utf8ErrorKind.truncatedSequence, 3);
+        assertUtf8Error([0x80], Utf8ErrorKind.unexpectedContinuation, 0);
+        assertUtf8Error([0xbf], Utf8ErrorKind.unexpectedContinuation, 0);
+        assertUtf8Error([0xc0, 0x80], Utf8ErrorKind.invalidLeadingByte, 0);
+        assertUtf8Error([0xc1, 0xbf], Utf8ErrorKind.invalidLeadingByte, 0);
+        assertUtf8Error([0xf5, 0x80, 0x80, 0x80], Utf8ErrorKind.invalidLeadingByte, 0);
+        assertUtf8Error([0xff], Utf8ErrorKind.invalidLeadingByte, 0);
+        assertUtf8Error([0xc2], Utf8ErrorKind.truncatedSequence, 1);
+        assertUtf8Error([0xe1, 0x80], Utf8ErrorKind.truncatedSequence, 2);
+        assertUtf8Error([0xf1, 0x80, 0x80], Utf8ErrorKind.truncatedSequence, 3);
+        assertUtf8Error([0xc2, 0x20], Utf8ErrorKind.invalidContinuation, 1);
+        assertUtf8Error([0xe1, 0x80, 0x20], Utf8ErrorKind.invalidContinuation, 2);
+        assertUtf8Error([0xf1, 0x80, 0x80, 0x20], Utf8ErrorKind.invalidContinuation, 3);
+        assertUtf8Error([0xe0, 0x9f, 0xbf], Utf8ErrorKind.overlongEncoding, 0);
+        assertUtf8Error([0xf0, 0x8f, 0xbf, 0xbf], Utf8ErrorKind.overlongEncoding, 0);
+        assertUtf8Error([0xed, 0xa0, 0x80], Utf8ErrorKind.surrogateCodePoint, 0);
+        assertUtf8Error([0xf4, 0x90, 0x80, 0x80], Utf8ErrorKind.codePointOutOfRange, 0);
+        assertUtf8Error(['o', 'k', 0xc2], Utf8ErrorKind.truncatedSequence, 3);
 
-    const checked = (cast(const(u8)[]) "Aé🙂").asString;
-    assert(checked.succeeded);
-    assert(checked.value.ptr is "Aé🙂".ptr);
-    assert(checked.value.length == "Aé🙂".length);
-    const rejected = (cast(const(u8)[])[0xff]).asString;
-    assert(rejected.failed && rejected.value.length == 0);
+        const checked = (cast(const(u8)[]) "Aé🙂").asString;
+        assert(checked.succeeded);
+        assert(checked.value.ptr is "Aé🙂".ptr);
+        assert(checked.value.length == "Aé🙂".length);
+        const u8[1] invalidBytes = [0xff];
+        const rejected = invalidBytes[].asString;
+        assert(rejected.failed && rejected.value.length == 0);
 
-    String mixed = "Aé🙂";
-    assert(mixed.isCodePointBoundary(0));
-    assert(mixed.isCodePointBoundary(1));
-    assert(!mixed.isCodePointBoundary(2));
-    assert(mixed.isCodePointBoundary(3));
-    assert(!mixed.isCodePointBoundary(4));
-    assert(!mixed.isCodePointBoundary(5));
-    assert(!mixed.isCodePointBoundary(6));
-    assert(mixed.isCodePointBoundary(7));
-    assert(!mixed.isCodePointBoundary(8));
-    assert(mixed.floorCodePointBoundary(6) == 3);
-    assert(mixed.ceilCodePointBoundary(4) == 7);
-    assert(mixed.floorCodePointBoundary(99) == 7);
-    assert(mixed.ceilCodePointBoundary(99) == 7);
+        String mixed = "Aé🙂";
+        assert(mixed.isCodePointBoundary(0));
+        assert(mixed.isCodePointBoundary(1));
+        assert(!mixed.isCodePointBoundary(2));
+        assert(mixed.isCodePointBoundary(3));
+        assert(!mixed.isCodePointBoundary(4));
+        assert(!mixed.isCodePointBoundary(5));
+        assert(!mixed.isCodePointBoundary(6));
+        assert(mixed.isCodePointBoundary(7));
+        assert(!mixed.isCodePointBoundary(8));
+        assert(mixed.floorCodePointBoundary(6) == 3);
+        assert(mixed.ceilCodePointBoundary(4) == 7);
+        assert(mixed.floorCodePointBoundary(99) == 7);
+        assert(mixed.ceilCodePointBoundary(99) == 7);
 
-    dchar[3] forward;
-    size_t forwardCount;
-    foreach (codePoint; mixed.codePoints)
-        forward[forwardCount++] = codePoint;
-    assert(forwardCount == 3);
-    assert(forward == [cast(dchar) 'A', cast(dchar) 0xe9, cast(dchar) 0x1f642]);
+        dchar[3] forward;
+        size_t forwardCount;
+        foreach (codePoint; mixed.codePoints)
+            forward[forwardCount++] = codePoint;
+        assert(forwardCount == 3);
+        assert(forward == [cast(dchar) 'A', cast(dchar) 0xe9, cast(dchar) 0x1f642]);
 
-    auto reverse = mixed.codePoints;
-    assert(reverse.back == 0x1f642);
-    reverse.popBack();
-    assert(reverse.back == 0xe9);
-    reverse.popBack();
-    assert(reverse.back == 'A');
-    reverse.popBack();
-    assert(reverse.empty);
+        auto reverse = mixed.codePoints;
+        assert(reverse.back == 0x1f642);
+        reverse.popBack();
+        assert(reverse.back == 0xe9);
+        reverse.popBack();
+        assert(reverse.back == 'A');
+        reverse.popBack();
+        assert(reverse.empty);
 
-    auto offsets = mixed.codePointsWithOffsets;
-    assert(offsets.front == DecodedCodePoint('A', 0, 1));
-    offsets.popFront();
-    assert(offsets.front == DecodedCodePoint(0xe9, 1, 2));
-    assert(offsets.back == DecodedCodePoint(0x1f642, 3, 4));
-    offsets.popBack();
-    assert(offsets.back == DecodedCodePoint(0xe9, 1, 2));
+        auto offsets = mixed.codePointsWithOffsets;
+        assert(offsets.front == DecodedCodePoint('A', 0, 1));
+        offsets.popFront();
+        assert(offsets.front == DecodedCodePoint(0xe9, 1, 2));
+        assert(offsets.back == DecodedCodePoint(0x1f642, 3, 4));
+        offsets.popBack();
+        assert(offsets.back == DecodedCodePoint(0xe9, 1, 2));
 
-    foreach (uint scalar; 0 .. 0x110000)
-    {
-        const value = cast(dchar) scalar;
-        if (!isUnicodeScalar(value))
-            continue;
-        EncodedCodePoint encoded;
-        assert(tryEncodeUtf8(value, &encoded));
-        assert(encoded.byteLength == encodedUtf8Length(value));
-        DecodedCodePoint decoded;
-        const codeUnits = encoded.codeUnits;
-        assert(decodeCodePoint(codeUnits[0 .. encoded.byteLength], 0, &decoded).succeeded);
-        assert(decoded.value == value);
-        assert(decoded.byteLength == encoded.byteLength);
-    }
+        foreach (uint scalar; 0 .. 0x110000)
+        {
+            const value = cast(dchar) scalar;
+            if (!isUnicodeScalar(value))
+                continue;
+            EncodedCodePoint encoded;
+            assert(tryEncodeUtf8(value, &encoded));
+            assert(encoded.byteLength == encodedUtf8Length(value));
+            DecodedCodePoint decoded;
+            const codeUnits = encoded.codeUnits;
+            assert(decodeCodePoint(codeUnits[0 .. encoded.byteLength], 0, &decoded).succeeded);
+            assert(decoded.value == value);
+            assert(decoded.byteLength == encoded.byteLength);
+        }
 
-    EncodedCodePoint invalid = encodeUtf8('x');
-    assert(!tryEncodeUtf8(cast(dchar) 0xd800, &invalid));
-    assert(invalid.byteLength == 0);
-    assert(!tryEncodeUtf8(cast(dchar) 0x110000, &invalid));
-    assert(invalid.byteLength == 0);
-}
+        EncodedCodePoint invalid = encodeUtf8('x');
+        assert(!tryEncodeUtf8(cast(dchar) 0xd800, &invalid));
+        assert(invalid.byteLength == 0);
+        assert(!tryEncodeUtf8(cast(dchar) 0x110000, &invalid));
+        assert(invalid.byteLength == 0);
+};

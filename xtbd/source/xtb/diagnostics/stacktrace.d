@@ -445,7 +445,10 @@ version (unittest)
         size_t length;
     }
 
-    private size_t traceCaptureSink(void* context, scope String bytes)
+    private size_t traceCaptureSink(
+        void* context,
+        scope const(ubyte)[] bytes,
+    )
 
     {
         TraceCapture* capture = cast(TraceCapture*) context;

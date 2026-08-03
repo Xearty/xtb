@@ -510,13 +510,16 @@ version (unittest) private struct TestSink
     size_t written;
 }
 
-version (unittest) private size_t testSink(void* context, scope String bytes)
+version (unittest) private size_t testSink(
+    void* context,
+    scope const(ubyte)[] bytes,
+)
 {
     TestSink* sink = cast(TestSink*) context;
     const available = sink.storage.length - sink.written;
     const amount = bytes.length < available ? bytes.length : available;
     foreach (index; 0 .. amount)
-        sink.storage[sink.written + index] = bytes[index];
+        sink.storage[sink.written + index] = cast(char) bytes[index];
     sink.written += amount;
     return amount;
 }

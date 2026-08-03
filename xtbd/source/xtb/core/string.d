@@ -3,6 +3,8 @@ module xtb.core.string;
 nothrow @nogc:
 
 public import xtb.core.types : String;
+public import xtb.core.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
+    asString;
 
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
@@ -20,35 +22,42 @@ import xtb.core.array : tryReserveArray = tryReserve;
 import xtb.core.memory : Allocator, allocate, tryAllocate;
 import xtb.core.hash : hashValue;
 import xtb.core.panic : panic, require;
+import xtb.core.utf8 : encodeUtf8, isCodePointBoundary, validateUtf8;
 
 enum notFound = size_t.max;
 
 alias SplitPredicate = size_t function(String rest, void* context);
 
-/// Borrows arbitrary bytes as string storage without validating UTF-8.
+/// Borrows bytes already proven to be valid UTF-8.
 String asStringUnchecked(return scope const(u8)[] bytes)
-pure @trusted
+pure @system
 {
     return cast(String) bytes;
 }
 
-String fromCString(const(char)* value) @system
+Utf8StringResult fromCString(const(char)* value) @system
+{
+    require(value !is null, "null C string");
+    const candidate = value[0 .. strlen(value)];
+    const error = validateUtf8(candidate);
+    return error.failed
+        ? Utf8StringResult(String.init, error) : Utf8StringResult(candidate, Utf8Error.init);
+}
+
+String fromCStringUnchecked(const(char)* value) @system
 {
     require(value !is null, "null C string");
     return value[0 .. strlen(value)];
 }
 
-bool tryFromCString(const(char)* value, String* output)
-@system
+size_t byteLength(String value) pure @safe
 {
-    require(output !is null, "String output pointer is null");
-    if (value is null)
-    {
-        *output = null;
-        return false;
-    }
-    *output = value[0 .. strlen(value)];
-    return true;
+    return value.length;
+}
+
+const(u8)[] bytes(return scope String value) pure @trusted
+{
+    return cast(const(u8)[]) value;
 }
 
 bool empty(String value) pure @safe
@@ -56,26 +65,26 @@ bool empty(String value) pure @safe
     return value.length == 0;
 }
 
-char front(String value) @system
+char frontCodeUnit(String value) @safe
 {
-    require(value.length != 0, "front of empty String");
+    require(value.length != 0, "frontCodeUnit of empty String");
     return value[0];
 }
 
-char back(String value) @system
+char backCodeUnit(String value) @safe
 {
-    require(value.length != 0, "back of empty String");
+    require(value.length != 0, "backCodeUnit of empty String");
     return value[value.length - 1];
 }
 
-bool equal(String left, String right) pure @system
+bool equal(String left, String right) pure @trusted
 {
     if (left.length != right.length)
         return false;
     return left.length == 0 || memcmp(left.ptr, right.ptr, left.length) == 0;
 }
 
-int compare(String left, String right) pure @system
+int compare(String left, String right) pure @trusted
 {
     const common = left.length < right.length ? left.length : right.length;
     if (common != 0)
@@ -89,39 +98,37 @@ int compare(String left, String right) pure @system
     return left.length < right.length ? -1 : left.length > right.length ? 1 : 0;
 }
 
-String slice(String value, size_t begin, size_t end)
+String sliceBytes(
+    return scope String value,
+    size_t beginByteOffset,
+    size_t endByteOffset,
+)
 @safe
 {
-    require(begin <= end, "String slice begin exceeds end");
-    require(end <= value.length, "String slice end out of bounds");
-    return value[begin .. end];
+    require(beginByteOffset <= endByteOffset,
+        "String byte slice begin exceeds end");
+    require(endByteOffset <= value.length,
+        "String byte slice end out of bounds");
+    require(value.isCodePointBoundary(beginByteOffset),
+        "String byte slice begins inside UTF-8 code point");
+    require(value.isCodePointBoundary(endByteOffset),
+        "String byte slice ends inside UTF-8 code point");
+    return value[beginByteOffset .. endByteOffset];
 }
 
-String head(String value, size_t count) pure @safe
+String prefixBytes(return scope String value, size_t endByteOffset)
+@safe
 {
-    const amount = count < value.length ? count : value.length;
-    return value[0 .. amount];
+    return value.sliceBytes(0, endByteOffset);
 }
 
-String tail(String value, size_t count) pure @safe
+String suffixBytes(return scope String value, size_t beginByteOffset)
+@safe
 {
-    const amount = count < value.length ? count : value.length;
-    return value[value.length - amount .. value.length];
+    return value.sliceBytes(beginByteOffset, value.length);
 }
 
-String truncateLeft(String value, size_t count) pure @safe
-{
-    const amount = count < value.length ? count : value.length;
-    return value[amount .. $];
-}
-
-String truncateRight(String value, size_t count) pure @safe
-{
-    const amount = count < value.length ? count : value.length;
-    return value[0 .. value.length - amount];
-}
-
-size_t find(String value, String needle) pure @system
+size_t find(String value, String needle) pure @trusted
 {
     if (needle.length == 0)
         return 0;
@@ -136,17 +143,17 @@ size_t find(String value, String needle) pure @system
     return notFound;
 }
 
-size_t find(String value, char needle) pure @safe
+size_t findCodeUnit(String value, char codeUnit) pure @safe
 {
-    foreach (i, character; value)
+    foreach (byteOffset, candidate; value)
     {
-        if (character == needle)
-            return i;
+        if (candidate == codeUnit)
+            return byteOffset;
     }
     return notFound;
 }
 
-size_t findLast(String value, String needle) pure @system
+size_t findLast(String value, String needle) pure @trusted
 {
     if (needle.length == 0)
         return value.length;
@@ -163,22 +170,36 @@ size_t findLast(String value, String needle) pure @system
     return notFound;
 }
 
-size_t findLast(String value, char needle) pure @safe
+size_t findLastCodeUnit(String value, char codeUnit) pure @safe
 {
-    size_t index = value.length;
-    while (index != 0)
+    size_t byteOffset = value.length;
+    while (byteOffset != 0)
     {
-        --index;
-        if (value[index] == needle)
-            return index;
+        --byteOffset;
+        if (value[byteOffset] == codeUnit)
+            return byteOffset;
     }
     return notFound;
 }
 
+size_t findCodePoint(String value, dchar codePoint) @safe
+{
+    const encoded = encodeUtf8(codePoint);
+    const codeUnits = encoded.codeUnits;
+    return value.find(codeUnits[0 .. encoded.byteLength]);
+}
+
+size_t findLastCodePoint(String value, dchar codePoint) @safe
+{
+    const encoded = encodeUtf8(codePoint);
+    const codeUnits = encoded.codeUnits;
+    return value.findLast(codeUnits[0 .. encoded.byteLength]);
+}
+
 String baseName(String value) pure @safe
 {
-    const slash = value.findLast('/');
-    const backslash = value.findLast('\\');
+    const slash = value.findLastCodeUnit('/');
+    const backslash = value.findLastCodeUnit('\\');
     size_t separator = slash;
     if (separator == notFound ||
         (backslash != notFound && backslash > separator))
@@ -188,33 +209,38 @@ String baseName(String value) pure @safe
 
 String stripExtension(String value) pure @safe
 {
-    const extension = value.findLast('.');
+    const extension = value.findLastCodeUnit('.');
     const baseOffset = value.length - value.baseName.length;
     return extension == notFound || extension <= baseOffset
         ? value : value[0 .. extension];
 }
 
-bool contains(String value, String needle) pure @system
+bool contains(String value, String needle) pure @safe
 {
     return value.find(needle) != notFound;
 }
 
-bool contains(String value, char needle) pure @safe
+bool containsCodeUnit(String value, char codeUnit) pure @safe
 {
-    return value.find(needle) != notFound;
+    return value.findCodeUnit(codeUnit) != notFound;
+}
+
+bool containsCodePoint(String value, dchar codePoint) @safe
+{
+    return value.findCodePoint(codePoint) != notFound;
 }
 
 bool containsNul(String value) pure @safe
 {
-    return value.contains('\0');
+    return value.containsCodeUnit('\0');
 }
 
-bool startsWith(String value, String prefix) pure @system
+bool startsWith(String value, String prefix) pure @trusted
 {
     return prefix.length <= value.length && value[0 .. prefix.length].equal(prefix);
 }
 
-bool endsWith(String value, String suffix) pure @system
+bool endsWith(String value, String suffix) pure @trusted
 {
     return suffix.length <= value.length &&
         value[value.length - suffix.length .. $].equal(suffix);
@@ -226,7 +252,7 @@ private bool isAsciiWhitespace(char value) pure @safe
         value == '\r' || value == '\f' || value == '\v';
 }
 
-String trimLeft(String value) pure @safe
+String trimAsciiStart(return scope String value) pure @safe
 {
     size_t begin;
     while (begin < value.length && isAsciiWhitespace(value[begin]))
@@ -234,7 +260,7 @@ String trimLeft(String value) pure @safe
     return value[begin .. $];
 }
 
-String trimRight(String value) pure @safe
+String trimAsciiEnd(return scope String value) pure @safe
 {
     size_t end = value.length;
     while (end != 0 && isAsciiWhitespace(value[end - 1]))
@@ -242,9 +268,9 @@ String trimRight(String value) pure @safe
     return value[0 .. end];
 }
 
-String trim(String value) pure @safe
+String trimAscii(return scope String value) pure @safe
 {
-    return value.trimLeft().trimRight();
+    return value.trimAsciiStart().trimAsciiEnd();
 }
 
 bool tryCopy(String value, Allocator* allocator, String* output)
@@ -624,11 +650,11 @@ nothrow @nogc:
         return result;
     }
 
-    static StringBuf withCapacity(Allocator* allocator, size_t capacity)
+    static StringBuf withCapacity(Allocator* allocator, size_t byteCapacity)
 
     {
         StringBuf result;
-        result.bytes_ = Array!char.withCapacity(allocator, capacity);
+        result.bytes_ = Array!char.withCapacity(allocator, byteCapacity);
         return result;
     }
 
@@ -656,6 +682,7 @@ nothrow @nogc:
         Allocator* allocator,
         scope const(u8)[] bytes,
     )
+    @system
     {
         StringBuf result;
         if (!tryFromBytesUnchecked(allocator, bytes, &result))
@@ -669,6 +696,7 @@ nothrow @nogc:
         scope const(u8)[] bytes,
         StringBuf* output,
     )
+    @system
     {
         require(output !is null, "StringBuf output pointer is null");
         *output = create(allocator);
@@ -692,12 +720,12 @@ nothrow @nogc:
         bytes_.deinit();
     }
 
-    size_t length() const pure @safe
+    size_t byteLength() const pure @safe
     {
         return bytes_.length;
     }
 
-    size_t capacity() const pure @safe
+    size_t byteCapacity() const pure @safe
     {
         return bytes_.capacity;
     }
@@ -712,7 +740,7 @@ nothrow @nogc:
         return bytes_.allocator;
     }
 
-    String view() const return pure @system
+    String view() const return pure @trusted
     {
         return bytes_.slice;
     }
@@ -733,14 +761,14 @@ nothrow @nogc:
     }
 }
 
-void reserve(ref StringBuf buffer, size_t capacity)
+void reserve(ref StringBuf buffer, size_t byteCapacity)
 {
-    buffer.bytes_.reserveArray(capacity);
+    buffer.bytes_.reserveArray(byteCapacity);
 }
 
-bool tryReserve(ref StringBuf buffer, size_t capacity)
+bool tryReserve(ref StringBuf buffer, size_t byteCapacity)
 {
-    return buffer.bytes_.tryReserveArray(capacity);
+    return buffer.bytes_.tryReserveArray(byteCapacity);
 }
 
 void append(ref StringBuf buffer, String value)
@@ -755,17 +783,29 @@ bool tryAppend(ref StringBuf buffer, String value)
 
 void append(ref StringBuf buffer, char value)
 {
+    require(cast(u8) value <= 0x7f,
+        "non-ASCII char appended to StringBuf; use dchar");
     buffer.bytes_.appendArray(value);
 }
 
 bool tryAppend(ref StringBuf buffer, char value)
 {
+    require(cast(u8) value <= 0x7f,
+        "non-ASCII char appended to StringBuf; use dchar");
     return buffer.bytes_.tryAppendArray(value);
 }
 
-void appendByte(ref StringBuf buffer, char value)
+void append(ref StringBuf buffer, dchar value)
 {
-    buffer.append(value);
+    if (!buffer.tryAppend(value))
+        panic("StringBuf allocation failed");
+}
+
+bool tryAppend(ref StringBuf buffer, dchar value)
+{
+    const encoded = encodeUtf8(value);
+    const codeUnits = encoded.codeUnits;
+    return buffer.bytes_.tryAppendArray(codeUnits[0 .. encoded.byteLength]);
 }
 
 void appendAssumeCapacity(ref StringBuf buffer, String value)
@@ -775,17 +815,52 @@ void appendAssumeCapacity(ref StringBuf buffer, String value)
 
 void appendAssumeCapacity(ref StringBuf buffer, char value)
 {
+    require(cast(u8) value <= 0x7f,
+        "non-ASCII char appended to StringBuf; use dchar");
     buffer.bytes_.appendAssumeCapacityArray(value);
 }
 
-bool tryInsert(ref StringBuf buffer, size_t index, String value)
+void appendAssumeCapacity(ref StringBuf buffer, dchar value)
 {
-    return buffer.bytes_.tryInsertArray(index, value);
+    const encoded = encodeUtf8(value);
+    const codeUnits = encoded.codeUnits;
+    buffer.bytes_.appendAssumeCapacityArray(codeUnits[0 .. encoded.byteLength]);
 }
 
-void insert(ref StringBuf buffer, size_t index, String value)
+/// Appends a raw fragment belonging to a transaction that must finish as UTF-8.
+package(xtb) bool tryAppendUtf8Fragment(
+    ref StringBuf buffer,
+    scope const(u8)[] bytes,
+)
+@system
 {
-    buffer.bytes_.insertArray(index, value);
+    return buffer.bytes_.tryAppendArray(bytes.asStringUnchecked);
+}
+
+/// Panicking counterpart to `tryAppendUtf8Fragment`.
+package(xtb) void appendUtf8Fragment(
+    ref StringBuf buffer,
+    scope const(u8)[] bytes,
+)
+@system
+{
+    if (!buffer.tryAppendUtf8Fragment(bytes))
+        panic("StringBuf allocation failed");
+}
+
+bool tryInsert(ref StringBuf buffer, size_t byteOffset, String value)
+{
+    require(byteOffset <= buffer.byteLength,
+        "StringBuf insertion byte offset out of bounds");
+    require(buffer.view.isCodePointBoundary(byteOffset),
+        "StringBuf insertion byte offset is inside UTF-8 code point");
+    return buffer.bytes_.tryInsertArray(byteOffset, value);
+}
+
+void insert(ref StringBuf buffer, size_t byteOffset, String value)
+{
+    if (!buffer.tryInsert(byteOffset, value))
+        panic("StringBuf allocation failed");
 }
 
 bool tryPrepend(ref StringBuf buffer, String value)
@@ -796,6 +871,15 @@ bool tryPrepend(ref StringBuf buffer, String value)
 void prepend(ref StringBuf buffer, String value)
 {
     buffer.insert(0, value);
+}
+
+void truncateBytes(ref StringBuf buffer, size_t newByteLength)
+{
+    require(newByteLength <= buffer.byteLength,
+        "StringBuf truncation byte length out of bounds");
+    require(buffer.view.isCodePointBoundary(newByteLength),
+        "StringBuf truncation splits UTF-8 code point");
+    buffer.bytes_.resizeArray(newByteLength);
 }
 
 void clear(ref StringBuf buffer)
@@ -812,15 +896,15 @@ bool tryEscape(ref StringBuf buffer, String value)
 {
     bool aliasesBuffer;
     size_t sourceOffset;
-    if (value.length != 0 && buffer.length != 0)
+    if (value.length != 0 && buffer.byteLength != 0)
     {
         const sourceAddress = cast(size_t) value.ptr;
         const beginAddress = cast(size_t) buffer.view.ptr;
         const byteOffset = sourceAddress - beginAddress;
-        aliasesBuffer = sourceAddress >= beginAddress && byteOffset < buffer.length;
+        aliasesBuffer = sourceAddress >= beginAddress && byteOffset < buffer.byteLength;
         if (aliasesBuffer)
         {
-            if (value.length > buffer.length - byteOffset)
+            if (value.length > buffer.byteLength - byteOffset)
                 return false;
             sourceOffset = byteOffset;
         }
@@ -831,9 +915,9 @@ bool tryEscape(ref StringBuf buffer, String value)
         if (escapedCharacter(character) != '\0')
             ++escapedCount;
     if (escapedCount > size_t.max - value.length ||
-        value.length + escapedCount > size_t.max - buffer.length)
+        value.length + escapedCount > size_t.max - buffer.byteLength)
         return false;
-    const required = buffer.length + value.length + escapedCount;
+    const required = buffer.byteLength + value.length + escapedCount;
     if (!buffer.tryReserve(required))
         return false;
     if (aliasesBuffer)
@@ -964,7 +1048,7 @@ void replaceInPlace(ref StringBuf buffer, String from, String to)
 
 const(char)* cString(ref StringBuf buffer) @system
 {
-    const oldLength = buffer.length;
+    const oldLength = buffer.byteLength;
     buffer.bytes_.resizeArray(oldLength + 1);
     buffer.bytes_[oldLength] = '\0';
     char* pointer = buffer.bytes_.slice.ptr;
@@ -984,7 +1068,7 @@ unittest
         deallocate, mallocAllocator;
 
     String text = "  hello world  ";
-    assert(text.trim().equal("hello world"));
+    assert(text.trimAscii().equal("hello world"));
     assert(text.find("world") == 8);
     assert(text.startsWith("  he"));
     assert(text.endsWith("  "));
@@ -993,27 +1077,27 @@ unittest
     assert("a/b/.gitignore".stripExtension.equal("a/b/.gitignore"));
     assert("a/b/.config.json".stripExtension.equal("a/b/.config"));
     assert("one two one".findLast("one") == 8);
-    assert("hello".front == 'h' && "hello".back == 'o');
+    assert("hello".frontCodeUnit == 'h' && "hello".backCodeUnit == 'o');
     assert("".empty);
 
-    String cView = fromCString("native".ptr);
-    assert(cView.equal("native"));
+    const cResult = fromCString("native".ptr);
+    assert(cResult.succeeded && cResult.value.equal("native"));
 
-    u8[4] binary = ['a', 0xff, 0, 'z'];
-    String unchecked = binary[].asStringUnchecked;
-    assert(unchecked.ptr is cast(const(char)*) binary.ptr);
-    assert(unchecked.length == binary.length);
-    assert(cast(u8) unchecked[1] == 0xff && unchecked[2] == '\0');
+    u8[5] encoded = ['a', 0xc3, 0xa9, 0, 'z'];
+    String unchecked = encoded[].asStringUnchecked;
+    assert(unchecked.ptr is cast(const(char)*) encoded.ptr);
+    assert(unchecked.byteLength == encoded.length);
+    assert(unchecked.findCodePoint(0xe9) == 1 && unchecked[3] == '\0');
 
     StringBuf copiedBytes = StringBuf.fromBytesUnchecked(
         mallocAllocator(),
-        binary[],
+        encoded[],
     );
-    binary[0] = 'b';
+    encoded[0] = 'b';
     assert(unchecked[0] == 'b');
     assert(copiedBytes.view[0] == 'a');
-    assert(cast(u8) copiedBytes.view[1] == 0xff);
-    assert(copiedBytes.view[2] == '\0');
+    assert(copiedBytes.view.findCodePoint(0xe9) == 1);
+    assert(copiedBytes.view[3] == '\0');
 
     StringBuf emptyBytes = StringBuf.fromBytesUnchecked(
         mallocAllocator(),
@@ -1063,6 +1147,9 @@ unittest
 
     buffer.append(',');
     buffer.append(" world");
+    buffer.append(cast(dchar) 0x1f642);
+    assert(buffer.view.endsWith("🙂"));
+    buffer.truncateBytes(buffer.byteLength - "🙂".length);
     buffer.prepend("say: ");
     assert(buffer == "say: hello, world");
     buffer.replaceInPlace("world", "BetterC library");
@@ -1071,7 +1158,15 @@ unittest
     assert(buffer == "say: hello, D");
     buffer.appendEscaped("\n");
     assert(buffer.view.endsWith("\\n"));
-    assert(buffer.cString()[buffer.length] == '\0');
+    assert(buffer.cString()[buffer.byteLength] == '\0');
+
+    StringBuf unicode = StringBuf.fromString(mallocAllocator(), "Aé🙂");
+    assert(unicode.byteLength == 7);
+    assert(unicode.byteCapacity >= unicode.byteLength);
+    unicode.insert(3, "界");
+    assert(unicode == "Aé界🙂");
+    unicode.truncateBytes(6);
+    assert(unicode == "Aé界");
 
     StringBuf selfPrepend = StringBuf.fromString(
         mallocAllocator(),
@@ -1099,7 +1194,7 @@ unittest
     StringBuf failedBytes;
     assert(!StringBuf.tryFromBytesUnchecked(
             failing.handle,
-            binary[],
+            encoded[],
             &failedBytes,
     ));
     assert(failedBytes.empty);
