@@ -86,12 +86,13 @@ neutral abstraction downward rather than adding mutual imports. Foreign
 bindings live beside their adapter (for example `xtb.graphics.opengl.binding`)
 and are not treated as general-purpose core modules.
 
-Within core, `xtb.core.types` is a dependency-free leaf containing only the
-primitive aliases, including `String`. Generic scalar and checked-arithmetic
+Within core, `xtb.core.types` is a dependency-free leaf containing only
+primitive numeric aliases. `String` lives in `xtb.core.string`, above the raw
+UTF-8 primitives in `xtb.core.utf8`. Generic scalar and checked-arithmetic
 operations live in `xtb.core.numeric`; that module may use the panic contract
 layer without forcing panic to depend on containers or builders. `xtb.core`
-publicly imports both modules, while implementation modules import the narrow
-module that owns the declaration they use.
+publicly imports these stable modules, while implementation modules import the
+narrow module that owns the declaration they use.
 
 The ordinary byte-unit helpers return their result directly and panic on
 overflow:
@@ -461,18 +462,22 @@ the public string abstraction.
 
 #### `String`: read-only borrowed text
 
-Use D's native slice representation rather than recreating pointer and length
-accessors in a wrapper struct:
+Use a distinct wrapper around D's native slice representation:
 
 ```d
-alias String = const(char)[];
+struct String
+{
+private:
+    const(char)[] codeUnits_;
+}
 ```
 
-The alias is declared in the dependency-free `xtb.core.types` module and
-publicly re-exported by `xtb.core.string`. It cannot contain member functions;
-the string algorithms are free functions deliberately designed for UFCS, so
-`text.trim()` retains member-like call syntax without wrapping the native
-slice or weakening literal interoperability.
+`String` is declared in `xtb.core.string`; `xtb.core.types` contains primitive
+numeric aliases only. The private slice keeps the same two-word borrowed
+representation while preventing direct indexing, built-in slicing, and
+accidental conversion to raw arrays. Read-only algorithms are members such as
+`text.find(needle)` and `text.sliceBytes(beginByteOffset, endByteOffset)`.
+Mutating `StringBuf` algorithms remain free functions designed for UFCS.
 
 `String` does not own, allocate, reallocate, free, or mutate its storage.
 Constness prevents user code from modifying bytes through the view. Copying it
@@ -480,10 +485,9 @@ copies only its pointer and length; its bytes must outlive every copied or
 derived view. It is a simple, trivially copyable value with no destructor or
 hidden state. A substring, trim, prefix, suffix, split token, or other operation
 that can reuse existing bytes returns another `String` without allocation.
-Use project free functions for equality, comparison, searching, hashing, and
-transformation, invoked through UFCS (`text.trim()`, `text.find(needle)`). Do
-not assume a built-in array operation is BetterC-safe until its link behavior
-has been verified by the BetterC tests.
+The underlying storage is exposed read-only only through explicit
+`text.codeUnits` and `text.bytes` views. There is no `alias this`, array cast,
+`opIndex`, or `opSlice`.
 
 `String` is mandatory everywhere an API handles string data without intending
 to mutate the bytes. Ordinary modules do not spell `const(char)[]`, D `string`,
@@ -510,22 +514,43 @@ Do not use D's built-in `string` alias as the general view type. `string` is
 alias. That promise is valid for literals and genuinely frozen storage, but not
 for a temporary view into a mutable `StringBuf`. Converting such storage to
 `string` would require an unsafe cast and would become incorrect as soon as the
-buffer changed. `const(char)[]` provides the required read-only access without
-making a false global-immutability guarantee.
+buffer changed. The private `const(char)[]` field provides read-only access
+without making a false global-immutability guarantee.
 
 The zero value is the valid empty string. Expected failure is represented by a
 `Result`/status, not an "invalid string" sentinel encoded as a special pointer.
-Embedded NUL bytes are allowed and `length` never includes an optional C
+Embedded NUL bytes are allowed and `byteLength` never includes an optional C
 terminator.
 
-Strings are byte-addressed. The intended ordinary contract is valid UTF-8, but
-the `String` alias cannot enforce that invariant by construction yet. Text-
-producing APIs emit UTF-8. APIs do not silently normalize or count code points;
-operations needing Unicode semantics validate explicitly until shared UTF-8
-validation is available. File paths and other platform byte strings should use
-their own byte-oriented abstractions rather than pretending every sequence is
-Unicode. Unicode-aware iteration and transformation belong in explicitly named
-utilities.
+Strings are byte-addressed and their ordinary contract is valid UTF-8. The
+wrapper establishes that invariant through checked construction and
+text-producing APIs preserve it. `String.byteLength`, `StringBuf.byteLength`,
+and `StringBuf.byteCapacity` are byte quantities. Explicit code-unit access
+yields `char`; scalar APIs use `dchar` and `codePoint` in their names. Grapheme
+clusters are a separate, currently unsupported unit. APIs do not silently
+normalize text.
+
+All text offsets are byte offsets and say `byteOffset` in parameters, fields,
+and local variables. Search returns byte offsets. Library substring and edit
+operations require those offsets to lie on UTF-8 code-point boundaries. A
+caller may explicitly slice `text.codeUnits`, but the result remains a raw
+slice and cannot silently become `String`.
+Scalar traversal is explicit through `codePoints` or
+`codePointsWithOffsets`, and scalar counting is O(bytes). The complete
+string and Unicode contracts are specified in
+[`design_spec/string.md`](../design_spec/string.md) and
+[`design_spec/utf8.md`](../design_spec/utf8.md).
+
+File paths and other platform byte strings use byte-oriented abstractions
+rather than pretending every sequence is Unicode.
+
+`String(utf8)` validates and panics on malformed input; use it for literals and
+other programmer-controlled text. D permits this constructor implicitly during
+variable initialization but not ordinary function-argument matching, so domain
+calls spell `consume(String("text"))`. Untrusted `const(char)[]` and
+`const(u8)[]` use the checked `asString` overload and inspect
+`Utf8StringResult`. There is no implicit conversion from `String` back to an
+array; use `.codeUnits` or `.bytes` deliberately.
 
 Binary data crosses into the string API only through visibly unchecked
 boundaries:
@@ -539,9 +564,11 @@ StringBuf owned = StringBuf.fromBytesUnchecked(allocator, bytes);
 read-only view with exactly the source slice's lifetime. Mutation through a
 different alias remains observable. `fromBytesUnchecked` copies the exact bytes
 into independent owned storage; its `tryFromBytesUnchecked` counterpart reports
-allocation failure. Embedded NUL and invalid UTF-8 are preserved. Values made
-through these escape hatches must not be passed to APIs requiring valid UTF-8
-without validation. Do not scatter equivalent casts through user code.
+allocation failure. Embedded NUL is valid and preserved. Malformed UTF-8 also
+copies byte-for-byte, but violates the resulting `String`/`StringBuf` contract;
+unchecked conversion is a caller assertion that the input was already proven
+valid, not a supported binary-storage mode. Use `Array!u8` for arbitrary bytes
+and do not scatter equivalent casts through user code.
 
 #### `StringBuf`: owned mutable storage
 
@@ -551,6 +578,10 @@ zero state, and releases its allocation in `deinit`/RAII cleanup according to
 the allocator contract. Ownership transfer, if needed, uses an explicitly
 named move/release operation that leaves the source empty; ordinary assignment
 must not duplicate ownership.
+
+Its public size queries are `byteLength` and `byteCapacity`; edit parameters
+use `byteOffset` and `newByteLength`. Ambiguous `length`, `capacity`, and
+`index` names are not retained in the text API.
 
 The zero state may be queried, cleared, moved, or destroyed, but it has no
 allocator and therefore cannot grow. Fallible growth returns `false`; panicking
@@ -566,7 +597,7 @@ short verbs; never prefix every operation with the type name.
 ```d
 StringBuf buffer = StringBuf.create(allocator);
 buffer.append(prefix);
-buffer.appendByte(':');
+buffer.append(':');
 buffer.append(value);
 String result = buffer.view();
 ```
@@ -587,16 +618,16 @@ buffer changes or dies, initialize a different `StringBuf` from the view
 using the destination allocator.
 
 Use `==` and `!=` for ordinary content comparisons. `String` receives D's
-built-in slice equality, while `StringBuf` overloads equality against both
-`String` and another `StringBuf`. Mixed equality is symmetric, so both
+`opEquals`; `StringBuf` overloads equality against both `String` and another
+`StringBuf`. Both types also support bytewise comparison with `const(char)[]` so
+literals remain ergonomic. Mixed equality is symmetric, so both
 `buffer == "text"` and `"text" == buffer` are valid. Every form compares the
-exact bytes and length without allocating; it does not normalize or transcode
-Unicode. A null `String` and an empty `StringBuf` compare equal because both
-represent the same zero-length byte sequence. Keep `equal` as the explicit
-algorithm/UFCS primitive, but do not create a borrowed view merely to compare
-an owned buffer. `StringBuf.toHash` hashes those same bytes and therefore stays
-consistent with equality. Since mutation changes the hash, never mutate a
-buffer while an external hash table is using its contents as a key.
+exact bytes and byte length without allocating; it does not normalize or
+transcode Unicode. `String.init` and an empty `StringBuf` compare equal because
+both represent the same zero-byte sequence. `toHash` hashes those same bytes
+and therefore stays consistent with equality. Since mutation changes the hash,
+never mutate a buffer while an external hash table is using its contents as a
+key.
 
 Copying a `String` into owned storage is explicit:
 
@@ -675,12 +706,13 @@ conversion.
   mutable text.
 - Require an explicit allocator for every operation that may create storage.
 - Document the owner/lifetime of every returned view.
-- Keep byte length and capacity in `size_t`; check all additions and growth.
-- Define equality and hashing over exactly `length` bytes, including embedded
-  NUL bytes.
+- Keep byte length and capacity in `size_t`, expose them as `byteLength` and
+  `byteCapacity`, and check all additions and growth.
+- Define equality and hashing over exactly `byteLength` bytes, including
+  embedded NUL bytes.
 - Do not expose the buffer's mutable storage through a `String` API.
 - Do not use GC strings, concatenation with `~`, or implicit allocation.
-- Use the `String` alias in every non-mutating string API; spelling its
+- Use the `String` type in every non-mutating string API; spelling its
   underlying slice type directly is reserved for its declaration and low-level
   implementation work.
 

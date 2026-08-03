@@ -23,7 +23,8 @@ implementations.
 cannot yet be established at all input boundaries. This is the most important
 correctness gap in the text layer.
 
-The prescriptive API and migration plan are specified in
+The prescriptive text wrapper, UTF-8 API, and migration plan are specified in
+[`../design_spec/string.md`](../design_spec/string.md) and
 [`../design_spec/utf8.md`](../design_spec/utf8.md).
 
 Implement a small UTF-8 module with:

@@ -171,10 +171,15 @@ on the Nth allocation. Keep it BetterC-compatible and share it from
 
 String tests enforce the type boundary as well as textual behavior:
 
-- `String` exposes no mutable pointer/slice and its algorithms do not alter the
-  source bytes;
-- copying and slicing a `String` allocate nothing and preserve the correct
-  borrowed range;
+- `String` exposes no mutable pointer/slice, `alias this`, `opIndex`, or
+  `opSlice`, and its algorithms do not alter the source bytes;
+- copying and `sliceBytes` allocate nothing and preserve the correct borrowed
+  range while rejecting offsets inside a UTF-8 sequence;
+- `byteLength`, code-unit access, code-point count, and code-point traversal are
+  tested as distinct units on the same multibyte text;
+- checked construction rejects malformed raw `char` and `u8` slices with exact
+  error offsets, while ordinary construction and `StringBuf.view` always
+  produce valid UTF-8;
 - operations that create bytes either return an explicitly allocator-backed
   `String` or return/write `StringBuf`; the view itself never owns storage;
 - `StringBuf` growth preserves content, honors alignment, checks overflow, and
@@ -183,15 +188,15 @@ String tests enforce the type boundary as well as textual behavior:
   invalidates the view;
 - copying into another `StringBuf` creates independent ownership and allocator
   lifetime;
-- zero-length strings, embedded NUL, invalid UTF-8, and multibyte UTF-8 are
-  covered according to each API's byte/Unicode contract;
-- `StringBuf` equality with literals, mutable and immutable `String` slices,
-  and other buffers is tested in both operand orders, including inequality and
-  null-string/empty-buffer equivalence;
+- zero-length strings, embedded NUL, malformed external UTF-8, and multibyte
+  UTF-8 are covered according to each API's byte/scalar contract;
+- `String` and `StringBuf` equality with literals, raw code-unit slices, and
+  other strings/buffers is tested in both operand orders, including inequality
+  and `String.init`/empty-buffer equivalence;
 - C conversion adds exactly one terminator outside logical length, rejects
   embedded NUL when required, and respects scratch lifetime;
-- compile-time checks reject copying an owning `StringBuf` and reject mutation
-  through `String`;
+- compile-time checks reject copying an owning `StringBuf`, reject mutation
+  through `String`, and reject implicit conversion from `String` to an array;
 - mutating operations compile with direct UFCS (`buffer.append(value)`) using
   only the allowed first-parameter `ref` receiver.
 

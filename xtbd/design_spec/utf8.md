@@ -18,28 +18,34 @@ requirements.
 
 ## Design constraints
 
-The existing text model remains unchanged:
+`String` is the distinct borrowed UTF-8 view specified in
+[`string.md`](string.md); `StringBuf` is the owning mutable UTF-8 builder. The
+wrapper prevents ordinary integer indexing and built-in slicing from bypassing
+UTF-8 boundaries. It exposes encoded storage only through explicit
+`.codeUnits` and `.bytes` views.
 
-```d
-alias String = const(char)[];
-```
+The library distinguishes three units and never calls them all "characters":
 
-`String` is a borrowed read-only UTF-8 view and `StringBuf` is an owning mutable
-UTF-8 buffer and builder. Both remain byte-addressed:
+| Unit | D representation | Size | xtb operation |
+| --- | --- | --- | --- |
+| UTF-8 code unit | `char` | exactly 1 byte | `codeUnits`, `codeUnitAt` |
+| Encoding-neutral byte | `u8` | exactly 1 byte | binary and foreign I/O |
+| Unicode scalar value / code point | `dchar` | encoded as 1 through 4 bytes | `codePoints`, `codePointCount` |
+| Extended grapheme cluster | no core type yet | one or more code points | intentionally unsupported in this milestone |
 
-- `String.length` is a byte count;
-- indexing yields a UTF-8 code unit, not a Unicode scalar value;
-- byte equality, hashing, and searching do not normalize text;
-- embedded NUL is valid UTF-8 and remains part of the string;
-- code-point work is requested through explicitly named APIs.
+`String.byteLength`, `StringBuf.byteLength`, and
+`StringBuf.byteCapacity` are byte quantities. Every text position is a byte
+offset unless an API explicitly states otherwise. Equality, hashing, ordering,
+searching, and pattern lengths operate on encoded bytes and do not normalize
+text. Embedded NUL is valid UTF-8 and remains one byte of the string.
 
-Keeping `String` as an alias preserves literal interoperability, trivial copy
-semantics, and temporary views into `StringBuf`. It also means the compiler
-cannot attach a proof of UTF-8 validity to a value. A cast, built-in slice, or
-unchecked conversion can always manufacture an invalid `String`.
+This follows the useful parts of Rust's
+[`str`](https://doc.rust-lang.org/stable/std/primitive.str.html): length and
+search positions are bytes, substring boundaries preserve UTF-8, and scalar
+traversal is separate from encoded-byte access. Unlike the earlier slice alias,
+the new `String` can enforce those restrictions in its public interface.
 
-The library therefore enforces a contract rather than claiming type-enforced
-validity:
+The validity model is:
 
 1. External bytes are validated before becoming ordinary text.
 2. Ordinary text-producing operations preserve UTF-8 validity.
@@ -101,20 +107,23 @@ or silently replace malformed input.
 
 ## Module organization
 
-Add one focused module and re-export it from `xtb.core.package`:
+Add one focused module and re-export the stable text surface from
+`xtb.core.package`:
 
 ```text
 source/xtb/core/
-├── types.d       # String alias and primitive aliases
-├── utf8.d        # validation, decoding, encoding, traversal
-├── string.d      # String algorithms and StringBuf ownership/mutation
+├── types.d       # primitive numeric aliases only
+├── utf8.d        # raw validation, decoding, encoding, range machinery
+├── string.d      # String, checked conversion, algorithms, and StringBuf
 └── package.d     # stable public re-exports
 ```
 
-`xtb.core.utf8` may import `String` and integer aliases from
-`xtb.core.types`. It must not import `xtb.core.string`; this keeps the decoding
-primitive independent and prevents a module cycle. `xtb.core.string` may import
-UTF-8 encoding and boundary helpers to implement safe `StringBuf` mutations.
+`xtb.core.utf8` imports primitive aliases from `xtb.core.types` and accepts raw
+code-unit or byte slices only in APIs whose purpose is validation or safe
+decoding of potentially malformed input. It must not import
+`xtb.core.string`; this keeps the decoding primitive independent and prevents
+a module cycle. `xtb.core.string` imports UTF-8 primitives to implement the
+validated `String` wrapper, traversal members, and safe `StringBuf` mutations.
 
 Serde, printing, and OS boundary modules consume `xtb.core.utf8`; they must not
 retain private copies of UTF-8 decoders.
@@ -124,9 +133,9 @@ retain private copies of UTF-8 decoders.
 Malformed external text is expected input failure, not a panic. Validation and
 single-code-point decoding return this concrete status:
 
-Validation and decoding functions name their text parameter `candidate`: these
-are the deliberate APIs in which a value spelled as `String` is not yet assumed
-valid. Ordinary string functions continue to require valid UTF-8.
+Validation and decoding functions name their raw code-unit parameter
+`candidate`: these are the deliberate APIs in which malformed text is accepted
+as input. Ordinary string functions receive the validated `String` wrapper.
 
 ```d
 enum Utf8ErrorKind : u8
@@ -170,9 +179,11 @@ and require exact tests. A caller interested only in validity may use
 `isValidUtf8`; parsers should retain `Utf8Error` so they can map its offset into
 their own diagnostics.
 
-Invalid offsets passed to offset-based APIs are programmer errors and use
-`require`. Invalid bytes found at a valid offset return `Utf8Error`. This keeps
-API misuse distinct from untrusted input.
+Invalid offsets passed to decoding or mutating APIs are programmer errors and
+use `require`. Boundary predicates are the deliberate exception:
+`isCodePointBoundary` returns `false` for an out-of-range offset, matching its
+role as a checked query. Invalid bytes found at a valid decoding offset return
+`Utf8Error`. This keeps API misuse distinct from untrusted input.
 
 ## Proposed public API
 
@@ -185,7 +196,6 @@ module xtb.core.utf8;
 
 nothrow @nogc:
 
-public import xtb.core.types : String;
 import xtb.core.types : u8;
 
 enum Utf8ErrorKind : u8
@@ -209,15 +219,6 @@ struct Utf8Error
     bool failed() const pure @safe;
 }
 
-struct Utf8StringResult
-{
-    String value;
-    Utf8Error error;
-
-    bool succeeded() const pure @safe;
-    bool failed() const pure @safe;
-}
-
 struct DecodedCodePoint
 {
     dchar value;
@@ -227,44 +228,35 @@ struct DecodedCodePoint
 
 struct EncodedCodePoint
 {
-    private char[4] bytes_;
-    private u8 length_;
+    private char[4] codeUnits_;
+    private u8 byteLength_;
 
-    String view() const return scope pure @safe;
-    u8 length() const pure @safe;
+    const(char)[] codeUnits() const return scope pure @safe;
+    u8 byteLength() const pure @safe;
 }
 
-Utf8Error validateUtf8(scope String candidate) pure @safe;
+Utf8Error validateUtf8(scope const(char)[] candidate) pure @safe;
 Utf8Error validateUtf8(scope const(u8)[] candidate) pure @safe;
 
-bool isValidUtf8(scope String candidate) pure @safe;
+bool isValidUtf8(scope const(char)[] candidate) pure @safe;
 bool isValidUtf8(scope const(u8)[] candidate) pure @safe;
 
-Utf8StringResult asString(return scope const(u8)[] bytes) pure @trusted;
-
 Utf8Error decodeCodePoint(
-    scope String candidate,
+    scope const(char)[] candidate,
     size_t byteOffset,
     DecodedCodePoint* output,
 ) @safe;
 
 Utf8Error decodePreviousCodePoint(
-    scope String candidate,
-    size_t endOffset,
+    scope const(char)[] candidate,
+    size_t endByteOffset,
     DecodedCodePoint* output,
-) @safe;
-
-bool isCodePointBoundary(
-    scope String value,
-    size_t byteOffset,
 ) @safe;
 
 bool isUnicodeScalar(dchar value) pure @safe;
 bool tryEncodeUtf8(dchar value, EncodedCodePoint* output) @safe;
 EncodedCodePoint encodeUtf8(dchar value) @safe;
 u8 encodedUtf8Length(dchar value) @safe;
-
-size_t codePointCount(scope String value) @safe;
 
 struct CodePointRange
 {
@@ -276,12 +268,26 @@ struct CodePointRange
     CodePointRange save() const pure @safe;
 }
 
-CodePointRange codePoints(return scope String value) pure @safe;
+struct CodePointOffsetRange
+{
+    bool empty() const pure @safe;
+    DecodedCodePoint front() const @safe;
+    DecodedCodePoint back() const @safe;
+    void popFront() @safe;
+    void popBack() @safe;
+    CodePointOffsetRange save() const pure @safe;
+}
 ```
 
+Checked `String` construction, unchecked conversion, boundary queries,
+counting, and range construction are exposed through `xtb.core.string` as
+specified in [`string.md`](string.md). Raw helpers used only to implement those
+members remain package-private.
+
 The API deliberately does not introduce a universal `Result!T`. The specific
-`Utf8StringResult` exists because it must return both a borrowed view and a
-validation status while preserving the input lifetime in the returned value.
+`Utf8StringResult` in `xtb.core.string` exists because it must return both a
+borrowed view and a validation status while preserving the input lifetime in
+the returned value.
 No caller-owned object is being mutated, so returning this small descriptor is
 consistent with the pointer-for-mutation rule.
 
@@ -363,21 +369,31 @@ at `byteOffset`. It requires `byteOffset < candidate.length`. On success,
 `output.byteOffset == byteOffset` and `output.byteLength` is between one and
 four.
 
-`decodePreviousCodePoint(candidate, endOffset, output)` decodes the sequence
-ending immediately before `endOffset`. It requires
-`0 < endOffset && endOffset <= candidate.length`. It scans backward by at most
-four bytes, then validates the complete sequence and requires it to end exactly
-at `endOffset`.
+`decodePreviousCodePoint(candidate, endByteOffset, output)` decodes the sequence
+ending immediately before `endByteOffset`. It requires
+`0 < endByteOffset && endByteOffset <= candidate.length`. It scans backward by
+at most four bytes, then validates the complete sequence and requires it to end
+exactly at `endByteOffset`.
 
 Both functions are safe on malformed input and report a recoverable error. They
 never assume alignment and never read outside the supplied slice. This makes
 them suitable for parsers that need an error offset without validating the
 entire document first.
 
-`isCodePointBoundary(value, offset)` requires `offset <= value.length`. For
-valid UTF-8, zero and `value.length` are boundaries; an interior offset is a
-boundary exactly when its byte is not a continuation byte. The operation is
-constant time. When the input itself may be malformed, validate it first.
+`String.isCodePointBoundary(byteOffset)` follows Rust's useful checked-query
+semantics: zero and `value.byteLength` are boundaries, an interior offset is a
+boundary exactly when its byte is not a continuation byte, and an offset
+greater than `value.byteLength` returns `false` rather than panicking. The
+operation is constant time. Raw input that may be malformed is validated first.
+
+`floorCodePointBoundary` and `ceilCodePointBoundary` support byte budgets
+without splitting an encoding. Both clamp an offset greater than
+`value.byteLength` to `value.byteLength`. The floor operation returns the
+nearest boundary at or below the clamped offset; the ceiling operation returns
+the nearest boundary at or above it. They inspect at most three adjacent bytes
+for valid UTF-8 and are therefore O(1). They do not preserve grapheme clusters:
+rounding a byte budget may still separate a combining mark or a joined emoji
+sequence.
 
 ## Traversal
 
@@ -395,6 +411,9 @@ while (!range.empty)
     use(range.back);
     range.popBack();
 }
+
+foreach (decoded; text.codePointsWithOffsets)
+    use(decoded.byteOffset, decoded.value, decoded.byteLength);
 ```
 
 `CodePointRange` is a copyable, non-owning bidirectional cursor over a `String`.
@@ -412,20 +431,77 @@ a replacement character or reading invalid memory. Recoverable traversal of
 untrusted bytes uses `decodeCodePoint` or validates once before constructing the
 range.
 
-`codePointCount` traverses valid UTF-8 and returns the number of Unicode scalar
-values. It is O(bytes), performs no allocation, and panics if the `String`
-contract was violated. It is intentionally distinct from `String.length`.
+`CodePointOffsetRange` has the same ownership, validity, direction, and panic
+contracts, but yields `DecodedCodePoint`. Its `byteOffset` is always relative to
+the beginning of the original `String`, including during reverse traversal or
+after either end of the range has advanced. This is xtb's code-point-named
+equivalent of Rust's `char_indices`: the reported position is a byte offset,
+not a scalar ordinal. `byteLength` makes the exact source span
+`value.codeUnits[byteOffset .. byteOffset + byteLength]` available without
+decoding the scalar again.
+
+`String.codePointCount` traverses valid UTF-8 and returns the number of Unicode
+scalar values. It is O(bytes), performs no allocation, and panics if the
+`String` contract was violated. It is intentionally distinct from
+`String.byteLength`.
 
 Neither code-point count nor traversal represents user-perceived characters.
 For example, a base character followed by a combining mark has two code points
 but may form one grapheme cluster. The API must not call code points
 "characters" in documentation or identifiers.
 
+## Byte-addressed string operations
+
+The UTF-8 milestone must audit `xtb.core.string`, not merely add a decoder.
+Every public operation that exposes a unit follows these rules:
+
+| Operation | Unit and result |
+| --- | --- |
+| `String.byteLength`, `StringBuf.byteLength`, `StringBuf.byteCapacity` | bytes |
+| `find(String)`, `findLast(String)` | byte offset or `notFound` |
+| `sliceBytes(beginByteOffset, endByteOffset)` | byte range whose endpoints must be code-point boundaries |
+| `prefixBytes(endByteOffset)`, `suffixBytes(beginByteOffset)` | byte range ending or beginning at a code-point boundary |
+| `frontByte`, `backByte`, `findCodeUnit(char)` | one UTF-8 code unit, with no scalar interpretation |
+| `findCodePoint(dchar)` | byte offset of the encoded scalar or `notFound` |
+| `codePointCount` | scalar count, computed in O(bytes) |
+| `codePoints` | scalar traversal yielding `dchar` |
+| `codePointsWithOffsets` | scalar traversal yielding the scalar and its byte span |
+
+The current `slice`, `head`, `tail`, `truncateLeft`, `truncateRight`, `front`,
+`back`, and `find(char)` names are too easy to read as scalar operations. During
+implementation, replace them with the explicit byte/code-unit names above and
+migrate all call sites in the same commit. Do not keep ambiguous aliases merely
+for convenience. `find(String)` and `findLast(String)` may keep their familiar
+names, following Rust's precedent, but their documentation and local result
+variables must say that the result is a byte offset.
+
+`sliceBytes`, `prefixBytes`, and `suffixBytes` are O(1). They panic when an
+offset is out of range or falls inside an encoded scalar; they never round
+silently. Callers deliberately implementing a byte budget first call
+`floorCodePointBoundary` or `ceilCodePointBoundary`, which makes the rounding
+policy visible:
+
+```d
+const endByteOffset = text.floorCodePointBoundary(maxBytes);
+String prefix = text.prefixBytes(endByteOffset);
+```
+
+There is no general scalar subscript. If a caller needs the Nth scalar, it
+advances `codePoints` and thereby exposes the O(bytes) cost. A future helper may
+be named `codePointAt` and must document that cost; it must not accept or return
+an unqualified `index`.
+
+All `StringBuf` edit offsets are bytes and use `byteOffset` in signatures and
+local variables. Insertion, truncation, removal, and replacement must preserve
+UTF-8 validity by requiring boundaries at every cut. Operations that accept a
+valid `String` pattern naturally cut only at boundaries; operations over raw
+code units require special care and must not publish a malformed `StringBuf`.
+
 ## Encoding and `StringBuf`
 
-`EncodedCodePoint` owns up to four inline bytes and exposes only its initialized
-prefix through `view`. It requires no allocator and prevents callers from
-mistaking unused array bytes for encoded text.
+`EncodedCodePoint` owns up to four inline code units and exposes only its
+initialized prefix through `codeUnits`. It requires no allocator and prevents
+callers from mistaking unused array bytes for encoded text.
 
 `StringBuf` gains Unicode-scalar overloads:
 
@@ -456,15 +532,15 @@ ordinary `append(char)`.
 Operations accepting `String`--append, prepend, insert, replace, and
 construction from `String`--assume their inputs already satisfy the `String`
 contract and do not rescan them. Operations using a byte offset to create or
-modify text must require a code-point boundary. This includes `String.slice`
+modify text must require a code-point boundary. This includes `sliceBytes`
 endpoints and `StringBuf.insert` positions. Byte offsets returned by searching
 valid UTF-8 for valid UTF-8 are safe boundaries because UTF-8 is self-
 synchronizing.
 
-D's built-in slicing remains capable of splitting a sequence. Such a slice is
-an unchecked value, just like a cast from bytes; the caller must not pass it as
-ordinary `String` until its boundaries and validity are established. The
-library cannot prevent this without replacing the required `String` alias.
+Callers may explicitly slice `String.codeUnits`, and that raw slice can split a
+sequence. It remains `const(char)[]`, not `String`. Checked conversion rejects a
+split sequence; audited code may reconstruct `String` only after proving both
+boundaries and validity.
 
 ## Interaction with existing modules
 
@@ -572,13 +648,17 @@ cover:
 - invalid `dchar` values rejected without partially modifying output;
 - code-point boundary checks at zero, end, every leading byte, and every
   continuation byte;
+- floor/ceiling boundary rounding at every byte of one- through four-byte
+  sequences and for offsets beyond the end;
 - code-point count differing from byte length and from grapheme count;
 - `StringBuf` scalar append at all widths, capacity boundaries, aliasing, and
   injected allocation failure;
 - byte-indexed string/buffer operations accepting boundaries and rejecting
   split sequences;
-- checked byte-to-`String` conversion preserving pointer, length, and lifetime
-  without allocating;
+- checked byte-to-`String` conversion preserving pointer, byte length, and
+  lifetime without allocating;
+- compile-time rejection of `String` indexing, built-in slicing, array
+  conversion, and escape beyond the borrowed source;
 - serde JSON and TOML using the shared implementation with unchanged error
   locations; and
 - sanitizer runs over malformed and truncated buffers to establish that no
@@ -594,13 +674,16 @@ continue to compile under `-betterC`.
 Implement this design in the following order:
 
 1. Add error types, strict forward decoding, validation, and exhaustive tests.
-2. Add reverse decoding, boundary queries, counting, and `CodePointRange`.
-3. Add scalar encoding and `StringBuf` scalar append operations.
-4. Add checked borrowed byte-to-text conversion and lifetime tests.
+2. Introduce the `String` wrapper, checked/unchecked borrowed conversion, and
+   lifetime tests; migrate basic byte-oriented string operations.
+3. Add reverse decoding, boundary queries, counting, `CodePointRange`, and
+   `CodePointOffsetRange`.
+4. Add scalar encoding and validity-preserving `StringBuf` operations while
+   migrating its size and edit API to explicit byte names.
 5. Replace the duplicated JSON, TOML, and printer UTF-8 implementations.
-6. Audit string slicing/mutation boundaries and foreign C-string producers.
-7. Update architecture, testing documentation, and examples to describe the
-   implemented API rather than the current provisional contract.
+6. Audit foreign C-string producers and every remaining raw code-unit boundary.
+7. Update architecture, testing documentation, README, and examples to
+   describe the implemented API rather than the current provisional contract.
 
 Each step must pass debug, optimized, release, sanitizer, and unsupported-
 platform compile checks already used by the project before the next step is

@@ -81,7 +81,9 @@ Future general-purpose additions are ranked separately in
 
 ### Strings
 
-- mandatory read-only `String = const(char)[]` values;
+- mandatory read-only `String` values, currently represented by a
+  `const(char)[]` alias and scheduled to become the validated wrapper specified
+  in [`../design_spec/string.md`](../design_spec/string.md);
 - comparison, equality, search/last-search, containment, prefix/suffix,
   head/tail/truncation, ASCII trimming, basename, and extension removal;
 - checked C-string borrowing and embedded-NUL detection;
