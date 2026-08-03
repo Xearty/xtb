@@ -7,6 +7,7 @@ import xtb.core.hash_map : HashMap, HashSet, remove, set, tryAdd;
 import xtb.core.memory : mallocAllocator;
 import xtb.core.string : StringBuf, clear, tryAppend, tryEscape, tryInsert,
     tryPrepend;
+import xtb.core.utf8 : floorCodePointBoundary;
 
 extern (C) int LLVMFuzzerTestOneInput(const(ubyte)* data, size_t size) @system
 {
@@ -45,27 +46,32 @@ extern (C) int LLVMFuzzerTestOneInput(const(ubyte)* data, size_t size) @system
                 }
                 break;
             case 3:
-                text.tryAppend(cast(char) data[cursor - 1]);
+                text.tryAppend(cast(dchar) data[cursor - 1]);
                 break;
             case 4:
-                if (text.length != 0)
+                if (text.byteLength != 0)
                 {
-                    const begin = data[cursor - 1] % text.length;
+                    const candidate = data[cursor - 1] % text.byteLength;
+                    const begin = text.view.floorCodePointBoundary(candidate);
                     text.tryPrepend(text.view[begin .. $]);
                 }
                 break;
             case 5:
-                if (text.length != 0)
+                if (text.byteLength != 0)
                 {
-                    const begin = data[cursor - 1] % text.length;
-                    const index = (data[cursor - 1] / 2) % (text.length + 1);
+                    const beginCandidate = data[cursor - 1] % text.byteLength;
+                    const begin = text.view.floorCodePointBoundary(beginCandidate);
+                    const indexCandidate = (data[cursor - 1] / 2) %
+                        (text.byteLength + 1);
+                    const index = text.view.floorCodePointBoundary(indexCandidate);
                     text.tryInsert(index, text.view[begin .. $]);
                 }
                 break;
             case 6:
-                if (text.length != 0)
+                if (text.byteLength != 0)
                 {
-                    const begin = data[cursor - 1] % text.length;
+                    const candidate = data[cursor - 1] % text.byteLength;
+                    const begin = text.view.floorCodePointBoundary(candidate);
                     text.tryEscape(text.view[begin .. $]);
                 }
                 break;
@@ -88,12 +94,12 @@ extern (C) int LLVMFuzzerTestOneInput(const(ubyte)* data, size_t size) @system
         }
 
         assert(values.length <= values.capacity);
-        assert(text.length <= text.capacity);
+        assert(text.byteLength <= text.byteCapacity);
         assert(map.length <= 256 && map.length <= map.capacity);
         assert(setValues.length <= 256 && setValues.length <= setValues.capacity);
         if (values.length > 4096)
             values.clear();
-        if (text.length > 4096)
+        if (text.byteLength > 4096)
             text.clear();
     }
     return 0;
