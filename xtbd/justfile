@@ -7,8 +7,8 @@ os_source_files := `find source/xtb/os -name '*.d' -print | sort | tr '\n' ' '`
 serde_source_files := `find source/xtb/serde -name '*.d' -print | sort | tr '\n' ' '`
 serde_test_files := "tests/serde_tests.d tests/serde_backend_contract.d"
 fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/hash.d source/xtb/core/hash_map.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d source/xtb/core/utf8.d"
-lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' ! -path 'source/xtb/core/print.d' ! -path 'examples/print_demo.d' -print | sort | tr '\n' ' '`
-interpolation_files := "source/xtb/core/print.d examples/print_demo.d"
+lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' ! -path 'source/xtb/core/print.d' ! -path 'examples/print_demo.d' ! -path 'examples/logging_demo.d' -print | sort | tr '\n' ' '`
+interpolation_files := "source/xtb/core/print.d examples/print_demo.d examples/logging_demo.d"
 fuzz_files := `find fuzz -name '*.d' -print | sort | tr '\n' ' '`
 format_files := `find source tests examples fuzz -name '*.d' -print | sort | tr '\n' ' '`
 platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
@@ -148,6 +148,7 @@ examples:
     ldc2 {{example_flags}} -g {{core_source_files}} {{diagnostics_source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
     ldc2 {{example_flags}} {{core_source_files}} {{math_source_files}} examples/math_demo.d -of=build/math_demo
     ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
+    ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/logging_demo.d -of=build/logging_demo
     ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/process_demo.d -of=build/process_demo
     ldc2 {{example_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
     ldc2 {{example_flags}} {{core_source_files}} {{serde_source_files}} examples/option_demo.d -of=build/option_demo
@@ -157,6 +158,7 @@ examples:
     ./build/stacktrace_demo
     ./build/math_demo
     ./build/os_demo source
+    ./build/logging_demo
     ./build/process_demo
     ./build/serde_demo
     ./build/option_demo

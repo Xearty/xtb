@@ -84,7 +84,9 @@ install a caller-owned logger with `ThreadLoggerScope` and use
 exit. Level-specific calls avoid repeating `LogLevel`: use `trace`/`tracef`,
 `debug_`/`debugf`, `info`/`infof`, `warning`/`warningf`, `error`/`errorf`, and
 `critical`/`criticalf`, either as explicit logger UFCS calls or against the
-current thread logger.
+current thread logger. `examples/logging_demo.d` demonstrates the complete
+setup, filtering behavior, custom values, nested installation, runtime levels,
+automatic terminal detection, and palette customization.
 
 Terminal styling is allocation-free and shared by logging and stack traces.
 Build styles from named, indexed, or RGB `AnsiColor` values and combine text

@@ -69,6 +69,12 @@ configuration "os-demo" {
     excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/serde/*.d"
 }
 
+configuration "logging-demo" {
+    targetType "executable"
+    mainSourceFile "examples/logging_demo.d"
+    excludedSourceFiles "source/xtb/diagnostics/*.d" "source/xtb/math/*.d" "source/xtb/serde/*.d"
+}
+
 configuration "serde-demo" {
     targetType "executable"
     mainSourceFile "examples/serde_demo.d"

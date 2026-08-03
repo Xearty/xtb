@@ -624,25 +624,25 @@ nothrow @nogc:
     }
 }
 
-IntegerFormat!T radix(T)(T value, ubyte base)
+IntegerFormat!(Unqualified!T) radix(T)(T value, ubyte base)
 {
     static assert(__traits(isIntegral, T) && T.sizeof <= ulong.sizeof);
-    IntegerFormat!T result;
+    IntegerFormat!(Unqualified!T) result;
     result.value = value;
     result.radix = base;
     return result;
 }
 
-IntegerFormat!T binary(T)(T value)
+IntegerFormat!(Unqualified!T) binary(T)(T value)
 {
-    IntegerFormat!T result = radix(value, 2);
+    IntegerFormat!(Unqualified!T) result = radix(value, 2);
     result.prefix = true;
     return result;
 }
 
-IntegerFormat!T hexadecimal(T)(T value)
+IntegerFormat!(Unqualified!T) hexadecimal(T)(T value)
 {
-    IntegerFormat!T result = radix(value, 16);
+    IntegerFormat!(Unqualified!T) result = radix(value, 16);
     result.prefix = true;
     return result;
 }
@@ -661,14 +661,14 @@ nothrow @nogc:
     }
 }
 
-FloatFormat!T fixed(T)(T value, int precision = 6)
+FloatFormat!(Unqualified!T) fixed(T)(T value, int precision = 6)
 {
-    return FloatFormat!T(value, 'f', precision);
+    return FloatFormat!(Unqualified!T)(value, 'f', precision);
 }
 
-FloatFormat!T scientific(T)(T value, int precision = 6)
+FloatFormat!(Unqualified!T) scientific(T)(T value, int precision = 6)
 {
-    return FloatFormat!T(value, 'e', precision);
+    return FloatFormat!(Unqualified!T)(value, 'e', precision);
 }
 
 WriteResult format(string pattern, Args...)(auto ref Args args)
@@ -793,6 +793,15 @@ unittest
     StringBuf buffer = StringBuf.create(mallocAllocator());
     buffer.writeTo("answer=", 42, ", hex=", hexadecimal(255));
     assert(buffer == "answer=42, hex=0xff");
+    const uint constantInteger = 255;
+    const double constantFloat = 1.25;
+    buffer.clear();
+    buffer.writeTo(
+        hexadecimal(constantInteger).upper,
+        ", ",
+        fixed(constantFloat, 2),
+    );
+    assert(buffer == "0XFF, 1.25");
     buffer.clear();
     buffer.formatTo!"{} + {} = {}"(2, 3, 5);
     assert(buffer == "2 + 3 = 5");
