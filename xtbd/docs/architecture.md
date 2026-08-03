@@ -238,7 +238,7 @@ core logger factory rather than hidden behind a second logger abstraction:
 ```d
 const logStyle = shouldUseAnsi(stderr)
     ? LogStyle.ansi : LogStyle.plain;
-Logger logger = stderrLogger(storage[], LogLevel.info, logStyle, palette);
+Logger logger = stderrLogger(storage[], LogLevel.info, logStyle);
 ```
 
 `Command`, `Environment`, and the standard-stream route types are borrowed
@@ -355,7 +355,8 @@ emits control sequences. `LogStyle.ansi` applies one `AnsiStyle` to the entire
 `[level] message`, followed by a reset before the newline. `LogPalette`
 contains independently configurable styles for all six levels;
 `LogPalette.defaults()` supplies a readable named-color palette and makes
-critical messages bold. Passing a modified value configures a logger without
+critical messages bold. All logger creation functions use that palette when
+the argument is omitted. Passing a modified value configures a logger without
 global state:
 
 ```d

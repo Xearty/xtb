@@ -123,7 +123,7 @@ nothrow @nogc:
         return scope char[] messageBuffer,
         LogLevel minimumLevel = LogLevel.info,
         LogFlush flush = null,
-        LogPalette palette = LogPalette.init,
+        LogPalette palette = LogPalette.defaults(),
     )
     {
         Logger result;
@@ -442,6 +442,7 @@ version (unittest)
         char[128] bytes;
         size_t length;
         LogLevel level;
+        AnsiStyle style;
     }
 
     private bool captureSink(void* context, scope const LogRecord* record)
@@ -449,6 +450,7 @@ version (unittest)
     {
         Capture* capture = cast(Capture*) context;
         capture.level = record.level;
+        capture.style = record.style;
         const available = capture.bytes.length - capture.length;
         const amount = record.message.length < available
             ? record.message.length : available;
@@ -516,6 +518,7 @@ unittest
     LogResult result = logger.logf!"value={}"(LogLevel.info, 7);
     assert(result.status == LogStatus.delivered);
     assert(capture.level == LogLevel.info);
+    assert(capture.style.enabled);
     assert(capture.bytes[0 .. capture.length].equal("value=7"));
 
     capture.length = 0;
@@ -577,6 +580,26 @@ unittest
         char[64] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal("[info] plain message\n"));
+        assert(fclose(file) == 0);
+    }
+
+    {
+        FILE* file = tmpfile();
+        assert(file !is null);
+        char[32] fileMessage;
+        Logger colored = fileLogger(
+            file,
+            fileMessage[],
+            LogLevel.info,
+            LogStyle.ansi,
+        );
+        assert(colored.info("default colors").delivered);
+        assert(colored.flush());
+        char[64] output;
+        const length = readFileContents(file, output[]);
+        assert(output[0 .. length].equal(
+                "\x1b[32m[info] default colors\x1b[0m\n",
+        ));
         assert(fclose(file) == 0);
     }
 

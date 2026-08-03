@@ -61,20 +61,19 @@ extern (C) int main() nothrow @nogc
 {
     const ansi = shouldUseAnsi(cast(FILE*) stderr);
     const outputStyle = ansi ? LogStyle.ansi : LogStyle.plain;
-    LogPalette palette = LogPalette.defaults();
 
     char[512] messageStorage;
     Logger logger = stderrLogger(
         messageStorage[],
         LogLevel.trace,
         outputStyle,
-        palette,
     );
 
     // Explicit logger calls need neither TLS installation nor a thread context.
     if (!logger.logEveryLevel("default palette"))
         return 1;
 
+    LogPalette palette = LogPalette.defaults();
     palette.trace = AnsiStyle.foreground(AnsiColor.indexed(244)).dim;
     palette.debug_ = AnsiStyle.foreground(AnsiColor.brightMagenta);
     palette.info = AnsiStyle.foreground(AnsiColor.brightCyan);
