@@ -302,6 +302,34 @@ write to stderr or manufacture persistent storage. Filtering happens before
 formatting. The original `logger.log(...)`, `logger.logf!pattern(...)`, and
 `logger.flush()` APIs remain available and do not consult TLS.
 
+Normal call sites should use the level-specific convenience functions instead
+of spelling `LogLevel` repeatedly. The plain family forwards to `log`, and the
+`f` family forwards to the compile-time `{}` form of `logf`:
+
+| Level | Plain arguments or interpolation | Compile-time `{}` pattern |
+| --- | --- | --- |
+| trace | `trace(...)` | `tracef!pattern(...)` |
+| debug | `debug_(...)` | `debugf!pattern(...)` |
+| info | `info(...)` | `infof!pattern(...)` |
+| warning | `warning(...)` | `warningf!pattern(...)` |
+| error | `error(...)` | `errorf!pattern(...)` |
+| critical | `critical(...)` | `criticalf!pattern(...)` |
+
+Every function has both an explicit UFCS form and a current-thread form:
+
+```d
+logger.info(i"opened $(path)");
+logger.errorf!"operation failed with code {}"(code);
+
+info(i"opened $(path)");
+errorf!"operation failed with code {}"(code);
+```
+
+`debug_` has a trailing underscore because `debug` is a D keyword; the
+formatted name `debugf` needs no escape. These wrappers add no filtering,
+formatting, storage, or failure semantics of their own. Keep `log` and `logf`
+for code where the level is selected dynamically.
+
 An installed logger is not owned and does not become thread-safe. Each thread
 normally owns a distinct `Logger` and message buffer. File sinks serialize the
 final file write, but sharing one `Logger` between threads would still race on

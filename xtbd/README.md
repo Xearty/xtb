@@ -81,7 +81,10 @@ Logging may remain explicit through `logger.log(...)`, or an application can
 install a caller-owned logger with `ThreadLoggerScope` and use
 `log(level, ...)` throughout that thread. Installation requires an active
 `ThreadContextScope`, is nestable, and restores the previous logger on scope
-exit.
+exit. Level-specific calls avoid repeating `LogLevel`: use `trace`/`tracef`,
+`debug_`/`debugf`, `info`/`infof`, `warning`/`warningf`, `error`/`errorf`, and
+`critical`/`criticalf`, either as explicit logger UFCS calls or against the
+current thread logger.
 
 `FlagSet!E` treats enum values as bit positions and chooses the smallest
 fitting unsigned storage type by default. Specify its storage type explicitly

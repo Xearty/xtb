@@ -213,6 +213,66 @@ LogResult logf(string pattern, Args...)(
     return logger.deliver(level, formatted);
 }
 
+LogResult trace(Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.log(LogLevel.trace, args);
+}
+
+LogResult tracef(string pattern, Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.logf!pattern(LogLevel.trace, args);
+}
+
+LogResult debug_(Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.log(LogLevel.debug_, args);
+}
+
+LogResult debugf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.logf!pattern(LogLevel.debug_, args);
+}
+
+LogResult info(Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.log(LogLevel.info, args);
+}
+
+LogResult infof(string pattern, Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.logf!pattern(LogLevel.info, args);
+}
+
+LogResult warning(Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.log(LogLevel.warning, args);
+}
+
+LogResult warningf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.logf!pattern(LogLevel.warning, args);
+}
+
+LogResult error(Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.log(LogLevel.error, args);
+}
+
+LogResult errorf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.logf!pattern(LogLevel.error, args);
+}
+
+LogResult critical(Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.log(LogLevel.critical, args);
+}
+
+LogResult criticalf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+{
+    return logger.logf!pattern(LogLevel.critical, args);
+}
+
 bool flush(ref Logger logger)
 {
     return logger.valid && (logger.flush_ is null || logger.flush_(logger.context_));
@@ -317,7 +377,7 @@ version (unittest)
     {
     nothrow @nogc:
 
-        char[64] bytes;
+        char[128] bytes;
         size_t length;
         LogLevel level;
     }
@@ -390,6 +450,26 @@ unittest
     result = logger.log(LogLevel.warning, "message longer than buffer");
     assert(result.status == LogStatus.truncated && result.required > result.written);
     assert(logger.flush());
+
+    logger.setMinimumLevel(LogLevel.trace);
+    capture.length = 0;
+    assert(logger.trace("trace").delivered && capture.level == LogLevel.trace);
+    assert(logger.tracef!"{}"("tracef").delivered &&
+            capture.level == LogLevel.trace);
+    assert(logger.debug_("debug").delivered && capture.level == LogLevel.debug_);
+    assert(logger.debugf!"{}"("debugf").delivered &&
+            capture.level == LogLevel.debug_);
+    assert(logger.info("info").delivered && capture.level == LogLevel.info);
+    assert(logger.infof!"{}"("infof").delivered && capture.level == LogLevel.info);
+    assert(logger.warning("warning").delivered && capture.level == LogLevel.warning);
+    assert(logger.warningf!"{}"("warningf").delivered &&
+            capture.level == LogLevel.warning);
+    assert(logger.error("error").delivered && capture.level == LogLevel.error);
+    assert(logger.errorf!"{}"("errorf").delivered && capture.level == LogLevel.error);
+    assert(logger.critical("critical").delivered &&
+            capture.level == LogLevel.critical);
+    assert(logger.criticalf!"{}"("criticalf").delivered &&
+            capture.level == LogLevel.critical);
 
     Logger invalid;
     assert(invalid.log(LogLevel.info, "ignored").status == LogStatus.invalidLogger);

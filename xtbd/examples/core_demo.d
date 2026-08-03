@@ -33,8 +33,9 @@ extern (C) int main() nothrow @nogc
 
     char[128] logStorage;
     Logger logger = stderrLogger(logStorage[], LogLevel.info);
+    logger.info("logger configured for ", numbers.length, " values");
     ThreadLoggerScope logging = ThreadLoggerScope.install(&logger);
-    logf!"processed {} values"(LogLevel.info, numbers.length);
+    infof!"processed {} values"(numbers.length);
 
     alias Permissions = FlagSet!Permission;
     auto permissions = Permissions.of(Permission.read)

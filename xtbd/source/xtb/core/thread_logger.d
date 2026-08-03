@@ -7,6 +7,14 @@ import xtb.core.logger : Logger, LogLevel, LogResult, LogStatus;
 import xtb.core.panic : require;
 import xtb.core.thread_context : ThreadContext, currentThreadContext;
 
+private template StartsWithLogger(Args...)
+{
+    static if (Args.length == 0)
+        enum StartsWithLogger = false;
+    else
+        enum StartsWithLogger = is(typeof(cast() Args[0].init) == Logger);
+}
+
 /// Temporarily installs a caller-owned logger in the current thread context.
 /// The logger and its message buffer must outlive this scope.
 struct ThreadLoggerScope
@@ -85,6 +93,66 @@ LogResult logf(string pattern, Args...)(LogLevel level, auto ref Args args)
     return explicitLogger.logf!pattern(*logger, level, args);
 }
 
+LogResult trace(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return log(LogLevel.trace, args);
+}
+
+LogResult tracef(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return logf!pattern(LogLevel.trace, args);
+}
+
+LogResult debug_(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return log(LogLevel.debug_, args);
+}
+
+LogResult debugf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return logf!pattern(LogLevel.debug_, args);
+}
+
+LogResult info(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return log(LogLevel.info, args);
+}
+
+LogResult infof(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return logf!pattern(LogLevel.info, args);
+}
+
+LogResult warning(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return log(LogLevel.warning, args);
+}
+
+LogResult warningf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return logf!pattern(LogLevel.warning, args);
+}
+
+LogResult error(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return log(LogLevel.error, args);
+}
+
+LogResult errorf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return logf!pattern(LogLevel.error, args);
+}
+
+LogResult critical(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return log(LogLevel.critical, args);
+}
+
+LogResult criticalf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+{
+    return logf!pattern(LogLevel.critical, args);
+}
+
 bool flushLogger()
 {
     Logger* logger = currentLogger();
@@ -95,14 +163,16 @@ version (unittest)
 {
     private struct Capture
     {
-        char[64] bytes;
+        char[128] bytes;
         size_t length;
         size_t flushCount;
+        LogLevel level;
     }
 
     private bool captureSink(void* context, scope const explicitLogger.LogRecord* record)
     {
         Capture* capture = cast(Capture*) context;
+        capture.level = record.level;
         if (record.message.length > capture.bytes.length - capture.length)
             return false;
         foreach (index, value; record.message)
@@ -169,6 +239,27 @@ unittest
         assert(flushLogger());
         assert(outerCapture.flushCount == 1);
 
+        explicitLogger.setMinimumLevel(outer, LogLevel.trace);
+        outerCapture.length = 0;
+        assert(trace("trace").delivered && outerCapture.level == LogLevel.trace);
+        assert(tracef!"{}"("tracef").delivered &&
+                outerCapture.level == LogLevel.trace);
+        assert(debug_("debug").delivered && outerCapture.level == LogLevel.debug_);
+        assert(debugf!"{}"("debugf").delivered &&
+                outerCapture.level == LogLevel.debug_);
+        assert(info("info").delivered && outerCapture.level == LogLevel.info);
+        assert(infof!"{}"("infof").delivered && outerCapture.level == LogLevel.info);
+        assert(warning("warning").delivered && outerCapture.level == LogLevel.warning);
+        assert(warningf!"{}"("warningf").delivered &&
+                outerCapture.level == LogLevel.warning);
+        assert(error("error").delivered && outerCapture.level == LogLevel.error);
+        assert(errorf!"{}"("errorf").delivered && outerCapture.level == LogLevel.error);
+        assert(critical("critical").delivered &&
+                outerCapture.level == LogLevel.critical);
+        assert(criticalf!"{}"("criticalf").delivered &&
+                outerCapture.level == LogLevel.critical);
+        outerCapture.length = 0;
+
         Capture nestedCapture;
         char[32] nestedStorage;
         Logger nested = Logger.create(
@@ -186,7 +277,7 @@ unittest
 
         assert(currentLogger() is &outer);
         assert(log(LogLevel.warning, "!").delivered);
-        assert(outerCapture.bytes[0 .. outerCapture.length].equal("value=17!"));
+        assert(outerCapture.bytes[0 .. outerCapture.length].equal("!"));
     }
 
     assert(currentLogger() is null);

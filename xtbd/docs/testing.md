@@ -220,6 +220,9 @@ the exact untruncated byte count.
 Logging tests cover explicit and thread-context calls, filtering before
 formatting, truncation, sink and flush failure, recursion rejection, nested
 thread-logger restoration, and the no-context/no-installed-logger behavior.
+Every level-specific plain and compile-time-pattern wrapper is exercised for
+both explicit and current-thread dispatch, including the `debug_` keyword
+workaround and overload resolution through the `xtb.core` aggregate import.
 Death tests cover null or invalid installation, installation without a thread
 context, destruction before the installed logger scope, and non-LIFO nested
 scope destruction. Logger tests use caller-owned buffers and callback/context
