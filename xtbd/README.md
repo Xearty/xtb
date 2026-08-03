@@ -77,6 +77,12 @@ module such as `xtb.core.arena`. All consuming targets must also compile with
 `examples/print_demo.d` for complete runnable programs, and
 `docs/architecture.md` for ownership and scratch-space contracts.
 
+Logging may remain explicit through `logger.log(...)`, or an application can
+install a caller-owned logger with `ThreadLoggerScope` and use
+`log(level, ...)` throughout that thread. Installation requires an active
+`ThreadContextScope`, is nestable, and restores the previous logger on scope
+exit.
+
 `FlagSet!E` treats enum values as bit positions and chooses the smallest
 fitting unsigned storage type by default. Specify its storage type explicitly
 for ABI or serialized layouts. Invalid cast-created enum values panic instead

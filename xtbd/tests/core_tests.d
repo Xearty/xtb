@@ -16,6 +16,7 @@ import xtb.core.list;
 import xtb.core.hash;
 import xtb.core.hash_map;
 import xtb.core.logger;
+import xtb.core.thread_logger;
 import xtb.core.utf8;
 import xtb.core.string;
 import xtb.core.print;
@@ -127,6 +128,39 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         FlagSet!DeathFlag.tryFromBits(0, null);
     if (cStringEqual(name, "scratch-without-context"))
         ScratchScope.acquire();
+    if (cStringEqual(name, "thread-logger-null"))
+        ThreadLoggerScope.install(null);
+    if (cStringEqual(name, "thread-logger-without-context"))
+    {
+        char[16] storage;
+        Logger logger = stderrLogger(storage[]);
+        ThreadLoggerScope.install(&logger);
+    }
+    if (cStringEqual(name, "thread-logger-invalid"))
+    {
+        ThreadContextScope context = ThreadContextScope.acquire();
+        Logger logger;
+        ThreadLoggerScope.install(&logger);
+    }
+    if (cStringEqual(name, "thread-context-before-logger"))
+    {
+        ThreadContextScope context = ThreadContextScope.acquire();
+        char[16] storage;
+        Logger logger = stderrLogger(storage[]);
+        ThreadLoggerScope logging = ThreadLoggerScope.install(&logger);
+        context.__dtor();
+    }
+    if (cStringEqual(name, "thread-loggers-non-lifo"))
+    {
+        ThreadContextScope context = ThreadContextScope.acquire();
+        char[16] firstStorage;
+        char[16] secondStorage;
+        Logger first = stderrLogger(firstStorage[]);
+        Logger second = stderrLogger(secondStorage[]);
+        ThreadLoggerScope outer = ThreadLoggerScope.install(&first);
+        ThreadLoggerScope inner = ThreadLoggerScope.install(&second);
+        outer.__dtor();
+    }
     if (cStringEqual(name, "double-pop"))
     {
         Arena arena = Arena.create(mallocAllocator(), 64);
@@ -367,6 +401,8 @@ extern (C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.logger))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.thread_logger))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.string))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.print))
@@ -411,6 +447,11 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "bit-flags-invalid-mask");
         expectDeath(arguments[0], "bit-flags-null-output");
         expectDeath(arguments[0], "scratch-without-context");
+        expectDeath(arguments[0], "thread-logger-null");
+        expectDeath(arguments[0], "thread-logger-without-context");
+        expectDeath(arguments[0], "thread-logger-invalid");
+        expectDeath(arguments[0], "thread-context-before-logger");
+        expectDeath(arguments[0], "thread-loggers-non-lifo");
         expectDeath(arguments[0], "double-pop");
         expectDeath(arguments[0], "non-lifo-pop");
         expectDeath(arguments[0], "scratch-conflict");

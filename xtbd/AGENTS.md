@@ -40,8 +40,9 @@ Before changing public APIs, inspect their existing call sites.
   `camelCase` for functions and variables. Follow D's standard naming for
   compile-time values and enum members unless a foreign ABI dictates names.
 - Avoid module constructors, mutable process-wide state, and hidden persistent
-  allocator selection. Scratch is the exception: it uses the TLS thread context
-  that the thread explicitly installs through `ThreadContextScope`.
+  allocator selection. Scratch and the optional current logger use the TLS
+  thread context that the thread explicitly installs through
+  `ThreadContextScope`; logger installation is additionally scoped.
 - Use scratch space for temporary allocation and pass every allocator that may
   back live input/output in the conflict list. Never let scratch-backed memory
   escape its scope or store a scratch allocator in longer-lived state.

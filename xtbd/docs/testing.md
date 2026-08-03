@@ -217,6 +217,14 @@ metadata is never emitted or evaluated by the printer. Fixed-buffer tests also
 prove that truncation backs up to a complete scalar while `required` retains
 the exact untruncated byte count.
 
+Logging tests cover explicit and thread-context calls, filtering before
+formatting, truncation, sink and flush failure, recursion rejection, nested
+thread-logger restoration, and the no-context/no-installed-logger behavior.
+Death tests cover null or invalid installation, installation without a thread
+context, destruction before the installed logger scope, and non-LIFO nested
+scope destruction. Logger tests use caller-owned buffers and callback/context
+pairs; they must not rely on process-global output capture.
+
 Scratch-space tests additionally verify:
 
 - ending a scope restores the exact chunk and offset checkpoint;

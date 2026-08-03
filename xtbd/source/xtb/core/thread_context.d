@@ -16,6 +16,17 @@ nothrow @nogc:
     private Arena[maxScratchArenas] arenas;
     private size_t arenaCount;
     private Allocator* ownerAllocator;
+    private void* logger;
+
+    package void* installedLogger() return
+    {
+        return logger;
+    }
+
+    package void setInstalledLogger(void* value)
+    {
+        logger = value;
+    }
 }
 
 private ThreadContext* tlsContext;
@@ -66,6 +77,10 @@ nothrow @nogc:
         if (context_ is null)
             return;
         require(tlsContext is context_, "thread context destroyed out of order");
+        require(
+            context_.logger is null,
+            "thread context destroyed with a logger installed",
+        );
 
         foreach (i; 0 .. context_.arenaCount)
             context_.arenas[i].deinit();

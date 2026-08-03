@@ -19,3 +19,4 @@ public import xtb.core.utf8;
 public import xtb.core.string;
 public import xtb.core.print;
 public import xtb.core.logger;
+public import xtb.core.thread_logger;

@@ -263,6 +263,52 @@ registration.
 
 ### Diagnostics and fatal crashes
 
+Logging has an explicit foundation and an optional per-thread convenience
+layer. `Logger` owns no sink or message storage: it borrows a callback/context
+pair and a caller-provided formatting buffer. Library code that accepts more
+than one independent log destination, exposes logging as a dependency, or may
+run without a `ThreadContext` should accept and call an explicit `Logger`.
+
+Applications may install one as the current logger in an existing thread
+context:
+
+```d
+ThreadContextScope context = ThreadContextScope.acquire();
+char[1024] logStorage;
+Logger applicationLogger = stderrLogger(
+    logStorage[],
+    LogLevel.info,
+    LogStyle.ansi,
+);
+ThreadLoggerScope logging = ThreadLoggerScope.install(&applicationLogger);
+
+log(LogLevel.info, "application started");
+logf!"loaded {} records"(LogLevel.debug_, recordCount);
+```
+
+`ThreadLoggerScope` borrows the `Logger`; the logger and its formatting buffer
+must outlive the scope. Its destructor restores the previously installed
+logger, so a nested scope can temporarily redirect a thread's output. Scopes
+must unwind before `ThreadContextScope` and in reverse installation order.
+Installing a null or invalid logger, installing without a thread context, or
+violating destruction order is a programming error and panics in every build
+mode.
+
+The overloads without a `Logger` receiver—`enabled(level)`, `log(level, ...)`,
+`logf!pattern(level, ...)`, and `flushLogger()`—consult only the calling
+thread's context. With no installed logger, `enabled` and `flushLogger` return
+`false`, while logging returns `LogStatus.invalidLogger`; it does not silently
+write to stderr or manufacture persistent storage. Filtering happens before
+formatting. The original `logger.log(...)`, `logger.logf!pattern(...)`, and
+`logger.flush()` APIs remain available and do not consult TLS.
+
+An installed logger is not owned and does not become thread-safe. Each thread
+normally owns a distinct `Logger` and message buffer. File sinks serialize the
+final file write, but sharing one `Logger` between threads would still race on
+its formatting buffer, filter state, and recursion guard. Cross-thread logging
+uses distinct logger values whose sinks perform whatever synchronization the
+destination requires.
+
 Stack traces use caller-provided frame and text storage. Symbol capture,
 demangling, signature tokenization, styling, and rendering must not allocate.
 `writeStackTrace` additionally receives a caller-owned signature workspace,
@@ -1184,7 +1230,7 @@ compatibility requirements.
 | C++ area | D destination | Architectural treatment |
 | --- | --- | --- |
 | allocator, arena, slices, arrays, strings | `xtb.core` | explicit allocator and ownership; no process-global allocator |
-| panic, logger, printing, stack traces, thread context | `xtb.core` | explicit sinks/storage/contexts; scratch context and panic recursion are TLS, while panic observation is process-wide |
+| panic, logger, printing, stack traces, thread context | `xtb.core` | explicit sinks/storage/contexts; scratch, current logger, and panic recursion are TLS, while panic observation is process-wide |
 | file and directory operations | `xtb.os` | platform-neutral API over per-platform adapters |
 | structured serialization | `xtb.serde` | compile-time schemas, explicit ownership, JSON and TOML backends |
 | BMP and other media formats | `xtb.codec` | bounds-checked byte transforms with no reflection dependency |
