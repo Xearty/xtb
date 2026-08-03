@@ -16,23 +16,18 @@
     forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
     projectSource = nixpkgs.lib.fileset.toSource {
       root = ./.;
-      fileset = nixpkgs.lib.fileset.unions [
-        ./.editorconfig
-        ./.gitignore
-        ./AGENTS.md
-        ./README.md
-        ./design_spec
-        ./docs
-        ./dscanner.ini
-        ./dub.sdl
-        ./examples
-        ./flake.lock
-        ./flake.nix
-        ./fuzz
-        ./justfile
-        ./source
-        ./tests
-      ];
+      fileset = nixpkgs.lib.fileset.difference ./. (
+        nixpkgs.lib.fileset.unions [
+          ./archive
+          (nixpkgs.lib.fileset.maybeMissing ./.git)
+          (nixpkgs.lib.fileset.maybeMissing ./.direnv)
+          (nixpkgs.lib.fileset.maybeMissing ./.dub)
+          (nixpkgs.lib.fileset.maybeMissing ./build)
+          (nixpkgs.lib.fileset.maybeMissing ./result)
+          (nixpkgs.lib.fileset.maybeMissing ./libxtb.a)
+          (nixpkgs.lib.fileset.maybeMissing ./xtb)
+        ]
+      );
     };
   in {
     formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
