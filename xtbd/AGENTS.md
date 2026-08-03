@@ -50,19 +50,16 @@ Before changing public APIs, inspect their existing call sites.
   `TempArena` when RAII is unsuitable, but must balance it on every path.
   Failure to obtain a non-conflicting arena is a panic, not a recoverable API
   result.
-- Keep strings split by role: `String` is a distinct, trivially copyable,
-  read-only borrowed UTF-8 view and `StringBuf` is the non-copyable owning
-  mutable buffer/builder. Never expose mutable bytes through `String` or add
-  `alias this`, indexing, or built-in slicing escape hatches. Transformations
-  that create bytes use an explicit allocator or write
+- Keep strings split by role: `String` (`const(char)[]`) is a read-only
+  non-owning view and `StringBuf` is the non-copyable owning mutable
+  buffer/builder. Never expose mutable bytes through `String`;
+  transformations that create bytes use an explicit allocator or write
   to/return `StringBuf`, and every returned view documents its lifetime.
-- Use `String` everywhere text is not intentionally mutated. Raw
-  `const(char)[]`, `const(u8)[]`, D `string`, and C pointers are permitted only
-  at validation, explicit storage-view, binary, and foreign boundaries.
-- Put read-only `String` queries on `String`. Design mutating container
-  functions for UFCS and use short verbs (`append`, `reserve`, `clear`), not
-  type-prefixed names. Use `ref` only for the first parameter of mutating UFCS
-  functions such as those operating on `StringBuf` and `Array`.
+- Use `String` everywhere string bytes are not intentionally mutated. Do not
+  substitute raw `const(char)[]`, D `string`, or C pointers in ordinary APIs.
+- Design free functions for UFCS and use short verbs (`append`, `reserve`,
+  `clear`), not type-prefixed names. Use `ref` only for the first parameter of
+  mutating UFCS functions such as those operating on `StringBuf` and `Array`.
 - Preserve the existing public API unless the task explicitly requires a change.
 - Avoid allocations in formatting and low-level utility code.
 - Follow the formatting and naming conventions of nearby code.
