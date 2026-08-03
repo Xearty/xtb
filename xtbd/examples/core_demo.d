@@ -45,5 +45,23 @@ extern (C) int main() nothrow @nogc
 
     const timeout = milliseconds(2_000);
     formatln!"timeout: {} ms"(timeout.wholeMilliseconds);
+
+    String text = "Aé🙂";
+    formatln!"text bytes={}, code points={}"(
+        text.byteLength,
+        text.codePointCount,
+    );
+    foreach (decoded; text.codePointsWithOffsets)
+        formatln!"scalar U+{} starts at byte {} and occupies {} bytes"(
+            hexadecimal(cast(uint) decoded.value).upper,
+            decoded.byteOffset,
+            decoded.byteLength,
+        );
+
+    const u8[5] externalBytes = ['c', 'a', 'f', 0xc3, 0xa9];
+    const checkedText = externalBytes[].asString;
+    if (checkedText.failed)
+        return 1;
+    formatln!"validated external text: {}"(checkedText.value);
     return 0;
 }

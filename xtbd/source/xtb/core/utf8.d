@@ -368,7 +368,26 @@ nothrow @nogc:
         return this;
     }
 
-    int opApply(scope int delegate(dchar) nothrow @nogc callback) const
+    int opApply(
+        scope int delegate(dchar) nothrow @nogc @safe callback,
+    ) const @safe
+    {
+        require(callback !is null, "code point iteration callback is null");
+        CodePointRange range;
+        range.remaining_ = remaining_;
+        while (!range.empty)
+        {
+            const control = callback(range.front);
+            if (control != 0)
+                return control;
+            range.popFront();
+        }
+        return 0;
+    }
+
+    int opApply(
+        scope int delegate(dchar) nothrow @nogc @system callback,
+    ) const
     @system
     {
         require(callback !is null, "code point iteration callback is null");
@@ -440,7 +459,29 @@ nothrow @nogc:
         return this;
     }
 
-    int opApply(scope int delegate(DecodedCodePoint) nothrow @nogc callback) const
+    int opApply(
+        scope int delegate(DecodedCodePoint) nothrow @nogc @safe callback,
+    ) const @safe
+    {
+        require(callback !is null,
+            "code point offset iteration callback is null");
+        CodePointOffsetRange range;
+        range.original_ = original_;
+        range.beginByteOffset_ = beginByteOffset_;
+        range.endByteOffset_ = endByteOffset_;
+        while (!range.empty)
+        {
+            const control = callback(range.front);
+            if (control != 0)
+                return control;
+            range.popFront();
+        }
+        return 0;
+    }
+
+    int opApply(
+        scope int delegate(DecodedCodePoint) nothrow @nogc @system callback,
+    ) const
     @system
     {
         require(callback !is null,
@@ -474,6 +515,45 @@ version (unittest) enum utf8TestBody = q{
         assert(validateUtf8("ASCII\0text").succeeded);
         assert(validateUtf8("Aé🙂").succeeded);
         assert("Aé🙂".codePointCount == 3);
+
+        u8[1] leadingByte;
+        foreach (uint candidate; 0 .. 256)
+        {
+            leadingByte[0] = cast(u8) candidate;
+            DecodedCodePoint decoded;
+            const error = decodeCodePoint(
+                cast(String) leadingByte[],
+                0,
+                &decoded,
+            );
+            if (candidate <= 0x7f)
+                assert(error.succeeded && decoded.value == candidate);
+            else if (candidate <= 0xbf)
+                assert(error.kind == Utf8ErrorKind.unexpectedContinuation);
+            else if (candidate <= 0xc1 || candidate >= 0xf5)
+                assert(error.kind == Utf8ErrorKind.invalidLeadingByte);
+            else
+                assert(error.kind == Utf8ErrorKind.truncatedSequence &&
+                    error.byteOffset == 1);
+        }
+
+        const u8[4] validFour = [0xf1, 0x80, 0x80, 0x80];
+        foreach (length; 1 .. validFour.length)
+            assertUtf8Error(
+                validFour[0 .. length],
+                Utf8ErrorKind.truncatedSequence,
+                length,
+            );
+        foreach (continuation; 1 .. validFour.length)
+        {
+            u8[4] invalidFour = validFour;
+            invalidFour[continuation] = 0x20;
+            assertUtf8Error(
+                invalidFour[],
+                Utf8ErrorKind.invalidContinuation,
+                continuation,
+            );
+        }
 
         assertUtf8Error([0x80], Utf8ErrorKind.unexpectedContinuation, 0);
         assertUtf8Error([0xbf], Utf8ErrorKind.unexpectedContinuation, 0);
@@ -516,12 +596,43 @@ version (unittest) enum utf8TestBody = q{
         assert(mixed.floorCodePointBoundary(99) == 7);
         assert(mixed.ceilCodePointBoundary(99) == 7);
 
+        String widths = "¢€🙂";
+        const size_t[4] boundaries = [0, 2, 5, 9];
+        foreach (byteOffset; 0 .. widths.length + 1)
+        {
+            bool expectedBoundary;
+            foreach (boundary; boundaries)
+                expectedBoundary = expectedBoundary || byteOffset == boundary;
+            assert(widths.isCodePointBoundary(byteOffset) == expectedBoundary);
+        }
+        const size_t[10] floors = [0, 0, 2, 2, 2, 5, 5, 5, 5, 9];
+        const size_t[10] ceilings = [0, 2, 2, 5, 5, 5, 9, 9, 9, 9];
+        foreach (byteOffset; 0 .. floors.length)
+        {
+            assert(widths.floorCodePointBoundary(byteOffset) == floors[byteOffset]);
+            assert(widths.ceilCodePointBoundary(byteOffset) == ceilings[byteOffset]);
+        }
+
         dchar[3] forward;
         size_t forwardCount;
         foreach (codePoint; mixed.codePoints)
             forward[forwardCount++] = codePoint;
         assert(forwardCount == 3);
         assert(forward == [cast(dchar) 'A', cast(dchar) 0xe9, cast(dchar) 0x1f642]);
+
+        size_t earlyCount;
+        foreach (codePoint; mixed.codePoints)
+        {
+            ++earlyCount;
+            break;
+        }
+        assert(earlyCount == 1);
+
+        auto originalRange = mixed.codePoints;
+        auto copiedRange = originalRange.save;
+        originalRange.popFront();
+        assert(originalRange.front == 0xe9);
+        assert(copiedRange.front == 'A');
 
         auto reverse = mixed.codePoints;
         assert(reverse.back == 0x1f642);

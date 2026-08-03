@@ -3,6 +3,15 @@ module tests.utf8_tests;
 import xtb.core.types : String, u8;
 import xtb.core.utf8;
 
+static assert(__traits(compiles,
+        (return scope const(u8)[] input) => input.asString));
+static assert(__traits(compiles,
+        (return scope String input) => input.codePoints));
+static assert(__traits(compiles, () @safe {
+        foreach (codePoint; "safe".codePoints)
+            cast(void) codePoint;
+    }));
+
 private void assertUtf8Error(
     scope const(u8)[] bytes,
     Utf8ErrorKind kind,

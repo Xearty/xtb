@@ -48,8 +48,9 @@ by default. Set `StackTraceStyle.signatureColumns` to another limit, or select
 
 The project is independent from the adjacent C++ sources. Public modules live
 under `source/xtb`, focused unit tests are colocated with those modules, and
-`tests/core_tests.d`, `tests/math_tests.d`, `tests/os_tests.d`, and
-`tests/serde_tests.d` are the explicit BetterC test runners.
+`tests/core_tests.d`, `tests/utf8_tests.d`, `tests/math_tests.d`,
+`tests/os_tests.d`, and `tests/serde_tests.d` are the explicit BetterC test
+runners.
 
 ## Build and test
 
@@ -92,10 +93,11 @@ construct `Duration` values. Arithmetic is checked and floating-point counts
 are intentionally rejected. `Duration` represents only finite nonnegative
 spans; timeout policies add infinity or immediacy as separate tagged states.
 
-Binary bytes may be borrowed explicitly as `String` with
-`asStringUnchecked`, or copied into an owned `StringBuf` with
-`StringBuf.fromBytesUnchecked`. Both preserve bytes exactly and deliberately
-skip UTF-8 validation.
+Validate external bytes with `asString` before treating them as text. Audited
+code whose protocol already guarantees UTF-8 may use `asStringUnchecked`, or
+copy the same proven text into `StringBuf.fromBytesUnchecked`. Malformed data
+violates those unchecked APIs' preconditions; arbitrary binary ownership uses
+`Array!u8`.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,

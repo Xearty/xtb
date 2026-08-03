@@ -761,10 +761,15 @@ private void testJsonUnicodeAndNumbers() nothrow @nogc
     assert(error.ok);
     assert(decoded.value.child is null);
 
-    ubyte[3] invalidBytes = ['{', '"', 0xff];
-    error = readJson(cast(String) invalidBytes[], mallocAllocator(), &decoded);
-    assert(error.kind == SerdeErrorKind.invalidUtf8 ||
-            error.kind == SerdeErrorKind.unexpectedEnd);
+    enum invalidPrefix = "{\"child\":{\"label\":\"";
+    enum invalidSuffix = "\"}}";
+    char[invalidPrefix.length + 1 + invalidSuffix.length] invalidJson;
+    invalidJson[0 .. invalidPrefix.length] = invalidPrefix;
+    invalidJson[invalidPrefix.length] = cast(char) 0xff;
+    invalidJson[invalidPrefix.length + 1 .. $] = invalidSuffix;
+    error = readJson(invalidJson[], mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.invalidUtf8);
+    assert(error.offset == invalidPrefix.length);
     document.child = null;
 }
 
@@ -926,6 +931,15 @@ private void testTomlRoundTrip() nothrow @nogc
     assert(decoded.value.servers[1].name.equal("backup"));
     assert(!decoded.value.servers[1].enabled);
     assert(decoded.value.ratio == 0.125);
+
+    enum invalidPrefix = "application_name = \"";
+    char[invalidPrefix.length + 2] invalidToml;
+    invalidToml[0 .. invalidPrefix.length] = invalidPrefix;
+    invalidToml[invalidPrefix.length] = cast(char) 0xff;
+    invalidToml[$ - 1] = '"';
+    error = readToml(invalidToml[], mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.invalidUtf8);
+    assert(error.offset == invalidPrefix.length);
 }
 
 private void testTomlTablesAndSyntax() nothrow @nogc

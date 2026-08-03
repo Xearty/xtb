@@ -471,7 +471,7 @@ alias String = const(char)[];
 The alias is declared in the dependency-free `xtb.core.types` module and
 publicly re-exported by `xtb.core.string`. It cannot contain member functions;
 the string algorithms are free functions deliberately designed for UFCS, so
-`text.trim()` retains member-like call syntax without wrapping the native
+`text.trimAscii()` retains member-like call syntax without wrapping the native
 slice or weakening literal interoperability.
 
 `String` does not own, allocate, reallocate, free, or mutate its storage.
@@ -481,7 +481,7 @@ derived view. It is a simple, trivially copyable value with no destructor or
 hidden state. A substring, trim, prefix, suffix, split token, or other operation
 that can reuse existing bytes returns another `String` without allocation.
 Use project free functions for equality, comparison, searching, hashing, and
-transformation, invoked through UFCS (`text.trim()`, `text.find(needle)`). Do
+transformation, invoked through UFCS (`text.trimAscii()`, `text.find(needle)`). Do
 not assume a built-in array operation is BetterC-safe until its link behavior
 has been verified by the BetterC tests.
 
@@ -518,14 +518,14 @@ The zero value is the valid empty string. Expected failure is represented by a
 Embedded NUL bytes are allowed and `length` never includes an optional C
 terminator.
 
-Strings are byte-addressed. The intended ordinary contract is valid UTF-8, but
-the `String` alias cannot enforce that invariant by construction yet. Text-
-producing APIs emit UTF-8. APIs do not silently normalize or count code points;
-operations needing Unicode semantics validate explicitly until shared UTF-8
-validation is available. File paths and other platform byte strings should use
-their own byte-oriented abstractions rather than pretending every sequence is
-Unicode. Unicode-aware iteration and transformation belong in explicitly named
-utilities.
+Strings are byte-addressed valid UTF-8 by contract. `String.length` and
+`byteLength` count bytes, indexing yields a UTF-8 code unit, and built-in D
+slicing is unchecked. Use `sliceBytes`, `prefixBytes`, and `suffixBytes` for
+boundary-checked views. Unicode scalar traversal is explicit through
+`codePoints`, `codePointsWithOffsets`, and `codePointCount`; none of these APIs
+claim to count grapheme clusters. The alias cannot enforce validity, so foreign
+bytes enter through checked `asString`/`fromCString` or a visibly `@system`
+unchecked conversion whose caller already owns the proof.
 
 Binary data crosses into the string API only through visibly unchecked
 boundaries:
@@ -536,12 +536,12 @@ StringBuf owned = StringBuf.fromBytesUnchecked(allocator, bytes);
 ```
 
 `asStringUnchecked` performs no allocation or UTF-8 validation and returns a
-read-only view with exactly the source slice's lifetime. Mutation through a
-different alias remains observable. `fromBytesUnchecked` copies the exact bytes
-into independent owned storage; its `tryFromBytesUnchecked` counterpart reports
-allocation failure. Embedded NUL and invalid UTF-8 are preserved. Values made
-through these escape hatches must not be passed to APIs requiring valid UTF-8
-without validation. Do not scatter equivalent casts through user code.
+read-only view with the source slice's lifetime. Mutation through a different
+alias remains observable. `fromBytesUnchecked` copies already-proven UTF-8 into
+independent owned storage; its `tryFromBytesUnchecked` counterpart reports
+allocation failure. Embedded NUL is valid and preserved, but malformed UTF-8
+violates both unchecked functions' preconditions. Binary ownership uses
+`Array!u8`. Do not scatter equivalent casts through user code.
 
 #### `StringBuf`: owned mutable storage
 
@@ -566,7 +566,7 @@ short verbs; never prefix every operation with the type name.
 ```d
 StringBuf buffer = StringBuf.create(allocator);
 buffer.append(prefix);
-buffer.appendByte(':');
+buffer.append(':');
 buffer.append(value);
 String result = buffer.view();
 ```

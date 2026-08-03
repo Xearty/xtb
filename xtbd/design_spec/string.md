@@ -1,5 +1,7 @@
 # String API design specification
 
+This specification is implemented by `xtb.core.string` and `xtb.core.utf8`.
+
 ## Representation and invariant
 
 ```d
@@ -92,7 +94,7 @@ is an unchecked operation: a split sequence must not be passed as ordinary
 ## Checked conversion
 
 ```d
-Utf8StringResult asString(return scope const(u8)[] bytes) pure @trusted;
+Utf8StringResult asString(return scope const(u8)[] bytes) @trusted;
 String asStringUnchecked(return scope const(u8)[] bytes) pure @system;
 
 Utf8StringResult fromCString(const(char)* value) @system;

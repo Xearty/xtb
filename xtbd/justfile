@@ -122,6 +122,9 @@ test-ubsan:
 
 fuzz-smoke:
     mkdir -p build/obj/fuzz
+    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/utf8_fuzz.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_fuzz.o
+    clang++ -fsanitize=fuzzer,address build/utf8_fuzz.o -o build/utf8_fuzz
+    ./build/utf8_fuzz -runs=2000 -max_len=1024
     ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/demangle_fuzz.d source/xtb/diagnostics/demangle.d {{fuzz_core_source_files}} -of=build/demangle_fuzz.o
     clang++ -fsanitize=fuzzer,address build/demangle_fuzz.o -o build/demangle_fuzz
     ./build/demangle_fuzz -runs=1000 -max_len=512

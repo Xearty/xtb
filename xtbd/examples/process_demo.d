@@ -38,7 +38,12 @@ version (linux)
             if (result.state == PipeReadState.endOfFile)
                 return true;
             if (result.state == PipeReadState.data)
-                write(storage[0 .. result.transferred].asStringUnchecked);
+            {
+                const checked = storage[0 .. result.transferred].asString;
+                if (checked.failed)
+                    return false;
+                write(checked.value);
+            }
         }
     }
 
@@ -133,8 +138,11 @@ version (linux)
         );
         if (!report(result.error, "bounded communicate"))
             return false;
+        const checked = capture.bytes.asString;
+        if (checked.failed)
+            return false;
         formatln!"captured='{}', length={}, truncated={}"(
-            capture.bytes.asStringUnchecked,
+            checked.value,
             capture.length,
             capture.truncated,
         );

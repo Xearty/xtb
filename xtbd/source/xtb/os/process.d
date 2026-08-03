@@ -1061,7 +1061,10 @@ version (linux) private OsError spawnSearchPath(
     int* output,
 ) @system
 {
-    String path = environmentValue(environment, "PATH");
+    String path;
+    const pathError = environmentValue(environment, "PATH", &path);
+    if (pathError.failed)
+        return pathError;
     if (path.ptr is null)
         path = "/bin:/usr/bin";
 
@@ -1199,22 +1202,28 @@ version (linux) private String environmentEntryName(String entry) @safe
     return entry[0 .. length];
 }
 
-version (linux) private String environmentValue(
+version (linux) private OsError environmentValue(
     const(char)** environment,
     String name,
+    String* output,
 ) @system
 {
+    require(output !is null, "environment value output is null");
+    *output = String.init;
     for (size_t i; environment[i]!is null; ++i)
     {
         const checked = fromCString(environment[i]);
         if (checked.failed)
-            continue;
+            return OsError(OsErrorKind.invalidData, 0);
         const entry = checked.value;
         if (entry.length > name.length && entry[name.length] == '=' &&
             entry[0 .. name.length].equal(name))
-            return entry[name.length + 1 .. $];
+        {
+            *output = entry[name.length + 1 .. $];
+            return OsError.init;
+        }
     }
-    return String.init;
+    return OsError.init;
 }
 
 version (linux) private const(char)* copyCString(

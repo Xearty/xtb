@@ -73,6 +73,8 @@ nothrow @nogc:
 
     void put(char value)
     {
+        require(cast(u8) value <= 0x7f,
+            "non-ASCII char written as a complete code point; use dchar");
         if (failed_)
             return;
         if (buffered_ == buffer_.length)

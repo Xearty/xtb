@@ -180,7 +180,7 @@ use `require`. `isCodePointBoundary` is the deliberate checked-query exception
 and returns `false` beyond the end. Invalid bytes found at a valid decoding
 offset return `Utf8Error`. This keeps API misuse distinct from untrusted input.
 
-## Proposed public API
+## Public API
 
 The public surface has this shape. All functions are `nothrow @nogc`. Pure
 validation and value operations are `pure @safe`; operations that enforce a
@@ -240,13 +240,13 @@ struct EncodedCodePoint
     u8 byteLength() const pure @safe;
 }
 
-Utf8Error validateUtf8(scope String candidate) pure @safe;
-Utf8Error validateUtf8(scope const(u8)[] candidate) pure @safe;
+Utf8Error validateUtf8(scope String candidate) @safe;
+Utf8Error validateUtf8(scope const(u8)[] candidate) @trusted;
 
-bool isValidUtf8(scope String candidate) pure @safe;
-bool isValidUtf8(scope const(u8)[] candidate) pure @safe;
+bool isValidUtf8(scope String candidate) @safe;
+bool isValidUtf8(scope const(u8)[] candidate) @trusted;
 
-Utf8StringResult asString(return scope const(u8)[] bytes) pure @trusted;
+Utf8StringResult asString(return scope const(u8)[] bytes) @trusted;
 
 Utf8Error decodeCodePoint(
     scope String candidate,
@@ -290,6 +290,12 @@ struct CodePointRange
     void popFront() @safe;
     void popBack() @safe;
     CodePointRange save() const pure @safe;
+    int opApply(
+        scope int delegate(dchar) nothrow @nogc @safe callback,
+    ) const @safe;
+    int opApply(
+        scope int delegate(dchar) nothrow @nogc @system callback,
+    ) const @system;
 }
 
 CodePointRange codePoints(return scope String value) pure @safe;
@@ -302,6 +308,12 @@ struct CodePointOffsetRange
     void popFront() @safe;
     void popBack() @safe;
     CodePointOffsetRange save() const pure @safe;
+    int opApply(
+        scope int delegate(DecodedCodePoint) nothrow @nogc @safe callback,
+    ) const @safe;
+    int opApply(
+        scope int delegate(DecodedCodePoint) nothrow @nogc @system callback,
+    ) const @system;
 }
 
 CodePointOffsetRange codePointsWithOffsets(
@@ -318,9 +330,13 @@ consistent with the pointer-for-mutation rule.
 `Utf8StringResult.value` is the borrowed input view on success and `String.init`
 on failure. It owns nothing and has exactly the source byte slice's lifetime.
 The `return scope` input expresses that relationship under DIP1000. A compile-
-time regression test must prove both sides: returning the result from a
-`return scope` source is accepted, while attempting to return it from an
-ordinary `scope` source is rejected. Do not weaken this with an escaping cast.
+`return scope` documents the source relationship and preserves it where D can
+track a direct return. DIP1000 does not propagate lifetimes through fields of a
+returned aggregate, however, so it cannot reject every escape of
+`Utf8StringResult.value`, `CodePointRange`, or `CodePointOffsetRange`. This is a
+language limitation, not a claim of ownership: callers must still keep the
+source alive. Compile-time tests cover the relationships D can express, and
+runtime/API documentation must not promise Rust-style borrow checking here.
 
 `DecodedCodePoint*` and `EncodedCodePoint*` are required non-null output
 pointers. Each function clears its output before examining input and leaves it
@@ -440,9 +456,13 @@ It stores only the remaining byte slice. Copying or `save` creates an independen
 cursor over the same borrowed storage. It allocates nothing.
 
 The range follows D's `empty`, `front`, `popFront`, `back`, `popBack`, and
-`save` conventions so it works with `foreach` without importing Phobos ranges.
-The source bytes must outlive all copies. The range must never escape a shorter-
-lived input, and DIP1000 attributes must express that borrowing relationship.
+`save` conventions for manual/range-style use. Its allocation-free `opApply`
+overloads provide language-level `foreach` for both safe and system callbacks
+without importing Phobos ranges.
+The source bytes must outlive all copies. `return scope` expresses the intended
+borrowing relationship, but DIP1000 cannot prevent a borrowed slice stored in
+a returned range aggregate from escaping. Callers must not return or retain a
+range beyond its source.
 
 Traversal assumes the ordinary `String` contract. If unchecked invalid bytes
 reach the range, `front`, `back`, or a pop operation panics instead of returning
@@ -492,11 +512,11 @@ Unicode scalar, so appending an arbitrary high byte could leave the buffer
 malformed. Non-ASCII values are appended as `dchar` or as an already valid
 `String`.
 
-Public `appendByte` is misleading for a text builder and should be removed or
-made package-private. Audited internals that fill already reserved storage may
-use a clearly named unchecked helper, but arbitrary binary construction belongs
-in `Array!u8`. `appendAssumeCapacity(char)` has the same ASCII precondition as
-ordinary `append(char)`.
+Public `appendByte` is removed because it is misleading for a text builder.
+Audited internals use the package-private `appendUtf8Fragment` transaction
+helper, while arbitrary binary construction belongs in `Array!u8`.
+`appendAssumeCapacity(char)` has the same ASCII precondition as ordinary
+`append(char)`.
 
 Operations accepting `String`--append, prepend, insert, replace, and
 construction from `String`--assume their inputs already satisfy the `String`
@@ -552,10 +572,10 @@ validate and return `Utf8Error` or be named `fromCStringUnchecked`. Existing
 uses of `fromCString` require an audit rather than being silently declared safe.
 
 POSIX paths, environment entries, and directory names may contain arbitrary
-non-NUL bytes. They cannot truthfully become ordinary `String` merely because
-the platform exposes `char*`. They need a byte-oriented native representation
-or an explicitly documented policy that rejects non-UTF-8 names. This is a
-follow-up OS API concern, not a reason to weaken the text contract.
+non-NUL bytes. The current text-oriented OS API deliberately rejects malformed
+UTF-8 as `OsErrorKind.invalidData`; it never relabels those bytes as `String`.
+A future byte-oriented native path API may broaden platform coverage without
+weakening the text contract.
 
 Process stdout and stderr remain binary `u8` buffers. A caller explicitly uses
 checked `asString` before treating captured output as text. The existing
@@ -626,21 +646,22 @@ cover:
   injected allocation failure;
 - byte-indexed string/buffer operations accepting boundaries and rejecting
   split sequences;
-- checked byte-to-`String` conversion preserving pointer, length, and lifetime
-  without allocating;
+- checked byte-to-`String` conversion preserving pointer and length without
+  allocating, plus compile-time coverage of every lifetime relationship that
+  DIP1000 can represent;
 - serde JSON and TOML using the shared implementation with unchanged error
   locations; and
 - sanitizer runs over malformed and truncated buffers to establish that no
   decoder reads out of bounds.
 
 The exhaustive scalar round trip is approximately 1.1 million small cases and
-is suitable for the native test suite. Compile-time tests should also prove
-that the range cannot escape shorter-lived storage and that production modules
-continue to compile under `-betterC`.
+is suitable for the native test suite. Compile-time tests cover direct
+`return scope` propagation; aggregate-contained borrows remain a documented
+caller obligation. Production modules continue to compile under `-betterC`.
 
-## Implementation sequence
+## Implemented sequence
 
-Implement this design in the following order:
+The implementation was completed in this order:
 
 1. Add error types, strict forward decoding, validation, and exhaustive tests.
 2. Add reverse decoding, boundary queries, counting, and `CodePointRange`.
@@ -651,6 +672,5 @@ Implement this design in the following order:
 7. Update architecture, testing documentation, and examples to describe the
    implemented API rather than the current provisional contract.
 
-Each step must pass debug, optimized, release, sanitizer, and unsupported-
-platform compile checks already used by the project before the next step is
-committed.
+The complete result passes debug, optimized, release, sanitizer, and
+unsupported-platform compile checks in the standard project gate.

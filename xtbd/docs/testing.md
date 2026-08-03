@@ -62,8 +62,10 @@ modules in that shard and lists them explicitly. Explicit enumeration is
 intentional: it replaces unavailable `ModuleInfo` discovery and makes omissions
 visible in review.
 
-The explicit runners are `core_tests.d`, `math_tests.d`, `os_tests.d`, and
-`serde_tests.d`.
+The explicit runners are `core_tests.d`, `utf8_tests.d`, `math_tests.d`,
+`os_tests.d`, and `serde_tests.d`. The UTF-8 runner expands the colocated test
+body from `xtb.core.utf8`; keeping it separate makes the exhaustive 1.1-million
+scalar round trip visible in every build mode without relying on ModuleInfo.
 The OS runner creates a process-unique directory below `/tmp`, touches only
 paths inside it, and removes every created file and directory before returning.
 Platform runtime assertions are backend-versioned; the same runner remains a
@@ -171,8 +173,8 @@ on the Nth allocation. Keep it BetterC-compatible and share it from
 
 String tests enforce the type boundary as well as textual behavior:
 
-- `String` exposes no mutable pointer/slice and its algorithms do not alter the
-  source bytes;
+- `String` exposes only a const pointer/slice and its algorithms do not alter
+  the source bytes;
 - copying and slicing a `String` allocate nothing and preserve the correct
   borrowed range;
 - operations that create bytes either return an explicitly allocator-backed
@@ -183,8 +185,16 @@ String tests enforce the type boundary as well as textual behavior:
   invalidates the view;
 - copying into another `StringBuf` creates independent ownership and allocator
   lifetime;
-- zero-length strings, embedded NUL, invalid UTF-8, and multibyte UTF-8 are
-  covered according to each API's byte/Unicode contract;
+- zero-length strings, embedded NUL, malformed external UTF-8, and valid
+  multibyte UTF-8 are covered according to each API's byte/Unicode contract;
+- strict decoding covers every leading-byte class, truncation and continuation
+  position, overlong form, surrogate encoding, and out-of-range scalar with an
+  exact error kind and byte offset;
+- every legal Unicode scalar round-trips through the shared encoder/decoder;
+- forward, reverse, offset-producing, copied, and early-break code-point ranges
+  work both manually and with language-level `foreach`;
+- byte slicing, insertion, and truncation accept scalar boundaries and panic at
+  split sequences, including in release builds;
 - `StringBuf` equality with literals, mutable and immutable `String` slices,
   and other buffers is tested in both operand orders, including inequality and
   null-string/empty-buffer equivalence;
@@ -195,13 +205,17 @@ String tests enforce the type boundary as well as textual behavior:
 - mutating operations compile with direct UFCS (`buffer.append(value)`) using
   only the allowed first-parameter `ref` receiver.
 
-Printer tests cover interpolated expression sequences through direct output,
+Printer sinks consume `const(u8)[]` stream fragments because flushes and short
+writes may split a scalar; a sink callback must not treat each fragment as an
+independently valid `String`. Printer tests cover interpolated expression sequences through direct output,
 `StringBuf`, fixed-buffer, and allocator-owned sinks. Include empty and nested
 sequences, expressions with side effects, custom `formatTo` values, numeric
 format wrappers, mixed ordinary/interpolated arguments, exact fixed-buffer
 accounting, truncation, and injected allocation failure. Assert that every
 expression and custom formatter runs exactly once and that expression-source
-metadata is never emitted or evaluated by the printer.
+metadata is never emitted or evaluated by the printer. Fixed-buffer tests also
+prove that truncation backs up to a complete scalar while `required` retains
+the exact untruncated byte count.
 
 Scratch-space tests additionally verify:
 

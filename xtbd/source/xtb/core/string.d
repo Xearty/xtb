@@ -22,7 +22,8 @@ import xtb.core.array : tryReserveArray = tryReserve;
 import xtb.core.memory : Allocator, allocate, tryAllocate;
 import xtb.core.hash : hashValue;
 import xtb.core.panic : panic, require;
-import xtb.core.utf8 : encodeUtf8, isCodePointBoundary, validateUtf8;
+import xtb.core.utf8 : ceilCodePointBoundary, encodeUtf8,
+    isCodePointBoundary, validateUtf8;
 
 enum notFound = size_t.max;
 
@@ -137,7 +138,7 @@ size_t find(String value, String needle) pure @trusted
 
     foreach (i; 0 .. value.length - needle.length + 1)
     {
-        if (value[i .. i + needle.length].equal(needle))
+        if (memcmp(value.ptr + i, needle.ptr, needle.length) == 0)
             return i;
     }
     return notFound;
@@ -164,7 +165,7 @@ size_t findLast(String value, String needle) pure @trusted
     while (index != 0)
     {
         --index;
-        if (value[index .. index + needle.length].equal(needle))
+        if (memcmp(value.ptr + index, needle.ptr, needle.length) == 0)
             return index;
     }
     return notFound;
@@ -551,9 +552,11 @@ bool trySplitWhen(
         require(skip <= value.length - index, "split predicate skipped past input");
         if (skip == 0)
         {
-            ++index;
+            index = value.ceilCodePointBoundary(index + 1);
             continue;
         }
+        require(value.isCodePointBoundary(index + skip),
+            "split predicate ended inside UTF-8 code point");
 
         String token = value[tokenBegin .. index];
         if ((!discardEmpty || token.length != 0) &&
@@ -622,6 +625,8 @@ Array!String split(String value, String separator, Allocator* allocator)
 
 Array!String split(String value, char separator, Allocator* allocator)
 {
+    require(cast(u8) separator <= 0x7f,
+        "non-ASCII split separator; use String");
     return value.splitWhen(&characterSeparator, &separator, false, allocator);
 }
 
@@ -677,7 +682,7 @@ nothrow @nogc:
         return (*output).tryAppend(value);
     }
 
-    /// Copies arbitrary bytes without validating UTF-8.
+    /// Copies bytes whose UTF-8 validity the caller has already proved.
     static StringBuf fromBytesUnchecked(
         Allocator* allocator,
         scope const(u8)[] bytes,
@@ -931,7 +936,7 @@ bool tryEscape(ref StringBuf buffer, String value)
             buffer.appendAssumeCapacity(escaped);
         }
         else
-            buffer.appendAssumeCapacity(character);
+            buffer.bytes_.appendAssumeCapacityArray(character);
     }
     return true;
 }
@@ -1158,6 +1163,8 @@ unittest
     assert(buffer == "say: hello, D");
     buffer.appendEscaped("\n");
     assert(buffer.view.endsWith("\\n"));
+    buffer.appendEscaped(" café🙂");
+    assert(buffer.view.endsWith(" café🙂"));
     assert(buffer.cString()[buffer.byteLength] == '\0');
 
     StringBuf unicode = StringBuf.fromString(mallocAllocator(), "Aé🙂");
@@ -1167,6 +1174,13 @@ unittest
     assert(unicode == "Aé界🙂");
     unicode.truncateBytes(6);
     assert(unicode == "Aé界");
+
+    StringBuf scalarWidths = StringBuf.withCapacity(mallocAllocator(), 1);
+    scalarWidths.append(cast(dchar) 0x7f);
+    scalarWidths.append(cast(dchar) 0x80);
+    scalarWidths.append(cast(dchar) 0x800);
+    scalarWidths.append(cast(dchar) 0x10000);
+    assert(scalarWidths.view == "\x7f\u0080\u0800\U00010000");
 
     StringBuf selfPrepend = StringBuf.fromString(
         mallocAllocator(),
@@ -1198,4 +1212,8 @@ unittest
             &failedBytes,
     ));
     assert(failedBytes.empty);
+
+    StringBuf failedScalar = StringBuf.create(failing.handle);
+    assert(!failedScalar.tryAppend(cast(dchar) 0x1f642));
+    assert(failedScalar.empty && failing.clean);
 }
