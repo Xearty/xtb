@@ -2,6 +2,7 @@ module tests.os_tests;
 
 import xtb.os.directory;
 import xtb.os.error;
+import xtb.os.environment;
 import xtb.os.file;
 import xtb.os.memory_map;
 import xtb.os.path;
@@ -10,6 +11,7 @@ import xtb.os.pipe;
 import xtb.os.process;
 import xtb.os.process_io;
 import xtb.os.time;
+import xtb.os.terminal;
 import xtb.core.array : Array, append, resize;
 import xtb.core.arena : Arena, TempArena, pop, push;
 import xtb.core.memory : mallocAllocator;
@@ -797,6 +799,8 @@ extern (C) int main()
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.os.error))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.os.environment))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.os.file))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.os.pipe))
@@ -806,6 +810,8 @@ extern (C) int main()
     static foreach (testFunction; __traits(getUnitTests, xtb.os.process))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.os.process_io))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.os.terminal))
         testFunction();
     version (linux)
         runLinuxIntegration();

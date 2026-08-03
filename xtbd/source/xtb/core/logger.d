@@ -3,6 +3,7 @@ module xtb.core.logger;
 nothrow @nogc:
 
 import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
+import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.core.print : BufferWriteResult, formatBuffer, writeBuffer;
 import xtb.core.string : String;
 
@@ -36,6 +37,53 @@ struct LogRecord
 {
     LogLevel level;
     String message;
+    AnsiStyle style;
+}
+
+/// Presentation styles selected by log level. The zero value is uncolored.
+struct LogPalette
+{
+nothrow @nogc:
+
+    AnsiStyle trace;
+    AnsiStyle debug_;
+    AnsiStyle info;
+    AnsiStyle warning;
+    AnsiStyle error;
+    AnsiStyle critical;
+
+    static LogPalette defaults()
+    @safe
+    {
+        return LogPalette(
+            AnsiStyle.foreground(AnsiColor.brightBlack),
+            AnsiStyle.foreground(AnsiColor.brightBlue),
+            AnsiStyle.foreground(AnsiColor.green),
+            AnsiStyle.foreground(AnsiColor.yellow),
+            AnsiStyle.foreground(AnsiColor.brightRed),
+            AnsiStyle.foreground(AnsiColor.brightRed).bold,
+        );
+    }
+
+    AnsiStyle styleFor(LogLevel level) const
+    pure @safe
+    {
+        final switch (level)
+        {
+            case LogLevel.trace:
+                return trace;
+            case LogLevel.debug_:
+                return debug_;
+            case LogLevel.info:
+                return info;
+            case LogLevel.warning:
+                return warning;
+            case LogLevel.error:
+                return error;
+            case LogLevel.critical:
+                return critical;
+        }
+    }
 }
 
 struct LogResult
@@ -64,6 +112,7 @@ nothrow @nogc:
     private void* context_;
     private char[] messageBuffer_;
     private LogLevel minimumLevel_;
+    private LogPalette palette_;
     private bool delivering_;
 
     @disable this(this);
@@ -74,6 +123,7 @@ nothrow @nogc:
         return scope char[] messageBuffer,
         LogLevel minimumLevel = LogLevel.info,
         LogFlush flush = null,
+        LogPalette palette = LogPalette.init,
     )
     {
         Logger result;
@@ -82,6 +132,7 @@ nothrow @nogc:
         result.context_ = context;
         result.messageBuffer_ = messageBuffer;
         result.minimumLevel_ = minimumLevel;
+        result.palette_ = palette;
         return result;
     }
 
@@ -115,25 +166,6 @@ private String levelName(LogLevel level) pure @safe
     }
 }
 
-private String levelColor(LogLevel level) pure @safe
-{
-    final switch (level)
-    {
-        case LogLevel.trace:
-            return "\x1b[90m";
-        case LogLevel.debug_:
-            return "\x1b[94m";
-        case LogLevel.info:
-            return "\x1b[32m";
-        case LogLevel.warning:
-            return "\x1b[33m";
-        case LogLevel.error:
-            return "\x1b[91m";
-        case LogLevel.critical:
-            return "\x1b[1;91m";
-    }
-}
-
 bool enabled(ref const Logger logger, LogLevel level)
 pure @safe
 {
@@ -143,6 +175,11 @@ pure @safe
 void setMinimumLevel(ref Logger logger, LogLevel level)
 {
     logger.minimumLevel_ = level;
+}
+
+void setPalette(ref Logger logger, LogPalette palette)
+{
+    logger.palette_ = palette;
 }
 
 void setSink(
@@ -169,6 +206,7 @@ private LogResult deliver(
     LogRecord record = LogRecord(
         level,
         logger.messageBuffer_[0 .. formatted.written],
+        logger.palette_.styleFor(level),
     );
     const accepted = logger.sink_(logger.context_, &record);
     logger.delivering_ = false;
@@ -301,12 +339,20 @@ private bool ansiFileSink(void* context, scope const LogRecord* record)
     FILE* file = cast(FILE*) context;
     if (file is null)
         return false;
+
+    const opening = ansiSequence(record.style);
+    const reset = ansiResetSequence();
     lockFile(file);
-    const accepted = writeAll(file, levelColor(record.level)) &&
-        writeAll(file, "[") && writeAll(
-            file, levelName(record.level)) &&
-        writeAll(file, "]\x1b[0m ") && writeAll(file, record.message) &&
-        writeAll(file, "\n");
+    bool accepted = true;
+    if (!opening.empty)
+        accepted = writeAll(file, opening.view) && accepted;
+    accepted = writeAll(file, "[") && accepted;
+    accepted = writeAll(file, levelName(record.level)) && accepted;
+    accepted = writeAll(file, "] ") && accepted;
+    accepted = writeAll(file, record.message) && accepted;
+    if (!opening.empty)
+        accepted = writeAll(file, reset.view) && accepted;
+    accepted = writeAll(file, "\n") && accepted;
     unlockFile(file);
     return accepted;
 }
@@ -342,6 +388,7 @@ Logger fileLogger(
     return scope char[] messageBuffer,
     LogLevel minimumLevel = LogLevel.info,
     LogStyle style = LogStyle.plain,
+    LogPalette palette = LogPalette.defaults(),
 )
 {
     return Logger.create(
@@ -350,6 +397,7 @@ Logger fileLogger(
         messageBuffer,
         minimumLevel,
         &fileFlush,
+        style == LogStyle.ansi ? palette : LogPalette.init,
     );
 }
 
@@ -357,18 +405,32 @@ Logger stderrLogger(
     return scope char[] messageBuffer,
     LogLevel minimumLevel = LogLevel.info,
     LogStyle style = LogStyle.plain,
+    LogPalette palette = LogPalette.defaults(),
 )
 {
-    return fileLogger(cast(FILE*) stderr, messageBuffer, minimumLevel, style);
+    return fileLogger(
+        cast(FILE*) stderr,
+        messageBuffer,
+        minimumLevel,
+        style,
+        palette,
+    );
 }
 
 Logger stdoutLogger(
     return scope char[] messageBuffer,
     LogLevel minimumLevel = LogLevel.info,
     LogStyle style = LogStyle.plain,
+    LogPalette palette = LogPalette.defaults(),
 )
 {
-    return fileLogger(cast(FILE*) stdout, messageBuffer, minimumLevel, style);
+    return fileLogger(
+        cast(FILE*) stdout,
+        messageBuffer,
+        minimumLevel,
+        style,
+        palette,
+    );
 }
 
 version (unittest)
@@ -406,6 +468,14 @@ version (unittest)
         return false;
     }
 
+    private size_t readFileContents(FILE* file, char[] destination) @system
+    {
+        import core.stdc.stdio : fread, rewind;
+
+        rewind(file);
+        return fread(destination.ptr, 1, destination.length, file);
+    }
+
     private struct RecursiveCapture
     {
     nothrow @nogc:
@@ -430,6 +500,8 @@ version (unittest)
 
 unittest
 {
+    import core.stdc.stdio : fclose, tmpfile;
+    import xtb.core.ansi : AnsiAttribute, AnsiColor, AnsiStyle;
     import xtb.core.string : equal;
 
     Capture capture;
@@ -489,4 +561,50 @@ unittest
     assert(recursiveLogger.log(LogLevel.error, "outer").status == LogStatus.delivered);
     assert(recursive.nestedStatus == LogStatus.recursive);
     assert(recursive.outerMessage[0 .. recursive.outerLength].equal("outer"));
+
+    {
+        FILE* file = tmpfile();
+        assert(file !is null);
+        char[32] fileMessage;
+        Logger plain = fileLogger(
+            file,
+            fileMessage[],
+            LogLevel.info,
+            LogStyle.plain,
+        );
+        assert(plain.info("plain message").delivered);
+        assert(plain.flush());
+        char[64] output;
+        const length = readFileContents(file, output[]);
+        assert(output[0 .. length].equal("[info] plain message\n"));
+        assert(fclose(file) == 0);
+    }
+
+    {
+        LogPalette palette = LogPalette.defaults();
+        assert(palette.trace.enabled && palette.debug_.enabled &&
+                palette.info.enabled && palette.warning.enabled &&
+                palette.error.enabled && palette.critical.enabled);
+        assert(palette.critical.has(AnsiAttribute.bold));
+        palette.warning = AnsiStyle.foreground(AnsiColor.rgb(1, 20, 255))
+            .underline;
+        FILE* file = tmpfile();
+        assert(file !is null);
+        char[32] fileMessage;
+        Logger colored = fileLogger(
+            file,
+            fileMessage[],
+            LogLevel.info,
+            LogStyle.ansi,
+            palette,
+        );
+        assert(colored.warning("colored message").delivered);
+        assert(colored.flush());
+        char[96] output;
+        const length = readFileContents(file, output[]);
+        assert(output[0 .. length].equal(
+                "\x1b[4;38;2;1;20;255m[warning] colored message\x1b[0m\n",
+        ));
+        assert(fclose(file) == 0);
+    }
 }

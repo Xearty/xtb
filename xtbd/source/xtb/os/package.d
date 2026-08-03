@@ -11,3 +11,4 @@ public import xtb.os.pipe;
 public import xtb.os.process;
 public import xtb.os.process_io;
 public import xtb.os.time;
+public import xtb.os.terminal;

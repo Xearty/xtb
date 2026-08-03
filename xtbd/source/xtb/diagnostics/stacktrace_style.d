@@ -3,6 +3,8 @@ module xtb.diagnostics.stacktrace_style;
 nothrow @nogc:
 
 import xtb.diagnostics.demangle : SignatureDetail;
+public import xtb.core.ansi : AnsiColor;
+import xtb.core.ansi : beginAnsi, endAnsi;
 import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string : String, equal;
@@ -87,16 +89,16 @@ nothrow @nogc:
     ) pure @safe
     {
         return StackTraceColors(
-            AnsiColor(functionColor, true),
-            AnsiColor(typeColor, true),
-            AnsiColor(moduleColor, true),
-            AnsiColor(pathColor, true),
-            AnsiColor(lineColor, true),
-            AnsiColor(keywordColor, true),
-            AnsiColor(punctuationColor, true),
-            AnsiColor(decorationColor, true),
-            AnsiColor(addressColor, true),
-            AnsiColor(warningColor, true),
+            AnsiColor.indexed(functionColor),
+            AnsiColor.indexed(typeColor),
+            AnsiColor.indexed(moduleColor),
+            AnsiColor.indexed(pathColor),
+            AnsiColor.indexed(lineColor),
+            AnsiColor.indexed(keywordColor),
+            AnsiColor.indexed(punctuationColor),
+            AnsiColor.indexed(decorationColor),
+            AnsiColor.indexed(addressColor),
+            AnsiColor.indexed(warningColor),
         );
     }
 }
@@ -150,14 +152,6 @@ static foreach (leftIndex, left; themeDefinitions)
         static if (leftIndex < rightIndex)
             static assert(left.theme != right.theme, "duplicate stack-trace theme");
 
-struct AnsiColor
-{
-nothrow @nogc:
-
-    ubyte index;
-    bool enabled;
-}
-
 struct StackTraceStyle
 {
 nothrow @nogc:
@@ -181,21 +175,6 @@ nothrow @nogc:
             100,
         );
     }
-}
-
-void beginAnsi(ref Writer writer, AnsiColor color)
-{
-    if (!color.enabled)
-        return;
-    writer.put("\x1b[38;5;");
-    writer.value(color.index);
-    writer.put('m');
-}
-
-void endAnsi(ref Writer writer, AnsiColor color)
-{
-    if (color.enabled)
-        writer.put("\x1b[0m");
 }
 
 private enum SignatureTokenKind
@@ -545,6 +524,17 @@ unittest
     assert(result.ok);
     assert(output.written != 0);
     assert(storage[0] == '\x1b');
+
+    char[128] rgbStorage;
+    TestSink rgbOutput = TestSink(rgbStorage[]);
+    Writer rgbWriter = Writer.fromSink(&testSink, &rgbOutput);
+    StackTraceColors rgbColors;
+    rgbColors.functionName = AnsiColor.rgb(1, 2, 3);
+    rgbWriter.writeSignature("call(int)", &rgbColors);
+    assert(rgbWriter.finish().ok);
+    assert(rgbStorage[0 .. rgbOutput.written].equal(
+            "\x1b[38;2;1;2;3mcall\x1b[0m(int)",
+    ));
 
     char[128] plainStorage;
     TestSink plainOutput = TestSink(plainStorage[]);

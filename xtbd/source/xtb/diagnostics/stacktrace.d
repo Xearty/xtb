@@ -4,10 +4,11 @@ nothrow @nogc:
 
 import core.stdc.string : memcpy, strlen;
 import xtb.diagnostics.demangle : tryDemangleD;
+import xtb.core.ansi : AnsiColor, beginAnsi, endAnsi;
 import xtb.core.print : Writer, hexadecimal;
 import xtb.core.string : String;
-import xtb.diagnostics.stacktrace_style : AnsiColor, StackTraceColors, StackTraceStyle,
-    StackTraceTheme, SignatureFormat, beginAnsi, endAnsi, writeSignature;
+import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
+    StackTraceTheme, SignatureFormat, writeSignature;
 
 struct StackFrame
 {

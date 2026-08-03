@@ -1,11 +1,25 @@
 module examples.os_demo;
 
+import core.stdc.stdio : FILE, stderr;
 import xtb.core;
 import xtb.os;
 
 extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
 {
     ThreadContextScope context = ThreadContextScope.acquire();
+    char[256] logStorage;
+    const logStyle = shouldUseAnsi(cast(FILE*) stderr)
+        ? LogStyle.ansi : LogStyle.plain;
+    LogPalette logPalette = LogPalette.defaults();
+    logPalette.info = AnsiStyle.foreground(AnsiColor.brightCyan);
+    Logger logger = stderrLogger(
+        logStorage[],
+        LogLevel.info,
+        logStyle,
+        logPalette,
+    );
+    logger.info("OS demo started");
+
     String input = ".";
     if (argumentCount > 1)
     {

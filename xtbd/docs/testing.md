@@ -220,6 +220,12 @@ the exact untruncated byte count.
 Logging tests cover explicit and thread-context calls, filtering before
 formatting, truncation, sink and flush failure, recursion rejection, nested
 thread-logger restoration, and the no-context/no-installed-logger behavior.
+ANSI tests cover named, indexed, and RGB encoding, combined foreground,
+background, and `FlagSet`-backed attributes, reset behavior, plain file output,
+custom logger palettes, and coloring of the complete log record. OS tests
+exercise forced and disabled ANSI policy, conservative redirected-file
+detection, `TERM=dumb`/`NO_COLOR` policy logic, and environment-name
+validation. Core ANSI tests never depend on a terminal or process environment.
 Every level-specific plain and compile-time-pattern wrapper is exercised for
 both explicit and current-thread dispatch, including the `debug_` keyword
 workaround and overload resolution through the `xtb.core` aggregate import.

@@ -4,11 +4,12 @@ nothrow @nogc:
 
 import core.stdc.signal : SIGABRT, SIGFPE, SIGILL, SIGSEGV, sig_atomic_t;
 import core.stdc.stdio : FILE, stderr;
+import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.core.panic : PanicHook, panic, setPanicHandler;
 import xtb.core.print : Writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
-import xtb.diagnostics.stacktrace_style : AnsiColor, ModuleDisplay, StackTraceStyle,
+import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
     StackTraceTheme, SignatureLayout;
 import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.core.string : String;
@@ -271,17 +272,17 @@ version (linux)
 
     private void rawAnsi(AnsiColor color) @system
     {
-        if (!color.enabled)
-            return;
-        rawWrite("\x1b[38;5;");
-        rawDecimal(color.index);
-        rawWrite("m");
+        const sequence = ansiSequence(AnsiStyle.foreground(color));
+        rawWrite(sequence.view);
     }
 
     private void rawAnsiReset(AnsiColor color) @system
     {
         if (color.enabled)
-            rawWrite("\x1b[0m");
+        {
+            const sequence = ansiResetSequence();
+            rawWrite(sequence.view);
+        }
     }
 
     private void rawStyled(String text, AnsiColor color) @system

@@ -214,13 +214,32 @@ path buffer per active depth, keeping monotonic-arena consumption proportional
 to depth rather than entry count. Callers needing persistence copy entries into
 their chosen container and allocator.
 
-`environmentVariable` returns a process-owned borrowed view that later
-environment mutation can invalidate. `currentDirectory`, `executablePath`, and
+`environmentVariable` is the validated `String` wrapper around the platform
+environment. It rejects empty names, `=`, and embedded NUL, reports absence as
+`OsErrorKind.notFound`, and returns a process-owned borrowed view that later
+environment mutation can invalidate. Converting its `String` name to a C
+string uses scratch space, so the public operation requires an installed
+thread context. Raw `getenv` pointers remain package-private OS boundaries.
+`currentDirectory`, `executablePath`, and
 `canonicalPath` write owned bytes into a supplied `StringBuf`. Read-only maps
 remain valid until their `MappedFile` is destroyed. Monotonic timestamps serve
 elapsed-time measurement; wall-clock and file-modification timestamps are
 signed Unix-epoch nanoseconds, represent pre-epoch values, and may jump when
 the system clock changes.
+
+`shouldUseAnsi(FILE*, AnsiMode)` owns terminal-color policy; the core logger
+does not inspect file descriptors or environment variables. `automatic`
+requires a POSIX terminal according to `isatty`, rejects `TERM=dumb`, and
+honors a non-empty [`NO_COLOR`](https://no-color.org/) value. It conservatively
+returns `false` on platforms without a locally implemented detector. `always`
+and `never` are explicit overrides. The result is composed with the normal
+core logger factory rather than hidden behind a second logger abstraction:
+
+```d
+const logStyle = shouldUseAnsi(stderr)
+    ? LogStyle.ansi : LogStyle.plain;
+Logger logger = stderrLogger(storage[], LogLevel.info, logStyle, palette);
+```
 
 `Command`, `Environment`, and the standard-stream route types are borrowed
 process descriptions. Spawn validates them, builds native argv/environment
@@ -261,6 +280,35 @@ Executable entry points are `extern(C) int main(int argc, char** argv)` (or the
 platform equivalent). Startup is explicit: no module constructors or implicit
 registration.
 
+### ANSI terminal styling
+
+`xtb.core.ansi` only encodes Select Graphic Rendition control sequences; it
+does not assume that a destination is a terminal. `AnsiColor` supports the
+terminal's named 16-color palette, indexed 256-color values, RGB values, and
+the terminal's default color. `AnsiColor.init` emits nothing, which makes the
+zero state useful. `AnsiStyle` combines foreground and background colors with
+bold, dim, italic, underline, blink, reverse, hidden, and strikethrough
+attributes. Its attribute storage is `FlagSet!AnsiAttribute`, not an unrelated
+second bit-mask implementation.
+
+Styles are allocation-free values. Builder operations return a changed copy:
+
+```d
+const heading = AnsiStyle.foreground(AnsiColor.brightCyan).bold;
+const diagnostic = AnsiStyle.foreground(AnsiColor.rgb(255, 95, 95))
+    .withBackground(AnsiColor.indexed(234))
+    .underline;
+
+write(heading, "heading", ansiReset, "\n");
+write(diagnostic, "diagnostic", ansiReset, "\n");
+```
+
+`beginAnsi`/`endAnsi` serve `Writer`-based renderers. `ansiSequence` and
+`ansiResetSequence` return fixed-capacity stack values for lower-level sinks,
+including the fatal-signal renderer; they do not allocate or call stdio.
+Ending a style emits a full SGR reset rather than restoring an enclosing style,
+so callers that nest styles must explicitly reapply the outer style.
+
 ### Diagnostics and fatal crashes
 
 Logging has an explicit foundation and an optional per-thread convenience
@@ -278,7 +326,7 @@ char[1024] logStorage;
 Logger applicationLogger = stderrLogger(
     logStorage[],
     LogLevel.info,
-    LogStyle.ansi,
+    shouldUseAnsi(stderr) ? LogStyle.ansi : LogStyle.plain,
 );
 ThreadLoggerScope logging = ThreadLoggerScope.install(&applicationLogger);
 
@@ -301,6 +349,30 @@ thread's context. With no installed logger, `enabled` and `flushLogger` return
 write to stderr or manufacture persistent storage. Filtering happens before
 formatting. The original `logger.log(...)`, `logger.logf!pattern(...)`, and
 `logger.flush()` APIs remain available and do not consult TLS.
+
+File logger coloring is explicit. `LogStyle.plain`, the core default, never
+emits control sequences. `LogStyle.ansi` applies one `AnsiStyle` to the entire
+`[level] message`, followed by a reset before the newline. `LogPalette`
+contains independently configurable styles for all six levels;
+`LogPalette.defaults()` supplies a readable named-color palette and makes
+critical messages bold. Passing a modified value configures a logger without
+global state:
+
+```d
+LogPalette palette = LogPalette.defaults();
+palette.warning = AnsiStyle.foreground(AnsiColor.rgb(255, 175, 0)).bold;
+Logger logger = stderrLogger(
+    storage[],
+    LogLevel.trace,
+    LogStyle.ansi,
+    palette,
+);
+```
+
+Formatting buffers and `LogRecord.message` never contain ANSI bytes. Styling
+is presentation metadata applied by the ANSI file sink, so plain file sinks
+and application-defined capture sinks retain clean messages. `LogResult`
+counts formatted message bytes, not prefix, newline, or presentation escapes.
 
 Normal call sites should use the level-specific convenience functions instead
 of spelling `LogLevel` repeatedly. The plain family forwards to `log`, and the
@@ -390,12 +462,13 @@ Renderer.submit(
 ) -> RenderResult nothrow @nogc
 ```
 
-`StackTraceStyle` owns no text or allocation. Its `StackTraceColors` store
-enabled 8-bit ANSI indices, normally from a preset or `fromAnsi8`; escape
-sequences are emitted directly into the destination writer. Rendering uses a
-plain theme when ANSI control sequences are inappropriate. Signature coloring
-is lexical presentation only; failure to classify a token never changes or
-discards the token's source bytes.
+`StackTraceStyle` owns no text or allocation. Its `StackTraceColors` use the
+shared core `AnsiColor`; presets contain indexed colors from `fromAnsi8`, while
+custom styles may also use named or RGB colors. Both rich rendering and the
+low-level fatal-signal path encode them through `xtb.core.ansi`. Rendering uses
+a plain theme when ANSI control sequences are inappropriate. Signature
+coloring is lexical presentation only; failure to classify a token never
+changes or discards the token's source bytes.
 
 The preset catalog is `solar`, `warmAsh`, `zenburn`, `gruvbox`, `tokyoNight`,
 `nord`, `dracula`, `oneDark`, `monokai`, `catppuccinMocha`, `everforest`,

@@ -20,6 +20,7 @@ import xtb.core.thread_logger;
 import xtb.core.utf8;
 import xtb.core.string;
 import xtb.core.print;
+import xtb.core.ansi;
 import xtb.diagnostics.demangle;
 import xtb.diagnostics.stacktrace_style;
 import xtb.diagnostics.stacktrace;
@@ -406,6 +407,8 @@ extern (C) int main(int argumentCount, char** arguments)
     static foreach (testFunction; __traits(getUnitTests, xtb.core.string))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.print))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.ansi))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.diagnostics.demangle))
         testFunction();
