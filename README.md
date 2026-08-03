@@ -125,6 +125,14 @@ and OS targets do not. `just build` produces independent `libxtb_core`,
 `libxtb_diagnostics`, `libxtb_math`, `libxtb_os`, and `libxtb_serde`
 archives.
 
+Archives are written to `build` by default. Pass another destination to the
+recipe, or set its environment default, when a different layout is needed:
+
+```sh
+just build path/to/lib
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build
+```
+
 Import `xtb.math` for the stable math surface. Matrices are column-major and
 multiply column vectors; transformations compose right-to-left. See
 `examples/math_demo.d` for transforms and deterministic periodic noise.

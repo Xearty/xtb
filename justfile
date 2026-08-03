@@ -12,6 +12,7 @@ interpolation_files := "source/xtb/core/print.d examples/print_demo.d examples/l
 fuzz_files := `find fuzz -name '*.d' -print | sort | tr '\n' ' '`
 format_files := `find source tests examples fuzz -name '*.d' -print | sort | tr '\n' ' '`
 platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
+library_output_dir := env_var_or_default("XTB_LIBRARY_OUTPUT_DIR", "build")
 common_flags := "-betterC -boundscheck=on -w -de -preview=dip1000 -I=source"
 build_flags := common_flags + " -od=build/obj/build"
 test_flags := common_flags + " -od=build/obj/test"
@@ -29,13 +30,14 @@ default: check
 format:
     dfmt --config . --inplace {{format_files}}
 
-build:
+build output_dir=library_output_dir:
     mkdir -p build/obj/build
-    ldc2 {{build_flags}} -oq -lib {{core_source_files}} -of=build/libxtb_core.a
-    ldc2 {{build_flags}} -oq -lib {{diagnostics_source_files}} -of=build/libxtb_diagnostics.a
-    ldc2 {{build_flags}} -oq -lib {{math_source_files}} -of=build/libxtb_math.a
-    ldc2 {{build_flags}} -oq -lib {{os_source_files}} -of=build/libxtb_os.a
-    ldc2 {{build_flags}} -oq -lib {{serde_source_files}} -of=build/libxtb_serde.a
+    mkdir -p "{{output_dir}}"
+    ldc2 {{build_flags}} -oq -lib {{core_source_files}} -of="{{output_dir}}/libxtb_core.a"
+    ldc2 {{build_flags}} -oq -lib {{diagnostics_source_files}} -of="{{output_dir}}/libxtb_diagnostics.a"
+    ldc2 {{build_flags}} -oq -lib {{math_source_files}} -of="{{output_dir}}/libxtb_math.a"
+    ldc2 {{build_flags}} -oq -lib {{os_source_files}} -of="{{output_dir}}/libxtb_os.a"
+    ldc2 {{build_flags}} -oq -lib {{serde_source_files}} -of="{{output_dir}}/libxtb_serde.a"
 
 test:
     mkdir -p build/obj/test
