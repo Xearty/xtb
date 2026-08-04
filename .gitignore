@@ -5,3 +5,4 @@
 /*.a
 /*.o
 /xtb
+/templates/app/flake.lock
