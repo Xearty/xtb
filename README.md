@@ -63,11 +63,23 @@ just check
 Alternatively, run `nix develop` from the repository root and then use the same
 `just` commands. The project-local `.envrc` selects the root `xtb` flake.
 
-`just check` lints, builds the package archives, runs debug, optimized, release,
-ABI, sanitizer, cross-build, and fuzz checks, then builds and runs the examples.
-Individual commands include `just build`, `just test`, `just test-sanitize`,
-`just fuzz-smoke`, `just lint`, and `just examples`. A reproducible package and
-test derivation are also available through `nix build` and `nix flake check`.
+`just check` verifies formatting, lints, builds the static libraries, runs
+debug, optimized, release-safe, and AddressSanitizer tests, then builds and runs
+the examples. Individual commands include `just build`, `just test`,
+`just test-sanitize`, `just format-check`, `just lint`, and `just run-examples`.
+A reproducible package and test derivation are also available through
+`nix build` and `nix flake check`.
+
+DUB owns the build manifests and Just only coordinates workflows. Component
+libraries are independent subpackages colocated under `source/xtb`;
+`examples/dub.sdl` owns `*-demo` configurations and `tests/dub.sdl` owns
+`test-*` and `test-helper-*`. Just discovers all three groups automatically, so
+adding one never requires editing the Justfile.
+
+DUB keeps compilation intermediates in its external cache, while final
+libraries, examples, and mode-specific test runners are isolated below `build`
+by default. No object files are written into the source tree, and the layout is
+safe for a read-only Nix-store source and parallel `just` execution.
 
 ## Using the library
 
@@ -121,17 +133,39 @@ violates those unchecked APIs' preconditions; arbitrary binary ownership uses
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,
-and OS targets do not. `just build` produces independent `libxtb_core`,
-`libxtb_diagnostics`, `libxtb_math`, `libxtb_os`, and `libxtb_serde`
-archives.
+and OS targets do not. `just build` produces the independent static libraries
+`libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`, `libxtb_os.a`, and
+`libxtb_serde.a`. Additional component subpackages under `source/xtb` are
+included by `just build` automatically.
 
-Archives are written to `build` by default. Pass another destination to the
-recipe, or set its environment default, when a different layout is needed:
+Build every component with `just build`, or select components by their suffix:
 
 ```sh
-just build path/to/lib
-XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build
+just build core os
 ```
+
+Run every example, or select one example by name:
+
+```sh
+just run-examples
+just run-example logging
+```
+
+The static libraries are written directly to `build` by default. Pass another
+destination through the environment when a different layout is needed:
+
+```sh
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build core serde
+```
+
+Relative destinations are resolved from the directory where Just was invoked,
+not from the library source. This matters when the Justfile and DUB manifest
+come from a read-only flake input in `/nix/store`: compiler output still lands
+directly in the consuming project.
+
+`just build` delegates component subpackages to DUB, while `just run-example`
+and `just run-examples` execute DUB's example configurations.
 
 Import `xtb.math` for the stable math surface. Matrices are column-major and
 multiply column vectors; transformations compose right-to-left. See

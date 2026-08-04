@@ -35,7 +35,7 @@ Future general-purpose additions are ranked separately in
 - caller-storage-backed `InstrumentedAllocator` with deterministic failure
   injection, active-allocation records, call counts, invalid-call counts,
   outstanding bytes, and peak bytes;
-- C-to-D ABI smoke coverage for the allocator callback and handle layout.
+- C-compatible allocator callback and handle layout.
 
 ### Arrays and borrowed slices
 
@@ -77,7 +77,7 @@ Future general-purpose additions are ranked separately in
   pointer-item `foreach` ranges, and mutable-value/read-only cursors with
   documented structural invalidation;
 - move-aware non-POD value relocation and destruction, collision-heavy tests,
-  strong-state allocation-failure tests, sanitizer coverage, and fuzzing.
+  strong-state allocation-failure tests, and sanitizer coverage.
 
 ### Strings
 
@@ -171,16 +171,12 @@ Future general-purpose additions are ranked separately in
 - BetterC compilation for library, tests, and examples;
 - colocated unit tests with an explicit BetterC test runner;
 - AddressSanitizer execution;
-- ASan/libFuzzer smoke targets for the D demangler and mutable containers;
-- UBSan capability detection with an explicit skip on the pinned LDC, which
-  does not support `-fsanitize=undefined`;
-- C ABI allocator smoke test;
 - DScanner policy;
-- DUB library and example configurations;
+- DUB library, example, and test configurations;
 - Nix package and test derivations;
 - optimized no-debug-info test execution;
-- local AArch64 Darwin cross-compilation of the portable library;
-- runnable core, print, and stack-trace examples.
+- release-safe test execution with bounds checks retained;
+- runnable public examples.
 
 ## Deliberately deferred or rejected compatibility
 
@@ -226,9 +222,8 @@ core retains a minimal raw stderr path that does not depend on logger health.
 
 ## Known environmental limitation
 
-This development host executes only x86-64 Linux binaries. The complete
-portable library is cross-compiled locally for AArch64 Darwin, but builders or
-CI on AArch64 Linux and Darwin are still required before claiming those targets
-have been executed. Fatal-signal installation and rich stack capture are Linux
-backends; elsewhere `CrashHandlerScope` still traces panics through the portable
-hook and stack capture reports `backendError`.
+This development host executes only x86-64 Linux binaries. Builders or CI on
+AArch64 Linux and Darwin are required before claiming those targets have been
+executed. Fatal-signal installation and rich stack capture are Linux backends;
+elsewhere `CrashHandlerScope` still traces panics through the portable hook and
+stack capture reports `backendError`.

@@ -15,11 +15,10 @@ by `dub test` must not be assumed. Test executables explicitly enumerate their
 modules and invoke unit tests with `__traits(getUnitTests, module_)`.
 
 The pinned D-Scanner 0.15 parser does not understand interpolated expression
-sequence literals yet. `just lint` therefore sends only the interpolation-
-bearing printer module and example through LDC's warning-as-error semantic
-check and sends every other supported file through D-Scanner. Keep that
-exception list narrow and remove it when D-Scanner can parse `i"..."`; all
-printer unit tests and build variants still compile those files with LDC.
+sequence literals yet. `just lint` therefore uses DUB/LDC semantic builds for
+the complete library and every example, then sends every supported file
+through D-Scanner. Keep the D-Scanner exception list narrow and remove it when
+D-Scanner can parse `i"..."`.
 
 ## Colocated unit tests
 
@@ -75,6 +74,10 @@ Process integration tests compile `tests/support/process_helper.d` as a
 dedicated BetterC executable. Use its length-unambiguous argv/environment
 output and binary stream modes instead of depending on shell parsing or the
 host behavior of `echo`, `cat`, and `sleep`.
+Every build mode places the helper beside its OS test executable. The test
+resolves that sibling from its own executable path, not from the repository
+working directory, so debug, optimized, release, and sanitizer suites can run
+in parallel without replacing one another's helper.
 Its flood mode deliberately exceeds stdin, stdout, and stderr pipe capacities
 at the same time, proving that communication makes progress in every direction.
 Pipeline tests cover both borrowed `Command[]` and `PipelineStage[]`, failure
@@ -119,14 +122,8 @@ imports it. The standard command should build each runner with both
    containers, ownership transitions, and validation.
 3. **Integration tests** in `tests/` call public APIs across module boundaries.
    They may create files only inside a runner-provided temporary directory.
-4. **ABI smoke tests** compile and link a minimal C caller against exported
-   `extern(C)` functions. Test both symbol/link compatibility and layouts.
-5. **Examples** compile in CI as consumer checks. They are documentation, not a
+4. **Examples** compile in CI as consumer checks. They are documentation, not a
    replacement for assertions.
-6. **Fuzz targets** expose libFuzzer's `LLVMFuzzerTestOneInput` C ABI and are
-   built with AddressSanitizer plus inline-counter/PC-table coverage. A short
-   run belongs in the standard gate; longer corpus-backed runs belong in
-   dedicated jobs.
 
 Window and graphics tests are split into deterministic state-machine tests and
 thin backend smoke tests. Backend smoke tests must skip explicitly when their
@@ -306,8 +303,6 @@ Serde tests additionally verify:
 - the shared backend-contract harness runs the same casing, alias, required,
   default, omission, option, nested-value, unknown-field, and round-trip cases
   against JSON and TOML, while backend-specific grammar tests remain separate;
-- JSON and TOML fuzz targets accept arbitrary byte slices under AddressSanitizer
-  with bounded depth and collection limits.
 
 Stack-trace tests use synthetic signatures to cover valid D linkage names,
 truncated length fields, unsupported encodings, empty output buffers, and ANSI
@@ -336,39 +331,72 @@ runner fixture root explicitly.
 
 The Nix development shell is the canonical toolchain and provides LDC, DUB,
 `dscanner`, `dfmt`, `just`, and native debugging tools. `dub.sdl` and the
-`justfile` should expose these stable commands once source code is introduced:
+`justfile` expose these stable commands:
 
 ```sh
 nix develop
 just lint            # dscanner plus project policy checks
-just format          # format all D sources, runners, fuzzers, and examples
+just format          # format all D sources, runners, and examples
+just format-check    # verify formatting without modifying source files
 just test            # every BetterC runner
-just build           # production static library with -betterC
+just build           # every component static library with -betterC
 just test-sanitize   # BetterC runner under AddressSanitizer
-just fuzz-smoke      # short ASan/libFuzzer parser and container runs
-just examples        # compile and run public consumer examples
+just run-example core # build and run one public example through DUB
+just run-examples     # build and run every public example through DUB
 just check           # complete local verification matrix
 ```
 
+The short `justfile` is the public command interface, while DUB owns static
+libraries, examples, test executables, build modes, output names, and source
+selection. Just discovers component subpackages under `source/xtb` and the
+configurations in `examples/dub.sdl` and `tests/dub.sdl` by naming convention.
+The important default outputs are:
+
+```text
+build/libxtb_*.a                     native static libraries
+build/test/{debug,optimized,...}/    test runners and per-mode helpers
+build/examples/                      DUB-built example executables
+```
+
+Static libraries are created in `build` by default and may be directed
+elsewhere through `XTB_LIBRARY_OUTPUT_DIR`. With no arguments `build` selects
+every component; arguments select component suffixes:
+
+```sh
+just build
+just build core os
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build core serde
+```
+
+`run-examples` runs every example configuration. `run-example` accepts one
+short name, with or without the `-demo` suffix:
+
+```sh
+just run-examples
+just run-example logging
+just run-example core-demo
+```
+
+Unit-test runners still compile their production modules from source because
+D's `unittest` blocks only exist when those modules are compiled with
+`-unittest`. Each runner is a `test-*` DUB configuration; supporting programs
+use `test-helper-*`. The custom DUB test build types preserve the debug,
+optimized, release-safe, and AddressSanitizer modes without relying on normal
+Druntime test discovery.
+
 D-Scanner 0.15.2's static-analysis visitor does not terminate on the
 allocation-free signature styling module, although its lexer and parser accept
-the module immediately. Until that upstream defect is fixed, `just lint` runs
-D-Scanner's syntax checker on `stacktrace_style.d` and all configured static
-analysis checks on every other D file. LDC still compiles the style module with
-the same BetterC warnings/deprecations policy in every build and test command.
-
-Fuzz harnesses receive syntax checking but are excluded from D-Scanner's naming
-style pass because `LLVMFuzzerTestOneInput` is a required foreign symbol, not a
-D naming choice.
+the module immediately. Until that upstream defect is fixed, `dscanner.ini`
+records the narrow set of files that D-Scanner cannot process. LDC still checks
+every ignored file with the same BetterC warnings and deprecation policy
+through the generic DUB library and example builds.
 
 Keep formatting consistent with the surrounding modules and use DScanner for
 syntax and style enforcement. Do not mix a repository-wide formatting rewrite
 into a functional change. Treat compiler warnings and
-deprecations as errors in CI. Use sanitizers supported by LDC/Clang for native
-debug test builds. AddressSanitizer is mandatory on the pinned toolchain;
-UndefinedBehaviorSanitizer is run when the compiler accepts it and otherwise
-reports an explicit capability skip. Retain a normal debug run because
-sanitizers change execution.
+deprecations as errors in CI. Use sanitizers supported by LDC for native debug
+test builds. AddressSanitizer is mandatory on the pinned toolchain. Retain a
+normal debug run because sanitizers change execution.
 
 Coverage is a trend and gap-finding tool, not a substitute for boundary cases.
 If BetterC coverage support is unavailable on a target, collect it in a
@@ -381,7 +409,7 @@ gate.
 - Focused and complete BetterC test runners pass.
 - New production modules are included in a runner.
 - Failure paths and ownership cleanup are exercised.
-- Affected examples and ABI smoke tests compile.
+- Affected examples compile.
 - Lint checks pass with the pinned Nix toolchain.
 - The checked-in `dscanner.ini` is used; disabled checks are those that conflict
   with deliberate BetterC RAII idioms or are enforced during API review.

@@ -45,6 +45,15 @@ Use narrowly focused modules rather than umbrella modules with implementation.
 An optional `xtb.core` module may publicly import a deliberately small stable
 surface, but internal modules must import their precise dependencies.
 
+Each component directory under `source/xtb` owns a colocated DUB recipe that
+positively lists only its sibling production modules. Non-core components
+declare `xtb:core` as a package dependency when needed. Do not partition the
+tree by starting with every source and subtracting unrelated directories with
+`excludedSourceFiles`; adding a new component must not change an existing
+component's source set. The root recipe builds the aggregate `xtb` library.
+`examples/dub.sdl` and `tests/dub.sdl` separately select the sources needed by
+each runnable example and explicit BetterC runner.
+
 ## Dependency direction
 
 Dependencies flow downward:

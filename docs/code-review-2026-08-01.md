@@ -1,6 +1,10 @@
 # Code review and remediation — 2026-08-01
 
-## Current status
+> This is a historical remediation record. Build-matrix and command references
+> describe the repository at the conclusion of that review; `testing.md` is the
+> authoritative description of the current build and verification workflow.
+
+## Status at the conclusion of the review
 
 This file preserves the original adversarial review below so the reasons for
 the changes remain inspectable. Every accepted finding that can be exercised
