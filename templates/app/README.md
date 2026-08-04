@@ -4,6 +4,11 @@ This is a BetterC application using xtb through Nix. The flake pins the xtb
 revision, provides the D toolchain, and exposes xtb's installed modules and
 static libraries to DUB. It does not clone or copy the xtb source tree.
 
+To rename the application, change `appName` in `flake.nix`, then give `name`
+and `targetName` in `dub.sdl` the same value. DUB package names must be
+lowercase; letters, digits, hyphens, and underscores are the most portable
+choice.
+
 Enter the development shell and run the application:
 
 ```sh

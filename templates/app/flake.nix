@@ -14,6 +14,7 @@
     xtb,
   }: let
     lib = nixpkgs.lib;
+    appName = "xtb-app";
     supportedSystems = [
       "x86_64-linux"
       "aarch64-linux"
@@ -35,7 +36,7 @@
       xtbPackage = xtb.packages.${system}.default;
     in {
       default = pkgs.stdenv.mkDerivation {
-        pname = "xtb-app";
+        pname = appName;
         version = "0.1.0";
         src = applicationSource;
 
@@ -54,18 +55,18 @@
         '';
         installPhase = ''
           runHook preInstall
-          install -Dm755 build/xtb-app "$out/bin/xtb-app"
+          install -Dm755 "build/${appName}" "$out/bin/${appName}"
           runHook postInstall
         '';
 
-        meta.mainProgram = "xtb-app";
+        meta.mainProgram = appName;
       };
     });
 
     apps = forAllSystems (system: {
       default = {
         type = "app";
-        program = "${self.packages.${system}.default}/bin/xtb-app";
+        program = "${self.packages.${system}.default}/bin/${appName}";
       };
     });
 
@@ -78,7 +79,7 @@
       xtbPackage = xtb.packages.${system}.default;
     in {
       default = pkgs.mkShell {
-        name = "xtb-app";
+        name = appName;
         strictDeps = true;
 
         packages = [
