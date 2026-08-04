@@ -1,0 +1,24 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+d_compiler := env_var_or_default("DC", "ldc2")
+d_files := `find source -type f -name '*.d' -print | sort | tr '\n' ' '`
+dub_options := "--compiler=" + d_compiler + " --skip-registry=all"
+
+default: run
+
+build:
+    dub build {{ dub_options }}
+
+run:
+    dub run {{ dub_options }}
+
+format:
+    dfmt --config . --inplace {{ d_files }}
+
+[script]
+check:
+    for source_file in {{ d_files }}; do
+        diff -u "$source_file" <(dfmt --config . "$source_file")
+    done
+    dscanner lint --config dscanner.ini {{ d_files }}
+    dub build {{ dub_options }} --build=debug

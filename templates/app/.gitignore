@@ -1,0 +1,6 @@
+/.dub/
+/.direnv/
+/build/
+/result
+/*.a
+/*.o

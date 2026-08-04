@@ -8,6 +8,22 @@ facilities, allocation-free formatted output, structured logging, and panic
 contracts.
 Optional stack traces and crash observation live in `xtb.diagnostics`.
 
+## Start an application
+
+Create a ready-to-run project from the flake template without cloning xtb:
+
+```sh
+nix flake new -t github:Xearty/xtb#app ./my-app
+cd my-app
+direnv allow
+just run
+```
+
+The generated flake pins xtb and consumes its installed modules and static
+libraries directly from the Nix store. It does not make a writable source copy.
+Run `nix flake update xtb` in the application when you want to update the
+library revision.
+
 The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
 camera, and projection operations, plus a stable deterministic random generator
 and allocator-owned periodic value noise.

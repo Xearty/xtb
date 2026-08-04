@@ -1,0 +1,15 @@
+name "xtb-app"
+description "BetterC application using xtb"
+license "proprietary"
+
+targetType "executable"
+targetName "xtb-app"
+targetPath "build"
+sourcePaths "source"
+importPaths "source" "$XTB_IMPORT_PATH"
+
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-preview=dip1000" platform="ldc"
+lflags "-L$XTB_LIBRARY_PATH"
+libs "xtb_core"

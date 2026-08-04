@@ -7,26 +7,36 @@
     self,
     nixpkgs,
   }: let
+    lib = nixpkgs.lib;
     supportedSystems = [
       "x86_64-linux"
       "aarch64-linux"
       "aarch64-darwin"
     ];
-    forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-    projectSource = nixpkgs.lib.fileset.toSource {
+    forAllSystems = lib.genAttrs supportedSystems;
+    projectSource = lib.fileset.toSource {
       root = ./.;
-      fileset = nixpkgs.lib.fileset.difference ./. (
-        nixpkgs.lib.fileset.unions [
+      fileset = lib.fileset.difference ./. (
+        lib.fileset.unions [
           ./archive
-          (nixpkgs.lib.fileset.maybeMissing ./.git)
-          (nixpkgs.lib.fileset.maybeMissing ./.direnv)
-          (nixpkgs.lib.fileset.maybeMissing ./.dub)
-          (nixpkgs.lib.fileset.maybeMissing ./build)
-          (nixpkgs.lib.fileset.maybeMissing ./result)
+          (lib.fileset.maybeMissing ./.git)
+          (lib.fileset.maybeMissing ./.direnv)
+          (lib.fileset.maybeMissing ./.dub)
+          (lib.fileset.maybeMissing ./build)
+          (lib.fileset.maybeMissing ./result)
         ]
       );
     };
   in {
+    templates = {
+      default = self.templates.app;
+
+      app = {
+        path = ./templates/app;
+        description = "A BetterC application using xtb";
+      };
+    };
+
     formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
 
     packages = forAllSystems (system: let

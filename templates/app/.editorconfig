@@ -1,0 +1,15 @@
+root = true
+
+[*.d]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+max_line_length = 100
+dfmt_brace_style = allman
+dfmt_align_switch_statements = false
+dfmt_compact_labeled_statements = true
+dfmt_keep_line_breaks = true
+dfmt_reflow_property_chains = false
+dfmt_single_indent = true
+dfmt_soft_max_line_length = 100
