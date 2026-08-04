@@ -39,11 +39,11 @@ extern (C) int main() nothrow @nogc
         mallocAllocator(),
         i"owned output: $(name) has $(count) values",
     );
-    writeln(text.view);
+    writeln(text);
 
     StringBuf builder = StringBuf.create(mallocAllocator());
     builder.formatTo(i"builder output: $(Point(-2, 8))");
-    writeln(builder.view);
+    writeln(builder);
 
     char[24] storage;
     const fixedResult = storage[].formatBuffer(i"fixed output: $(count)");

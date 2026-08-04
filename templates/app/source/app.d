@@ -9,7 +9,7 @@ extern (C) int main() nothrow @nogc
 
     StringBuf message = StringBuf.fromString(scratch.allocator, "hello");
     message.append(" from an xtb application");
-    writeln(message.view);
+    writeln(message);
 
     return 0;
 }

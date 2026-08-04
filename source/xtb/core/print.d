@@ -427,6 +427,10 @@ private void writeValue(T)(ref Writer writer, auto ref T value)
         // Source text is metadata only. The compiler passes its evaluated
         // value or values as the following sequence elements.
     }
+    else static if (is(U == StringBuf))
+    {
+        writer.put(value.view);
+    }
     else static if (__traits(compiles, value.formatTo(writer)))
     {
         value.formatTo(writer);
@@ -833,6 +837,9 @@ unittest
 
     StringBuf allocated = formatString!"{}:{}"(mallocAllocator(), "item", 9);
     assert(allocated == "item:9");
+    buffer.clear();
+    buffer.writeTo("owned=", allocated);
+    assert(buffer == "owned=item:9");
 
     struct StatefulValue
     {

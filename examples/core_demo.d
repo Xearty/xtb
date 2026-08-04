@@ -20,13 +20,13 @@ extern (C) int main() nothrow @nogc
 
     StringBuf message = StringBuf.create(scratch.allocator);
     message.formatTo!"{} {}"("core values:", numbers.length);
-    writeln(message.view);
+    writeln(message);
 
     StringBuf path = StringBuf.fromString(scratch.allocator, "assets");
     path.append('/');
     path.append("image.bmp");
     formatln!"path={}, first={}, last={}"(
-        path.view,
+        path,
         numbers[0],
         numbers[numbers.length - 1],
     );
