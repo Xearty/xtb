@@ -10,7 +10,6 @@
     supportedSystems = [
       "x86_64-linux"
       "aarch64-linux"
-      "x86_64-darwin"
       "aarch64-darwin"
     ];
     forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
@@ -24,8 +23,6 @@
           (nixpkgs.lib.fileset.maybeMissing ./.dub)
           (nixpkgs.lib.fileset.maybeMissing ./build)
           (nixpkgs.lib.fileset.maybeMissing ./result)
-          (nixpkgs.lib.fileset.maybeMissing ./libxtb.a)
-          (nixpkgs.lib.fileset.maybeMissing ./xtb)
         ]
       );
     };
@@ -40,11 +37,12 @@
         pname = "xtb";
         version = "0.1.0";
         src = projectSource;
-        nativeBuildInputs = [pkgs.ldc pkgs.just];
+        nativeBuildInputs = [pkgs.ldc pkgs.dub pkgs.just];
         buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.libbacktrace];
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
+          export DUB_HOME="$TMPDIR/dub"
           just build
           runHook postBuild
         '';
@@ -60,6 +58,10 @@
 
     checks = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
+      linkedBacktrace = pkgs.runCommand "libbacktrace-linked" {} ''
+        mkdir -p $out/lib
+        ln -s ${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0 $out/lib/libbacktrace.so
+      '';
     in {
       package = self.packages.${system}.xtb;
       tests = pkgs.stdenv.mkDerivation {
@@ -68,7 +70,7 @@
         src = projectSource;
         nativeBuildInputs = [
           pkgs.ldc
-          pkgs.clang
+          pkgs.dub
           pkgs.just
           pkgs.dscanner
           pkgs.dformat
@@ -77,7 +79,8 @@
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
-          ${pkgs.lib.optionalString pkgs.stdenv.isLinux "export XTB_LIBBACKTRACE=${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0"}
+          export DUB_HOME="$TMPDIR/dub"
+          ${pkgs.lib.optionalString pkgs.stdenv.isLinux "export XTB_LIBBACKTRACE=${linkedBacktrace}/lib/libbacktrace.so"}
           just check
           runHook postBuild
         '';
@@ -113,6 +116,7 @@
           ++ lib.optionals stdenv.isLinux [linkedBacktrace];
 
         shellHook = ''
+          export XTB_LIBRARY_OUTPUT_DIR=''${XTB_LIBRARY_OUTPUT_DIR:-"$PWD/build"}
           ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
             export XTB_LIBBACKTRACE=${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0
             export LIBRARY_PATH=${linkedBacktrace}/lib''${LIBRARY_PATH:+:}$LIBRARY_PATH

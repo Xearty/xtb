@@ -1,0 +1,73 @@
+name "tests"
+description "Explicit BetterC test runners"
+license "BSL-1.0"
+targetType "none"
+importPaths ".." "../source"
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-boundscheck=on" "-preview=dip1000" platform="ldc"
+
+buildType "test-debug" {
+    buildOptions "unittests" "debugMode" "debugInfo"
+}
+
+buildType "test-optimized" {
+    buildOptions "unittests" "optimize" "inline"
+}
+
+buildType "test-release-safe" {
+    buildOptions "unittests" "releaseMode" "optimize" "inline"
+}
+
+buildType "test-asan" {
+    buildOptions "unittests" "debugMode" "debugInfo"
+    dflags "-fsanitize=address" platform="ldc"
+}
+
+configuration "test-helper-process" {
+    targetType "executable"
+    targetName "process_test_helper"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "support/process_helper.d"
+}
+
+configuration "test-utf8" {
+    targetType "executable"
+    targetName "utf8_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "utf8_tests.d"
+    sourceFiles "../source/xtb/core/*.d"
+}
+
+configuration "test-core" {
+    targetType "executable"
+    targetName "core_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "core_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/diagnostics/*.d"
+    libs "backtrace" platform="linux"
+}
+
+configuration "test-math" {
+    targetType "executable"
+    targetName "math_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "math_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/math/*.d"
+}
+
+configuration "test-os" {
+    targetType "executable"
+    targetName "os_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "os_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
+}
+
+configuration "test-serde" {
+    targetType "executable"
+    targetName "serde_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "serde_tests.d"
+    sourceFiles "serde_backend_contract.d" "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
+}

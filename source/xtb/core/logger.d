@@ -57,7 +57,8 @@ nothrow @nogc:
     {
         return LogPalette(
             AnsiStyle.foreground(AnsiColor.brightBlack),
-            AnsiStyle.foreground(AnsiColor.brightBlue),
+            AnsiStyle.foreground(
+                AnsiColor.brightBlue),
             AnsiStyle.foreground(AnsiColor.green),
             AnsiStyle.foreground(AnsiColor.yellow),
             AnsiStyle.foreground(AnsiColor.brightRed),

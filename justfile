@@ -1,176 +1,112 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+set script-interpreter := ["bash", "-eu", "-o", "pipefail"]
 
-core_source_files := `find source/xtb/core -name '*.d' -print | sort | tr '\n' ' '`
-diagnostics_source_files := `find source/xtb/diagnostics -name '*.d' -print | sort | tr '\n' ' '`
-math_source_files := `find source/xtb/math -name '*.d' -print | sort | tr '\n' ' '`
-os_source_files := `find source/xtb/os -name '*.d' -print | sort | tr '\n' ' '`
-serde_source_files := `find source/xtb/serde -name '*.d' -print | sort | tr '\n' ' '`
-serde_test_files := "tests/serde_tests.d tests/serde_backend_contract.d"
-fuzz_core_source_files := "source/xtb/core/array.d source/xtb/core/hash.d source/xtb/core/hash_map.d source/xtb/core/memory.d source/xtb/core/numeric.d source/xtb/core/panic.d source/xtb/core/string.d source/xtb/core/types.d source/xtb/core/utf8.d"
-lint_files := `find source tests examples -name '*.d' ! -path 'source/xtb/diagnostics/stacktrace_style.d' ! -path 'source/xtb/core/print.d' ! -path 'examples/print_demo.d' ! -path 'examples/logging_demo.d' -print | sort | tr '\n' ' '`
-interpolation_files := "source/xtb/core/print.d examples/print_demo.d examples/logging_demo.d"
-fuzz_files := `find fuzz -name '*.d' -print | sort | tr '\n' ' '`
-format_files := `find source tests examples fuzz -name '*.d' -print | sort | tr '\n' ' '`
-platform_libs := `if uname -s | grep -q Linux; then if test -n "${XTB_LIBBACKTRACE:-}"; then echo "-L${XTB_LIBBACKTRACE}"; else echo '-L-lbacktrace'; fi; fi`
+d_files := `find source tests examples -type f -name '*.d' -print | sort | tr '\n' ' '`
+library_subpackages := `for recipe in source/xtb/*/dub.sdl; do basename "$(dirname "$recipe")"; done | sort | tr '\n' ' '`
+example_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' examples/dub.sdl | tr '\n' ' '`
+test_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' tests/dub.sdl | tr '\n' ' '`
 library_output_dir := env_var_or_default("XTB_LIBRARY_OUTPUT_DIR", "build")
-common_flags := "-betterC -boundscheck=on -w -de -preview=dip1000 -I=source"
-build_flags := common_flags + " -od=build/obj/build"
-test_flags := common_flags + " -od=build/obj/test"
-optimized_flags := common_flags + " -od=build/obj/optimized"
-release_flags := common_flags + " -od=build/obj/release"
-darwin_flags := common_flags + " -od=build/obj/darwin"
-asan_flags := common_flags + " -od=build/obj/asan"
-ubsan_flags := common_flags + " -od=build/obj/ubsan"
-fuzz_flags := common_flags + " -od=build/obj/fuzz"
-abi_flags := common_flags + " -od=build/obj/abi"
-example_flags := common_flags + " -od=build/obj/examples"
+export XTB_LIBRARY_OUTPUT_DIR := library_output_dir
+# Relative library paths belong to the project that invoked this Justfile.
+consumer_project_dir := invocation_directory()
+d_compiler := env_var_or_default("DC", "ldc2")
+dub_options := "--quiet --skip-registry=all --compiler=" + d_compiler
 
 default: check
 
+# Format every D source file in place.
 format:
-    dfmt --config . --inplace {{format_files}}
+    @dfmt --config . --inplace {{ d_files }}
 
-build output_dir=library_output_dir:
-    mkdir -p build/obj/build
-    mkdir -p "{{output_dir}}"
-    ldc2 {{build_flags}} -oq -lib {{core_source_files}} -of="{{output_dir}}/libxtb_core.a"
-    ldc2 {{build_flags}} -oq -lib {{diagnostics_source_files}} -of="{{output_dir}}/libxtb_diagnostics.a"
-    ldc2 {{build_flags}} -oq -lib {{math_source_files}} -of="{{output_dir}}/libxtb_math.a"
-    ldc2 {{build_flags}} -oq -lib {{os_source_files}} -of="{{output_dir}}/libxtb_os.a"
-    ldc2 {{build_flags}} -oq -lib {{serde_source_files}} -of="{{output_dir}}/libxtb_serde.a"
+# Verify formatting without modifying the working tree.
+[script]
+format-check:
+    status=0
+    for file in {{ d_files }}; do
+        if ! dfmt --config . "$file" | cmp -s "$file" -; then
+            echo "not formatted: $file" >&2
+            status=1
+        fi
+    done
+    exit "$status"
 
-test:
-    mkdir -p build/obj/test
-    ldc2 {{test_flags}} tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{test_flags}} -unittest tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests
-    ./build/utf8_tests
-    ldc2 {{test_flags}} -unittest tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests
-    ./build/core_tests
-    ldc2 {{test_flags}} -unittest tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests
-    ./build/math_tests
-    ldc2 {{test_flags}} -unittest tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests
-    ./build/os_tests
-    ldc2 {{test_flags}} -unittest {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests
-    ./build/serde_tests
-
-test-optimized:
-    mkdir -p build/obj/optimized
-    ldc2 {{optimized_flags}} -O3 tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{optimized_flags}} -unittest -O3 tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_optimized
-    ./build/utf8_tests_optimized
-    ldc2 {{optimized_flags}} -unittest -O3 tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_optimized
-    ./build/core_tests_optimized
-    ldc2 {{optimized_flags}} -unittest -O3 tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_optimized
-    ./build/math_tests_optimized
-    ldc2 {{optimized_flags}} -unittest -O3 tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_optimized
-    ./build/os_tests_optimized
-    ldc2 {{optimized_flags}} -unittest -O3 {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_optimized
-    ./build/serde_tests_optimized
-
-test-release:
-    mkdir -p build/obj/release
-    ldc2 {{release_flags}} -O3 -release tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{release_flags}} -unittest -O3 -release tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_release
-    ./build/utf8_tests_release
-    ldc2 {{release_flags}} -unittest -O3 -release tests/core_tests.d {{core_source_files}} {{diagnostics_source_files}} {{platform_libs}} -of=build/core_tests_release
-    ./build/core_tests_release
-    ldc2 {{release_flags}} -unittest -O3 -release tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_release
-    ./build/math_tests_release
-    status=0; bash -c './build/math_tests_release --panic-random-bound >/dev/null 2>&1' >/dev/null 2>&1 || status=$?; test "$status" -eq 134
-    ldc2 {{release_flags}} -unittest -O3 -release tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_release
-    ./build/os_tests_release
-    ldc2 {{release_flags}} -unittest -O3 -release {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_release
-    ./build/serde_tests_release
-
-test-darwin-build:
-    mkdir -p build/obj/darwin
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{core_source_files}} -of=build/libxtb_core_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{diagnostics_source_files}} -of=build/libxtb_diagnostics_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{math_source_files}} -of=build/libxtb_math_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{os_source_files}} -of=build/libxtb_os_aarch64_darwin.a
-    ldc2 {{darwin_flags}} -mtriple=aarch64-apple-darwin -oq -lib {{serde_source_files}} -of=build/libxtb_serde_aarch64_darwin.a
-
-test-sanitize:
-    mkdir -p build/obj/asan
-    ldc2 {{asan_flags}} tests/support/process_helper.d -of=build/process_test_helper
-    ldc2 {{asan_flags}} -unittest -fsanitize=address tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_asan
-    ./build/utf8_tests_asan
-    ldc2 {{asan_flags}} -unittest -fsanitize=address {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_asan
-    ./build/core_tests_asan
-    ldc2 {{asan_flags}} -unittest -fsanitize=address tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_asan
-    ./build/math_tests_asan
-    ldc2 {{asan_flags}} -unittest -fsanitize=address tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_asan
-    ./build/os_tests_asan
-    ldc2 {{asan_flags}} -unittest -fsanitize=address {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_asan
-    ./build/serde_tests_asan
-
-test-ubsan:
-    mkdir -p build/obj/ubsan
-    ldc2 {{ubsan_flags}} tests/support/process_helper.d -of=build/process_test_helper
-    if ldc2 -betterC -fsanitize=undefined -c source/xtb/core/types.d -of=build/ubsan_probe.o >/dev/null 2>&1; then \
-        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined tests/utf8_tests.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_tests_ubsan; \
-        ./build/utf8_tests_ubsan; \
-        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined {{core_source_files}} {{diagnostics_source_files}} tests/core_tests.d {{platform_libs}} -of=build/core_tests_ubsan; \
-        ./build/core_tests_ubsan; \
-        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined tests/math_tests.d {{core_source_files}} {{math_source_files}} -of=build/math_tests_ubsan; \
-        ./build/math_tests_ubsan; \
-        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined tests/os_tests.d {{core_source_files}} {{os_source_files}} -of=build/os_tests_ubsan; \
-        ./build/os_tests_ubsan; \
-        ldc2 {{ubsan_flags}} -unittest -fsanitize=undefined {{serde_test_files}} {{core_source_files}} {{serde_source_files}} -of=build/serde_tests_ubsan; \
-        ./build/serde_tests_ubsan; \
-    else \
-        echo "UBSan is not supported by this LDC build; skipped"; \
+# Build every component, or only the named components when arguments are given.
+[script]
+build *libraries:
+    output_dir="{{ library_output_dir }}"
+    if [[ "$output_dir" != /* ]]; then
+        output_dir="{{ consumer_project_dir }}/$output_dir"
+    fi
+    mkdir -p "$output_dir"
+    export XTB_LIBRARY_OUTPUT_DIR="$(cd "$output_dir" && pwd -P)"
+    libraries=({{ libraries }})
+    if (( ${#libraries[@]} == 0 )); then
+        for library in {{ library_subpackages }}; do
+            dub build ":$library" {{ dub_options }} --parallel --build=plain
+        done
+    else
+        for library in "${libraries[@]}"; do
+            dub build ":$library" {{ dub_options }} --parallel --build=plain
+        done
     fi
 
-fuzz-smoke:
-    mkdir -p build/obj/fuzz
-    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/utf8_fuzz.d source/xtb/core/utf8.d source/xtb/core/panic.d source/xtb/core/types.d -of=build/utf8_fuzz.o
-    clang++ -fsanitize=fuzzer,address build/utf8_fuzz.o -o build/utf8_fuzz
-    ./build/utf8_fuzz -runs=2000 -max_len=1024
-    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/demangle_fuzz.d source/xtb/diagnostics/demangle.d {{fuzz_core_source_files}} -of=build/demangle_fuzz.o
-    clang++ -fsanitize=fuzzer,address build/demangle_fuzz.o -o build/demangle_fuzz
-    ./build/demangle_fuzz -runs=1000 -max_len=512
-    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/container_fuzz.d {{fuzz_core_source_files}} -of=build/container_fuzz.o
-    clang++ -fsanitize=fuzzer,address build/container_fuzz.o -o build/container_fuzz
-    ./build/container_fuzz -runs=1000 -max_len=512
-    ldc2 {{fuzz_flags}} -c -singleobj -fsanitize=address -fsanitize-coverage=inline-8bit-counters,pc-table fuzz/serde_fuzz.d {{core_source_files}} {{serde_source_files}} -of=build/serde_fuzz.o
-    clang++ -fsanitize=fuzzer,address build/serde_fuzz.o -o build/serde_fuzz
-    ./build/serde_fuzz -runs=2000 -max_len=2048
+[script]
+_test mode build_type:
+    echo "Testing {{ mode }}"
+    export XTB_TEST_MODE={{ mode }}
+    for config in {{ test_configurations }}; do
+        if [[ "$config" == test-helper-* ]]; then
+            dub build :tests {{ dub_options }} --parallel --build={{ build_type }} --config="$config"
+        fi
+    done
+    for config in {{ test_configurations }}; do
+        if [[ "$config" == test-* && "$config" != test-helper-* ]]; then
+            dub run :tests {{ dub_options }} --build={{ build_type }} --config="$config"
+        fi
+    done
 
-test-abi:
-    mkdir -p build/obj/abi
-    clang -std=c11 -Wall -Wextra -Werror -c tests/abi_allocator.c -o build/abi_allocator_c.o
-    ldc2 {{abi_flags}} {{core_source_files}} tests/abi_allocator.d build/abi_allocator_c.o -of=build/abi_allocator
-    ./build/abi_allocator
+# Run the BetterC unit and integration tests.
+test: (_test "debug" "test-debug")
 
-examples:
-    mkdir -p build/obj/examples
-    ldc2 {{example_flags}} {{core_source_files}} examples/core_demo.d -of=build/core_demo
-    ldc2 {{example_flags}} {{core_source_files}} examples/print_demo.d -of=build/print_demo
-    ldc2 {{example_flags}} -g {{core_source_files}} {{diagnostics_source_files}} examples/stacktrace_demo.d {{platform_libs}} -of=build/stacktrace_demo
-    ldc2 {{example_flags}} {{core_source_files}} {{math_source_files}} examples/math_demo.d -of=build/math_demo
-    ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/os_demo.d -of=build/os_demo
-    ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/logging_demo.d -of=build/logging_demo
-    ldc2 {{example_flags}} {{core_source_files}} {{os_source_files}} examples/process_demo.d -of=build/process_demo
-    ldc2 {{example_flags}} {{core_source_files}} {{serde_source_files}} examples/serde_demo.d -of=build/serde_demo
-    ldc2 {{example_flags}} {{core_source_files}} {{serde_source_files}} examples/option_demo.d -of=build/option_demo
-    ldc2 {{example_flags}} {{core_source_files}} examples/hash_demo.d -of=build/hash_demo
-    ./build/core_demo
-    ./build/print_demo
-    ./build/stacktrace_demo
-    ./build/math_demo
-    ./build/os_demo source
-    ./build/logging_demo
-    ./build/process_demo
-    ./build/serde_demo
-    ./build/option_demo
-    ./build/hash_demo
+# Run the test suite with optimization enabled.
+test-optimized: (_test "optimized" "test-optimized")
 
+# Run the release-safe suite with bounds checks retained.
+test-release: (_test "release" "test-release-safe")
+
+# Run all native tests under AddressSanitizer.
+test-sanitize: (_test "asan" "test-asan")
+
+# Build and run one named example.
+[script]
+run-example example:
+    config="{{ example }}"
+    config="${config%-demo}-demo"
+    dub run :examples {{ dub_options }} --build=debug --config="$config"
+
+# Build and run every public example.
+[script]
+run-examples:
+    for config in {{ example_configurations }}; do
+        dub run :examples {{ dub_options }} --build=debug --config="$config"
+    done
+
+# Run compiler semantic checks and D-Scanner policy checks.
+[script]
 lint:
-    mkdir -p build/obj
-    ldc2 {{common_flags}} -o- {{interpolation_files}}
-    dscanner --syntaxCheck source/xtb/diagnostics/stacktrace_style.d
-    dscanner --syntaxCheck {{fuzz_files}}
-    dscanner lint --config dscanner.ini --styleCheck {{lint_files}}
+    dub build {{ dub_options }} --build=syntax --config=library
+    for config in {{ example_configurations }}; do
+        if [[ "$config" == *-demo ]]; then
+            dub build :examples {{ dub_options }} --build=syntax --config="$config"
+        fi
+    done
+    dscanner_files=()
+    for file in {{ d_files }}; do
+        if ! grep -Fxq "; ignore=$file" dscanner.ini; then
+            dscanner_files+=("$file")
+        fi
+    done
+    dscanner lint --config dscanner.ini --styleCheck "${dscanner_files[@]}"
 
-check: lint build test test-optimized test-release test-darwin-build test-abi test-sanitize test-ubsan fuzz-smoke examples
+# Run the complete local verification matrix.
+check: format-check lint build test test-optimized test-release test-sanitize run-examples

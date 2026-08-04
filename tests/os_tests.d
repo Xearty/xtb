@@ -770,16 +770,12 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     i64 wallTime;
     assert(wallClockNanoseconds(&wallTime).succeeded && wallTime != 0);
 
-    StringBuf helperDirectory = StringBuf.fromString(
-        mallocAllocator(),
-        cwd.view,
-    );
-    helperDirectory.append("/build");
+    const helperDirectory = Path.fromString(executable.view).parent;
     StringBuf helperExecutable = StringBuf.fromString(
         mallocAllocator(),
         helperDirectory.view,
     );
-    helperExecutable.append("/process_test_helper");
+    helperExecutable.appendComponent(Path.fromString("process_test_helper"));
     runProcessIntegration(
         helperExecutable.view,
         helperDirectory.view,

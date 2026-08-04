@@ -93,7 +93,8 @@ nothrow @nogc:
             AnsiColor.indexed(typeColor),
             AnsiColor.indexed(moduleColor),
             AnsiColor.indexed(pathColor),
-            AnsiColor.indexed(lineColor),
+            AnsiColor.indexed(
+                lineColor),
             AnsiColor.indexed(keywordColor),
             AnsiColor.indexed(punctuationColor),
             AnsiColor.indexed(decorationColor),

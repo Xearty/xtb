@@ -1,0 +1,89 @@
+name "examples"
+description "Runnable xtb examples"
+license "BSL-1.0"
+targetType "none"
+importPaths ".." "../source"
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-boundscheck=on" "-preview=dip1000" platform="ldc"
+
+configuration "core-demo" {
+    targetType "executable"
+    targetName "core_demo"
+    targetPath "../build/examples"
+    mainSourceFile "core_demo.d"
+    sourceFiles "../source/xtb/core/*.d"
+}
+
+configuration "print-demo" {
+    targetType "executable"
+    targetName "print_demo"
+    targetPath "../build/examples"
+    mainSourceFile "print_demo.d"
+    sourceFiles "../source/xtb/core/*.d"
+}
+
+configuration "stacktrace-demo" {
+    targetType "executable"
+    targetName "stacktrace_demo"
+    targetPath "../build/examples"
+    mainSourceFile "stacktrace_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/diagnostics/*.d"
+    libs "backtrace" platform="linux"
+}
+
+configuration "math-demo" {
+    targetType "executable"
+    targetName "math_demo"
+    targetPath "../build/examples"
+    mainSourceFile "math_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/math/*.d"
+}
+
+configuration "os-demo" {
+    targetType "executable"
+    targetName "os_demo"
+    targetPath "../build/examples"
+    mainSourceFile "os_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
+}
+
+configuration "logging-demo" {
+    targetType "executable"
+    targetName "logging_demo"
+    targetPath "../build/examples"
+    mainSourceFile "logging_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
+}
+
+configuration "process-demo" {
+    targetType "executable"
+    targetName "process_demo"
+    targetPath "../build/examples"
+    mainSourceFile "process_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
+}
+
+configuration "serde-demo" {
+    targetType "executable"
+    targetName "serde_demo"
+    targetPath "../build/examples"
+    mainSourceFile "serde_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
+}
+
+configuration "option-demo" {
+    targetType "executable"
+    targetName "option_demo"
+    targetPath "../build/examples"
+    mainSourceFile "option_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
+}
+
+configuration "hash-demo" {
+    targetType "executable"
+    targetName "hash_demo"
+    targetPath "../build/examples"
+    mainSourceFile "hash_demo.d"
+    sourceFiles "../source/xtb/core/*.d"
+}

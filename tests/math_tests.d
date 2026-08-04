@@ -6,29 +6,39 @@ import xtb.math.noise;
 import xtb.math.scalar;
 import xtb.math.vector;
 
-private bool cStringEqual(const(char)* left, const(char)* right)
-nothrow @system @nogc
+version (Posix)
 {
-    if (left is null || right is null)
-        return left is right;
-    size_t index;
-    while (left[index] != '\0' && right[index] != '\0')
-    {
-        if (left[index] != right[index])
-            return false;
-        ++index;
-    }
-    return left[index] == right[index];
+    import core.stdc.signal : SIGABRT;
+    import core.sys.posix.fcntl : O_WRONLY, open;
+    import core.sys.posix.sys.wait : waitpid;
+    import core.sys.posix.unistd : STDERR_FILENO, _exit, close, dup2, fork;
 }
 
-extern (C) int main(int argc, char** argv)
+version (Posix) private bool invalidRandomBoundPanics() nothrow @system @nogc
 {
-    if (argc == 2 && cStringEqual(argv[1], "--panic-random-bound"))
+    const process = fork();
+    if (process < 0)
+        return false;
+    if (process == 0)
     {
+        const sink = open("/dev/null".ptr, O_WRONLY);
+        if (sink >= 0)
+        {
+            cast(void) dup2(sink, STDERR_FILENO);
+            close(sink);
+        }
         Random random = Random.seeded(1);
         random.below(0);
-        return 2;
+        _exit(0);
     }
+
+    int status;
+    return waitpid(process, &status, 0) == process &&
+        (status & 0x7f) == SIGABRT;
+}
+
+extern (C) int main()
+{
     static foreach (testFunction; __traits(getUnitTests, xtb.math.scalar))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.math.vector))
@@ -39,5 +49,8 @@ extern (C) int main(int argc, char** argv)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.math.noise))
         testFunction();
+    version (Posix)
+        if (!invalidRandomBoundPanics())
+            return 1;
     return 0;
 }
