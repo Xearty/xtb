@@ -1072,17 +1072,40 @@ public:
             panic("StringBuf allocation failed");
     }
 
-    const(char)* cString(Allocator* allocator) @system
+    /// Ensures a trailing NUL exists outside the logical string contents.
+    ///
+    /// The returned pointer remains valid only until this buffer is mutated or
+    /// destroyed. Embedded NUL bytes are permitted; use `checkedCString` when
+    /// the target C API must receive the complete logical string.
+    bool tryCString(
+        Allocator* allocator,
+        scope const(char)** output,
+    ) @system
     {
+        require(output !is null, "C string output pointer is null");
         const oldLength = byteLength;
-        bytes_.resize(allocator, oldLength + 1);
+        if (oldLength == size_t.max ||
+            !bytes_.tryResize(allocator, oldLength + 1))
+            return false;
+
         bytes_[oldLength] = '\0';
-        char* pointer = bytes_.slice.ptr;
+        const(char)* result = bytes_.slice.ptr;
         bytes_.removeRange(oldLength, 1);
-        return pointer;
+        *output = result;
+        return true;
     }
 
-    const(char)* checkedCString(Allocator* allocator) @system
+    /// Panicking counterpart to `tryCString`.
+    const(char)* cString(Allocator* allocator) return @system
+    {
+        const(char)* result;
+        if (!tryCString(allocator, &result))
+            panic("StringBuf allocation failed");
+        return result;
+    }
+
+    /// Returns a C string after rejecting embedded NUL bytes.
+    const(char)* checkedCString(Allocator* allocator) return @system
     {
         require(!view.containsNul, "String contains embedded NUL");
         return cString(allocator);
@@ -1230,7 +1253,18 @@ unittest
     assert(buffer.view.endsWith("\\n"));
     buffer.appendEscaped(" café🙂");
     assert(buffer.view.endsWith(" café🙂"));
-    assert(buffer.cString()[buffer.byteLength] == '\0');
+    const originalLength = buffer.byteLength;
+    const(char)* terminated;
+    assert(buffer.tryCString(&terminated));
+    assert(buffer.byteLength == originalLength);
+    assert(buffer.view == "say: hello, D\\n café🙂");
+    assert(terminated[buffer.byteLength] == '\0');
+    assert(buffer.checkedCString[buffer.byteLength] == '\0');
+
+    buffer.append('!');
+    terminated = buffer.cString;
+    assert(buffer.view.endsWith("!"));
+    assert(terminated[buffer.byteLength] == '\0');
 
     StringBuf unicode = StringBuf.fromString(mallocAllocator(), "Aé🙂");
     assert(unicode.byteLength == 7);
@@ -1281,6 +1315,18 @@ unittest
     StringBuf failedScalar = StringBuf.create(failing.handle);
     assert(!failedScalar.tryAppend(cast(dchar) 0x1f642));
     assert(failedScalar.empty && failing.clean);
+
+    const(char)* sentinel = cast(const(char)*) 1;
+    const(char)* unchanged = sentinel;
+    assert(!failedScalar.tryCString(&unchanged));
+    assert(unchanged is sentinel);
+    assert(failedScalar.empty && failing.clean);
+
+    StringBuf emptyCString = StringBuf.create(mallocAllocator());
+    const(char)* emptyPointer;
+    assert(emptyCString.tryCString(&emptyPointer));
+    assert(emptyPointer !is null && emptyPointer[0] == '\0');
+    assert(emptyCString.empty);
 }
 
 unittest

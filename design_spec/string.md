@@ -174,6 +174,10 @@ struct StringBuf
     void truncateBytes(size_t newByteLength);
     void clear();
     void resetAndRelease();
+
+    bool tryCString(const(char)** output) @system;
+    const(char)* cString() return @system;
+    const(char)* checkedCString() return @system;
 }
 ```
 
@@ -189,6 +193,13 @@ UTF-8.
 
 `StringBuf.fromBytesUnchecked` and its fallible counterpart remain `@system`
 for audited, already validated bytes. They are not binary constructors.
+
+`StringBuf` does not maintain a terminator after every mutation. `tryCString`
+reserves one extra byte when necessary, writes a trailing NUL outside
+`byteLength`, and leaves the logical contents unchanged. `cString` is its
+panicking counterpart. `checkedCString` additionally rejects embedded NUL
+bytes. Every returned pointer is invalidated by the next mutation or by
+buffer destruction.
 
 ## Equality, ordering, and hashing
 

@@ -69,7 +69,7 @@ OsError environmentVariable(String name, String* output) @system
     {
         ScratchScope scratch = ScratchScope.acquire();
         StringBuf native = StringBuf.fromString(scratch.allocator, name);
-        return environmentVariableCString(native.cString, output);
+        return environmentVariableCString(native.checkedCString, output);
     }
     else
         return unsupported();

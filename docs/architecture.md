@@ -813,10 +813,11 @@ clearer or an existing format string is already the natural representation.
 
 `String` is not NUL-terminated by contract and must never be passed
 directly to a C API expecting `const char*`. A C-boundary helper copies into a
-`StringBuf`--normally scratch-backed--and appends one terminator outside the
-logical length. `StringBuf` may maintain spare terminator storage, but the
-NUL is not part of `view()`, equality, hashing, or iteration. Embedded NUL must
-be rejected when the target C API would truncate it.
+`StringBuf`--normally scratch-backed--and then calls `cString` or
+`checkedCString`. These operations write one terminator outside the logical
+length; `StringBuf` does not maintain it after every mutation. The NUL is not
+part of `view()`, equality, hashing, or iteration. `checkedCString` rejects
+embedded NUL when the target C API would otherwise truncate the value.
 
 A pointer returned for C interop is valid only until the buffer is mutated or
 its owner/scratch scope ends. It must not escape unless the foreign API
