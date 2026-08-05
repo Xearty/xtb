@@ -12,10 +12,10 @@ import xtb.os.process;
 import xtb.os.process_io;
 import xtb.os.time;
 import xtb.os.terminal;
-import xtb.core.array : Array, append, resize;
+import xtb.core.array : Array;
 import xtb.core.arena : Arena, TempArena, pop, push;
 import xtb.core.memory : mallocAllocator;
-import xtb.core.string : String, StringBuf, append, asStringUnchecked, equal,
+import xtb.core.string : String, StringBuf, asStringUnchecked, equal,
     fromCString;
 import xtb.core.thread_context : ThreadContextScope, scratchArena;
 import xtb.core.types : i64, u64, u8;

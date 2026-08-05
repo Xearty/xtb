@@ -12,7 +12,7 @@ configuration "core-demo" {
     targetName "core_demo"
     targetPath "../build/examples"
     mainSourceFile "core_demo.d"
-    sourceFiles "../source/xtb/core/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d"
 }
 
 configuration "print-demo" {
@@ -20,7 +20,7 @@ configuration "print-demo" {
     targetName "print_demo"
     targetPath "../build/examples"
     mainSourceFile "print_demo.d"
-    sourceFiles "../source/xtb/core/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d"
 }
 
 configuration "pretty_print-demo" {
@@ -28,7 +28,7 @@ configuration "pretty_print-demo" {
     targetName "pretty_print_demo"
     targetPath "../build/examples"
     mainSourceFile "pretty_print_demo.d"
-    sourceFiles "../source/xtb/core/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d"
 }
 
 configuration "stacktrace-demo" {
@@ -36,7 +36,7 @@ configuration "stacktrace-demo" {
     targetName "stacktrace_demo"
     targetPath "../build/examples"
     mainSourceFile "stacktrace_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/diagnostics/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/diagnostics/*.d"
     libs "backtrace" platform="linux"
 }
 
@@ -45,7 +45,7 @@ configuration "math-demo" {
     targetName "math_demo"
     targetPath "../build/examples"
     mainSourceFile "math_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/math/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/math/*.d"
 }
 
 configuration "os-demo" {
@@ -53,7 +53,7 @@ configuration "os-demo" {
     targetName "os_demo"
     targetPath "../build/examples"
     mainSourceFile "os_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/os/*.d"
 }
 
 configuration "logging-demo" {
@@ -61,7 +61,7 @@ configuration "logging-demo" {
     targetName "logging_demo"
     targetPath "../build/examples"
     mainSourceFile "logging_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/os/*.d"
 }
 
 configuration "process-demo" {
@@ -69,7 +69,7 @@ configuration "process-demo" {
     targetName "process_demo"
     targetPath "../build/examples"
     mainSourceFile "process_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/os/*.d"
 }
 
 configuration "serde-demo" {
@@ -77,7 +77,7 @@ configuration "serde-demo" {
     targetName "serde_demo"
     targetPath "../build/examples"
     mainSourceFile "serde_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/serde/*.d"
 }
 
 configuration "option-demo" {
@@ -85,7 +85,7 @@ configuration "option-demo" {
     targetName "option_demo"
     targetPath "../build/examples"
     mainSourceFile "option_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/serde/*.d"
 }
 
 configuration "hash-demo" {
@@ -93,5 +93,5 @@ configuration "hash-demo" {
     targetName "hash_demo"
     targetPath "../build/examples"
     mainSourceFile "hash_demo.d"
-    sourceFiles "../source/xtb/core/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d"
 }

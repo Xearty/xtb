@@ -2,9 +2,9 @@ module xtb.os.file;
 
 nothrow @nogc:
 
-import xtb.core.array : Array, clear, tryAppend, tryReserve;
+import xtb.core.array : Array;
 import xtb.core.panic : require;
-import xtb.core.string : StringBuf, checkedCString;
+import xtb.core.string : StringBuf;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : i64, u16, u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;

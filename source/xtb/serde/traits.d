@@ -3,11 +3,11 @@ module xtb.serde.traits;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
-import xtb.core.array : Array;
-import xtb.core.hash_map : HashMap;
+import xtb.core.array : Array, ArrayUnmanaged;
+import xtb.core.hash_map : HashMap, HashMapUnmanaged, HashSetUnmanaged;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
-import xtb.core.string : StringBuf;
+import xtb.core.string : StringBuf, StringBufUnmanaged;
 import xtb.core.types : String;
 import xtb.serde.attributes;
 import xtb.serde.casing : casedNamesEqual, matchesCased;
@@ -64,6 +64,26 @@ template HashMapValue(T)
 enum isHashMap(T) = is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
     Key, Value, Hasher, Equal);
 
+enum isArrayUnmanaged(T) =
+    is(Unqualified!T == ArrayUnmanaged!Element, Element);
+
+enum isStringBufUnmanaged(T) =
+    is(Unqualified!T == StringBufUnmanaged);
+
+enum isHashMapUnmanaged(T) = is(
+    Unqualified!T == HashMapUnmanaged!(Key, Value, Hasher, Equal),
+    Key, Value, Hasher, Equal,
+);
+
+enum isHashSetUnmanaged(T) = is(
+    Unqualified!T == HashSetUnmanaged!(Key, Hasher, Equal),
+    Key, Hasher, Equal,
+);
+
+enum isUnmanagedContainer(T) = isArrayUnmanaged!T ||
+    isStringBufUnmanaged!T || isHashMapUnmanaged!T ||
+    isHashSetUnmanaged!T;
+
 private enum isSerdeHashMapKey(T) = is(Unqualified!T == String);
 
 enum isDynamicArray(T) = is(Unqualified!T == Element[], Element) &&
@@ -78,6 +98,7 @@ enum isSerdeUnion(T) = is(Unqualified!T == union);
 
 enum isSerdeStruct(T) = is(Unqualified!T == struct) && !isStringBuf!T &&
     !isArray!T && !isOption!T && !isHashMap!T &&
+    !isUnmanagedContainer!T &&
     !__traits(hasMember, Unqualified!T, "__dtor");
 
 private bool containsAttribute(A, Attributes...)(Attributes attributes)

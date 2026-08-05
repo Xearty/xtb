@@ -6,7 +6,7 @@ import core.lifetime : move;
 import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option, none, reset, set, some, take;
 import xtb.core.print : Writer, writeln;
-import xtb.core.string : String, StringBuf, append, asStringUnchecked;
+import xtb.core.string : String, StringBuf, asStringUnchecked;
 import xtb.core.types : u8;
 import xtb.serde : KeyCase, SerdeError, fieldCase, readJson, readToml,
     required, writeJson, writeToml;

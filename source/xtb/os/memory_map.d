@@ -3,7 +3,7 @@ module xtb.os.memory_map;
 nothrow @nogc:
 
 import xtb.core.panic : require;
-import xtb.core.string : StringBuf, checkedCString;
+import xtb.core.string : StringBuf;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;

@@ -3,7 +3,7 @@ module xtb.os.environment;
 nothrow @nogc:
 
 import xtb.core.panic : require;
-import xtb.core.string : String, StringBuf, cString, fromCString;
+import xtb.core.string : String, StringBuf, fromCString;
 import xtb.core.thread_context : ScratchScope;
 import xtb.os.error : OsError, OsErrorKind, unsupported;
 

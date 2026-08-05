@@ -135,7 +135,7 @@ segmentation or normalization.
 ## `StringBuf`
 
 `StringBuf` owns a growable valid UTF-8 allocation. It remains non-copyable and
-uses free mutating functions with a first `ref` receiver for UFCS.
+exposes mutation through member methods generated from `StringBufUnmanaged`.
 
 ```d
 struct StringBuf
@@ -154,27 +154,27 @@ struct StringBuf
     bool empty() const pure @safe;
     String view() const return pure @safe;
     Allocator* allocator() return;
+
+    void reserve(size_t byteCapacity);
+    bool tryReserve(size_t byteCapacity);
+
+    void append(String value);
+    bool tryAppend(String value);
+    void append(char ascii);
+    bool tryAppend(char ascii);
+    void append(dchar codePoint);
+    bool tryAppend(dchar codePoint);
+
+    void appendAssumeCapacity(String value);
+    void appendAssumeCapacity(char ascii);
+    void appendAssumeCapacity(dchar codePoint);
+
+    void insert(size_t byteOffset, String value);
+    bool tryInsert(size_t byteOffset, String value);
+    void truncateBytes(size_t newByteLength);
+    void clear();
+    void resetAndRelease();
 }
-
-void reserve(ref StringBuf buffer, size_t byteCapacity);
-bool tryReserve(ref StringBuf buffer, size_t byteCapacity);
-
-void append(ref StringBuf buffer, String value);
-bool tryAppend(ref StringBuf buffer, String value);
-void append(ref StringBuf buffer, char ascii);
-bool tryAppend(ref StringBuf buffer, char ascii);
-void append(ref StringBuf buffer, dchar codePoint);
-bool tryAppend(ref StringBuf buffer, dchar codePoint);
-
-void appendAssumeCapacity(ref StringBuf buffer, String value);
-void appendAssumeCapacity(ref StringBuf buffer, char ascii);
-void appendAssumeCapacity(ref StringBuf buffer, dchar codePoint);
-
-void insert(ref StringBuf buffer, size_t byteOffset, String value);
-bool tryInsert(ref StringBuf buffer, size_t byteOffset, String value);
-void truncateBytes(ref StringBuf buffer, size_t newByteLength);
-void clear(ref StringBuf buffer);
-void resetAndRelease(ref StringBuf buffer);
 ```
 
 The `char` overload accepts ASCII only. Non-ASCII scalars use `dchar`; complete

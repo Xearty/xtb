@@ -3,7 +3,7 @@ module xtb.math.noise;
 nothrow @nogc:
 
 import core.stdc.math : floorf, fmodf;
-import xtb.core.array : Array, tryResize;
+import xtb.core.array : Array;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic, require;
 import xtb.math.random : Random;

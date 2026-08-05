@@ -495,10 +495,12 @@ Returning the array by value avoids a slice that could outlive a temporary
 `StringBuf` gains Unicode-scalar overloads:
 
 ```d
-void append(ref StringBuf buffer, dchar value);
-bool tryAppend(ref StringBuf buffer, dchar value);
-
-void appendAssumeCapacity(ref StringBuf buffer, dchar value);
+struct StringBuf
+{
+    void append(dchar value);
+    bool tryAppend(dchar value);
+    void appendAssumeCapacity(dchar value);
+}
 ```
 
 These functions require `isUnicodeScalar(value)`. The fallible overload returns
@@ -513,10 +515,11 @@ malformed. Non-ASCII values are appended as `dchar` or as an already valid
 `String`.
 
 Public `appendByte` is removed because it is misleading for a text builder.
-Audited internals use the package-private `appendUtf8Fragment` transaction
-helper, while arbitrary binary construction belongs in `Array!u8`.
-`appendAssumeCapacity(char)` has the same ASCII precondition as ordinary
-`append(char)`.
+Audited internals such as `Writer` preserve code-point boundaries, convert each
+independently valid byte chunk with `asStringUnchecked`, and use the ordinary
+`append(String)` or `tryAppend(String)` member. Arbitrary binary construction
+belongs in `Array!u8`. `appendAssumeCapacity(char)` has the same ASCII
+precondition as ordinary `append(char)`.
 
 Operations accepting `String`--append, prepend, insert, replace, and
 construction from `String`--assume their inputs already satisfy the `String`

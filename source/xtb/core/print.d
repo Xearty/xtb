@@ -6,12 +6,11 @@ import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
 import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
     InterpolationFooter, InterpolationHeader;
-import xtb.core.string : String, StringBuf, appendUtf8Fragment, clear,
-    tryAppendUtf8Fragment;
+import xtb.core.string : String, StringBuf, asStringUnchecked;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic, require;
 import xtb.core.types : u8;
-import xtb.core.utf8 : encodeUtf8, isValidUtf8;
+import xtb.core.utf8 : encodeUtf8, floorCodePointBoundary, isValidUtf8;
 
 alias Sink = size_t function(void* context, scope const(u8)[] bytes);
 
@@ -99,7 +98,19 @@ nothrow @nogc:
 
             const available = buffer_.length - buffered_;
             const remaining = bytes.length - offset;
-            const amount = available < remaining ? available : remaining;
+            size_t amount = available < remaining ? available : remaining;
+
+            if (amount < remaining)
+            {
+                const boundary = bytes.floorCodePointBoundary(offset + amount);
+                amount = boundary - offset;
+                if (amount == 0)
+                {
+                    flush();
+                    continue;
+                }
+            }
+
             memcpy(buffer_.ptr + buffered_, bytes.ptr + offset, amount);
             buffered_ += amount;
             offset += amount;
@@ -174,7 +185,7 @@ private size_t stringBufSink(void* context, scope const(u8)[] bytes)
     StringBuf* buffer = cast(StringBuf*) context;
     if (buffer is null)
         return 0;
-    (*buffer).appendUtf8Fragment(bytes);
+    (*buffer).append(bytes.asStringUnchecked);
     return bytes.length;
 }
 
@@ -184,8 +195,35 @@ private size_t fallibleStringBufSink(
 )
 {
     StringBuf* buffer = cast(StringBuf*) context;
-    return buffer !is null && (*buffer).tryAppendUtf8Fragment(bytes)
+    return buffer !is null && (*buffer).tryAppend(bytes.asStringUnchecked)
         ? bytes.length : 0;
+}
+
+version (unittest) private struct Utf8ValidatingSinkState
+{
+    StringBuf* buffer;
+    bool allFragmentsValid = true;
+    size_t calls;
+}
+
+version (unittest) private size_t utf8ValidatingStringBufSink(
+    void* context,
+    scope const(u8)[] bytes,
+)
+{
+    Utf8ValidatingSinkState* state = cast(Utf8ValidatingSinkState*) context;
+    if (state is null || state.buffer is null)
+        return 0;
+
+    ++state.calls;
+    if (!isValidUtf8(bytes))
+    {
+        state.allFragmentsValid = false;
+        return 0;
+    }
+
+    (*state.buffer).append(bytes.asStringUnchecked);
+    return bytes.length;
 }
 
 private struct FixedBufferState
@@ -809,6 +847,38 @@ unittest
     buffer.clear();
     buffer.formatTo!"{} + {} = {}"(2, 3, 5);
     assert(buffer == "2 + 3 = 5");
+
+    // Put a four-byte scalar across the staging-buffer boundary. Writer must
+    // flush before the scalar so every StringBuf append receives valid UTF-8.
+    char[511] splitScalarPrefix;
+    splitScalarPrefix[] = 'a';
+    const String splitScalarPrefixString = splitScalarPrefix[];
+
+    buffer.clear();
+    Utf8ValidatingSinkState validatingState =
+        Utf8ValidatingSinkState(&buffer);
+    Writer validatingWriter = Writer.fromSink(
+        &utf8ValidatingStringBufSink,
+        &validatingState,
+    );
+    validatingWriter.put(splitScalarPrefixString);
+    validatingWriter.put("🙂");
+    assert(validatingWriter.finish().ok);
+    assert(validatingState.allFragmentsValid);
+    assert(validatingState.calls == 2);
+    assert(buffer.byteLength == 515);
+    assert(buffer.view[0 .. 511] == splitScalarPrefixString);
+    assert(buffer.view[511 .. $] == "🙂");
+
+    StringBuf fallibleSplitScalar;
+    assert(tryFormatString!"{}{}"(
+        mallocAllocator(),
+        &fallibleSplitScalar,
+        splitScalarPrefixString,
+        "🙂",
+    ));
+    assert(fallibleSplitScalar.byteLength == 515);
+    assert(fallibleSplitScalar.view[511 .. $] == "🙂");
 
     char[8] fixedBuffer;
     const result = fixedBuffer[].writeBuffer("abcdefghi");

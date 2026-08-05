@@ -1,9 +1,9 @@
 module examples.pretty_print_demo;
 
 import xtb.core.ansi : AnsiColor, AnsiStyle, ansiReset, beginAnsi, endAnsi;
-import xtb.core.array : Array, append;
+import xtb.core.array : Array;
 import xtb.core.flag_set : FlagSet;
-import xtb.core.hash_map : HashMap, HashSet, add, set;
+import xtb.core.hash_map : HashMap, HashSet;
 import xtb.core.memory : mallocAllocator;
 import xtb.core.option : Option;
 import xtb.core.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,

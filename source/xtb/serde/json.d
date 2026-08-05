@@ -8,8 +8,8 @@ import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
 import core.lifetime : emplace, move;
 import core.internal.traits : hasElaborateDestructor;
-import xtb.core.array : Array, tryResize;
-import xtb.core.hash_map : AddStatus, HashMap, find, tryAdd;
+import xtb.core.array : Array;
+import xtb.core.hash_map : AddStatus, HashMap;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.option : Option, reset;
 import xtb.core.panic : require;
@@ -1881,7 +1881,7 @@ private void decodeStringBuf(ref JsonParser parser, StringBuf* output)
     if (!parser.error.ok)
         return;
     require(owned, "owned JSON string was not allocated");
-    *output = StringBuf.adopt(
+    *output = StringBuf.adoptRaw(
         parser.allocator,
         cast(char*) value.ptr,
         value.length,

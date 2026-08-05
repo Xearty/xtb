@@ -2,14 +2,14 @@ module tests.serde_tests;
 
 import core.lifetime : move;
 import tests.serde_backend_contract : runSerdeBackendContracts;
-import xtb.core.array : Array, append;
-import xtb.core.hash_map : AddStatus, HashMap, find, tryAdd;
+import xtb.core.array : Array, ArrayUnmanaged;
+import xtb.core.hash_map : AddStatus, HashMap, HashMapUnmanaged, HashSetUnmanaged;
 import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
     mallocAllocator;
 import xtb.core.option : Option, set;
 import xtb.core.print : Writer;
-import xtb.core.string : String, StringBuf, append, asStringUnchecked, clear,
-    equal;
+import xtb.core.string : String, StringBuf, StringBufUnmanaged,
+    asStringUnchecked, equal;
 import xtb.core.types : u8;
 import xtb.serde.attributes;
 import xtb.serde.casing;
@@ -446,6 +446,27 @@ private struct OwnedOptionalValues
     Option!uint revision;
     @required Option!bool explicitToggle;
 }
+
+private struct UnmanagedContainerFields
+{
+    ArrayUnmanaged!int array;
+    StringBufUnmanaged string;
+    HashMapUnmanaged!(String, int) map;
+    HashSetUnmanaged!String set;
+}
+
+static assert(!__traits(compiles, validateSchema!(ArrayUnmanaged!int)()));
+static assert(!__traits(compiles, validateSchema!StringBufUnmanaged()));
+static assert(!__traits(compiles,
+        validateSchema!(HashMapUnmanaged!(String, int))()));
+static assert(!__traits(compiles,
+        validateSchema!(HashSetUnmanaged!String)()));
+static assert(!__traits(compiles, validateSchema!UnmanagedContainerFields()));
+static assert(!__traits(compiles,
+        (ref Writer writer, ref ArrayUnmanaged!int values) {
+        writeJson(writer, values);
+        writeToml(writer, values);
+    }));
 
 static assert(!__traits(compiles, validateSchema!ConflictingNames()));
 static assert(!__traits(compiles, validateSchema!NestedConflictingNames()));

@@ -2807,8 +2807,6 @@ unittest
 
 unittest
 {
-    import xtb.core.array : append;
-    import xtb.core.hash_map : add, set;
     import xtb.core.memory : mallocAllocator;
 
     PrettyPrintOptions noTypes = plainOptions();

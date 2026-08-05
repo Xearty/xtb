@@ -10,6 +10,7 @@ import xtb.core.memory;
 import xtb.core.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
+import xtb.core.internal.managed_container_adapter;
 import xtb.core.option;
 import xtb.core.flag_set;
 import xtb.core.list;
@@ -99,6 +100,20 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         seconds(1) / 0;
     if (cStringEqual(name, "string-bytes-null-output"))
         StringBuf.tryFromBytesUnchecked(mallocAllocator(), null, null);
+    if (cStringEqual(name, "unmanaged-null-fallible-factory"))
+    {
+        ArrayUnmanaged!int output;
+        ArrayUnmanaged!int.tryWithCapacity(null, 0, &output);
+    }
+    if (cStringEqual(name, "unmanaged-null-returning-factory"))
+        ArrayUnmanaged!int.withCapacity(null, 0);
+    if (cStringEqual(name, "managed-null-fallible-factory"))
+    {
+        Array!int output;
+        Array!int.tryWithCapacity(null, 0, &output);
+    }
+    if (cStringEqual(name, "managed-null-returning-factory"))
+        Array!int.withCapacity(null, 0);
     if (cStringEqual(name, "string-split-slice"))
         "é".sliceBytes(1, 2);
     if (cStringEqual(name, "string-split-insert"))
@@ -390,6 +405,9 @@ extern (C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.array))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests,
+            xtb.core.internal.managed_container_adapter))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.option))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.flag_set))
@@ -441,6 +459,10 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "duration-negative-scale");
         expectDeath(arguments[0], "duration-division-by-zero");
         expectDeath(arguments[0], "string-bytes-null-output");
+        expectDeath(arguments[0], "unmanaged-null-fallible-factory");
+        expectDeath(arguments[0], "unmanaged-null-returning-factory");
+        expectDeath(arguments[0], "managed-null-fallible-factory");
+        expectDeath(arguments[0], "managed-null-returning-factory");
         expectDeath(arguments[0], "string-split-slice");
         expectDeath(arguments[0], "string-split-insert");
         expectDeath(arguments[0], "string-split-truncate");

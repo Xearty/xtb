@@ -3,8 +3,7 @@ module xtb.os.path;
 nothrow @nogc:
 
 import xtb.core.panic : panic, require;
-import xtb.core.string : String, StringBuf, appendAssumeCapacity, containsNul,
-    tryAppend, tryReserve;
+import xtb.core.string : String, StringBuf, containsNul;
 
 /// A borrowed native path without embedded NUL bytes.
 struct Path

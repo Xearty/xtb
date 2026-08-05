@@ -3,7 +3,7 @@ module xtb.os.pipeline;
 nothrow @nogc:
 
 import core.lifetime : move;
-import xtb.core.array : Array, tryResize;
+import xtb.core.array : Array;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, reset, set;
 import xtb.core.panic : require;

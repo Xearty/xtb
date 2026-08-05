@@ -7,8 +7,8 @@ import core.stdc.string : memmove, memset;
 import xtb.core.memory : Allocator, allocate;
 import xtb.core.option : Option, reset, set, some;
 import xtb.core.panic : require;
-import xtb.core.string : String, StringBuf, append, checkedCString, clear,
-    contains, containsCodeUnit, containsNul, equal, fromCString;
+import xtb.core.string : String, StringBuf, contains, containsCodeUnit,
+    containsNul, equal, fromCString;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;

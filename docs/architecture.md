@@ -716,11 +716,11 @@ allocator and therefore cannot grow. Fallible growth returns `false`; panicking
 growth reports the missing allocator. Construct it with `create`,
 `withCapacity`, or `fromString` before appending.
 
-All mutation occurs through `StringBuf`, never through `String`. Free functions
-that modify a buffer use `ref StringBuf` as their first parameter so they work
-naturally with UFCS. This is the narrow exception to the project's pointer-for-
-mutation rule. Other mutable parameters remain pointers. Function names are
-short verbs; never prefix every operation with the type name.
+All container mutation occurs through `StringBuf` member methods, never through
+`String`. The managed members are generated from the corresponding
+`StringBufUnmanaged` operations and inject the bound allocator where required.
+Other mutable output parameters remain explicit pointers unless an independent
+builder-style utility deliberately accepts a `ref StringBuf` destination.
 
 ```d
 StringBuf buffer = StringBuf.create(allocator);
@@ -730,13 +730,12 @@ buffer.append(value);
 String result = buffer.view();
 ```
 
-Here `buffer.append(value)` is UFCS for `append(buffer, value)`, whose first
-parameter is `ref StringBuf buffer`. Mutating verbs make the state change clear
-without repeating the type name or requiring `&` at every call. Apply the same
-rule to `Array!T` and other owning containers. Reserve, resize, append, prepend,
-insert, replace-in-place, clear, and formatting operations validate overflow
-before changing the buffer. On a recoverable allocation failure the original
-contents remain valid unless the operation documents otherwise.
+These are genuine member calls; no duplicate module-level forwarding functions
+are provided. Apply the same rule to `Array!T`, `HashMap`, `HashSet`, and other
+managed containers. Reserve, resize, append, prepend, insert, replace-in-place,
+clear, and formatting operations validate overflow before changing the buffer.
+On a recoverable allocation failure the original contents remain valid unless
+the operation documents otherwise.
 
 `view()` returns a read-only `String` borrowing the current contents. Any
 operation that can reallocate, shift, overwrite, clear, release, or destroy the
@@ -827,8 +826,9 @@ conversion.
 #### API rules
 
 - Accept `String` by value for read-only string input.
-- Accept `ref StringBuf` as the first parameter of a mutating UFCS operation;
-  use pointers for any additional mutable parameters.
+- Put ordinary `StringBuf` container mutation on member methods. Independent
+  builder-style utilities may accept `ref StringBuf output`; use pointers for
+  additional mutable outputs.
 - Return `String` for borrowed views or read-only results whose storage is
   owned by an explicit allocator; return `StringBuf` for individually owned
   mutable text.
@@ -1269,8 +1269,9 @@ no filesystem access. File convenience functions, if added later, must compose
   and runtime reflection are unavailable.
 - Keep the name `Array!T` for the allocator-owning growable container. Native
   D slices remain the borrowed representation. `Array!T` is non-copyable and
-  its mutating free functions use a `ref Array!T` UFCS receiver. It owns every
-  live element: removal, shrinking, clearing, release, and destruction run
+  its ordinary mutation API consists of member functions generated from
+  `ArrayUnmanaged!T`. It owns every live element: removal, shrinking, clearing,
+  release, and destruction run
   element destructors in reverse lifetime order where applicable. Relocation
   uses move construction for elaborate types and leaves moved-from storage
   uninitialized; only POD elements use raw reallocation and byte movement.

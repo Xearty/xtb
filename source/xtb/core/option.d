@@ -130,7 +130,7 @@ Option!T none(T)()
 unittest
 {
     import xtb.core.memory : mallocAllocator;
-    import xtb.core.string : StringBuf, append;
+    import xtb.core.string : StringBuf;
 
     Option!int number;
     assert(number.isNone && number.empty);

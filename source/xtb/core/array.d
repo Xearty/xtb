@@ -6,6 +6,7 @@ import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, move, moveEmplace;
 import core.stdc.string : memmove;
 import xtb.core.memory : Allocator, deallocate, tryAllocate, tryReallocate;
+import xtb.core.internal.managed_container_adapter : ManagedContainerAdapter;
 import xtb.core.panic : panic, require;
 import xtb.core.numeric : multiplyOverflows;
 
@@ -39,6 +40,15 @@ version (unittest)
         }
     }
 
+    private void appendReleasedValue(
+        ref ArrayUnmanaged!int storage,
+        Allocator* allocator,
+        int value,
+    )
+    {
+        storage.append(allocator, value);
+    }
+
     private struct CopyableElement
     {
     nothrow @nogc:
@@ -69,92 +79,106 @@ version (unittest)
     }
 }
 
-struct Array(T)
+struct ArrayUnmanaged(T)
 {
 nothrow @nogc:
 
-    private Allocator* allocator_;
-    private T* data_;
-    private size_t length_;
-    private size_t capacity_;
+private:
+    T* data_;
+    size_t length_;
+    size_t capacity_;
 
+public:
     @disable this(this);
-
-    static Array create(Allocator* allocator)
-    {
-        require(allocator !is null && *allocator !is null,
-            "Array requires a valid allocator");
-        Array result;
-        result.allocator_ = allocator;
-        return result;
-    }
-
-    static Array withCapacity(Allocator* allocator, size_t capacity)
-
-    {
-        Array result = create(allocator);
-        if (capacity != 0 && !result.tryReserve(capacity))
-            panic("Array allocation failed");
-        return result;
-    }
 
     static bool tryWithCapacity(
         Allocator* allocator,
         size_t capacity,
-        Array* output,
+        scope ArrayUnmanaged* output,
     )
     {
-        require(output !is null, "Array output pointer is null");
-        *output = create(allocator);
-        return (*output).tryReserve(capacity);
+        require(output !is null, "ArrayUnmanaged output pointer is null");
+        require(output.data_ is null && output.length_ == 0 &&
+                output.capacity_ == 0,
+            "ArrayUnmanaged output is not empty");
+        requireValidAllocator(allocator);
+        ArrayUnmanaged temporary;
+        if (capacity != 0 && !temporary.tryReserve(allocator, capacity))
+            return false;
+        *output = move(temporary);
+        return true;
     }
 
-    package(xtb) static Array adopt(
+    static ArrayUnmanaged withCapacity(
         Allocator* allocator,
-        T* data,
-        size_t length,
         size_t capacity,
     )
     {
-        require(allocator !is null && *allocator !is null,
-            "Array requires a valid allocator");
-        require(length <= capacity, "adopted Array length exceeds capacity");
+        ArrayUnmanaged result;
+        if (!tryWithCapacity(allocator, capacity, &result))
+            panic("Array allocation failed");
+        return result;
+    }
+
+    static ArrayUnmanaged withLength(
+        Allocator* allocator,
+        size_t length,
+    )
+    {
+        ArrayUnmanaged result;
+        result.resize(allocator, length);
+        return result;
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        static ArrayUnmanaged fromSlice(
+            Allocator* allocator,
+            scope const(T)[] values,
+        )
+        {
+            ArrayUnmanaged result = withCapacity(allocator, values.length);
+            result.append(allocator, values);
+            return result;
+        }
+    }
+
+package(xtb):
+    static ArrayUnmanaged adopt(
+        T* data,
+        size_t length,
+        size_t capacity,
+    ) @system
+    {
+        require(length <= capacity,
+            "adopted ArrayUnmanaged length exceeds capacity");
         require((capacity == 0) == (data is null),
-            "adopted Array storage does not match capacity");
-        Array result;
-        result.allocator_ = allocator;
+            "adopted ArrayUnmanaged storage does not match capacity");
+        ArrayUnmanaged result;
         result.data_ = data;
         result.length_ = length;
         result.capacity_ = capacity;
         return result;
     }
 
-    static Array withLength(Allocator* allocator, size_t length)
-
+public:
+    void deinit(Allocator* allocator)
     {
-        Array result = create(allocator);
-        result.resize(length);
-        return result;
-    }
-
-    static Array fromSlice(U = T)(Allocator* allocator, scope const(T)[] values)
-            if (is(U == T) && __traits(isCopyable, T))
-    {
-        Array result = withCapacity(allocator, values.length);
-        result.append(values);
-        return result;
-    }
-
-    ~this()
-    {
-        deinit();
-    }
-
-    void deinit()
-    {
+        if (capacity_ != 0)
+            requireValidAllocator(allocator);
         destroyElements(data_, length_);
-        allocator_.deallocate(data_, capacity_);
-        allocator_ = null;
+        if (capacity_ != 0)
+            allocator.deallocate(data_, capacity_);
+        this = ArrayUnmanaged.init;
+    }
+
+    void resetAndRelease(Allocator* allocator)
+    {
+        if (capacity_ != 0)
+            requireValidAllocator(allocator);
+        destroyElements(data_, length_);
+        if (capacity_ != 0)
+            allocator.deallocate(data_, capacity_);
         data_ = null;
         length_ = 0;
         capacity_ = 0;
@@ -173,11 +197,6 @@ nothrow @nogc:
     bool empty() const pure @safe
     {
         return length_ == 0;
-    }
-
-    Allocator* allocator() return
-    {
-        return allocator_;
     }
 
     T[] slice() return pure @system
@@ -201,6 +220,453 @@ nothrow @nogc:
         require(index < length_, "Array index out of bounds");
         return data_[index];
     }
+
+    bool tryReserve(Allocator* allocator, size_t requested)
+    {
+        requireValidAllocator(allocator);
+        if (requested <= capacity_)
+            return true;
+
+        size_t capacity = capacity_ == 0 ? 8 : capacity_;
+        while (capacity < requested)
+        {
+            if (capacity > size_t.max / 2)
+            {
+                capacity = requested;
+                break;
+            }
+            capacity *= 2;
+        }
+        return trySetCapacity(allocator, capacity);
+    }
+
+    void reserve(Allocator* allocator, size_t requested)
+    {
+        if (!tryReserve(allocator, requested))
+            panic("Array allocation failed");
+    }
+
+    bool tryResize(Allocator* allocator, size_t requested)
+    {
+        requireValidAllocator(allocator);
+        if (requested < length_)
+        {
+            destroyElements(data_ + requested, length_ - requested);
+            length_ = requested;
+            return true;
+        }
+        if (!tryReserve(allocator, requested))
+            return false;
+        while (length_ < requested)
+        {
+            constructInitial(data_ + length_);
+            ++length_;
+        }
+        return true;
+    }
+
+    void resize(Allocator* allocator, size_t requested)
+    {
+        if (!tryResize(allocator, requested))
+            panic("Array allocation failed");
+    }
+
+    bool tryAppend(Allocator* allocator, T value)
+    {
+        requireValidAllocator(allocator);
+        if (length_ == size_t.max || !tryReserve(allocator, length_ + 1))
+            return false;
+        constructMove(data_ + length_, value);
+        ++length_;
+        return true;
+    }
+
+    void append(Allocator* allocator, T value)
+    {
+        if (!tryAppend(allocator, move(value)))
+            panic("Array allocation failed");
+    }
+
+    void appendAssumeCapacity(T value)
+    {
+        require(length_ < capacity_, "Array capacity exceeded");
+        constructMove(data_ + length_, value);
+        ++length_;
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        bool tryAppend(
+            Allocator* allocator,
+            scope const(T)[] values,
+        )
+        {
+            requireValidAllocator(allocator);
+            if (values.length > size_t.max - length_)
+                return false;
+
+            bool aliasesArray;
+            size_t sourceOffset;
+            if (values.length != 0 && data_ !is null)
+            {
+                const sourceAddress = cast(size_t) values.ptr;
+                const beginAddress = cast(size_t) data_;
+                const endAddress = beginAddress + length_ * T.sizeof;
+                aliasesArray = sourceAddress >= beginAddress &&
+                    sourceAddress < endAddress;
+                if (aliasesArray)
+                {
+                    const byteOffset = sourceAddress - beginAddress;
+                    if (byteOffset % T.sizeof != 0 ||
+                        values.length > length_ - byteOffset / T.sizeof)
+                        return false;
+                    sourceOffset = byteOffset / T.sizeof;
+                }
+            }
+
+            const oldLength = length_;
+            const newLength = oldLength + values.length;
+            if (!tryReserve(allocator, newLength))
+                return false;
+            const(T)* source = aliasesArray ? data_ + sourceOffset : values.ptr;
+            static if (__traits(isPOD, T))
+            {
+                if (values.length != 0)
+                    memmove(data_ + length_, source,
+                        values.length * T.sizeof);
+                length_ = newLength;
+            }
+            else
+            {
+                while (length_ < newLength)
+                {
+                    constructCopy(data_ + length_,
+                        source[length_ - oldLength]);
+                    ++length_;
+                }
+            }
+            return true;
+        }
+
+        void append(Allocator* allocator, scope const(T)[] values)
+        {
+            if (!tryAppend(allocator, values))
+                panic("Array allocation failed");
+        }
+
+        void appendAssumeCapacity(scope const(T)[] values)
+        {
+            require(values.length <= capacity_ - length_,
+                "Array capacity exceeded");
+            static if (__traits(isPOD, T))
+            {
+                if (values.length != 0)
+                    memmove(data_ + length_, values.ptr,
+                        values.length * T.sizeof);
+                length_ += values.length;
+            }
+            else
+            {
+                foreach (ref value; values)
+                {
+                    constructCopy(data_ + length_, value);
+                    ++length_;
+                }
+            }
+        }
+    }
+
+    bool tryInsert(
+        Allocator* allocator,
+        size_t index,
+        T value,
+    )
+    {
+        requireValidAllocator(allocator);
+        require(index <= length_, "Array insert index out of bounds");
+        if (length_ == size_t.max || !tryReserve(allocator, length_ + 1))
+            return false;
+        static if (__traits(isPOD, T))
+        {
+            const following = length_ - index;
+            if (following != 0)
+                memmove(data_ + index + 1, data_ + index,
+                    following * T.sizeof);
+        }
+        else
+        {
+            size_t position = length_;
+            while (position > index)
+            {
+                constructMove(data_ + position, data_[position - 1]);
+                --position;
+            }
+        }
+        constructMove(data_ + index, value);
+        ++length_;
+        return true;
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        bool tryInsert(
+            Allocator* allocator,
+            size_t index,
+            scope const(T)[] values,
+        )
+        {
+            requireValidAllocator(allocator);
+            require(index <= length_, "Array insert index out of bounds");
+            if (values.length > size_t.max - length_)
+                return false;
+            if (values.length == 0)
+                return true;
+
+            bool aliasesArray;
+            size_t sourceOffset;
+            if (data_ !is null)
+            {
+                const sourceAddress = cast(size_t) values.ptr;
+                const beginAddress = cast(size_t) data_;
+                const endAddress = beginAddress + length_ * T.sizeof;
+                aliasesArray = sourceAddress >= beginAddress &&
+                    sourceAddress < endAddress;
+                if (aliasesArray)
+                {
+                    const byteOffset = sourceAddress - beginAddress;
+                    if (byteOffset % T.sizeof != 0 ||
+                        values.length > length_ - byteOffset / T.sizeof)
+                        return false;
+                    sourceOffset = byteOffset / T.sizeof;
+                    static if (!__traits(isPOD, T))
+                        return false;
+                }
+            }
+
+            const oldLength = length_;
+            const newLength = oldLength + values.length;
+            if (!tryReserve(allocator, newLength))
+                return false;
+            static if (__traits(isPOD, T))
+            {
+                const following = oldLength - index;
+                if (following != 0)
+                    memmove(data_ + index + values.length,
+                        data_ + index, following * T.sizeof);
+                if (aliasesArray)
+                {
+                    const sourceEnd = sourceOffset + values.length;
+                    const leftCount = sourceOffset < index
+                        ? (sourceEnd < index ? sourceEnd : index) -
+                            sourceOffset : 0;
+                    const rightCount = values.length - leftCount;
+                    if (leftCount != 0)
+                        memmove(data_ + index, data_ + sourceOffset,
+                            leftCount * T.sizeof);
+                    if (rightCount != 0)
+                    {
+                        const rightSource = sourceOffset + leftCount +
+                            values.length;
+                        memmove(data_ + index + leftCount,
+                            data_ + rightSource, rightCount * T.sizeof);
+                    }
+                }
+                else
+                    memmove(data_ + index, values.ptr,
+                        values.length * T.sizeof);
+            }
+            else
+            {
+                size_t position = oldLength;
+                while (position > index)
+                {
+                    --position;
+                    constructMove(data_ + position + values.length,
+                        data_[position]);
+                }
+                foreach (offset, ref value; values)
+                    constructCopy(data_ + index + offset, value);
+            }
+            length_ = newLength;
+            return true;
+        }
+    }
+
+    void insert(Allocator* allocator, size_t index, T value)
+    {
+        if (!tryInsert(allocator, index, move(value)))
+            panic("Array allocation failed");
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        void insert(
+            Allocator* allocator,
+            size_t index,
+            scope const(T)[] values,
+        )
+        {
+            if (!tryInsert(allocator, index, values))
+                panic("Array allocation failed");
+        }
+    }
+
+    T pop()
+    {
+        require(length_ != 0, "cannot pop an empty Array");
+        --length_;
+        T result = void;
+        static if (__traits(isPOD, T))
+            result = data_[length_];
+        else
+            constructMove(&result, data_[length_]);
+        return result;
+    }
+
+    void clear()
+    {
+        destroyElements(data_, length_);
+        length_ = 0;
+    }
+
+    void removeAt(size_t index)
+    {
+        require(index < length_, "Array index out of bounds");
+        static if (__traits(isPOD, T))
+        {
+            const following = length_ - index - 1;
+            if (following != 0)
+                memmove(data_ + index, data_ + index + 1,
+                    following * T.sizeof);
+        }
+        else
+        {
+            destroyElement(data_ + index);
+            foreach (i; index .. length_ - 1)
+                constructMove(data_ + i, data_[i + 1]);
+        }
+        --length_;
+    }
+
+    void removeRange(size_t index, size_t count)
+    {
+        require(index <= length_, "Array range index out of bounds");
+        require(count <= length_ - index,
+            "Array range count out of bounds");
+        if (count == 0)
+            return;
+        static if (__traits(isPOD, T))
+        {
+            const following = length_ - index - count;
+            if (following != 0)
+                memmove(data_ + index, data_ + index + count,
+                    following * T.sizeof);
+        }
+        else
+        {
+            destroyElements(data_ + index, count);
+            foreach (i; index .. length_ - count)
+                constructMove(data_ + i, data_[i + count]);
+        }
+        length_ -= count;
+    }
+
+    bool tryShrinkToFit(Allocator* allocator)
+    {
+        requireValidAllocator(allocator);
+        if (length_ == capacity_)
+            return true;
+        if (length_ == 0)
+        {
+            resetAndRelease(allocator);
+            return true;
+        }
+        return trySetCapacity(allocator, length_);
+    }
+
+    void shrinkToFit(Allocator* allocator)
+    {
+        if (!tryShrinkToFit(allocator))
+            panic("Array allocation failed");
+    }
+
+private:
+    bool trySetCapacity(Allocator* allocator, size_t capacity)
+    {
+        if (multiplyOverflows(capacity, T.sizeof))
+            return false;
+
+        static if (__traits(isPOD, T))
+        {
+            void* replacement = allocator.tryReallocate(
+                capacity * T.sizeof,
+                data_,
+                capacity_ * T.sizeof,
+                T.alignof,
+            );
+            if (capacity != 0 && replacement is null)
+                return false;
+            data_ = cast(T*) replacement;
+        }
+        else
+        {
+            T* replacement = allocator.tryAllocate!T(capacity);
+            if (capacity != 0 && replacement is null)
+                return false;
+            foreach (i; 0 .. length_)
+                constructMove(replacement + i, data_[i]);
+            allocator.deallocate(data_, capacity_);
+            data_ = replacement;
+        }
+        capacity_ = capacity;
+        return true;
+    }
+}
+
+struct Array(T)
+{
+nothrow @nogc:
+
+    alias Self = Array!T;
+    alias Storage = ArrayUnmanaged!T;
+
+private:
+    Allocator* allocator_;
+    Storage storage_;
+
+public:
+    mixin ManagedContainerAdapter!(Self, Storage);
+
+package(xtb):
+    static Self adoptUnmanaged(
+        Allocator* allocator,
+        scope Storage* storage,
+    ) @system
+    {
+        requireValidAllocator(allocator);
+        require(storage !is null, "ArrayUnmanaged pointer is null");
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = move(*storage);
+        return result;
+    }
+
+    static Self adoptRaw(
+        Allocator* allocator,
+        T* data,
+        size_t length,
+        size_t capacity,
+    ) @system
+    {
+        Storage storage = Storage.adopt(data, length, capacity);
+        return adoptUnmanaged(allocator, &storage);
+    }
+}
+
+private void requireValidAllocator(Allocator* allocator)
+{
+    require(allocator !is null && *allocator !is null,
+        "Array requires a valid allocator");
 }
 
 private void constructInitial(T)(T* destination)
@@ -240,379 +706,6 @@ private void destroyElements(T)(T* data, size_t length)
         while (length != 0)
             destroyElement(data + --length);
     }
-}
-
-private bool trySetCapacity(T)(ref Array!T array, size_t capacity)
-{
-    if (multiplyOverflows(capacity, T.sizeof))
-        return false;
-
-    static if (__traits(isPOD, T))
-    {
-        void* replacement = array.allocator_.tryReallocate(
-            capacity * T.sizeof,
-            array.data_,
-            array.capacity_ * T.sizeof,
-            T.alignof,
-        );
-        if (capacity != 0 && replacement is null)
-            return false;
-        array.data_ = cast(T*) replacement;
-    }
-    else
-    {
-        T* replacement = array.allocator_.tryAllocate!T(capacity);
-        if (capacity != 0 && replacement is null)
-            return false;
-        foreach (i; 0 .. array.length_)
-            constructMove(replacement + i, array.data_[i]);
-        array.allocator_.deallocate(array.data_, array.capacity_);
-        array.data_ = replacement;
-    }
-    array.capacity_ = capacity;
-    return true;
-}
-
-bool tryReserve(T)(ref Array!T array, size_t requested)
-{
-    if (requested <= array.capacity_)
-        return true;
-
-    size_t capacity = array.capacity_ == 0 ? 8 : array.capacity_;
-    while (capacity < requested)
-    {
-        if (capacity > size_t.max / 2)
-        {
-            capacity = requested;
-            break;
-        }
-        capacity *= 2;
-    }
-
-    return array.trySetCapacity(capacity);
-}
-
-void reserve(T)(ref Array!T array, size_t requested)
-{
-    if (!array.tryReserve(requested))
-        panic("Array allocation failed");
-}
-
-bool tryResize(T)(ref Array!T array, size_t requested)
-{
-    if (requested < array.length_)
-    {
-        destroyElements(array.data_ + requested, array.length_ - requested);
-        array.length_ = requested;
-        return true;
-    }
-    if (!array.tryReserve(requested))
-        return false;
-    while (array.length_ < requested)
-    {
-        constructInitial(array.data_ + array.length_);
-        ++array.length_;
-    }
-    return true;
-}
-
-void resize(T)(ref Array!T array, size_t requested)
-{
-    if (!array.tryResize(requested))
-        panic("Array allocation failed");
-}
-
-bool tryAppend(T)(ref Array!T array, T value)
-{
-    if (array.length_ == size_t.max || !array.tryReserve(array.length_ + 1))
-        return false;
-    constructMove(array.data_ + array.length_, value);
-    ++array.length_;
-    return true;
-}
-
-void append(T)(ref Array!T array, T value)
-{
-    if (!array.tryAppend(move(value)))
-        panic("Array allocation failed");
-}
-
-void appendAssumeCapacity(T)(ref Array!T array, T value)
-{
-    require(array.length_ < array.capacity_, "Array capacity exceeded");
-    constructMove(array.data_ + array.length_, value);
-    ++array.length_;
-}
-
-bool tryAppend(T)(ref Array!T array, scope const(T)[] values) if (__traits(isCopyable, T))
-{
-    if (values.length > size_t.max - array.length_)
-        return false;
-
-    bool aliasesArray;
-    size_t sourceOffset;
-    if (values.length != 0 && array.data_ !is null)
-    {
-        const sourceAddress = cast(size_t) values.ptr;
-        const beginAddress = cast(size_t) array.data_;
-        const endAddress = beginAddress + array.length_ * T.sizeof;
-        aliasesArray = sourceAddress >= beginAddress && sourceAddress < endAddress;
-        if (aliasesArray)
-        {
-            const byteOffset = sourceAddress - beginAddress;
-            if (byteOffset % T.sizeof != 0 ||
-                values.length > array.length_ - byteOffset / T.sizeof)
-                return false;
-            sourceOffset = byteOffset / T.sizeof;
-        }
-    }
-
-    const oldLength = array.length_;
-    const newLength = oldLength + values.length;
-    if (!array.tryReserve(newLength))
-        return false;
-    const(T)* source = aliasesArray ? array.data_ + sourceOffset : values.ptr;
-    static if (__traits(isPOD, T))
-    {
-        if (values.length != 0)
-            memmove(array.data_ + array.length_, source, values.length * T.sizeof);
-        array.length_ = newLength;
-    }
-    else
-    {
-        while (array.length_ < newLength)
-        {
-            constructCopy(array.data_ + array.length_, source[array.length_ - oldLength]);
-            ++array.length_;
-        }
-    }
-    return true;
-}
-
-void append(T)(ref Array!T array, scope const(T)[] values) if (__traits(isCopyable, T))
-{
-    if (!array.tryAppend(values))
-        panic("Array allocation failed");
-}
-
-void appendAssumeCapacity(T)(
-    ref Array!T array,
-    scope const(T)[] values,
-) if (__traits(isCopyable, T))
-{
-    require(values.length <= array.capacity_ - array.length_,
-        "Array capacity exceeded");
-    static if (__traits(isPOD, T))
-    {
-        if (values.length != 0)
-            memmove(array.data_ + array.length_, values.ptr, values.length * T.sizeof);
-        array.length_ += values.length;
-    }
-    else
-    {
-        foreach (ref value; values)
-        {
-            constructCopy(array.data_ + array.length_, value);
-            ++array.length_;
-        }
-    }
-}
-
-bool tryInsert(T)(ref Array!T array, size_t index, T value)
-{
-    require(index <= array.length_, "Array insert index out of bounds");
-    if (array.length_ == size_t.max || !array.tryReserve(array.length_ + 1))
-        return false;
-    static if (__traits(isPOD, T))
-    {
-        const following = array.length_ - index;
-        if (following != 0)
-            memmove(array.data_ + index + 1, array.data_ + index, following * T.sizeof);
-    }
-    else
-    {
-        size_t position = array.length_;
-        while (position > index)
-        {
-            constructMove(array.data_ + position, array.data_[position - 1]);
-            --position;
-        }
-    }
-    constructMove(array.data_ + index, value);
-    ++array.length_;
-    return true;
-}
-
-bool tryInsert(T)(
-    ref Array!T array,
-    size_t index,
-    scope const(T)[] values,
-) if (__traits(isCopyable, T))
-{
-    require(index <= array.length_, "Array insert index out of bounds");
-    if (values.length > size_t.max - array.length_)
-        return false;
-    if (values.length == 0)
-        return true;
-
-    bool aliasesArray;
-    size_t sourceOffset;
-    if (values.length != 0 && array.data_ !is null)
-    {
-        const sourceAddress = cast(size_t) values.ptr;
-        const beginAddress = cast(size_t) array.data_;
-        const endAddress = beginAddress + array.length_ * T.sizeof;
-        aliasesArray = sourceAddress >= beginAddress && sourceAddress < endAddress;
-        if (aliasesArray)
-        {
-            const byteOffset = sourceAddress - beginAddress;
-            if (byteOffset % T.sizeof != 0 ||
-                values.length > array.length_ - byteOffset / T.sizeof)
-                return false;
-            sourceOffset = byteOffset / T.sizeof;
-            static if (!__traits(isPOD, T))
-                return false;
-        }
-    }
-
-    const oldLength = array.length_;
-    const newLength = oldLength + values.length;
-    if (!array.tryReserve(newLength))
-        return false;
-    static if (__traits(isPOD, T))
-    {
-        const following = oldLength - index;
-        if (following != 0)
-            memmove(array.data_ + index + values.length,
-                array.data_ + index, following * T.sizeof);
-        if (aliasesArray)
-        {
-            const sourceEnd = sourceOffset + values.length;
-            const leftCount = sourceOffset < index
-                ? (sourceEnd < index ? sourceEnd : index) - sourceOffset : 0;
-            const rightCount = values.length - leftCount;
-            if (leftCount != 0)
-                memmove(array.data_ + index, array.data_ + sourceOffset,
-                    leftCount * T.sizeof);
-            if (rightCount != 0)
-            {
-                const rightSource = sourceOffset + leftCount + values.length;
-                memmove(array.data_ + index + leftCount,
-                    array.data_ + rightSource, rightCount * T.sizeof);
-            }
-        }
-        else
-            memmove(array.data_ + index, values.ptr, values.length * T.sizeof);
-    }
-    else
-    {
-        size_t position = oldLength;
-        while (position > index)
-        {
-            --position;
-            constructMove(array.data_ + position + values.length, array.data_[position]);
-        }
-        foreach (offset, ref value; values)
-            constructCopy(array.data_ + index + offset, value);
-    }
-    array.length_ = newLength;
-    return true;
-}
-
-void insert(T)(ref Array!T array, size_t index, T value)
-{
-    if (!array.tryInsert(index, move(value)))
-        panic("Array allocation failed");
-}
-
-void insert(T)(ref Array!T array, size_t index, scope const(T)[] values) if (__traits(isCopyable, T))
-{
-    if (!array.tryInsert(index, values))
-        panic("Array allocation failed");
-}
-
-T pop(T)(ref Array!T array)
-{
-    require(array.length_ != 0, "cannot pop an empty Array");
-    --array.length_;
-    T result = void;
-    static if (__traits(isPOD, T))
-        result = array.data_[array.length_];
-    else
-        constructMove(&result, array.data_[array.length_]);
-    return result;
-}
-
-void clear(T)(ref Array!T array)
-{
-    destroyElements(array.data_, array.length_);
-    array.length_ = 0;
-}
-
-void removeAt(T)(ref Array!T array, size_t index)
-{
-    require(index < array.length_, "Array index out of bounds");
-    static if (__traits(isPOD, T))
-    {
-        const following = array.length_ - index - 1;
-        if (following != 0)
-            memmove(array.data_ + index, array.data_ + index + 1, following * T.sizeof);
-    }
-    else
-    {
-        destroyElement(array.data_ + index);
-        foreach (i; index .. array.length_ - 1)
-            constructMove(array.data_ + i, array.data_[i + 1]);
-    }
-    --array.length_;
-}
-
-void removeRange(T)(ref Array!T array, size_t index, size_t count)
-{
-    require(index <= array.length_, "Array range index out of bounds");
-    require(count <= array.length_ - index, "Array range count out of bounds");
-    if (count == 0)
-        return;
-    static if (__traits(isPOD, T))
-    {
-        const following = array.length_ - index - count;
-        if (following != 0)
-            memmove(array.data_ + index, array.data_ + index + count, following * T.sizeof);
-    }
-    else
-    {
-        destroyElements(array.data_ + index, count);
-        foreach (i; index .. array.length_ - count)
-            constructMove(array.data_ + i, array.data_[i + count]);
-    }
-    array.length_ -= count;
-}
-
-bool tryShrinkToFit(T)(ref Array!T array)
-{
-    if (array.length_ == array.capacity_)
-        return true;
-    if (array.length_ == 0)
-    {
-        array.resetAndRelease();
-        return true;
-    }
-    return array.trySetCapacity(array.length_);
-}
-
-void shrinkToFit(T)(ref Array!T array)
-{
-    if (!array.tryShrinkToFit())
-        panic("Array allocation failed");
-}
-
-void resetAndRelease(T)(ref Array!T array)
-{
-    destroyElements(array.data_, array.length_);
-    array.allocator_.deallocate(array.data_, array.capacity_);
-    array.data_ = null;
-    array.length_ = 0;
-    array.capacity_ = 0;
 }
 
 unittest
@@ -758,4 +851,196 @@ unittest
     assert(arrays.empty);
     arrays.resetAndRelease();
     assert(tracked.clean);
+}
+
+unittest
+{
+    import xtb.core.memory : AllocationRecord, Allocator,
+        InstrumentedAllocator, mallocAllocator;
+
+    static assert(ArrayUnmanaged!int.sizeof == 3 * size_t.sizeof);
+    static assert(Array!int.sizeof ==
+        ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
+    static assert(!__traits(isCopyable, ArrayUnmanaged!int));
+    static assert(!__traits(isCopyable, Array!int));
+    static assert(!__traits(isCopyable, Array!int.Released));
+    static assert(!__traits(compiles, () @safe {
+        Array!int.Released released;
+        ref ArrayUnmanaged!int storage = released.storage;
+    }));
+    static assert(__traits(compiles,
+        (scope const Array!int.Released* released) @safe {
+            const length = released.storage.length;
+        }));
+    static assert(!__traits(compiles, (ref Array!int.Released released) {
+        released.allocator = mallocAllocator();
+    }));
+    static assert(!__traits(compiles, (ref Array!int managed) {
+        ArrayUnmanaged!int storage = managed;
+    }));
+
+    ArrayUnmanaged!int zero;
+    zero.deinit(null);
+    zero.resetAndRelease(null);
+    assert(zero.empty && zero.capacity == 0);
+
+    AllocationRecord[16] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    {
+        Array!int values = Array!int.withCapacity(tracked.handle, 2);
+        values.append(10);
+        values.append(20);
+
+        Array!int.Released released = values.release();
+        assert(values.allocator is null);
+        assert(values.empty && values.capacity == 0);
+        assert(released.allocator is tracked.handle);
+        assert(released.storage.slice == [10, 20]);
+
+        appendReleasedValue(
+            released.storage,
+            released.allocator,
+            30,
+        );
+        assert(released.storage.slice == [10, 20, 30]);
+    }
+    assert(tracked.clean);
+
+    {
+        Array!int source = Array!int.fromSlice(
+            tracked.handle,
+            [1, 2, 3],
+        );
+        Array!int.Released released = source.release();
+        Array!int adopted = Array!int.adopt(&released);
+
+        assert(source.allocator is null && source.empty);
+        assert(released.allocator is null);
+        assert(released.storage.empty);
+        assert(adopted.allocator is tracked.handle);
+        assert(adopted.slice == [1, 2, 3]);
+    }
+    assert(tracked.clean);
+
+    {
+        Array!int source = Array!int.fromSlice(
+            tracked.handle,
+            [4, 5],
+        );
+        Array!int.Released released = source.release();
+
+        Allocator* allocator;
+        ArrayUnmanaged!int storage = released.extract(&allocator);
+        assert(allocator is tracked.handle);
+        assert(released.allocator is null);
+        assert(released.storage.empty);
+
+        storage.append(allocator, 6);
+        assert(storage.slice == [4, 5, 6]);
+        storage.deinit(allocator);
+    }
+    assert(tracked.clean);
+}
+
+unittest
+{
+    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
+        mallocAllocator;
+
+    AllocationRecord[64] managedRecords;
+    AllocationRecord[64] unmanagedRecords;
+    InstrumentedAllocator managedAllocator = InstrumentedAllocator.create(
+        mallocAllocator(),
+        managedRecords[],
+    );
+    InstrumentedAllocator unmanagedAllocator = InstrumentedAllocator.create(
+        mallocAllocator(),
+        unmanagedRecords[],
+    );
+
+    Array!int managed = Array!int.create(managedAllocator.handle);
+    ArrayUnmanaged!int unmanaged;
+
+    foreach (value; 0 .. 96)
+    {
+        assert(managed.tryAppend(value));
+        assert(unmanaged.tryAppend(unmanagedAllocator.handle, value));
+    }
+
+    int[4] inserted = [700, 701, 702, 703];
+    assert(managed.tryInsert(17, inserted[]));
+    assert(unmanaged.tryInsert(
+        unmanagedAllocator.handle,
+        17,
+        inserted[],
+    ));
+    managed.removeRange(9, 11);
+    unmanaged.removeRange(9, 11);
+    assert(managed.tryReserve(256));
+    assert(unmanaged.tryReserve(unmanagedAllocator.handle, 256));
+    assert(managed.tryShrinkToFit());
+    assert(unmanaged.tryShrinkToFit(unmanagedAllocator.handle));
+
+    assert(managed.slice == unmanaged.slice);
+    assert(managed.length == unmanaged.length);
+    assert(managed.capacity == unmanaged.capacity);
+    assert(managedAllocator.stats == unmanagedAllocator.stats);
+
+    const managedStatsBeforeClear = managedAllocator.stats;
+    const unmanagedStatsBeforeClear = unmanagedAllocator.stats;
+    managed.clear();
+    unmanaged.clear();
+    assert(managedAllocator.stats == managedStatsBeforeClear);
+    assert(unmanagedAllocator.stats == unmanagedStatsBeforeClear);
+
+    managed.deinit();
+    unmanaged.deinit(unmanagedAllocator.handle);
+    assert(managedAllocator.stats == unmanagedAllocator.stats);
+    assert(managedAllocator.clean && unmanagedAllocator.clean);
+}
+
+unittest
+{
+    import xtb.core.memory : AllocationRecord, Allocator,
+        InstrumentedAllocator, mallocAllocator;
+
+    Array!int zero;
+    Array!int.Released first = zero.release();
+    assert(zero.allocator is null && zero.empty);
+    assert(first.allocator is null && first.storage.empty);
+
+    Array!int adopted = Array!int.adopt(&first);
+    assert(first.allocator is null && first.storage.empty);
+    assert(adopted.allocator is null && adopted.empty);
+
+    Array!int.Released second = adopted.release();
+    Allocator* allocator = cast(Allocator*) 1;
+    ArrayUnmanaged!int storage = second.extract(&allocator);
+    assert(allocator is null);
+    assert(storage.empty && storage.capacity == 0);
+    assert(second.allocator is null && second.storage.empty);
+    storage.deinit(null);
+
+    AllocationRecord[8] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+    trackedDestructions = 0;
+    destructionOrder[] = 0;
+    {
+        Array!TrackedElement values =
+            Array!TrackedElement.create(tracked.handle);
+        values.append(TrackedElement(91));
+        auto released = values.release();
+        assert(values.allocator is null && values.empty);
+        assert(trackedDestructions == 0);
+    }
+    assert(trackedDestructions == 1);
+    assert(destructionOrder[0] == 91);
+    assert(tracked.clean && tracked.stats.invalidCalls == 0);
 }

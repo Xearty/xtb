@@ -3,10 +3,9 @@ module xtb.os.directory;
 nothrow @nogc:
 
 import xtb.core.panic : require;
-import xtb.core.array : Array, resize;
+import xtb.core.array : Array;
 import xtb.core.memory : Allocator;
-import xtb.core.string : String, StringBuf, append, asString, checkedCString,
-    clear, fromCString;
+import xtb.core.string : String, StringBuf, asString, fromCString;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
