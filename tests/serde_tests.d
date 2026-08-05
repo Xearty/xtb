@@ -3,6 +3,7 @@ module tests.serde_tests;
 import core.lifetime : move;
 import tests.serde_backend_contract : runSerdeBackendContracts;
 import xtb.core.array : Array, append;
+import xtb.core.hash_map : AddStatus, HashMap, find, tryAdd;
 import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
     mallocAllocator;
 import xtb.core.option : Option, set;
@@ -331,6 +332,81 @@ private struct ConflictingNames
     int field_name;
 }
 
+private struct NestedConflictingNames
+{
+    ConflictingNames nested;
+}
+
+private struct NestedConflictingNamesArray
+{
+    ConflictingNames[] nested;
+}
+
+private struct NestedConflictingNamesMap
+{
+    HashMap!(String, ConflictingNames) nested;
+}
+
+@fieldCase(KeyCase.snake)
+private struct TopLevelBorrowedItem
+{
+    @required String displayName;
+    int value;
+}
+
+@fieldCase(KeyCase.snake)
+private struct TopLevelOwnedItem
+{
+    @required StringBuf displayName;
+    int value;
+}
+
+private enum ConflictingAdapterRepresentation
+{
+    @rename("same") first,
+    @rename("same") second,
+}
+
+private struct ConflictingRepresentationAdapter
+{
+    alias Representation = ConflictingAdapterRepresentation;
+
+    static SerdeErrorKind encode(
+        scope const ref int value,
+        Representation* output,
+    ) nothrow @nogc
+    {
+        *output = value == 0 ? Representation.first : Representation.second;
+        return SerdeErrorKind.none;
+    }
+
+    static SerdeErrorKind decode(
+        scope const ref Representation value,
+        Allocator*,
+        int* output,
+    ) nothrow @nogc
+    {
+        *output = value == Representation.first ? 0 : 1;
+        return SerdeErrorKind.none;
+    }
+}
+
+private struct InvalidAdapterRepresentationDocument
+{
+    @withSerde!ConflictingRepresentationAdapter int value;
+}
+
+private struct HashMapDocument
+{
+    HashMap!(String, int) values;
+}
+
+private struct HashMapContainers
+{
+    HashMap!(String, int)[] values;
+    HashMap!(String, int)* pointer;
+}
+
 private struct StaticInitializer
 {
     String text = "static storage";
@@ -372,6 +448,45 @@ private struct OwnedOptionalValues
 }
 
 static assert(!__traits(compiles, validateSchema!ConflictingNames()));
+static assert(!__traits(compiles, validateSchema!NestedConflictingNames()));
+static assert(!__traits(compiles,
+        validateSchema!NestedConflictingNamesArray()));
+static assert(!__traits(compiles,
+        validateSchema!NestedConflictingNamesMap()));
+static assert(!__traits(compiles,
+        validateSchema!InvalidAdapterRepresentationDocument()));
+static assert(__traits(compiles, validateSchema!HashMapDocument()));
+static assert(__traits(compiles, validateBorrowedSchema!HashMapDocument()));
+static assert(__traits(compiles, validateBorrowedSchema!HashMapContainers()));
+static assert(!__traits(compiles, validateOwnedSchema!HashMapDocument()));
+static assert(__traits(compiles,
+        (ref Writer writer, ref HashMap!(String, int) values) {
+        writeJson(writer, values);
+        writeToml(writer, values);
+    }));
+static assert(!__traits(compiles,
+        (ref Writer writer, ref HashMap!(int, int) values) {
+        writeJson(writer, values);
+    }));
+static assert(__traits(compiles, (ref Writer writer, ref int[3] values) {
+        writeJson(writer, values);
+    }));
+static assert(__traits(compiles,
+        (Allocator* allocator, Deserialized!(int[])* output) {
+        readJson("[]", allocator, output);
+    }));
+static assert(__traits(compiles,
+        (Allocator* allocator, Deserialized!(HashMap!(String, int))* output) {
+        readJson("{}", allocator, output);
+        readToml("", allocator, output);
+    }));
+static assert(!__traits(compiles,
+        (Allocator* allocator, HashMap!(String, int)* output) {
+        readJson("{}", allocator, output);
+    }));
+static assert(!__traits(compiles, (ref Writer writer, ref int[3] values) {
+        writeToml(writer, values);
+    }));
 static assert(__traits(compiles, validateSchema!StaticInitializer()));
 static assert(__traits(compiles, validateOwnedSchema!OwnedDocument()));
 static assert(__traits(compiles, validateOwnedSchema!OwnedOptionalValues()));
@@ -1339,6 +1454,429 @@ private void testOwnedAllocationFailures() nothrow @nogc
     assert(reachedSuccess);
 }
 
+private void testJsonTopLevelValues() nothrow @nogc
+{
+    int[3] fixedValues = [1, 2, 3];
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    SerdeError error = writeJson(writer, fixedValues);
+    assert(error.ok);
+    assert(encoded == "[1,2,3]");
+
+    int[] borrowedValues = fixedValues[];
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, borrowedValues);
+    assert(error.ok);
+    assert(encoded == "[1,2,3]");
+
+    Deserialized!(TopLevelBorrowedItem[]) borrowedItems;
+    error = readJson(
+        "[{\"display_name\":\"alpha\",\"value\":1}," ~
+            "{\"display_name\":\"beta\",\"value\":2}]",
+        mallocAllocator(),
+        &borrowedItems,
+    );
+    assert(error.ok);
+    assert(borrowedItems.value.length == 2);
+    assert(borrowedItems.value[0].displayName.equal("alpha"));
+    assert(borrowedItems.value[1].value == 2);
+    borrowedItems.deinit();
+
+    Deserialized!(int[]) emptyValues;
+    error = readJson("[]", mallocAllocator(), &emptyValues);
+    assert(error.ok);
+    assert(emptyValues.value.length == 0);
+    emptyValues.deinit();
+
+    JsonReadOptions limitedOptions;
+    limitedOptions.limits.maxCollectionLength = 1;
+    Deserialized!(int[]) limitedValues;
+    error = readJson("[1,2]", mallocAllocator(), &limitedValues,
+        limitedOptions);
+    assert(error.kind == SerdeErrorKind.collectionLimit);
+    assert(limitedValues.empty);
+
+    int scalar;
+    error = readJson("42", mallocAllocator(), &scalar);
+    assert(error.ok);
+    assert(scalar == 42);
+
+    StringBuf text = StringBuf.create(mallocAllocator());
+    error = readJson("\"root text\"", mallocAllocator(), &text);
+    assert(error.ok);
+    assert(text == "root text");
+
+    int[3] decodedFixed = [9, 9, 9];
+    error = readJson("[4,5,6]", mallocAllocator(), &decodedFixed);
+    assert(error.ok);
+    assert(decodedFixed == [4, 5, 6]);
+    error = readJson("[7,8]", mallocAllocator(), &decodedFixed);
+    assert(error.kind == SerdeErrorKind.typeMismatch);
+    assert(decodedFixed == [4, 5, 6]);
+
+    Array!TopLevelOwnedItem ownedItems;
+    error = readJson(
+        "[{\"display_name\":\"owned\",\"value\":7}]",
+        mallocAllocator(),
+        &ownedItems,
+    );
+    assert(error.ok);
+    assert(ownedItems.length == 1);
+    assert(ownedItems[0].displayName == "owned");
+    assert(ownedItems[0].value == 7);
+    error = readJson(
+        "[{\"display_name\":8,\"value\":9}]",
+        mallocAllocator(),
+        &ownedItems,
+    );
+    assert(error.kind == SerdeErrorKind.typeMismatch);
+    assert(ownedItems.length == 1);
+    assert(ownedItems[0].displayName == "owned");
+    assert(ownedItems[0].value == 7);
+
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 12)
+    {
+        AllocationRecord[48] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        Deserialized!(int[]) allocatedValues;
+        error = readJson("[1,2,3]", allocator.handle, &allocatedValues);
+        if (error.ok)
+        {
+            assert(allocatedValues.value.length == 3);
+            allocatedValues.deinit();
+            reachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(allocatedValues.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+
+    ownedItems.deinit();
+    text.deinit();
+    encoded.deinit();
+}
+
+private void testJsonHashMaps() nothrow @nogc
+{
+    HashMap!(String, int) source = HashMap!(String, int).create(
+        mallocAllocator());
+    assert(source.tryAdd("one", 1) == AddStatus.inserted);
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    SerdeError error = writeJson(writer, source);
+    assert(error.ok);
+    assert(encoded == "{\"one\":1}");
+
+    HashMap!(String, int) emptySource = HashMap!(String, int).create(
+        mallocAllocator());
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, emptySource);
+    assert(error.ok);
+    assert(encoded == "{}");
+
+    Deserialized!(HashMap!(String, int)) decoded;
+    error = readJson("{}", mallocAllocator(), &decoded);
+    assert(error.ok);
+    assert(decoded.value.empty);
+    decoded.deinit();
+
+    error = readJson("{\"one\":1,\"two\":2,\"a\\tb\":3}",
+        mallocAllocator(), &decoded);
+    assert(error.ok);
+    const one = decoded.value.find("one");
+    const two = decoded.value.find("two");
+    const escaped = decoded.value.find("a\tb");
+    assert(one !is null && *one == 1);
+    assert(two !is null && *two == 2);
+    assert(escaped !is null && *escaped == 3);
+    decoded.deinit();
+
+    error = readJson("{\"same\":1,\"same\":2}", mallocAllocator(),
+        &decoded);
+    assert(error.kind == SerdeErrorKind.duplicateField);
+    assert(decoded.empty);
+    error = readJson("{\"same\":1,\"s\\u0061me\":2}",
+        mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.duplicateField);
+    assert(decoded.empty);
+
+    JsonReadOptions limited;
+    limited.limits.maxCollectionLength = 1;
+    error = readJson("{\"one\":1,\"two\":2}", mallocAllocator(),
+        &decoded, limited);
+    assert(error.kind == SerdeErrorKind.collectionLimit);
+    assert(decoded.empty);
+
+    alias NestedMap = HashMap!(String, HashMap!(String, int));
+    Deserialized!NestedMap nested;
+    error = readJson("{\"outer\":{\"inner\":7}}", mallocAllocator(),
+        &nested);
+    assert(error.ok);
+    const innerMap = nested.value.find("outer");
+    assert(innerMap !is null);
+    const innerValue = (*innerMap).find("inner");
+    assert(innerValue !is null && *innerValue == 7);
+    nested.deinit();
+
+    Deserialized!(HashMap!(String, TopLevelBorrowedItem)) itemMap;
+    error = readJson(
+        "{\"item\":{\"display_name\":\"mapped\",\"value\":9}}",
+        mallocAllocator(), &itemMap);
+    assert(error.ok);
+    const item = itemMap.value.find("item");
+    assert(item !is null);
+    assert(item.displayName.equal("mapped"));
+    assert(item.value == 9);
+    itemMap.deinit();
+
+    Deserialized!HashMapContainers containers;
+    error = readJson(
+        "{\"values\":[{\"first\":1},{\"second\":2}]," ~
+            "\"pointer\":{\"third\":3}}",
+        mallocAllocator(), &containers);
+    assert(error.ok);
+    assert(containers.value.values.length == 2);
+    const first = containers.value.values[0].find("first");
+    const second = containers.value.values[1].find("second");
+    const third = (*containers.value.pointer).find("third");
+    assert(first !is null && *first == 1);
+    assert(second !is null && *second == 2);
+    assert(third !is null && *third == 3);
+    containers.deinit();
+
+    bool reachedContainerSuccess;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        Deserialized!HashMapContainers allocatedContainers;
+        error = readJson(
+            "{\"values\":[{\"first\":1},{\"second\":2}]," ~
+                "\"pointer\":{\"third\":3}}",
+            allocator.handle, &allocatedContainers);
+        if (error.ok)
+        {
+            allocatedContainers.deinit();
+            reachedContainerSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(allocatedContainers.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedContainerSuccess)
+            break;
+    }
+    assert(reachedContainerSuccess);
+
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 16)
+    {
+        AllocationRecord[64] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        Deserialized!(HashMap!(String, int)) allocated;
+        error = readJson("{\"one\":1,\"two\":2}", allocator.handle,
+            &allocated);
+        if (error.ok)
+        {
+            allocated.deinit();
+            reachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(allocated.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+
+    emptySource.deinit();
+    source.deinit();
+    encoded.deinit();
+}
+
+private void testTomlHashMaps() nothrow @nogc
+{
+    HashMap!(String, int) source = HashMap!(String, int).create(
+        mallocAllocator());
+    assert(source.tryAdd("one", 1) == AddStatus.inserted);
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    SerdeError error = writeToml(writer, source);
+    assert(error.ok);
+    assert(encoded == "one = 1");
+
+    HashMap!(String, int) emptySource = HashMap!(String, int).create(
+        mallocAllocator());
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, emptySource);
+    assert(error.ok);
+    assert(encoded.empty);
+
+    Deserialized!(HashMap!(String, int)) decoded;
+    error = readToml("", mallocAllocator(), &decoded);
+    assert(error.ok);
+    assert(decoded.value.empty);
+    decoded.deinit();
+
+    error = readToml("one = 1\n\"a.b\" = 2\n", mallocAllocator(),
+        &decoded);
+    assert(error.ok);
+    const one = decoded.value.find("one");
+    const dotted = decoded.value.find("a.b");
+    assert(one !is null && *one == 1);
+    assert(dotted !is null && *dotted == 2);
+    decoded.deinit();
+
+    error = readToml("same = 1\nsame = 2\n", mallocAllocator(), &decoded);
+    assert(error.kind == SerdeErrorKind.duplicateField);
+    assert(decoded.empty);
+    error = readToml("same = 1\n\"same\" = 2\n", mallocAllocator(),
+        &decoded);
+    assert(error.kind == SerdeErrorKind.duplicateField);
+    assert(decoded.empty);
+
+    TomlReadOptions limited;
+    limited.limits.maxCollectionLength = 1;
+    error = readToml("one = 1\ntwo = 2\n", mallocAllocator(), &decoded,
+        limited);
+    assert(error.kind == SerdeErrorKind.collectionLimit);
+    assert(decoded.empty);
+    error = readToml("[section]\nvalue = 1\n", mallocAllocator(),
+        &decoded);
+    assert(error.kind == SerdeErrorKind.unsupportedValue);
+    assert(decoded.empty);
+
+    HashMapDocument document;
+    document.values = HashMap!(String, int).create(mallocAllocator());
+    assert(document.values.tryAdd("one", 1) == AddStatus.inserted);
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, document);
+    assert(error.ok);
+    assert(encoded == "values = { one = 1 }");
+
+    Deserialized!HashMapDocument decodedDocument;
+    error = readToml("values = { one = 1, \"a.b\" = 2 }",
+        mallocAllocator(), &decodedDocument);
+    assert(error.ok);
+    const nestedOne = decodedDocument.value.values.find("one");
+    const nestedDotted = decodedDocument.value.values.find("a.b");
+    assert(nestedOne !is null && *nestedOne == 1);
+    assert(nestedDotted !is null && *nestedDotted == 2);
+    decodedDocument.deinit();
+
+    Deserialized!(HashMap!(String, TopLevelBorrowedItem)) itemMap;
+    error = readToml(
+        "item = { display_name = \"mapped\", value = 9 }\n",
+        mallocAllocator(), &itemMap);
+    assert(error.ok);
+    const item = itemMap.value.find("item");
+    assert(item !is null);
+    assert(item.displayName.equal("mapped"));
+    assert(item.value == 9);
+    itemMap.deinit();
+
+    Deserialized!HashMapContainers containers;
+    error = readToml(
+        "values = [{ first = 1 }, { second = 2 }]\n" ~
+            "pointer = { third = 3 }\n",
+        mallocAllocator(), &containers);
+    assert(error.ok);
+    assert(containers.value.values.length == 2);
+    const first = containers.value.values[0].find("first");
+    const second = containers.value.values[1].find("second");
+    const third = (*containers.value.pointer).find("third");
+    assert(first !is null && *first == 1);
+    assert(second !is null && *second == 2);
+    assert(third !is null && *third == 3);
+    containers.deinit();
+
+    bool reachedContainerSuccess;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        Deserialized!HashMapContainers allocatedContainers;
+        error = readToml(
+            "values = [{ first = 1 }, { second = 2 }]\n" ~
+                "pointer = { third = 3 }\n",
+            allocator.handle, &allocatedContainers);
+        if (error.ok)
+        {
+            allocatedContainers.deinit();
+            reachedContainerSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(allocatedContainers.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedContainerSuccess)
+            break;
+    }
+    assert(reachedContainerSuccess);
+
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 16)
+    {
+        AllocationRecord[64] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        Deserialized!(HashMap!(String, int)) allocated;
+        error = readToml("one = 1\ntwo = 2\n", allocator.handle,
+            &allocated);
+        if (error.ok)
+        {
+            allocated.deinit();
+            reachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(allocated.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+
+    document.values.deinit();
+    emptySource.deinit();
+    source.deinit();
+    encoded.deinit();
+}
+
 extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
@@ -1348,12 +1886,15 @@ extern (C) int main()
     testJsonTaggedUnions();
     testTomlTaggedUnions();
     testJsonRoundTrip();
+    testJsonTopLevelValues();
+    testJsonHashMaps();
     testJsonPolicies();
     testJsonUnicodeAndNumbers();
     testJsonCasingAndOutputFailure();
     testJsonAllocationFailures();
     testJsonOptions();
     testTomlRoundTrip();
+    testTomlHashMaps();
     testTomlTablesAndSyntax();
     testTomlAllocationFailures();
     testTomlOptions();

@@ -6,9 +6,10 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite, isnan, signbit;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import core.lifetime : move;
+import core.lifetime : emplace, move;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array : Array, tryResize;
+import xtb.core.hash_map : AddStatus, HashMap, find, tryAdd;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.option : Option;
 import xtb.core.panic : require;
@@ -27,11 +28,12 @@ import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified, fie
     applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName,
     discriminantIndex, DiscriminantType, fieldMatches, fieldName,
     fieldShouldOmit, fieldAdapterCount, fieldDefaultValueCount, FieldAdapter,
-    isArray, isDefaultValueAttribute, isDynamicArray, isFixedArray, isOption,
-    isSerdeStruct, isString, isStringBuf, isTaggedUnion, initializeOwnedValue,
-    OptionElement, payloadIndex, PayloadType, schemaCase, serializedFieldCount,
-    taggedUnionLayout, unionCaseIsActive, UnionMemberType,
-    validateBorrowedSchema, validateOwnedSchema, validateSchema;
+    HashMapKey, HashMapValue, isArray, isDefaultValueAttribute, isDynamicArray,
+    isFixedArray, isHashMap, isOption, isSerdeStruct, isString, isStringBuf,
+    isTaggedUnion, initializeOwnedValue, OptionElement, payloadIndex, PayloadType,
+    schemaCase, serializedFieldCount, taggedUnionLayout, unionCaseIsActive,
+    UnionMemberType, validateBorrowedSchema, validateBorrowedValue,
+    validateOwnedSchema, validateSchema, validateValueSchema;
 
 struct TomlWriteOptions
 {
@@ -65,9 +67,12 @@ SerdeError writeToml(T)(
     ref Writer writer,
     scope const ref T value,
     TomlWriteOptions options = TomlWriteOptions.init,
-)
+) if (isSerdeStruct!T || isHashMap!T)
 {
-    validateSchema!T();
+    static if (isHashMap!T)
+        validateValueSchema!T();
+    else
+        validateSchema!T();
     TomlEncoder encoder;
     encoder.writer = &writer;
     encoder.options = options;
@@ -83,9 +88,12 @@ SerdeError readToml(T)(
     Allocator* allocator,
     Deserialized!T* output,
     TomlReadOptions options = TomlReadOptions.init,
-)
+) if (isSerdeStruct!T || isHashMap!T)
 {
-    validateBorrowedSchema!T();
+    static if (isHashMap!T)
+        validateBorrowedValue!T();
+    else
+        validateBorrowedSchema!T();
     require(options.limits.maxDepth != 0, "TOML max depth must be nonzero");
     require(options.limits.maxCollectionLength != 0,
         "TOML collection limit must be nonzero");
@@ -101,7 +109,9 @@ SerdeError readToml(T)(
     parser.options = options;
     parser.line = 1;
     parser.column = 1;
-    static if (isTaggedUnion!T)
+    static if (isHashMap!T)
+        parseHashMapDocument(parser, value);
+    else static if (isTaggedUnion!T)
         decodeTaggedDocument(parser, value);
     else
     {
@@ -216,6 +226,21 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
+    else static if (isHashMap!U)
+    {
+        if (value.length != expected.length)
+            return false;
+        auto items = value.pointerItems();
+        while (!items.empty)
+        {
+            const expectedValue = expected.find(*items.front.key);
+            if (expectedValue is null ||
+                !valuesEqual(*items.front.value, *expectedValue))
+                return false;
+            items.popFront();
+        }
+        return true;
+    }
     else static if (is(U == Pointee*, Pointee))
         return value is expected;
     else static if (isFixedArray!U)
@@ -265,7 +290,9 @@ private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
 
 private void encodeRoot(T)(ref TomlEncoder encoder, scope const ref T value)
 {
-    static if (isTaggedUnion!T)
+    static if (isHashMap!T)
+        encodeHashMapRoot(encoder, value);
+    else static if (isTaggedUnion!T)
         encodeTaggedRoot(encoder, value);
     else
     {
@@ -280,6 +307,25 @@ private void encodeRoot(T)(ref TomlEncoder encoder, scope const ref T value)
                     encodeRootField!(T, index)(encoder, value.tupleof[index], &wrote);
             }
         }
+    }
+}
+
+private void encodeHashMapRoot(K, V, Hasher, Equal)(
+    ref TomlEncoder encoder,
+    scope const ref HashMap!(K, V, Hasher, Equal) value,
+)
+{
+    auto items = value.pointerItems();
+    bool wrote;
+    while (!items.empty)
+    {
+        if (wrote)
+            encoder.writer.put('\n');
+        encodeKeyText(encoder, *items.front.key, KeyCase.preserve);
+        encoder.writer.put(" = ");
+        encodeValue(encoder, *items.front.value, 0);
+        wrote = true;
+        items.popFront();
     }
 }
 
@@ -458,10 +504,34 @@ private void encodeValue(T)(ref TomlEncoder encoder, scope const ref T value, si
         encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
+    else static if (isHashMap!U)
+        encodeHashMapInline(encoder, value, depth);
     else static if (isTaggedUnion!U)
         encodeTaggedInline(encoder, value, depth);
     else static if (isSerdeStruct!U)
         encodeInlineTable(encoder, value, depth);
+}
+
+private void encodeHashMapInline(K, V, Hasher, Equal)(
+    ref TomlEncoder encoder,
+    scope const ref HashMap!(K, V, Hasher, Equal) value,
+    size_t depth,
+)
+{
+    encoder.writer.put("{ ");
+    auto items = value.pointerItems();
+    bool wrote;
+    while (!items.empty)
+    {
+        if (wrote)
+            encoder.writer.put(", ");
+        encodeKeyText(encoder, *items.front.key, KeyCase.preserve);
+        encoder.writer.put(" = ");
+        encodeValue(encoder, *items.front.value, depth + 1);
+        wrote = true;
+        items.popFront();
+    }
+    encoder.writer.put(wrote ? " }" : "}");
 }
 
 private void encodeTaggedInline(T)(
@@ -1201,6 +1271,66 @@ private void finishDocumentEntry(ref TomlParser parser)
     parser.spaceAndComments();
 }
 
+private void parseHashMapDocument(K, V, Hasher, Equal)(
+    ref TomlParser parser,
+    HashMap!(K, V, Hasher, Equal)* output,
+)
+{
+    alias Map = HashMap!(K, V, Hasher, Equal);
+    static assert(is(Unqualified!K == String));
+    Map values = Map.create(parser.allocator);
+    parser.spaceAndComments();
+    size_t assignments;
+    while (!parser.atEnd && parser.error.ok)
+    {
+        if (parser.peek == '[')
+        {
+            parser.fail(SerdeErrorKind.unsupportedValue);
+            break;
+        }
+        if (assignments++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            break;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        if (parser.error.ok && keyLength != 1)
+            parser.fail(SerdeErrorKind.unsupportedValue);
+        if (parser.error.ok)
+            ownParsedKey(parser, &key[0]);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        V value;
+        if (parser.error.ok)
+            decodeValue(parser, &value, 0);
+        if (parser.error.ok)
+        {
+            final switch (values.tryAdd(key[0].value, move(value)))
+            {
+                case AddStatus.inserted:
+                    key[0].owned = false;
+                    break;
+                case AddStatus.alreadyPresent:
+                    parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+                    break;
+                case AddStatus.outOfMemory:
+                    parser.fail(SerdeErrorKind.allocationFailure);
+                    break;
+            }
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (parser.error.ok)
+            finishDocumentEntry(parser);
+    }
+    if (parser.error.ok)
+        move(values, *output);
+}
+
 private void parseDocument(T)(ref TomlParser parser, T* output, bool* seen)
 {
     parser.spaceAndComments();
@@ -1360,6 +1490,24 @@ private void clearKeys(ref TomlParser parser, ParsedKey[] keys, size_t length)
     }
 }
 
+private bool ownParsedKey(ref TomlParser parser, ParsedKey* key)
+{
+    if (key.owned)
+        return true;
+    char* copy = parser.allocator.tryAllocate!char(key.value.length + 1);
+    if (copy is null)
+    {
+        parser.fail(SerdeErrorKind.allocationFailure);
+        return false;
+    }
+    foreach (index, character; key.value)
+        copy[index] = character;
+    copy[key.value.length] = '\0';
+    key.value = copy[0 .. key.value.length];
+    key.owned = true;
+    return true;
+}
+
 private void decodePath(T)(
     ref TomlParser parser,
     T* output,
@@ -1446,7 +1594,7 @@ private void decodePathField(T, size_t index)(
                 parser.fail(SerdeErrorKind.allocationFailure);
                 return;
             }
-            *output.tupleof[index] = TaggedPointee.init;
+            emplace(output.tupleof[index]);
             applySchemaDefaults(output.tupleof[index]);
             decodeTaggedInline(parser, output.tupleof[index], 0);
         }
@@ -1469,7 +1617,7 @@ private void decodePathField(T, size_t index)(
                 parser.fail(SerdeErrorKind.allocationFailure);
                 return;
             }
-            *output.tupleof[index] = Pointee.init;
+            emplace(output.tupleof[index]);
             applySchemaDefaults(output.tupleof[index]);
             decodeInlineTable(parser, output.tupleof[index], 0, seen + ordinal + 1);
         }
@@ -1509,7 +1657,7 @@ private void decodePathField(T, size_t index)(
                 parser.fail(SerdeErrorKind.allocationFailure);
                 return;
             }
-            *output.tupleof[index] = Pointee.init;
+            emplace(output.tupleof[index]);
             applySchemaDefaults(output.tupleof[index]);
         }
         seen[ordinal] = true;
@@ -1618,6 +1766,8 @@ private void decodeValue(T)(ref TomlParser parser, T* output, size_t depth)
         decodeDynamicArray(parser, output, depth);
     else static if (isFixedArray!U)
         decodeFixedArray(parser, output, depth);
+    else static if (isHashMap!U)
+        decodeHashMapInline(parser, cast(U*) output, depth);
     else static if (isTaggedUnion!U)
         decodeTaggedInline(parser, output, depth);
     else static if (isSerdeStruct!U)
@@ -2019,6 +2169,85 @@ private void decodeInternalTaggedInlineCase(T, size_t caseIndex)(
             &output.tupleof[payloadIndex!T].tupleof[caseIndex], seen.ptr, 0);
 }
 
+private void decodeHashMapInline(K, V, Hasher, Equal)(
+    ref TomlParser parser,
+    HashMap!(K, V, Hasher, Equal)* output,
+    size_t depth,
+)
+{
+    alias Map = HashMap!(K, V, Hasher, Equal);
+    static assert(is(Unqualified!K == String));
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    Map values = Map.create(parser.allocator);
+    parser.horizontalSpace();
+    if (parser.consume('}'))
+    {
+        move(values, *output);
+        return;
+    }
+    size_t count;
+    for (;;)
+    {
+        if (count++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        if (parser.error.ok && keyLength != 1)
+            parser.fail(SerdeErrorKind.unsupportedValue);
+        if (parser.error.ok)
+            ownParsedKey(parser, &key[0]);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+        V value;
+        if (parser.error.ok)
+            decodeValue(parser, &value, depth + 1);
+        if (parser.error.ok)
+        {
+            final switch (values.tryAdd(key[0].value, move(value)))
+            {
+                case AddStatus.inserted:
+                    key[0].owned = false;
+                    break;
+                case AddStatus.alreadyPresent:
+                    parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+                    break;
+                case AddStatus.outOfMemory:
+                    parser.fail(SerdeErrorKind.allocationFailure);
+                    break;
+            }
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (!parser.error.ok)
+            return;
+        parser.horizontalSpace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.horizontalSpace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    move(values, *output);
+}
+
 private void decodeInlineTable(T)(
     ref TomlParser parser,
     T* output,
@@ -2097,7 +2326,7 @@ private void decodePointer(T)(ref TomlParser parser, T** output, size_t depth)
         parser.fail(SerdeErrorKind.allocationFailure);
         return;
     }
-    *value = T.init;
+    emplace(value);
     *output = value;
     decodeValue(parser, value, depth);
 }
@@ -2338,7 +2567,7 @@ private void decodeDynamicArray(T)(ref TomlParser parser, T* output, size_t dept
         return;
     }
     foreach (index; 0 .. count)
-        values[index] = Element.init;
+        emplace(values + index);
     *output = values[0 .. count];
     parser.consume('[');
     parser.valueSpace();

@@ -6,9 +6,10 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import core.lifetime : move;
+import core.lifetime : emplace, move;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array : Array, tryResize;
+import xtb.core.hash_map : AddStatus, HashMap, find, tryAdd;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.option : Option, reset;
 import xtb.core.panic : require;
@@ -27,11 +28,12 @@ import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
     applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName, fieldHas,
     fieldMatches, fieldName, fieldOrdinal, fieldShouldOmit, discriminantIndex,
     DiscriminantType, fieldAdapterCount, fieldDefaultValueCount, FieldAdapter,
-    isArray, isDefaultValueAttribute, isDynamicArray, isFixedArray, isOption,
-    isSerdeStruct, isString, isStringBuf, isTaggedUnion, initializeOwnedValue,
-    OptionElement, payloadIndex, PayloadType, schemaCase, serializedFieldCount,
-    taggedUnionLayout, unionCaseIsActive, UnionMemberType,
-    validateBorrowedSchema, validateOwnedSchema, validateSchema;
+    HashMapKey, HashMapValue, isArray, isDefaultValueAttribute, isDynamicArray,
+    isFixedArray, isHashMap, isOption, isOwnedSerdeValue, isSerdeStruct,
+    isString, isStringBuf, isTaggedUnion, initializeOwnedValue, OptionElement,
+    payloadIndex, PayloadType, schemaCase,
+    serializedFieldCount, taggedUnionLayout, unionCaseIsActive, UnionMemberType,
+    validateBorrowedValue, validateOwnedValue, validateValueSchema;
 
 struct JsonWriteOptions
 {
@@ -69,9 +71,7 @@ SerdeError writeJson(T)(
     JsonWriteOptions options = JsonWriteOptions.init,
 )
 {
-    validateSchema!T();
-    require(options.keyCase != KeyCase.schema || schemaCase!T != KeyCase.schema,
-        "invalid JSON key casing");
+    validateValueSchema!T();
     JsonEncoder encoder;
     encoder.writer = &writer;
     encoder.options = options;
@@ -89,7 +89,7 @@ SerdeError readJson(T)(
     JsonReadOptions options = JsonReadOptions.init,
 )
 {
-    validateBorrowedSchema!T();
+    validateBorrowedValue!T();
     require(options.limits.maxDepth != 0, "JSON max depth must be nonzero");
     require(options.limits.maxCollectionLength != 0,
         "JSON collection limit must be nonzero");
@@ -127,9 +127,9 @@ SerdeError readJson(T)(
     Allocator* allocator,
     T* output,
     JsonReadOptions options = JsonReadOptions.init,
-) if (isSerdeStruct!T)
+) if (isOwnedSerdeValue!T)
 {
-    validateOwnedSchema!T();
+    validateOwnedValue!T();
     require(allocator !is null && *allocator !is null,
         "serde requires a valid allocator");
     require(output !is null, "owned JSON output pointer is null");
@@ -229,6 +229,21 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
+    else static if (isHashMap!U)
+    {
+        if (value.length != expected.length)
+            return false;
+        auto items = value.pointerItems();
+        while (!items.empty)
+        {
+            const expectedValue = expected.find(*items.front.key);
+            if (expectedValue is null ||
+                !valuesEqual(*items.front.value, *expectedValue))
+                return false;
+            items.popFront();
+        }
+        return true;
+    }
     else static if (is(U == Pointee*, Pointee))
         return value is expected;
     else static if (isFixedArray!U)
@@ -311,6 +326,8 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
         encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
+    else static if (isHashMap!U)
+        encodeHashMap(encoder, value, depth);
     else static if (isTaggedUnion!U)
         encodeTaggedUnion(encoder, value, depth);
     else static if (isSerdeStruct!U)
@@ -522,6 +539,36 @@ private void encodeArray(Element)(
     encoder.writer.put(']');
 }
 
+private void encodeHashMap(K, V, Hasher, Equal)(
+    ref JsonEncoder encoder,
+    scope const ref HashMap!(K, V, Hasher, Equal) value,
+    size_t depth,
+)
+{
+    if (depth >= encoder.options.maxDepth)
+    {
+        encoder.fail(SerdeErrorKind.depthLimit);
+        return;
+    }
+    encoder.writer.put('{');
+    auto items = value.pointerItems();
+    size_t index;
+    while (!items.empty)
+    {
+        if (index++ != 0)
+            encoder.writer.put(',');
+        if (encoder.options.pretty)
+            encoder.newline(depth + 1);
+        encodeString(encoder, *items.front.key);
+        encoder.writer.put(encoder.options.pretty ? ": " : ":");
+        encodeValue(encoder, *items.front.value, depth + 1);
+        items.popFront();
+    }
+    if (encoder.options.pretty && value.length != 0)
+        encoder.newline(depth);
+    encoder.writer.put('}');
+}
+
 private void encodeString(ref JsonEncoder encoder, scope String value)
 {
     if (!isValidUtf8(value))
@@ -712,6 +759,8 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeDynamicArray(parser, output, depth);
     else static if (isFixedArray!U)
         decodeFixedArray(parser, output, depth);
+    else static if (isHashMap!U)
+        decodeHashMap(parser, cast(U*) output, depth);
     else static if (isTaggedUnion!U)
         decodeTaggedUnion(parser, output, depth);
     else static if (isSerdeStruct!U)
@@ -1281,7 +1330,7 @@ private void decodePointer(T)(ref JsonParser parser, T** output, size_t depth)
         parser.fail(SerdeErrorKind.allocationFailure);
         return;
     }
-    *value = T.init;
+    emplace(value);
     *output = value;
     decodeValue(parser, value, depth);
 }
@@ -1509,7 +1558,7 @@ private void decodeDynamicArray(T)(ref JsonParser parser, T* output, size_t dept
         return;
     }
     foreach (index; 0 .. count)
-        values[index] = Element.init;
+        emplace(values + index);
     *output = values[0 .. count];
 
     parser.consume('[');
@@ -1575,6 +1624,91 @@ private void decodeArray(Element)(
     }
     if (count == 0)
         parser.consume(']');
+    move(values, *output);
+}
+
+private void decodeHashMap(K, V, Hasher, Equal)(
+    ref JsonParser parser,
+    HashMap!(K, V, Hasher, Equal)* output,
+    size_t depth,
+)
+{
+    alias Map = HashMap!(K, V, Hasher, Equal);
+    static assert(is(Unqualified!K == String));
+    if (depth >= parser.options.limits.maxDepth)
+    {
+        parser.fail(SerdeErrorKind.depthLimit);
+        return;
+    }
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+
+    Map values = Map.create(parser.allocator);
+    parser.skipWhitespace();
+    if (parser.consume('}'))
+    {
+        move(values, *output);
+        return;
+    }
+
+    size_t count;
+    for (;;)
+    {
+        if (count++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        const keyStart = parser.position;
+        String key;
+        bool keyOwned;
+        decodeStringToken(parser, &key, &keyOwned, true);
+        if (!parser.error.ok)
+            return;
+        require(keyOwned, "HashMap key was not allocated");
+        const rawKey = parser.input[keyStart + 1 .. parser.position - 1];
+        parser.skipWhitespace();
+        if (!parser.consume(':'))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+
+        V value;
+        decodeValue(parser, &value, depth + 1);
+        if (!parser.error.ok)
+            return;
+        final switch (values.tryAdd(key, move(value)))
+        {
+            case AddStatus.inserted:
+                break;
+            case AddStatus.alreadyPresent:
+                parser.fail(SerdeErrorKind.duplicateField, rawKey);
+                return;
+            case AddStatus.outOfMemory:
+                parser.fail(SerdeErrorKind.allocationFailure);
+                return;
+        }
+
+        parser.skipWhitespace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
     move(values, *output);
 }
 

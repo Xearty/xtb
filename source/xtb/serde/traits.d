@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array : Array;
+import xtb.core.hash_map : HashMap;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
 import xtb.core.string : StringBuf;
@@ -42,6 +43,29 @@ template OptionElement(T)
 
 enum isOption(T) = is(Unqualified!T == Option!Element, Element);
 
+template HashMapKey(T)
+{
+    static if (is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
+            Key, Value, Hasher, Equal))
+        alias HashMapKey = Key;
+    else
+        static assert(false, T.stringof ~ " is not a HashMap");
+}
+
+template HashMapValue(T)
+{
+    static if (is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
+            Key, Value, Hasher, Equal))
+        alias HashMapValue = Value;
+    else
+        static assert(false, T.stringof ~ " is not a HashMap");
+}
+
+enum isHashMap(T) = is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
+    Key, Value, Hasher, Equal);
+
+private enum isSerdeHashMapKey(T) = is(Unqualified!T == String);
+
 enum isDynamicArray(T) = is(Unqualified!T == Element[], Element) &&
     !is(Element == char) && !is(Element == const(char)) &&
     !is(Element == immutable(char));
@@ -53,7 +77,7 @@ enum isFixedArray(T) = is(Unqualified!T == Element[N], Element, size_t N) &&
 enum isSerdeUnion(T) = is(Unqualified!T == union);
 
 enum isSerdeStruct(T) = is(Unqualified!T == struct) && !isStringBuf!T &&
-    !isArray!T && !isOption!T &&
+    !isArray!T && !isOption!T && !isHashMap!T &&
     !__traits(hasMember, Unqualified!T, "__dtor");
 
 private bool containsAttribute(A, Attributes...)(Attributes attributes)
@@ -446,6 +470,9 @@ private bool supportedValue(T)() pure @safe
         return supportedValue!(typeof(U.init[0]));
     else static if (isArray!U)
         return supportedValue!(ArrayElement!U);
+    else static if (isHashMap!U)
+        return isSerdeHashMapKey!(HashMapKey!U) &&
+            supportedValue!(HashMapValue!U);
     else static if (isFixedArray!U)
         return supportedValue!(typeof(U.init[0]));
     else static if (isTaggedUnion!U)
@@ -470,6 +497,36 @@ private bool supportedValue(T)() pure @safe
 }
 
 enum isSupportedValue(T) = supportedValue!T;
+
+package(xtb.serde) void validateValueSchema(T)()
+{
+    alias U = Unqualified!T;
+    static if (isHashMap!U)
+    {
+        static assert(isSerdeHashMapKey!(HashMapKey!U),
+            "serde HashMap keys must have type String");
+        validateValueSchema!(HashMapValue!U)();
+    }
+    else
+    {
+        static assert(isSupportedValue!U,
+            "unsupported serde value type: " ~ U.stringof);
+        static if (is(U == enum))
+            validateEnumSchema!U();
+        else static if (isOption!U)
+            validateValueSchema!(OptionElement!U)();
+        else static if (is(U == Pointee*, Pointee))
+            validateValueSchema!Pointee();
+        else static if (isDynamicArray!U)
+            validateValueSchema!(typeof(U.init[0]))();
+        else static if (isArray!U)
+            validateValueSchema!(ArrayElement!U)();
+        else static if (isFixedArray!U)
+            validateValueSchema!(typeof(U.init[0]))();
+        else static if (isSerdeStruct!U)
+            validateSchema!U();
+    }
+}
 
 void validateSchema(T)()
 {
@@ -589,11 +646,10 @@ private void validateTaggedUnionSchema(T)()
                         "@caseOf value must have the discriminant enum type");
             static assert(borrowedValue!C,
                 "raw tagged unions currently require borrowed payload cases");
+            validateValueSchema!C();
             static if (taggedUnionLayout!U == TagLayout.internal)
                 static assert(isSerdeStruct!C && !isTaggedUnion!C,
                     "internally tagged union cases must be ordinary structs");
-            static if (isSerdeStruct!C)
-                validateSchema!C();
             static foreach (other; index + 1 .. P.tupleof.length)
                 static assert(!unionCasesOverlap!(P, index, other, Tag),
                     "tagged union cases must use distinct discriminant values");
@@ -647,6 +703,9 @@ private bool borrowedValue(T)() pure @safe
         return borrowedValue!Pointee;
     else static if (isDynamicArray!U)
         return borrowedValue!(typeof(U.init[0]));
+    else static if (isHashMap!U)
+        return isSerdeHashMapKey!(HashMapKey!U) &&
+            borrowedValue!(HashMapValue!U);
     else static if (isFixedArray!U)
         return borrowedValue!(typeof(U.init[0]));
     else static if (isTaggedUnion!U)
@@ -657,7 +716,7 @@ private bool borrowedValue(T)() pure @safe
             result = result && borrowedValue!(UnionMemberType!(P, index));
         return result;
     }
-    else static if (isSerdeStruct!U && !hasElaborateDestructor!U)
+    else static if (isSerdeStruct!U)
     {
         bool result = true;
         static foreach (index; 0 .. U.tupleof.length)
@@ -697,18 +756,38 @@ private bool ownedValue(T)() pure @safe
         return false;
 }
 
+package(xtb.serde) enum isOwnedSerdeValue(T) = ownedValue!T;
+
+package(xtb.serde) void validateBorrowedValue(T)()
+{
+    validateValueSchema!T();
+    static assert(borrowedValue!T,
+        "Deserialized values use String, slices, pointers, and " ~
+            "HashMap!(String, V); StringBuf and Array require direct decoding");
+}
+
+package(xtb.serde) void validateOwnedValue(T)()
+{
+    validateValueSchema!T();
+    static assert(ownedValue!T,
+        "directly decoded values use StringBuf and Array; String, slices, " ~
+            "raw pointers, and HashMap require Deserialized");
+}
+
 void validateBorrowedSchema(T)()
 {
     validateSchema!T();
     static assert(borrowedValue!T,
-        "Deserialized schemas use String, slices, and pointers; owning containers require direct decoding");
+        "Deserialized schemas use String, slices, pointers, and " ~
+            "HashMap!(String, V); StringBuf and Array require direct decoding");
 }
 
 void validateOwnedSchema(T)()
 {
     validateSchema!T();
     static assert(ownedValue!T,
-        "directly decoded schemas use StringBuf and Array; String, slices, and raw pointers require Deserialized");
+        "directly decoded schemas use StringBuf and Array; String, slices, " ~
+            "raw pointers, and HashMap require Deserialized");
 }
 
 package(xtb.serde) void initializeOwnedValue(T)(
@@ -861,6 +940,8 @@ private void validateFieldSchema(T, size_t index)()
             alias Representation = Adapter.Representation;
             static assert(isAdapterRepresentation!Representation,
                 "serde adapter Representation must be a scalar or String");
+            static if (is(Unqualified!Representation == enum))
+                validateEnumSchema!Representation();
             static assert(__traits(compiles,
                     Adapter.encode(*cast(const(F)*) null,
                     cast(Representation*) null)),
@@ -904,8 +985,6 @@ private void validateFieldSchema(T, size_t index)()
     }
     static if (flattened)
         validateSchema!F();
-    else static if (!ignored && is(Unqualified!F == enum))
-        validateEnumSchema!F();
-    else static if (!ignored && isTaggedUnion!F)
-        validateSchema!F();
+    else static if (!ignored && fieldAdapterCount!(T, index) == 0)
+        validateValueSchema!F();
 }

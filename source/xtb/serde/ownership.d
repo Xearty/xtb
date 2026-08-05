@@ -2,6 +2,7 @@ module xtb.serde.ownership;
 
 nothrow @nogc:
 
+import core.lifetime : emplace;
 import core.stdc.string : memcpy;
 import xtb.core.memory : Allocator, tryAllocate;
 import xtb.core.numeric : addOverflows;
@@ -136,7 +137,7 @@ package(xtb.serde) bool prepareDeserialized(T)(
         *value = null;
         return false;
     }
-    *created = T.init;
+    emplace(created);
     output.value_ = created;
     *value = created;
     return true;

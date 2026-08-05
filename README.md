@@ -197,13 +197,18 @@ resumable and terminating timeouts, borrowed pipeline slices, per-stage stderr,
 status reporting, and success policies.
 
 Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
-`Deserialized!T` with `String` and slices for one document-owned graph, or
-decode directly into an ordinary RAII struct containing `StringBuf` and
-`Array!T` for independently owned, freely mutable data. Use `Option!T` for
-nullable fields; JSON maps absence to `null`, while TOML omits absent fields. See
-`examples/serde_demo.d`. The dedicated `examples/option_demo.d` covers every
-`Option!T` state transition, copy and move behavior, destruction, nesting,
-pointer access, and backend-specific serialization rules.
+`Deserialized!T` with `String`, slices, and `HashMap!(String, V)` for one
+document-owned graph, or decode JSON directly into an ordinary owning value
+containing `StringBuf` and `Array!T` for independently owned, freely mutable
+data. JSON accepts every supported value at the document root, including
+scalars, arrays, and maps. TOML roots remain tables represented by a serde
+struct, tagged union, or `HashMap!(String, V)`; nested maps use inline tables.
+Map decoding is document-owned because its `String` keys refer to storage held
+by `Deserialized!T`. Use `Option!T` for nullable fields; JSON maps absence to
+`null`, while TOML omits absent struct fields. See `examples/serde_demo.d`. The
+dedicated `examples/option_demo.d` covers every `Option!T` state transition,
+copy and move behavior, destruction, nesting, pointer access, and
+backend-specific serialization rules.
 
 The remaining C++ core capability audit and proposed implementation milestone
 are maintained in `docs/core-gap-analysis.md`.

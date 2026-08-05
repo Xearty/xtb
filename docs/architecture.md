@@ -1054,21 +1054,25 @@ values, nullability, and integer overflow before entering such an adapter.
 `xtb.serde` is a schema-driven object mapper, not a general JSON or TOML DOM.
 It serializes concrete BetterC values by inspecting their fields at compile
 time and deserializes directly into the requested type. Runtime reflection,
-`TypeInfo`, registration, associative arrays, exceptions, and hidden GC
-allocation are forbidden. Backends share schema and ownership machinery but
-do not share a text-shaped intermediate representation; a future binary
-backend can therefore preserve field identifiers, fixed-width values, and
-other binary policies without pretending they are strings.
+`TypeInfo`, registration, built-in D associative arrays, exceptions, and hidden
+GC allocation are forbidden. The allocator-owned `HashMap` is supported
+explicitly instead. Backends share schema and ownership machinery but do not
+share a text-shaped intermediate representation; a future binary backend can
+therefore preserve field identifiers, fixed-width values, and other binary
+policies without pretending they are strings.
 
 Schemas support booleans, signed and unsigned integers, floating-point values,
-enums, nested structs, fixed arrays, and `Option!T`, plus two deliberate
-ownership families. Document-owned schemas use `String`, dynamic slices, and
-legacy nullable pointers. Self-owning schemas use `StringBuf` and `Array!T`;
-they do not contain raw owning pointers or slices. `Option!T` is the preferred
-nullable representation in either family and recursively adopts the ownership
-model of `T`. The root of a key-value document is a struct. Unsupported or
-mixed ownership shapes fail at compile time with the field and type in the
-diagnostic.
+enums, nested structs, fixed arrays, `Option!T`, and `HashMap!(String, V)`, plus
+two deliberate ownership families. Document-owned schemas use `String`,
+dynamic slices, legacy nullable pointers, and hash maps whose values recursively
+follow the same document-owned model. Self-owning schemas use `StringBuf` and
+`Array!T`; they do not contain raw owning pointers, slices, or hash maps.
+`Option!T` is the preferred nullable representation in either family and
+recursively adopts the ownership model of `T`. JSON accepts any supported value
+at the document root. TOML remains a table document, so its root is a serde
+struct, tagged union, or `HashMap!(String, V)`; standalone arrays and scalars are
+rejected at compile time. Unsupported or mixed ownership shapes fail at compile
+time with the field and type in the diagnostic.
 
 Enums use their D member names in text formats by default. `@variantCase`
 sets an enum's external casing independently of field-key casing. `@rename`
@@ -1205,21 +1209,25 @@ not mistake a static field initializer or other default pointer for owned
 memory. Its destructor releases the exact allocation set made by the backend;
 the output remains empty on failure. A `String` inside the result is still a
 read-only simple view, but newly decoded bytes are owned by the surrounding
-`Deserialized!T`. A view or pointer obtained from the result expires when that
-owner is reset or destroyed.
+`Deserialized!T`. `HashMap!(String, V)` belongs to this model as well: object or
+table keys are copied into tracked storage, while the map's buckets and nested
+values use the same tracking allocator. A view, pointer, or map obtained from
+the result expires when that owner is reset or destroyed.
 
-A self-owning decode writes an ordinary caller-owned struct directly. Text
-fields are `StringBuf`, collections are `Array!T`, and nested structs compose
-those owners. Each container uses the allocator passed to `readJson` or
-`readToml`; no tracking allocator or result wrapper is involved. Decoding is
-transactional: the backend builds a temporary RAII value, destroys it on any
-failure, and replaces the caller's previous output by move only after the
-whole document succeeds. The previous value therefore remains intact on
-syntax, schema, range, limit, or allocation failure. The resulting struct can
-be mutated, moved, reset, and extended using the normal `StringBuf` and
-`Array!T` APIs. Every direct owning container in a successful result is
-initialized with the decode allocator even when its field was absent,
-including containers inside nested records and fixed or dynamic owning arrays.
+A self-owning decode writes an ordinary caller-owned value directly. JSON root
+values may be scalars, `StringBuf`, fixed arrays, `Array!T`, or structs composed
+from those shapes. TOML direct roots remain serde structs or tagged unions.
+Each container uses the allocator passed to `readJson` or `readToml`; no
+tracking allocator or result wrapper is involved. Decoding is transactional:
+the backend builds a temporary RAII value, destroys it on any failure, and
+replaces the caller's previous output by move only after the whole document
+succeeds. The previous value therefore remains intact on syntax, schema, range,
+limit, or allocation failure. The resulting value can be mutated, moved,
+reset, and extended using the normal `StringBuf` and `Array!T` APIs. Every
+direct owning container in a successful result is initialized with the decode
+allocator even when its field was absent, including containers inside nested
+records and fixed or dynamic owning arrays. `HashMap` is intentionally absent
+from direct decoding because its supported `String` keys are borrowed views.
 An absent `Option!T` must be made present with `set` before its value is
 accessed.
 
@@ -1240,16 +1248,20 @@ discriminant reports `unknownVariant`, independently of an unknown map key.
 
 The JSON backend emits and accepts strict UTF-8 JSON: no comments, trailing
 commas, non-finite floats, invalid surrogate pairs, or duplicate object keys.
-Pretty printing is policy only and never changes the data model. The TOML
-backend's deterministic encoding uses inline tables for nested structs and
-arrays of inline tables for struct collections; scalar arrays use TOML arrays.
-Decoding additionally accepts dotted keys and ordinary `[table]` headers.
-Basic and literal single-line strings, booleans, integers, floats, arrays, and
-inline tables comprise the supported TOML value model. Multiline strings,
-date/time values, and `[[array-of-table]]` syntax report `unsupportedValue`
-rather than being coerced or partially interpreted. Parsers consume memory
-only and perform no filesystem access. File convenience functions, if added
-later, must compose `xtb.serde` with `xtb.os`.
+A `HashMap!(String, V)` maps directly to a JSON object, including at the document
+root. Pretty printing is policy only and never changes the data model. The TOML
+backend's deterministic encoding uses inline tables for nested structs and hash
+maps, arrays of inline tables for struct collections, and ordinary key/value
+assignments for a root hash map. Scalar arrays use TOML arrays. Static struct
+schemas additionally decode dotted keys and ordinary `[table]` headers; dynamic
+hash-map keys are accepted as root assignments or inline-table entries, with a
+quoted key preserving dots literally. Basic and literal single-line strings,
+booleans, integers, floats, arrays, and inline tables comprise the supported
+TOML value model. Multiline strings, date/time values, dynamic map table
+headers, and `[[array-of-table]]` syntax report `unsupportedValue` rather than
+being coerced or partially interpreted. Parsers consume memory only and perform
+no filesystem access. File convenience functions, if added later, must compose
+`xtb.serde` with `xtb.os`.
 
 ### Data and API style
 
