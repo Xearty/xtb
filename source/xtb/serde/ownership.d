@@ -6,6 +6,8 @@ import core.stdc.string : memcpy;
 import xtb.core.memory : Allocator, tryAllocate;
 import xtb.core.numeric : addOverflows;
 import xtb.core.panic : require;
+import xtb.core.pretty_print : PrettyPrintOptions, writePretty;
+import xtb.core.print : Writer;
 
 private struct AllocationHeader
 {
@@ -20,7 +22,6 @@ private struct AllocationHeader
 private struct AllocationTracker
 {
 nothrow @nogc:
-
     Allocator allocator;
     Allocator* backing;
     AllocationHeader* first;
@@ -90,6 +91,23 @@ nothrow @nogc:
     T* pointer() return @system
     {
         return value_;
+    }
+
+    /// Pretty printing treats the owning wrapper as a transparent view of its
+    /// decoded value. This prevents allocator bookkeeping from leaking into
+    /// normal diagnostic output while remaining overridable by the decoded
+    /// type's own const-compatible `prettyFormatTo` implementation.
+    void prettyFormatTo(
+        ref Writer writer,
+        scope const ref PrettyPrintOptions options,
+    ) const
+    {
+        if (value_ is null)
+        {
+            writePretty(writer, null, options);
+            return;
+        }
+        writePretty(writer, *value_, options);
     }
 
     void deinit()
@@ -172,7 +190,6 @@ private extern (C) void* trackingAllocatorProcedure(
     if (tracker is null || tracker.backing is null || *tracker.backing is null ||
         !isPowerOfTwo(alignment))
         return null;
-
     AllocationHeader* previous;
     AllocationHeader* oldAllocation;
     if (oldPointer !is null)
@@ -184,7 +201,6 @@ private extern (C) void* trackingAllocatorProcedure(
     }
     else if (oldSize != 0)
         return null;
-
     if (newSize == 0)
     {
         if (oldAllocation is null)
@@ -192,7 +208,6 @@ private extern (C) void* trackingAllocatorProcedure(
         unlink(*tracker, oldAllocation, previous);
         return null;
     }
-
     const padding = alignment - 1;
     if (addOverflows(AllocationHeader.sizeof, padding) ||
         addOverflows(AllocationHeader.sizeof + padding, newSize))
@@ -209,7 +224,6 @@ private extern (C) void* trackingAllocatorProcedure(
     );
     if (allocation is null)
         return null;
-
     const start = cast(size_t)(cast(ubyte*) allocation + AllocationHeader.sizeof);
     const payloadAddress = (start + padding) & ~padding;
     *allocation = AllocationHeader.init;
@@ -220,7 +234,6 @@ private extern (C) void* trackingAllocatorProcedure(
     allocation.allocationAlignment = allocationAlignment;
     allocation.next = tracker.first;
     tracker.first = allocation;
-
     if (oldAllocation !is null)
     {
         const amount = oldSize < newSize ? oldSize : newSize;
@@ -249,4 +262,53 @@ private void unlink(
 private bool isPowerOfTwo(size_t value) pure @safe
 {
     return value != 0 && (value & (value - 1)) == 0;
+}
+
+
+version (unittest)
+{
+    private struct PrettyPrintOwnershipRecord
+    {
+        int id;
+    }
+}
+
+unittest
+{
+    import xtb.core.memory : mallocAllocator;
+    import xtb.core.pretty_print : PrettyPrintOptions, pretty;
+    import xtb.core.print : writeBuffer;
+    import xtb.core.string : equal;
+
+    const plain = PrettyPrintOptions.init.withoutColors();
+
+    Deserialized!PrettyPrintOwnershipRecord decoded;
+    char[16] emptyStorage;
+    const emptyResult = writeBuffer(emptyStorage[], decoded.pretty(plain));
+    assert(emptyResult.ok);
+    assert(!emptyResult.truncated);
+    assert(emptyStorage[0 .. emptyResult.written].equal("null"));
+
+    PrettyPrintOwnershipRecord* value;
+    assert(prepareDeserialized(mallocAllocator(), &decoded, &value));
+    assert(value !is null);
+    value.id = 17;
+
+    char[128] valueStorage;
+    const valueResult = writeBuffer(valueStorage[], decoded.pretty(plain));
+    assert(valueResult.ok);
+    assert(!valueResult.truncated);
+    assert(valueStorage[0 .. valueResult.written].equal(
+        "PrettyPrintOwnershipRecord {id: 17}",
+    ));
+
+    decoded.deinit();
+    char[16] releasedStorage;
+    const releasedResult = writeBuffer(
+        releasedStorage[],
+        decoded.pretty(plain),
+    );
+    assert(releasedResult.ok);
+    assert(!releasedResult.truncated);
+    assert(releasedStorage[0 .. releasedResult.written].equal("null"));
 }

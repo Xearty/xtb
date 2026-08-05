@@ -48,6 +48,17 @@ configuration "test-core" {
     libs "backtrace" platform="linux"
 }
 
+configuration "test-pretty-print" {
+    targetType "executable"
+    targetName "pretty_print_tests"
+    // This configuration is intentionally runnable directly with `dub run`;
+    // unlike the repository-wide test recipes it does not require the
+    // `XTB_TEST_MODE` environment variable normally supplied by `just`.
+    targetPath "../build/test/pretty_print"
+    mainSourceFile "pretty_print_tests.d"
+    sourceFiles "../source/xtb/core/*.d"
+}
+
 configuration "test-math" {
     targetType "executable"
     targetName "math_tests"
@@ -70,4 +81,13 @@ configuration "test-serde" {
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "serde_tests.d"
     sourceFiles "serde_backend_contract.d" "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
+}
+
+configuration "test-pretty-print-serde" {
+    targetType "executable"
+    targetName "pretty_print_serde_tests"
+    // Keep the direct serde runner independent of `XTB_TEST_MODE` too.
+    targetPath "../build/test/pretty_print_serde"
+    mainSourceFile "pretty_print_serde_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
 }

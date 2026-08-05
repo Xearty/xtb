@@ -23,6 +23,14 @@ configuration "print-demo" {
     sourceFiles "../source/xtb/core/*.d"
 }
 
+configuration "pretty_print-demo" {
+    targetType "executable"
+    targetName "pretty_print_demo"
+    targetPath "../build/examples"
+    mainSourceFile "pretty_print_demo.d"
+    sourceFiles "../source/xtb/core/*.d"
+}
+
 configuration "stacktrace-demo" {
     targetType "executable"
     targetName "stacktrace_demo"
