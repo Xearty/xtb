@@ -5,7 +5,7 @@ nothrow @nogc:
 import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option;
 import xtb.core.print : Writer;
-import xtb.core.string : String, StringBuf, asStringUnchecked, equal;
+import xtb.core.string;
 import xtb.core.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind,
     aliasName, defaultValue, fieldCase, omitDefault, readJson, readToml,

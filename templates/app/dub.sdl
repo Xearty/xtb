@@ -11,5 +11,10 @@ importPaths "source" "$XTB_IMPORT_PATH"
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
 dflags "-preview=dip1000" platform="ldc"
+
+// Match the installed XTB package's optimized checked mode.
+buildType "release-safe" {
+    buildOptions "optimize" "inline"
+}
 lflags "-L$XTB_LIBRARY_PATH"
 libs "xtb_core"

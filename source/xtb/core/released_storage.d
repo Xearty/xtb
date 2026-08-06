@@ -5,7 +5,8 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move;
 import xtb.core.memory : Allocator;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 private template ReleasedFunctionType(alias operation)
 {
@@ -108,12 +109,6 @@ public:
         return allocator_;
     }
 
-    /// Returns the exact allocator associated with the owned storage.
-    const(Allocator)* allocator() const return @safe
-    {
-        return allocator_;
-    }
-
     /// Borrows the unmanaged storage for read-only inspection.
     ref const(Storage) storage() const return @safe
     {
@@ -132,8 +127,9 @@ public:
     /// Permanently extracts the allocator/storage pair and empties this token.
     Storage extract(scope Allocator** allocatorOutput) scope @trusted
     {
-        require(allocatorOutput !is null,
-            "ReleasedStorage allocator output pointer is null");
+        version (XTB_Checked)
+            require(allocatorOutput !is null,
+                "ReleasedStorage allocator output pointer is null");
         *allocatorOutput = allocator_;
         allocator_ = null;
         return takeStorage(&storage_);
@@ -145,8 +141,9 @@ package(xtb):
         scope Storage* storage,
     ) @trusted
     {
-        require(storage !is null,
-            "ReleasedStorage storage pointer is null");
+        version (XTB_Checked)
+            require(storage !is null,
+                "ReleasedStorage storage pointer is null");
         ReleasedStorage result;
         result.allocator_ = allocator;
         result.storage_ = takeStorage(storage);

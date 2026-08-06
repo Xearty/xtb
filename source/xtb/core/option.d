@@ -3,7 +3,8 @@ module xtb.core.option;
 nothrow @nogc:
 
 import core.lifetime : move, moveEmplace;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 version (unittest) private struct TrackedOptionValue
 {
@@ -62,13 +63,15 @@ nothrow @nogc:
 
     ref T value() return @system
     {
-        require(present_, "empty Option has no value");
+        version (XTB_Checked)
+            require(present_, "empty Option has no value");
         return value_;
     }
 
     ref const(T) value() const return @system
     {
-        require(present_, "empty Option has no value");
+        version (XTB_Checked)
+            require(present_, "empty Option has no value");
         return value_;
     }
 
@@ -108,7 +111,8 @@ void reset(T)(ref Option!T option)
 
 T take(T)(ref Option!T option)
 {
-    require(option.present_, "cannot take an empty Option");
+    version (XTB_Checked)
+        require(option.present_, "cannot take an empty Option");
     T result = void;
     moveEmplace(option.value_, result);
     static if (__traits(isPOD, T))
@@ -130,7 +134,7 @@ Option!T none(T)()
 unittest
 {
     import xtb.core.memory : mallocAllocator;
-    import xtb.core.string : StringBuf;
+    import xtb.core.string;
 
     Option!int number;
     assert(number.isNone && number.empty);

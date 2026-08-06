@@ -6,13 +6,15 @@ import core.stdc.signal : SIGABRT, SIGFPE, SIGILL, SIGSEGV, sig_atomic_t;
 import core.stdc.stdio : FILE, stderr;
 import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.core.panic : PanicHook, panic, setPanicHandler;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
     StackTraceTheme, SignatureLayout;
 import xtb.diagnostics.demangle : SignatureDetail;
-import xtb.core.string : String;
+import xtb.core.string;
 
 enum SignalTraceMode
 {
@@ -49,7 +51,8 @@ nothrow @nogc:
         CrashHandlerOptions options = CrashHandlerOptions.init,
     )
     {
-        requireInstall(!globalState.active, "crash handlers already installed");
+        version (XTB_Checked)
+            require(!globalState.active, "crash handlers already installed");
         globalState.context = StackTraceContext.create(permanentExecutablePath);
         globalState.style = StackTraceStyle.fromTheme(options.theme);
         globalState.style.moduleDisplay = options.moduleDisplay;
@@ -100,12 +103,6 @@ private struct GlobalCrashState
 
 private __gshared GlobalCrashState globalState;
 
-private void requireInstall(bool condition, String message)
-{
-    if (!condition)
-        panic(message);
-}
-
 private void tracePanic(String message, void*)
 {
     if (globalState.previousPanic.handler !is null)
@@ -154,8 +151,10 @@ version (linux)
                 &globalState.previousSignals[index],
             ) == 0;
             if (!installed)
+            {
                 restoreInstalledSignals(index);
-            requireInstall(installed, "failed to install crash signal handler");
+                panic("failed to install crash signal handler");
+            }
         }
 
         // Force the platform unwinder's lazy setup outside signal context.

@@ -2,7 +2,8 @@ module xtb.os.time;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.duration : Duration;
 import xtb.core.types : i64, u64;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
@@ -59,14 +60,16 @@ nothrow @nogc:
 
     Duration duration() const @safe
     {
-        require(isFinite, "non-finite Timeout has no duration");
+        version (XTB_Checked)
+            require(isFinite, "non-finite Timeout has no duration");
         return duration_;
     }
 }
 
 OsError monotonicNanoseconds(u64* output) @system
 {
-    require(output !is null, "monotonic clock output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "monotonic clock output pointer is null");
     *output = 0;
     version (linux)
     {
@@ -84,7 +87,8 @@ OsError monotonicNanoseconds(u64* output) @system
 
 OsError wallClockNanoseconds(i64* output) @system
 {
-    require(output !is null, "wall clock output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "wall clock output pointer is null");
     *output = 0;
     version (linux)
     {

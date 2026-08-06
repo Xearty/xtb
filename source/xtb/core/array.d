@@ -6,9 +6,11 @@ import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, move, moveEmplace;
 import core.stdc.string : memmove;
 import xtb.core.memory : Allocator, deallocate, tryAllocate, tryReallocate;
-import xtb.core.internal.managed_container_adapter : ManagedContainerAdapter;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.numeric : multiplyOverflows;
+import xtb.core.released_storage : ReleasedStorage;
 
 /// Raw allocation detached from an unmanaged array.
 ///
@@ -109,10 +111,13 @@ public:
         scope ArrayUnmanaged* output,
     )
     {
-        require(output !is null, "ArrayUnmanaged output pointer is null");
-        require(output.data_ is null && output.length_ == 0 &&
-                output.capacity_ == 0,
-            "ArrayUnmanaged output is not empty");
+        version (XTB_Checked)
+        {
+            require(output !is null, "ArrayUnmanaged output pointer is null");
+            require(output.data_ is null && output.length_ == 0 &&
+                    output.capacity_ == 0,
+                "ArrayUnmanaged output is not empty");
+        }
         requireValidAllocator(allocator);
         ArrayUnmanaged temporary;
         if (capacity != 0 && !temporary.tryReserve(allocator, capacity))
@@ -162,10 +167,13 @@ package(xtb):
         size_t capacity,
     ) @system
     {
-        require(length <= capacity,
-            "adopted ArrayUnmanaged length exceeds capacity");
-        require((capacity == 0) == (data is null),
-            "adopted ArrayUnmanaged storage does not match capacity");
+        version (XTB_Checked)
+        {
+            require(length <= capacity,
+                "adopted ArrayUnmanaged length exceeds capacity");
+            require((capacity == 0) == (data is null),
+                "adopted ArrayUnmanaged storage does not match capacity");
+        }
         ArrayUnmanaged result;
         result.data_ = data;
         result.length_ = length;
@@ -236,13 +244,15 @@ public:
 
     ref T opIndex(size_t index) return @system
     {
-        require(index < length_, "Array index out of bounds");
+        version (XTB_Checked)
+            require(index < length_, "Array index out of bounds");
         return data_[index];
     }
 
     ref const(T) opIndex(size_t index) const return @system
     {
-        require(index < length_, "Array index out of bounds");
+        version (XTB_Checked)
+            require(index < length_, "Array index out of bounds");
         return data_[index];
     }
 
@@ -314,7 +324,8 @@ public:
 
     void appendAssumeCapacity(T value)
     {
-        require(length_ < capacity_, "Array capacity exceeded");
+        version (XTB_Checked)
+            require(length_ < capacity_, "Array capacity exceeded");
         constructMove(data_ + length_, value);
         ++length_;
     }
@@ -381,8 +392,9 @@ public:
 
         void appendAssumeCapacity(scope const(T)[] values)
         {
-            require(values.length <= capacity_ - length_,
-                "Array capacity exceeded");
+            version (XTB_Checked)
+                require(values.length <= capacity_ - length_,
+                    "Array capacity exceeded");
             static if (__traits(isPOD, T))
             {
                 if (values.length != 0)
@@ -408,7 +420,8 @@ public:
     )
     {
         requireValidAllocator(allocator);
-        require(index <= length_, "Array insert index out of bounds");
+        version (XTB_Checked)
+            require(index <= length_, "Array insert index out of bounds");
         if (length_ == size_t.max || !tryReserve(allocator, length_ + 1))
             return false;
         static if (__traits(isPOD, T))
@@ -441,7 +454,8 @@ public:
         )
         {
             requireValidAllocator(allocator);
-            require(index <= length_, "Array insert index out of bounds");
+            version (XTB_Checked)
+                require(index <= length_, "Array insert index out of bounds");
             if (values.length > size_t.max - length_)
                 return false;
             if (values.length == 0)
@@ -538,7 +552,8 @@ public:
 
     T pop()
     {
-        require(length_ != 0, "cannot pop an empty Array");
+        version (XTB_Checked)
+            require(length_ != 0, "cannot pop an empty Array");
         --length_;
         T result = void;
         static if (__traits(isPOD, T))
@@ -556,7 +571,8 @@ public:
 
     void removeAt(size_t index)
     {
-        require(index < length_, "Array index out of bounds");
+        version (XTB_Checked)
+            require(index < length_, "Array index out of bounds");
         static if (__traits(isPOD, T))
         {
             const following = length_ - index - 1;
@@ -575,9 +591,12 @@ public:
 
     void removeRange(size_t index, size_t count)
     {
-        require(index <= length_, "Array range index out of bounds");
-        require(count <= length_ - index,
-            "Array range count out of bounds");
+        version (XTB_Checked)
+        {
+            require(index <= length_, "Array range index out of bounds");
+            require(count <= length_ - index,
+                "Array range count out of bounds");
+        }
         if (count == 0)
             return;
         static if (__traits(isPOD, T))
@@ -654,13 +673,272 @@ nothrow @nogc:
 
     alias Self = Array!T;
     alias Storage = ArrayUnmanaged!T;
+    alias Released = ReleasedStorage!Storage;
 
 private:
     Allocator* allocator_;
     Storage storage_;
 
+version (XTB_Checked)
+{
+    invariant
+    {
+        require(&this !is null, "Array pointer is null");
+    }
+}
+
 public:
-    mixin ManagedContainerAdapter!(Self, Storage);
+    @disable this(this);
+
+    /// Creates an empty managed array bound to `allocator`.
+    static Self create(Allocator* allocator) @safe
+    {
+        requireValidAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        return result;
+    }
+
+    /// Creates an empty managed array with at least `capacity` elements.
+    static bool tryWithCapacity(
+        Allocator* allocator,
+        size_t capacity,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "Array output pointer is null");
+            require(output.allocator_ is null,
+                "Array output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryWithCapacity(allocator, capacity, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    /// Creates an empty managed array with at least `capacity` elements.
+    static Self withCapacity(Allocator* allocator, size_t capacity) @trusted
+    {
+        Self result;
+        if (!tryWithCapacity(allocator, capacity, &result))
+            panic("Array allocation failed");
+        return move(result);
+    }
+
+    /// Creates a managed array containing `length` default-initialized values.
+    static Self withLength(Allocator* allocator, size_t length) @trusted
+    {
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = Storage.withLength(allocator, length);
+        return move(result);
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        /// Copies `values` into a newly allocated managed array.
+        static Self fromSlice(
+            Allocator* allocator,
+            scope const(T)[] values,
+        ) @trusted
+        {
+            Self result;
+            result.allocator_ = allocator;
+            result.storage_ = Storage.fromSlice(allocator, values);
+            return move(result);
+        }
+    }
+
+    /// Adopts storage previously returned by `release`.
+    static Self adopt(scope Released* released) @trusted
+    {
+        version (XTB_Checked)
+            require(released !is null, "released Array storage pointer is null");
+        Allocator* allocator;
+        Storage storage = released.extract(&allocator);
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = move(storage);
+        return move(result);
+    }
+
+    ~this() @trusted
+    {
+        this.deinit();
+    }
+
+    /// Releases all storage and unbinds the allocator. The zero state is valid.
+    void deinit() @trusted
+    {
+        if (allocator_ is null)
+            return;
+        storage_.deinit(allocator_);
+        allocator_ = null;
+    }
+
+    /// Releases allocated storage but keeps the allocator binding.
+    void resetAndRelease() @trusted
+    {
+        storage_.resetAndRelease(allocator_);
+    }
+
+    /// Transfers allocator-bound storage out and leaves this array empty.
+    Released release() @trusted
+    {
+        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        allocator_ = null;
+        return move(result);
+    }
+
+    size_t length() const pure @safe
+    {
+        return storage_.length;
+    }
+
+    size_t capacity() const pure @safe
+    {
+        return storage_.capacity;
+    }
+
+    bool empty() const pure @safe
+    {
+        return storage_.empty;
+    }
+
+    T[] slice() return @system
+    {
+        return storage_.slice;
+    }
+
+    const(T)[] slice() const return @system
+    {
+        return storage_.slice;
+    }
+
+    bool tryReserve(size_t requested) @trusted
+    {
+        return storage_.tryReserve(allocator_, requested);
+    }
+
+    void reserve(size_t requested) @trusted
+    {
+        storage_.reserve(allocator_, requested);
+    }
+
+    bool tryResize(size_t requested) @trusted
+    {
+        return storage_.tryResize(allocator_, requested);
+    }
+
+    void resize(size_t requested) @trusted
+    {
+        storage_.resize(allocator_, requested);
+    }
+
+    bool tryAppend(T value) @trusted
+    {
+        return storage_.tryAppend(allocator_, move(value));
+    }
+
+    void append(T value) @trusted
+    {
+        storage_.append(allocator_, move(value));
+    }
+
+    void appendAssumeCapacity(T value) @trusted
+    {
+        storage_.appendAssumeCapacity(move(value));
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        bool tryAppend(scope const(T)[] values) @trusted
+        {
+            return storage_.tryAppend(allocator_, values);
+        }
+
+        void append(scope const(T)[] values) @trusted
+        {
+            storage_.append(allocator_, values);
+        }
+
+        void appendAssumeCapacity(scope const(T)[] values) @trusted
+        {
+            storage_.appendAssumeCapacity(values);
+        }
+    }
+
+    bool tryInsert(size_t index, T value) @trusted
+    {
+        return storage_.tryInsert(allocator_, index, move(value));
+    }
+
+    void insert(size_t index, T value) @trusted
+    {
+        storage_.insert(allocator_, index, move(value));
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        bool tryInsert(size_t index, scope const(T)[] values) @trusted
+        {
+            return storage_.tryInsert(allocator_, index, values);
+        }
+
+        void insert(size_t index, scope const(T)[] values) @trusted
+        {
+            storage_.insert(allocator_, index, values);
+        }
+    }
+
+    T pop() @trusted
+    {
+        return storage_.pop();
+    }
+
+    void clear() @trusted
+    {
+        storage_.clear();
+    }
+
+    void removeAt(size_t index) @trusted
+    {
+        storage_.removeAt(index);
+    }
+
+    void removeRange(size_t index, size_t count) @trusted
+    {
+        storage_.removeRange(index, count);
+    }
+
+    bool tryShrinkToFit() @trusted
+    {
+        return storage_.tryShrinkToFit(allocator_);
+    }
+
+    void shrinkToFit() @trusted
+    {
+        storage_.shrinkToFit(allocator_);
+    }
+
+    ref T opIndex(size_t index) return @system
+    {
+        return storage_[index];
+    }
+
+    ref const(T) opIndex(size_t index) const return @system
+    {
+        return storage_[index];
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
+    }
 
 package(xtb):
     static Self adoptUnmanaged(
@@ -669,11 +947,12 @@ package(xtb):
     ) @system
     {
         requireValidAllocator(allocator);
-        require(storage !is null, "ArrayUnmanaged pointer is null");
+        version (XTB_Checked)
+            require(storage !is null, "ArrayUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
         result.storage_ = move(*storage);
-        return result;
+        return move(result);
     }
 
     static Self adoptRaw(
@@ -688,10 +967,12 @@ package(xtb):
     }
 }
 
-private void requireValidAllocator(Allocator* allocator)
+
+private void requireValidAllocator(Allocator* allocator) @trusted
 {
-    require(allocator !is null && *allocator !is null,
-        "Array requires a valid allocator");
+    version (XTB_Checked)
+        require(allocator !is null && *allocator !is null,
+            "Array requires a valid allocator");
 }
 
 private void constructInitial(T)(T* destination)
@@ -889,6 +1170,13 @@ unittest
     static assert(!__traits(isCopyable, ArrayUnmanaged!int));
     static assert(!__traits(isCopyable, Array!int));
     static assert(!__traits(isCopyable, Array!int.Released));
+    static assert(is(typeof((cast(Array!int*) null).allocator()) == Allocator*));
+    static assert(!__traits(compiles,
+        (cast(const(Array!int)*) null).allocator()));
+    static assert(is(typeof((cast(Array!int.Released*) null).allocator()) ==
+        Allocator*));
+    static assert(!__traits(compiles,
+        (cast(const(Array!int.Released)*) null).allocator()));
     static assert(!__traits(compiles, () @safe {
         Array!int.Released released;
         ref ArrayUnmanaged!int storage = released.storage;

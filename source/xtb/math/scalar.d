@@ -3,7 +3,8 @@ module xtb.math.scalar;
 @safe nothrow @nogc:
 
 import core.stdc.math : floorf;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.types : i32;
 
 enum float pi = 3.14159265358979323846f;
@@ -22,7 +23,8 @@ pure float max(float a, float b)
 
 float clamp(float value, float lower, float upper)
 {
-    require(lower <= upper, "invalid clamp range");
+    version (XTB_Checked)
+        require(lower <= upper, "invalid clamp range");
     return value < lower ? lower : value > upper ? upper : value;
 }
 
@@ -85,21 +87,24 @@ float smootherstep(float edge0, float edge1, float value)
 
 float repeat(float value, float period)
 {
-    require(period > 0 && period.isFinite, "repeat period must be positive and finite");
+    version (XTB_Checked)
+        require(period > 0 && period.isFinite, "repeat period must be positive and finite");
     return value - floorf(value / period) * period;
 }
 
 i32 repeat(i32 value, i32 period)
 {
-    require(period > 0, "repeat period must be positive");
+    version (XTB_Checked)
+        require(period > 0, "repeat period must be positive");
     const remainder = value % period;
     return remainder < 0 ? remainder + period : remainder;
 }
 
 float pingPong(float value, float length)
 {
-    require(length > 0 && length.isFinite,
-        "ping-pong length must be positive and finite");
+    version (XTB_Checked)
+        require(length > 0 && length.isFinite,
+            "ping-pong length must be positive and finite");
     const folded = repeat(value, 2 * length);
     return length - (folded > length ? folded - length : length - folded);
 }

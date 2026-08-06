@@ -2,8 +2,10 @@ module xtb.os.path;
 
 nothrow @nogc:
 
-import xtb.core.panic : panic, require;
-import xtb.core.string : String, StringBuf, containsNul;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.string;
 
 /// A borrowed native path without embedded NUL bytes.
 struct Path
@@ -22,7 +24,8 @@ nothrow @nogc:
 
     static bool tryFromString(String value, Path* output) @system
     {
-        require(output !is null, "Path output pointer is null");
+        version (XTB_Checked)
+            require(output !is null, "Path output pointer is null");
         *output = Path.init;
         if (value.containsNul)
             return false;

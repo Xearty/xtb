@@ -6,7 +6,8 @@ import core.lifetime : emplace;
 import core.stdc.string : memcpy;
 import xtb.core.memory : Allocator, tryAllocate;
 import xtb.core.numeric : addOverflows;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.pretty_print : PrettyPrintOptions, writePretty;
 import xtb.core.print : Writer;
 
@@ -79,13 +80,15 @@ nothrow @nogc:
 
     ref T value() return @system
     {
-        require(value_ !is null, "empty deserialized value");
+        version (XTB_Checked)
+            require(value_ !is null, "empty deserialized value");
         return *value_;
     }
 
     ref const(T) value() const return @system
     {
-        require(value_ !is null, "empty deserialized value");
+        version (XTB_Checked)
+            require(value_ !is null, "empty deserialized value");
         return *value_;
     }
 
@@ -124,10 +127,13 @@ package(xtb.serde) bool prepareDeserialized(T)(
     T** value,
 )
 {
-    require(allocator !is null && *allocator !is null,
-        "serde requires a valid allocator");
-    require(output !is null, "deserialized output pointer is null");
-    require(value !is null, "deserialized value pointer is null");
+    version (XTB_Checked)
+    {
+        require(allocator !is null && *allocator !is null,
+            "serde requires a valid allocator");
+        require(output !is null, "deserialized output pointer is null");
+        require(value !is null, "deserialized value pointer is null");
+    }
     output.deinit();
     output.tracker_ = AllocationTracker.create(allocator);
     T* created = output.tracker_.handle.tryAllocate!T();
@@ -147,14 +153,16 @@ package(xtb.serde) Allocator* deserializationAllocator(T)(
     Deserialized!T* output,
 )
 {
-    require(output !is null && output.value_ !is null,
-        "deserialized output is not prepared");
+    version (XTB_Checked)
+        require(output !is null && output.value_ !is null,
+            "deserialized output is not prepared");
     return output.tracker_.handle;
 }
 
 package(xtb.serde) void abandonDeserialized(T)(Deserialized!T* output)
 {
-    require(output !is null, "deserialized output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "deserialized output pointer is null");
     output.deinit();
 }
 
@@ -279,7 +287,7 @@ unittest
     import xtb.core.memory : mallocAllocator;
     import xtb.core.pretty_print : PrettyPrintOptions, pretty;
     import xtb.core.print : writeBuffer;
-    import xtb.core.string : equal;
+    import xtb.core.string;
 
     const plain = PrettyPrintOptions.init.withoutColors();
 

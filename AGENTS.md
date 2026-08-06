@@ -22,13 +22,15 @@ Before changing public APIs, inspect their existing call sites.
 - Do not introduce dependencies on the garbage collector.
 - Do not use exceptions, `TypeInfo`, classes, or runtime reflection.
 - Prefer slices for borrowed contiguous data. Function parameters that mutate
-  caller-owned values use explicit pointers, except that the first parameter
-  of a mutating UFCS operation may use `ref` so callers can write
-  `value.operation()`. Document and validate pointer nullability.
+  caller-owned values use explicit pointers. Owning structs expose their
+  ordinary receiver-owned operations as member methods, so mutation remains
+  discoverable without synthetic UFCS adapters. Document and validate pointer
+  nullability at actual pointer boundaries.
 - Use `scope const` for borrowed input that must not escape or mutate. Use
   `return scope` deliberately; do not use `in` as a blanket substitute. Do not
-  use `ref` for other mutable parameters; reserve it for the mutating UFCS
-  receiver exception, language-required hooks, or tightly scoped internals.
+  use `ref` for ordinary mutable parameters; reserve it for language-required
+  hooks, tightly scoped internals, or genuine free algorithms whose receiver is
+  not an owning type.
 - Put `@safe`, `pure`, `nothrow`, and `@nogc` on public APIs when their actual
   contracts permit it. Keep unavoidable `@system` code in small boundary
   modules and document its invariants.
@@ -62,9 +64,28 @@ Before changing public APIs, inspect their existing call sites.
   to/return `StringBuf`, and every returned view documents its lifetime.
 - Use `String` everywhere string bytes are not intentionally mutated. Do not
   substitute raw `const(char)[]`, D `string`, or C pointers in ordinary APIs.
-- Design free functions for UFCS and use short verbs (`append`, `reserve`,
-  `clear`), not type-prefixed names. Use `ref` only for the first parameter of
-  mutating UFCS functions such as those operating on `StringBuf` and `Array`.
+- Use short operation names (`append`, `reserve`, `clear`) rather than
+  type-prefixed names. Put receiver-owned operations on owning structs as real
+  members for compiler/LSP discoverability. Keep free functions for algorithms
+  over borrowed/native representations (such as `String`) and for operations
+  that genuinely combine unrelated types.
+- Handwrite managed-container APIs in the same module as their unmanaged
+  storage; do not generate forwarding declarations with mixins or reflection.
+  Managed structs contain ownership fields, static factories, ordinary member
+  operations, a mutable-only `Allocator* allocator()` member, and D-required
+  hooks. D automatically permits member calls through a non-null struct
+  pointer; checked builds use a struct invariant to reject a null receiver.
+  Guard every
+  `require` import and call with `version (XTB_Checked)` so release-fast does
+  not evaluate contract expressions. When several `require` calls are
+  adjacent, put them in one scoped `version (XTB_Checked) { ... }` block.
+  Conditions passed to `require` must only inspect already-computed state:
+  never put necessary computation, mutation,
+  or output initialization inside a removable contract. See
+  `docs/managed-containers.md` and `docs/build-modes.md`.
+- Re-export stable public modules from the component `package.d` so consumers
+  can use short imports. Keep implementation imports focused and do not put
+  implementation code in `package.d`.
 - Preserve the existing public API unless the task explicitly requires a change.
 - Avoid allocations in formatting and low-level utility code.
 - Follow the formatting and naming conventions of nearby code.

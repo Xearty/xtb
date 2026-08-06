@@ -3,11 +3,12 @@ module xtb.os.pipeline;
 nothrow @nogc:
 
 import core.lifetime : move;
-import xtb.core.array : Array;
+import xtb.core.array;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, reset, set;
-import xtb.core.panic : require;
-import xtb.core.string : String;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.string;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.pipe : Pipe, PipeOptions, PipeReader, PipeWriter, close,
@@ -147,13 +148,15 @@ nothrow @nogc:
 
     ProcessId stageId(size_t index) const @system
     {
-        require(index < length, "pipeline child index out of bounds");
+        version (XTB_Checked)
+            require(index < length, "pipeline child index out of bounds");
         return children_[index].id;
     }
 
     bool stageRunning(size_t index) const @system
     {
-        require(index < length, "pipeline child index out of bounds");
+        version (XTB_Checked)
+            require(index < length, "pipeline child index out of bounds");
         return children_[index].ownsProcess;
     }
 
@@ -169,31 +172,38 @@ nothrow @nogc:
 
     PipeReader* stderrPipe(size_t index) return @system
     {
-        require(index < length, "pipeline stderr index out of bounds");
+        version (XTB_Checked)
+            require(index < length, "pipeline stderr index out of bounds");
         return children_[index].stderrPipe;
     }
 
     ExitStatus status(size_t index) const @system
     {
-        require(index < length, "pipeline status index out of bounds");
-        require(statuses_[index].available,
-            "pipeline stage has not exited");
+        version (XTB_Checked)
+        {
+            require(index < length, "pipeline status index out of bounds");
+            require(statuses_[index].available,
+                "pipeline stage has not exited");
+        }
         return statuses_[index];
     }
 
     bool succeeded() const @system
     {
-        require(completed, "live pipeline has no success state");
+        version (XTB_Checked)
+            require(completed, "live pipeline has no success state");
         if (success_ == PipelineSuccess.lastStage)
         {
-            require(statuses_[length - 1].available,
-                "pipeline stage status was consumed externally");
+            version (XTB_Checked)
+                require(statuses_[length - 1].available,
+                    "pipeline stage status was consumed externally");
             return statuses_[length - 1].succeeded;
         }
         foreach (status; statuses_.slice)
         {
-            require(status.available,
-                "pipeline stage status was consumed externally");
+            version (XTB_Checked)
+                require(status.available,
+                    "pipeline stage status was consumed externally");
             if (!status.succeeded)
                 return false;
         }
@@ -230,8 +240,9 @@ ProcessError spawnPipeline(
 
 PipelineWaitResult tryWaitPipeline(Pipeline* pipeline) @system
 {
-    require(pipeline !is null && !pipeline.empty,
-        "invalid Pipeline for tryWait");
+    version (XTB_Checked)
+        require(pipeline !is null && !pipeline.empty,
+            "invalid Pipeline for tryWait");
     size_t running;
     foreach (index; 0 .. pipeline.length)
     {
@@ -260,8 +271,9 @@ PipelineWaitResult tryWaitPipeline(Pipeline* pipeline) @system
 
 ProcessError waitPipeline(Pipeline* pipeline) @system
 {
-    require(pipeline !is null && !pipeline.empty,
-        "invalid Pipeline for wait");
+    version (XTB_Checked)
+        require(pipeline !is null && !pipeline.empty,
+            "invalid Pipeline for wait");
     foreach (index; 0 .. pipeline.length)
     {
         ChildProcess* child = &pipeline.children_[index];
@@ -309,10 +321,13 @@ private ProcessError spawnPipelineSlice(Stage)(
     Pipeline* output,
 ) @system if (is(Stage == Command) || is(Stage == PipelineStage))
 {
-    require(allocator !is null && *allocator !is null,
-        "Pipeline requires a valid allocator");
-    require(output !is null, "Pipeline output pointer is null");
-    require(output.empty, "Pipeline output must be empty");
+    version (XTB_Checked)
+    {
+        require(allocator !is null && *allocator !is null,
+            "Pipeline requires a valid allocator");
+        require(output !is null, "Pipeline output pointer is null");
+        require(output.empty, "Pipeline output must be empty");
+    }
 
     ProcessError error = validatePipeline(stages, options);
     if (error.failed)
@@ -450,8 +465,9 @@ private ErrorRoute stageStderr(Stage)(
 
 private ProcessError signalStages(Pipeline* pipeline, bool forceful) @system
 {
-    require(pipeline !is null && !pipeline.empty,
-        "invalid Pipeline for termination");
+    version (XTB_Checked)
+        require(pipeline !is null && !pipeline.empty,
+            "invalid Pipeline for termination");
     ProcessError firstError;
     foreach (index; 0 .. pipeline.length)
     {

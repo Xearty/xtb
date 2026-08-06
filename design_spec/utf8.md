@@ -605,7 +605,15 @@ Use recoverable status for data that can be malformed at a trust boundary:
 - validating text supplied to a serializer;
 - converting foreign output into text.
 
-Use `require`/panic for violated programming contracts:
+Use a call-site-guarded `require` for violated programming contracts in
+checked builds:
+
+```d
+version (XTB_Checked)
+    require(condition, "contract violation");
+```
+
+Release-fast treats the same conditions as caller preconditions. Examples:
 
 - a null required output pointer;
 - an offset outside its documented range;

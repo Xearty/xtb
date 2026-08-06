@@ -7,7 +7,12 @@ targetPath "$XTB_LIBRARY_OUTPUT_DIR"
 sourcePaths "source"
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
-dflags "-boundscheck=on" "-preview=dip1000" platform="ldc"
+dflags "-preview=dip1000" platform="ldc"
+
+// Optimized checked build: keep language assertions and contracts enabled.
+buildType "release-safe" {
+    buildOptions "optimize" "inline"
+}
 libs "backtrace" platform="linux"
 
 subPackage "source/xtb/core"

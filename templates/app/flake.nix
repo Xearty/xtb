@@ -50,7 +50,7 @@
         buildPhase = ''
           runHook preBuild
           export DUB_HOME="$TMPDIR/dub"
-          dub build --compiler=ldc2 --skip-registry=all --build=release
+          DFLAGS="-boundscheck=on" dub build --compiler=ldc2 --skip-registry=all --build=release-safe --d-version=XTB_Checked
           runHook postBuild
         '';
         installPhase = ''

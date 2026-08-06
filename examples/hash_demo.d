@@ -3,6 +3,7 @@ module examples.hash_demo;
 import xtb.core;
 
 static assert(is(StringViewHashMap!int == HashMap!(String, int)));
+static assert(is(StringViewHashSet == HashSet!String));
 
 extern (C) int main() nothrow @nogc
 {
@@ -22,7 +23,7 @@ extern (C) int main() nothrow @nogc
     foreach (ref const name, ref count; inventory)
         formatln!"  {}: {}"(name, count);
 
-    HashSet!String labels = HashSet!String.create(mallocAllocator());
+    StringViewHashSet labels = StringViewHashSet.create(mallocAllocator());
     labels.add("fresh");
     labels.add("local");
     labels.add("fresh");
@@ -42,11 +43,21 @@ extern (C) int main() nothrow @nogc
     // owner. Lookups still accept allocation-free String views.
     StringHashMap!int owned = StringHashMap!int.create(mallocAllocator());
     owned.set("literal", 1);
-    StringBuf generated = StringBuf.fromString(mallocAllocator(), "generated");
-    int generatedValue = 2;
-    assert(owned.addMove(&generated, &generatedValue));
-    assert(generated.allocator is null && generated.empty);
-    assert(*owned.find("generated") == 2);
+    StringBuf movedKey = StringBuf.fromString(mallocAllocator(), "moved");
+    int movedValue = 2;
+    assert(owned.addMove(&movedKey, &movedValue));
+    assert(movedKey.allocator is null && movedKey.empty);
+    assert(*owned.find("moved") == 2);
+
+    StringHashSet ownedLabels = StringHashSet.create(mallocAllocator());
+    ownedLabels.add("persistent");
+    StringBuf movedLabel = StringBuf.fromString(
+        mallocAllocator(),
+        "moved-label",
+    );
+    assert((&ownedLabels).addMove(&movedLabel));
+    assert(movedLabel.allocator is null && movedLabel.empty);
+    assert(ownedLabels.contains("moved-label"));
 
     assert(labels.contains("fresh"));
     return 0;

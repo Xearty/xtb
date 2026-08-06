@@ -5,12 +5,13 @@ nothrow @nogc:
 import core.lifetime : move;
 import core.stdc.string : memmove;
 import xtb.core.hash : hashValue;
-import xtb.core.internal.managed_container_adapter : ManagedContainerAdapter;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
-import xtb.core.panic : panic, require;
-import xtb.core.string : String, StringBuf, StringBufUnmanaged,
-    asStringUnchecked, equal;
-import xtb.core.types : u8;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.released_storage : ReleasedStorage;
+import xtb.core.string : StringBuf, StringBufUnmanaged, asStringUnchecked;
+import xtb.core.types : String, u8;
 
 /// Immutable exact-sized UTF-8 allocation without an embedded allocator.
 ///
@@ -34,10 +35,13 @@ public:
     ) @trusted
     {
         requireValidOwnedStringAllocator(allocator);
-        require(output !is null,
-            "OwnedStringUnmanaged output pointer is null");
-        require(output.value_.ptr is null && output.value_.length == 0,
-            "OwnedStringUnmanaged output is not empty");
+        version (XTB_Checked)
+        {
+            require(output !is null,
+                "OwnedStringUnmanaged output pointer is null");
+            require(output.value_.ptr is null && output.value_.length == 0,
+                "OwnedStringUnmanaged output is not empty");
+        }
 
         if (value.length == 0)
             return true;
@@ -115,12 +119,16 @@ public:
 
     bool opEquals(scope String other) const pure @safe
     {
+        import xtb.core.string : equal;
+
         return value_.equal(other);
     }
 
     bool opEquals(scope ref const OwnedStringUnmanaged other) const
         pure @safe
     {
+        import xtb.core.string : equal;
+
         return value_.equal(other.value_);
     }
 
@@ -132,8 +140,9 @@ public:
 package(xtb):
     static OwnedStringUnmanaged adoptExact(String value) @system
     {
-        require((value.length == 0) == (value.ptr is null),
-            "adopted OwnedString storage is not canonical");
+        version (XTB_Checked)
+            require((value.length == 0) == (value.ptr is null),
+                "adopted OwnedString storage is not canonical");
         OwnedStringUnmanaged result;
         result.value_ = value;
         return move(result);
@@ -159,13 +168,89 @@ nothrow @nogc:
 
     alias Self = OwnedString;
     alias Storage = OwnedStringUnmanaged;
+    alias Released = ReleasedStorage!Storage;
 
 private:
     Allocator* allocator_;
     Storage storage_;
 
+version (XTB_Checked)
+{
+    invariant
+    {
+        require(&this !is null, "OwnedString pointer is null");
+    }
+}
+
 public:
-    mixin ManagedContainerAdapter!(Self, Storage);
+    @disable this(this);
+
+    static Self create(Allocator* allocator) @trusted
+    {
+        requireValidOwnedStringAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        return result;
+    }
+
+    static bool tryFromString(
+        Allocator* allocator,
+        scope String value,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "OwnedString output pointer is null");
+            require(output.allocator_ is null && output.storage_.empty,
+                "OwnedString output is not empty");
+        }
+        Storage storage;
+        if (!Storage.tryFromString(allocator, value, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    static Self fromString(Allocator* allocator, scope String value) @trusted
+    {
+        Self result;
+        if (!tryFromString(allocator, value, &result))
+            panic("OwnedString allocation failed");
+        return move(result);
+    }
+
+    static bool tryFromBytesUnchecked(
+        Allocator* allocator,
+        scope const(u8)[] bytes,
+        scope Self* output,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "OwnedString output pointer is null");
+            require(output.allocator_ is null && output.storage_.empty,
+                "OwnedString output is not empty");
+        }
+        Storage storage;
+        if (!Storage.tryFromBytesUnchecked(allocator, bytes, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    static Self fromBytesUnchecked(
+        Allocator* allocator,
+        scope const(u8)[] bytes,
+    ) @system
+    {
+        Self result;
+        if (!tryFromBytesUnchecked(allocator, bytes, &result))
+            panic("OwnedString allocation failed");
+        return move(result);
+    }
 
     static bool tryFromStringBuf(
         Allocator* destination,
@@ -174,10 +259,13 @@ public:
     ) @trusted
     {
         requireValidOwnedStringAllocator(destination);
-        require(source !is null, "StringBuf source pointer is null");
-        require(output !is null, "OwnedString output pointer is null");
-        require(output.allocator_ is null && output.storage_.empty,
-            "OwnedString output is not empty");
+        version (XTB_Checked)
+        {
+            require(source !is null, "StringBuf source pointer is null");
+            require(output !is null, "OwnedString output pointer is null");
+            require(output.allocator_ is null && output.storage_.empty,
+                "OwnedString output is not empty");
+        }
 
         if (source.empty)
         {
@@ -197,8 +285,9 @@ public:
                 StringBufUnmanaged raw = released.extract(
                     &releasedAllocator,
                 );
-                require(releasedAllocator is destination,
-                    "StringBuf allocator changed during release");
+                version (XTB_Checked)
+                    require(releasedAllocator is destination,
+                        "StringBuf allocator changed during release");
                 String exact = raw.releaseExactStorage();
                 Storage storage = Storage.adoptExact(exact);
                 Self result = adoptUnmanaged(destination, &storage);
@@ -226,14 +315,100 @@ public:
         return move(result);
     }
 
-    bool tryClone(Allocator* allocator, scope Self* output) const @safe
+    static Self adopt(scope Released* released) @trusted
     {
-        return Self.tryFromString(allocator, view, output);
+        version (XTB_Checked)
+            require(released !is null,
+                "released OwnedString storage pointer is null");
+        Allocator* allocator;
+        Storage storage = released.extract(&allocator);
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = move(storage);
+        return move(result);
     }
 
-    Self clone(Allocator* allocator) const @safe
+    ~this() @trusted
     {
-        return Self.fromString(allocator, view);
+        this.deinit();
+    }
+
+    void deinit() @trusted
+    {
+        if (allocator_ is null)
+            return;
+        storage_.deinit(allocator_);
+        allocator_ = null;
+    }
+
+    void resetAndRelease() @trusted
+    {
+        storage_.resetAndRelease(allocator_);
+    }
+
+    Released release() @trusted
+    {
+        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        allocator_ = null;
+        return move(result);
+    }
+
+    String view() const return pure @trusted
+    {
+        return storage_.view;
+    }
+
+    size_t byteLength() const pure @trusted
+    {
+        return storage_.byteLength;
+    }
+
+    bool empty() const pure @trusted
+    {
+        return storage_.empty;
+    }
+
+    bool equal(scope String other) const pure @trusted
+    {
+        return storage_ == other;
+    }
+
+    bool equal(scope ref const Self other) const pure @trusted
+    {
+        return storage_ == other.storage_;
+    }
+
+    bool tryClone(
+        Allocator* allocator,
+        scope Self* output,
+    ) const @trusted
+    {
+        return Self.tryFromString(allocator, storage_.view, output);
+    }
+
+    Self clone(Allocator* allocator) const @trusted
+    {
+        return Self.fromString(allocator, storage_.view);
+    }
+
+    bool opEquals(scope String other) const pure @trusted
+    {
+        return storage_ == other;
+    }
+
+    bool opEquals(scope ref const Self other) const pure @trusted
+    {
+        return storage_ == other.storage_;
+    }
+
+    size_t toHash() const pure @trusted
+    {
+        return storage_.toHash();
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
     }
 
 package(xtb):
@@ -243,8 +418,9 @@ package(xtb):
     ) @system
     {
         requireValidOwnedStringAllocator(allocator);
-        require(storage !is null,
-            "OwnedStringUnmanaged pointer is null");
+        version (XTB_Checked)
+            require(storage !is null,
+                "OwnedStringUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
         result.storage_ = move(*storage);
@@ -252,14 +428,19 @@ package(xtb):
     }
 }
 
-private void requireValidOwnedStringAllocator(Allocator* allocator)
+
+private void requireValidOwnedStringAllocator(Allocator* allocator) @trusted
 {
-    require(allocator !is null && *allocator !is null,
-        "OwnedString requires a valid allocator");
+    version (XTB_Checked)
+        require(allocator !is null && *allocator !is null,
+            "OwnedString requires a valid allocator");
 }
 
 static assert(OwnedStringUnmanaged.sizeof == String.sizeof);
 static assert(OwnedString.sizeof == (Allocator*).sizeof + String.sizeof);
+static assert(is(typeof((cast(OwnedString*) null).allocator()) == Allocator*));
+static assert(!__traits(compiles,
+    (cast(const(OwnedString)*) null).allocator()));
 
 unittest
 {
@@ -271,6 +452,7 @@ unittest
 
     OwnedString text = OwnedString.fromString(mallocAllocator(), "hello");
     assert(text.view == "hello");
+    assert(text.equal("hello"));
     assert(text.byteLength == 5);
     assert(text.toHash == hashValue("hello"));
     static assert(!__traits(isCopyable, OwnedString));
@@ -278,16 +460,24 @@ unittest
 
     OwnedString copy = text.clone(mallocAllocator());
     assert(copy == text);
+    assert(copy.equal(text));
     assert(copy.view.ptr !is text.view.ptr);
 
     StringBuf exact = StringBuf.fromString(mallocAllocator(), "exact");
-    exact.shrinkToFit();
-    const exactPointer = exact.view.ptr;
+    const(char)* exactPointer;
+    {
+        exact.shrinkToFit();
+        exactPointer = exact.view.ptr;
+    }
     OwnedString adopted = OwnedString.fromStringBuf(
         mallocAllocator(),
         &exact,
     );
-    assert(exact.allocator is null && exact.empty);
+    {
+        import xtb.core.string : empty;
+
+        assert(exact.allocator is null && exact.empty);
+    }
     assert(adopted.view.ptr is exactPointer);
 
     import xtb.core.memory : AllocationRecord;
@@ -301,10 +491,12 @@ unittest
     failing.failAfter(0);
     OwnedString failed;
     assert(!OwnedString.tryFromStringBuf(failing.handle, &source, &failed));
-    assert(source.view == "retained");
+    {
+        assert(source.view == "retained");
+        source.deinit();
+    }
     assert(failed.allocator is null && failed.empty);
     assert(failing.clean);
-    source.deinit();
 }
 
 unittest
@@ -337,14 +529,20 @@ unittest
     assert(allocator.stats.allocationCalls == allocationCalls);
 
     StringBuf spare = StringBuf.withCapacity(allocator.handle, 64);
-    spare.append("small");
+    {
+        spare.append("small");
+    }
     OwnedString compact = OwnedString.fromStringBuf(
         allocator.handle,
         &spare,
     );
     assert(compact.view == "small");
     assert(compact.byteLength == 5);
-    assert(spare.allocator is null && spare.empty);
+    {
+        import xtb.core.string : empty;
+
+        assert(spare.allocator is null && spare.empty);
+    }
 
     AllocationRecord[8] foreignRecords;
     InstrumentedAllocator foreign = InstrumentedAllocator.create(
@@ -355,14 +553,21 @@ unittest
         foreign.handle,
         "foreign",
     );
-    const foreignPointer = foreignBuffer.view.ptr;
+    const(char)* foreignPointer;
+    {
+        foreignPointer = foreignBuffer.view.ptr;
+    }
     OwnedString normalized = OwnedString.fromStringBuf(
         allocator.handle,
         &foreignBuffer,
     );
     assert(normalized.view == "foreign");
     assert(normalized.view.ptr !is foreignPointer);
-    assert(foreignBuffer.allocator is null && foreignBuffer.empty);
+    {
+        import xtb.core.string : empty;
+
+        assert(foreignBuffer.allocator is null && foreignBuffer.empty);
+    }
     assert(foreign.clean);
 
     normalized.deinit();

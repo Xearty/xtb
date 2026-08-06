@@ -146,50 +146,123 @@ private int sleepMilliseconds(const(char)* text) @system
     }
 }
 
+private immutable ubyte[8] emitOutput = ['o', 'u', 't', 0, 'd', 'a', 't', 'a'];
+private immutable ubyte[10] emitError = ['e', 'r', 'r', 'o', 'r', '-', 'd', 'a', 't', 'a'];
+
+private enum noCommandMatch = 256;
+
+private alias CommandHandler = int function(
+    int argumentCount,
+    char** arguments,
+) nothrow @nogc @system;
+
+private int handleArgv(int argumentCount, char** arguments) @system
+{
+    return equal(arguments[1], "argv")
+        ? emitArguments(argumentCount, arguments) : noCommandMatch;
+}
+
+private int handleEnvironment(int argumentCount, char** arguments) @system
+{
+    return equal(arguments[1], "environment")
+        ? emitEnvironment(argumentCount, arguments) : noCommandMatch;
+}
+
+private int handleCopy(int, char** arguments) @system
+{
+    return equal(arguments[1], "copy") ? copyInput() : noCommandMatch;
+}
+
+private int handleFloodCopy(int, char** arguments) @system
+{
+    return equal(arguments[1], "flood-copy")
+        ? floodThenCopy() : noCommandMatch;
+}
+
+private int handleCloseInput(int, char** arguments) @system
+{
+    if (!equal(arguments[1], "close-input"))
+        return noCommandMatch;
+    if (nativeClose(STDIN_FILENO) != 0)
+        return 125;
+    return writeEntire(STDOUT_FILENO, "closed".ptr, 6) ? 0 : 120;
+}
+
+private int handleEmit(int, char** arguments) @system
+{
+    if (!equal(arguments[1], "emit"))
+        return noCommandMatch;
+    return writeEntire(STDOUT_FILENO, emitOutput.ptr, emitOutput.length) &&
+        writeEntire(STDERR_FILENO, emitError.ptr, emitError.length) ? 0 : 120;
+}
+
+private int handleCurrentDirectory(int, char** arguments) @system
+{
+    return equal(arguments[1], "cwd")
+        ? emitCurrentDirectory() : noCommandMatch;
+}
+
+private int handleExit(int argumentCount, char** arguments) @system
+{
+    if (!equal(arguments[1], "exit"))
+        return noCommandMatch;
+    if (argumentCount != 3)
+        return 2;
+    const code = parseNonnegative(arguments[2]);
+    return code >= 0 && code <= 255 ? code : 2;
+}
+
+private int handleSignal(int argumentCount, char** arguments) @system
+{
+    if (!equal(arguments[1], "signal"))
+        return noCommandMatch;
+    if (argumentCount != 3)
+        return 2;
+    const signalNumber = parseNonnegative(arguments[2]);
+    return signalNumber > 0 && raise(signalNumber) == 0 ? 124 : 2;
+}
+
+private int handleSleep(int argumentCount, char** arguments) @system
+{
+    if (!equal(arguments[1], "sleep-ms"))
+        return noCommandMatch;
+    return argumentCount == 3 ? sleepMilliseconds(arguments[2]) : 2;
+}
+
+private int handleDelayedEmit(int argumentCount, char** arguments) @system
+{
+    if (!equal(arguments[1], "delayed-emit"))
+        return noCommandMatch;
+    if (argumentCount != 3)
+        return 2;
+    const sleepResult = sleepMilliseconds(arguments[2]);
+    return sleepResult == 0 &&
+        writeEntire(STDOUT_FILENO, "delayed".ptr, 7) ? 0 : 120;
+}
+
 extern (C) int main(int argumentCount, char** arguments) @system
 {
     if (argumentCount < 2)
         return 2;
-    if (equal(arguments[1], "argv"))
-        return emitArguments(argumentCount, arguments);
-    if (equal(arguments[1], "environment"))
-        return emitEnvironment(argumentCount, arguments);
-    if (equal(arguments[1], "copy"))
-        return copyInput();
-    if (equal(arguments[1], "flood-copy"))
-        return floodThenCopy();
-    if (equal(arguments[1], "close-input"))
+
+    CommandHandler[11] handlers = [
+        &handleArgv,
+        &handleEnvironment,
+        &handleCopy,
+        &handleFloodCopy,
+        &handleCloseInput,
+        &handleEmit,
+        &handleCurrentDirectory,
+        &handleExit,
+        &handleSignal,
+        &handleSleep,
+        &handleDelayedEmit,
+    ];
+    foreach (handler; handlers)
     {
-        if (nativeClose(STDIN_FILENO) != 0)
-            return 125;
-        return writeEntire(STDOUT_FILENO, "closed".ptr, 6) ? 0 : 120;
-    }
-    if (equal(arguments[1], "emit"))
-    {
-        enum ubyte[8] output = ['o', 'u', 't', 0, 'd', 'a', 't', 'a'];
-        enum ubyte[10] error = ['e', 'r', 'r', 'o', 'r', '-', 'd', 'a', 't', 'a'];
-        return writeEntire(STDOUT_FILENO, output.ptr, output.length) &&
-            writeEntire(STDERR_FILENO, error.ptr, error.length) ? 0 : 120;
-    }
-    if (equal(arguments[1], "cwd"))
-        return emitCurrentDirectory();
-    if (equal(arguments[1], "exit") && argumentCount == 3)
-    {
-        const code = parseNonnegative(arguments[2]);
-        return code >= 0 && code <= 255 ? code : 2;
-    }
-    if (equal(arguments[1], "signal") && argumentCount == 3)
-    {
-        const signal = parseNonnegative(arguments[2]);
-        return signal > 0 && raise(signal) == 0 ? 124 : 2;
-    }
-    if (equal(arguments[1], "sleep-ms") && argumentCount == 3)
-        return sleepMilliseconds(arguments[2]);
-    if (equal(arguments[1], "delayed-emit") && argumentCount == 3)
-    {
-        const sleepResult = sleepMilliseconds(arguments[2]);
-        return sleepResult == 0 &&
-            writeEntire(STDOUT_FILENO, "delayed".ptr, 7) ? 0 : 120;
+        const result = handler(argumentCount, arguments);
+        if (result != noCommandMatch)
+            return result;
     }
     return 2;
 }

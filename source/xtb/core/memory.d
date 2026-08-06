@@ -9,7 +9,9 @@ version (Posix)
 else
     import core.stdc.stdlib : aligned_alloc;
 import core.stdc.string : memcpy, memset;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.numeric : multiplyOverflows;
 
 alias Allocator = extern (C) void* function(
@@ -222,7 +224,8 @@ void deallocate(
 {
     if (pointer is null)
         return;
-    require(allocator !is null && *allocator !is null, "invalid allocator");
+    version (XTB_Checked)
+        require(allocator !is null && *allocator !is null, "invalid allocator");
     (*allocator)(allocator, 0, pointer, oldSize, alignment);
 }
 
@@ -269,8 +272,9 @@ nothrow @nogc:
         return scope AllocationRecord[] records,
     )
     {
-        require(backing !is null && *backing !is null,
-            "instrumented allocator requires a valid backing allocator");
+        version (XTB_Checked)
+            require(backing !is null && *backing !is null,
+                "instrumented allocator requires a valid backing allocator");
         InstrumentedAllocator result;
         result.allocator = &instrumentedAllocatorProcedure;
         result.backing = backing;

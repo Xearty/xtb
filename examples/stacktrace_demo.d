@@ -7,7 +7,7 @@ import xtb.core.print : Writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;
-import xtb.core.string : String;
+import xtb.core.string;
 
 private enum AssetKind : ubyte
 {

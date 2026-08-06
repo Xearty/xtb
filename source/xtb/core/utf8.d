@@ -4,7 +4,8 @@ nothrow @nogc:
 
 public import xtb.core.types : String;
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.types : u8;
 
 enum Utf8ErrorKind : u8
@@ -97,9 +98,11 @@ Utf8Error decodeCodePoint(
     scope DecodedCodePoint* output,
 ) @safe
 {
-    require(output !is null, "decoded code point output is null");
+    version (XTB_Checked)
+        require(output !is null, "decoded code point output is null");
     *output = DecodedCodePoint.init;
-    require(byteOffset < candidate.length, "UTF-8 byte offset out of bounds");
+    version (XTB_Checked)
+        require(byteOffset < candidate.length, "UTF-8 byte offset out of bounds");
 
     const first = cast(u8) candidate[byteOffset];
     if (first <= 0x7f)
@@ -154,10 +157,12 @@ Utf8Error decodePreviousCodePoint(
     scope DecodedCodePoint* output,
 ) @safe
 {
-    require(output !is null, "decoded code point output is null");
+    version (XTB_Checked)
+        require(output !is null, "decoded code point output is null");
     *output = DecodedCodePoint.init;
-    require(endByteOffset > 0 && endByteOffset <= candidate.length,
-        "UTF-8 end byte offset out of bounds");
+    version (XTB_Checked)
+        require(endByteOffset > 0 && endByteOffset <= candidate.length,
+            "UTF-8 end byte offset out of bounds");
 
     size_t beginByteOffset = endByteOffset - 1;
     size_t continuationCount;
@@ -254,7 +259,8 @@ bool isUnicodeScalar(dchar value) pure @safe
 
 bool tryEncodeUtf8(dchar value, scope EncodedCodePoint* output) @safe
 {
-    require(output !is null, "encoded code point output is null");
+    version (XTB_Checked)
+        require(output !is null, "encoded code point output is null");
     *output = EncodedCodePoint.init;
     if (!isUnicodeScalar(value))
         return false;
@@ -291,13 +297,16 @@ bool tryEncodeUtf8(dchar value, scope EncodedCodePoint* output) @safe
 EncodedCodePoint encodeUtf8(dchar value) @safe
 {
     EncodedCodePoint result;
-    require(tryEncodeUtf8(value, &result), "invalid Unicode scalar value");
+    const succeeded = tryEncodeUtf8(value, &result);
+    version (XTB_Checked)
+        require(succeeded, "invalid Unicode scalar value");
     return result;
 }
 
 u8 encodedUtf8Length(dchar value) @safe
 {
-    require(isUnicodeScalar(value), "invalid Unicode scalar value");
+    version (XTB_Checked)
+        require(isUnicodeScalar(value), "invalid Unicode scalar value");
     return value <= 0x7f ? 1 : value <= 0x7ff ? 2 : value <= 0xffff ? 3 : 4;
 }
 
@@ -308,8 +317,9 @@ size_t codePointCount(scope String value) @safe
     while (byteOffset < value.length)
     {
         DecodedCodePoint decoded;
-        require(decodeCodePoint(value, byteOffset, &decoded).succeeded,
-            "invalid UTF-8 String");
+        const status = decodeCodePoint(value, byteOffset, &decoded);
+        version (XTB_Checked)
+            require(status.succeeded, "invalid UTF-8 String");
         byteOffset += decoded.byteLength;
         ++result;
     }
@@ -329,37 +339,53 @@ nothrow @nogc:
 
     dchar front() const @safe
     {
-        require(!empty, "front of empty code point range");
+        version (XTB_Checked)
+            require(!empty, "front of empty code point range");
         DecodedCodePoint decoded;
-        require(decodeCodePoint(remaining_, 0, &decoded).succeeded,
-            "invalid UTF-8 String");
+        const status = decodeCodePoint(remaining_, 0, &decoded);
+        version (XTB_Checked)
+            require(status.succeeded, "invalid UTF-8 String");
         return decoded.value;
     }
 
     dchar back() const @safe
     {
-        require(!empty, "back of empty code point range");
+        version (XTB_Checked)
+            require(!empty, "back of empty code point range");
         DecodedCodePoint decoded;
-        require(decodePreviousCodePoint(remaining_, remaining_.length, &decoded).succeeded,
-            "invalid UTF-8 String");
+        const status = decodePreviousCodePoint(
+            remaining_,
+            remaining_.length,
+            &decoded,
+        );
+        version (XTB_Checked)
+            require(status.succeeded, "invalid UTF-8 String");
         return decoded.value;
     }
 
     void popFront() @safe
     {
-        require(!empty, "popFront of empty code point range");
+        version (XTB_Checked)
+            require(!empty, "popFront of empty code point range");
         DecodedCodePoint decoded;
-        require(decodeCodePoint(remaining_, 0, &decoded).succeeded,
-            "invalid UTF-8 String");
+        const status = decodeCodePoint(remaining_, 0, &decoded);
+        version (XTB_Checked)
+            require(status.succeeded, "invalid UTF-8 String");
         remaining_ = remaining_[decoded.byteLength .. $];
     }
 
     void popBack() @safe
     {
-        require(!empty, "popBack of empty code point range");
+        version (XTB_Checked)
+            require(!empty, "popBack of empty code point range");
         DecodedCodePoint decoded;
-        require(decodePreviousCodePoint(remaining_, remaining_.length, &decoded).succeeded,
-            "invalid UTF-8 String");
+        const status = decodePreviousCodePoint(
+            remaining_,
+            remaining_.length,
+            &decoded,
+        );
+        version (XTB_Checked)
+            require(status.succeeded, "invalid UTF-8 String");
         remaining_ = remaining_[0 .. decoded.byteOffset];
     }
 
@@ -372,7 +398,8 @@ nothrow @nogc:
         scope int delegate(dchar) nothrow @nogc @safe callback,
     ) const @safe
     {
-        require(callback !is null, "code point iteration callback is null");
+        version (XTB_Checked)
+            require(callback !is null, "code point iteration callback is null");
         CodePointRange range;
         range.remaining_ = remaining_;
         while (!range.empty)
@@ -390,7 +417,8 @@ nothrow @nogc:
     ) const
     @system
     {
-        require(callback !is null, "code point iteration callback is null");
+        version (XTB_Checked)
+            require(callback !is null, "code point iteration callback is null");
         CodePointRange range;
         range.remaining_ = remaining_;
         while (!range.empty)
@@ -426,19 +454,27 @@ nothrow @nogc:
 
     DecodedCodePoint front() const @safe
     {
-        require(!empty, "front of empty code point offset range");
+        version (XTB_Checked)
+            require(!empty, "front of empty code point offset range");
         DecodedCodePoint decoded;
-        require(decodeCodePoint(original_, beginByteOffset_, &decoded).succeeded,
-            "invalid UTF-8 String");
+        const status = decodeCodePoint(original_, beginByteOffset_, &decoded);
+        version (XTB_Checked)
+            require(status.succeeded, "invalid UTF-8 String");
         return decoded;
     }
 
     DecodedCodePoint back() const @safe
     {
-        require(!empty, "back of empty code point offset range");
+        version (XTB_Checked)
+            require(!empty, "back of empty code point offset range");
         DecodedCodePoint decoded;
-        require(decodePreviousCodePoint(original_, endByteOffset_, &decoded).succeeded,
-            "invalid UTF-8 String");
+        const status = decodePreviousCodePoint(
+            original_,
+            endByteOffset_,
+            &decoded,
+        );
+        version (XTB_Checked)
+            require(status.succeeded, "invalid UTF-8 String");
         return decoded;
     }
 
@@ -463,8 +499,9 @@ nothrow @nogc:
         scope int delegate(DecodedCodePoint) nothrow @nogc @safe callback,
     ) const @safe
     {
-        require(callback !is null,
-            "code point offset iteration callback is null");
+        version (XTB_Checked)
+            require(callback !is null,
+                "code point offset iteration callback is null");
         CodePointOffsetRange range;
         range.original_ = original_;
         range.beginByteOffset_ = beginByteOffset_;
@@ -484,8 +521,9 @@ nothrow @nogc:
     ) const
     @system
     {
-        require(callback !is null,
-            "code point offset iteration callback is null");
+        version (XTB_Checked)
+            require(callback !is null,
+                "code point offset iteration callback is null");
         CodePointOffsetRange range;
         range.original_ = original_;
         range.beginByteOffset_ = beginByteOffset_;

@@ -2,7 +2,8 @@ module xtb.os.pipe;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 
@@ -129,9 +130,12 @@ nothrow @nogc:
 
 OsError createPipe(PipeOptions options, Pipe* output) @system
 {
-    require(output !is null, "Pipe output pointer is null");
-    require(!output.reader.valid && !output.writer.valid,
-        "Pipe output must be empty");
+    version (XTB_Checked)
+    {
+        require(output !is null, "Pipe output pointer is null");
+        require(!output.reader.valid && !output.writer.valid,
+            "Pipe output must be empty");
+    }
     if (!valid(options.readerMode) || !valid(options.writerMode))
         return OsError(OsErrorKind.invalidArgument, 0);
 
@@ -165,19 +169,22 @@ OsError createPipe(PipeOptions options, Pipe* output) @system
 
 OsError close(PipeReader* reader) @system
 {
-    require(reader !is null, "PipeReader pointer is null");
+    version (XTB_Checked)
+        require(reader !is null, "PipeReader pointer is null");
     return closeOwnedDescriptor(&reader.descriptor_);
 }
 
 OsError close(PipeWriter* writer) @system
 {
-    require(writer !is null, "PipeWriter pointer is null");
+    version (XTB_Checked)
+        require(writer !is null, "PipeWriter pointer is null");
     return closeOwnedDescriptor(&writer.descriptor_);
 }
 
 PipeReadResult readSome(PipeReader* reader, u8[] output) @system
 {
-    require(reader !is null && reader.valid, "invalid PipeReader for read");
+    version (XTB_Checked)
+        require(reader !is null && reader.valid, "invalid PipeReader for read");
     if (output.length == 0)
         return PipeReadResult(OsError.init, 0, PipeReadState.data);
 
@@ -210,7 +217,8 @@ PipeReadResult readSome(PipeReader* reader, u8[] output) @system
 
 PipeWriteResult writeSome(PipeWriter* writer, scope const(u8)[] input) @system
 {
-    require(writer !is null && writer.valid, "invalid PipeWriter for write");
+    version (XTB_Checked)
+        require(writer !is null && writer.valid, "invalid PipeWriter for write");
     if (input.length == 0)
         return PipeWriteResult(OsError.init, 0, PipeWriteState.data);
 

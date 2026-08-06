@@ -5,9 +5,10 @@ nothrow @nogc:
 import xtb.diagnostics.demangle : SignatureDetail;
 public import xtb.core.ansi : AnsiColor;
 import xtb.core.ansi : beginAnsi, endAnsi;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.print : Writer;
-import xtb.core.string : String, equal;
+import xtb.core.string;
 
 enum StackTraceTheme
 {
@@ -71,7 +72,8 @@ nothrow @nogc:
         static foreach (definition; themeDefinitions)
             if (theme == definition.theme)
                 return definition.colors;
-        require(false, "invalid stack-trace theme");
+        version (XTB_Checked)
+            require(false, "invalid stack-trace theme");
         return StackTraceColors.init;
     }
 

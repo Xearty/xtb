@@ -2,7 +2,8 @@ module xtb.math.random;
 
 nothrow @safe @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.types : u32, u64;
 import xtb.math.scalar : isFinite;
 
@@ -35,7 +36,8 @@ nothrow @safe @nogc:
 
     u32 below(u32 bound)
     {
-        require(bound != 0, "random bound must be nonzero");
+        version (XTB_Checked)
+            require(bound != 0, "random bound must be nonzero");
         const threshold = -bound % bound;
         for (;;)
         {
@@ -53,8 +55,9 @@ nothrow @safe @nogc:
 
     float between(float lower, float upper)
     {
-        require(lower.isFinite && upper.isFinite && lower <= upper,
-            "random range must be finite and ordered");
+        version (XTB_Checked)
+            require(lower.isFinite && upper.isFinite && lower <= upper,
+                "random range must be finite and ordered");
         if (lower == upper)
             return lower;
         const t = unit();

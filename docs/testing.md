@@ -20,6 +20,16 @@ the complete library and every example, then sends every supported file
 through D-Scanner. Keep the D-Scanner exception list narrow and remove it when
 D-Scanner can parse `i"..."`.
 
+
+## Build-mode coverage
+
+Run contract-sensitive tests with `XTB_Checked` enabled. The Just test recipes
+define it for debug, optimized, release-safe, and AddressSanitizer runs.
+`just build static all release-fast` compiles the unchecked production
+libraries, and `just test release-fast` compiles every test runner without
+executing assertions that `-release` removes. Together they ensure guarded
+`require` imports and calls disappear cleanly. See `docs/build-modes.md`.
+
 ## Colocated unit tests
 
 Put tests immediately after the declaration or small group of declarations
@@ -31,11 +41,13 @@ module xtb.math.scalar;
 
 @safe nothrow @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 int clamp(int value, int low, int high)
 {
-    require(low <= high, "invalid clamp range");
+    version (XTB_Checked)
+        require(low <= high, "invalid clamp range");
     return value < low ? low : value > high ? high : value;
 }
 
@@ -138,6 +150,10 @@ after partial failure. In this project pay particular attention to:
 - null pointer plus zero length versus invalid null plus nonzero length;
 - required mutable pointers reject null, and pointer-based mutation is visible
   and limited to the documented fields;
+- managed-container member calls work from values and non-null struct pointers,
+  including const queries, allocation failure, release, and cleanup; checked
+  builds reject a null receiver through the managed invariant;
+- the component aggregate import re-exports every public container module;
 - integer overflow in byte/element size calculations;
 - exact-capacity and one-past-capacity allocator/container operations;
 - malformed, truncated, and adversarial serialized input;
@@ -199,8 +215,9 @@ String tests enforce the type boundary as well as textual behavior:
   embedded NUL when required, and respects scratch lifetime;
 - compile-time checks reject copying an owning `StringBuf` and reject mutation
   through `String`;
-- mutating operations compile with direct UFCS (`buffer.append(value)`) using
-  only the allowed first-parameter `ref` receiver.
+- mutating managed-container operations are real members
+  (`buffer.append(value)`) so definition navigation does not depend on UFCS
+  overload reconstruction.
 
 Printer sinks consume `const(u8)[]` stream fragments because flushes and short
 writes may split a scalar; a sink callback must not treat each fragment as an
@@ -335,15 +352,20 @@ The Nix development shell is the canonical toolchain and provides LDC, DUB,
 
 ```sh
 nix develop
-just lint            # dscanner plus project policy checks
-just format          # format all D sources, runners, and examples
-just format-check    # verify formatting without modifying source files
-just test            # every BetterC runner
-just build           # every component static library with -betterC
-just test-sanitize   # BetterC runner under AddressSanitizer
-just run-example core # build and run one public example through DUB
-just run-examples     # build and run every public example through DUB
-just check           # complete local verification matrix
+just targets                              # list modes and target names
+just build                                # monolithic static xtb, debug
+just build static core release-safe
+just build static all release-fast
+just build example core release-safe
+just run example core release-safe
+just test                                 # debug test suite
+just test release-safe
+just test release-fast                    # compile only; checks are stripped
+just test-sanitize                        # AddressSanitizer suite
+just lint                                 # compiler and D-Scanner policy checks
+just format                               # format all D source files
+just format-check                         # verify formatting only
+just check                                # complete local matrix
 ```
 
 The short `justfile` is the public command interface, while DUB owns static
@@ -353,29 +375,34 @@ configurations in `examples/dub.sdl` and `tests/dub.sdl` by naming convention.
 The important default outputs are:
 
 ```text
-build/libxtb_*.a                     native static libraries
-build/test/{debug,optimized,...}/    test runners and per-mode helpers
-build/examples/                      DUB-built example executables
+build/{debug,release-safe,release-fast}/  static libraries
+build/test/{debug,optimized,...}/         test runners and helpers
+build/examples/                           example executables
 ```
 
-Static libraries are created in `build` by default and may be directed
-elsewhere through `XTB_LIBRARY_OUTPUT_DIR`. With no arguments `build` selects
-every component; arguments select component suffixes:
+Static libraries may be redirected through `XTB_LIBRARY_OUTPUT_DIR`; the mode
+name is always appended. `just build` means `just build static xtb debug`.
+Use `all` to build the monolithic archive and every component archive:
 
 ```sh
 just build
-just build core os
-XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build core serde
+just build static core release-safe
+just build static all release-fast
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build static serde debug
 ```
 
-`run-examples` runs every example configuration. `run-example` accepts one
-short name, with or without the `-demo` suffix:
+Examples accept short names, source names, or configuration names. `all`
+builds or runs every example:
 
 ```sh
-just run-examples
-just run-example logging
-just run-example core-demo
+just build example logging
+just run example logging release-safe
+just run example core-demo
+just run example all debug
 ```
+
+The older `build-example`, `run-example`, `build-examples`, and `run-examples`
+recipes remain as convenience aliases.
 
 Unit-test runners still compile their production modules from source because
 D's `unittest` blocks only exist when those modules are compiled with

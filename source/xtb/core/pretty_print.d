@@ -5,14 +5,14 @@ nothrow @nogc:
 import core.lifetime : move;
 
 import xtb.core.ansi : AnsiColor, AnsiStyle, beginAnsi, endAnsi;
-import xtb.core.array : Array;
+import xtb.core.array;
 import xtb.core.flag_set : FlagSet;
-import xtb.core.hash_map : HashMap, HashSet;
-import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
+import xtb.core.hash_map;
+import xtb.core.owned_string;
 import xtb.core.option : Option;
 import xtb.core.print : Writer;
-import xtb.core.string : String, StringBuf;
-import xtb.core.string_hash_map : StringHashMap, StringHashMapUnmanaged;
+import xtb.core.string;
+import xtb.core.string_hash_map;
 
 /// Controls how aggregate values are laid out.
 enum PrettyPrintLayout : ubyte
@@ -2230,7 +2230,7 @@ version (unittest)
     ) nothrow @nogc
     {
         import xtb.core.print : writeBuffer;
-        import xtb.core.string : equal;
+        import xtb.core.string;
 
         char[4096] storage;
         const result = writeBuffer(storage[], pretty(value, options));
@@ -2246,7 +2246,7 @@ version (unittest)
     ) nothrow @nogc
     {
         import xtb.core.print : writeBuffer;
-        import xtb.core.string : equal;
+        import xtb.core.string;
 
         char[4096] storage;
         const result = writeBuffer(storage[], pretty(move(value), options));
@@ -2543,7 +2543,7 @@ unittest
     PrettyValue!PrettyPrintTestRecord emptyWrapper;
     emptyWrapper.options = plain;
     import xtb.core.print : writeBuffer;
-    import xtb.core.string : equal;
+    import xtb.core.string;
     char[32] emptyStorage;
     const emptyResult = writeBuffer(emptyStorage[], emptyWrapper);
     assert(emptyResult.ok);
@@ -2674,7 +2674,7 @@ unittest
     withOptions.expectPretty("<pretty without types>", noTypes);
 
     import xtb.core.print : writeBuffer;
-    import xtb.core.string : equal;
+    import xtb.core.string;
 
     PrettyPrintTestBothOverrides both = PrettyPrintTestBothOverrides(1);
     both.expectPretty("<pretty wins>", plain);
@@ -2759,7 +2759,7 @@ unittest
     nullPointer.expectPretty("null", noTypes);
 
     import xtb.core.print : writeBuffer;
-    import xtb.core.string : equal;
+    import xtb.core.string;
     char[128] addressStorage;
     const addressResult = writeBuffer(addressStorage[], pointer.pretty(noTypes));
     assert(addressResult.ok);
@@ -2875,7 +2875,7 @@ unittest
 unittest
 {
     import xtb.core.print : writeBuffer;
-    import xtb.core.string : equal;
+    import xtb.core.string;
 
     int number = 42;
     char[64] storage;

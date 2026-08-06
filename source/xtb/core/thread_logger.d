@@ -4,7 +4,8 @@ nothrow @nogc:
 
 import explicitLogger = xtb.core.logger;
 import xtb.core.logger : Logger, LogLevel, LogResult, LogStatus;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.thread_context : ThreadContext, currentThreadContext;
 
 private template StartsWithLogger(Args...)
@@ -29,11 +30,15 @@ nothrow @nogc:
 
     static ThreadLoggerScope install(Logger* logger)
     {
-        require(logger !is null, "cannot install a null thread logger");
-        require(logger.valid, "cannot install an invalid thread logger");
+        version (XTB_Checked)
+        {
+            require(logger !is null, "cannot install a null thread logger");
+            require(logger.valid, "cannot install an invalid thread logger");
+        }
 
         ThreadContext* context = currentThreadContext();
-        require(context !is null, "logger installed without a thread context");
+        version (XTB_Checked)
+            require(context !is null, "logger installed without a thread context");
 
         ThreadLoggerScope result;
         result.context_ = context;
@@ -48,14 +53,17 @@ nothrow @nogc:
         if (context_ is null)
             return;
 
-        require(
-            currentThreadContext() is context_,
-            "thread logger destroyed outside its thread context",
-        );
-        require(
-            context_.installedLogger is cast(void*) installed_,
-            "thread loggers destroyed out of order",
-        );
+        version (XTB_Checked)
+        {
+            require(
+                currentThreadContext() is context_,
+                "thread logger destroyed outside its thread context",
+            );
+            require(
+                context_.installedLogger is cast(void*) installed_,
+                "thread loggers destroyed out of order",
+            );
+        }
         context_.setInstalledLogger(cast(void*) previous_);
         context_ = null;
         installed_ = null;
@@ -192,7 +200,7 @@ version (unittest)
 unittest
 {
     import xtb.core.print : Writer;
-    import xtb.core.string : equal;
+    import xtb.core.string;
     import xtb.core.thread_context : ThreadContextScope;
 
     assert(currentLogger() is null);

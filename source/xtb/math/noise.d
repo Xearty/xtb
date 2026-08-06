@@ -3,9 +3,11 @@ module xtb.math.noise;
 nothrow @nogc:
 
 import core.stdc.math : floorf, fmodf;
-import xtb.core.array : Array;
+import xtb.core.array;
 import xtb.core.memory : Allocator;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.math.random : Random;
 import xtb.math.scalar : smootherstep;
 
@@ -29,10 +31,13 @@ nothrow @nogc:
     static bool tryCreate(Allocator* allocator, size_t period, ulong seed,
         ValueNoise1D* output, ulong stream = 0)
     {
-        require(output !is null, "ValueNoise1D output pointer is null");
-        require(allocator !is null, "ValueNoise1D requires an allocator");
-        require(period != 0, "ValueNoise1D period must be nonzero");
-        require(period <= 16_777_216, "ValueNoise1D period exceeds exact float integer range");
+        version (XTB_Checked)
+        {
+            require(output !is null, "ValueNoise1D output pointer is null");
+            require(allocator !is null, "ValueNoise1D requires an allocator");
+            require(period != 0, "ValueNoise1D period must be nonzero");
+            require(period <= 16_777_216, "ValueNoise1D period exceeds exact float integer range");
+        }
         output.deinit();
         output.values_ = Array!float.create(allocator);
         if (!output.values_.tryResize(period))
@@ -68,9 +73,12 @@ nothrow @nogc:
 
     float sample(float position) const @system
     {
-        require(values_.length != 0, "cannot sample empty ValueNoise1D");
-        require(position == position && position <= float.max
-                && position >= -float.max, "ValueNoise1D position must be finite");
+        version (XTB_Checked)
+        {
+            require(values_.length != 0, "cannot sample empty ValueNoise1D");
+            require(position == position && position <= float.max
+                    && position >= -float.max, "ValueNoise1D position must be finite");
+        }
         float wrapped = fmodf(position, cast(float) values_.length);
         if (wrapped < 0)
             wrapped += values_.length;

@@ -53,13 +53,13 @@
         buildPhase = ''
           runHook preBuild
           export DUB_HOME="$TMPDIR/dub"
-          just build
+          just build static all release-safe
           runHook postBuild
         '';
         installPhase = ''
           runHook preInstall
           mkdir -p $out/lib $out/include
-          cp build/libxtb_*.a $out/lib/
+          cp build/release-safe/libxtb*.a $out/lib/
           cp -R source/xtb $out/include/
           runHook postInstall
         '';

@@ -2,13 +2,17 @@ module xtb.core.slice;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 T[] subslice(T)(return scope T[] values, size_t offset, size_t count)
 @system
 {
-    require(offset <= values.length, "slice offset out of bounds");
-    require(count <= values.length - offset, "slice count out of bounds");
+    version (XTB_Checked)
+    {
+        require(offset <= values.length, "slice offset out of bounds");
+        require(count <= values.length - offset, "slice count out of bounds");
+    }
     return values[offset .. offset + count];
 }
 
@@ -42,13 +46,15 @@ pure @safe
 
 ref T front(T)(return scope T[] values) @system
 {
-    require(values.length != 0, "front of empty slice");
+    version (XTB_Checked)
+        require(values.length != 0, "front of empty slice");
     return values[0];
 }
 
 ref T back(T)(return scope T[] values) @system
 {
-    require(values.length != 0, "back of empty slice");
+    version (XTB_Checked)
+        require(values.length != 0, "back of empty slice");
     return values[values.length - 1];
 }
 

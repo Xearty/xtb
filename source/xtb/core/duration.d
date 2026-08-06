@@ -2,7 +2,8 @@ module xtb.core.duration;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.types : u64;
 
 enum u64 nanosecondsPerMicrosecond = 1_000;
@@ -79,18 +80,20 @@ nothrow @nogc:
     {
         static if (operation == "+")
         {
-            require(
-                other.nanoseconds_ <= u64.max - nanoseconds_,
-                "Duration addition overflow",
-            );
+            version (XTB_Checked)
+                require(
+                    other.nanoseconds_ <= u64.max - nanoseconds_,
+                    "Duration addition overflow",
+                );
             return Duration(nanoseconds_ + other.nanoseconds_);
         }
         else
         {
-            require(
-                other.nanoseconds_ <= nanoseconds_,
-                "Duration subtraction underflow",
-            );
+            version (XTB_Checked)
+                require(
+                    other.nanoseconds_ <= nanoseconds_,
+                    "Duration subtraction underflow",
+                );
             return Duration(nanoseconds_ - other.nanoseconds_);
         }
     }
@@ -99,20 +102,23 @@ nothrow @nogc:
             if ((operation == "*" || operation == "/") && isDurationCount!T)
     {
         static if (isSignedDurationCount!T)
-            require(value >= 0, "Duration scale cannot be negative");
+            version (XTB_Checked)
+                require(value >= 0, "Duration scale cannot be negative");
 
         const scale = cast(u64) value;
         static if (operation == "*")
         {
-            require(
-                nanoseconds_ == 0 || scale <= u64.max / nanoseconds_,
-                "Duration multiplication overflow",
-            );
+            version (XTB_Checked)
+                require(
+                    nanoseconds_ == 0 || scale <= u64.max / nanoseconds_,
+                    "Duration multiplication overflow",
+                );
             return Duration(nanoseconds_ * scale);
         }
         else
         {
-            require(scale != 0, "Duration division by zero");
+            version (XTB_Checked)
+                require(scale != 0, "Duration division by zero");
             return Duration(nanoseconds_ / scale);
         }
     }
@@ -127,13 +133,15 @@ nothrow @nogc:
 private Duration scaledDuration(T)(T count, u64 scale) @safe if (isDurationCount!T)
 {
     static if (isSignedDurationCount!T)
-        require(count >= 0, "Duration cannot be negative");
+        version (XTB_Checked)
+            require(count >= 0, "Duration cannot be negative");
 
     const value = cast(u64) count;
-    require(
-        value == 0 || scale <= u64.max / value,
-        "Duration unit conversion overflow",
-    );
+    version (XTB_Checked)
+        require(
+            value == 0 || scale <= u64.max / value,
+            "Duration unit conversion overflow",
+        );
     return Duration(value * scale);
 }
 

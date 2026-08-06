@@ -1,6 +1,7 @@
 module xtb.core.list;
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 nothrow @nogc:
 
@@ -120,9 +121,11 @@ struct List(Node, string member = "listLink")
 
     void pushBack(Node* node)
     {
-        require(node !is null, "cannot insert a null list node");
+        version (XTB_Checked)
+            require(node !is null, "cannot insert a null list node");
         ref link = listLinkOf!(Node, member)(node);
-        require(!link.linked_, "list node is already linked");
+        version (XTB_Checked)
+            require(!link.linked_, "list node is already linked");
 
         link.previous_ = last_;
         link.next_ = null;
@@ -136,9 +139,11 @@ struct List(Node, string member = "listLink")
 
     void pushFront(Node* node)
     {
-        require(node !is null, "cannot insert a null list node");
+        version (XTB_Checked)
+            require(node !is null, "cannot insert a null list node");
         ref link = listLinkOf!(Node, member)(node);
-        require(!link.linked_, "list node is already linked");
+        version (XTB_Checked)
+            require(!link.linked_, "list node is already linked");
 
         link.previous_ = null;
         link.next_ = first_;
@@ -152,11 +157,14 @@ struct List(Node, string member = "listLink")
 
     void insertAfter(Node* position, Node* node)
     {
-        require(position !is null && node !is null,
-            "cannot insert a null list node");
-        require(contains(position), "position is not in this list");
-        require(!listLinkOf!(Node, member)(node).linked_,
-            "list node is already linked");
+        version (XTB_Checked)
+        {
+            require(position !is null && node !is null,
+                "cannot insert a null list node");
+            require(contains(position), "position is not in this list");
+            require(!listLinkOf!(Node, member)(node).linked_,
+                "list node is already linked");
+        }
         if (position is last_)
         {
             pushBack(node);
@@ -174,11 +182,14 @@ struct List(Node, string member = "listLink")
 
     void insertBefore(Node* position, Node* node)
     {
-        require(position !is null && node !is null,
-            "cannot insert a null list node");
-        require(contains(position), "position is not in this list");
-        require(!listLinkOf!(Node, member)(node).linked_,
-            "list node is already linked");
+        version (XTB_Checked)
+        {
+            require(position !is null && node !is null,
+                "cannot insert a null list node");
+            require(contains(position), "position is not in this list");
+            require(!listLinkOf!(Node, member)(node).linked_,
+                "list node is already linked");
+        }
         if (position is first_)
         {
             pushFront(node);
@@ -196,8 +207,11 @@ struct List(Node, string member = "listLink")
 
     void remove(Node* node)
     {
-        require(node !is null, "cannot remove a null list node");
-        require(contains(node), "node is not in this list");
+        version (XTB_Checked)
+        {
+            require(node !is null, "cannot remove a null list node");
+            require(contains(node), "node is not in this list");
+        }
         ref link = listLinkOf!(Node, member)(node);
 
         if (link.previous_ is null)
@@ -215,7 +229,8 @@ struct List(Node, string member = "listLink")
 
     Node* popFront()
     {
-        require(first_ !is null, "cannot pop an empty list");
+        version (XTB_Checked)
+            require(first_ !is null, "cannot pop an empty list");
         Node* result = first_;
         remove(result);
         return result;
@@ -223,7 +238,8 @@ struct List(Node, string member = "listLink")
 
     Node* popBack()
     {
-        require(last_ !is null, "cannot pop an empty list");
+        version (XTB_Checked)
+            require(last_ !is null, "cannot pop an empty list");
         Node* result = last_;
         remove(result);
         return result;
@@ -231,7 +247,8 @@ struct List(Node, string member = "listLink")
 
     void concatenate(ref List source)
     {
-        require(&this !is &source, "cannot concatenate a list with itself");
+        version (XTB_Checked)
+            require(&this !is &source, "cannot concatenate a list with itself");
         if (source.empty)
             return;
         if (empty)
@@ -272,13 +289,15 @@ struct ListCursor(Node, string member)
 
     Node* get() return
     {
-        require(valid, "invalid list cursor");
+        version (XTB_Checked)
+            require(valid, "invalid list cursor");
         return current_;
     }
 
     void advance()
     {
-        require(valid, "invalid list cursor");
+        version (XTB_Checked)
+            require(valid, "invalid list cursor");
         ref link = listLinkOf!(Node, member)(current_);
         current_ = reverse_ ? link.previous_ : link.next_;
     }
@@ -314,9 +333,11 @@ struct Queue(Node, string member = "forwardLink")
 
     void pushBack(Node* node)
     {
-        require(node !is null, "cannot insert a null queue node");
+        version (XTB_Checked)
+            require(node !is null, "cannot insert a null queue node");
         ref link = forwardLinkOf!(Node, member)(node);
-        require(!link.linked_, "queue node is already linked");
+        version (XTB_Checked)
+            require(!link.linked_, "queue node is already linked");
 
         link.next_ = null;
         link.linked_ = true;
@@ -329,9 +350,11 @@ struct Queue(Node, string member = "forwardLink")
 
     void pushFront(Node* node)
     {
-        require(node !is null, "cannot insert a null queue node");
+        version (XTB_Checked)
+            require(node !is null, "cannot insert a null queue node");
         ref link = forwardLinkOf!(Node, member)(node);
-        require(!link.linked_, "queue node is already linked");
+        version (XTB_Checked)
+            require(!link.linked_, "queue node is already linked");
 
         link.next_ = first_;
         link.linked_ = true;
@@ -342,7 +365,8 @@ struct Queue(Node, string member = "forwardLink")
 
     Node* popFront()
     {
-        require(first_ !is null, "cannot pop an empty queue");
+        version (XTB_Checked)
+            require(first_ !is null, "cannot pop an empty queue");
         Node* result = first_;
         ref link = forwardLinkOf!(Node, member)(result);
         first_ = link.next_;
@@ -377,9 +401,11 @@ struct Stack(Node, string member = "forwardLink")
 
     void push(Node* node)
     {
-        require(node !is null, "cannot insert a null stack node");
+        version (XTB_Checked)
+            require(node !is null, "cannot insert a null stack node");
         ref link = forwardLinkOf!(Node, member)(node);
-        require(!link.linked_, "stack node is already linked");
+        version (XTB_Checked)
+            require(!link.linked_, "stack node is already linked");
 
         link.next_ = top_;
         link.linked_ = true;
@@ -388,7 +414,8 @@ struct Stack(Node, string member = "forwardLink")
 
     Node* pop()
     {
-        require(top_ !is null, "cannot pop an empty stack");
+        version (XTB_Checked)
+            require(top_ !is null, "cannot pop an empty stack");
         Node* result = top_;
         ref link = forwardLinkOf!(Node, member)(result);
         top_ = link.next_;

@@ -1,5 +1,15 @@
 # Architecture
 
+## Runtime-check policy
+
+Programmer contracts use `require`, with both the import and call guarded by
+`version (XTB_Checked)`. Debug and release-safe builds define that identifier;
+release-fast omits it and also disables native assertions, contracts, and array
+bounds checks. The guard must remain at the call site so contract arguments are
+not evaluated in release-fast. Recoverable validation and explicit panic paths
+are independent of this policy. See `docs/build-modes.md`.
+
+
 ## Purpose
 
 `xtb` is an independent D library collection inspired by the capabilities of
@@ -350,8 +360,8 @@ must outlive the scope. Its destructor restores the previously installed
 logger, so a nested scope can temporarily redirect a thread's output. Scopes
 must unwind before `ThreadContextScope` and in reverse installation order.
 Installing a null or invalid logger, installing without a thread context, or
-violating destruction order is a programming error and panics in every build
-mode.
+violating destruction order is a programming error and panics in checked build
+modes. Release-fast assumes correct scope ordering.
 
 The overloads without a `Logger` receiver—`enabled(level)`, `log(level, ...)`,
 `logf!pattern(level, ...)`, and `flushLogger()`—consult only the calling
@@ -716,26 +726,33 @@ allocator and therefore cannot grow. Fallible growth returns `false`; panicking
 growth reports the missing allocator. Construct it with `create`,
 `withCapacity`, or `fromString` before appending.
 
-All container mutation occurs through `StringBuf` member methods, never through
-`String`. The managed members are generated from the corresponding
-`StringBufUnmanaged` operations and inject the bound allocator where required.
-Other mutable output parameters remain explicit pointers unless an independent
-builder-style utility deliberately accepts a `ref StringBuf` destination.
+All `StringBuf` receiver-owned operations are handwritten members. The bound
+allocator is injected by those methods into `StringBufUnmanaged`; other mutable
+outputs remain explicit pointers. This gives code-d/serve-d a concrete member
+declaration to navigate instead of requiring it to reconstruct a large UFCS
+overload set through aggregate re-exports.
 
 ```d
 StringBuf buffer = StringBuf.create(allocator);
 buffer.append(prefix);
-buffer.append(':');
+StringBuf* pointer = &buffer;
+pointer.append(':');
 buffer.append(value);
-String result = buffer.view();
+String result = buffer.view;
 ```
 
-These are genuine member calls; no duplicate module-level forwarding functions
-are provided. Apply the same rule to `Array!T`, `HashMap`, `HashSet`, and other
-managed containers. Reserve, resize, append, prepend, insert, replace-in-place,
-clear, and formatting operations validate overflow before changing the buffer.
-On a recoverable allocation failure the original contents remain valid unless
-the operation documents otherwise.
+The same rule applies to `Array!T`, `HashMap`, `HashSet`, `OwnedString`, the
+string hash containers, and future managed containers. Their structs contain
+ownership fields, static factories, ordinary member operations, one
+mutable-only `Allocator* allocator()` member, and D-required hooks such as a
+destructor, indexing, equality, or `foreach`. D's normal struct-pointer member
+lookup makes duplicate pointer forwarding overloads unnecessary. In checked
+builds a version-gated invariant rejects a null receiver; release-fast removes
+that contract entirely. Reserve, resize, append, prepend, insert,
+replace-in-place, clear, and formatting operations validate overflow before
+changing the buffer. On a recoverable allocation failure the original contents
+remain valid unless the operation documents otherwise. The full handwritten
+pattern is documented in `docs/managed-containers.md`.
 
 `view()` returns a read-only `String` borrowing the current contents. Any
 operation that can reallocate, shift, overwrite, clear, release, or destroy the
@@ -750,9 +767,8 @@ built-in slice equality, while `StringBuf` overloads equality against both
 `buffer == "text"` and `"text" == buffer` are valid. Every form compares the
 exact bytes and length without allocating; it does not normalize or transcode
 Unicode. A null `String` and an empty `StringBuf` compare equal because both
-represent the same zero-length byte sequence. Keep `equal` as the explicit
-algorithm/UFCS primitive, but do not create a borrowed view merely to compare
-an owned buffer. `StringBuf.toHash` hashes those same bytes and therefore stays
+represent the same zero-length byte sequence. `StringBuf.equal` remains available as an explicit member comparison, but do
+not create a borrowed view merely to compare an owned buffer. `StringBuf.toHash` hashes those same bytes and therefore stays
 consistent with equality. Since mutation changes the hash, never mutate a
 buffer while an external hash table is using its contents as a key.
 
@@ -762,8 +778,9 @@ Copying a `String` into owned storage is explicit:
 StringBuf owned = StringBuf.fromString(allocator, input);
 ```
 
-Builder-style utilities use `ref StringBuf output` as their first UFCS receiver
-when composition or allocation reuse matters. Convenience functions may return
+Builder-style utilities that are genuinely external algorithms may still take
+`ref StringBuf output` when composition or allocation reuse matters. Ordinary
+buffer operations themselves are members. Convenience functions may return
 `StringBuf` by move. Utilities returning an allocator-backed `String` document
 that the allocator, not the view, owns its bytes and when those bytes become
 invalid.
@@ -983,8 +1000,9 @@ manually on a scope-owned `TempArena`. Its destructor is implemented through
 the same lower-level `pop` operation rather than a separate rewind path.
 Scratch acquisition is deliberately infallible at the API level: a
 missing thread context or failure to find a non-conflicting arena is a violated
-runtime precondition and immediately calls the project's panic handler. There
-is no status result, nullable scratch value, or recovery branch in callers.
+runtime precondition. Checked builds immediately call the project's panic
+handler; release-fast assumes the precondition. There is no status result,
+nullable scratch value, or recovery branch in callers.
 
 D structs do not provide a user-defined parameterless default constructor, so
 the zero-conflict form uses the named `ScratchScope.acquire()` factory. The
@@ -1301,8 +1319,10 @@ no filesystem access. File convenience functions, if added later, must compose
   and runtime reflection are unavailable.
 - Keep the name `Array!T` for the allocator-owning growable container. Native
   D slices remain the borrowed representation. `Array!T` is non-copyable and
-  its ordinary mutation API consists of member functions generated from
-  `ArrayUnmanaged!T`. It owns every live element: removal, shrinking, clearing,
+  its ordinary API is a handwritten member surface colocated with
+  `ArrayUnmanaged!T`; D struct-pointer member lookup handles non-null pointer
+  receivers without duplicate forwarding overloads. It owns every live element:
+  removal, shrinking, clearing,
   release, and destruction run
   element destructors in reverse lifetime order where applicable. Relocation
   uses move construction for elaborate types and leaves moved-from storage
@@ -1318,8 +1338,10 @@ no filesystem access. File convenience functions, if added later, must compose
   alias for `HashMap!(String, V)` and borrows every key's bytes, which must
   outlive the entry. `StringHashMap!V` instead stores
   `OwnedStringUnmanaged` keys, owns one exact allocation per nonempty key, and
-  shares one allocator across the whole map. Both string-map families accept
-  borrowed `String` lookup/removal keys without allocation. Lookup returns
+  shares one allocator across the whole map. `StringViewHashSet` and
+  `StringHashSet` provide the corresponding borrowing and owning set policies.
+  All four string hash families accept borrowed `String` lookup/removal values
+  without allocation. Lookup returns
   `V*` (or `const(V)*` through a const map) to keep mutation
   explicit. Direct iteration uses
   `foreach (ref const key, ref value; map)`; the `ref` at the call site is the
@@ -1356,8 +1378,8 @@ no filesystem access. File convenience functions, if added later, must compose
   reports the number of atomic enum members, and `bitCapacity` reports the
   selected storage width.
   Casts can manufacture undeclared D enum values, so every flag-taking
-  operation validates before shifting and panics on an invalid value in every
-  build mode. Use `tryFromBits` for recoverable raw-input validation,
+  operation validates before shifting and panics on an invalid value in checked
+  build modes. Release-fast assumes enum values are declared. Use `tryFromBits` for recoverable raw-input validation,
   `fromBits` for trusted masks whose invalidity is a contract violation, and
   `fromBitsTruncated` only when intentionally discarding unknown bits.
 - Make state transitions explicit with verbs such as `create`, `reset`,
@@ -1368,10 +1390,11 @@ no filesystem access. File convenience functions, if added later, must compose
   Never declare a member named `init`: D reserves `Type.init` for the type's
   default-initialized value, and generic code must remain able to use it.
 - Use `scope const` for non-escaping read-only inputs. Use pointers for mutable
-  parameters by default. The first receiver of a mutating UFCS operation may
-  use `ref`, allowing `buffer.append(value)` for `StringBuf`, `Array!T`, and
-  similar stateful values without permitting `ref` throughout arbitrary APIs.
-  A required pointer is checked/asserted non-null at the boundary; an optional
+  function parameters by default. Owning containers expose receiver-owned
+  mutation as member methods (`buffer.append(value)`) rather than free UFCS
+  adapters. Genuine free algorithms may use `ref` only when a mutable receiver
+  is intrinsic to the algorithm and no owning member surface applies. A
+  required pointer is checked/asserted non-null at the boundary; an optional
   pointer documents null behavior. Add `return scope` only when returning a
   borrow tied to an input.
 - Avoid boolean parameters when two named functions or an enum communicates

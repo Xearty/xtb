@@ -94,7 +94,7 @@ Future general-purpose additions are ranked separately in
 - non-copyable `StringBuf` with creation/copy factories, fallible reserve and
   append, assume-capacity append, insertion, prepend, in-place replacement,
   escaping, capacity release, views, and checked C conversion;
-- short UFCS verbs and the documented first-receiver `ref` exception.
+- short discoverable member verbs on `StringBuf`; borrowed `String` algorithms remain UFCS-friendly free functions.
 
 ### Arenas and scratch space
 

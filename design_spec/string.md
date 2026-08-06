@@ -134,8 +134,11 @@ segmentation or normalization.
 
 ## `StringBuf`
 
-`StringBuf` owns a growable valid UTF-8 allocation. It remains non-copyable and
-exposes mutation through member methods generated from `StringBufUnmanaged`.
+`StringBuf` owns a growable valid UTF-8 allocation. It remains non-copyable.
+Its struct contains ownership state, static factories, D-required hooks, and
+its ordinary handwritten member API. The declarations are colocated in
+`xtb.core.string`, so language servers can navigate directly to the operation
+selected for a `StringBuf` receiver.
 
 ```d
 struct StringBuf
@@ -149,37 +152,26 @@ struct StringBuf
         StringBuf* output,
     );
 
-    size_t byteLength() const pure @safe;
-    size_t byteCapacity() const pure @safe;
-    bool empty() const pure @safe;
-    String view() const return pure @safe;
-    Allocator* allocator() return;
-
-    void reserve(size_t byteCapacity);
-    bool tryReserve(size_t byteCapacity);
-
-    void append(String value);
+    size_t byteLength() const;
+    String view() const return;
     bool tryAppend(String value);
-    void append(char ascii);
-    bool tryAppend(char ascii);
+    void append(String value);
     void append(dchar codePoint);
-    bool tryAppend(dchar codePoint);
-
-    void appendAssumeCapacity(String value);
-    void appendAssumeCapacity(char ascii);
-    void appendAssumeCapacity(dchar codePoint);
-
-    void insert(size_t byteOffset, String value);
-    bool tryInsert(size_t byteOffset, String value);
-    void truncateBytes(size_t newByteLength);
-    void clear();
-    void resetAndRelease();
-
+    bool tryAssign(String value);
+    void trimAsciiInPlace();
+    bool removePrefix(String prefix);
+    Array!String split(String separator, Allocator* allocator) const;
     bool tryCString(const(char)** output) @system;
-    const(char)* cString() return @system;
     const(char)* checkedCString() return @system;
 }
 ```
+
+
+D automatically permits member lookup through a non-null `StringBuf*`, so no
+parallel pointer-forwarding overload set is needed. Checked builds use the
+managed-container invariant for null-receiver diagnostics. No adapter
+declarations are generated with mixins or reflection; see
+[`docs/managed-containers.md`](../docs/managed-containers.md).
 
 The `char` overload accepts ASCII only. Non-ASCII scalars use `dchar`; complete
 text uses `String`. Insert and truncation offsets must be scalar boundaries.

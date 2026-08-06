@@ -2,16 +2,15 @@ module tests.serde_tests;
 
 import core.lifetime : move;
 import tests.serde_backend_contract : runSerdeBackendContracts;
-import xtb.core.array : Array, ArrayUnmanaged;
-import xtb.core.hash_map : AddStatus, HashMap, HashMapUnmanaged, HashSetUnmanaged;
+import xtb.core.array;
+import xtb.core.hash_map;
 import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
     mallocAllocator;
 import xtb.core.option : Option, set;
-import xtb.core.owned_string : OwnedString;
+import xtb.core.owned_string;
 import xtb.core.print : Writer;
-import xtb.core.string : String, StringBuf, StringBufUnmanaged,
-    asStringUnchecked, equal;
-import xtb.core.string_hash_map : StringHashMap, StringViewHashMap;
+import xtb.core.string;
+import xtb.core.string_hash_map;
 import xtb.core.types : u8;
 import xtb.serde.attributes;
 import xtb.serde.casing;

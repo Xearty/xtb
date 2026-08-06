@@ -8,15 +8,16 @@ import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
 import core.lifetime : emplace, move;
 import core.internal.traits : hasElaborateDestructor;
-import xtb.core.array : Array;
-import xtb.core.hash_map : AddStatus, HashMap;
+import xtb.core.array;
+import xtb.core.hash_map;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.option : Option, reset;
-import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
-import xtb.core.panic : require;
+import xtb.core.owned_string;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.print : Writer;
-import xtb.core.string : StringBuf;
-import xtb.core.string_hash_map : StringHashMap;
+import xtb.core.string;
+import xtb.core.string_hash_map;
 import xtb.core.types : String;
 import xtb.core.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
     isValidUtf8;
@@ -93,9 +94,12 @@ SerdeError readJson(T)(
 )
 {
     validateBorrowedValue!T();
-    require(options.limits.maxDepth != 0, "JSON max depth must be nonzero");
-    require(options.limits.maxCollectionLength != 0,
-        "JSON collection limit must be nonzero");
+    version (XTB_Checked)
+    {
+        require(options.limits.maxDepth != 0, "JSON max depth must be nonzero");
+        require(options.limits.maxCollectionLength != 0,
+            "JSON collection limit must be nonzero");
+    }
 
     T* value;
     if (!prepareDeserialized(allocator, output, &value))
@@ -133,12 +137,15 @@ SerdeError readJson(T)(
 ) if (isOwnedSerdeValue!T)
 {
     validateOwnedValue!T();
-    require(allocator !is null && *allocator !is null,
-        "serde requires a valid allocator");
-    require(output !is null, "owned JSON output pointer is null");
-    require(options.limits.maxDepth != 0, "JSON max depth must be nonzero");
-    require(options.limits.maxCollectionLength != 0,
-        "JSON collection limit must be nonzero");
+    version (XTB_Checked)
+    {
+        require(allocator !is null && *allocator !is null,
+            "serde requires a valid allocator");
+        require(output !is null, "owned JSON output pointer is null");
+        require(options.limits.maxDepth != 0, "JSON max depth must be nonzero");
+        require(options.limits.maxCollectionLength != 0,
+            "JSON collection limit must be nonzero");
+    }
 
     T decoded;
     initializeOwnedValue(allocator, &decoded);
@@ -1689,7 +1696,8 @@ private void decodeHashMap(K, V, Hasher, Equal)(
         decodeStringToken(parser, &key, &keyOwned, true);
         if (!parser.error.ok)
             return;
-        require(keyOwned, "HashMap key was not allocated");
+        version (XTB_Checked)
+            require(keyOwned, "HashMap key was not allocated");
         const rawKey = parser.input[keyStart + 1 .. parser.position - 1];
         parser.skipWhitespace();
         if (!parser.consume(':'))
@@ -1984,7 +1992,8 @@ private void decodeStringBuf(ref JsonParser parser, StringBuf* output)
     decodeStringToken(parser, &value, &owned, true);
     if (!parser.error.ok)
         return;
-    require(owned, "owned JSON string was not allocated");
+    version (XTB_Checked)
+        require(owned, "owned JSON string was not allocated");
     *output = StringBuf.adoptRaw(
         parser.allocator,
         cast(char*) value.ptr,
@@ -2000,7 +2009,8 @@ private void decodeOwnedString(ref JsonParser parser, OwnedString* output)
     decodeStringToken(parser, &value, &owned, true, false);
     if (!parser.error.ok)
         return;
-    require(owned, "owned JSON string was not allocated");
+    version (XTB_Checked)
+        require(owned, "owned JSON string was not allocated");
     OwnedStringUnmanaged storage =
         OwnedStringUnmanaged.adoptExact(value);
     OwnedString result = OwnedString.adoptUnmanaged(

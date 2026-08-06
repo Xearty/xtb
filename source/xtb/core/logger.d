@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
 import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.core.print : BufferWriteResult, formatBuffer, writeBuffer;
-import xtb.core.string : String;
+import xtb.core.string;
 
 enum LogLevel : ubyte
 {
@@ -505,7 +505,7 @@ unittest
 {
     import core.stdc.stdio : fclose, tmpfile;
     import xtb.core.ansi : AnsiAttribute, AnsiColor, AnsiStyle;
-    import xtb.core.string : equal;
+    import xtb.core.string;
 
     Capture capture;
     char[16] messageBuffer;

@@ -6,7 +6,7 @@ import core.stdc.string : memcpy, strlen;
 import xtb.diagnostics.demangle : tryDemangleD;
 import xtb.core.ansi : AnsiColor, beginAnsi, endAnsi;
 import xtb.core.print : Writer, hexadecimal;
-import xtb.core.string : String;
+import xtb.core.string;
 import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
     StackTraceTheme, SignatureFormat, writeSignature;
 
@@ -463,7 +463,7 @@ version (unittest)
 
 unittest
 {
-    import xtb.core.string : equal;
+    import xtb.core.string;
 
     StackFrame[1] frames = [StackFrame(
             0x1234,

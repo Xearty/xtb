@@ -2,8 +2,9 @@ module xtb.os.environment;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
-import xtb.core.string : String, StringBuf, fromCString;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.os.error : OsError, OsErrorKind, unsupported;
 
@@ -38,7 +39,8 @@ private OsError environmentVariableCString(
     String* output,
 ) @system
 {
-    require(output !is null, "environment output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "environment output pointer is null");
     *output = null;
     if (name is null || name[0] == '\0')
         return OsError(OsErrorKind.invalidArgument, 0);
@@ -61,7 +63,8 @@ private OsError environmentVariableCString(
 /// Returns a process-owned view, potentially invalidated by environment changes.
 OsError environmentVariable(String name, String* output) @system
 {
-    require(output !is null, "environment output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "environment output pointer is null");
     *output = null;
     if (!validEnvironmentName(name))
         return OsError(OsErrorKind.invalidArgument, 0);

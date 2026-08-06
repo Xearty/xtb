@@ -9,4 +9,9 @@ importPaths "../.."
 dependency "xtb:core" version="*"
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
-dflags "-boundscheck=on" "-preview=dip1000" platform="ldc"
+dflags "-preview=dip1000" platform="ldc"
+
+// Optimized checked build: keep language assertions and contracts enabled.
+buildType "release-safe" {
+    buildOptions "optimize" "inline"
+}

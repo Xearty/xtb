@@ -3,13 +3,13 @@ module xtb.serde.traits;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
-import xtb.core.array : Array, ArrayUnmanaged;
-import xtb.core.hash_map : HashMap, HashMapUnmanaged, HashSetUnmanaged;
+import xtb.core.array;
+import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
-import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
-import xtb.core.string : StringBuf, StringBufUnmanaged;
-import xtb.core.string_hash_map : StringHashMap, StringHashMapUnmanaged;
+import xtb.core.owned_string;
+import xtb.core.string;
+import xtb.core.string_hash_map;
 import xtb.core.types : String;
 import xtb.serde.attributes;
 import xtb.serde.casing : casedNamesEqual, matchesCased;

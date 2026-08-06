@@ -4,7 +4,9 @@ nothrow @nogc:
 
 import core.stdc.string : memcpy, memset;
 import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.numeric : addOverflows;
 
@@ -75,9 +77,12 @@ nothrow @nogc:
         size_t defaultChunkSize = 64 * 1024,
     )
     {
-        require(backingAllocator !is null && *backingAllocator !is null,
-            "arena requires a valid backing allocator");
-        require(defaultChunkSize != 0, "arena chunk size must be nonzero");
+        version (XTB_Checked)
+        {
+            require(backingAllocator !is null && *backingAllocator !is null,
+                "arena requires a valid backing allocator");
+            require(defaultChunkSize != 0, "arena chunk size must be nonzero");
+        }
 
         Arena result;
         result.allocator = &arenaAllocatorProcedure;
@@ -105,8 +110,9 @@ nothrow @nogc:
     {
         if (size == 0)
             return null;
-        require(isPowerOfTwo(alignment),
-            "arena alignment must be a power of two");
+        version (XTB_Checked)
+            require(isPowerOfTwo(alignment),
+                "arena alignment must be a power of two");
 
         ArenaChunk* chunk = currentChunk;
         size_t alignedOffset;
@@ -151,7 +157,8 @@ nothrow @nogc:
 
     void clear()
     {
-        require(scopeDepth == 0, "cannot clear arena with active temporary scopes");
+        version (XTB_Checked)
+            require(scopeDepth == 0, "cannot clear arena with active temporary scopes");
         for (ArenaChunk* chunk = firstChunk; chunk !is null; chunk = chunk.next)
             chunk.offset = 0;
         currentChunk = firstChunk;
@@ -161,7 +168,8 @@ nothrow @nogc:
 
     void deinit()
     {
-        require(scopeDepth == 0, "cannot destroy arena with active temporary scopes");
+        version (XTB_Checked)
+            require(scopeDepth == 0, "cannot destroy arena with active temporary scopes");
         ArenaChunk* chunk = firstChunk;
         while (chunk !is null)
         {
@@ -213,7 +221,8 @@ nothrow @nogc:
 
     void trim()
     {
-        require(scopeDepth == 0, "cannot trim arena with active temporary scopes");
+        version (XTB_Checked)
+            require(scopeDepth == 0, "cannot trim arena with active temporary scopes");
         ArenaChunk* keep = currentChunk;
         if (keep is null)
         {
@@ -411,7 +420,8 @@ nothrow @nogc:
 
     Arena* arena() return
     {
-        require(active_, "inactive temporary arena");
+        version (XTB_Checked)
+            require(active_, "inactive temporary arena");
         return arena_;
     }
 
@@ -428,7 +438,8 @@ nothrow @nogc:
 
 TempArena push(Arena* arena)
 {
-    require(arena !is null, "cannot push a null arena");
+    version (XTB_Checked)
+        require(arena !is null, "cannot push a null arena");
     TempArena result;
     result.arena_ = arena;
     result.chunk_ = arena.currentChunk;
@@ -443,14 +454,18 @@ TempArena push(Arena* arena)
 
 void pop(ref TempArena temporary)
 {
-    require(temporary.active_, "temporary arena already popped");
+    version (XTB_Checked)
+        require(temporary.active_, "temporary arena already popped");
     Arena* arena = temporary.arena_;
-    require(arena !is null, "temporary arena has no arena");
-    require(temporary.threadToken_ is currentThreadToken(),
-        "temporary arena popped on a different thread");
-    require(arena.generation_ == temporary.generation_,
-        "temporary arena checkpoint generation mismatch");
-    require(arena.scopeDepth == temporary.depth_, "temporary arenas must pop in LIFO order");
+    version (XTB_Checked)
+    {
+        require(arena !is null, "temporary arena has no arena");
+        require(temporary.threadToken_ is currentThreadToken(),
+            "temporary arena popped on a different thread");
+        require(arena.generation_ == temporary.generation_,
+            "temporary arena checkpoint generation mismatch");
+        require(arena.scopeDepth == temporary.depth_, "temporary arenas must pop in LIFO order");
+    }
 
     if (arena.poisonRewoundMemory_)
     {

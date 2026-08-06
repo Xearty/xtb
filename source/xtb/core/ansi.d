@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.core.flag_set : FlagSet, enable;
 import xtb.core.print : Writer;
-import xtb.core.string : String;
+import xtb.core.string;
 
 /// User policy for OS-aware ANSI capability selection.
 enum AnsiMode : ubyte
@@ -400,7 +400,7 @@ void endAnsi(ref Writer writer, AnsiColor foreground)
 unittest
 {
     import xtb.core.print : writeBuffer;
-    import xtb.core.string : equal;
+    import xtb.core.string;
 
     char[128] storage;
     const style = AnsiStyle.foreground(AnsiColor.brightRed)

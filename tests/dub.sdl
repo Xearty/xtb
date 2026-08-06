@@ -5,7 +5,7 @@ targetType "none"
 importPaths ".." "../source"
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
-dflags "-boundscheck=on" "-preview=dip1000" platform="ldc"
+dflags "-preview=dip1000" platform="ldc"
 
 buildType "test-debug" {
     buildOptions "unittests" "debugMode" "debugInfo"
@@ -16,6 +16,10 @@ buildType "test-optimized" {
 }
 
 buildType "test-release-safe" {
+    buildOptions "unittests" "optimize" "inline"
+}
+
+buildType "test-release-fast" {
     buildOptions "unittests" "releaseMode" "optimize" "inline"
 }
 
@@ -36,7 +40,7 @@ configuration "test-utf8" {
     targetName "utf8_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "utf8_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d"
+    sourceFiles "../source/xtb/core/*.d"
 }
 
 configuration "test-core" {
@@ -44,7 +48,7 @@ configuration "test-core" {
     targetName "core_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "core_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/diagnostics/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/diagnostics/*.d"
     libs "backtrace" platform="linux"
 }
 
@@ -56,7 +60,7 @@ configuration "test-pretty-print" {
     // `XTB_TEST_MODE` environment variable normally supplied by `just`.
     targetPath "../build/test/pretty_print"
     mainSourceFile "pretty_print_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d"
+    sourceFiles "../source/xtb/core/*.d"
 }
 
 configuration "test-math" {
@@ -64,7 +68,7 @@ configuration "test-math" {
     targetName "math_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "math_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/math/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/math/*.d"
 }
 
 configuration "test-os" {
@@ -72,7 +76,7 @@ configuration "test-os" {
     targetName "os_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "os_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/os/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/os/*.d"
 }
 
 configuration "test-serde" {
@@ -80,7 +84,7 @@ configuration "test-serde" {
     targetName "serde_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "serde_tests.d"
-    sourceFiles "serde_backend_contract.d" "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/serde/*.d"
+    sourceFiles "serde_backend_contract.d" "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
 }
 
 configuration "test-pretty-print-serde" {
@@ -89,5 +93,5 @@ configuration "test-pretty-print-serde" {
     // Keep the direct serde runner independent of `XTB_TEST_MODE` too.
     targetPath "../build/test/pretty_print_serde"
     mainSourceFile "pretty_print_serde_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/internal/*.d" "../source/xtb/serde/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
 }

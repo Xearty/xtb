@@ -3,7 +3,8 @@
 `xtb` is a small foundational D library designed for `-betterC`: explicit
 allocators, arenas and thread-local scratch scopes, owning arrays, mutable
 string builders, exact immutable `OwnedString` values, borrowed-key
-`StringViewHashMap` and owning-key `StringHashMap` collections, intrusive lists,
+`StringViewHashMap` maps, owning `StringHashMap` maps, borrowed
+`StringViewHashSet` sets, owning `StringHashSet` sets, intrusive lists,
 strongly typed bit flags, finite checked `Duration` values, panic/logging
 facilities, allocation-free formatted output, structured logging, and panic
 contracts.
@@ -80,12 +81,26 @@ just check
 Alternatively, run `nix develop` from the repository root and then use the same
 `just` commands. The project-local `.envrc` selects the root `xtb` flake.
 
-`just check` verifies formatting, lints, builds the static libraries, runs
-debug, optimized, release-safe, and AddressSanitizer tests, then builds and runs
-the examples. Individual commands include `just build`, `just test`,
-`just test-sanitize`, `just format-check`, `just lint`, and `just run-examples`.
-A reproducible package and test derivation are also available through
-`nix build` and `nix flake check`.
+`just check` verifies formatting, lints, builds all static targets in all
+three supported modes, runs debug, optimized, release-safe, and
+AddressSanitizer tests, then runs the examples. The primary command interface
+is target-oriented:
+
+```sh
+just build                              # static xtb debug
+just build static core release-safe
+just build static xtb release-fast
+just build example serde release-safe
+just run example serde release-safe
+```
+
+Use `just targets` to list static libraries, examples, and modes. The shorter
+`just debug`, `just release-safe`, and `just release-fast` aliases build the
+monolithic library and every component library in the selected mode. See
+`docs/build-modes.md` for exact check semantics. Other commands include
+`just test [mode]`, `just test-sanitize`, `just format-check`, `just lint`, and
+`just clean`. A reproducible package and test derivation are also available
+through `nix build` and `nix flake check`.
 
 DUB owns the build manifests and Just only coordinates workflows. Component
 libraries are independent subpackages colocated under `source/xtb`;
@@ -102,9 +117,12 @@ safe for a read-only Nix-store source and parallel `just` execution.
 
 Import the stable core surface with `import xtb.core;`, or import a focused
 module such as `xtb.core.arena`. All consuming targets must also compile with
-`-betterC`. See `examples/core_demo.d`, `examples/hash_demo.d`, and
-`examples/print_demo.d` for complete runnable programs, and
-`docs/architecture.md` for ownership and scratch-space contracts.
+`-betterC`. Managed containers expose handwritten member APIs colocated with
+their unmanaged storage, plus a mutable allocator member; no generated adapter
+code or UFCS forwarding layer is involved. See `docs/managed-containers.md`. See
+`examples/core_demo.d`, `examples/hash_demo.d`, and `examples/print_demo.d` for
+complete runnable programs, and `docs/architecture.md` for ownership and
+scratch-space contracts.
 
 Logging may remain explicit through `logger.log(...)`, or an application can
 install a caller-owned logger with `ThreadLoggerScope` and use
@@ -128,9 +146,10 @@ hidden environment lookup in `xtb.core.logger`.
 
 `FlagSet!E` treats enum values as bit positions and chooses the smallest
 fitting unsigned storage type by default. Specify its storage type explicitly
-for ABI or serialized layouts. Invalid cast-created enum values panic instead
-of shifting by an unchecked position; raw masks can be decoded strictly or
-with undeclared bits deliberately truncated.
+for ABI or serialized layouts. In checked builds, invalid cast-created enum values panic instead of shifting
+by an unchecked position; release-fast treats validity as a caller precondition.
+Raw masks can be decoded strictly or with undeclared bits deliberately
+truncated.
 Use `enable`, `disable`, and `toggle` to mutate a set, or `enabled`, `disabled`,
 and `toggled` to derive a changed value without changing the original.
 `foreach (flag; flags)` visits enabled values in enum declaration order.
@@ -138,8 +157,9 @@ Use `flags.enabledCount` for the number currently enabled and
 `Flags.declaredCount` for the number of atomic enum members.
 
 Use `milliseconds(250)`, `seconds(2)`, and the other explicit unit helpers to
-construct `Duration` values. Arithmetic is checked and floating-point counts
-are intentionally rejected. `Duration` represents only finite nonnegative
+construct `Duration` values. Arithmetic is checked when `XTB_Checked` is
+enabled; release-fast assumes valid, non-overflowing operands. Floating-point
+counts are intentionally rejected. `Duration` represents only finite nonnegative
 spans; timeout policies add infinity or immediacy as separate tagged states.
 
 Validate external bytes with `asString` before treating them as text. Audited
@@ -150,39 +170,46 @@ violates those unchecked APIs' preconditions; arbitrary binary ownership uses
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
 crash observation. On Linux those targets link libbacktrace; core-only, math,
-and OS targets do not. `just build` produces the independent static libraries
+and OS targets do not.
+
+`just build` defaults to the monolithic checked-debug `libxtb.a`. Select a
+component library or mode explicitly when needed:
+
+```sh
+just build static xtb debug
+just build static core release-safe
+just build static diagnostics release-fast
+just build static all release-safe
+```
+
+`all` builds `libxtb.a` plus the independent component libraries
 `libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`, `libxtb_os.a`, and
 `libxtb_serde.a`. Additional component subpackages under `source/xtb` are
-included by `just build` automatically.
+discovered automatically.
 
-Build every component with `just build`, or select components by their suffix:
-
-```sh
-just build core os
-```
-
-Run every example, or select one example by name:
+Examples use the same mode names and accept short names with or without the
+`-demo` suffix:
 
 ```sh
-just run-examples
-just run-example logging
+just build example logging
+just run example logging release-safe
+just run example all debug
 ```
 
-The static libraries are written directly to `build` by default. Pass another
-destination through the environment when a different layout is needed:
+Static libraries are written below `build/debug`, `build/release-safe`, or
+`build/release-fast`. Pass another base destination through the environment
+when a different layout is needed:
 
 ```sh
 XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build
-XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build core serde
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build static core release-safe
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build static all release-fast
 ```
 
 Relative destinations are resolved from the directory where Just was invoked,
-not from the library source. This matters when the Justfile and DUB manifest
-come from a read-only flake input in `/nix/store`: compiler output still lands
-directly in the consuming project.
-
-`just build` delegates component subpackages to DUB, while `just run-example`
-and `just run-examples` execute DUB's example configurations.
+not from the library source, and the selected mode name is appended. This
+matters when the Justfile and DUB manifest come from a read-only flake input in
+`/nix/store`: compiler output still lands directly in the consuming project.
 
 Import `xtb.math` for the stable math surface. Matrices are column-major and
 multiply column vectors; transformations compose right-to-left. See

@@ -3,14 +3,15 @@ module tests.core_tests;
 import xtb.core.types;
 import xtb.core.numeric;
 import xtb.core.duration;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.metadata;
 import xtb.core.slice;
 import xtb.core.memory;
 import xtb.core.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
-import xtb.core.internal.managed_container_adapter;
 import xtb.core.option;
 import xtb.core.flag_set;
 import xtb.core.list;
@@ -20,12 +21,29 @@ import xtb.core.logger;
 import xtb.core.thread_logger;
 import xtb.core.utf8;
 import xtb.core.string;
+import xtb.core.owned_string;
+import xtb.core.string_hash_map;
+import xtb.core.string_hash_set;
 import xtb.core.print;
 import xtb.core.ansi;
 import xtb.diagnostics.demangle;
 import xtb.diagnostics.stacktrace_style;
 import xtb.diagnostics.stacktrace;
 import xtb.diagnostics.crash;
+
+static assert(__traits(hasMember, StringBuf, "append"));
+static assert(__traits(hasMember, Array!int, "append"));
+static assert(__traits(hasMember, OwnedString, "view"));
+static assert(__traits(hasMember, HashMap!(int, int), "set"));
+static assert(__traits(hasMember, HashSet!int, "contains"));
+static assert(__traits(hasMember, StringHashMapUnmanaged!int, "set"));
+static assert(__traits(hasMember, StringHashMap!int, "set"));
+static assert(__traits(hasMember, StringHashSetUnmanaged, "contains"));
+static assert(__traits(hasMember, StringHashSet, "contains"));
+static assert(__traits(compiles,
+    (cast(StringBuf*) null).append("member lookup")));
+static assert(__traits(compiles,
+    (cast(const(StringBuf)*) null).view));
 
 version (Posix)
 {
@@ -79,7 +97,8 @@ private enum DeathFlag
 private noreturn runDeathCase(const(char)* name) nothrow @nogc
 {
     if (cStringEqual(name, "panic"))
-        require(false, "intentional death test");
+        version (XTB_Checked)
+            require(false, "intentional death test");
     if (cStringEqual(name, "numeric-clamp"))
         clamp(0, 1, 0);
     if (cStringEqual(name, "numeric-overflow"))
@@ -114,6 +133,8 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     }
     if (cStringEqual(name, "managed-null-returning-factory"))
         Array!int.withCapacity(null, 0);
+    if (cStringEqual(name, "owned-string-null-pointer"))
+        (cast(OwnedString*) null).deinit();
     if (cStringEqual(name, "string-split-slice"))
         "é".sliceBytes(1, 2);
     if (cStringEqual(name, "string-split-insert"))
@@ -405,9 +426,6 @@ extern (C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.array))
         testFunction();
-    static foreach (testFunction; __traits(getUnitTests,
-            xtb.core.internal.managed_container_adapter))
-        testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.option))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.flag_set))
@@ -423,6 +441,12 @@ extern (C) int main(int argumentCount, char** arguments)
     static foreach (testFunction; __traits(getUnitTests, xtb.core.thread_logger))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.string))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.owned_string))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.string_hash_map))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.string_hash_set))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.print))
         testFunction();
@@ -463,6 +487,7 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "unmanaged-null-returning-factory");
         expectDeath(arguments[0], "managed-null-fallible-factory");
         expectDeath(arguments[0], "managed-null-returning-factory");
+        expectDeath(arguments[0], "owned-string-null-pointer");
         expectDeath(arguments[0], "string-split-slice");
         expectDeath(arguments[0], "string-split-insert");
         expectDeath(arguments[0], "string-split-truncate");

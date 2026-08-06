@@ -2,8 +2,9 @@ module xtb.os.memory_map;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
-import xtb.core.string : StringBuf;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
@@ -41,7 +42,8 @@ nothrow @nogc:
 
 OsError unmap(MappedFile* mapping) @system
 {
-    require(mapping !is null, "MappedFile pointer is null");
+    version (XTB_Checked)
+        require(mapping !is null, "MappedFile pointer is null");
     if (mapping.address_ is null)
     {
         mapping.length_ = 0;
@@ -64,7 +66,8 @@ OsError unmap(MappedFile* mapping) @system
 
 OsError mapReadOnly(Path path, MappedFile* output) @system
 {
-    require(output !is null, "MappedFile output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "MappedFile output pointer is null");
     const cleanupError = unmap(output);
     if (cleanupError.failed)
         return cleanupError;

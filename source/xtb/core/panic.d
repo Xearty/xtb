@@ -90,13 +90,20 @@ private noreturn panicAt(String message, String file, size_t line)
     panic(buffer[0 .. length]);
 }
 
-void require(string file = __FILE__, size_t line = __LINE__)(
-    bool condition,
-    String message,
-) @trusted
+version (XTB_Checked)
 {
-    if (!condition)
-        panicAt(message, file, line);
+    /// Enforces a programmer contract in checked builds.
+    ///
+    /// Call sites must also be guarded by `version (XTB_Checked)` so the
+    /// condition and message are not evaluated in release-fast builds.
+    void require(string file = __FILE__, size_t line = __LINE__)(
+        bool condition,
+        String message,
+    ) @trusted
+    {
+        if (!condition)
+            panicAt(message, file, line);
+    }
 }
 
 noreturn unreachableCode(

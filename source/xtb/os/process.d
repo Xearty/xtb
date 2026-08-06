@@ -6,9 +6,9 @@ import core.lifetime : move;
 import core.stdc.string : memmove, memset;
 import xtb.core.memory : Allocator, allocate;
 import xtb.core.option : Option, reset, set, some;
-import xtb.core.panic : require;
-import xtb.core.string : String, StringBuf, contains, containsCodeUnit,
-    containsNul, equal, fromCString;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
@@ -191,13 +191,15 @@ nothrow @nogc:
 
     static InputRoute borrow(File* file) @system
     {
-        require(file !is null, "borrowed input File pointer is null");
+        version (XTB_Checked)
+            require(file !is null, "borrowed input File pointer is null");
         return InputRoute(RouteKind.file, file);
     }
 
     static InputRoute borrow(PipeReader* reader) @system
     {
-        require(reader !is null, "borrowed input PipeReader pointer is null");
+        version (XTB_Checked)
+            require(reader !is null, "borrowed input PipeReader pointer is null");
         return InputRoute(RouteKind.pipe, reader);
     }
 }
@@ -226,13 +228,15 @@ nothrow @nogc:
 
     static OutputRoute borrow(File* file) @system
     {
-        require(file !is null, "borrowed output File pointer is null");
+        version (XTB_Checked)
+            require(file !is null, "borrowed output File pointer is null");
         return OutputRoute(RouteKind.file, file);
     }
 
     static OutputRoute borrow(PipeWriter* writer) @system
     {
-        require(writer !is null, "borrowed output PipeWriter pointer is null");
+        version (XTB_Checked)
+            require(writer !is null, "borrowed output PipeWriter pointer is null");
         return OutputRoute(RouteKind.pipe, writer);
     }
 }
@@ -261,13 +265,15 @@ nothrow @nogc:
 
     static ErrorRoute borrow(File* file) @system
     {
-        require(file !is null, "borrowed error File pointer is null");
+        version (XTB_Checked)
+            require(file !is null, "borrowed error File pointer is null");
         return ErrorRoute(RouteKind.file, file);
     }
 
     static ErrorRoute borrow(PipeWriter* writer) @system
     {
-        require(writer !is null, "borrowed error PipeWriter pointer is null");
+        version (XTB_Checked)
+            require(writer !is null, "borrowed error PipeWriter pointer is null");
         return ErrorRoute(RouteKind.pipe, writer);
     }
 
@@ -388,19 +394,22 @@ nothrow @nogc:
 
     u32 exitCode() const @safe
     {
-        require(exited, "signaled process has no exit code");
+        version (XTB_Checked)
+            require(exited, "signaled process has no exit code");
         return code_;
     }
 
     u32 terminationSignal() const @safe
     {
-        require(signaled, "exited process has no termination signal");
+        version (XTB_Checked)
+            require(signaled, "exited process has no termination signal");
         return code_;
     }
 
     bool coreDumped() const @safe
     {
-        require(signaled, "exited process has no core-dump state");
+        version (XTB_Checked)
+            require(signaled, "exited process has no core-dump state");
         return coreDumped_;
     }
 }
@@ -448,7 +457,8 @@ nothrow @nogc:
 
     ProcessId id() const @safe
     {
-        require(ownsProcess, "empty ChildProcess has no id");
+        version (XTB_Checked)
+            require(ownsProcess, "empty ChildProcess has no id");
         return ProcessId(cast(u64) processId_);
     }
 
@@ -510,8 +520,11 @@ ProcessError spawn(
     ChildProcess* output,
 ) @system
 {
-    require(output !is null, "ChildProcess output pointer is null");
-    require(output.empty, "ChildProcess output must be empty");
+    version (XTB_Checked)
+    {
+        require(output !is null, "ChildProcess output pointer is null");
+        require(output.empty, "ChildProcess output must be empty");
+    }
 
     ProcessError error = validateCommand(command);
     if (error.failed)
@@ -586,8 +599,9 @@ ProcessError spawn(
 
 WaitResult tryWait(ChildProcess* child) @system
 {
-    require(child !is null && child.ownsProcess,
-        "invalid ChildProcess for tryWait");
+    version (XTB_Checked)
+        require(child !is null && child.ownsProcess,
+            "invalid ChildProcess for tryWait");
     version (linux)
         return waitLinux(child, true);
     else
@@ -600,8 +614,9 @@ WaitResult tryWait(ChildProcess* child) @system
 
 WaitResult waitFor(ChildProcess* child, Timeout timeout) @system
 {
-    require(child !is null && child.ownsProcess,
-        "invalid ChildProcess for waitFor");
+    version (XTB_Checked)
+        require(child !is null && child.ownsProcess,
+            "invalid ChildProcess for waitFor");
     if (cast(u8) timeout.kind > cast(u8) TimeoutKind.finite)
         return WaitResult(
             invalidProcessError(ProcessOperation.wait),
@@ -626,9 +641,12 @@ WaitResult waitFor(ChildProcess* child, Timeout timeout) @system
 
 ProcessError wait(ChildProcess* child, ExitStatus* output) @system
 {
-    require(child !is null && child.ownsProcess,
-        "invalid ChildProcess for wait");
-    require(output !is null, "ExitStatus output pointer is null");
+    version (XTB_Checked)
+    {
+        require(child !is null && child.ownsProcess,
+            "invalid ChildProcess for wait");
+        require(output !is null, "ExitStatus output pointer is null");
+    }
     *output = ExitStatus.init;
     version (linux)
     {
@@ -643,8 +661,9 @@ ProcessError wait(ChildProcess* child, ExitStatus* output) @system
 
 ProcessError requestTermination(scope const(ChildProcess)* child) @system
 {
-    require(child !is null && child.ownsProcess,
-        "invalid ChildProcess for termination");
+    version (XTB_Checked)
+        require(child !is null && child.ownsProcess,
+            "invalid ChildProcess for termination");
     version (linux)
     {
         import core.stdc.signal : SIGTERM;
@@ -657,8 +676,9 @@ ProcessError requestTermination(scope const(ChildProcess)* child) @system
 
 ProcessError kill(scope const(ChildProcess)* child) @system
 {
-    require(child !is null && child.ownsProcess,
-        "invalid ChildProcess for kill");
+    version (XTB_Checked)
+        require(child !is null && child.ownsProcess,
+            "invalid ChildProcess for kill");
     version (linux)
     {
         import core.sys.posix.signal : SIGKILL;
@@ -821,7 +841,8 @@ version (linux) private ProcessError spawnLinux(
 {
     import core.sys.posix.unistd : environ;
 
-    require(output !is null, "native process id output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "native process id output pointer is null");
     *output = -1;
     const policyError = validateSigchldPolicy();
     if (policyError.failed)
@@ -1113,7 +1134,8 @@ version (linux) private OsError buildEnvironment(
     const(char)*** output,
 ) @system
 {
-    require(output !is null, "environment output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "environment output pointer is null");
     if (environment.mode == EnvironmentMode.inherit)
     {
         *output = inherited;
@@ -1208,7 +1230,8 @@ version (linux) private OsError environmentValue(
     String* output,
 ) @system
 {
-    require(output !is null, "environment value output is null");
+    version (XTB_Checked)
+        require(output !is null, "environment value output is null");
     *output = String.init;
     for (size_t i; environment[i]!is null; ++i)
     {

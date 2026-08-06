@@ -27,7 +27,8 @@ module xtb.core.flag_set;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 private template EnumBaseType(E)
 {
@@ -179,7 +180,9 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
     private static Storage maskOf(Flag flag) @safe
     {
         Storage mask;
-        require(tryMaskOf(flag, &mask), "invalid FlagSet enum value");
+        const valid = tryMaskOf(flag, &mask);
+        version (XTB_Checked)
+            require(valid, "invalid FlagSet enum value");
         return mask;
     }
 
@@ -218,7 +221,8 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
      */
     static bool tryFromBits(Storage raw, scope FlagSet* output) @safe
     {
-        require(output !is null, "FlagSet output must not be null");
+        version (XTB_Checked)
+            require(output !is null, "FlagSet output must not be null");
         if (!acceptsBits(raw))
             return false;
         output.bits_ = raw;
@@ -228,7 +232,8 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
     /// Decodes a raw mask and panics if it contains an undeclared bit.
     static FlagSet fromBits(Storage raw) @safe
     {
-        require(acceptsBits(raw), "FlagSet mask contains undeclared bits");
+        version (XTB_Checked)
+            require(acceptsBits(raw), "FlagSet mask contains undeclared bits");
         return fromValidBits(raw);
     }
 

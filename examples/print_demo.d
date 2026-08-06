@@ -2,7 +2,7 @@ module examples.print_demo;
 
 import xtb.core.print;
 import xtb.core.memory : mallocAllocator;
-import xtb.core.string : String, StringBuf;
+import xtb.core.string;
 
 struct Point
 {

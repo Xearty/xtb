@@ -3,7 +3,8 @@ module xtb.math.matrix;
 @safe nothrow @nogc:
 
 import core.stdc.math : cosf, sinf, tanf;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.math.scalar : pi;
 import xtb.math.vector : Vector2, Vector3, Vector4, cross, dot, isFinite,
     length, normalized, withW, xyz;
@@ -144,7 +145,8 @@ pure float determinant(Matrix4 m)
 
 @system bool tryInverse(Matrix2 m, Matrix2* output)
 {
-    require(output !is null, "Matrix2 inverse output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "Matrix2 inverse output pointer is null");
     if (!finite(m))
         return false;
     const scale = largestMagnitude(m);
@@ -163,7 +165,8 @@ pure float determinant(Matrix4 m)
 
 @system bool tryInverse(Matrix3 m, Matrix3* output)
 {
-    require(output !is null, "Matrix3 inverse output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "Matrix3 inverse output pointer is null");
     if (!finite(m))
         return false;
     const scale = largestMagnitude(m);
@@ -183,7 +186,8 @@ pure float determinant(Matrix4 m)
 
 @system bool tryInverse(Matrix4 m, Matrix4* output)
 {
-    require(output !is null, "Matrix4 inverse output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "Matrix4 inverse output pointer is null");
     if (!finite(m))
         return false;
     const scale = largestMagnitude(m);
@@ -327,7 +331,8 @@ pure bool isAffine(Matrix4 m)
 
 @system bool tryAffineInverse(Matrix4 m, Matrix4* output)
 {
-    require(output !is null, "affine inverse output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "affine inverse output pointer is null");
     if (!finite(m) || !m.isAffine)
         return false;
     Matrix3 linearInverse;
@@ -359,7 +364,8 @@ pure Matrix4 scaling(float factor)
 
 Matrix4 rotationX(float angle)
 {
-    require(finite(angle), "rotation angle must be finite");
+    version (XTB_Checked)
+        require(finite(angle), "rotation angle must be finite");
     const c = cosf(angle), s = sinf(angle);
     return Matrix4(Vector4(1, 0, 0, 0), Vector4(0, c, s, 0), Vector4(0, -s, c,
             0), Vector4(0, 0, 0, 1));
@@ -367,7 +373,8 @@ Matrix4 rotationX(float angle)
 
 Matrix4 rotationY(float angle)
 {
-    require(finite(angle), "rotation angle must be finite");
+    version (XTB_Checked)
+        require(finite(angle), "rotation angle must be finite");
     const c = cosf(angle), s = sinf(angle);
     return Matrix4(Vector4(c, 0, -s, 0), Vector4(0, 1, 0, 0), Vector4(s, 0, c,
             0), Vector4(0, 0, 0, 1));
@@ -375,7 +382,8 @@ Matrix4 rotationY(float angle)
 
 Matrix4 rotationZ(float angle)
 {
-    require(finite(angle), "rotation angle must be finite");
+    version (XTB_Checked)
+        require(finite(angle), "rotation angle must be finite");
     const c = cosf(angle), s = sinf(angle);
     return Matrix4(Vector4(c, s, 0, 0), Vector4(-s, c, 0, 0), Vector4(0, 0, 1,
             0), Vector4(0, 0, 0, 1));
@@ -383,8 +391,9 @@ Matrix4 rotationZ(float angle)
 
 Matrix4 rotation(Vector3 axis, float angle)
 {
-    require(axis.isFinite && finite(angle),
-        "rotation axis and angle must be finite");
+    version (XTB_Checked)
+        require(axis.isFinite && finite(angle),
+            "rotation axis and angle must be finite");
     axis = axis.normalized;
     if (axis == Vector3.init)
         return Matrix4.identity;
@@ -396,8 +405,9 @@ Matrix4 rotation(Vector3 axis, float angle)
 
 Matrix4 rotationYawPitchRoll(float yaw, float pitch, float roll)
 {
-    require(finite(yaw) && finite(pitch) && finite(roll),
-        "yaw, pitch, and roll must be finite");
+    version (XTB_Checked)
+        require(finite(yaw) && finite(pitch) && finite(roll),
+            "yaw, pitch, and roll must be finite");
     return rotationY(-yaw) * rotationX(pitch) * rotationZ(roll);
 }
 
@@ -443,10 +453,13 @@ Matrix4 postRotated(Matrix4 base, Vector3 axis, float angle)
 
 Matrix4 orthographic(float left, float right, float bottom, float top, float near, float far)
 {
-    require(finite(left) && finite(right) && finite(bottom) && finite(top) &&
-            finite(near) && finite(far), "orthographic bounds must be finite");
-    require(right != left && top != bottom && far != near,
-        "orthographic bounds must have nonzero extent");
+    version (XTB_Checked)
+    {
+        require(finite(left) && finite(right) && finite(bottom) && finite(top) &&
+                finite(near) && finite(far), "orthographic bounds must be finite");
+        require(right != left && top != bottom && far != near,
+            "orthographic bounds must have nonzero extent");
+    }
     return Matrix4(Vector4(2 / (right - left), 0, 0, 0), Vector4(0,
             2 / (top - bottom), 0, 0), Vector4(0, 0, -2 / (far - near), 0),
         Vector4(-(right + left) / (right - left),
@@ -460,19 +473,23 @@ Matrix4 orthographic2D(float left, float right, float bottom, float top)
 
 Matrix4 screenProjection(float width, float height)
 {
-    require(finite(width) && finite(height) && width > 0 && height > 0,
-        "screen dimensions must be positive and finite");
+    version (XTB_Checked)
+        require(finite(width) && finite(height) && width > 0 && height > 0,
+            "screen dimensions must be positive and finite");
     return orthographic2D(0, width, height, 0);
 }
 
 Matrix4 perspective(float verticalFov, float aspect, float near, float far)
 {
-    require(finite(verticalFov) && finite(aspect) && finite(near) && finite(far),
-        "perspective arguments must be finite");
-    require(verticalFov > 0 && verticalFov < pi,
-        "perspective field of view must be between zero and pi");
-    require(aspect > 0 && near > 0 && far > near,
-        "perspective aspect and clipping planes are invalid");
+    version (XTB_Checked)
+    {
+        require(finite(verticalFov) && finite(aspect) && finite(near) && finite(far),
+            "perspective arguments must be finite");
+        require(verticalFov > 0 && verticalFov < pi,
+            "perspective field of view must be between zero and pi");
+        require(aspect > 0 && near > 0 && far > near,
+            "perspective aspect and clipping planes are invalid");
+    }
     const f = 1 / tanf(verticalFov / 2);
     return Matrix4(Vector4(f / aspect, 0, 0, 0), Vector4(0, f, 0, 0),
         Vector4(0, 0, (far + near) / (near - far), -1), Vector4(0, 0,
@@ -486,7 +503,8 @@ Matrix4 perspective(float verticalFov, float aspect, float near, float far)
     Matrix4* output,
 )
 {
-    require(output !is null, "look-at output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "look-at output pointer is null");
     if (!eye.isFinite || !target.isFinite || !up.isFinite)
         return false;
     const forward = (target - eye).normalized;
@@ -511,8 +529,9 @@ Matrix4 perspective(float verticalFov, float aspect, float near, float far)
 @trusted Matrix4 lookAt(Vector3 eye, Vector3 target, Vector3 up)
 {
     Matrix4 result;
-    require(tryLookAt(eye, target, up, &result),
-        "look-at vectors are non-finite or degenerate");
+    const succeeded = tryLookAt(eye, target, up, &result);
+    version (XTB_Checked)
+        require(succeeded, "look-at vectors are non-finite or degenerate");
     return result;
 }
 

@@ -2,10 +2,11 @@ module xtb.os.directory;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
-import xtb.core.array : Array;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.array;
 import xtb.core.memory : Allocator;
-import xtb.core.string : String, StringBuf, asString, fromCString;
+import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
@@ -76,7 +77,8 @@ nothrow @nogc:
 
 OsError close(DirectoryIterator* iterator) @system
 {
-    require(iterator !is null, "DirectoryIterator pointer is null");
+    version (XTB_Checked)
+        require(iterator !is null, "DirectoryIterator pointer is null");
     version (linux)
     {
         import core.sys.posix.dirent : closedir;
@@ -93,7 +95,8 @@ OsError close(DirectoryIterator* iterator) @system
 
 OsError openDirectory(Path path, DirectoryIterator* output) @system
 {
-    require(output !is null, "DirectoryIterator output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "DirectoryIterator output pointer is null");
     const cleanupError = close(output);
     if (cleanupError.failed)
         return cleanupError;
@@ -112,8 +115,11 @@ OsError openDirectory(Path path, DirectoryIterator* output) @system
 
 DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) @system
 {
-    require(iterator !is null && iterator.valid, "invalid DirectoryIterator");
-    require(output !is null, "DirectoryEntry output pointer is null");
+    version (XTB_Checked)
+    {
+        require(iterator !is null && iterator.valid, "invalid DirectoryIterator");
+        require(output !is null, "DirectoryEntry output pointer is null");
+    }
     *output = DirectoryEntry.init;
     version (linux)
     {
@@ -288,7 +294,8 @@ OsError executablePath(ref StringBuf output) @system
 
 OsError queryAccess(Path path, Access requested, bool* output) @system
 {
-    require(output !is null, "access output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "access output pointer is null");
     *output = false;
     version (linux)
     {
@@ -356,8 +363,11 @@ OsError canonicalPath(Path path, ref StringBuf output) @system
 OsError walkDirectory(Path root, Allocator* temporaryAllocator,
     DirectoryVisitor visitor, void* context = null, size_t maximumDepth = 256) @system
 {
-    require(temporaryAllocator !is null, "directory traversal requires a temporary allocator");
-    require(visitor !is null, "directory visitor is null");
+    version (XTB_Checked)
+    {
+        require(temporaryAllocator !is null, "directory traversal requires a temporary allocator");
+        require(visitor !is null, "directory visitor is null");
+    }
     bool keepGoing = true;
     return walk(root, temporaryAllocator, visitor, context, 0, maximumDepth, &keepGoing);
 }

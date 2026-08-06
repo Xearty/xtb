@@ -9,11 +9,13 @@ public import xtb.core.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
 import core.lifetime : move;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
-import xtb.core.array : Array, ArrayUnmanaged, RawArrayStorage;
-import xtb.core.internal.managed_container_adapter : ManagedContainerAdapter;
+import xtb.core.array;
 import xtb.core.memory : Allocator, allocate, tryAllocate;
 import xtb.core.hash : hashValue;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.released_storage : ReleasedStorage;
 import xtb.core.utf8 : ceilCodePointBoundary, encodeUtf8,
     isCodePointBoundary, validateUtf8;
 
@@ -30,7 +32,8 @@ pure @system
 
 Utf8StringResult fromCString(const(char)* value) @system
 {
-    require(value !is null, "null C string");
+    version (XTB_Checked)
+        require(value !is null, "null C string");
     const candidate = value[0 .. strlen(value)];
     const error = validateUtf8(candidate);
     return error.failed
@@ -39,7 +42,8 @@ Utf8StringResult fromCString(const(char)* value) @system
 
 String fromCStringUnchecked(const(char)* value) @system
 {
-    require(value !is null, "null C string");
+    version (XTB_Checked)
+        require(value !is null, "null C string");
     return value[0 .. strlen(value)];
 }
 
@@ -60,13 +64,15 @@ bool empty(String value) pure @safe
 
 char frontCodeUnit(String value) @safe
 {
-    require(value.length != 0, "frontCodeUnit of empty String");
+    version (XTB_Checked)
+        require(value.length != 0, "frontCodeUnit of empty String");
     return value[0];
 }
 
 char backCodeUnit(String value) @safe
 {
-    require(value.length != 0, "backCodeUnit of empty String");
+    version (XTB_Checked)
+        require(value.length != 0, "backCodeUnit of empty String");
     return value[value.length - 1];
 }
 
@@ -98,14 +104,17 @@ String sliceBytes(
 )
 @safe
 {
-    require(beginByteOffset <= endByteOffset,
-        "String byte slice begin exceeds end");
-    require(endByteOffset <= value.length,
-        "String byte slice end out of bounds");
-    require(value.isCodePointBoundary(beginByteOffset),
-        "String byte slice begins inside UTF-8 code point");
-    require(value.isCodePointBoundary(endByteOffset),
-        "String byte slice ends inside UTF-8 code point");
+    version (XTB_Checked)
+    {
+        require(beginByteOffset <= endByteOffset,
+            "String byte slice begin exceeds end");
+        require(endByteOffset <= value.length,
+            "String byte slice end out of bounds");
+        require(value.isCodePointBoundary(beginByteOffset),
+            "String byte slice begins inside UTF-8 code point");
+        require(value.isCodePointBoundary(endByteOffset),
+            "String byte slice ends inside UTF-8 code point");
+    }
     return value[beginByteOffset .. endByteOffset];
 }
 
@@ -268,7 +277,8 @@ String trimAscii(return scope String value) pure @safe
 
 bool tryCopy(String value, Allocator* allocator, String* output)
 {
-    require(output !is null, "String output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "String output pointer is null");
     if (value.length == size_t.max)
         return false;
     char* destination = allocator.tryAllocate!char(value.length + 1);
@@ -296,7 +306,8 @@ bool tryConcat(
     String* output,
 )
 {
-    require(output !is null, "String output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "String output pointer is null");
     if (right.length > size_t.max - left.length)
         return false;
     const length = left.length + right.length;
@@ -330,7 +341,8 @@ bool tryReplace(
     String* output,
 )
 {
-    require(output !is null, "String output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "String output pointer is null");
     if (from.length == 0)
         return value.tryCopy(allocator, output);
 
@@ -402,7 +414,8 @@ bool tryJoin(
     String* output,
 )
 {
-    require(output !is null, "String output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "String output pointer is null");
     size_t length;
     foreach (value; values)
     {
@@ -485,7 +498,8 @@ private char escapedCharacter(char value) pure @safe
 
 bool tryEscape(String value, Allocator* allocator, String* output)
 {
-    require(output !is null, "String output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "String output pointer is null");
     size_t escapedCount;
     foreach (character; value)
         if (escapedCharacter(character) != '\0')
@@ -532,8 +546,11 @@ bool trySplitWhen(
     Array!String* output,
 )
 {
-    require(predicate !is null, "split predicate is null");
-    require(output !is null, "split output is null");
+    version (XTB_Checked)
+    {
+        require(predicate !is null, "split predicate is null");
+        require(output !is null, "split output is null");
+    }
     *output = Array!String.create(allocator);
 
     size_t tokenBegin;
@@ -541,20 +558,22 @@ bool trySplitWhen(
     while (index < value.length)
     {
         const skip = predicate(value[index .. $], context);
-        require(skip <= value.length - index, "split predicate skipped past input");
+        version (XTB_Checked)
+            require(skip <= value.length - index, "split predicate skipped past input");
         if (skip == 0)
         {
             index = value.ceilCodePointBoundary(index + 1);
             continue;
         }
-        require(value.isCodePointBoundary(index + skip),
-            "split predicate ended inside UTF-8 code point");
+        version (XTB_Checked)
+            require(value.isCodePointBoundary(index + skip),
+                "split predicate ended inside UTF-8 code point");
 
         String token = value[tokenBegin .. index];
         if ((!discardEmpty || token.length != 0) &&
-            !(*output).tryAppend(token))
+            !output.tryAppend(token))
         {
-            (*output).deinit();
+            output.deinit();
             return false;
         }
         index += skip;
@@ -563,9 +582,9 @@ bool trySplitWhen(
 
     String token = value[tokenBegin .. $];
     if ((!discardEmpty || token.length != 0) &&
-        !(*output).tryAppend(token))
+        !output.tryAppend(token))
     {
-        (*output).deinit();
+        output.deinit();
         return false;
     }
     return true;
@@ -611,14 +630,16 @@ private size_t whitespaceSeparator(String rest, void*)
 
 Array!String split(String value, String separator, Allocator* allocator)
 {
-    require(separator.length != 0, "String separator must not be empty");
+    version (XTB_Checked)
+        require(separator.length != 0, "String separator must not be empty");
     return value.splitWhen(&stringSeparator, &separator, false, allocator);
 }
 
 Array!String split(String value, char separator, Allocator* allocator)
 {
-    require(cast(u8) separator <= 0x7f,
-        "non-ASCII split separator; use String");
+    version (XTB_Checked)
+        require(cast(u8) separator <= 0x7f,
+            "non-ASCII split separator; use String");
     return value.splitWhen(&characterSeparator, &separator, false, allocator);
 }
 
@@ -648,10 +669,13 @@ public:
         scope StringBufUnmanaged* output,
     )
     {
-        require(output !is null,
-            "StringBufUnmanaged output pointer is null");
-        require(output.bytes_.capacity == 0,
-            "StringBufUnmanaged output is not empty");
+        version (XTB_Checked)
+        {
+            require(output !is null,
+                "StringBufUnmanaged output pointer is null");
+            require(output.bytes_.capacity == 0,
+                "StringBufUnmanaged output is not empty");
+        }
         StringBufUnmanaged temporary;
         if (!temporary.bytes_.tryReserve(allocator, byteCapacity))
             return false;
@@ -676,10 +700,13 @@ public:
         scope StringBufUnmanaged* output,
     )
     {
-        require(output !is null,
-            "StringBufUnmanaged output pointer is null");
-        require(output.bytes_.capacity == 0,
-            "StringBufUnmanaged output is not empty");
+        version (XTB_Checked)
+        {
+            require(output !is null,
+                "StringBufUnmanaged output pointer is null");
+            require(output.bytes_.capacity == 0,
+                "StringBufUnmanaged output is not empty");
+        }
         StringBufUnmanaged temporary;
         if (!temporary.tryAppend(allocator, value))
             return false;
@@ -717,10 +744,13 @@ public:
         scope StringBufUnmanaged* output,
     ) @system
     {
-        require(output !is null,
-            "StringBufUnmanaged output pointer is null");
-        require(output.bytes_.capacity == 0,
-            "StringBufUnmanaged output is not empty");
+        version (XTB_Checked)
+        {
+            require(output !is null,
+                "StringBufUnmanaged output pointer is null");
+            require(output.bytes_.capacity == 0,
+                "StringBufUnmanaged output is not empty");
+        }
         StringBufUnmanaged temporary;
         if (!temporary.bytes_.tryAppend(
                 allocator,
@@ -747,8 +777,9 @@ package(xtb):
     /// The returned descriptor owns its bytes but carries no allocator.
     String releaseExactStorage() @system
     {
-        require(byteCapacity == byteLength,
-            "StringBuf storage is not exact-sized");
+        version (XTB_Checked)
+            require(byteCapacity == byteLength,
+                "StringBuf storage is not exact-sized");
         RawArrayStorage!char raw = bytes_.releaseRaw();
         return raw.data[0 .. raw.length];
     }
@@ -831,15 +862,17 @@ public:
 
     void append(Allocator* allocator, char value)
     {
-        require(cast(u8) value <= 0x7f,
-            "non-ASCII char appended to StringBuf; use dchar");
+        version (XTB_Checked)
+            require(cast(u8) value <= 0x7f,
+                "non-ASCII char appended to StringBuf; use dchar");
         bytes_.append(allocator, value);
     }
 
     bool tryAppend(Allocator* allocator, char value)
     {
-        require(cast(u8) value <= 0x7f,
-            "non-ASCII char appended to StringBuf; use dchar");
+        version (XTB_Checked)
+            require(cast(u8) value <= 0x7f,
+                "non-ASCII char appended to StringBuf; use dchar");
         return bytes_.tryAppend(allocator, value);
     }
 
@@ -866,8 +899,9 @@ public:
 
     void appendAssumeCapacity(char value)
     {
-        require(cast(u8) value <= 0x7f,
-            "non-ASCII char appended to StringBuf; use dchar");
+        version (XTB_Checked)
+            require(cast(u8) value <= 0x7f,
+                "non-ASCII char appended to StringBuf; use dchar");
         bytes_.appendAssumeCapacity(value);
     }
 
@@ -884,10 +918,13 @@ public:
         String value,
     )
     {
-        require(byteOffset <= byteLength,
-            "StringBuf insertion byte offset out of bounds");
-        require(view.isCodePointBoundary(byteOffset),
-            "StringBuf insertion byte offset is inside UTF-8 code point");
+        version (XTB_Checked)
+        {
+            require(byteOffset <= byteLength,
+                "StringBuf insertion byte offset out of bounds");
+            require(view.isCodePointBoundary(byteOffset),
+                "StringBuf insertion byte offset is inside UTF-8 code point");
+        }
         return bytes_.tryInsert(allocator, byteOffset, value);
     }
 
@@ -913,10 +950,13 @@ public:
 
     void truncateBytes(size_t newByteLength)
     {
-        require(newByteLength <= byteLength,
-            "StringBuf truncation byte length out of bounds");
-        require(view.isCodePointBoundary(newByteLength),
-            "StringBuf truncation splits UTF-8 code point");
+        version (XTB_Checked)
+        {
+            require(newByteLength <= byteLength,
+                "StringBuf truncation byte length out of bounds");
+            require(view.isCodePointBoundary(newByteLength),
+                "StringBuf truncation splits UTF-8 code point");
+        }
         bytes_.removeRange(newByteLength, byteLength - newByteLength);
     }
 
@@ -982,8 +1022,9 @@ public:
         String to,
     )
     {
-        require(from.length != 0,
-            "replacement source must not be empty");
+        version (XTB_Checked)
+            require(from.length != 0,
+                "replacement source must not be empty");
         String original = view;
         if (original.length != 0)
         {
@@ -991,12 +1032,15 @@ public:
             const end = begin + original.length;
             const fromAddress = cast(size_t) from.ptr;
             const toAddress = cast(size_t) to.ptr;
-            require(from.length == 0 || fromAddress < begin ||
-                    fromAddress >= end,
-                "replacement source aliases StringBuf");
-            require(to.length == 0 || toAddress < begin ||
-                    toAddress >= end,
-                "replacement value aliases StringBuf");
+            version (XTB_Checked)
+            {
+                require(from.length == 0 || fromAddress < begin ||
+                        fromAddress >= end,
+                    "replacement source aliases StringBuf");
+                require(to.length == 0 || toAddress < begin ||
+                        toAddress >= end,
+                    "replacement value aliases StringBuf");
+            }
         }
         size_t count;
         size_t position;
@@ -1102,7 +1146,8 @@ public:
         scope const(char)** output,
     ) @system
     {
-        require(output !is null, "C string output pointer is null");
+        version (XTB_Checked)
+            require(output !is null, "C string output pointer is null");
         const oldLength = byteLength;
         if (oldLength == size_t.max ||
             !bytes_.tryResize(allocator, oldLength + 1))
@@ -1127,7 +1172,8 @@ public:
     /// Returns a C string after rejecting embedded NUL bytes.
     const(char)* checkedCString(Allocator* allocator) return @system
     {
-        require(!view.containsNul, "String contains embedded NUL");
+        version (XTB_Checked)
+            require(!view.containsNul, "String contains embedded NUL");
         return cString(allocator);
     }
 }
@@ -1138,13 +1184,573 @@ nothrow @nogc:
 
     alias Self = StringBuf;
     alias Storage = StringBufUnmanaged;
+    alias Released = ReleasedStorage!Storage;
 
 private:
     Allocator* allocator_;
     Storage storage_;
 
+version (XTB_Checked)
+{
+    invariant
+    {
+        require(&this !is null, "StringBuf pointer is null");
+    }
+}
+
 public:
-    mixin ManagedContainerAdapter!(Self, Storage);
+    @disable this(this);
+
+    static Self create(Allocator* allocator) @trusted
+    {
+        requireValidStringBufAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        return result;
+    }
+
+    static bool tryWithCapacity(
+        Allocator* allocator,
+        size_t byteCapacity,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "StringBuf output pointer is null");
+            require(output.allocator_ is null,
+                "StringBuf output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryWithCapacity(allocator, byteCapacity, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    static Self withCapacity(
+        Allocator* allocator,
+        size_t byteCapacity,
+    ) @trusted
+    {
+        Self result;
+        if (!tryWithCapacity(allocator, byteCapacity, &result))
+            panic("StringBuf allocation failed");
+        return move(result);
+    }
+
+    static bool tryFromString(
+        Allocator* allocator,
+        String value,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "StringBuf output pointer is null");
+            require(output.allocator_ is null,
+                "StringBuf output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryFromString(allocator, value, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    static Self fromString(Allocator* allocator, String value) @trusted
+    {
+        Self result;
+        if (!tryFromString(allocator, value, &result))
+            panic("StringBuf allocation failed");
+        return move(result);
+    }
+
+    static bool tryFromBytesUnchecked(
+        Allocator* allocator,
+        scope const(u8)[] bytes,
+        scope Self* output,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "StringBuf output pointer is null");
+            require(output.allocator_ is null,
+                "StringBuf output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryFromBytesUnchecked(allocator, bytes, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    static Self fromBytesUnchecked(
+        Allocator* allocator,
+        scope const(u8)[] bytes,
+    ) @system
+    {
+        Self result;
+        if (!tryFromBytesUnchecked(allocator, bytes, &result))
+            panic("StringBuf allocation failed");
+        return move(result);
+    }
+
+    static Self adopt(scope Released* released) @trusted
+    {
+        version (XTB_Checked)
+            require(released !is null,
+                "released StringBuf storage pointer is null");
+        Allocator* allocator;
+        Storage storage = released.extract(&allocator);
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = move(storage);
+        return move(result);
+    }
+
+    ~this() @trusted
+    {
+        this.deinit();
+    }
+
+    /// Releases all storage and unbinds the allocator. The zero state is valid.
+    void deinit() @trusted
+    {
+        if (allocator_ is null)
+            return;
+        storage_.deinit(allocator_);
+        allocator_ = null;
+    }
+
+    /// Releases allocated storage but keeps the allocator binding.
+    void resetAndRelease() @trusted
+    {
+        storage_.resetAndRelease(allocator_);
+    }
+
+    /// Transfers allocator-bound storage out and leaves this buffer empty.
+    Released release() @trusted
+    {
+        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        allocator_ = null;
+        return move(result);
+    }
+
+    size_t byteLength() const pure @trusted
+    {
+        return storage_.byteLength;
+    }
+
+    size_t byteCapacity() const pure @trusted
+    {
+        return storage_.byteCapacity;
+    }
+
+    bool empty() const pure @trusted
+    {
+        return storage_.empty;
+    }
+
+    String view() const return pure @trusted
+    {
+        return storage_.view;
+    }
+
+    bool equal(scope String other) const pure @trusted
+    {
+        return storage_ == other;
+    }
+
+    bool equal(scope ref const Self other) const pure @trusted
+    {
+        return storage_ == other.storage_;
+    }
+
+    void reserve(size_t byteCapacity) @trusted
+    {
+        storage_.reserve(allocator_, byteCapacity);
+    }
+
+    bool tryReserve(size_t byteCapacity) @trusted
+    {
+        return storage_.tryReserve(allocator_, byteCapacity);
+    }
+
+    bool tryShrinkToFit() @trusted
+    {
+        return storage_.tryShrinkToFit(allocator_);
+    }
+
+    void shrinkToFit() @trusted
+    {
+        storage_.shrinkToFit(allocator_);
+    }
+
+    void append(String value) @trusted
+    {
+        storage_.append(allocator_, value);
+    }
+
+    bool tryAppend(String value) @trusted
+    {
+        return storage_.tryAppend(allocator_, value);
+    }
+
+    void append(char value) @trusted
+    {
+        storage_.append(allocator_, value);
+    }
+
+    bool tryAppend(char value) @trusted
+    {
+        return storage_.tryAppend(allocator_, value);
+    }
+
+    void append(dchar value) @trusted
+    {
+        storage_.append(allocator_, value);
+    }
+
+    bool tryAppend(dchar value) @trusted
+    {
+        return storage_.tryAppend(allocator_, value);
+    }
+
+    void appendAssumeCapacity(String value) @trusted
+    {
+        storage_.appendAssumeCapacity(value);
+    }
+
+    void appendAssumeCapacity(char value) @trusted
+    {
+        storage_.appendAssumeCapacity(value);
+    }
+
+    void appendAssumeCapacity(dchar value) @trusted
+    {
+        storage_.appendAssumeCapacity(value);
+    }
+
+    bool tryInsert(size_t byteOffset, String value) @trusted
+    {
+        return storage_.tryInsert(allocator_, byteOffset, value);
+    }
+
+    void insert(size_t byteOffset, String value) @trusted
+    {
+        storage_.insert(allocator_, byteOffset, value);
+    }
+
+    bool tryPrepend(String value) @trusted
+    {
+        return storage_.tryPrepend(allocator_, value);
+    }
+
+    void prepend(String value) @trusted
+    {
+        storage_.prepend(allocator_, value);
+    }
+
+    void truncateBytes(size_t newByteLength) @trusted
+    {
+        storage_.truncateBytes(newByteLength);
+    }
+
+    void clear() @trusted
+    {
+        storage_.clear();
+    }
+
+    bool tryEscape(String value) @trusted
+    {
+        return storage_.tryEscape(allocator_, value);
+    }
+
+    void appendEscaped(String value) @trusted
+    {
+        storage_.appendEscaped(allocator_, value);
+    }
+
+    bool tryReplace(String from, String to) @trusted
+    {
+        return storage_.tryReplace(allocator_, from, to);
+    }
+
+    void replaceInPlace(String from, String to) @trusted
+    {
+        storage_.replaceInPlace(allocator_, from, to);
+    }
+
+    bool tryCString(scope const(char)** output) @system
+    {
+        return storage_.tryCString(allocator_, output);
+    }
+
+    const(char)* cString() return @system
+    {
+        return storage_.cString(allocator_);
+    }
+
+    const(char)* checkedCString() return @system
+    {
+        return storage_.checkedCString(allocator_);
+    }
+
+    /// Returns the first UTF-8 code unit. The buffer must not be empty.
+    char frontCodeUnit() const @trusted
+    {
+        return xtb.core.string.frontCodeUnit(storage_.view);
+    }
+
+    /// Returns the last UTF-8 code unit. The buffer must not be empty.
+    char backCodeUnit() const @trusted
+    {
+        return xtb.core.string.backCodeUnit(storage_.view);
+    }
+
+    int compare(scope String other) const pure @trusted
+    {
+        return xtb.core.string.compare(storage_.view, other);
+    }
+
+    String sliceBytes(size_t beginByteOffset, size_t endByteOffset) const return @trusted
+    {
+        return xtb.core.string.sliceBytes(storage_.view, beginByteOffset, endByteOffset);
+    }
+
+    String prefixBytes(size_t endByteOffset) const return @trusted
+    {
+        return xtb.core.string.prefixBytes(storage_.view, endByteOffset);
+    }
+
+    String suffixBytes(size_t beginByteOffset) const return @trusted
+    {
+        return xtb.core.string.suffixBytes(storage_.view, beginByteOffset);
+    }
+
+    size_t find(scope String needle) const pure @trusted
+    {
+        return xtb.core.string.find(storage_.view, needle);
+    }
+
+    size_t findLast(scope String needle) const pure @trusted
+    {
+        return xtb.core.string.findLast(storage_.view, needle);
+    }
+
+    size_t findCodeUnit(char codeUnit) const pure @trusted
+    {
+        return xtb.core.string.findCodeUnit(storage_.view, codeUnit);
+    }
+
+    size_t findLastCodeUnit(char codeUnit) const pure @trusted
+    {
+        return xtb.core.string.findLastCodeUnit(storage_.view, codeUnit);
+    }
+
+    size_t findCodePoint(dchar codePoint) const @trusted
+    {
+        return xtb.core.string.findCodePoint(storage_.view, codePoint);
+    }
+
+    size_t findLastCodePoint(dchar codePoint) const @trusted
+    {
+        return xtb.core.string.findLastCodePoint(storage_.view, codePoint);
+    }
+
+    bool contains(scope String needle) const pure @trusted
+    {
+        return xtb.core.string.contains(storage_.view, needle);
+    }
+
+    bool containsCodeUnit(char codeUnit) const pure @trusted
+    {
+        return xtb.core.string.containsCodeUnit(storage_.view, codeUnit);
+    }
+
+    bool containsCodePoint(dchar codePoint) const @trusted
+    {
+        return xtb.core.string.containsCodePoint(storage_.view, codePoint);
+    }
+
+    bool containsNul() const pure @trusted
+    {
+        return xtb.core.string.containsNul(storage_.view);
+    }
+
+    bool startsWith(scope String prefix) const pure @trusted
+    {
+        return xtb.core.string.startsWith(storage_.view, prefix);
+    }
+
+    bool endsWith(scope String suffix) const pure @trusted
+    {
+        return xtb.core.string.endsWith(storage_.view, suffix);
+    }
+
+    String baseName() const return pure @trusted
+    {
+        return xtb.core.string.baseName(storage_.view);
+    }
+
+    String stripExtension() const return pure @trusted
+    {
+        return xtb.core.string.stripExtension(storage_.view);
+    }
+
+    String trimAsciiStart() const return pure @trusted
+    {
+        return xtb.core.string.trimAsciiStart(storage_.view);
+    }
+
+    String trimAsciiEnd() const return pure @trusted
+    {
+        return xtb.core.string.trimAsciiEnd(storage_.view);
+    }
+
+    String trimAscii() const return pure @trusted
+    {
+        return xtb.core.string.trimAscii(storage_.view);
+    }
+
+    /// Replaces the complete contents while retaining reusable capacity.
+    ///
+    /// `value` may be a view into this buffer; self-assignment and subview
+    /// assignment are handled without allocation.
+    bool tryAssign(scope String value) @trusted
+    {
+        const current = storage_.view;
+        bool aliases;
+        size_t sourceOffset;
+        if (value.length != 0 && current.length != 0)
+        {
+            const sourceAddress = cast(size_t) value.ptr;
+            const beginAddress = cast(size_t) current.ptr;
+            if (sourceAddress >= beginAddress)
+            {
+                sourceOffset = sourceAddress - beginAddress;
+                aliases = sourceOffset <= current.length &&
+                    value.length <= current.length - sourceOffset;
+            }
+        }
+
+        if (aliases)
+        {
+            if (value.length != 0 && sourceOffset != 0)
+                memmove(storage_.bytes_.slice.ptr, value.ptr, value.length);
+            if (value.length < current.length)
+                storage_.bytes_.removeRange(
+                    value.length,
+                    current.length - value.length,
+                );
+            return true;
+        }
+
+        if (!storage_.tryReserve(allocator_, value.length))
+            return false;
+        storage_.clear();
+        storage_.appendAssumeCapacity(value);
+        return true;
+    }
+
+    void assign(scope String value) @trusted
+    {
+        if (!tryAssign(value))
+            panic("StringBuf allocation failed");
+    }
+
+    /// Removes `prefix` when present and reports whether the buffer changed.
+    bool removePrefix(scope String prefix) @trusted
+    {
+        if (!xtb.core.string.startsWith(storage_.view, prefix))
+            return false;
+        if (prefix.length != 0)
+            storage_.bytes_.removeRange(0, prefix.length);
+        return true;
+    }
+
+    /// Removes `suffix` when present and reports whether the buffer changed.
+    bool removeSuffix(scope String suffix) @trusted
+    {
+        if (!xtb.core.string.endsWith(storage_.view, suffix))
+            return false;
+        if (suffix.length != 0)
+            storage_.truncateBytes(storage_.byteLength - suffix.length);
+        return true;
+    }
+
+    /// Removes leading ASCII whitespace in place.
+    void trimAsciiStartInPlace() @trusted
+    {
+        const trimmed = xtb.core.string.trimAsciiStart(storage_.view);
+        const removed = storage_.byteLength - trimmed.length;
+        if (removed != 0)
+            storage_.bytes_.removeRange(0, removed);
+    }
+
+    /// Removes trailing ASCII whitespace in place.
+    void trimAsciiEndInPlace() @trusted
+    {
+        const trimmed = xtb.core.string.trimAsciiEnd(storage_.view);
+        storage_.truncateBytes(trimmed.length);
+    }
+
+    /// Removes leading and trailing ASCII whitespace in place.
+    void trimAsciiInPlace() @trusted
+    {
+        const original = storage_.view;
+        const trimmed = xtb.core.string.trimAscii(original);
+        const begin = trimmed.length == 0
+            ? original.length
+            : cast(size_t) trimmed.ptr - cast(size_t) original.ptr;
+        if (begin != 0)
+            storage_.bytes_.removeRange(0, begin);
+        storage_.truncateBytes(trimmed.length);
+    }
+
+    Array!String split(scope String separator, Allocator* allocator) const @trusted
+    {
+        return xtb.core.string.split(storage_.view, separator, allocator);
+    }
+
+    Array!String split(char separator, Allocator* allocator) const @trusted
+    {
+        return xtb.core.string.split(storage_.view, separator, allocator);
+    }
+
+    Array!String splitWhitespace(Allocator* allocator) const @trusted
+    {
+        return xtb.core.string.splitWhitespace(storage_.view, allocator);
+    }
+
+    Array!String splitLines(Allocator* allocator) const @trusted
+    {
+        return xtb.core.string.splitLines(storage_.view, allocator);
+    }
+
+    bool opEquals(scope String other) const pure @trusted
+    {
+        return storage_ == other;
+    }
+
+    bool opEquals(scope ref const Self other) const pure @trusted
+    {
+        return storage_ == other.storage_;
+    }
+
+    size_t toHash() const pure @trusted
+    {
+        return storage_.toHash();
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
+    }
 
 package(xtb):
     static Self adoptUnmanaged(
@@ -1152,14 +1758,14 @@ package(xtb):
         scope Storage* storage,
     ) @system
     {
-        require(allocator !is null && *allocator !is null,
-            "StringBuf allocator is null");
-        require(storage !is null,
-            "StringBufUnmanaged pointer is null");
+        requireValidStringBufAllocator(allocator);
+        version (XTB_Checked)
+            require(storage !is null,
+                "StringBufUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
         result.storage_ = move(*storage);
-        return result;
+        return move(result);
     }
 
     static Self adoptRaw(
@@ -1172,7 +1778,14 @@ package(xtb):
         Storage storage = Storage.adopt(data, length, capacity);
         return adoptUnmanaged(allocator, &storage);
     }
+}
 
+
+private void requireValidStringBufAllocator(Allocator* allocator) @trusted
+{
+    version (XTB_Checked)
+        require(allocator !is null && *allocator !is null,
+            "StringBuf requires a valid allocator");
 }
 
 unittest
@@ -1240,6 +1853,7 @@ unittest
 
     StringBuf buffer = StringBuf.fromString(mallocAllocator(), "hello");
     assert(buffer == "hello");
+    assert(buffer.equal("hello"));
     assert("hello" == buffer);
     assert(buffer != "other");
 
@@ -1250,6 +1864,7 @@ unittest
     StringBuf same = StringBuf.fromString(mallocAllocator(), "hello");
     StringBuf different = StringBuf.fromString(mallocAllocator(), "Hello");
     assert(buffer == same && same == buffer);
+    assert(buffer.equal(same));
     assert(buffer != different && different != buffer);
     assert(buffer.toHash == same.toHash);
 
@@ -1360,6 +1975,9 @@ unittest
     static assert(!__traits(isCopyable, StringBufUnmanaged));
     static assert(!__traits(isCopyable, StringBuf));
     static assert(!__traits(isCopyable, StringBuf.Released));
+    static assert(is(typeof((cast(StringBuf*) null).allocator()) == Allocator*));
+    static assert(!__traits(compiles,
+        (cast(const(StringBuf)*) null).allocator()));
     static assert(!__traits(compiles, () @safe {
         StringBuf.Released released;
         ref StringBufUnmanaged storage = released.storage;
@@ -1472,4 +2090,66 @@ unittest
     unmanaged.deinit(unmanagedAllocator.handle);
     assert(managedAllocator.stats == unmanagedAllocator.stats);
     assert(managedAllocator.clean && unmanagedAllocator.clean);
+}
+
+unittest
+{
+    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
+        mallocAllocator;
+
+    StringBuf text = StringBuf.fromString(
+        mallocAllocator(),
+        "  alpha/beta/🙂  ",
+    );
+    StringBuf* pointer = &text;
+
+    assert(pointer.startsWith("  alpha"));
+    assert(pointer.endsWith("🙂  "));
+    assert(pointer.contains("beta"));
+    assert(pointer.containsCodePoint(cast(dchar) 0x1f642));
+    assert(pointer.find("alpha") == 2);
+    assert(pointer.findLastCodeUnit('/') == 12);
+    assert(pointer.sliceBytes(2, 7) == "alpha");
+    assert(pointer.baseName == "🙂  ");
+    assert(pointer.stripExtension == pointer.view);
+    assert(pointer.trimAsciiStart == "alpha/beta/🙂  ");
+    assert(pointer.trimAsciiEnd == "  alpha/beta/🙂");
+    assert(pointer.trimAscii == "alpha/beta/🙂");
+
+    pointer.trimAsciiInPlace();
+    assert(text == "alpha/beta/🙂");
+    assert(pointer.removePrefix("alpha/"));
+    assert(pointer.removeSuffix("/🙂"));
+    assert(text == "beta");
+    assert(!pointer.removePrefix("missing"));
+
+    pointer.assign("prefix-value-suffix");
+    String middle = pointer.sliceBytes(7, 12);
+    pointer.assign(middle);
+    assert(text == "value");
+    pointer.assign(pointer.view);
+    assert(text == "value");
+
+    pointer.assign("a,b,c");
+    Array!String parts = pointer.split(',', mallocAllocator());
+    assert(parts.length == 3);
+    assert(parts[0] == "a" && parts[1] == "b" && parts[2] == "c");
+
+    pointer.assign("\t  words  \n");
+    pointer.trimAsciiStartInPlace();
+    assert(text == "words  \n");
+    pointer.trimAsciiEndInPlace();
+    assert(text == "words");
+
+    AllocationRecord[8] records;
+    InstrumentedAllocator failing = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+    StringBuf retained = StringBuf.fromString(failing.handle, "small");
+    failing.failAfter(0);
+    assert(!retained.tryAssign(
+        "this replacement is intentionally larger than the current capacity",
+    ));
+    assert(retained == "small");
 }

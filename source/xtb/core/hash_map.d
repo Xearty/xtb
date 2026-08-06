@@ -6,10 +6,12 @@ import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move, moveEmplace;
 import core.stdc.string : memset;
 import xtb.core.hash : HashSeed, hashValue;
-import xtb.core.internal.managed_container_adapter : ManagedContainerAdapter;
 import xtb.core.memory : Allocator, deallocate, tryAllocate, tryAllocateZeroed;
 import xtb.core.numeric : multiplyOverflows;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.released_storage : ReleasedStorage;
 
 private enum SlotState : ubyte
 {
@@ -274,12 +276,15 @@ public:
         scope HashMapUnmanaged* output,
     )
     {
-        require(output !is null,
-            "HashMapUnmanaged output pointer is null");
-        require(output.states_ is null && output.entries_ is null &&
-                output.length_ == 0 && output.removed_ == 0 &&
-                output.capacity_ == 0,
-            "HashMapUnmanaged output is not empty");
+        version (XTB_Checked)
+        {
+            require(output !is null,
+                "HashMapUnmanaged output pointer is null");
+            require(output.states_ is null && output.entries_ is null &&
+                    output.length_ == 0 && output.removed_ == 0 &&
+                    output.capacity_ == 0,
+                "HashMapUnmanaged output is not empty");
+        }
         HashMapUnmanaged temporary;
         if (!temporary.tryReserve(allocator, requested))
             return false;
@@ -608,11 +613,14 @@ package(xtb):
     )
     {
         requireValidHashAllocator(allocator);
-        require(prepared !is null,
-            "prepared HashMap insertion output pointer is null");
-        require(prepared.entriesIdentity_ is null &&
-                prepared.capacityIdentity_ == 0,
-            "prepared HashMap insertion output is not empty");
+        version (XTB_Checked)
+        {
+            require(prepared !is null,
+                "prepared HashMap insertion output pointer is null");
+            require(prepared.entriesIdentity_ is null &&
+                    prepared.capacityIdentity_ == 0,
+                "prepared HashMap insertion output is not empty");
+        }
 
         const hash = hasher_(&key);
         ProbeResult location = probeLookup(&key, hash);
@@ -630,8 +638,9 @@ package(xtb):
             return PrepareInsertStatus.outOfMemory;
 
         location = probeLookup(&key, hash);
-        require(!location.found,
-            "HashMap changed during prepared insertion");
+        version (XTB_Checked)
+            require(!location.found,
+                "HashMap changed during prepared insertion");
         prepared.entriesIdentity_ = entries_;
         prepared.capacityIdentity_ = capacity_;
         prepared.index_ = location.index;
@@ -647,18 +656,21 @@ package(xtb):
         scope V* value,
     ) @system
     {
-        require(prepared !is null,
-            "prepared HashMap insertion pointer is null");
-        require(key !is null, "HashMap insertion key pointer is null");
-        require(value !is null, "HashMap insertion value pointer is null");
-        require(!prepared.found_,
-            "cannot commit an already-present HashMap insertion");
-        require(prepared.entriesIdentity_ is entries_ &&
-                prepared.capacityIdentity_ == capacity_ &&
-                prepared.index_ < capacity_,
-            "stale prepared HashMap insertion");
-        require(states_[prepared.index_] != SlotState.occupied,
-            "prepared HashMap insertion slot is occupied");
+        version (XTB_Checked)
+        {
+            require(prepared !is null,
+                "prepared HashMap insertion pointer is null");
+            require(key !is null, "HashMap insertion key pointer is null");
+            require(value !is null, "HashMap insertion value pointer is null");
+            require(!prepared.found_,
+                "cannot commit an already-present HashMap insertion");
+            require(prepared.entriesIdentity_ is entries_ &&
+                    prepared.capacityIdentity_ == capacity_ &&
+                    prepared.index_ < capacity_,
+                "stale prepared HashMap insertion");
+            require(states_[prepared.index_] != SlotState.occupied,
+                "prepared HashMap insertion slot is occupied");
+        }
 
         Entry!(K, V)* destination = entries_ + prepared.index_;
         destination.hash = prepared.hash_;
@@ -678,16 +690,19 @@ package(xtb):
     ) @system
     {
         requireValidHashAllocator(allocator);
-        require(prepared !is null,
-            "prepared HashMap insertion pointer is null");
-        require(value !is null, "HashMap replacement value pointer is null");
-        require(prepared.found_,
-            "cannot replace through an absent HashMap insertion");
-        require(prepared.entriesIdentity_ is entries_ &&
-                prepared.capacityIdentity_ == capacity_ &&
-                prepared.index_ < capacity_ &&
-                states_[prepared.index_] == SlotState.occupied,
-            "stale prepared HashMap replacement");
+        version (XTB_Checked)
+        {
+            require(prepared !is null,
+                "prepared HashMap insertion pointer is null");
+            require(value !is null, "HashMap replacement value pointer is null");
+            require(prepared.found_,
+                "cannot replace through an absent HashMap insertion");
+            require(prepared.entriesIdentity_ is entries_ &&
+                    prepared.capacityIdentity_ == capacity_ &&
+                    prepared.index_ < capacity_ &&
+                    states_[prepared.index_] == SlotState.occupied,
+                "stale prepared HashMap replacement");
+        }
 
         replaceHashElement!ValueOps(
             allocator,
@@ -762,8 +777,9 @@ private:
 
     bool tryRehash(Allocator* allocator, size_t capacity)
     {
-        require(capacity >= 8 && (capacity & (capacity - 1)) == 0,
-            "invalid HashMap capacity");
+        version (XTB_Checked)
+            require(capacity >= 8 && (capacity & (capacity - 1)) == 0,
+                "invalid HashMap capacity");
         if (multiplyOverflows(Entry!(K, V).sizeof, capacity))
             return false;
 
@@ -831,13 +847,261 @@ nothrow @nogc:
 
     alias Self = HashMap!(K, V, Hasher, Equal);
     alias Storage = HashMapUnmanaged!(K, V, Hasher, Equal);
+    alias Released = ReleasedStorage!Storage;
 
 private:
     Allocator* allocator_;
     Storage storage_;
 
+version (XTB_Checked)
+{
+    invariant
+    {
+        require(&this !is null, "HashMap pointer is null");
+    }
+}
+
 public:
-    mixin ManagedContainerAdapter!(Self, Storage);
+    @disable this(this);
+
+    static Self create(Allocator* allocator) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        return result;
+    }
+
+    static Self withPolicies(
+        Allocator* allocator,
+        Hasher hasher,
+        Equal equal,
+    ) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = Storage.withPolicies(move(hasher), move(equal));
+        return move(result);
+    }
+
+    static bool tryWithCapacity(
+        Allocator* allocator,
+        size_t requested,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "HashMap output pointer is null");
+            require(output.allocator_ is null,
+                "HashMap output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryWithCapacity(allocator, requested, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    static Self withCapacity(
+        Allocator* allocator,
+        size_t requested,
+    ) @trusted
+    {
+        Self result;
+        if (!tryWithCapacity(allocator, requested, &result))
+            panic("HashMap allocation failed");
+        return move(result);
+    }
+
+    static if (IsDefaultHashPolicy!(Hasher, K) &&
+            IsDefaultEqualPolicy!(Equal, K))
+    {
+        static Self seeded(Allocator* allocator, HashSeed seed) @trusted
+        {
+            requireValidHashAllocator(allocator);
+            Self result;
+            result.allocator_ = allocator;
+            result.storage_ = Storage.seeded(seed);
+            return move(result);
+        }
+
+        static Self withCapacity(
+            Allocator* allocator,
+            size_t requested,
+            HashSeed seed,
+        ) @trusted
+        {
+            Self result;
+            result.allocator_ = allocator;
+            result.storage_ = Storage.withCapacity(
+                allocator,
+                requested,
+                seed,
+            );
+            return move(result);
+        }
+    }
+
+    static Self adopt(scope Released* released) @trusted
+    {
+        version (XTB_Checked)
+            require(released !is null,
+                "released HashMap storage pointer is null");
+        Allocator* allocator;
+        Storage storage = released.extract(&allocator);
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = move(storage);
+        return move(result);
+    }
+
+    ~this() @trusted
+    {
+        this.deinit();
+    }
+
+    void deinit() @trusted
+    {
+        if (allocator_ is null)
+            return;
+        storage_.deinit(allocator_);
+        allocator_ = null;
+    }
+
+    void resetAndRelease() @trusted
+    {
+        storage_.resetAndRelease(allocator_);
+    }
+
+    Released release() @trusted
+    {
+        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        allocator_ = null;
+        return move(result);
+    }
+
+    size_t length() const pure @trusted
+    {
+        return storage_.length;
+    }
+
+    size_t capacity() const pure @trusted
+    {
+        return storage_.capacity;
+    }
+
+    bool empty() const pure @trusted
+    {
+        return storage_.empty;
+    }
+
+    HashMapCursor!(K, V) cursor() return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    ConstHashMapCursor!(K, V) cursor() const return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    HashMapPointerRange!(K, V) pointerItems() return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    ConstHashMapPointerRange!(K, V) pointerItems() const return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    bool tryReserve(size_t requested) @trusted
+    {
+        return storage_.tryReserve(allocator_, requested);
+    }
+
+    void reserve(size_t requested) @trusted
+    {
+        storage_.reserve(allocator_, requested);
+    }
+
+    SetStatus trySet(K key, V value) @trusted
+    {
+        return storage_.trySet(allocator_, move(key), move(value));
+    }
+
+    bool set(K key, V value) @trusted
+    {
+        return storage_.set(allocator_, move(key), move(value));
+    }
+
+    AddStatus tryAdd(K key, V value) @trusted
+    {
+        return storage_.tryAdd(allocator_, move(key), move(value));
+    }
+
+    bool add(K key, V value) @trusted
+    {
+        return storage_.add(allocator_, move(key), move(value));
+    }
+
+    V* find(scope K key) return @trusted
+    {
+        return storage_.find(key);
+    }
+
+    const(V)* find(scope K key) const return @trusted
+    {
+        return storage_.find(key);
+    }
+
+    bool contains(scope K key) const @trusted
+    {
+        return storage_.contains(key);
+    }
+
+    bool remove(scope K key) @trusted
+    {
+        return storage_.remove(allocator_, key);
+    }
+
+    void clear() @trusted
+    {
+        storage_.clear(allocator_);
+    }
+
+    bool tryShrinkToFit() @trusted
+    {
+        return storage_.tryShrinkToFit(allocator_);
+    }
+
+    void shrinkToFit() @trusted
+    {
+        storage_.shrinkToFit(allocator_);
+    }
+
+    // Foreach is a D language hook.
+    int opApply(
+        scope int delegate(ref const(K), ref V) nothrow @nogc callback,
+    )
+    {
+        return storage_.opApply(callback);
+    }
+
+    int opApply(
+        scope int delegate(ref const(K), ref const(V)) nothrow @nogc callback,
+    ) const
+    {
+        return storage_.opApply(callback);
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
+    }
 
 package(xtb):
     static Self adoptUnmanaged(
@@ -846,19 +1110,22 @@ package(xtb):
     ) @system
     {
         requireValidHashAllocator(allocator);
-        require(storage !is null,
-            "HashMapUnmanaged pointer is null");
+        version (XTB_Checked)
+            require(storage !is null,
+                "HashMapUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
         result.storage_ = move(*storage);
-        return result;
+        return move(result);
     }
 }
 
-private void requireValidHashAllocator(Allocator* allocator)
+
+private void requireValidHashAllocator(Allocator* allocator) @trusted
 {
-    require(allocator !is null && *allocator !is null,
-        "HashMap requires a valid allocator");
+    version (XTB_Checked)
+        require(allocator !is null && *allocator !is null,
+            "HashMap requires a valid allocator");
 }
 
 private void constructHashMove(T)(T* destination, ref T source)
@@ -886,7 +1153,8 @@ private size_t maximumHashLength(size_t capacity) pure @safe
 
 private bool capacityForLength(size_t requested, size_t* output)
 {
-    require(output !is null, "HashMap capacity output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "HashMap capacity output pointer is null");
     if (requested == 0)
     {
         *output = 0;
@@ -944,19 +1212,22 @@ nothrow @nogc:
 
     const(K)* key() const return
     {
-        require(valid, "invalid HashMap cursor");
+        version (XTB_Checked)
+            require(valid, "invalid HashMap cursor");
         return &entries_[index_].key;
     }
 
     V* value() return
     {
-        require(valid, "invalid HashMap cursor");
+        version (XTB_Checked)
+            require(valid, "invalid HashMap cursor");
         return &entries_[index_].value;
     }
 
     void advance()
     {
-        require(valid, "invalid HashMap cursor");
+        version (XTB_Checked)
+            require(valid, "invalid HashMap cursor");
         ++index_;
         skipEmpty();
     }
@@ -1001,19 +1272,22 @@ nothrow @nogc:
 
     const(K)* key() const return
     {
-        require(valid, "invalid HashMap cursor");
+        version (XTB_Checked)
+            require(valid, "invalid HashMap cursor");
         return &entries_[index_].key;
     }
 
     const(V)* value() const return
     {
-        require(valid, "invalid HashMap cursor");
+        version (XTB_Checked)
+            require(valid, "invalid HashMap cursor");
         return &entries_[index_].value;
     }
 
     void advance()
     {
-        require(valid, "invalid HashMap cursor");
+        version (XTB_Checked)
+            require(valid, "invalid HashMap cursor");
         ++index_;
         skipEmpty();
     }
@@ -1115,10 +1389,13 @@ public:
         scope HashSetUnmanaged* output,
     )
     {
-        require(output !is null,
-            "HashSetUnmanaged output pointer is null");
-        require(output.map_.capacity == 0 && output.map_.empty,
-            "HashSetUnmanaged output is not empty");
+        version (XTB_Checked)
+        {
+            require(output !is null,
+                "HashSetUnmanaged output pointer is null");
+            require(output.map_.capacity == 0 && output.map_.empty,
+                "HashSetUnmanaged output is not empty");
+        }
         HashSetUnmanaged temporary;
         if (!temporary.tryReserve(allocator, requested))
             return false;
@@ -1286,13 +1563,240 @@ nothrow @nogc:
 
     alias Self = HashSet!(K, Hasher, Equal);
     alias Storage = HashSetUnmanaged!(K, Hasher, Equal);
+    alias Released = ReleasedStorage!Storage;
 
 private:
     Allocator* allocator_;
     Storage storage_;
 
+version (XTB_Checked)
+{
+    invariant
+    {
+        require(&this !is null, "HashSet pointer is null");
+    }
+}
+
 public:
-    mixin ManagedContainerAdapter!(Self, Storage);
+    @disable this(this);
+
+    static Self create(Allocator* allocator) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        return result;
+    }
+
+    static Self withPolicies(
+        Allocator* allocator,
+        Hasher hasher,
+        Equal equal,
+    ) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = Storage.withPolicies(move(hasher), move(equal));
+        return move(result);
+    }
+
+    static bool tryWithCapacity(
+        Allocator* allocator,
+        size_t requested,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "HashSet output pointer is null");
+            require(output.allocator_ is null,
+                "HashSet output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryWithCapacity(allocator, requested, &storage))
+            return false;
+        output.allocator_ = allocator;
+        output.storage_ = move(storage);
+        return true;
+    }
+
+    static Self withCapacity(
+        Allocator* allocator,
+        size_t requested,
+    ) @trusted
+    {
+        Self result;
+        if (!tryWithCapacity(allocator, requested, &result))
+            panic("HashSet allocation failed");
+        return move(result);
+    }
+
+    static if (IsDefaultHashPolicy!(Hasher, K) &&
+            IsDefaultEqualPolicy!(Equal, K))
+    {
+        static Self seeded(Allocator* allocator, HashSeed seed) @trusted
+        {
+            requireValidHashAllocator(allocator);
+            Self result;
+            result.allocator_ = allocator;
+            result.storage_ = Storage.seeded(seed);
+            return move(result);
+        }
+
+        static Self withCapacity(
+            Allocator* allocator,
+            size_t requested,
+            HashSeed seed,
+        ) @trusted
+        {
+            Self result;
+            result.allocator_ = allocator;
+            result.storage_ = Storage.withCapacity(
+                allocator,
+                requested,
+                seed,
+            );
+            return move(result);
+        }
+    }
+
+    static Self adopt(scope Released* released) @trusted
+    {
+        version (XTB_Checked)
+            require(released !is null,
+                "released HashSet storage pointer is null");
+        Allocator* allocator;
+        Storage storage = released.extract(&allocator);
+        Self result;
+        result.allocator_ = allocator;
+        result.storage_ = move(storage);
+        return move(result);
+    }
+
+    ~this() @trusted
+    {
+        this.deinit();
+    }
+
+    void deinit() @trusted
+    {
+        if (allocator_ is null)
+            return;
+        storage_.deinit(allocator_);
+        allocator_ = null;
+    }
+
+    void resetAndRelease() @trusted
+    {
+        storage_.resetAndRelease(allocator_);
+    }
+
+    Released release() @trusted
+    {
+        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        allocator_ = null;
+        return move(result);
+    }
+
+    size_t length() const pure @trusted
+    {
+        return storage_.length;
+    }
+
+    size_t capacity() const pure @trusted
+    {
+        return storage_.capacity;
+    }
+
+    bool empty() const pure @trusted
+    {
+        return storage_.empty;
+    }
+
+    HashSetCursor!K cursor() return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    ConstHashSetCursor!K cursor() const return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    HashSetPointerRange!K pointerItems() return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    ConstHashSetPointerRange!K pointerItems() const return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    AddStatus tryAdd(K value) @trusted
+    {
+        return storage_.tryAdd(allocator_, move(value));
+    }
+
+    bool add(K value) @trusted
+    {
+        return storage_.add(allocator_, move(value));
+    }
+
+    bool contains(scope K value) const @trusted
+    {
+        return storage_.contains(value);
+    }
+
+    bool remove(scope K value) @trusted
+    {
+        return storage_.remove(allocator_, value);
+    }
+
+    bool tryReserve(size_t requested) @trusted
+    {
+        return storage_.tryReserve(allocator_, requested);
+    }
+
+    void reserve(size_t requested) @trusted
+    {
+        storage_.reserve(allocator_, requested);
+    }
+
+    void clear() @trusted
+    {
+        storage_.clear(allocator_);
+    }
+
+    bool tryShrinkToFit() @trusted
+    {
+        return storage_.tryShrinkToFit(allocator_);
+    }
+
+    void shrinkToFit() @trusted
+    {
+        storage_.shrinkToFit(allocator_);
+    }
+
+    int opApply(
+        scope int delegate(ref const(K)) nothrow @nogc callback,
+    )
+    {
+        return storage_.opApply(callback);
+    }
+
+    int opApply(
+        scope int delegate(ref const(K)) nothrow @nogc callback,
+    ) const
+    {
+        return storage_.opApply(callback);
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
+    }
 
 package(xtb):
     static Self adoptUnmanaged(
@@ -1301,14 +1805,16 @@ package(xtb):
     ) @system
     {
         requireValidHashAllocator(allocator);
-        require(storage !is null,
-            "HashSetUnmanaged pointer is null");
+        version (XTB_Checked)
+            require(storage !is null,
+                "HashSetUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
         result.storage_ = move(*storage);
-        return result;
+        return move(result);
     }
 }
+
 
 struct HashSetCursor(K)
 {
@@ -1674,6 +2180,12 @@ unittest
     static assert(!__traits(isCopyable, IntSetStorage));
     static assert(!__traits(isCopyable, IntSet));
     static assert(!__traits(isCopyable, IntSet.Released));
+    static assert(is(typeof((cast(IntMap*) null).allocator()) == Allocator*));
+    static assert(!__traits(compiles,
+        (cast(const(IntMap)*) null).allocator()));
+    static assert(is(typeof((cast(IntSet*) null).allocator()) == Allocator*));
+    static assert(!__traits(compiles,
+        (cast(const(IntSet)*) null).allocator()));
     static assert(!__traits(compiles, () @safe {
         IntMap.Released released;
         ref IntMapStorage storage = released.storage;

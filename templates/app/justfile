@@ -7,10 +7,10 @@ dub_options := "--compiler=" + d_compiler + " --skip-registry=all"
 default: run
 
 build:
-    dub build {{ dub_options }}
+    DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=on" dub build {{ dub_options }} --build=debug --d-version=XTB_Checked
 
 run:
-    dub run {{ dub_options }}
+    DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=on" dub run {{ dub_options }} --build=debug --d-version=XTB_Checked
 
 format:
     dfmt --config . --inplace {{ d_files }}
@@ -21,4 +21,4 @@ check:
         diff -u "$source_file" <(dfmt --config . "$source_file")
     done
     dscanner lint --config dscanner.ini {{ d_files }}
-    dub build {{ dub_options }} --build=debug
+    DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=on" dub build {{ dub_options }} --build=debug --d-version=XTB_Checked

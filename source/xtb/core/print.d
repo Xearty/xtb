@@ -6,9 +6,11 @@ import core.stdc.stdio : FILE, fflush, fwrite, snprintf, stderr, stdout;
 import core.stdc.string : memcpy;
 import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
     InterpolationFooter, InterpolationHeader;
-import xtb.core.string : String, StringBuf, asStringUnchecked;
+import xtb.core.string;
 import xtb.core.memory : Allocator;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.types : u8;
 import xtb.core.utf8 : encodeUtf8, floorCodePointBoundary, isValidUtf8;
 
@@ -72,8 +74,9 @@ nothrow @nogc:
 
     void put(char value)
     {
-        require(cast(u8) value <= 0x7f,
-            "non-ASCII char written as a complete code point; use dchar");
+        version (XTB_Checked)
+            require(cast(u8) value <= 0x7f,
+                "non-ASCII char written as a complete code point; use dchar");
         if (failed_)
             return;
         if (buffered_ == buffer_.length)
@@ -264,7 +267,8 @@ private size_t fixedBufferSink(void* context, scope const(u8)[] bytes)
 private void finishFixedBuffer(FixedBufferState* state)
 @trusted
 {
-    require(state !is null, "fixed buffer state is null");
+    version (XTB_Checked)
+        require(state !is null, "fixed buffer state is null");
     while (state.written != 0 &&
         !isValidUtf8(cast(String) state.destination[0 .. state.written]))
         --state.written;
@@ -371,7 +375,8 @@ bool tryFormatString(string pattern, Args...)(
     auto ref Args args,
 )
 {
-    require(output !is null, "StringBuf output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "StringBuf output pointer is null");
     output.deinit();
     *output = StringBuf.create(allocator);
     Writer writer = Writer.fromSink(&fallibleStringBufSink, output);
@@ -392,7 +397,8 @@ bool tryFormatString(Sequence...)(
     InterpolationFooter,
 )
 {
-    require(output !is null, "StringBuf output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "StringBuf output pointer is null");
     output.deinit();
     *output = StringBuf.create(allocator);
     Writer writer = Writer.fromSink(&fallibleStringBufSink, output);

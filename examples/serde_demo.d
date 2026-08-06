@@ -1,11 +1,11 @@
 module examples.serde_demo;
 
 import core.lifetime : move;
-import xtb.core.array : Array;
+import xtb.core.array;
 import xtb.core.memory : Allocator, mallocAllocator;
 import xtb.core.option : Option, set;
 import xtb.core.print : Writer, writeln;
-import xtb.core.string : String, StringBuf, asStringUnchecked, equal;
+import xtb.core.string;
 import xtb.core.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind, TagLayout,
     aliasName, caseOf, discriminant, fieldCase, ignore, omitDefault, payload,

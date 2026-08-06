@@ -2,9 +2,10 @@ module xtb.os.file;
 
 nothrow @nogc:
 
-import xtb.core.array : Array;
-import xtb.core.panic : require;
-import xtb.core.string : StringBuf;
+import xtb.core.array;
+version (XTB_Checked)
+    import xtb.core.panic : require;
+import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : i64, u16, u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
@@ -100,7 +101,8 @@ nothrow @nogc:
 
 OsError close(File* file) @system
 {
-    require(file !is null, "File pointer is null");
+    version (XTB_Checked)
+        require(file !is null, "File pointer is null");
     if (!file.valid)
         return OsError.init;
     version (linux)
@@ -120,7 +122,8 @@ OsError close(File* file) @system
 
 OsError flush(File* file) @system
 {
-    require(file !is null && file.valid, "invalid File for flush");
+    version (XTB_Checked)
+        require(file !is null && file.valid, "invalid File for flush");
     version (linux)
     {
         import core.sys.posix.unistd : fsync;
@@ -133,7 +136,8 @@ OsError flush(File* file) @system
 
 OsError open(Path path, OpenOptions options, File* output) @system
 {
-    require(output !is null, "File output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "File output pointer is null");
     const cleanupError = close(output);
     if (cleanupError.failed)
         return cleanupError;
@@ -182,7 +186,8 @@ private bool valid(OpenOptions options) pure @safe
 
 IoResult readSome(File* file, u8[] output) @system
 {
-    require(file !is null && file.valid, "invalid File for read");
+    version (XTB_Checked)
+        require(file !is null && file.valid, "invalid File for read");
     version (linux)
     {
         import core.stdc.errno : EINTR, errno;
@@ -203,7 +208,8 @@ IoResult readSome(File* file, u8[] output) @system
 
 IoResult writeSome(File* file, scope const(u8)[] input) @system
 {
-    require(file !is null && file.valid, "invalid File for write");
+    version (XTB_Checked)
+        require(file !is null && file.valid, "invalid File for write");
     version (linux)
     {
         import core.stdc.errno : EINTR, errno;
@@ -250,8 +256,11 @@ IoResult writeAll(File* file, scope const(u8)[] input) @system
 
 OsError metadata(File* file, FileMetadata* output) @system
 {
-    require(file !is null && file.valid, "invalid File for metadata");
-    require(output !is null, "FileMetadata output pointer is null");
+    version (XTB_Checked)
+    {
+        require(file !is null && file.valid, "invalid File for metadata");
+        require(output !is null, "FileMetadata output pointer is null");
+    }
     *output = FileMetadata.init;
     version (linux)
     {
@@ -269,7 +278,8 @@ OsError metadata(File* file, FileMetadata* output) @system
 
 OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) @system
 {
-    require(output !is null, "FileMetadata output pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "FileMetadata output pointer is null");
     *output = FileMetadata.init;
     if (cast(ubyte) symlinks > cast(ubyte) SymlinkMode.follow)
         return OsError(OsErrorKind.invalidArgument, 0);
@@ -327,10 +337,21 @@ version (linux) private bool convert(
             type = FileType.unknown;
             break;
     }
-    if (native.st_size < 0 || native.st_mtimensec < 0 ||
-        native.st_mtimensec >= 1_000_000_000)
+    i64 seconds;
+    i64 nanoseconds;
+    static if (__traits(hasMember, NativeStat, "st_mtim"))
+    {
+        seconds = cast(i64) native.st_mtim.tv_sec;
+        nanoseconds = cast(i64) native.st_mtim.tv_nsec;
+    }
+    else
+    {
+        seconds = cast(i64) native.st_mtime;
+        nanoseconds = cast(i64) native.st_mtimensec;
+    }
+    if (native.st_size < 0 || nanoseconds < 0 ||
+        nanoseconds >= 1_000_000_000)
         return false;
-    const seconds = cast(i64) native.st_mtime;
     enum i64 nanosecondsPerSecond = 1_000_000_000L;
     if (seconds < i64.min / nanosecondsPerSecond ||
         seconds > i64.max / nanosecondsPerSecond)
@@ -338,7 +359,7 @@ version (linux) private bool convert(
     *output = FileMetadata(
         type,
         cast(u64) native.st_size,
-        seconds * nanosecondsPerSecond + cast(i64) native.st_mtimensec,
+        seconds * nanosecondsPerSecond + nanoseconds,
         cast(u32) native.st_mode & 0xFFF,
     );
     return true;
@@ -419,8 +440,16 @@ version (linux) pure @system unittest
     NativeStat native;
     native.st_mode = S_IFREG | 0x180;
     native.st_size = 7;
-    native.st_mtime = -1;
-    native.st_mtimensec = 500_000_000;
+    static if (__traits(hasMember, NativeStat, "st_mtim"))
+    {
+        native.st_mtim.tv_sec = -1;
+        native.st_mtim.tv_nsec = 500_000_000;
+    }
+    else
+    {
+        native.st_mtime = -1;
+        native.st_mtimensec = 500_000_000;
+    }
     FileMetadata result;
     assert(convert(native, &result));
     assert(result.type == FileType.regular);

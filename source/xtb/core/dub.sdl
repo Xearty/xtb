@@ -4,8 +4,13 @@ license "BSL-1.0"
 targetType "staticLibrary"
 targetName "xtb_core"
 targetPath "$XTB_LIBRARY_OUTPUT_DIR"
-sourceFiles "*.d" "internal/*.d"
+sourceFiles "*.d"
 importPaths "../.."
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
-dflags "-boundscheck=on" "-preview=dip1000" platform="ldc"
+dflags "-preview=dip1000" platform="ldc"
+
+// Optimized checked build: keep language assertions and contracts enabled.
+buildType "release-safe" {
+    buildOptions "optimize" "inline"
+}

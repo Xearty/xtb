@@ -5,7 +5,9 @@ nothrow @nogc:
 import core.stdc.string : memset;
 import xtb.core.arena : Arena, TempArena, pop, push;
 import xtb.core.memory : Allocator, allocate, deallocate, mallocAllocator;
-import xtb.core.panic : panic, require;
+import xtb.core.panic : panic;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 enum maxScratchArenas = 8;
 
@@ -50,11 +52,14 @@ nothrow @nogc:
         Allocator* backingAllocator = null,
     )
     {
-        require(tlsContext is null, "thread context already installed");
-        require(
-            scratchArenaCount != 0 && scratchArenaCount <= maxScratchArenas,
-            "invalid scratch arena count",
-        );
+        version (XTB_Checked)
+        {
+            require(tlsContext is null, "thread context already installed");
+            require(
+                scratchArenaCount != 0 && scratchArenaCount <= maxScratchArenas,
+                "invalid scratch arena count",
+            );
+        }
 
         if (backingAllocator is null)
             backingAllocator = mallocAllocator();
@@ -76,11 +81,14 @@ nothrow @nogc:
     {
         if (context_ is null)
             return;
-        require(tlsContext is context_, "thread context destroyed out of order");
-        require(
-            context_.logger is null,
-            "thread context destroyed with a logger installed",
-        );
+        version (XTB_Checked)
+        {
+            require(tlsContext is context_, "thread context destroyed out of order");
+            require(
+                context_.logger is null,
+                "thread context destroyed with a logger installed",
+            );
+        }
 
         foreach (i; 0 .. context_.arenaCount)
             context_.arenas[i].deinit();

@@ -45,8 +45,9 @@ During xtb development, use a local checkout without changing `flake.nix`:
 nix develop path:. --override-input xtb path:/path/to/xtb
 ```
 
-The template links `xtb_core`. Add another installed component to `libs` in
-`dub.sdl` when the application imports it. Keep dependencies after their users
+The template links the installed release-safe `xtb_core` and defines
+`XTB_Checked` for application-side template instantiations. Add another
+installed component to `libs` in `dub.sdl` when the application imports it. Keep dependencies after their users
 for static linking; for example:
 
 ```sdl

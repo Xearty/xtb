@@ -2,7 +2,8 @@ module xtb.core.numeric;
 
 nothrow @nogc:
 
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 
 pure @safe
 T min(T)(T left, T right)
@@ -19,7 +20,8 @@ T max(T)(T left, T right)
 @safe
 T clamp(T)(T value, T lower, T upper)
 {
-    require(lower <= upper, "invalid clamp range");
+    version (XTB_Checked)
+        require(lower <= upper, "invalid clamp range");
     return value < lower ? lower : value > upper ? upper : value;
 }
 
@@ -60,7 +62,9 @@ private bool tryScale(size_t count, size_t multiplier, scope size_t* output) @sa
 private size_t scale(size_t count, size_t multiplier) @safe
 {
     size_t result;
-    require(tryScale(count, multiplier, &result), "byte count overflow");
+    const succeeded = tryScale(count, multiplier, &result);
+    version (XTB_Checked)
+        require(succeeded, "byte count overflow");
     return result;
 }
 

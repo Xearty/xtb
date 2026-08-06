@@ -4,7 +4,8 @@ nothrow @nogc:
 
 import xtb.core.duration : Duration;
 import xtb.core.option : Option, set;
-import xtb.core.panic : require;
+version (XTB_Checked)
+    import xtb.core.panic : require;
 import xtb.core.types : u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 import xtb.os.pipe : PipeReadState, PipeReader, PipeWriteState, PipeWriter,
@@ -24,13 +25,15 @@ nothrow @nogc:
 
     u8[] bytes() return @system
     {
-        require(length <= storage.length, "invalid CaptureBuffer length");
+        version (XTB_Checked)
+            require(length <= storage.length, "invalid CaptureBuffer length");
         return storage[0 .. length];
     }
 
     const(u8)[] bytes() const return @system
     {
-        require(length <= storage.length, "invalid CaptureBuffer length");
+        version (XTB_Checked)
+            require(length <= storage.length, "invalid CaptureBuffer length");
         return storage[0 .. length];
     }
 }
@@ -105,8 +108,9 @@ CommunicateResult communicate(
     scope const(CommunicateOptions) options,
 ) @system
 {
-    require(child !is null && child.ownsProcess,
-        "invalid ChildProcess for communicate");
+    version (XTB_Checked)
+        require(child !is null && child.ownsProcess,
+            "invalid ChildProcess for communicate");
 
     const validationError = validateCommunication(
         child,
@@ -216,8 +220,9 @@ private OsError pumpInput(
     size_t* written,
 ) @system
 {
-    require(written !is null && *written <= input.length,
-        "invalid communicate input progress");
+    version (XTB_Checked)
+        require(written !is null && *written <= input.length,
+            "invalid communicate input progress");
     if (writer is null)
         return OsError.init;
     if (*written == input.length)
@@ -280,7 +285,8 @@ private OsError observeExit(
     Option!ExitStatus* exitStatus,
 ) @system
 {
-    require(exitStatus !is null, "communicate exit status pointer is null");
+    version (XTB_Checked)
+        require(exitStatus !is null, "communicate exit status pointer is null");
     if (!child.ownsProcess)
         return OsError.init;
     const result = tryWait(child);
@@ -462,8 +468,9 @@ nothrow @nogc:
 
     OsError remaining(u64* output, bool* expired) const @system
     {
-        require(output !is null && expired !is null,
-            "deadline output pointer is null");
+        version (XTB_Checked)
+            require(output !is null && expired !is null,
+                "deadline output pointer is null");
         if (!finite)
         {
             *output = u64.max;
@@ -482,7 +489,8 @@ nothrow @nogc:
 
 private OsError makeDeadline(Timeout timeout, Deadline* output) @system
 {
-    require(output !is null, "deadline pointer is null");
+    version (XTB_Checked)
+        require(output !is null, "deadline pointer is null");
     *output = Deadline.init;
     if (timeout.isInfinite)
         return OsError.init;
