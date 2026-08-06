@@ -613,10 +613,10 @@ link behavior.
 
 ### Strings
 
-The string model has two deliberately separate types: `String` is a
-read-only borrowed view, and `StringBuf` is an owning mutable buffer and
-builder. Do not collapse them into one type and do not use a mutable D slice as
-the public string abstraction.
+The string model has three deliberately separate types: `String` is a
+read-only borrowed view, `StringBuf` is an owning mutable growable buffer, and
+`OwnedString` is an owning immutable exact-sized value. Do not collapse these
+roles and do not use a mutable D slice as the public string abstraction.
 
 #### `String`: read-only borrowed text
 
@@ -772,6 +772,32 @@ invalid.
 formats directly into that builder in one pass, so a custom `formatTo` function
 is invoked exactly once. `tryFormatString` leaves a zero `StringBuf` on
 allocation or sink failure.
+
+#### `OwnedString`: owned immutable exact storage
+
+`OwnedString` owns valid UTF-8 bytes whose allocation is exactly the logical
+byte length. It stores one allocator pointer plus `OwnedStringUnmanaged`; the
+unmanaged representation is exactly one `String`-sized pointer-and-length
+owner with allocator-explicit cleanup. Neither type stores capacity or a
+trailing NUL byte, and neither exposes mutable byte access.
+
+Use `OwnedString` for independently owned text that will not be edited, such as
+persistent names and values. Construction from a borrowed `String` copies
+exactly once. `clone` is explicit because it allocates. Copying is disabled;
+move, `release`, `adopt`, and `ReleasedStorage` preserve allocator provenance.
+Empty managed values created through a factory remain bound to their allocator,
+just like other managed containers.
+
+Conversion from `StringBuf` is transactional. A same-allocator buffer with
+exact capacity transfers its allocation directly; spare capacity is first
+shrunk when possible. A foreign-allocator buffer is copied into the destination
+allocator and released only after the copy succeeds. On recoverable failure the
+source and output remain unchanged.
+
+`OwnedString.view` returns a borrowed `String`. Embedded NUL participates in
+length, equality, and hashing. Callers needing a conventional C string copy the
+view into `StringBuf` and call `checkedCString`; immutable exact storage does
+not reserve terminator capacity.
 
 #### Formatting and interpolation
 
@@ -1063,17 +1089,19 @@ therefore preserve field identifiers, fixed-width values, and other binary
 policies without pretending they are strings.
 
 Schemas support booleans, signed and unsigned integers, floating-point values,
-enums, nested structs, fixed arrays, `Option!T`, and `HashMap!(String, V)`, plus
+enums, nested structs, fixed arrays, `Option!T`, borrowed
+`StringViewHashMap!V`/`HashMap!(String, V)`, and owning `StringHashMap!V`, plus
 two deliberate ownership families. Document-owned schemas use `String`,
-dynamic slices, legacy nullable pointers, and hash maps whose values recursively
-follow the same document-owned model. Self-owning schemas use `StringBuf` and
-`Array!T`; they do not contain raw owning pointers, slices, or hash maps.
+dynamic slices, legacy nullable pointers, and borrowed string-view maps whose
+values recursively follow the same document-owned model. Self-owning schemas
+use `StringBuf`, `OwnedString`, `Array!T`, and `StringHashMap!V`; they do not
+contain raw owning pointers, borrowed slices, or borrowed-key maps.
 `Option!T` is the preferred nullable representation in either family and
 recursively adopts the ownership model of `T`. JSON accepts any supported value
 at the document root. TOML remains a table document, so its root is a serde
-struct, tagged union, or `HashMap!(String, V)`; standalone arrays and scalars are
-rejected at compile time. Unsupported or mixed ownership shapes fail at compile
-time with the field and type in the diagnostic.
+struct, tagged union, `HashMap!(String, V)`, or `StringHashMap!V`; standalone
+arrays and scalars are rejected at compile time. Unsupported or mixed
+ownership shapes fail at compile time with the field and type in the diagnostic.
 
 Enums use their D member names in text formats by default. `@variantCase`
 sets an enum's external casing independently of field-key casing. `@rename`
@@ -1216,8 +1244,9 @@ values use the same tracking allocator. A view, pointer, or map obtained from
 the result expires when that owner is reset or destroyed.
 
 A self-owning decode writes an ordinary caller-owned value directly. JSON root
-values may be scalars, `StringBuf`, fixed arrays, `Array!T`, or structs composed
-from those shapes. TOML direct roots remain serde structs or tagged unions.
+values may be scalars, `StringBuf`, `OwnedString`, fixed arrays, `Array!T`,
+`StringHashMap!V`, or structs composed from those shapes. TOML direct roots
+remain serde structs, tagged unions, or `StringHashMap!V` table documents.
 Each container uses the allocator passed to `readJson` or `readToml`; no
 tracking allocator or result wrapper is involved. Decoding is transactional:
 the backend builds a temporary RAII value, destroys it on any failure, and
@@ -1227,8 +1256,10 @@ limit, or allocation failure. The resulting value can be mutated, moved,
 reset, and extended using the normal `StringBuf` and `Array!T` APIs. Every
 direct owning container in a successful result is initialized with the decode
 allocator even when its field was absent, including containers inside nested
-records and fixed or dynamic owning arrays. `HashMap` is intentionally absent
-from direct decoding because its supported `String` keys are borrowed views.
+records and fixed or dynamic owning arrays. `StringViewHashMap`/
+`HashMap!(String, V)` is intentionally absent from direct decoding because its
+stored `String` keys are borrowed views. `StringHashMap`
+qualifies only when its value type is recursively self-owning.
 An absent `Option!T` must be made present with `set` before its value is
 accessed.
 
@@ -1280,12 +1311,16 @@ no filesystem access. File convenience functions, if added later, must compose
   factories and slice append/insert operations exist only for copyable element
   types. Element construction, movement, and destruction must satisfy the
   container's `nothrow @nogc` contract.
-- Use `HashMap!(K, V)` and `HashSet!K` for allocator-owned hashed collections.
-  They use open addressing rather than node allocation and are non-copyable.
-  Keys must be copyable and remain immutable through the container; use a
-  `String` view or stable handle when the underlying resource is owning.
-  `String` keys borrow their bytes, so those bytes must outlive the entry.
-  Lookup returns `V*` (or `const(V)*` through a const map) to keep mutation
+- Use `HashMap!(K, V)` and `HashSet!K` for general allocator-owned hashed
+  collections. They use open addressing rather than node allocation and are
+  non-copyable. Managed generic-map keys must be copyable and remain immutable
+  through the container. `StringViewHashMap!V` is the explicit readability
+  alias for `HashMap!(String, V)` and borrows every key's bytes, which must
+  outlive the entry. `StringHashMap!V` instead stores
+  `OwnedStringUnmanaged` keys, owns one exact allocation per nonempty key, and
+  shares one allocator across the whole map. Both string-map families accept
+  borrowed `String` lookup/removal keys without allocation. Lookup returns
+  `V*` (or `const(V)*` through a const map) to keep mutation
   explicit. Direct iteration uses
   `foreach (ref const key, ref value; map)`; the `ref` at the call site is the
   explicit mutation marker. `foreach (item; map.pointerItems)` is the

@@ -7,9 +7,11 @@ import xtb.core.hash_map : AddStatus, HashMap, HashMapUnmanaged, HashSetUnmanage
 import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
     mallocAllocator;
 import xtb.core.option : Option, set;
+import xtb.core.owned_string : OwnedString;
 import xtb.core.print : Writer;
 import xtb.core.string : String, StringBuf, StringBufUnmanaged,
     asStringUnchecked, equal;
+import xtb.core.string_hash_map : StringHashMap, StringViewHashMap;
 import xtb.core.types : u8;
 import xtb.serde.attributes;
 import xtb.serde.casing;
@@ -399,6 +401,11 @@ private struct InvalidAdapterRepresentationDocument
 private struct HashMapDocument
 {
     HashMap!(String, int) values;
+}
+
+private struct OwnedStringMapDocument
+{
+    StringHashMap!OwnedString values;
 }
 
 private struct HashMapContainers
@@ -1898,6 +1905,182 @@ private void testTomlHashMaps() nothrow @nogc
     encoded.deinit();
 }
 
+
+private void testOwnedStringsAndStringHashMaps() nothrow @nogc
+{
+    static assert(is(StringViewHashMap!int == HashMap!(String, int)));
+
+    OwnedString text;
+    SerdeError error = readJson(
+        "\"owned \\u03bb\"",
+        mallocAllocator(),
+        &text,
+    );
+    assert(error.ok);
+    assert(text.view == "owned λ");
+
+    StringBuf encoded = StringBuf.create(mallocAllocator());
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, text);
+    assert(error.ok);
+    assert(encoded == "\"owned λ\"");
+
+    StringHashMap!int jsonMap;
+    error = readJson(
+        "{\"alpha\":1,\"a\\u0062\":2,\"\":3,\"λ\":4}",
+        mallocAllocator(),
+        &jsonMap,
+    );
+    assert(error.ok);
+    const alpha = jsonMap.find("alpha");
+    const ab = jsonMap.find("ab");
+    const empty = jsonMap.find("");
+    const lambda = jsonMap.find("λ");
+    assert(alpha !is null && *alpha == 1);
+    assert(ab !is null && *ab == 2);
+    assert(empty !is null && *empty == 3);
+    assert(lambda !is null && *lambda == 4);
+
+    error = readJson(
+        "{\"same\":1,\"s\\u0061me\":2}",
+        mallocAllocator(),
+        &jsonMap,
+    );
+    assert(error.kind == SerdeErrorKind.duplicateField);
+    assert(jsonMap.length == 4);
+    assert(jsonMap.find("alpha") !is null);
+
+    StringHashMap!int singleJson = StringHashMap!int.create(
+        mallocAllocator());
+    assert(singleJson.add("one", 1));
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, singleJson);
+    assert(error.ok);
+    assert(encoded == "{\"one\":1}");
+
+    StringHashMap!int tomlMap;
+    error = readToml(
+        "alpha = 1\n\"a.b\" = 2\n\"\" = 3\n\"λ\" = 4\n",
+        mallocAllocator(),
+        &tomlMap,
+    );
+    assert(error.ok);
+    const tomlAlpha = tomlMap.find("alpha");
+    const dotted = tomlMap.find("a.b");
+    const tomlEmpty = tomlMap.find("");
+    const tomlLambda = tomlMap.find("λ");
+    assert(tomlAlpha !is null && *tomlAlpha == 1);
+    assert(dotted !is null && *dotted == 2);
+    assert(tomlEmpty !is null && *tomlEmpty == 3);
+    assert(tomlLambda !is null && *tomlLambda == 4);
+
+    error = readToml(
+        "same = 1\n\"same\" = 2\n",
+        mallocAllocator(),
+        &tomlMap,
+    );
+    assert(error.kind == SerdeErrorKind.duplicateField);
+    assert(tomlMap.length == 4);
+    assert(tomlMap.find("a.b") !is null);
+
+    StringHashMap!int singleToml = StringHashMap!int.create(
+        mallocAllocator());
+    assert(singleToml.add("one", 1));
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, singleToml);
+    assert(error.ok);
+    assert(encoded == "one = 1");
+
+    OwnedStringMapDocument nestedJson;
+    error = readJson(
+        "{\"values\":{\"name\":\"value\"}}",
+        mallocAllocator(),
+        &nestedJson,
+    );
+    assert(error.ok);
+    const nestedJsonValue = nestedJson.values.find("name");
+    assert(nestedJsonValue !is null);
+    assert(nestedJsonValue.view == "value");
+
+    OwnedStringMapDocument nestedToml;
+    error = readToml(
+        "values = { name = \"value\" }\n",
+        mallocAllocator(),
+        &nestedToml,
+    );
+    assert(error.ok);
+    const nestedTomlValue = nestedToml.values.find("name");
+    assert(nestedTomlValue !is null);
+    assert(nestedTomlValue.view == "value");
+
+    bool jsonReachedSuccess;
+    foreach (allowed; 0 .. 24)
+    {
+        AllocationRecord[96] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        StringHashMap!int allocated;
+        error = readJson(
+            "{\"one\":1,\"two\":2}",
+            allocator.handle,
+            &allocated,
+        );
+        if (error.ok)
+        {
+            assert(allocated.length == 2);
+            allocated.deinit();
+            jsonReachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (jsonReachedSuccess)
+            break;
+    }
+    assert(jsonReachedSuccess);
+
+    bool tomlReachedSuccess;
+    foreach (allowed; 0 .. 24)
+    {
+        AllocationRecord[96] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        StringHashMap!int allocated;
+        error = readToml(
+            "one = 1\ntwo = 2\n",
+            allocator.handle,
+            &allocated,
+        );
+        if (error.ok)
+        {
+            assert(allocated.length == 2);
+            allocated.deinit();
+            tomlReachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (tomlReachedSuccess)
+            break;
+    }
+    assert(tomlReachedSuccess);
+
+    nestedToml.values.deinit();
+    nestedJson.values.deinit();
+    singleToml.deinit();
+    tomlMap.deinit();
+    singleJson.deinit();
+    jsonMap.deinit();
+    encoded.deinit();
+    text.deinit();
+}
+
 extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
@@ -1924,5 +2107,6 @@ extern (C) int main()
     testOwnedDecodeIsTransactional();
     testOwnedAllocationFailures();
     testOwnedOptionsAndFailures();
+    testOwnedStringsAndStringHashMaps();
     return 0;
 }

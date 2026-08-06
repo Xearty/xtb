@@ -8,9 +8,11 @@ import xtb.core.ansi : AnsiColor, AnsiStyle, beginAnsi, endAnsi;
 import xtb.core.array : Array;
 import xtb.core.flag_set : FlagSet;
 import xtb.core.hash_map : HashMap, HashSet;
+import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
 import xtb.core.option : Option;
 import xtb.core.print : Writer;
 import xtb.core.string : String, StringBuf;
+import xtb.core.string_hash_map : StringHashMap, StringHashMapUnmanaged;
 
 /// Controls how aggregate values are laid out.
 enum PrettyPrintLayout : ubyte
@@ -260,6 +262,15 @@ private enum isHashSetType(T) = is(
     Hasher,
     Equal,
 );
+private enum isOwnedStringType(T) = is(Unqualified!T == OwnedString) ||
+    is(Unqualified!T == OwnedStringUnmanaged);
+private enum isStringHashMapType(T) = is(
+    Unqualified!T == StringHashMap!Value,
+    Value,
+) || is(
+    Unqualified!T == StringHashMapUnmanaged!Value,
+    Value,
+);
 
 /// Tracks semantic recursion separately from visual indentation. Constructor-
 /// like wrappers such as `some(...)` and `&...` increase recursion depth but
@@ -306,7 +317,7 @@ private void writePrettyImpl(T)(
             options,
         );
     }
-    else static if (is(U == StringBuf))
+    else static if (is(U == StringBuf) || isOwnedStringType!U)
     {
         writeString(writer, value.view, options);
     }
@@ -353,7 +364,7 @@ private void writePrettyImpl(T)(
     {
         writeFlagSet(writer, value, options, context);
     }
-    else static if (isHashMapType!U)
+    else static if (isHashMapType!U || isStringHashMapType!U)
     {
         writeHashMap(writer, value, options, context);
     }
@@ -1524,7 +1535,7 @@ private WidthEstimate estimateWidth(T)(
     }
     else static if (is(U == typeof(null)))
         return knownWidth(4);
-    else static if (is(U == StringBuf))
+    else static if (is(U == StringBuf) || isOwnedStringType!U)
         return estimateEscapedString(value.view, budget);
     else static if (isStringType!U)
         return estimateEscapedString(cast(String) value, budget);
@@ -1568,7 +1579,7 @@ private WidthEstimate estimateWidth(T)(
     }
     else static if (isFlagSetType!U)
         return estimateFlagSet(value, options, budget);
-    else static if (isHashMapType!U)
+    else static if (isHashMapType!U || isStringHashMapType!U)
         return estimateHashMap(value, options, depth, budget);
     else static if (isHashSetType!U)
         return estimateHashSet(value, options, depth, budget);

@@ -12,9 +12,11 @@ import xtb.core.array : Array;
 import xtb.core.hash_map : AddStatus, HashMap;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.option : Option, reset;
+import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
 import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string : StringBuf;
+import xtb.core.string_hash_map : StringHashMap;
 import xtb.core.types : String;
 import xtb.core.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
     isValidUtf8;
@@ -29,8 +31,9 @@ import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
     fieldMatches, fieldName, fieldOrdinal, fieldShouldOmit, discriminantIndex,
     DiscriminantType, fieldAdapterCount, fieldDefaultValueCount, FieldAdapter,
     HashMapKey, HashMapValue, isArray, isDefaultValueAttribute, isDynamicArray,
-    isFixedArray, isHashMap, isOption, isOwnedSerdeValue, isSerdeStruct,
-    isString, isStringBuf, isTaggedUnion, initializeOwnedValue, OptionElement,
+    isFixedArray, isHashMap, isOption, isOwnedSerdeValue, isOwnedString,
+    isSerdeStruct, isString, isStringBuf, isStringHashMap, isTaggedUnion,
+    initializeOwnedValue, OptionElement, StringHashMapValue,
     payloadIndex, PayloadType, schemaCase,
     serializedFieldCount, taggedUnionLayout, unionCaseIsActive, UnionMemberType,
     validateBorrowedValue, validateOwnedValue, validateValueSchema;
@@ -196,7 +199,7 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
-    else static if (isStringBuf!U)
+    else static if (isStringBuf!U || isOwnedString!U)
     {
         if (value.byteLength != expected.byteLength)
             return false;
@@ -229,7 +232,7 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
-    else static if (isHashMap!U)
+    else static if (isHashMap!U || isStringHashMap!U)
     {
         if (value.length != expected.length)
             return false;
@@ -298,7 +301,7 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
     alias U = Unqualified!T;
     static if (isString!U)
         encodeString(encoder, cast(String) value);
-    else static if (isStringBuf!U)
+    else static if (isStringBuf!U || isOwnedString!U)
         encodeString(encoder, value.view);
     else static if (is(U == bool))
         encoder.writer.put(value ? "true" : "false");
@@ -326,7 +329,7 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
         encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
-    else static if (isHashMap!U)
+    else static if (isHashMap!U || isStringHashMap!U)
         encodeHashMap(encoder, value, depth);
     else static if (isTaggedUnion!U)
         encodeTaggedUnion(encoder, value, depth);
@@ -539,9 +542,9 @@ private void encodeArray(Element)(
     encoder.writer.put(']');
 }
 
-private void encodeHashMap(K, V, Hasher, Equal)(
+private void encodeHashMap(T)(
     ref JsonEncoder encoder,
-    scope const ref HashMap!(K, V, Hasher, Equal) value,
+    scope const ref T value,
     size_t depth,
 )
 {
@@ -577,8 +580,18 @@ private void encodeString(ref JsonEncoder encoder, scope String value)
         return;
     }
     encoder.writer.put('"');
-    foreach (character; value)
+    size_t offset;
+    while (offset < value.length)
     {
+        DecodedCodePoint decoded;
+        const utf8Error = decodeCodePoint(value, offset, &decoded);
+        if (utf8Error.failed)
+        {
+            encoder.fail(SerdeErrorKind.invalidUtf8);
+            return;
+        }
+        offset += decoded.byteLength;
+        const dchar character = decoded.value;
         switch (character)
         {
             case '"':
@@ -611,7 +624,7 @@ private void encodeString(ref JsonEncoder encoder, scope String value)
                     encoder.writer.put(escaped[0 .. 6]);
                 }
                 else
-                    encoder.writer.put(character);
+                    encoder.writer.value(character);
                 break;
         }
     }
@@ -741,6 +754,8 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeString(parser, cast(String*) output);
     else static if (isStringBuf!U)
         decodeStringBuf(parser, cast(StringBuf*) output);
+    else static if (isOwnedString!U)
+        decodeOwnedString(parser, cast(OwnedString*) output);
     else static if (is(U == bool))
         decodeBool(parser, output);
     else static if (is(U == enum))
@@ -761,6 +776,12 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeFixedArray(parser, output, depth);
     else static if (isHashMap!U)
         decodeHashMap(parser, cast(U*) output, depth);
+    else static if (isStringHashMap!U)
+        decodeStringHashMap!(StringHashMapValue!U)(
+            parser,
+            cast(U*) output,
+            depth,
+        );
     else static if (isTaggedUnion!U)
         decodeTaggedUnion(parser, output, depth);
     else static if (isSerdeStruct!U)
@@ -1712,6 +1733,89 @@ private void decodeHashMap(K, V, Hasher, Equal)(
     move(values, *output);
 }
 
+private void decodeStringHashMap(V)(
+    ref JsonParser parser,
+    StringHashMap!V* output,
+    size_t depth,
+)
+{
+    alias Map = StringHashMap!V;
+    if (depth >= parser.options.limits.maxDepth)
+    {
+        parser.fail(SerdeErrorKind.depthLimit);
+        return;
+    }
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+
+    Map values = Map.create(parser.allocator);
+    parser.skipWhitespace();
+    if (parser.consume('}'))
+    {
+        move(values, *output);
+        return;
+    }
+
+    size_t count;
+    for (;;)
+    {
+        if (count++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        const keyStart = parser.position;
+        OwnedString key;
+        decodeOwnedString(parser, &key);
+        if (!parser.error.ok)
+            return;
+        const rawKey = parser.input[keyStart + 1 .. parser.position - 1];
+        parser.skipWhitespace();
+        if (!parser.consume(':'))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+
+        V value;
+        initializeOwnedValue(parser.allocator, &value);
+        decodeValue(parser, &value, depth + 1);
+        if (!parser.error.ok)
+            return;
+        final switch (values.tryAddMove(&key, &value))
+        {
+            case AddStatus.inserted:
+                break;
+            case AddStatus.alreadyPresent:
+                parser.fail(SerdeErrorKind.duplicateField, rawKey);
+                return;
+            case AddStatus.outOfMemory:
+                parser.fail(SerdeErrorKind.allocationFailure);
+                return;
+        }
+
+        parser.skipWhitespace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    move(values, *output);
+}
+
 private void decodeFixedArray(T)(ref JsonParser parser, T* output, size_t depth)
 {
     if (depth >= parser.options.limits.maxDepth)
@@ -1889,11 +1993,29 @@ private void decodeStringBuf(ref JsonParser parser, StringBuf* output)
     );
 }
 
+private void decodeOwnedString(ref JsonParser parser, OwnedString* output)
+{
+    String value;
+    bool owned;
+    decodeStringToken(parser, &value, &owned, true, false);
+    if (!parser.error.ok)
+        return;
+    require(owned, "owned JSON string was not allocated");
+    OwnedStringUnmanaged storage =
+        OwnedStringUnmanaged.adoptExact(value);
+    OwnedString result = OwnedString.adoptUnmanaged(
+        parser.allocator,
+        &storage,
+    );
+    move(result, *output);
+}
+
 private void decodeStringToken(
     ref JsonParser parser,
     String* output,
     bool* owned,
     bool forceCopy = false,
+    bool terminate = true,
 )
 {
     *output = null;
@@ -1955,13 +2077,17 @@ private void decodeStringToken(
         *output = parser.input[start .. end];
         return;
     }
-    if (decodedLength == size_t.max)
+    const terminatorLength = terminate ? 1 : 0;
+    if (terminatorLength > size_t.max - decodedLength)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
         return;
     }
-    char* destination = parser.allocator.tryAllocate!char(decodedLength + 1);
-    if (destination is null)
+    const allocationLength = decodedLength + terminatorLength;
+    char* destination;
+    if (allocationLength != 0)
+        destination = parser.allocator.tryAllocate!char(allocationLength);
+    if (allocationLength != 0 && destination is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
         return;
@@ -1978,7 +2104,8 @@ private void decodeStringToken(
         ++source;
         decodeEscapeBytes(parser.input, &source, destination, &target);
     }
-    destination[target] = '\0';
+    if (terminate)
+        destination[target] = '\0';
     *output = destination[0 .. target];
     *owned = true;
 }

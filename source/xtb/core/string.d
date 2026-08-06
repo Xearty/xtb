@@ -9,7 +9,7 @@ public import xtb.core.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
 import core.lifetime : move;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
-import xtb.core.array : Array, ArrayUnmanaged;
+import xtb.core.array : Array, ArrayUnmanaged, RawArrayStorage;
 import xtb.core.internal.managed_container_adapter : ManagedContainerAdapter;
 import xtb.core.memory : Allocator, allocate, tryAllocate;
 import xtb.core.hash : hashValue;
@@ -743,6 +743,16 @@ package(xtb):
         return result;
     }
 
+    /// Detaches storage whose allocation size is exactly the logical length.
+    /// The returned descriptor owns its bytes but carries no allocator.
+    String releaseExactStorage() @system
+    {
+        require(byteCapacity == byteLength,
+            "StringBuf storage is not exact-sized");
+        RawArrayStorage!char raw = bytes_.releaseRaw();
+        return raw.data[0 .. raw.length];
+    }
+
 public:
     void deinit(Allocator* allocator)
     {
@@ -797,6 +807,16 @@ public:
     bool tryReserve(Allocator* allocator, size_t byteCapacity)
     {
         return bytes_.tryReserve(allocator, byteCapacity);
+    }
+
+    bool tryShrinkToFit(Allocator* allocator)
+    {
+        return bytes_.tryShrinkToFit(allocator);
+    }
+
+    void shrinkToFit(Allocator* allocator)
+    {
+        bytes_.shrinkToFit(allocator);
     }
 
     void append(Allocator* allocator, String value)

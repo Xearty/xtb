@@ -53,6 +53,36 @@ enum AddStatus
     outOfMemory,
 }
 
+package(xtb) enum PrepareInsertStatus
+{
+    ready,
+    alreadyPresent,
+    outOfMemory,
+}
+
+/// Package-private token proving that a concrete insertion slot has been
+/// prepared and that committing the entry cannot allocate.
+package(xtb) struct PreparedHashMapInsert
+{
+private:
+    void* entriesIdentity_;
+    size_t capacityIdentity_;
+    size_t index_;
+    size_t hash_;
+    bool reusedRemoved_;
+    bool found_;
+}
+
+/// Default allocator-aware element lifetime policy used by `HashMapUnmanaged`.
+struct DefaultHashMapElementOps(T)
+{
+    static void destroy(Allocator*, T* element)
+    {
+        static if (hasElaborateDestructor!T)
+            object.destroy!false(*element);
+    }
+}
+
 private template IsDefaultHashPolicy(Hasher, K)
 {
     static if (is(Hasher == DefaultHash!U, U))
@@ -195,18 +225,25 @@ struct HashMapUnmanaged(
     V,
     Hasher = DefaultHash!K,
     Equal = DefaultEqual!K,
+    Lookup = K,
+    KeyOps = DefaultHashMapElementOps!K,
+    ValueOps = DefaultHashMapElementOps!V,
 )
 {
 nothrow @nogc:
 
-    static assert(__traits(isCopyable, K),
-        "HashMap keys must be copyable; store an immutable view or handle instead");
     static assert(__traits(isCopyable, Hasher) &&
             !hasElaborateDestructor!Hasher,
         "HashMap hash policies must be copyable and have no destructor");
     static assert(__traits(isCopyable, Equal) &&
             !hasElaborateDestructor!Equal,
         "HashMap equality policies must be copyable and have no destructor");
+    static assert(__traits(compiles,
+            KeyOps.destroy(cast(Allocator*) null, cast(K*) null)),
+        "HashMap key lifetime policy must provide destroy(Allocator*, K*)");
+    static assert(__traits(compiles,
+            ValueOps.destroy(cast(Allocator*) null, cast(V*) null)),
+        "HashMap value lifetime policy must provide destroy(Allocator*, V*)");
 
 private:
     SlotState* states_;
@@ -287,7 +324,7 @@ public:
     {
         if (capacity_ != 0)
             requireValidHashAllocator(allocator);
-        clear();
+        clear(allocator);
         if (capacity_ != 0)
         {
             allocator.deallocate(entries_, capacity_);
@@ -300,7 +337,7 @@ public:
     {
         if (capacity_ != 0)
             requireValidHashAllocator(allocator);
-        clear();
+        clear(allocator);
         if (capacity_ != 0)
         {
             allocator.deallocate(entries_, capacity_);
@@ -405,106 +442,114 @@ public:
             panic("HashMap allocation failed");
     }
 
-    SetStatus trySet(Allocator* allocator, K key, V value)
+    static if (__traits(isCopyable, K))
     {
-        requireValidHashAllocator(allocator);
-        const hash = hasher_(&key);
-        ProbeResult location = probe(&key, hash);
-        if (location.found)
+        SetStatus trySet(Allocator* allocator, K key, V value)
         {
-            move(value, entries_[location.index].value);
-            return SetStatus.replaced;
+            requireValidHashAllocator(allocator);
+            const hash = hasher_(&key);
+            ProbeResult location = probeStored(&key, hash);
+            if (location.found)
+            {
+                replaceHashElement!ValueOps(
+                    allocator,
+                    &entries_[location.index].value,
+                    value,
+                );
+                return SetStatus.replaced;
+            }
+            if (!tryPrepareInsert(allocator))
+                return SetStatus.outOfMemory;
+
+            location = probeStored(&key, hash);
+            Entry!(K, V)* destination = entries_ + location.index;
+            const reusedRemoved = states_[location.index] == SlotState.removed;
+            destination.hash = hash;
+            constructHashMove(&destination.key, key);
+            constructHashMove(&destination.value, value);
+            states_[location.index] = SlotState.occupied;
+            ++length_;
+            if (reusedRemoved)
+                --removed_;
+            return SetStatus.inserted;
         }
-        if (!tryPrepareInsert(allocator))
-            return SetStatus.outOfMemory;
 
-        location = probe(&key, hash);
-        Entry!(K, V)* destination = entries_ + location.index;
-        const reusedRemoved = states_[location.index] == SlotState.removed;
-        destination.hash = hash;
-        constructHashMove(&destination.key, key);
-        constructHashMove(&destination.value, value);
-        states_[location.index] = SlotState.occupied;
-        ++length_;
-        if (reusedRemoved)
-            --removed_;
-        return SetStatus.inserted;
+        bool set(Allocator* allocator, K key, V value)
+        {
+            const status = trySet(allocator, move(key), move(value));
+            if (status == SetStatus.outOfMemory)
+                panic("HashMap allocation failed");
+            return status == SetStatus.inserted;
+        }
+
+        AddStatus tryAdd(Allocator* allocator, K key, V value)
+        {
+            requireValidHashAllocator(allocator);
+            const hash = hasher_(&key);
+            ProbeResult location = probeStored(&key, hash);
+            if (location.found)
+                return AddStatus.alreadyPresent;
+            if (!tryPrepareInsert(allocator))
+                return AddStatus.outOfMemory;
+
+            location = probeStored(&key, hash);
+            Entry!(K, V)* destination = entries_ + location.index;
+            const reusedRemoved = states_[location.index] == SlotState.removed;
+            destination.hash = hash;
+            constructHashMove(&destination.key, key);
+            constructHashMove(&destination.value, value);
+            states_[location.index] = SlotState.occupied;
+            ++length_;
+            if (reusedRemoved)
+                --removed_;
+            return AddStatus.inserted;
+        }
+
+        bool add(Allocator* allocator, K key, V value)
+        {
+            const status = tryAdd(allocator, move(key), move(value));
+            if (status == AddStatus.outOfMemory)
+                panic("HashMap allocation failed");
+            return status == AddStatus.inserted;
+        }
     }
 
-    bool set(Allocator* allocator, K key, V value)
-    {
-        const status = trySet(allocator, move(key), move(value));
-        if (status == SetStatus.outOfMemory)
-            panic("HashMap allocation failed");
-        return status == SetStatus.inserted;
-    }
-
-    AddStatus tryAdd(Allocator* allocator, K key, V value)
-    {
-        requireValidHashAllocator(allocator);
-        const hash = hasher_(&key);
-        ProbeResult location = probe(&key, hash);
-        if (location.found)
-            return AddStatus.alreadyPresent;
-        if (!tryPrepareInsert(allocator))
-            return AddStatus.outOfMemory;
-
-        location = probe(&key, hash);
-        Entry!(K, V)* destination = entries_ + location.index;
-        const reusedRemoved = states_[location.index] == SlotState.removed;
-        destination.hash = hash;
-        constructHashMove(&destination.key, key);
-        constructHashMove(&destination.value, value);
-        states_[location.index] = SlotState.occupied;
-        ++length_;
-        if (reusedRemoved)
-            --removed_;
-        return AddStatus.inserted;
-    }
-
-    bool add(Allocator* allocator, K key, V value)
-    {
-        const status = tryAdd(allocator, move(key), move(value));
-        if (status == AddStatus.outOfMemory)
-            panic("HashMap allocation failed");
-        return status == AddStatus.inserted;
-    }
-
-    V* find(scope K key) return
+    V* find(scope Lookup key) return
     {
         if (capacity_ == 0)
             return null;
         const hash = hasher_(&key);
-        const location = probe(&key, hash);
+        const location = probeLookup(&key, hash);
         return location.found ? &entries_[location.index].value : null;
     }
 
-    const(V)* find(scope K key) const return
+    const(V)* find(scope Lookup key) const return
     {
         if (capacity_ == 0)
             return null;
         const hash = hasher_(&key);
-        const location = probe(&key, hash);
+        const location = probeLookup(&key, hash);
         return location.found ? &entries_[location.index].value : null;
     }
 
-    bool contains(scope K key) const
+    bool contains(scope Lookup key) const
     {
         return find(key) !is null;
     }
 
-    bool remove(scope K key)
+    bool remove(Allocator* allocator, scope Lookup key)
     {
         if (capacity_ == 0)
             return false;
+        requireValidHashAllocator(allocator);
         const hash = hasher_(&key);
-        const location = probe(&key, hash);
+        const location = probeLookup(&key, hash);
         if (!location.found)
             return false;
 
         Entry!(K, V)* entry = entries_ + location.index;
-        destroyHashElement(&entry.value);
-        destroyHashElement(&entry.key);
+        ValueOps.destroy(allocator, &entry.value);
+        KeyOps.destroy(allocator, &entry.key);
         states_[location.index] = SlotState.removed;
         --length_;
         ++removed_;
@@ -516,14 +561,16 @@ public:
         return true;
     }
 
-    void clear()
+    void clear(Allocator* allocator)
     {
+        if (length_ != 0)
+            requireValidHashAllocator(allocator);
         foreach (index; 0 .. capacity_)
         {
             if (states_[index] != SlotState.occupied)
                 continue;
-            destroyHashElement(&entries_[index].value);
-            destroyHashElement(&entries_[index].key);
+            ValueOps.destroy(allocator, &entries_[index].value);
+            KeyOps.destroy(allocator, &entries_[index].key);
         }
         if (capacity_ != 0)
             memset(states_, SlotState.empty, capacity_);
@@ -553,8 +600,136 @@ public:
             panic("HashMap allocation failed");
     }
 
+package(xtb):
+    PrepareInsertStatus prepareInsert(
+        Allocator* allocator,
+        scope Lookup key,
+        scope PreparedHashMapInsert* prepared,
+    )
+    {
+        requireValidHashAllocator(allocator);
+        require(prepared !is null,
+            "prepared HashMap insertion output pointer is null");
+        require(prepared.entriesIdentity_ is null &&
+                prepared.capacityIdentity_ == 0,
+            "prepared HashMap insertion output is not empty");
+
+        const hash = hasher_(&key);
+        ProbeResult location = probeLookup(&key, hash);
+        if (location.found)
+        {
+            prepared.entriesIdentity_ = entries_;
+            prepared.capacityIdentity_ = capacity_;
+            prepared.index_ = location.index;
+            prepared.hash_ = hash;
+            prepared.found_ = true;
+            return PrepareInsertStatus.alreadyPresent;
+        }
+
+        if (!tryPrepareInsert(allocator))
+            return PrepareInsertStatus.outOfMemory;
+
+        location = probeLookup(&key, hash);
+        require(!location.found,
+            "HashMap changed during prepared insertion");
+        prepared.entriesIdentity_ = entries_;
+        prepared.capacityIdentity_ = capacity_;
+        prepared.index_ = location.index;
+        prepared.hash_ = hash;
+        prepared.reusedRemoved_ =
+            states_[location.index] == SlotState.removed;
+        return PrepareInsertStatus.ready;
+    }
+
+    void commitPreparedInsert(
+        scope PreparedHashMapInsert* prepared,
+        scope K* key,
+        scope V* value,
+    ) @system
+    {
+        require(prepared !is null,
+            "prepared HashMap insertion pointer is null");
+        require(key !is null, "HashMap insertion key pointer is null");
+        require(value !is null, "HashMap insertion value pointer is null");
+        require(!prepared.found_,
+            "cannot commit an already-present HashMap insertion");
+        require(prepared.entriesIdentity_ is entries_ &&
+                prepared.capacityIdentity_ == capacity_ &&
+                prepared.index_ < capacity_,
+            "stale prepared HashMap insertion");
+        require(states_[prepared.index_] != SlotState.occupied,
+            "prepared HashMap insertion slot is occupied");
+
+        Entry!(K, V)* destination = entries_ + prepared.index_;
+        destination.hash = prepared.hash_;
+        constructHashMove(&destination.key, *key);
+        constructHashMove(&destination.value, *value);
+        states_[prepared.index_] = SlotState.occupied;
+        ++length_;
+        if (prepared.reusedRemoved_)
+            --removed_;
+        *prepared = PreparedHashMapInsert.init;
+    }
+
+    void replacePreparedValue(
+        Allocator* allocator,
+        scope PreparedHashMapInsert* prepared,
+        scope V* value,
+    ) @system
+    {
+        requireValidHashAllocator(allocator);
+        require(prepared !is null,
+            "prepared HashMap insertion pointer is null");
+        require(value !is null, "HashMap replacement value pointer is null");
+        require(prepared.found_,
+            "cannot replace through an absent HashMap insertion");
+        require(prepared.entriesIdentity_ is entries_ &&
+                prepared.capacityIdentity_ == capacity_ &&
+                prepared.index_ < capacity_ &&
+                states_[prepared.index_] == SlotState.occupied,
+            "stale prepared HashMap replacement");
+
+        replaceHashElement!ValueOps(
+            allocator,
+            &entries_[prepared.index_].value,
+            *value,
+        );
+        *prepared = PreparedHashMapInsert.init;
+    }
+
 private:
-    ProbeResult probe(scope const(K)* key, size_t hash) const
+    ProbeResult probeStored(scope const(K)* key, size_t hash) const
+    {
+        if (capacity_ == 0)
+            return ProbeResult.init;
+
+        const mask = capacity_ - 1;
+        size_t index = hash & mask;
+        size_t firstRemoved = size_t.max;
+        for (;;)
+        {
+            final switch (states_[index])
+            {
+                case SlotState.empty:
+                    return ProbeResult(
+                        firstRemoved == size_t.max ? index : firstRemoved,
+                        false,
+                    );
+                case SlotState.occupied:
+                    if (entries_[index].hash == hash &&
+                        equal_(&entries_[index].key, key))
+                        return ProbeResult(index, true);
+                    break;
+                case SlotState.removed:
+                    if (firstRemoved == size_t.max)
+                        firstRemoved = index;
+                    break;
+            }
+            index = (index + 1) & mask;
+        }
+    }
+
+    ProbeResult probeLookup(scope const(Lookup)* key, size_t hash) const
     {
         if (capacity_ == 0)
             return ProbeResult.init;
@@ -651,6 +826,9 @@ struct HashMap(K, V, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
 
+    static assert(__traits(isCopyable, K),
+        "HashMap keys must be copyable; use StringHashMap for owned string keys");
+
     alias Self = HashMap!(K, V, Hasher, Equal);
     alias Storage = HashMapUnmanaged!(K, V, Hasher, Equal);
 
@@ -691,10 +869,14 @@ private void constructHashMove(T)(T* destination, ref T source)
         moveEmplace(source, *destination);
 }
 
-private void destroyHashElement(T)(T* element)
+private void replaceHashElement(alias Ops, T)(
+    Allocator* allocator,
+    T* destination,
+    ref T source,
+)
 {
-    static if (hasElaborateDestructor!T)
-        destroy!false(*element);
+    Ops.destroy(allocator, destination);
+    constructHashMove(destination, source);
 }
 
 private size_t maximumHashLength(size_t capacity) pure @safe
@@ -1067,9 +1249,9 @@ public:
         return map_.contains(value);
     }
 
-    bool remove(scope K value)
+    bool remove(Allocator* allocator, scope K value)
     {
-        return map_.remove(value);
+        return map_.remove(allocator, value);
     }
 
     bool tryReserve(Allocator* allocator, size_t requested)
@@ -1082,9 +1264,9 @@ public:
         map_.reserve(allocator, requested);
     }
 
-    void clear()
+    void clear(Allocator* allocator)
     {
-        map_.clear();
+        map_.clear(allocator);
     }
 
     bool tryShrinkToFit(Allocator* allocator)
@@ -1734,7 +1916,8 @@ unittest
     foreach (value; 0 .. 80)
     {
         if ((value & 1) == 0)
-            assert(managed.remove(value) == unmanaged.remove(value));
+            assert(managed.remove(value) ==
+                unmanaged.remove(unmanagedAllocator.handle, value));
     }
     foreach (value; 80 .. 120)
     {
@@ -1772,7 +1955,7 @@ unittest
     const managedStatsBeforeClear = managedAllocator.stats;
     const unmanagedStatsBeforeClear = unmanagedAllocator.stats;
     managed.clear();
-    unmanaged.clear();
+    unmanaged.clear(unmanagedAllocator.handle);
     assert(managedAllocator.stats == managedStatsBeforeClear);
     assert(unmanagedAllocator.stats == unmanagedStatsBeforeClear);
 

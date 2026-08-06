@@ -1,8 +1,9 @@
 # xtb
 
 `xtb` is a small foundational D library designed for `-betterC`: explicit
-allocators, arenas and thread-local scratch scopes, owning arrays and string
-builders, hash maps and sets, read-only `String` views, intrusive lists,
+allocators, arenas and thread-local scratch scopes, owning arrays, mutable
+string builders, exact immutable `OwnedString` values, borrowed-key
+`StringViewHashMap` and owning-key `StringHashMap` collections, intrusive lists,
 strongly typed bit flags, finite checked `Duration` values, panic/logging
 facilities, allocation-free formatted output, structured logging, and panic
 contracts.
@@ -197,14 +198,15 @@ resumable and terminating timeouts, borrowed pipeline slices, per-stage stderr,
 status reporting, and success policies.
 
 Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
-`Deserialized!T` with `String`, slices, and `HashMap!(String, V)` for one
-document-owned graph, or decode JSON directly into an ordinary owning value
-containing `StringBuf` and `Array!T` for independently owned, freely mutable
-data. JSON accepts every supported value at the document root, including
-scalars, arrays, and maps. TOML roots remain tables represented by a serde
-struct, tagged union, or `HashMap!(String, V)`; nested maps use inline tables.
-Map decoding is document-owned because its `String` keys refer to storage held
-by `Deserialized!T`. Use `Option!T` for nullable fields; JSON maps absence to
+`Deserialized!T` with `String`, slices, and `StringViewHashMap!V` (the readable
+alias for `HashMap!(String, V)`) for one document-owned graph. Direct owning
+decodes may use `StringBuf`, `OwnedString`, `Array!T`, and
+`StringHashMap!V`. JSON accepts every supported value at the document root.
+TOML roots remain tables represented by a serde struct, tagged union, borrowed
+string-view map, or owning string map; nested maps use inline tables. Borrowed
+map keys live under `Deserialized!T`, while `StringHashMap` stores exact owned
+key allocations and is valid only when its values are recursively owning. Use
+`Option!T` for nullable fields; JSON maps absence to
 `null`, while TOML omits absent struct fields. See `examples/serde_demo.d`. The
 dedicated `examples/option_demo.d` covers every `Option!T` state transition,
 copy and move behavior, destruction, nesting, pointer access, and

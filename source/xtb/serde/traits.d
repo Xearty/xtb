@@ -7,7 +7,9 @@ import xtb.core.array : Array, ArrayUnmanaged;
 import xtb.core.hash_map : HashMap, HashMapUnmanaged, HashSetUnmanaged;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
+import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
 import xtb.core.string : StringBuf, StringBufUnmanaged;
+import xtb.core.string_hash_map : StringHashMap, StringHashMapUnmanaged;
 import xtb.core.types : String;
 import xtb.serde.attributes;
 import xtb.serde.casing : casedNamesEqual, matchesCased;
@@ -22,6 +24,7 @@ enum isString(T) = is(Unqualified!T == String) ||
     is(Unqualified!T == immutable(char)[]);
 
 enum isStringBuf(T) = is(Unqualified!T == StringBuf);
+enum isOwnedString(T) = is(Unqualified!T == OwnedString);
 
 template ArrayElement(T)
 {
@@ -64,6 +67,16 @@ template HashMapValue(T)
 enum isHashMap(T) = is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
     Key, Value, Hasher, Equal);
 
+template StringHashMapValue(T)
+{
+    static if (is(Unqualified!T == StringHashMap!Value, Value))
+        alias StringHashMapValue = Value;
+    else
+        static assert(false, T.stringof ~ " is not a StringHashMap");
+}
+
+enum isStringHashMap(T) = is(Unqualified!T == StringHashMap!Value, Value);
+
 enum isArrayUnmanaged(T) =
     is(Unqualified!T == ArrayUnmanaged!Element, Element);
 
@@ -71,8 +84,16 @@ enum isStringBufUnmanaged(T) =
     is(Unqualified!T == StringBufUnmanaged);
 
 enum isHashMapUnmanaged(T) = is(
-    Unqualified!T == HashMapUnmanaged!(Key, Value, Hasher, Equal),
-    Key, Value, Hasher, Equal,
+    Unqualified!T == HashMapUnmanaged!(
+        Key,
+        Value,
+        Hasher,
+        Equal,
+        Lookup,
+        KeyOps,
+        ValueOps,
+    ),
+    Key, Value, Hasher, Equal, Lookup, KeyOps, ValueOps,
 );
 
 enum isHashSetUnmanaged(T) = is(
@@ -82,7 +103,8 @@ enum isHashSetUnmanaged(T) = is(
 
 enum isUnmanagedContainer(T) = isArrayUnmanaged!T ||
     isStringBufUnmanaged!T || isHashMapUnmanaged!T ||
-    isHashSetUnmanaged!T;
+    isHashSetUnmanaged!T || is(Unqualified!T == OwnedStringUnmanaged) ||
+    is(Unqualified!T == StringHashMapUnmanaged!Value, Value);
 
 private enum isSerdeHashMapKey(T) = is(Unqualified!T == String);
 
@@ -97,7 +119,8 @@ enum isFixedArray(T) = is(Unqualified!T == Element[N], Element, size_t N) &&
 enum isSerdeUnion(T) = is(Unqualified!T == union);
 
 enum isSerdeStruct(T) = is(Unqualified!T == struct) && !isStringBuf!T &&
-    !isArray!T && !isOption!T && !isHashMap!T &&
+    !isOwnedString!T && !isArray!T && !isOption!T && !isHashMap!T &&
+    !isStringHashMap!T &&
     !isUnmanagedContainer!T &&
     !__traits(hasMember, Unqualified!T, "__dtor");
 
@@ -480,7 +503,8 @@ enum fieldOrdinal(T, size_t index) = countFieldsBefore!(T, index);
 private bool supportedValue(T)() pure @safe
 {
     alias U = Unqualified!T;
-    static if (isString!U || isStringBuf!U || is(U == bool) || is(U == enum) ||
+    static if (isString!U || isStringBuf!U || isOwnedString!U ||
+        is(U == bool) || is(U == enum) ||
         __traits(isIntegral, U) || __traits(isFloating, U))
         return true;
     else static if (isOption!U)
@@ -494,6 +518,8 @@ private bool supportedValue(T)() pure @safe
     else static if (isHashMap!U)
         return isSerdeHashMapKey!(HashMapKey!U) &&
             supportedValue!(HashMapValue!U);
+    else static if (isStringHashMap!U)
+        return supportedValue!(StringHashMapValue!U);
     else static if (isFixedArray!U)
         return supportedValue!(typeof(U.init[0]));
     else static if (isTaggedUnion!U)
@@ -528,6 +554,8 @@ package(xtb.serde) void validateValueSchema(T)()
             "serde HashMap keys must have type String");
         validateValueSchema!(HashMapValue!U)();
     }
+    else static if (isStringHashMap!U)
+        validateValueSchema!(StringHashMapValue!U)();
     else
     {
         static assert(isSupportedValue!U,
@@ -753,13 +781,16 @@ private bool borrowedValue(T)() pure @safe
 private bool ownedValue(T)() pure @safe
 {
     alias U = Unqualified!T;
-    static if (isStringBuf!U || is(U == bool) || is(U == enum) ||
+    static if (isStringBuf!U || isOwnedString!U || is(U == bool) ||
+        is(U == enum) ||
         __traits(isIntegral, U) || __traits(isFloating, U))
         return true;
     else static if (isOption!U)
         return ownedValue!(OptionElement!U);
     else static if (isArray!U)
         return ownedValue!(ArrayElement!U);
+    else static if (isStringHashMap!U)
+        return ownedValue!(StringHashMapValue!U);
     else static if (isFixedArray!U)
         return ownedValue!(typeof(U.init[0]));
     else static if (isTaggedUnion!U)
@@ -791,8 +822,9 @@ package(xtb.serde) void validateOwnedValue(T)()
 {
     validateValueSchema!T();
     static assert(ownedValue!T,
-        "directly decoded values use StringBuf and Array; String, slices, " ~
-            "raw pointers, and HashMap require Deserialized");
+        "directly decoded values use StringBuf, OwnedString, Array, and " ~
+            "StringHashMap; String, slices, raw pointers, and HashMap " ~
+            "require Deserialized");
 }
 
 void validateBorrowedSchema(T)()
@@ -807,8 +839,9 @@ void validateOwnedSchema(T)()
 {
     validateSchema!T();
     static assert(ownedValue!T,
-        "directly decoded schemas use StringBuf and Array; String, slices, " ~
-            "raw pointers, and HashMap require Deserialized");
+        "directly decoded schemas use StringBuf, OwnedString, Array, and " ~
+            "StringHashMap; String, slices, raw pointers, and HashMap " ~
+            "require Deserialized");
 }
 
 package(xtb.serde) void initializeOwnedValue(T)(
@@ -819,6 +852,8 @@ package(xtb.serde) void initializeOwnedValue(T)(
     alias U = Unqualified!T;
     static if (isStringBuf!U)
         *cast(StringBuf*) output = StringBuf.create(allocator);
+    else static if (isStringHashMap!U)
+        *cast(U*) output = U.create(allocator);
     else static if (isOption!U)
         initializeOwnedValue(allocator, &(*output).storage());
     else static if (isArray!U)
@@ -827,10 +862,10 @@ package(xtb.serde) void initializeOwnedValue(T)(
         foreach (index; 0 .. output.length)
             initializeOwnedValue(allocator, &(*output)[index]);
     else static if (isSerdeStruct!U)
-                {
-                static foreach (index; 0 .. U.tupleof.length)
-                    initializeOwnedValue(allocator, &output.tupleof[index]);
-            }
+    {
+        static foreach (index; 0 .. U.tupleof.length)
+            initializeOwnedValue(allocator, &output.tupleof[index]);
+    }
 }
 
 private bool fieldsOverlap(A, size_t left, B, size_t right)() pure @safe

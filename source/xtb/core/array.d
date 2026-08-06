@@ -10,6 +10,18 @@ import xtb.core.internal.managed_container_adapter : ManagedContainerAdapter;
 import xtb.core.panic : panic, require;
 import xtb.core.numeric : multiplyOverflows;
 
+/// Raw allocation detached from an unmanaged array.
+///
+/// This package-only token has no destructor. The caller assumes ownership of
+/// every live element and must eventually adopt or explicitly destroy and
+/// deallocate the storage with the originating allocator.
+package(xtb) struct RawArrayStorage(T)
+{
+    T* data;
+    size_t length;
+    size_t capacity;
+}
+
 version (unittest)
 {
     private __gshared size_t trackedDestructions;
@@ -158,6 +170,19 @@ package(xtb):
         result.data_ = data;
         result.length_ = length;
         result.capacity_ = capacity;
+        return result;
+    }
+
+    RawArrayStorage!T releaseRaw() @system
+    {
+        RawArrayStorage!T result = RawArrayStorage!T(
+            data_,
+            length_,
+            capacity_,
+        );
+        data_ = null;
+        length_ = 0;
+        capacity_ = 0;
         return result;
     }
 
