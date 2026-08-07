@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.lifetime : move;
 import core.stdc.string : memmove;
 import xtb.core.hash : hashValue;
-import xtb.core.memory : Allocator, deallocate, tryAllocate;
+import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.panic : panic;
 version (XTB_Checked)
     import xtb.core.panic : require;
@@ -46,7 +46,7 @@ public:
         if (value.length == 0)
             return true;
 
-        char* bytes = allocator.tryAllocate!char(value.length);
+        char* bytes = allocator.tryAllocateArray!char(value.length).ptr;
         if (bytes is null)
             return false;
         memmove(bytes, value.ptr, value.length);
@@ -92,7 +92,7 @@ public:
         if (value_.length != 0)
         {
             requireValidOwnedStringAllocator(allocator);
-            allocator.deallocate(cast(char*) value_.ptr, value_.length);
+            allocator.deallocateArray(value_.ptr[0 .. value_.length]);
         }
         value_ = String.init;
     }
@@ -490,7 +490,7 @@ unittest
     StringBuf source = StringBuf.fromString(mallocAllocator(), "retained");
     failing.failAfter(0);
     OwnedString failed;
-    assert(!OwnedString.tryFromStringBuf(failing.handle, &source, &failed));
+    assert(!OwnedString.tryFromStringBuf(failing.allocator, &source, &failed));
     {
         assert(source.view == "retained");
         source.deinit();
@@ -512,28 +512,28 @@ unittest
 
     OwnedStringUnmanaged exact;
     assert(OwnedStringUnmanaged.tryFromString(
-        allocator.handle,
+        allocator.allocator,
         "sixteen bytes!!!",
         &exact,
     ));
     assert(exact.byteLength == 16);
     assert(allocator.stats.outstandingAllocations == 1);
     assert(allocator.stats.outstandingBytes == 16);
-    exact.deinit(allocator.handle);
+    exact.deinit(allocator.allocator);
     assert(allocator.clean);
 
     const allocationCalls = allocator.stats.allocationCalls;
-    OwnedString empty = OwnedString.fromString(allocator.handle, "");
+    OwnedString empty = OwnedString.fromString(allocator.allocator, "");
     assert(empty.empty);
-    assert(empty.allocator is allocator.handle);
+    assert(empty.allocator is allocator.allocator);
     assert(allocator.stats.allocationCalls == allocationCalls);
 
-    StringBuf spare = StringBuf.withCapacity(allocator.handle, 64);
+    StringBuf spare = StringBuf.withCapacity(allocator.allocator, 64);
     {
         spare.append("small");
     }
     OwnedString compact = OwnedString.fromStringBuf(
-        allocator.handle,
+        allocator.allocator,
         &spare,
     );
     assert(compact.view == "small");
@@ -550,7 +550,7 @@ unittest
         foreignRecords[],
     );
     StringBuf foreignBuffer = StringBuf.fromString(
-        foreign.handle,
+        foreign.allocator,
         "foreign",
     );
     const(char)* foreignPointer;
@@ -558,7 +558,7 @@ unittest
         foreignPointer = foreignBuffer.view.ptr;
     }
     OwnedString normalized = OwnedString.fromStringBuf(
-        allocator.handle,
+        allocator.allocator,
         &foreignBuffer,
     );
     assert(normalized.view == "foreign");

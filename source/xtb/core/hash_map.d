@@ -6,7 +6,8 @@ import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move, moveEmplace;
 import core.stdc.string : memset;
 import xtb.core.hash : HashSeed, hashValue;
-import xtb.core.memory : Allocator, deallocate, tryAllocate, tryAllocateZeroed;
+import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
+    tryAllocateZeroedArray;
 import xtb.core.numeric : multiplyOverflows;
 import xtb.core.panic : panic;
 version (XTB_Checked)
@@ -332,8 +333,8 @@ public:
         clear(allocator);
         if (capacity_ != 0)
         {
-            allocator.deallocate(entries_, capacity_);
-            allocator.deallocate(states_, capacity_);
+            allocator.deallocateArray(entries_[0 .. capacity_]);
+            allocator.deallocateArray(states_[0 .. capacity_]);
         }
         this = HashMapUnmanaged.init;
     }
@@ -345,8 +346,8 @@ public:
         clear(allocator);
         if (capacity_ != 0)
         {
-            allocator.deallocate(entries_, capacity_);
-            allocator.deallocate(states_, capacity_);
+            allocator.deallocateArray(entries_[0 .. capacity_]);
+            allocator.deallocateArray(states_[0 .. capacity_]);
         }
         entries_ = null;
         states_ = null;
@@ -783,15 +784,13 @@ private:
         if (multiplyOverflows(Entry!(K, V).sizeof, capacity))
             return false;
 
-        SlotState* states = cast(SlotState*) allocator
-            .tryAllocateZeroed!ubyte(capacity);
+        SlotState* states = allocator.tryAllocateZeroedArray!SlotState(capacity).ptr;
         if (states is null)
             return false;
-        Entry!(K, V)* entries = allocator
-            .tryAllocate!(Entry!(K, V))(capacity);
+        Entry!(K, V)* entries = allocator.tryAllocateArray!(Entry!(K, V))(capacity).ptr;
         if (entries is null)
         {
-            allocator.deallocate(states, capacity);
+            allocator.deallocateArray(states[0 .. capacity]);
             return false;
         }
 
@@ -814,8 +813,8 @@ private:
 
         if (capacity_ != 0)
         {
-            allocator.deallocate(entries_, capacity_);
-            allocator.deallocate(states_, capacity_);
+            allocator.deallocateArray(entries_[0 .. capacity_]);
+            allocator.deallocateArray(states_[0 .. capacity_]);
         }
         entries_ = entries;
         states_ = states;
@@ -2035,7 +2034,7 @@ unittest
         mallocAllocator(),
         records[],
     );
-    CollisionMap failing = CollisionMap.create(allocator.handle);
+    CollisionMap failing = CollisionMap.create(allocator.allocator);
     allocator.failAfter(0);
     assert(failing.tryAdd(1, 10) == AddStatus.outOfMemory);
     assert(failing.empty && allocator.clean);
@@ -2208,12 +2207,12 @@ unittest
     );
 
     {
-        IntMap map = IntMap.create(tracked.handle);
+        IntMap map = IntMap.create(tracked.allocator);
         map.set(1, 10);
         IntMap.Released released = map.release();
 
         assert(map.allocator is null && map.empty);
-        assert(released.allocator is tracked.handle);
+        assert(released.allocator is tracked.allocator);
         assert(*released.storage.find(1) == 10);
         released.storage.set(released.allocator, 2, 20);
         assert(*released.storage.find(2) == 20);
@@ -2221,26 +2220,26 @@ unittest
     assert(tracked.clean);
 
     {
-        IntMap source = IntMap.create(tracked.handle);
+        IntMap source = IntMap.create(tracked.allocator);
         source.set(3, 30);
         IntMap.Released released = source.release();
         IntMap adopted = IntMap.adopt(&released);
 
         assert(source.allocator is null && source.empty);
         assert(released.allocator is null && released.storage.empty);
-        assert(adopted.allocator is tracked.handle);
+        assert(adopted.allocator is tracked.allocator);
         assert(*adopted.find(3) == 30);
     }
     assert(tracked.clean);
 
     {
-        IntMap source = IntMap.create(tracked.handle);
+        IntMap source = IntMap.create(tracked.allocator);
         source.set(4, 40);
         IntMap.Released released = source.release();
         Allocator* allocator;
         IntMapStorage storage = released.extract(&allocator);
 
-        assert(allocator is tracked.handle);
+        assert(allocator is tracked.allocator);
         assert(released.allocator is null && released.storage.empty);
         storage.set(allocator, 5, 50);
         assert(*storage.find(4) == 40);
@@ -2250,12 +2249,12 @@ unittest
     assert(tracked.clean);
 
     {
-        IntSet set = IntSet.create(tracked.handle);
+        IntSet set = IntSet.create(tracked.allocator);
         set.add(7);
         IntSet.Released released = set.release();
 
         assert(set.allocator is null && set.empty);
-        assert(released.allocator is tracked.handle);
+        assert(released.allocator is tracked.allocator);
         assert(released.storage.contains(7));
         released.storage.add(released.allocator, 8);
         assert(released.storage.contains(8));
@@ -2287,7 +2286,7 @@ unittest
 
         allocator.failAfter(0);
         assert(!IntMapStorage.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
@@ -2295,7 +2294,7 @@ unittest
 
         allocator.failAfter(1);
         assert(!IntMapStorage.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
@@ -2303,12 +2302,12 @@ unittest
 
         allocator.allowAllocations();
         assert(IntMapStorage.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
         assert(output.capacity >= 32);
-        output.deinit(allocator.handle);
+        output.deinit(allocator.allocator);
         assert(allocator.clean && allocator.stats.invalidCalls == 0);
     }
 
@@ -2322,7 +2321,7 @@ unittest
 
         allocator.failAfter(1);
         assert(!IntMap.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
@@ -2331,11 +2330,11 @@ unittest
 
         allocator.allowAllocations();
         assert(IntMap.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
-        assert(output.allocator is allocator.handle);
+        assert(output.allocator is allocator.allocator);
         assert(output.capacity >= 32);
         output.deinit();
         assert(allocator.clean && allocator.stats.invalidCalls == 0);
@@ -2351,7 +2350,7 @@ unittest
 
         allocator.failAfter(1);
         assert(!IntSetStorage.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
@@ -2359,12 +2358,12 @@ unittest
 
         allocator.allowAllocations();
         assert(IntSetStorage.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
         assert(output.capacity >= 32);
-        output.deinit(allocator.handle);
+        output.deinit(allocator.allocator);
         assert(allocator.clean && allocator.stats.invalidCalls == 0);
     }
 
@@ -2378,7 +2377,7 @@ unittest
 
         allocator.failAfter(1);
         assert(!IntSet.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
@@ -2387,11 +2386,11 @@ unittest
 
         allocator.allowAllocations();
         assert(IntSet.tryWithCapacity(
-            allocator.handle,
+            allocator.allocator,
             32,
             &output,
         ));
-        assert(output.allocator is allocator.handle);
+        assert(output.allocator is allocator.allocator);
         assert(output.capacity >= 32);
         output.deinit();
         assert(allocator.clean && allocator.stats.invalidCalls == 0);
@@ -2417,29 +2416,29 @@ unittest
         unmanagedRecords[],
     );
 
-    ManagedMap managed = ManagedMap.create(managedAllocator.handle);
+    ManagedMap managed = ManagedMap.create(managedAllocator.allocator);
     UnmanagedMap unmanaged;
 
     foreach (value; 0 .. 160)
     {
         assert(managed.trySet(value, value * 3) ==
-            unmanaged.trySet(unmanagedAllocator.handle, value, value * 3));
+            unmanaged.trySet(unmanagedAllocator.allocator, value, value * 3));
     }
     foreach (value; 0 .. 80)
     {
         if ((value & 1) == 0)
             assert(managed.remove(value) ==
-                unmanaged.remove(unmanagedAllocator.handle, value));
+                unmanaged.remove(unmanagedAllocator.allocator, value));
     }
     foreach (value; 80 .. 120)
     {
         assert(managed.trySet(value, value * 5) ==
-            unmanaged.trySet(unmanagedAllocator.handle, value, value * 5));
+            unmanaged.trySet(unmanagedAllocator.allocator, value, value * 5));
     }
     assert(managed.tryReserve(384));
-    assert(unmanaged.tryReserve(unmanagedAllocator.handle, 384));
+    assert(unmanaged.tryReserve(unmanagedAllocator.allocator, 384));
     assert(managed.tryShrinkToFit());
-    assert(unmanaged.tryShrinkToFit(unmanagedAllocator.handle));
+    assert(unmanaged.tryShrinkToFit(unmanagedAllocator.allocator));
 
     assert(managed.length == unmanaged.length);
     assert(managed.capacity == unmanaged.capacity);
@@ -2467,12 +2466,12 @@ unittest
     const managedStatsBeforeClear = managedAllocator.stats;
     const unmanagedStatsBeforeClear = unmanagedAllocator.stats;
     managed.clear();
-    unmanaged.clear(unmanagedAllocator.handle);
+    unmanaged.clear(unmanagedAllocator.allocator);
     assert(managedAllocator.stats == managedStatsBeforeClear);
     assert(unmanagedAllocator.stats == unmanagedStatsBeforeClear);
 
     managed.deinit();
-    unmanaged.deinit(unmanagedAllocator.handle);
+    unmanaged.deinit(unmanagedAllocator.allocator);
     assert(managedAllocator.stats == unmanagedAllocator.stats);
     assert(managedAllocator.clean && unmanagedAllocator.clean);
 }
@@ -2502,14 +2501,14 @@ unittest
     parityEqual.parity = true;
 
     PolicyMap managed = PolicyMap.withPolicies(
-        allocator.handle,
+        allocator.allocator,
         parityHash,
         parityEqual,
     );
     managed.set(1, 10);
     assert(managed.find(3) !is null);
     managed.resetAndRelease();
-    assert(managed.allocator is allocator.handle);
+    assert(managed.allocator is allocator.allocator);
     managed.set(5, 50);
     assert(managed.find(7) !is null);
     managed.deinit();
@@ -2519,15 +2518,15 @@ unittest
         parityHash,
         parityEqual,
     );
-    unmanaged.set(allocator.handle, 1, 10);
+    unmanaged.set(allocator.allocator, 1, 10);
     assert(unmanaged.find(3) !is null);
-    unmanaged.resetAndRelease(allocator.handle);
-    unmanaged.set(allocator.handle, 5, 50);
+    unmanaged.resetAndRelease(allocator.allocator);
+    unmanaged.set(allocator.allocator, 5, 50);
     assert(unmanaged.find(7) !is null);
-    unmanaged.deinit(allocator.handle);
+    unmanaged.deinit(allocator.allocator);
 
-    unmanaged.set(allocator.handle, 9, 90);
+    unmanaged.set(allocator.allocator, 9, 90);
     assert(unmanaged.find(11) is null);
-    unmanaged.deinit(allocator.handle);
+    unmanaged.deinit(allocator.allocator);
     assert(allocator.clean && allocator.stats.invalidCalls == 0);
 }

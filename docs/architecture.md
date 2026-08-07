@@ -585,25 +585,64 @@ void* reallocate(
 ```
 
 A stateless allocator can expose a standalone function-pointer slot. A
-stateful allocator embeds that slot as the first field of its state struct; for
-example, an arena handle is `&arena.allocator`, and its callback casts the
-opaque argument back to `Arena*`. This intrusive convention keeps the public
-handle to one pointer, but it depends on an explicit layout invariant. Enforce
-that invariant with `static assert(Arena.allocator.offsetof == 0)` for every
-stateful allocator implementation, keep the callback signature identical, and
-never move or copy the state while its allocator handle is in use.
+stateful allocator embeds that slot as the first field of its state struct and
+exposes it consistently through a mutable `Allocator* allocator()` member. For
+example, `arena.allocator` returns the address of Arena's private allocator
+slot, and the callback casts that opaque address back to `Arena*`. The same
+member name is used by `InstrumentedAllocator`, temporary/scratch arenas, and
+other allocator adapters. This intrusive convention keeps the public handle to
+one pointer, but it depends on an explicit layout invariant. Enforce that
+invariant with a static assertion on the private slot's offset, keep the
+callback signature identical, and never move or copy the state while its
+allocator handle is in use.
 
 An operation that retains or returns owned memory receives `Allocator*`
 explicitly or uses an owning object that already stores that handle. Document
 how long the allocator slot and its containing state must remain alive. Do not
 introduce a mutable global "current allocator."
 
-Typed allocation returns raw storage; it does not construct elements. Typed
-reallocation is restricted to POD representations, and
-`allocateZeroed!T` is available only when `T` is POD. Zeroed allocation means
-every byte is zero, not `T.init`: types with destructors, postblits, assignment
-hooks, or other lifetime semantics must be constructed explicitly in raw
-storage and destroyed before deallocation.
+The typed allocator API distinguishes single objects, arrays, storage
+initialization, and object lifetime deliberately:
+
+```d
+T* value = allocator.allocate!T();                 // raw storage for one T
+T[] values = allocator.allocateArray!T(count);     // raw storage for count T
+
+T* zeroed = allocator.allocateZeroed!T();
+T[] zeroedValues = allocator.allocateZeroedArray!T(count);
+
+T* initialized = allocator.allocateInit!T();       // establishes T.init
+T[] initializedValues = allocator.allocateInitArray!T(count);
+
+T* constructed = allocator.create!T(arguments);    // allocate + emplace
+
+allocator.deallocate(value);                       // raw storage only
+allocator.deallocateArray(values);                 // raw storage only
+allocator.dispose(constructed);                    // destroy + deallocate
+allocator.disposeArray(initializedValues);          // destroy all + deallocate
+```
+
+Every allocating operation has a `try` variant where allocation failure is a
+normal result. `allocate!T` never accepts an element count: arrays use the
+slice-returning `allocateArray!T` API so their length is not immediately lost.
+POD array reallocation likewise uses `reallocateArray`, which receives and
+returns slices.
+
+Zeroed allocation is restricted to POD representations. Zeroed allocation
+means every byte is zero and is intentionally distinct from `T.init`.
+`allocateInit` and `allocateInitArray` establish normal D initialization with
+`emplace`; `create` additionally forwards constructor or source-value arguments
+to `emplace`. Raw `deallocate` functions never run destructors. Use `dispose`
+for an initialized single object and `disposeArray` for an initialized array
+when the allocation came from a general allocator.
+
+`Arena` mirrors the single/array, zeroed, initialized, and `create` allocation
+vocabulary because those operations are useful for arena-backed graphs and
+ASTs. It intentionally has no per-allocation `deallocate`, `dispose`, or
+reallocation member. `Arena.clear()` and `Arena.deinit()` reclaim storage in
+bulk and **do not run destructors for values constructed in the arena**. Code
+that places resource-owning objects in an arena must arrange any required
+cleanup separately before rewind or destruction.
 
 Use these representations consistently:
 

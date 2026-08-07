@@ -1027,7 +1027,7 @@ unittest
     failing.failAfter(0);
     StringBuf failedInterpolated;
     assert(!tryFormatString(
-            failing.handle,
+            failing.allocator,
             &failedInterpolated,
             i"allocation required: $(answer)",
     ));

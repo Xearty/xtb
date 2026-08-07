@@ -2,9 +2,8 @@ module xtb.serde.ownership;
 
 nothrow @nogc:
 
-import core.lifetime : emplace;
 import core.stdc.string : memcpy;
-import xtb.core.memory : Allocator, tryAllocate;
+import xtb.core.memory : Allocator, tryAllocateInit;
 import xtb.core.numeric : addOverflows;
 version (XTB_Checked)
     import xtb.core.panic : require;
@@ -24,21 +23,21 @@ private struct AllocationHeader
 private struct AllocationTracker
 {
 nothrow @nogc:
-    Allocator allocator;
+    private Allocator allocator_;
     Allocator* backing;
     AllocationHeader* first;
 
     static AllocationTracker create(Allocator* backing)
     {
         AllocationTracker result;
-        result.allocator = &trackingAllocatorProcedure;
+        result.allocator_ = &trackingAllocatorProcedure;
         result.backing = backing;
         return result;
     }
 
-    Allocator* handle() return
+    Allocator* allocator() return
     {
-        return &allocator;
+        return &allocator_;
     }
 
     void deinit()
@@ -51,13 +50,13 @@ nothrow @nogc:
                 allocation.allocationAlignment);
             allocation = next;
         }
-        allocator = null;
+        allocator_ = null;
         backing = null;
         first = null;
     }
 }
 
-static assert(AllocationTracker.allocator.offsetof == 0);
+static assert(AllocationTracker.allocator_.offsetof == 0);
 
 struct Deserialized(T)
 {
@@ -136,14 +135,13 @@ package(xtb.serde) bool prepareDeserialized(T)(
     }
     output.deinit();
     output.tracker_ = AllocationTracker.create(allocator);
-    T* created = output.tracker_.handle.tryAllocate!T();
+    T* created = output.tracker_.allocator.tryAllocateInit!T();
     if (created is null)
     {
         output.tracker_.deinit();
         *value = null;
         return false;
     }
-    emplace(created);
     output.value_ = created;
     *value = created;
     return true;
@@ -156,7 +154,7 @@ package(xtb.serde) Allocator* deserializationAllocator(T)(
     version (XTB_Checked)
         require(output !is null && output.value_ !is null,
             "deserialized output is not prepared");
-    return output.tracker_.handle;
+    return output.tracker_.allocator;
 }
 
 package(xtb.serde) void abandonDeserialized(T)(Deserialized!T* output)

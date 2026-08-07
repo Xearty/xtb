@@ -2,9 +2,8 @@ module xtb.core.thread_context;
 
 nothrow @nogc:
 
-import core.stdc.string : memset;
 import xtb.core.arena : Arena, TempArena, pop, push;
-import xtb.core.memory : Allocator, allocate, deallocate, mallocAllocator;
+import xtb.core.memory : Allocator, allocateInit, dispose, mallocAllocator;
 import xtb.core.panic : panic;
 version (XTB_Checked)
     import xtb.core.panic : require;
@@ -64,8 +63,7 @@ nothrow @nogc:
         if (backingAllocator is null)
             backingAllocator = mallocAllocator();
 
-        ThreadContext* context = backingAllocator.allocate!ThreadContext();
-        memset(context, 0, ThreadContext.sizeof);
+        ThreadContext* context = backingAllocator.allocateInit!ThreadContext();
         context.ownerAllocator = backingAllocator;
         context.arenaCount = scratchArenaCount;
         foreach (i; 0 .. scratchArenaCount)
@@ -90,14 +88,11 @@ nothrow @nogc:
             );
         }
 
-        foreach (i; 0 .. context_.arenaCount)
-            context_.arenas[i].deinit();
-
         Allocator* owner = context_.ownerAllocator;
         ThreadContext* released = context_;
         tlsContext = null;
         context_ = null;
-        owner.deallocate(released);
+        owner.dispose(released);
     }
 }
 
@@ -110,11 +105,11 @@ private Arena* selectScratchArena(scope Allocator*[] conflicts)
     foreach (i; 0 .. context.arenaCount)
     {
         Arena* candidate = &context.arenas[i];
-        Allocator* handle = candidate.allocatorHandle();
+        Allocator* candidateAllocator = candidate.allocator();
         bool conflictsWithCandidate;
         foreach (conflict; conflicts)
         {
-            if (conflict is handle)
+            if (conflict is candidateAllocator)
             {
                 conflictsWithCandidate = true;
                 break;
@@ -194,7 +189,7 @@ unittest
     ThreadContextScope context = ThreadContextScope.acquire(3, 128);
     {
         ScratchScope first = ScratchScope.acquire();
-        int* value = first.allocator.allocate!int();
+        int* value = first.allocator.allocateInit!int();
         *value = 7;
 
         ScratchScope second = ScratchScope.acquire(first.allocator);

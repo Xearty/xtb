@@ -2,6 +2,7 @@ module xtb.core.memory;
 
 nothrow @nogc:
 
+import core.lifetime : emplace, forward;
 import core.stdc.stdlib : free, malloc, realloc;
 
 version (Posix)
@@ -147,71 +148,178 @@ void* allocate(
     return reallocate(allocator, size, null, 0, alignment);
 }
 
-T* tryAllocate(T)(Allocator* allocator, size_t count = 1)
+/// Attempts to reserve uninitialized storage for one `T`.
+T* tryAllocate(T)(Allocator* allocator)
 {
-    if (multiplyOverflows(T.sizeof, count))
-        return null;
-    return cast(T*) tryAllocate(allocator, T.sizeof * count, T.alignof);
+    return cast(T*) tryAllocate(allocator, T.sizeof, T.alignof);
 }
 
-T* allocate(T)(Allocator* allocator, size_t count = 1)
+/// Reserves uninitialized storage for one `T`, panicking on failure.
+T* allocate(T)(Allocator* allocator)
 {
-    if (multiplyOverflows(T.sizeof, count))
+    return cast(T*) allocate(allocator, T.sizeof, T.alignof);
+}
+
+/// Attempts to reserve uninitialized storage for `length` contiguous `T`s.
+T[] tryAllocateArray(T)(Allocator* allocator, size_t length)
+{
+    if (multiplyOverflows(T.sizeof, length))
+        return null;
+    T* data = cast(T*) tryAllocate(
+        allocator,
+        T.sizeof * length,
+        T.alignof,
+    );
+    if (length != 0 && data is null)
+        return null;
+    return data[0 .. length];
+}
+
+/// Reserves uninitialized storage for `length` contiguous `T`s.
+T[] allocateArray(T)(Allocator* allocator, size_t length)
+{
+    if (multiplyOverflows(T.sizeof, length))
         panic("allocation size overflow");
-    return cast(T*) allocate(allocator, T.sizeof * count, T.alignof);
+    T* data = cast(T*) allocate(
+        allocator,
+        T.sizeof * length,
+        T.alignof,
+    );
+    return data[0 .. length];
 }
 
-T* tryReallocate(T)(
+T[] tryReallocateArray(T)(
     Allocator* allocator,
-    T* oldPointer,
-    size_t oldCount,
-    size_t newCount,
+    T[] oldValues,
+    size_t newLength,
 ) if (__traits(isPOD, T))
 {
-    if (multiplyOverflows(T.sizeof, oldCount) ||
-        multiplyOverflows(T.sizeof, newCount))
+    if (multiplyOverflows(T.sizeof, oldValues.length) ||
+        multiplyOverflows(T.sizeof, newLength))
         return null;
-    return cast(T*) tryReallocate(
+    T* data = cast(T*) tryReallocate(
         allocator,
-        newCount * T.sizeof,
-        oldPointer,
-        oldCount * T.sizeof,
+        newLength * T.sizeof,
+        oldValues.ptr,
+        oldValues.length * T.sizeof,
         T.alignof,
     );
+    if (newLength != 0 && data is null)
+        return null;
+    return data[0 .. newLength];
 }
 
-T* reallocate(T)(
+T[] reallocateArray(T)(
     Allocator* allocator,
-    T* oldPointer,
-    size_t oldCount,
-    size_t newCount,
+    T[] oldValues,
+    size_t newLength,
 ) if (__traits(isPOD, T))
 {
-    if (multiplyOverflows(T.sizeof, oldCount) ||
-        multiplyOverflows(T.sizeof, newCount))
+    if (multiplyOverflows(T.sizeof, oldValues.length) ||
+        multiplyOverflows(T.sizeof, newLength))
         panic("reallocation size overflow");
-    return cast(T*) reallocate(
+    T* data = cast(T*) reallocate(
         allocator,
-        newCount * T.sizeof,
-        oldPointer,
-        oldCount * T.sizeof,
+        newLength * T.sizeof,
+        oldValues.ptr,
+        oldValues.length * T.sizeof,
         T.alignof,
     );
+    return data[0 .. newLength];
 }
 
-T* tryAllocateZeroed(T)(Allocator* allocator, size_t count = 1) if (__traits(isPOD, T))
+T* tryAllocateZeroed(T)(Allocator* allocator) if (__traits(isPOD, T))
 {
-    T* result = allocator.tryAllocate!T(count);
+    T* result = allocator.tryAllocate!T();
     if (result !is null)
-        memset(result, 0, T.sizeof * count);
+        memset(result, 0, T.sizeof);
     return result;
 }
 
-T* allocateZeroed(T)(Allocator* allocator, size_t count = 1) if (__traits(isPOD, T))
+T* allocateZeroed(T)(Allocator* allocator) if (__traits(isPOD, T))
 {
-    T* result = allocator.allocate!T(count);
+    T* result = allocator.allocate!T();
+    memset(result, 0, T.sizeof);
+    return result;
+}
+
+T[] tryAllocateZeroedArray(T)(
+    Allocator* allocator,
+    size_t length,
+) if (__traits(isPOD, T))
+{
+    T[] result = allocator.tryAllocateArray!T(length);
+    if (result.ptr !is null)
+        memset(result.ptr, 0, T.sizeof * result.length);
+    return result;
+}
+
+T[] allocateZeroedArray(T)(
+    Allocator* allocator,
+    size_t length,
+) if (__traits(isPOD, T))
+{
+    T[] result = allocator.allocateArray!T(length);
+    if (result.ptr !is null)
+        memset(result.ptr, 0, T.sizeof * result.length);
+    return result;
+}
+
+/// Attempts to allocate one `T` and establish its `T.init` lifetime.
+T* tryAllocateInit(T)(Allocator* allocator)
+{
+    T* result = allocator.tryAllocate!T();
     if (result !is null)
-        memset(result, 0, T.sizeof * count);
+        emplace(result);
+    return result;
+}
+
+/// Allocates one `T` and establishes its `T.init` lifetime.
+T* allocateInit(T)(Allocator* allocator)
+{
+    T* result = allocator.allocate!T();
+    emplace(result);
+    return result;
+}
+
+/// Attempts to allocate an array and initialize every element to `T.init`.
+T[] tryAllocateInitArray(T)(Allocator* allocator, size_t length)
+{
+    T[] result = allocator.tryAllocateArray!T(length);
+    foreach (index; 0 .. result.length)
+        emplace(result.ptr + index);
+    return result;
+}
+
+/// Allocates an array and initializes every element to `T.init`.
+T[] allocateInitArray(T)(Allocator* allocator, size_t length)
+{
+    T[] result = allocator.allocateArray!T(length);
+    foreach (index; 0 .. result.length)
+        emplace(result.ptr + index);
+    return result;
+}
+
+/// Attempts to allocate and construct one `T` with `emplace`.
+T* tryCreate(T, Args...)(
+    Allocator* allocator,
+    auto ref Args arguments,
+)
+{
+    T* result = allocator.tryAllocate!T();
+    if (result !is null)
+        emplace(result, forward!arguments);
+    return result;
+}
+
+/// Allocates and constructs one `T` with `emplace`.
+T* create(T, Args...)(
+    Allocator* allocator,
+    auto ref Args arguments,
+)
+{
+    T* result = allocator.allocate!T();
+    emplace(result, forward!arguments);
     return result;
 }
 
@@ -229,11 +337,40 @@ void deallocate(
     (*allocator)(allocator, 0, pointer, oldSize, alignment);
 }
 
-void deallocate(T)(Allocator* allocator, T* pointer, size_t count = 1)
+/// Releases raw storage for one `T` without running destruction.
+void deallocate(T)(Allocator* allocator, T* pointer)
 {
-    if (multiplyOverflows(T.sizeof, count))
+    deallocate(allocator, cast(void*) pointer, T.sizeof, T.alignof);
+}
+
+/// Releases raw array storage without destroying its elements.
+void deallocateArray(T)(Allocator* allocator, T[] values)
+{
+    if (multiplyOverflows(T.sizeof, values.length))
         panic("deallocation size overflow");
-    deallocate(allocator, pointer, T.sizeof * count, T.alignof);
+    deallocate(
+        allocator,
+        cast(void*) values.ptr,
+        T.sizeof * values.length,
+        T.alignof,
+    );
+}
+
+/// Destroys one initialized `T` and releases its storage.
+void dispose(T)(Allocator* allocator, T* pointer)
+{
+    if (pointer is null)
+        return;
+    destroy(*pointer);
+    allocator.deallocate(pointer);
+}
+
+/// Destroys initialized array elements in reverse order and releases storage.
+void disposeArray(T)(Allocator* allocator, T[] values)
+{
+    foreach_reverse (ref value; values)
+        destroy(value);
+    allocator.deallocateArray(values);
 }
 
 struct AllocationRecord
@@ -259,7 +396,7 @@ struct InstrumentedAllocator
 {
 nothrow @nogc:
 
-    Allocator allocator;
+    private Allocator allocator_;
     private Allocator* backing;
     private AllocationRecord[] records;
     private AllocatorStats stats_;
@@ -276,7 +413,7 @@ nothrow @nogc:
             require(backing !is null && *backing !is null,
                 "instrumented allocator requires a valid backing allocator");
         InstrumentedAllocator result;
-        result.allocator = &instrumentedAllocatorProcedure;
+        result.allocator_ = &instrumentedAllocatorProcedure;
         result.backing = backing;
         result.records = records;
         foreach (ref record; records)
@@ -284,9 +421,9 @@ nothrow @nogc:
         return result;
     }
 
-    Allocator* handle() return
+    Allocator* allocator() return
     {
-        return &allocator;
+        return &allocator_;
     }
 
     AllocatorStats stats() const pure @safe
@@ -310,7 +447,7 @@ nothrow @nogc:
     }
 }
 
-static assert(InstrumentedAllocator.allocator.offsetof == 0);
+static assert(InstrumentedAllocator.allocator_.offsetof == 0);
 
 private AllocationRecord* findRecord(
     ref InstrumentedAllocator allocator,
@@ -423,30 +560,34 @@ private extern (C) void* instrumentedAllocatorProcedure(
 unittest
 {
     Allocator* allocator = mallocAllocator();
-    int* values = allocator.allocate!int(4);
-    assert(values !is null);
-    foreach (i; 0 .. 4)
-        values[i] = cast(int) i;
 
-    values = cast(int*) allocator.reallocate(
-        8 * int.sizeof,
-        values,
-        4 * int.sizeof,
-        int.alignof,
-    );
-    foreach (i; 0 .. 4)
-        assert(values[i] == cast(int) i);
-    allocator.deallocate(values, 8);
+    int* single = allocator.allocate!int();
+    assert(single !is null);
+    *single = 42;
+    assert(*single == 42);
+    allocator.deallocate(single);
+
+    int[] values = allocator.allocateArray!int(4);
+    assert(values.length == 4);
+    foreach (index; 0 .. values.length)
+        values[index] = cast(int) index;
+
+    values = allocator.reallocateArray(values, 8);
+    assert(values.length == 8);
+    foreach (index; 0 .. 4)
+        assert(values[index] == cast(int) index);
+    allocator.deallocateArray(values);
 
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(allocator, records[]);
-    int* trackedValues = tracked.handle.allocateZeroed!int(4);
+    int[] trackedValues = tracked.allocator.allocateZeroedArray!int(4);
+    assert(trackedValues.length == 4);
     assert(trackedValues[3] == 0);
     assert(tracked.stats.outstandingBytes == 4 * int.sizeof);
     tracked.failAfter(0);
-    assert(tracked.handle.tryAllocate!int() is null);
+    assert(tracked.allocator.tryAllocate!int() is null);
     assert(tracked.stats.failedCalls == 1);
-    tracked.handle.deallocate(trackedValues, 4);
+    tracked.allocator.deallocateArray(trackedValues);
     assert(tracked.clean);
 }
 
@@ -470,14 +611,112 @@ unittest
         }
     }
 
+    struct Constructed
+    {
+    nothrow @nogc:
+
+        int value;
+        int* destroyed;
+
+        this(int value, int* destroyed)
+        {
+            this.value = value;
+            this.destroyed = destroyed;
+        }
+
+        ~this()
+        {
+            if (destroyed !is null)
+                ++*destroyed;
+        }
+    }
+
+    struct TrackedInit
+    {
+    nothrow @nogc:
+
+        int* destroyed;
+
+        ~this()
+        {
+            if (destroyed !is null)
+                ++*destroyed;
+        }
+    }
+
     static assert(__traits(isPOD, PodWithInitializer));
     static assert(!__traits(compiles,
             mallocAllocator().allocateZeroed!Owning()));
     static assert(!__traits(compiles,
-            mallocAllocator().reallocate!Owning(null, 0, 1)));
+            mallocAllocator().allocateZeroedArray!Owning(2)));
+    static assert(!__traits(compiles,
+            mallocAllocator().reallocateArray!Owning(cast(Owning[]) null, 1)));
+    static assert(!__traits(compiles,
+            mallocAllocator().allocate!int(4)));
 
-    PodWithInitializer* value = mallocAllocator()
+    PodWithInitializer* zeroed = mallocAllocator()
         .allocateZeroed!PodWithInitializer();
-    assert(value.value == 0);
-    mallocAllocator().deallocate(value);
+    assert(zeroed.value == 0);
+    mallocAllocator().deallocate(zeroed);
+
+    PodWithInitializer* initialized = mallocAllocator()
+        .allocateInit!PodWithInitializer();
+    assert(initialized.value == PodWithInitializer.init.value);
+    mallocAllocator().deallocate(initialized);
+
+    PodWithInitializer source;
+    source.value = 17;
+    PodWithInitializer* copied = mallocAllocator()
+        .create!PodWithInitializer(source);
+    assert(copied.value == 17);
+    mallocAllocator().dispose(copied);
+
+    struct MoveOnly
+    {
+        int value;
+
+        @disable this(this);
+    }
+
+    import core.lifetime : move;
+    MoveOnly movable;
+    movable.value = 29;
+    MoveOnly* moved = mallocAllocator().create!MoveOnly(move(movable));
+    assert(moved.value == 29);
+    mallocAllocator().dispose(moved);
+
+    PodWithInitializer[] initializedValues = mallocAllocator()
+        .allocateInitArray!PodWithInitializer(3);
+    assert(initializedValues.length == 3);
+    foreach (value; initializedValues)
+        assert(value.value == PodWithInitializer.init.value);
+    mallocAllocator().deallocateArray(initializedValues);
+
+    PodWithInitializer[] zeroedValues = mallocAllocator()
+        .allocateZeroedArray!PodWithInitializer(3);
+    foreach (value; zeroedValues)
+        assert(value.value == 0);
+    mallocAllocator().deallocateArray(zeroedValues);
+
+    int destroyed;
+    Constructed* constructed = mallocAllocator()
+        .create!Constructed(73, &destroyed);
+    assert(constructed.value == 73);
+    assert(constructed.destroyed is &destroyed);
+    mallocAllocator().dispose(constructed);
+    assert(destroyed == 1);
+
+    AllocationRecord[2] records;
+    InstrumentedAllocator failing = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+    failing.failAfter(0);
+    assert(failing.allocator.tryCreate!Constructed(1, &destroyed) is null);
+
+    TrackedInit[] tracked = mallocAllocator().allocateInitArray!TrackedInit(3);
+    foreach (ref value; tracked)
+        value.destroyed = &destroyed;
+    mallocAllocator().disposeArray(tracked);
+    assert(destroyed == 4);
 }

@@ -6,11 +6,12 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite, isnan, signbit;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import core.lifetime : emplace, move;
+import core.lifetime : move;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array;
 import xtb.core.hash_map;
-import xtb.core.memory : Allocator, deallocate, tryAllocate;
+import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
+    tryAllocateInit, tryAllocateInitArray;
 import xtb.core.option : Option;
 import xtb.core.owned_string;
 version (XTB_Checked)
@@ -962,8 +963,11 @@ nothrow @nogc:
         foreach (index; 0 .. tablePathLength)
         {
             if (tablePath[index].owned)
-                allocator.deallocate(cast(char*) tablePath[index].value.ptr,
-                    tablePath[index].value.length + 1);
+                allocator.deallocateArray(
+                    (cast(char*) tablePath[index].value.ptr)[
+                        0 .. tablePath[index].value.length + 1
+                    ],
+                );
             tablePath[index] = ParsedKey.init;
         }
         tablePathLength = 0;
@@ -1581,8 +1585,9 @@ private void clearKeys(ref TomlParser parser, ParsedKey[] keys, size_t length)
     foreach (index; 0 .. length)
     {
         if (keys[index].owned)
-            parser.allocator.deallocate(cast(char*) keys[index].value.ptr,
-                keys[index].value.length + 1);
+            parser.allocator.deallocateArray(
+                keys[index].value.ptr[0 .. keys[index].value.length + 1],
+            );
         keys[index] = ParsedKey.init;
     }
 }
@@ -1591,7 +1596,7 @@ private bool ownParsedKey(ref TomlParser parser, ParsedKey* key)
 {
     if (key.owned)
         return true;
-    char* copy = parser.allocator.tryAllocate!char(key.value.length + 1);
+    char* copy = parser.allocator.tryAllocateArray!char(key.value.length + 1).ptr;
     if (copy is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
@@ -1685,13 +1690,12 @@ private void decodePathField(T, size_t index)(
         else static if (is(Unqualified!F == TaggedPointee*, TaggedPointee) &&
             isTaggedUnion!TaggedPointee)
         {
-            output.tupleof[index] = parser.allocator.tryAllocate!TaggedPointee();
+            output.tupleof[index] = parser.allocator.tryAllocateInit!TaggedPointee();
             if (output.tupleof[index] is null)
             {
                 parser.fail(SerdeErrorKind.allocationFailure);
                 return;
             }
-            emplace(output.tupleof[index]);
             applySchemaDefaults(output.tupleof[index]);
             decodeTaggedInline(parser, output.tupleof[index], 0);
         }
@@ -1708,13 +1712,12 @@ private void decodePathField(T, size_t index)(
         else static if (is(Unqualified!F == Pointee*, Pointee) &&
             isSerdeStruct!Pointee)
         {
-            output.tupleof[index] = parser.allocator.tryAllocate!Pointee();
+            output.tupleof[index] = parser.allocator.tryAllocateInit!Pointee();
             if (output.tupleof[index] is null)
             {
                 parser.fail(SerdeErrorKind.allocationFailure);
                 return;
             }
-            emplace(output.tupleof[index]);
             applySchemaDefaults(output.tupleof[index]);
             decodeInlineTable(parser, output.tupleof[index], 0, seen + ordinal + 1);
         }
@@ -1748,13 +1751,12 @@ private void decodePathField(T, size_t index)(
     {
         if (output.tupleof[index] is null)
         {
-            output.tupleof[index] = parser.allocator.tryAllocate!Pointee();
+            output.tupleof[index] = parser.allocator.tryAllocateInit!Pointee();
             if (output.tupleof[index] is null)
             {
                 parser.fail(SerdeErrorKind.allocationFailure);
                 return;
             }
-            emplace(output.tupleof[index]);
             applySchemaDefaults(output.tupleof[index]);
         }
         seen[ordinal] = true;
@@ -1899,8 +1901,7 @@ private void decodeAdaptedValue(T, size_t index, F)(
                 parser.fail(kind);
         }
         if (owned)
-            parser.allocator.deallocate(cast(char*) representation.ptr,
-                representation.length + 1);
+            parser.allocator.deallocateArray(representation.ptr[0 .. representation.length + 1]);
     }
     else
     {
@@ -2511,13 +2512,12 @@ private void decodeInlineTable(T)(
 
 private void decodePointer(T)(ref TomlParser parser, T** output, size_t depth)
 {
-    T* value = parser.allocator.tryAllocate!T();
+    T* value = parser.allocator.tryAllocateInit!T();
     if (value is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
         return;
     }
-    emplace(value);
     *output = value;
     decodeValue(parser, value, depth);
 }
@@ -2702,7 +2702,7 @@ private void decodeEnum(T)(ref TomlParser parser, T* output)
             parser.options.variantCase, output))
         parser.fail(SerdeErrorKind.typeMismatch);
     if (owned)
-        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
+        parser.allocator.deallocateArray(name.ptr[0 .. name.length + 1]);
 }
 
 private void decodeTaggedEnum(T)(ref TomlParser parser, T* output)
@@ -2713,7 +2713,7 @@ private void decodeTaggedEnum(T)(ref TomlParser parser, T* output)
     if (parser.error.ok)
         decodeTaggedEnumName(parser, name, output);
     if (owned)
-        parser.allocator.deallocate(cast(char*) name.ptr, name.length + 1);
+        parser.allocator.deallocateArray(name.ptr[0 .. name.length + 1]);
 }
 
 private void decodeTaggedEnumName(T)(
@@ -2751,15 +2751,13 @@ private void decodeDynamicArray(T)(ref TomlParser parser, T* output, size_t dept
         parser.error = counter.error;
         return;
     }
-    Element* values = parser.allocator.tryAllocate!Element(count);
-    if (count != 0 && values is null)
+    Element[] values = parser.allocator.tryAllocateInitArray!Element(count);
+    if (count != 0 && values.ptr is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
         return;
     }
-    foreach (index; 0 .. count)
-        emplace(values + index);
-    *output = values[0 .. count];
+    *output = values;
     parser.consume('[');
     parser.valueSpace();
     foreach (index; 0 .. count)
@@ -2907,7 +2905,7 @@ private void skipValue(ref TomlParser parser, size_t depth)
         bool owned;
         decodeStringToken(parser, &value, &owned);
         if (owned)
-            parser.allocator.deallocate(cast(char*) value.ptr, value.length + 1);
+            parser.allocator.deallocateArray(value.ptr[0 .. value.length + 1]);
         return;
     }
     if (parser.peek == '[')
@@ -3082,7 +3080,7 @@ private void decodeStringToken(
     const allocationLength = decodedLength + terminatorLength;
     char* destination;
     if (allocationLength != 0)
-        destination = parser.allocator.tryAllocate!char(allocationLength);
+        destination = parser.allocator.tryAllocateArray!char(allocationLength).ptr;
     if (allocationLength != 0 && destination is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);

@@ -3,8 +3,8 @@ module xtb.os.process;
 nothrow @nogc:
 
 import core.lifetime : move;
-import core.stdc.string : memmove, memset;
-import xtb.core.memory : Allocator, allocate;
+import core.stdc.string : memmove;
+import xtb.core.memory : Allocator, allocateArray, allocateZeroedArray;
 import xtb.core.option : Option, reset, set, some;
 version (XTB_Checked)
     import xtb.core.panic : require;
@@ -856,7 +856,7 @@ version (linux) private ProcessError spawnLinux(
     if (command.arguments_.length > size_t.max - 2)
         return invalidProcessError(ProcessOperation.validate);
     const argvCount = command.arguments_.length + 2;
-    const(char)** argv = scratch.allocator.allocate!(const(char)*)(argvCount);
+    const(char)** argv = scratch.allocator.allocateArray!(const(char)*)(argvCount).ptr;
     argv[0] = argumentZero;
     foreach (i, argument; command.arguments_)
         argv[i + 1] = copyCString(argument, scratch.allocator);
@@ -1151,10 +1151,9 @@ version (linux) private OsError buildEnvironment(
     if (environment.entries.length > size_t.max - inheritedCount - 1)
         return OsError(OsErrorKind.invalidArgument, 0);
     const capacity = inheritedCount + environment.entries.length + 1;
-    const(char)** result = allocator.allocate!(const(char)*)(capacity);
-    bool* emitted = allocator.allocate!bool(environment.entries.length);
-    if (environment.entries.length != 0)
-        memset(emitted, 0, environment.entries.length * bool.sizeof);
+    const(char)** result = allocator.allocateArray!(const(char)*)(capacity).ptr;
+    bool* emitted = allocator
+        .allocateZeroedArray!bool(environment.entries.length).ptr;
 
     size_t length;
     foreach (i; 0 .. inheritedCount)
@@ -1190,7 +1189,7 @@ version (linux) private const(char)* makeEnvironmentEntry(
 ) @system
 {
     const length = entry.name.length + 1 + entry.value.length;
-    char* result = allocator.allocate!char(length + 1);
+    char* result = allocator.allocateArray!char(length + 1).ptr;
     memmove(result, entry.name.ptr, entry.name.length);
     result[entry.name.length] = '=';
     if (entry.value.length != 0)
@@ -1254,7 +1253,7 @@ version (linux) private const(char)* copyCString(
     Allocator* allocator,
 ) @system
 {
-    char* result = allocator.allocate!char(source.length + 1);
+    char* result = allocator.allocateArray!char(source.length + 1).ptr;
     if (source.length != 0)
         memmove(result, source.ptr, source.length);
     result[source.length] = '\0';

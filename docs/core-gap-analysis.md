@@ -26,9 +26,9 @@ Future general-purpose additions are ranked separately in
 
 - intrusive `Allocator` function-pointer ABI with state stored at the allocator
   address;
-- malloc-backed allocation, reallocation, and deallocation;
+- malloc-backed allocation, reallocation, deallocation, initialization, and construction;
 - typed and byte-count allocation APIs;
-- typed element-count reallocation;
+- typed slice-based array allocation and POD reallocation;
 - byte-zeroed allocation constrained to POD element types;
 - fallible and panicking variants;
 - overflow, alignment, and old-allocation validation;

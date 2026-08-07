@@ -596,10 +596,10 @@ private void testSharedPolicies() nothrow @nogc
     {
         StringAdapterDocument stringAdapted;
         error = readJson("{\"state\":\"en\\u0061bled\"}",
-            adapterAllocator.handle, &stringAdapted);
+            adapterAllocator.allocator, &stringAdapted);
         assert(error.ok);
         assert(stringAdapted.state.enabled);
-        error = readToml("state = \"disabled\"", adapterAllocator.handle,
+        error = readToml("state = \"disabled\"", adapterAllocator.allocator,
             &stringAdapted);
         assert(error.ok);
         assert(!stringAdapted.state.enabled);
@@ -962,7 +962,7 @@ private void testJsonAllocationFailures() nothrow @nogc
             mallocAllocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!OptionalDocument decoded;
-        SerdeError error = readJson(input, allocator.handle, &decoded);
+        SerdeError error = readJson(input, allocator.allocator, &decoded);
         if (error.ok)
         {
             assert(decoded.value.child.label.equal("allocated"));
@@ -985,7 +985,7 @@ private void testJsonAllocationFailures() nothrow @nogc
     InstrumentedAllocator defaultAllocator = InstrumentedAllocator.create(
         mallocAllocator(), defaultRecords[]);
     Deserialized!StaticInitializer initialized;
-    SerdeError error = readJson("{}", defaultAllocator.handle, &initialized);
+    SerdeError error = readJson("{}", defaultAllocator.allocator, &initialized);
     assert(error.ok);
     assert(initialized.value.text.equal("static storage"));
     initialized.deinit();
@@ -993,7 +993,7 @@ private void testJsonAllocationFailures() nothrow @nogc
     assert(defaultAllocator.stats.invalidCalls == 0);
 
     Deserialized!AlignedDocument aligned;
-    error = readJson("{\"value\":7}", defaultAllocator.handle, &aligned);
+    error = readJson("{\"value\":7}", defaultAllocator.allocator, &aligned);
     assert(error.ok);
     assert((cast(size_t) aligned.pointer & 63) == 0);
     aligned.deinit();
@@ -1140,7 +1140,7 @@ private void testTomlAllocationFailures() nothrow @nogc
             mallocAllocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!TomlDocument decoded;
-        SerdeError error = readToml(input, allocator.handle, &decoded);
+        SerdeError error = readToml(input, allocator.allocator, &decoded);
         if (error.ok)
         {
             decoded.deinit();
@@ -1213,7 +1213,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         mallocAllocator(), records[]);
     {
         OwnedOptionalValues value;
-        SerdeError error = readJson(jsonInput, allocator.handle, &value);
+        SerdeError error = readJson(jsonInput, allocator.allocator, &value);
         assert(error.ok);
         assert(value.title.isNone);
         assert(value.endpoint.isSome);
@@ -1221,11 +1221,11 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         assert(value.endpoint.value.labels[0] == "tls");
         assert(value.revision.value == 3);
 
-        StringBuf title = StringBuf.fromString(allocator.handle, "release");
+        StringBuf title = StringBuf.fromString(allocator.allocator, "release");
         value.title.set(move(title));
         value.endpoint.value.hostName.append(".test");
 
-        StringBuf encoded = StringBuf.create(allocator.handle);
+        StringBuf encoded = StringBuf.create(allocator.allocator);
         Writer writer = Writer.fromSink(&bufferSink, &encoded);
         error = writeJson(writer, value);
         assert(error.ok);
@@ -1235,7 +1235,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
                 "\"labels\":[\"tls\"]},\"revision\":3," ~
                 "\"explicit_toggle\":true}");
 
-        error = readToml(tomlInput, allocator.handle, &value);
+        error = readToml(tomlInput, allocator.allocator, &value);
         assert(error.ok);
         assert(value.title.value == "scheduler");
         assert(value.endpoint.isSome);
@@ -1255,7 +1255,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         failureAllocator.failAfter(allowed);
         {
             OwnedOptionalValues value;
-            SerdeError error = readJson(jsonInput, failureAllocator.handle, &value);
+            SerdeError error = readJson(jsonInput, failureAllocator.allocator, &value);
             if (error.ok)
                 reachedSuccess = true;
             else
@@ -1372,13 +1372,13 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
         mallocAllocator(), records[]);
     OwnedDocument document;
-    document.applicationName = StringBuf.fromString(allocator.handle, "preserved");
+    document.applicationName = StringBuf.fromString(allocator.allocator, "preserved");
 
     SerdeError error = readJson(
         "{\"application_name\":\"replacement\"," ~
             "\"primary_endpoint\":{\"host_name\":\"partial\"}," ~
             "\"replica_endpoints\":[{\"host_name\":7}]}",
-        allocator.handle,
+        allocator.allocator,
         &document,
     );
     assert(error.kind == SerdeErrorKind.typeMismatch);
@@ -1388,7 +1388,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
         "application_name = \"replacement\"\n" ~
             "primary_endpoint = { host_name = \"partial\" }\n" ~
             "replica_endpoints = [7]\n",
-        allocator.handle,
+        allocator.allocator,
         &document,
     );
     assert(error.kind == SerdeErrorKind.typeMismatch);
@@ -1396,17 +1396,17 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
 
     error = readJson(
         "{\"application_name\":\"replacement succeeded\"}",
-        allocator.handle,
+        allocator.allocator,
         &document,
     );
     assert(error.ok);
     assert(document.applicationName == "replacement succeeded");
-    assert(document.primaryEndpoint.hostName.allocator is allocator.handle);
-    assert(document.featureFlags.allocator is allocator.handle);
-    assert(document.description.allocator is allocator.handle);
-    assert(document.experiments.allocator is allocator.handle);
+    assert(document.primaryEndpoint.hostName.allocator is allocator.allocator);
+    assert(document.featureFlags.allocator is allocator.allocator);
+    assert(document.description.allocator is allocator.allocator);
+    assert(document.experiments.allocator is allocator.allocator);
     document.primaryEndpoint.hostName.append("initialized after decode");
-    StringBuf lateFlag = StringBuf.fromString(allocator.handle, "late");
+    StringBuf lateFlag = StringBuf.fromString(allocator.allocator, "late");
     document.featureFlags.append(move(lateFlag));
     assert(document.primaryEndpoint.hostName ==
             "initialized after decode");
@@ -1433,7 +1433,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
         allocator.failAfter(allowed);
         {
             OwnedDocument document;
-            SerdeError error = readJson(input, allocator.handle, &document);
+            SerdeError error = readJson(input, allocator.allocator, &document);
             if (error.ok)
             {
                 assert(document.applicationName == "owned");
@@ -1464,7 +1464,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
         allocator.failAfter(allowed);
         {
             OwnedDocument document;
-            SerdeError error = readToml(tomlInput, allocator.handle, &document);
+            SerdeError error = readToml(tomlInput, allocator.allocator, &document);
             if (error.ok)
             {
                 assert(document.applicationName == "owned");
@@ -1570,7 +1570,7 @@ private void testJsonTopLevelValues() nothrow @nogc
             mallocAllocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!(int[]) allocatedValues;
-        error = readJson("[1,2,3]", allocator.handle, &allocatedValues);
+        error = readJson("[1,2,3]", allocator.allocator, &allocatedValues);
         if (error.ok)
         {
             assert(allocatedValues.value.length == 3);
@@ -1694,7 +1694,7 @@ private void testJsonHashMaps() nothrow @nogc
         error = readJson(
             "{\"values\":[{\"first\":1},{\"second\":2}]," ~
                 "\"pointer\":{\"third\":3}}",
-            allocator.handle, &allocatedContainers);
+            allocator.allocator, &allocatedContainers);
         if (error.ok)
         {
             allocatedContainers.deinit();
@@ -1720,7 +1720,7 @@ private void testJsonHashMaps() nothrow @nogc
             mallocAllocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!(HashMap!(String, int)) allocated;
-        error = readJson("{\"one\":1,\"two\":2}", allocator.handle,
+        error = readJson("{\"one\":1,\"two\":2}", allocator.allocator,
             &allocated);
         if (error.ok)
         {
@@ -1853,7 +1853,7 @@ private void testTomlHashMaps() nothrow @nogc
         error = readToml(
             "values = [{ first = 1 }, { second = 2 }]\n" ~
                 "pointer = { third = 3 }\n",
-            allocator.handle, &allocatedContainers);
+            allocator.allocator, &allocatedContainers);
         if (error.ok)
         {
             allocatedContainers.deinit();
@@ -1879,7 +1879,7 @@ private void testTomlHashMaps() nothrow @nogc
             mallocAllocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!(HashMap!(String, int)) allocated;
-        error = readToml("one = 1\ntwo = 2\n", allocator.handle,
+        error = readToml("one = 1\ntwo = 2\n", allocator.allocator,
             &allocated);
         if (error.ok)
         {
@@ -2024,7 +2024,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
         StringHashMap!int allocated;
         error = readJson(
             "{\"one\":1,\"two\":2}",
-            allocator.handle,
+            allocator.allocator,
             &allocated,
         );
         if (error.ok)
@@ -2052,7 +2052,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
         StringHashMap!int allocated;
         error = readToml(
             "one = 1\ntwo = 2\n",
-            allocator.handle,
+            allocator.allocator,
             &allocated,
         );
         if (error.ok)

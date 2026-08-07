@@ -743,9 +743,9 @@ unittest
         sourceRecords[],
     );
 
-    StringHashSet values = StringHashSet.create(setAllocator.handle);
+    StringHashSet values = StringHashSet.create(setAllocator.allocator);
     OwnedString retained = OwnedString.fromString(
-        sourceAllocator.handle,
+        sourceAllocator.allocator,
         "retained",
     );
 

@@ -638,7 +638,7 @@ version (linux) private void runPipelineIntegration(
         const error = spawnPipeline(
             commands[],
             PipelineOptions.init,
-            failing.handle,
+            failing.allocator,
             &pipeline,
         );
         assert(error.os.kind == OsErrorKind.resourceExhausted);
@@ -722,7 +722,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(close(&iterator).succeeded);
     size_t walked;
     Arena walkArena = Arena.create(mallocAllocator(), 256);
-    assert(walkDirectory(rootPath, walkArena.allocatorHandle, &countEntry, &walked).succeeded);
+    assert(walkDirectory(rootPath, walkArena.allocator, &countEntry, &walked).succeeded);
     assert(walked == 2);
 
     bool exists;

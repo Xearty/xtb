@@ -1088,14 +1088,14 @@ unittest
 unittest
 {
     import xtb.core.memory : mallocAllocator;
-    Allocator* allocatorHandle = mallocAllocator();
+    Allocator* allocator = mallocAllocator();
     StringHashMapUnmanaged!int values;
-    StringBuf source = StringBuf.fromString(allocatorHandle, "unmanaged");
+    StringBuf source = StringBuf.fromString(allocator, "unmanaged");
     source.shrinkToFit();
     const sourcePointer = source.view.ptr;
     int value = 42;
 
-    assert(values.tryAddMove(allocatorHandle, &source, &value) ==
+    assert(values.tryAddMove(allocator, &source, &value) ==
         AddStatus.inserted);
     assert(source.allocator is null);
     StringHashMapUnmanaged!int* valuesPointer = &values;
@@ -1109,7 +1109,7 @@ unittest
     assert(constValuesPointer.length == 1);
     assert(constValuesPointer.contains("unmanaged"));
 
-    valuesPointer.deinit(allocatorHandle);
+    valuesPointer.deinit(allocator);
 }
 
 unittest
@@ -1127,8 +1127,8 @@ unittest
         foreignRecords[],
     );
 
-    StringHashMap!int values = StringHashMap!int.create(mapAllocator.handle);
-    StringBuf exact = StringBuf.fromString(mapAllocator.handle, "stable");
+    StringHashMap!int values = StringHashMap!int.create(mapAllocator.allocator);
+    StringBuf exact = StringBuf.fromString(mapAllocator.allocator, "stable");
     const(char)* exactPointer;
     {
             exact.shrinkToFit();
@@ -1162,7 +1162,7 @@ unittest
     assert(stablePointer is exactPointer);
 
     OwnedString foreign = OwnedString.fromString(
-        foreignAllocator.handle,
+        foreignAllocator.allocator,
         "foreign",
     );
     int foreignValue = 10;
@@ -1183,7 +1183,7 @@ unittest
     assert(foreignStoredPointer !is null);
 
     OwnedString replacement = OwnedString.fromString(
-        foreignAllocator.handle,
+        foreignAllocator.allocator,
         "foreign",
     );
     int replacementValue = 20;
@@ -1203,7 +1203,7 @@ unittest
     }
 
     OwnedString duplicate = OwnedString.fromString(
-        foreignAllocator.handle,
+        foreignAllocator.allocator,
         "foreign",
     );
     int duplicateValue = 30;
@@ -1234,9 +1234,9 @@ unittest
         retainedRecords[],
     );
     StringHashMap!int failing = StringHashMap!int.create(
-        failedMapAllocator.handle);
+        failedMapAllocator.allocator);
     OwnedString retained = OwnedString.fromString(
-        retainedAllocator.handle,
+        retainedAllocator.allocator,
         "retained",
     );
     int retainedValue = 7;

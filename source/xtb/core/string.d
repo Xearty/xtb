@@ -10,7 +10,7 @@ import core.lifetime : move;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
 import xtb.core.array;
-import xtb.core.memory : Allocator, allocate, tryAllocate;
+import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.hash : hashValue;
 import xtb.core.panic : panic;
 version (XTB_Checked)
@@ -281,7 +281,7 @@ bool tryCopy(String value, Allocator* allocator, String* output)
         require(output !is null, "String output pointer is null");
     if (value.length == size_t.max)
         return false;
-    char* destination = allocator.tryAllocate!char(value.length + 1);
+    char* destination = allocator.tryAllocateArray!char(value.length + 1).ptr;
     if (destination is null)
         return false;
     if (value.length != 0)
@@ -313,7 +313,7 @@ bool tryConcat(
     const length = left.length + right.length;
     if (length == size_t.max)
         return false;
-    char* destination = allocator.tryAllocate!char(length + 1);
+    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
     if (destination is null)
         return false;
     if (left.length != 0)
@@ -370,7 +370,7 @@ bool tryReplace(
 
     if (length == size_t.max)
         return false;
-    char* destination = allocator.tryAllocate!char(length + 1);
+    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
     if (destination is null)
         return false;
     size_t sourceOffset;
@@ -433,7 +433,7 @@ bool tryJoin(
     if (length == size_t.max)
         return false;
 
-    char* destination = allocator.tryAllocate!char(length + 1);
+    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
     if (destination is null)
         return false;
     size_t offset;
@@ -509,7 +509,7 @@ bool tryEscape(String value, Allocator* allocator, String* output)
     const length = value.length + escapedCount;
     if (length == size_t.max)
         return false;
-    char* destination = allocator.tryAllocate!char(length + 1);
+    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
     if (destination is null)
         return false;
     size_t offset;
@@ -1833,16 +1833,16 @@ unittest
 
     String escaped = "a\n\t\\b".escape(mallocAllocator());
     assert(escaped.equal("a\\n\\t\\\\b"));
-    mallocAllocator().deallocate(cast(void*) escaped.ptr, escaped.length + 1);
+    mallocAllocator().deallocateArray(escaped.ptr[0 .. escaped.length + 1]);
 
     String replaced = "one two one".replace("one", "1", mallocAllocator());
     assert(replaced.equal("1 two 1"));
-    mallocAllocator().deallocate(cast(void*) replaced.ptr, replaced.length + 1);
+    mallocAllocator().deallocateArray(replaced.ptr[0 .. replaced.length + 1]);
 
     String[3] parts = ["a", "b", "c"];
     String joined = parts[].join("/", mallocAllocator());
     assert(joined.equal("a/b/c"));
-    mallocAllocator().deallocate(cast(void*) joined.ptr, joined.length + 1);
+    mallocAllocator().deallocateArray(joined.ptr[0 .. joined.length + 1]);
 
     Array!String tokens = "a::b::".split("::", mallocAllocator());
     assert(tokens.length == 3);
@@ -1936,18 +1936,18 @@ unittest
     );
     failing.failAfter(0);
     String failedOutput = "unchanged";
-    assert(!"copy".tryCopy(failing.handle, &failedOutput));
+    assert(!"copy".tryCopy(failing.allocator, &failedOutput));
     assert(failedOutput.equal("unchanged"));
 
     StringBuf failedBytes;
     assert(!StringBuf.tryFromBytesUnchecked(
-            failing.handle,
+            failing.allocator,
             encoded[],
             &failedBytes,
     ));
     assert(failedBytes.empty);
 
-    StringBuf failedScalar = StringBuf.create(failing.handle);
+    StringBuf failedScalar = StringBuf.create(failing.allocator);
     assert(!failedScalar.tryAppend(cast(dchar) 0x1f642));
     assert(failedScalar.empty && failing.clean);
 
@@ -1995,10 +1995,10 @@ unittest
     );
 
     {
-        StringBuf buffer = StringBuf.fromString(tracked.handle, "alpha");
+        StringBuf buffer = StringBuf.fromString(tracked.allocator, "alpha");
         StringBuf.Released released = buffer.release();
         assert(buffer.allocator is null && buffer.empty);
-        assert(released.allocator is tracked.handle);
+        assert(released.allocator is tracked.allocator);
         assert(released.storage.view == "alpha");
 
         released.storage.append(released.allocator, " beta");
@@ -2007,24 +2007,24 @@ unittest
     assert(tracked.clean);
 
     {
-        StringBuf source = StringBuf.fromString(tracked.handle, "adopted");
+        StringBuf source = StringBuf.fromString(tracked.allocator, "adopted");
         StringBuf.Released released = source.release();
         StringBuf adopted = StringBuf.adopt(&released);
 
         assert(source.allocator is null && source.empty);
         assert(released.allocator is null && released.storage.empty);
-        assert(adopted.allocator is tracked.handle);
+        assert(adopted.allocator is tracked.allocator);
         assert(adopted.view == "adopted");
     }
     assert(tracked.clean);
 
     {
-        StringBuf source = StringBuf.fromString(tracked.handle, "raw");
+        StringBuf source = StringBuf.fromString(tracked.allocator, "raw");
         StringBuf.Released released = source.release();
         Allocator* allocator;
         StringBufUnmanaged storage = released.extract(&allocator);
 
-        assert(allocator is tracked.handle);
+        assert(allocator is tracked.allocator);
         assert(released.allocator is null && released.storage.empty);
         storage.append(allocator, " storage");
         assert(storage.view == "raw storage");
@@ -2049,30 +2049,30 @@ unittest
         unmanagedRecords[],
     );
 
-    StringBuf managed = StringBuf.create(managedAllocator.handle);
+    StringBuf managed = StringBuf.create(managedAllocator.allocator);
     StringBufUnmanaged unmanaged;
 
     assert(managed.tryAppend("alpha"));
-    assert(unmanaged.tryAppend(unmanagedAllocator.handle, "alpha"));
+    assert(unmanaged.tryAppend(unmanagedAllocator.allocator, "alpha"));
     assert(managed.tryAppend(cast(dchar) 0x1f642));
     assert(unmanaged.tryAppend(
-        unmanagedAllocator.handle,
+        unmanagedAllocator.allocator,
         cast(dchar) 0x1f642,
     ));
     assert(managed.tryInsert(5, " beta"));
     assert(unmanaged.tryInsert(
-        unmanagedAllocator.handle,
+        unmanagedAllocator.allocator,
         5,
         " beta",
     ));
     assert(managed.tryReplace("alpha", "A"));
     assert(unmanaged.tryReplace(
-        unmanagedAllocator.handle,
+        unmanagedAllocator.allocator,
         "alpha",
         "A",
     ));
     assert(managed.tryReserve(128));
-    assert(unmanaged.tryReserve(unmanagedAllocator.handle, 128));
+    assert(unmanaged.tryReserve(unmanagedAllocator.allocator, 128));
 
     assert(managed.view == unmanaged.view);
     assert(managed.byteLength == unmanaged.byteLength);
@@ -2087,7 +2087,7 @@ unittest
     assert(unmanagedAllocator.stats == unmanagedStatsBeforeClear);
 
     managed.deinit();
-    unmanaged.deinit(unmanagedAllocator.handle);
+    unmanaged.deinit(unmanagedAllocator.allocator);
     assert(managedAllocator.stats == unmanagedAllocator.stats);
     assert(managedAllocator.clean && unmanagedAllocator.clean);
 }
@@ -2146,7 +2146,7 @@ unittest
         mallocAllocator(),
         records[],
     );
-    StringBuf retained = StringBuf.fromString(failing.handle, "small");
+    StringBuf retained = StringBuf.fromString(failing.allocator, "small");
     failing.failAfter(0);
     assert(!retained.tryAssign(
         "this replacement is intentionally larger than the current capacity",

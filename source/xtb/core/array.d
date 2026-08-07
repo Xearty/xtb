@@ -5,7 +5,8 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, move, moveEmplace;
 import core.stdc.string : memmove;
-import xtb.core.memory : Allocator, deallocate, tryAllocate, tryReallocate;
+import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
+    tryReallocateArray;
 import xtb.core.panic : panic;
 version (XTB_Checked)
     import xtb.core.panic : require;
@@ -201,7 +202,7 @@ public:
             requireValidAllocator(allocator);
         destroyElements(data_, length_);
         if (capacity_ != 0)
-            allocator.deallocate(data_, capacity_);
+            allocator.deallocateArray(data_[0 .. capacity_]);
         this = ArrayUnmanaged.init;
     }
 
@@ -211,7 +212,7 @@ public:
             requireValidAllocator(allocator);
         destroyElements(data_, length_);
         if (capacity_ != 0)
-            allocator.deallocate(data_, capacity_);
+            allocator.deallocateArray(data_[0 .. capacity_]);
         data_ = null;
         length_ = 0;
         capacity_ = 0;
@@ -642,24 +643,22 @@ private:
 
         static if (__traits(isPOD, T))
         {
-            void* replacement = allocator.tryReallocate(
-                capacity * T.sizeof,
-                data_,
-                capacity_ * T.sizeof,
-                T.alignof,
+            T[] replacement = allocator.tryReallocateArray(
+                data_[0 .. capacity_],
+                capacity,
             );
-            if (capacity != 0 && replacement is null)
+            if (capacity != 0 && replacement.ptr is null)
                 return false;
-            data_ = cast(T*) replacement;
+            data_ = replacement.ptr;
         }
         else
         {
-            T* replacement = allocator.tryAllocate!T(capacity);
+            T* replacement = allocator.tryAllocateArray!T(capacity).ptr;
             if (capacity != 0 && replacement is null)
                 return false;
             foreach (i; 0 .. length_)
                 constructMove(replacement + i, data_[i]);
-            allocator.deallocate(data_, capacity_);
+            allocator.deallocateArray(data_[0 .. capacity_]);
             data_ = replacement;
         }
         capacity_ = capacity;
@@ -1056,7 +1055,7 @@ unittest
         mallocAllocator(),
         records[],
     );
-    Array!int fallible = Array!int.withCapacity(tracked.handle, 1);
+    Array!int fallible = Array!int.withCapacity(tracked.allocator, 1);
     while (fallible.length < fallible.capacity)
         fallible.appendAssumeCapacity(42);
     const previousLength = fallible.length;
@@ -1147,8 +1146,8 @@ unittest
         mallocAllocator(),
         records[],
     );
-    Array!(Array!int) arrays = Array!(Array!int).create(tracked.handle);
-    Array!int child = Array!int.create(tracked.handle);
+    Array!(Array!int) arrays = Array!(Array!int).create(tracked.allocator);
+    Array!int child = Array!int.create(tracked.allocator);
     child.append(42);
     arrays.append(move(child));
     assert(arrays.length == 1);
@@ -1204,14 +1203,14 @@ unittest
     );
 
     {
-        Array!int values = Array!int.withCapacity(tracked.handle, 2);
+        Array!int values = Array!int.withCapacity(tracked.allocator, 2);
         values.append(10);
         values.append(20);
 
         Array!int.Released released = values.release();
         assert(values.allocator is null);
         assert(values.empty && values.capacity == 0);
-        assert(released.allocator is tracked.handle);
+        assert(released.allocator is tracked.allocator);
         assert(released.storage.slice == [10, 20]);
 
         appendReleasedValue(
@@ -1225,7 +1224,7 @@ unittest
 
     {
         Array!int source = Array!int.fromSlice(
-            tracked.handle,
+            tracked.allocator,
             [1, 2, 3],
         );
         Array!int.Released released = source.release();
@@ -1234,21 +1233,21 @@ unittest
         assert(source.allocator is null && source.empty);
         assert(released.allocator is null);
         assert(released.storage.empty);
-        assert(adopted.allocator is tracked.handle);
+        assert(adopted.allocator is tracked.allocator);
         assert(adopted.slice == [1, 2, 3]);
     }
     assert(tracked.clean);
 
     {
         Array!int source = Array!int.fromSlice(
-            tracked.handle,
+            tracked.allocator,
             [4, 5],
         );
         Array!int.Released released = source.release();
 
         Allocator* allocator;
         ArrayUnmanaged!int storage = released.extract(&allocator);
-        assert(allocator is tracked.handle);
+        assert(allocator is tracked.allocator);
         assert(released.allocator is null);
         assert(released.storage.empty);
 
@@ -1275,28 +1274,28 @@ unittest
         unmanagedRecords[],
     );
 
-    Array!int managed = Array!int.create(managedAllocator.handle);
+    Array!int managed = Array!int.create(managedAllocator.allocator);
     ArrayUnmanaged!int unmanaged;
 
     foreach (value; 0 .. 96)
     {
         assert(managed.tryAppend(value));
-        assert(unmanaged.tryAppend(unmanagedAllocator.handle, value));
+        assert(unmanaged.tryAppend(unmanagedAllocator.allocator, value));
     }
 
     int[4] inserted = [700, 701, 702, 703];
     assert(managed.tryInsert(17, inserted[]));
     assert(unmanaged.tryInsert(
-        unmanagedAllocator.handle,
+        unmanagedAllocator.allocator,
         17,
         inserted[],
     ));
     managed.removeRange(9, 11);
     unmanaged.removeRange(9, 11);
     assert(managed.tryReserve(256));
-    assert(unmanaged.tryReserve(unmanagedAllocator.handle, 256));
+    assert(unmanaged.tryReserve(unmanagedAllocator.allocator, 256));
     assert(managed.tryShrinkToFit());
-    assert(unmanaged.tryShrinkToFit(unmanagedAllocator.handle));
+    assert(unmanaged.tryShrinkToFit(unmanagedAllocator.allocator));
 
     assert(managed.slice == unmanaged.slice);
     assert(managed.length == unmanaged.length);
@@ -1311,7 +1310,7 @@ unittest
     assert(unmanagedAllocator.stats == unmanagedStatsBeforeClear);
 
     managed.deinit();
-    unmanaged.deinit(unmanagedAllocator.handle);
+    unmanaged.deinit(unmanagedAllocator.allocator);
     assert(managedAllocator.stats == unmanagedAllocator.stats);
     assert(managedAllocator.clean && unmanagedAllocator.clean);
 }
@@ -1347,7 +1346,7 @@ unittest
     destructionOrder[] = 0;
     {
         Array!TrackedElement values =
-            Array!TrackedElement.create(tracked.handle);
+            Array!TrackedElement.create(tracked.allocator);
         values.append(TrackedElement(91));
         auto released = values.release();
         assert(values.allocator is null && values.empty);

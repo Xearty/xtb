@@ -2,13 +2,14 @@ module xtb.core.arena;
 
 nothrow @nogc:
 
+import core.lifetime : emplace, forward;
 import core.stdc.string : memcpy, memset;
 import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 version (XTB_Checked)
     import xtb.core.panic : require;
 import xtb.core.print : Writer;
-import xtb.core.numeric : addOverflows;
+import xtb.core.numeric : addOverflows, multiplyOverflows;
 
 private struct ArenaChunk
 {
@@ -53,7 +54,7 @@ struct Arena
 {
 nothrow @nogc:
 
-    Allocator allocator;
+    private Allocator allocator_;
     private Allocator* backingAllocator;
     private ArenaChunk* firstChunk;
     private ArenaChunk* currentChunk;
@@ -85,15 +86,15 @@ nothrow @nogc:
         }
 
         Arena result;
-        result.allocator = &arenaAllocatorProcedure;
+        result.allocator_ = &arenaAllocatorProcedure;
         result.backingAllocator = backingAllocator;
         result.defaultChunkSize = defaultChunkSize;
         return result;
     }
 
-    Allocator* allocatorHandle() return
+    Allocator* allocator() return
     {
-        return &allocator;
+        return &allocator_;
     }
 
     void* allocate(size_t size, size_t alignment = (void*).alignof)
@@ -137,6 +138,40 @@ nothrow @nogc:
         return result;
     }
 
+    T* tryAllocate(T)()
+    {
+        return cast(T*) tryAllocate(T.sizeof, T.alignof);
+    }
+
+    T* allocate(T)()
+    {
+        return cast(T*) allocate(T.sizeof, T.alignof);
+    }
+
+    T[] tryAllocateArray(T)(size_t length)
+    {
+        if (multiplyOverflows(T.sizeof, length))
+            return null;
+        T* data = cast(T*) tryAllocate(
+            T.sizeof * length,
+            T.alignof,
+        );
+        if (length != 0 && data is null)
+            return null;
+        return data[0 .. length];
+    }
+
+    T[] allocateArray(T)(size_t length)
+    {
+        if (multiplyOverflows(T.sizeof, length))
+            panic("arena allocation size overflow");
+        T* data = cast(T*) allocate(
+            T.sizeof * length,
+            T.alignof,
+        );
+        return data[0 .. length];
+    }
+
     void* allocateZeroed(size_t size, size_t alignment = (void*).alignof)
 
     {
@@ -152,6 +187,83 @@ nothrow @nogc:
         void* result = tryAllocate(size, alignment);
         if (result !is null)
             memset(result, 0, size);
+        return result;
+    }
+
+    T* tryAllocateZeroed(T)() if (__traits(isPOD, T))
+    {
+        T* result = tryAllocate!T();
+        if (result !is null)
+            memset(result, 0, T.sizeof);
+        return result;
+    }
+
+    T* allocateZeroed(T)() if (__traits(isPOD, T))
+    {
+        T* result = allocate!T();
+        memset(result, 0, T.sizeof);
+        return result;
+    }
+
+    T[] tryAllocateZeroedArray(T)(size_t length) if (__traits(isPOD, T))
+    {
+        T[] result = tryAllocateArray!T(length);
+        if (result.ptr !is null)
+            memset(result.ptr, 0, T.sizeof * result.length);
+        return result;
+    }
+
+    T[] allocateZeroedArray(T)(size_t length) if (__traits(isPOD, T))
+    {
+        T[] result = allocateArray!T(length);
+        if (result.ptr !is null)
+            memset(result.ptr, 0, T.sizeof * result.length);
+        return result;
+    }
+
+    T* tryAllocateInit(T)()
+    {
+        T* result = tryAllocate!T();
+        if (result !is null)
+            emplace(result);
+        return result;
+    }
+
+    T* allocateInit(T)()
+    {
+        T* result = allocate!T();
+        emplace(result);
+        return result;
+    }
+
+    T[] tryAllocateInitArray(T)(size_t length)
+    {
+        T[] result = tryAllocateArray!T(length);
+        foreach (index; 0 .. result.length)
+            emplace(result.ptr + index);
+        return result;
+    }
+
+    T[] allocateInitArray(T)(size_t length)
+    {
+        T[] result = allocateArray!T(length);
+        foreach (index; 0 .. result.length)
+            emplace(result.ptr + index);
+        return result;
+    }
+
+    T* tryCreate(T, Args...)(auto ref Args arguments)
+    {
+        T* result = tryAllocate!T();
+        if (result !is null)
+            emplace(result, forward!arguments);
+        return result;
+    }
+
+    T* create(T, Args...)(auto ref Args arguments)
+    {
+        T* result = allocate!T();
+        emplace(result, forward!arguments);
         return result;
     }
 
@@ -182,7 +294,7 @@ nothrow @nogc:
             chunk = next;
         }
 
-        allocator = null;
+        allocator_ = null;
         backingAllocator = null;
         firstChunk = null;
         currentChunk = null;
@@ -347,7 +459,7 @@ nothrow @nogc:
     }
 }
 
-static assert(Arena.allocator.offsetof == 0);
+static assert(Arena.allocator_.offsetof == 0);
 
 private bool isPowerOfTwo(size_t value) pure @safe
 {
@@ -427,7 +539,7 @@ nothrow @nogc:
 
     Allocator* allocator() return
     {
-        return arena().allocatorHandle();
+        return arena().allocator();
     }
 
     bool active() const pure @safe
@@ -515,7 +627,7 @@ unittest
     import xtb.core.memory : mallocAllocator;
 
     Arena arena = Arena.create(mallocAllocator(), 64);
-    int* persistent = cast(int*) arena.allocate(int.sizeof, int.alignof);
+    int* persistent = arena.allocate!int();
     *persistent = 42;
 
     TempArena outer = (&arena).push();
@@ -529,6 +641,52 @@ unittest
     assert(arena.stats.usedBytes >= int.sizeof);
     assert(arena.stats.peakUsedBytes >= arena.stats.usedBytes);
     assert(arena.stats.chunkCount >= 1);
+
+    int* typed = arena.allocate!int();
+    *typed = 17;
+    assert(*typed == 17);
+
+    int[] typedArray = arena.allocateArray!int(4);
+    assert(typedArray.length == 4);
+    typedArray[3] = 23;
+    assert(typedArray[3] == 23);
+
+    struct Initialized
+    {
+        uint value = 0xABCD_EF01;
+    }
+
+    Initialized* initialized = arena.allocateInit!Initialized();
+    assert(initialized.value == Initialized.init.value);
+    Initialized[] initializedArray = arena.allocateInitArray!Initialized(2);
+    assert(initializedArray.length == 2);
+    assert(initializedArray[1].value == Initialized.init.value);
+
+    Initialized* zeroed = arena.allocateZeroed!Initialized();
+    assert(zeroed.value == 0);
+    Initialized[] zeroedArray = arena.allocateZeroedArray!Initialized(2);
+    assert(zeroedArray[1].value == 0);
+
+    struct Constructed
+    {
+    nothrow @nogc:
+
+        int value;
+
+        this(int value)
+        {
+            this.value = value;
+        }
+    }
+
+    Constructed* constructed = arena.create!Constructed(91);
+    assert(constructed.value == 91);
+
+    import xtb.core.memory : allocateInit;
+    Allocator* arenaAllocator = arena.allocator;
+    int* throughAllocator = arenaAllocator.allocateInit!int();
+    assert(*throughAllocator == int.init);
+
     arena.setRewindPoisoning(true);
     TempArena poisoned = (&arena).push();
     ubyte* bytes = cast(ubyte*) arena.allocate(8, 1);
@@ -539,6 +697,31 @@ unittest
     arena.trim();
     arena.deinit();
 
+    int arenaDestroyed;
+    struct ArenaConstructed
+    {
+    nothrow @nogc:
+
+        int* destroyed;
+
+        this(int* destroyed)
+        {
+            this.destroyed = destroyed;
+        }
+
+        ~this()
+        {
+            ++*destroyed;
+        }
+    }
+
+    Arena lifetimeArena = Arena.create(mallocAllocator(), 64);
+    ArenaConstructed* arenaConstructed = lifetimeArena
+        .create!ArenaConstructed(&arenaDestroyed);
+    assert(arenaConstructed.destroyed is &arenaDestroyed);
+    lifetimeArena.deinit();
+    assert(arenaDestroyed == 0);
+
     import xtb.core.memory : AllocationRecord, InstrumentedAllocator;
 
     AllocationRecord[4] records;
@@ -546,8 +729,12 @@ unittest
         mallocAllocator(), records[],
     );
     failing.failAfter(0);
-    Arena fallible = Arena.create(failing.handle, 64);
+    Arena fallible = Arena.create(failing.allocator, 64);
     assert(fallible.tryAllocate(8, 8) is null);
+    assert(fallible.tryAllocate!int() is null);
+    assert(fallible.tryAllocateArray!int(2).length == 0);
+    assert(fallible.tryAllocateInit!int() is null);
+    assert(fallible.tryCreate!Constructed(4) is null);
     assert(fallible.stats.chunkCount == 0);
     fallible.deinit();
 }
