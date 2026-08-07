@@ -5,16 +5,29 @@ version (XTB_Checked)
 
 nothrow @nogc:
 
-/// Membership state for one intrusive doubly linked list.
+/// One intrusive doubly linked-list membership hook.
+///
+/// A node may contain multiple `ListLink!Node` fields and therefore belong to
+/// multiple lists at the same time. Each individual hook may belong to at most
+/// one list. `XTB_Checked` builds track that per-hook membership and reject
+/// double insertion. The membership flag and `linked` diagnostic accessor do
+/// not exist without `XTB_Checked`, where correct hook ownership is a caller
+/// invariant.
 struct ListLink(Node)
 {
     private Node* previous_;
     private Node* next_;
-    private bool linked_;
 
-    bool linked() const pure @safe
+    version (XTB_Checked)
     {
-        return linked_;
+        private bool linked_;
+
+        /// Whether this hook currently belongs to an intrusive list.
+        /// Available only in checked builds.
+        bool linked() const pure @safe
+        {
+            return linked_;
+        }
     }
 
     Node* previous() return pure
@@ -38,15 +51,27 @@ struct ListLink(Node)
     }
 }
 
-/// Membership state for one intrusive queue or stack.
+/// One intrusive forward-list membership hook used by queues and stacks.
+///
+/// A node may contain multiple `ForwardLink!Node` fields and therefore belong
+/// to multiple intrusive structures at the same time. Each individual hook may
+/// belong to at most one structure. `XTB_Checked` builds track that per-hook
+/// membership and reject double insertion. The membership flag and `linked`
+/// diagnostic accessor do not exist without `XTB_Checked`.
 struct ForwardLink(Node)
 {
     private Node* next_;
-    private bool linked_;
 
-    bool linked() const pure @safe
+    version (XTB_Checked)
     {
-        return linked_;
+        private bool linked_;
+
+        /// Whether this hook currently belongs to an intrusive structure.
+        /// Available only in checked builds.
+        bool linked() const pure @safe
+        {
+            return linked_;
+        }
     }
 
     Node* next() return pure
@@ -68,6 +93,19 @@ private ref ListLink!Node listLinkOf(Node, string member)(Node* node)
 private ref ForwardLink!Node forwardLinkOf(Node, string member)(Node* node)
 {
     return __traits(getMember, *node, member);
+}
+
+version (XTB_Checked)
+{
+    private void requireUnlinked(Node)(ref ListLink!Node link)
+    {
+        require(!link.linked_, "list hook is already linked");
+    }
+
+    private void requireUnlinked(Node)(ref ForwardLink!Node link)
+    {
+        require(!link.linked_, "forward hook is already linked");
+    }
 }
 
 /// Intrusive doubly linked list using `Node.member` as its membership hook.
@@ -124,12 +162,11 @@ struct List(Node, string member = "listLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null list node");
         ref link = listLinkOf!(Node, member)(node);
-        version (XTB_Checked)
-            require(!link.linked_, "list node is already linked");
+        version (XTB_Checked) requireUnlinked(link);
 
         link.previous_ = last_;
         link.next_ = null;
-        link.linked_ = true;
+        version (XTB_Checked) link.linked_ = true;
         if (last_ is null)
             first_ = node;
         else
@@ -142,12 +179,11 @@ struct List(Node, string member = "listLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null list node");
         ref link = listLinkOf!(Node, member)(node);
-        version (XTB_Checked)
-            require(!link.linked_, "list node is already linked");
+        version (XTB_Checked) requireUnlinked(link);
 
         link.previous_ = null;
         link.next_ = first_;
-        link.linked_ = true;
+        version (XTB_Checked) link.linked_ = true;
         if (first_ is null)
             last_ = node;
         else
@@ -162,8 +198,6 @@ struct List(Node, string member = "listLink")
             require(position !is null && node !is null,
                 "cannot insert a null list node");
             require(contains(position), "position is not in this list");
-            require(!listLinkOf!(Node, member)(node).linked_,
-                "list node is already linked");
         }
         if (position is last_)
         {
@@ -173,9 +207,10 @@ struct List(Node, string member = "listLink")
 
         ref positionLink = listLinkOf!(Node, member)(position);
         ref link = listLinkOf!(Node, member)(node);
+        version (XTB_Checked) requireUnlinked(link);
         link.previous_ = position;
         link.next_ = positionLink.next_;
-        link.linked_ = true;
+        version (XTB_Checked) link.linked_ = true;
         listLinkOf!(Node, member)(positionLink.next_).previous_ = node;
         positionLink.next_ = node;
     }
@@ -187,8 +222,6 @@ struct List(Node, string member = "listLink")
             require(position !is null && node !is null,
                 "cannot insert a null list node");
             require(contains(position), "position is not in this list");
-            require(!listLinkOf!(Node, member)(node).linked_,
-                "list node is already linked");
         }
         if (position is first_)
         {
@@ -198,9 +231,10 @@ struct List(Node, string member = "listLink")
 
         ref positionLink = listLinkOf!(Node, member)(position);
         ref link = listLinkOf!(Node, member)(node);
+        version (XTB_Checked) requireUnlinked(link);
         link.next_ = position;
         link.previous_ = positionLink.previous_;
-        link.linked_ = true;
+        version (XTB_Checked) link.linked_ = true;
         listLinkOf!(Node, member)(positionLink.previous_).next_ = node;
         positionLink.previous_ = node;
     }
@@ -336,11 +370,10 @@ struct Queue(Node, string member = "forwardLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null queue node");
         ref link = forwardLinkOf!(Node, member)(node);
-        version (XTB_Checked)
-            require(!link.linked_, "queue node is already linked");
+        version (XTB_Checked) requireUnlinked(link);
 
         link.next_ = null;
-        link.linked_ = true;
+        version (XTB_Checked) link.linked_ = true;
         if (last_ is null)
             first_ = node;
         else
@@ -353,11 +386,10 @@ struct Queue(Node, string member = "forwardLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null queue node");
         ref link = forwardLinkOf!(Node, member)(node);
-        version (XTB_Checked)
-            require(!link.linked_, "queue node is already linked");
+        version (XTB_Checked) requireUnlinked(link);
 
         link.next_ = first_;
-        link.linked_ = true;
+        version (XTB_Checked) link.linked_ = true;
         first_ = node;
         if (last_ is null)
             last_ = node;
@@ -404,11 +436,10 @@ struct Stack(Node, string member = "forwardLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null stack node");
         ref link = forwardLinkOf!(Node, member)(node);
-        version (XTB_Checked)
-            require(!link.linked_, "stack node is already linked");
+        version (XTB_Checked) requireUnlinked(link);
 
         link.next_ = top_;
-        link.linked_ = true;
+        version (XTB_Checked) link.linked_ = true;
         top_ = node;
     }
 
@@ -446,7 +477,7 @@ unittest
     assert(list.first.value == 1);
     assert(list.last.value == 2 && list.first.listLink.next is &middle);
     assert(list.popFront() is &first);
-    assert(!first.listLink.linked);
+    version (XTB_Checked) assert(!first.listLink.linked);
     assert(list.popBack() is &second);
     list.remove(&middle);
     assert(list.empty);
@@ -479,7 +510,7 @@ unittest
     List!(MultiListNode, "secondLink") secondList;
     firstList.pushBack(&sharedNode);
     secondList.pushBack(&sharedNode);
-    assert(sharedNode.firstLink.linked && sharedNode.secondLink.linked);
+    version (XTB_Checked) assert(sharedNode.firstLink.linked && sharedNode.secondLink.linked);
     firstList.popFront();
     secondList.popFront();
 
@@ -504,4 +535,188 @@ unittest
     stack.push(&two);
     assert(stack.pop() is &two);
     assert(stack.pop() is &one && stack.empty);
+}
+
+private struct IntrusiveLinkLayoutProbe
+{
+}
+
+version (XTB_Checked)
+{
+    static assert(__traits(hasMember, ListLink!IntrusiveLinkLayoutProbe, "linked"));
+    static assert(__traits(hasMember, ForwardLink!IntrusiveLinkLayoutProbe, "linked"));
+    static assert(ListLink!IntrusiveLinkLayoutProbe.sizeof > size_t.sizeof * 2);
+    static assert(ForwardLink!IntrusiveLinkLayoutProbe.sizeof > size_t.sizeof);
+}
+else
+{
+    // Unchecked hooks contain structural links only. Membership bookkeeping and
+    // its public diagnostic accessor must contribute zero storage/API surface.
+    static assert(!__traits(hasMember, ListLink!IntrusiveLinkLayoutProbe, "linked"));
+    static assert(!__traits(hasMember, ForwardLink!IntrusiveLinkLayoutProbe, "linked"));
+    static assert(ListLink!IntrusiveLinkLayoutProbe.sizeof == size_t.sizeof * 2);
+    static assert(ForwardLink!IntrusiveLinkLayoutProbe.sizeof == size_t.sizeof);
+}
+
+unittest
+{
+    // Separate hooks are separate memberships. The same node can participate
+    // in multiple lists simultaneously without wrapper allocations.
+    struct Node
+    {
+        int value;
+        ListLink!Node readyLink;
+        ListLink!Node allLink;
+    }
+
+    Node first;
+    first.value = 1;
+    Node second;
+    second.value = 2;
+
+    List!(Node, "readyLink") ready;
+    List!(Node, "allLink") all;
+
+    ready.pushBack(&first);
+    ready.pushBack(&second);
+    all.pushBack(&second);
+    all.pushBack(&first);
+
+    assert(ready.first is &first && ready.last is &second);
+    assert(all.first is &second && all.last is &first);
+    assert(first.readyLink.next is &second);
+    assert(first.allLink.previous is &second);
+    version (XTB_Checked)
+    {
+        assert(first.readyLink.linked);
+        assert(first.allLink.linked);
+        assert(second.readyLink.linked);
+        assert(second.allLink.linked);
+    }
+
+    // Removing one hook must not affect the node's other membership.
+    ready.remove(&first);
+    assert(ready.first is &second && ready.last is &second);
+    assert(all.last is &first);
+    version (XTB_Checked)
+    {
+        assert(!first.readyLink.linked);
+        assert(first.allLink.linked);
+    }
+
+    // A detached hook is immediately reusable.
+    ready.pushFront(&first);
+    assert(ready.first is &first && ready.last is &second);
+    version (XTB_Checked) assert(first.readyLink.linked);
+
+    ready.remove(&first);
+    ready.remove(&second);
+    all.remove(&first);
+    all.remove(&second);
+    version (XTB_Checked)
+    {
+        assert(!first.readyLink.linked && !first.allLink.linked);
+        assert(!second.readyLink.linked && !second.allLink.linked);
+    }
+}
+
+unittest
+{
+    // Forward hooks have the same independent-membership rule. One node may be
+    // queued and stacked at the same time when each structure has its own hook.
+    struct Node
+    {
+        int value;
+        ForwardLink!Node queueLink;
+        ForwardLink!Node stackLink;
+    }
+
+    Node first;
+    first.value = 1;
+    Node second;
+    second.value = 2;
+
+    Queue!(Node, "queueLink") queue;
+    Stack!(Node, "stackLink") stack;
+
+    queue.pushBack(&first);
+    queue.pushBack(&second);
+    stack.push(&first);
+    stack.push(&second);
+
+    assert(queue.first is &first && queue.last is &second);
+    assert(stack.top is &second);
+    version (XTB_Checked)
+    {
+        assert(first.queueLink.linked && first.stackLink.linked);
+        assert(second.queueLink.linked && second.stackLink.linked);
+    }
+
+    assert(queue.popFront() is &first);
+    assert(stack.pop() is &second);
+    version (XTB_Checked)
+    {
+        assert(!first.queueLink.linked);
+        assert(first.stackLink.linked);
+        assert(second.queueLink.linked);
+        assert(!second.stackLink.linked);
+    }
+
+    // Reuse the detached hooks while the independent memberships remain live.
+    queue.pushFront(&first);
+    stack.push(&second);
+    assert(queue.popFront() is &first);
+    assert(queue.popFront() is &second);
+    assert(stack.pop() is &second);
+    assert(stack.pop() is &first);
+    assert(queue.empty && stack.empty);
+}
+
+unittest
+{
+    // Concatenation transfers list ownership without changing per-hook linked
+    // state, and popping from the destination detaches hooks normally.
+    struct Node
+    {
+        int value;
+        ListLink!Node listLink;
+    }
+
+    Node first;
+    first.value = 1;
+    Node second;
+    second.value = 2;
+    Node third;
+    third.value = 3;
+
+    List!Node left;
+    List!Node right;
+    left.pushBack(&first);
+    right.pushBack(&second);
+    right.pushBack(&third);
+    left.concatenate(right);
+
+    assert(right.empty);
+    assert(left.first is &first && left.last is &third);
+    assert(first.listLink.next is &second);
+    assert(second.listLink.previous is &first);
+    assert(second.listLink.next is &third);
+    assert(third.listLink.previous is &second);
+    version (XTB_Checked)
+    {
+        assert(first.listLink.linked);
+        assert(second.listLink.linked);
+        assert(third.listLink.linked);
+    }
+
+    assert(left.popFront() is &first);
+    assert(left.popFront() is &second);
+    assert(left.popFront() is &third);
+    assert(left.empty);
+    version (XTB_Checked)
+    {
+        assert(!first.listLink.linked);
+        assert(!second.listLink.linked);
+        assert(!third.listLink.linked);
+    }
 }

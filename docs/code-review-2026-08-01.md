@@ -165,10 +165,16 @@ second list. Queue and stack have the analogous tail/singleton problem.
 cannot prove that a node is unlinked elsewhere. The searches also turn normal
 pushes into O(n) operations and can loop forever after corruption.
 
-Use a dedicated intrusive hook with owner/debug membership state, or make
+Use a dedicated intrusive hook with owner/checked-build membership state, or make
 unlinked membership a strict caller invariant and remove the misleading runtime
 guarantee. Prefer the hook design for this safety-oriented library. Validate
 link field types and mutability at compile time, not merely member names.
+
+Resolved: intrusive containers use typed per-membership hooks. `XTB_Checked`
+builds keep a per-hook membership flag and reject double insertion, while unchecked builds
+compile that flag and its diagnostic accessor out of the node layout entirely.
+A node can participate in multiple structures simultaneously by providing one
+hook per membership role. See `docs/intrusive-collections.md`.
 
 ### Runtime contracts disappear in release builds
 

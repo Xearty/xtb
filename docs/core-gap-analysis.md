@@ -118,8 +118,9 @@ Future general-purpose additions are ranked separately in
   front/back insertion, insertion before/after a node, removal, front/back pop,
   concatenation, and forward/reverse cursors;
 - typed intrusive queue and stack with independent forward-link hooks;
-- exact singleton membership and transition validation without C++ macro
-  expansion.
+- multiple simultaneous memberships through distinct hooks on the same node;
+- checked-build exact hook-membership validation, with the membership flag and
+  diagnostic accessor compiled out of every unchecked layout.
 
 ### Printing and logging
 
