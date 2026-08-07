@@ -233,6 +233,20 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             second.pushBack(&node);
         }
     version (XTB_Checked)
+        if (cStringEqual(name, "intrusive-forward-list-double-link"))
+        {
+            struct Node
+            {
+                ForwardLink!Node forwardLink;
+            }
+
+            Node node;
+            ForwardList!Node first;
+            ForwardList!Node second;
+            first.pushBack(&node);
+            second.pushBack(&node);
+        }
+    version (XTB_Checked)
         if (cStringEqual(name, "intrusive-forward-double-link"))
         {
             struct Node
@@ -523,6 +537,7 @@ extern (C) int main(int argumentCount, char** arguments)
         version (XTB_Checked)
         {
             expectDeath(arguments[0], "intrusive-list-double-link");
+            expectDeath(arguments[0], "intrusive-forward-list-double-link");
             expectDeath(arguments[0], "intrusive-forward-double-link");
         }
         expectDeath(arguments[0], "cross-thread-pop");

@@ -1,6 +1,6 @@
 # Intrusive collections
 
-XTB's intrusive `List`, `Queue`, and `Stack` store linkage inside caller-owned
+XTB's intrusive `List`, `ForwardList`, `Queue`, and `Stack` store linkage inside caller-owned
 nodes. The containers do not allocate wrapper nodes, do not own node storage,
 and never destroy nodes. A node must outlive every intrusive container that
 currently references one of its hooks.
@@ -17,20 +17,23 @@ struct Task
     ListLink!Task readyLink;
     ListLink!Task allTasksLink;
     ForwardLink!Task timeoutLink;
+    ForwardLink!Task dispatchLink;
 }
 
 List!(Task, "readyLink") ready;
 List!(Task, "allTasksLink") allTasks;
-Queue!(Task, "timeoutLink") timeouts;
+ForwardList!(Task, "timeoutLink") timeouts;
+Queue!(Task, "dispatchLink") dispatch;
 
 Task task;
 ready.pushBack(&task);
 allTasks.pushBack(&task);
 timeouts.pushBack(&task);
+dispatch.pushBack(&task);
 ```
 
-Those three memberships are independent. Removing `task.readyLink` from
-`ready` does not affect `task.allTasksLink` or `task.timeoutLink`.
+Those four memberships are independent. Removing `task.readyLink` from
+`ready` does not affect the other three hooks.
 
 The inverse rule is equally important: **one hook may belong to at most one
 intrusive structure at a time**. Reusing the same hook simultaneously in two
@@ -50,18 +53,71 @@ Containers use a member name at compile time:
 
 ```d
 List!(Task, "readyLink") ready;
-Queue!(Task, "timeoutLink") timeouts;
+ForwardList!(Task, "timeoutLink") timeouts;
+Queue!(Task, "dispatchLink") dispatch;
 ```
 
 The named member must have exactly the expected hook type:
 
 - `List` requires `ListLink!Node`;
-- `Queue` and `Stack` require `ForwardLink!Node`.
+- `ForwardList`, `Queue`, and `Stack` require `ForwardLink!Node`.
 
 The default member names are `listLink` and `forwardLink` respectively.
 Multiple hooks of the same type are intentionally supported; give each role a
 separate field and select it through the container's `member` template
 argument.
+
+## ForwardList, Queue, and Stack
+
+`ForwardList` is XTB's general intrusive singly linked list. Each node contributes
+one `ForwardLink!Node`, while the list header caches both ends:
+
+```text
+ForwardList = first pointer + last pointer
+ForwardLink = next pointer (+ linked_ in XTB_Checked)
+```
+
+Caching `last` costs one pointer per list object, not per node, and makes both
+`pushFront` and `pushBack` O(1). The general API includes:
+
+```d
+ForwardList!Node list;
+list.pushFront(node);
+list.pushBack(node);
+list.insertAfter(position, node);
+Node* removed = list.removeAfter(position);
+Node* first = list.popFront();
+list.concatenate(other);
+auto suffix = list.splitAfter(position);
+auto cursor = list.cursor();
+```
+
+`insertAfter` and `removeAfter` are structurally O(1). In `XTB_Checked` builds,
+XTB first validates that `position` belongs to the list; that diagnostic walk is
+O(n). Unchecked builds omit the validation.
+
+`concatenate` transfers an entire source chain in O(1) and empties the source.
+`splitAfter` detaches the suffix following a node and returns it as another
+`ForwardList`. Neither operation detaches individual hooks, so checked-build
+membership state remains set while the nodes move between list headers.
+
+`Queue` stores a `ForwardList` internally and exposes only the queue-facing end
+operations already supported by XTB (`pushBack`, `pushFront`, and `popFront`),
+plus `first`/`last`. It therefore shares the same two-pointer header and one
+canonical implementation of forward-chain maintenance instead of duplicating
+that logic.
+
+`Stack` deliberately does **not** use `ForwardList`. A stack needs only its top
+pointer, so wrapping a two-pointer list would enlarge every stack object for no
+benefit:
+
+```text
+Queue / ForwardList = two container pointers
+Stack               = one container pointer
+```
+
+All three containers use the same `ForwardLink!Node` hook type and therefore
+support the same independent-hook membership model.
 
 ## Checked-build membership bookkeeping
 
@@ -110,9 +166,10 @@ Removal clears the selected hook back to its default state. In checked builds
 this also clears the membership flag. The node's payload and any other hooks
 are untouched.
 
-`List.concatenate` transfers an entire chain from the source list to the
-destination. It does not detach and reattach individual hooks; their membership
-remains live throughout the transfer. The source container becomes empty.
+`List.concatenate` and `ForwardList.concatenate` transfer an entire chain from
+the source list to the destination. `ForwardList.splitAfter` transfers a suffix
+to a new list header. These operations do not detach and reattach individual
+hooks; membership remains live throughout the transfer.
 
 ## Ownership and copying
 

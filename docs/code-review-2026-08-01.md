@@ -172,7 +172,10 @@ link field types and mutability at compile time, not merely member names.
 
 Resolved: intrusive containers use typed per-membership hooks. `XTB_Checked`
 builds keep a per-hook membership flag and reject double insertion, while unchecked builds
-compile that flag and its diagnostic accessor out of the node layout entirely.
+compile that flag and its diagnostic accessor out of the node layout entirely. A general
+`ForwardList` now owns the singly linked first/last bookkeeping, and `Queue` delegates to
+it rather than maintaining a duplicate forward-chain implementation; `Stack` remains
+separate because it requires only one container pointer.
 A node can participate in multiple structures simultaneously by providing one
 hook per membership role. See `docs/intrusive-collections.md`.
 

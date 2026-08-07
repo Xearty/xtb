@@ -51,7 +51,7 @@ struct ListLink(Node)
     }
 }
 
-/// One intrusive forward-list membership hook used by queues and stacks.
+/// One intrusive forward-list membership hook used by forward lists, queues, and stacks.
 ///
 /// A node may contain multiple `ForwardLink!Node` fields and therefore belong
 /// to multiple intrusive structures at the same time. Each individual hook may
@@ -337,13 +337,17 @@ struct ListCursor(Node, string member)
     }
 }
 
-/// Intrusive FIFO queue using `Node.member` as its membership hook.
-struct Queue(Node, string member = "forwardLink")
+/// General intrusive singly linked list using `Node.member` as its membership hook.
+///
+/// The list stores both its first and last node so insertion at either end is
+/// O(1). `Queue` is implemented as a restricted queue facade over this type;
+/// `Stack` remains separate because it needs only one container pointer.
+struct ForwardList(Node, string member = "forwardLink")
 {
     static assert(__traits(hasMember, Node, member),
-        "Queue node is missing its " ~ member ~ " hook");
+        "ForwardList node is missing its " ~ member ~ " hook");
     static assert(is(typeof(__traits(getMember, Node.init, member)) == ForwardLink!Node),
-        "Queue hook must be ForwardLink!Node");
+        "ForwardList hook must be ForwardLink!Node");
 
     private Node* first_;
     private Node* last_;
@@ -360,15 +364,52 @@ struct Queue(Node, string member = "forwardLink")
         return first_;
     }
 
+    const(Node)* first() const return pure
+    {
+        return first_;
+    }
+
     Node* last() return pure
     {
         return last_;
     }
 
+    const(Node)* last() const return pure
+    {
+        return last_;
+    }
+
+    private bool contains(Node* node)
+    {
+        for (Node* current = first_; current !is null;
+             current = forwardLinkOf!(Node, member)(current).next_)
+        {
+            if (current is node)
+                return true;
+        }
+        return false;
+    }
+
+    /// Inserts `node` at the front in O(1).
+    void pushFront(Node* node)
+    {
+        version (XTB_Checked)
+            require(node !is null, "cannot insert a null forward-list node");
+        ref link = forwardLinkOf!(Node, member)(node);
+        version (XTB_Checked) requireUnlinked(link);
+
+        link.next_ = first_;
+        version (XTB_Checked) link.linked_ = true;
+        first_ = node;
+        if (last_ is null)
+            last_ = node;
+    }
+
+    /// Inserts `node` at the back in O(1).
     void pushBack(Node* node)
     {
         version (XTB_Checked)
-            require(node !is null, "cannot insert a null queue node");
+            require(node !is null, "cannot insert a null forward-list node");
         ref link = forwardLinkOf!(Node, member)(node);
         version (XTB_Checked) requireUnlinked(link);
 
@@ -381,24 +422,62 @@ struct Queue(Node, string member = "forwardLink")
         last_ = node;
     }
 
-    void pushFront(Node* node)
+    /// Inserts `node` immediately after `position`.
+    ///
+    /// This is O(1); checked builds verify that `position` belongs to this
+    /// list, which requires an O(n) validation walk.
+    void insertAfter(Node* position, Node* node)
     {
         version (XTB_Checked)
-            require(node !is null, "cannot insert a null queue node");
+        {
+            require(position !is null && node !is null,
+                "cannot insert relative to a null forward-list node");
+            require(contains(position), "position is not in this forward list");
+        }
+        if (position is last_)
+        {
+            pushBack(node);
+            return;
+        }
+
+        ref positionLink = forwardLinkOf!(Node, member)(position);
         ref link = forwardLinkOf!(Node, member)(node);
         version (XTB_Checked) requireUnlinked(link);
-
-        link.next_ = first_;
+        link.next_ = positionLink.next_;
         version (XTB_Checked) link.linked_ = true;
-        first_ = node;
-        if (last_ is null)
-            last_ = node;
+        positionLink.next_ = node;
     }
 
+    /// Removes and returns the node immediately after `position`.
+    ///
+    /// This is O(1); checked builds verify that `position` belongs to this
+    /// list, which requires an O(n) validation walk.
+    Node* removeAfter(Node* position)
+    {
+        version (XTB_Checked)
+        {
+            require(position !is null, "cannot remove after a null forward-list node");
+            require(contains(position), "position is not in this forward list");
+        }
+
+        ref positionLink = forwardLinkOf!(Node, member)(position);
+        version (XTB_Checked)
+            require(positionLink.next_ !is null, "no forward-list node exists after position");
+
+        Node* result = positionLink.next_;
+        ref link = forwardLinkOf!(Node, member)(result);
+        positionLink.next_ = link.next_;
+        if (result is last_)
+            last_ = position;
+        link = ForwardLink!Node.init;
+        return result;
+    }
+
+    /// Removes and returns the first node in O(1).
     Node* popFront()
     {
         version (XTB_Checked)
-            require(first_ !is null, "cannot pop an empty queue");
+            require(first_ !is null, "cannot pop an empty forward list");
         Node* result = first_;
         ref link = forwardLinkOf!(Node, member)(result);
         first_ = link.next_;
@@ -406,6 +485,139 @@ struct Queue(Node, string member = "forwardLink")
         if (first_ is null)
             last_ = null;
         return result;
+    }
+
+    /// Appends all nodes from `source` in O(1), leaving `source` empty.
+    void concatenate(ref ForwardList source)
+    {
+        version (XTB_Checked)
+            require(&this !is &source, "cannot concatenate a forward list with itself");
+        if (source.empty)
+            return;
+        if (empty)
+        {
+            first_ = source.first_;
+            last_ = source.last_;
+        }
+        else
+        {
+            forwardLinkOf!(Node, member)(last_).next_ = source.first_;
+            last_ = source.last_;
+        }
+        source.first_ = null;
+        source.last_ = null;
+    }
+
+    /// Detaches all nodes after `position` and returns them as a new list.
+    ///
+    /// Existing hook membership remains live because nodes stay linked, only
+    /// the owning list header changes. The returned list is empty when
+    /// `position` is already the last node.
+    ForwardList splitAfter(Node* position)
+    {
+        version (XTB_Checked)
+        {
+            require(position !is null, "cannot split after a null forward-list node");
+            require(contains(position), "position is not in this forward list");
+        }
+
+        ForwardList result;
+        ref positionLink = forwardLinkOf!(Node, member)(position);
+        result.first_ = positionLink.next_;
+        if (result.first_ !is null)
+        {
+            result.last_ = last_;
+            last_ = position;
+            positionLink.next_ = null;
+        }
+        return result;
+    }
+
+    ForwardListCursor!(Node, member) cursor()
+    {
+        return ForwardListCursor!(Node, member)(first_);
+    }
+}
+
+/// Forward-only cursor over an intrusive `ForwardList`.
+struct ForwardListCursor(Node, string member)
+{
+    private Node* current_;
+
+    bool valid() const pure @safe
+    {
+        return current_ !is null;
+    }
+
+    Node* get() return
+    {
+        version (XTB_Checked)
+            require(valid, "invalid forward-list cursor");
+        return current_;
+    }
+
+    void advance()
+    {
+        version (XTB_Checked)
+            require(valid, "invalid forward-list cursor");
+        current_ = forwardLinkOf!(Node, member)(current_).next_;
+    }
+}
+
+/// Intrusive FIFO queue using `Node.member` as its membership hook.
+///
+/// Queue is intentionally a narrow facade over `ForwardList`: it preserves
+/// XTB's existing front/back queue operations while hiding arbitrary
+/// insert-after, split, concatenate, and cursor mutation.
+struct Queue(Node, string member = "forwardLink")
+{
+    static assert(__traits(hasMember, Node, member),
+        "Queue node is missing its " ~ member ~ " hook");
+    static assert(is(typeof(__traits(getMember, Node.init, member)) == ForwardLink!Node),
+        "Queue hook must be ForwardLink!Node");
+
+    private ForwardList!(Node, member) list_;
+
+    @disable this(this);
+
+    bool empty() const pure @safe
+    {
+        return list_.empty;
+    }
+
+    Node* first() return pure
+    {
+        return list_.first;
+    }
+
+    const(Node)* first() const return pure
+    {
+        return list_.first;
+    }
+
+    Node* last() return pure
+    {
+        return list_.last;
+    }
+
+    const(Node)* last() const return pure
+    {
+        return list_.last;
+    }
+
+    void pushBack(Node* node)
+    {
+        list_.pushBack(node);
+    }
+
+    void pushFront(Node* node)
+    {
+        list_.pushFront(node);
+    }
+
+    Node* popFront()
+    {
+        return list_.popFront();
     }
 }
 
@@ -536,6 +748,171 @@ unittest
     assert(stack.pop() is &two);
     assert(stack.pop() is &one && stack.empty);
 }
+
+
+unittest
+{
+    struct Node
+    {
+        ForwardLink!Node forwardLink;
+        int value;
+    }
+
+    Node first;
+    first.value = 1;
+    Node second;
+    second.value = 2;
+    Node third;
+    third.value = 3;
+
+    ForwardList!Node list;
+    assert(list.empty && list.first is null && list.last is null);
+
+    list.pushBack(&first);
+    list.pushBack(&third);
+    list.insertAfter(&first, &second);
+    assert(list.first is &first && list.last is &third);
+    assert(first.forwardLink.next is &second);
+    assert(second.forwardLink.next is &third);
+    assert(third.forwardLink.next is null);
+
+    auto cursor = list.cursor();
+    int expected = 1;
+    while (cursor.valid)
+    {
+        assert(cursor.get.value == expected);
+        ++expected;
+        cursor.advance();
+    }
+    assert(expected == 4);
+
+    // Removing after a node preserves the cached tail unless the removed node
+    // was the tail, and detaches only the removed hook.
+    assert(list.removeAfter(&first) is &second);
+    assert(first.forwardLink.next is &third);
+    assert(list.last is &third);
+    version (XTB_Checked) assert(!second.forwardLink.linked);
+
+    list.insertAfter(&third, &second);
+    assert(list.last is &second);
+    assert(third.forwardLink.next is &second);
+    version (XTB_Checked) assert(second.forwardLink.linked);
+
+    assert(list.removeAfter(&third) is &second);
+    assert(list.last is &third && third.forwardLink.next is null);
+    version (XTB_Checked) assert(!second.forwardLink.linked);
+
+    // Splitting transfers a suffix without detaching its hooks. Concatenating
+    // the result restores the chain in O(1).
+    list.insertAfter(&first, &second);
+    ForwardList!Node suffix = list.splitAfter(&first);
+    assert(list.first is &first && list.last is &first);
+    assert(first.forwardLink.next is null);
+    assert(suffix.first is &second && suffix.last is &third);
+    assert(second.forwardLink.next is &third);
+    version (XTB_Checked)
+    {
+        assert(first.forwardLink.linked);
+        assert(second.forwardLink.linked);
+        assert(third.forwardLink.linked);
+    }
+
+    list.concatenate(suffix);
+    assert(suffix.empty);
+    assert(list.first is &first && list.last is &third);
+    assert(first.forwardLink.next is &second);
+    assert(second.forwardLink.next is &third);
+
+    ForwardList!Node emptySuffix = list.splitAfter(&third);
+    assert(emptySuffix.empty);
+    assert(list.last is &third);
+
+    assert(list.popFront() is &first);
+    assert(list.popFront() is &second);
+    assert(list.popFront() is &third);
+    assert(list.empty && list.first is null && list.last is null);
+    version (XTB_Checked)
+    {
+        assert(!first.forwardLink.linked);
+        assert(!second.forwardLink.linked);
+        assert(!third.forwardLink.linked);
+    }
+
+    // Empty/non-empty concatenation must correctly transfer both header
+    // pointers and leave the source reusable.
+    ForwardList!Node source;
+    source.pushBack(&first);
+    source.pushBack(&second);
+    list.concatenate(source);
+    assert(source.empty);
+    assert(list.first is &first && list.last is &second);
+    assert(list.popFront() is &first);
+    assert(list.popFront() is &second);
+
+    source.pushBack(&third);
+    ForwardList!Node empty;
+    list.concatenate(empty);
+    assert(list.empty && empty.empty);
+    list.concatenate(source);
+    assert(source.empty && list.first is &third && list.last is &third);
+    assert(list.popFront() is &third && list.empty);
+}
+
+unittest
+{
+    // ForwardList and Queue can use different hooks on the same object at the
+    // same time. Queue is only a facade over ForwardList storage; it does not
+    // consume an additional node hook.
+    struct Node
+    {
+        ForwardLink!Node listLink;
+        ForwardLink!Node queueLink;
+    }
+
+    Node first;
+    Node second;
+    ForwardList!(Node, "listLink") list;
+    Queue!(Node, "queueLink") queue;
+
+    list.pushBack(&first);
+    list.pushBack(&second);
+    queue.pushBack(&second);
+    queue.pushBack(&first);
+
+    assert(list.first is &first && list.last is &second);
+    assert(queue.first is &second && queue.last is &first);
+    version (XTB_Checked)
+    {
+        assert(first.listLink.linked && first.queueLink.linked);
+        assert(second.listLink.linked && second.queueLink.linked);
+    }
+
+    assert(list.popFront() is &first);
+    assert(queue.popFront() is &second);
+    version (XTB_Checked)
+    {
+        assert(!first.listLink.linked && first.queueLink.linked);
+        assert(second.listLink.linked && !second.queueLink.linked);
+    }
+
+    assert(list.popFront() is &second);
+    assert(queue.popFront() is &first);
+}
+
+private struct IntrusiveContainerLayoutProbe
+{
+    ForwardLink!IntrusiveContainerLayoutProbe forwardLink;
+}
+
+static assert(ForwardList!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof * 2);
+static assert(Queue!IntrusiveContainerLayoutProbe.sizeof == ForwardList!IntrusiveContainerLayoutProbe.sizeof);
+static assert(Stack!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof);
+static assert(__traits(hasMember, ForwardList!IntrusiveContainerLayoutProbe, "insertAfter"));
+static assert(__traits(hasMember, ForwardList!IntrusiveContainerLayoutProbe, "removeAfter"));
+static assert(__traits(hasMember, ForwardList!IntrusiveContainerLayoutProbe, "splitAfter"));
+static assert(!__traits(hasMember, Queue!IntrusiveContainerLayoutProbe, "insertAfter"));
+static assert(!__traits(hasMember, Queue!IntrusiveContainerLayoutProbe, "removeAfter"));
+static assert(!__traits(hasMember, Queue!IntrusiveContainerLayoutProbe, "splitAfter"));
 
 private struct IntrusiveLinkLayoutProbe
 {
