@@ -95,3 +95,11 @@ configuration "test-pretty-print-serde" {
     mainSourceFile "pretty_print_serde_tests.d"
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/serde/*.d"
 }
+
+configuration "test-parser" {
+    targetType "executable"
+    targetName "parser_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "parser_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/parser/*.d"
+}

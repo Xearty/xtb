@@ -51,6 +51,7 @@ targets:
       diagnostics
       math
       os
+      parser
       serde
       all          xtb plus every component library
 

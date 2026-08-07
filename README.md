@@ -68,8 +68,8 @@ The archived C++ implementation remains under `archive/cpp` for historical
 reference only. The D project at the repository root is independent from it;
 public modules live under `source/xtb`, and focused unit tests are colocated
 there. `tests/core_tests.d`, `tests/utf8_tests.d`, `tests/math_tests.d`,
-`tests/os_tests.d`, and `tests/serde_tests.d` are the explicit BetterC test
-runners.
+`tests/os_tests.d`, `tests/serde_tests.d`, and `tests/parser_tests.d` are the
+explicit BetterC test runners.
 
 ## Build and test
 
@@ -183,8 +183,8 @@ just build static all release-safe
 ```
 
 `all` builds `libxtb.a` plus the independent component libraries
-`libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`, `libxtb_os.a`, and
-`libxtb_serde.a`. Additional component subpackages under `source/xtb` are
+`libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`, `libxtb_os.a`,
+`libxtb_parser.a`, and `libxtb_serde.a`. Additional component subpackages under `source/xtb` are
 discovered automatically.
 
 Examples use the same mode names and accept short names with or without the
@@ -223,6 +223,14 @@ for temporary argv/environment construction; see `examples/process_demo.d`.
 That exhaustive example also covers binary communication, bounded capture,
 resumable and terminating timeouts, borrowed pipeline slices, per-stage stderr,
 status reporting, and success policies.
+
+Import `xtb.parser` for arena-backed parser combinators. Grammars own their
+parser graph in an `Arena`; `Parser!T` handles remain small and reusable, while
+parse execution allocates only when `.collect()` or a semantic action explicitly
+uses `ParseContext.outputArena`. The package includes `attempt()`/`cut()`
+backtracking control, structural operator-precedence levels, an RFC 8259 JSON
+AST parser, and an algebraic arithmetic parser used to validate precedence and
+associativity. See `design_spec/parser.md`.
 
 Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
 `Deserialized!T` with `String`, slices, and `StringViewHashMap!V` (the readable

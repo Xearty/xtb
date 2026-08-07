@@ -1477,3 +1477,21 @@ Before merging an architectural change, verify:
 4. Every `@system` boundary has validation immediately above it.
 5. New behavior is tested according to `docs/testing.md`.
 6. Public examples still compile without importing internal modules.
+
+
+## Parser combinators
+
+`xtb.parser` builds reusable parser graphs in a grammar-owned `Arena`. Public
+`Parser!T` handles remain small and strongly typed while node implementations
+are type-erased, avoiding recursive/template type explosion and improving LSP
+lookup. Parser execution is `@nogc` and does not allocate parser machinery;
+`.collect()` and semantic actions allocate only when explicitly given a
+`ParseContext.outputArena`.
+
+Consumed-input failure commits by default. `attempt()` explicitly permits a
+speculative branch to rewind, while `cut()` establishes a semantic commitment
+point that survives enclosing attempts. Operator precedence is defined through
+structural `expressionTable().level()` groups rather than numeric precedence.
+The parser package includes JSON and algebraic arithmetic proving grammars; the
+latter asserts AST structure to validate precedence and associativity. See
+`design_spec/parser.md` for the complete API and invariants.
