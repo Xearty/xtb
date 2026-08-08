@@ -139,7 +139,7 @@ void setArguments(ref Command command, const(String)[] arguments)
 
 void setWorkingDirectory(ref Command command, Path path)
 {
-    command.workingDirectory_.set(path);
+    command.workingDirectory_ = some(path);
 }
 
 void clearWorkingDirectory(ref Command command)

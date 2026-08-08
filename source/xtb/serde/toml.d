@@ -1331,8 +1331,8 @@ private void parseHashMapDocument(K, V, Hasher, Equal)(
         parseKeyPath(parser, key[], &keyLength);
         if (parser.error.ok && keyLength != 1)
             parser.fail(SerdeErrorKind.unsupportedValue);
-        if (parser.error.ok)
-            ownParsedKey(parser, &key[0]);
+        if (parser.error.ok && !ownParsedKey(parser, &key[0]))
+            break;
         parser.horizontalSpace();
         if (parser.error.ok && !parser.consume('='))
             parser.fail(SerdeErrorKind.invalidSyntax);
@@ -2308,8 +2308,8 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
         parseKeyPath(parser, key[], &keyLength);
         if (parser.error.ok && keyLength != 1)
             parser.fail(SerdeErrorKind.unsupportedValue);
-        if (parser.error.ok)
-            ownParsedKey(parser, &key[0]);
+        if (parser.error.ok && !ownParsedKey(parser, &key[0]))
+            return;
         parser.horizontalSpace();
         if (parser.error.ok && !parser.consume('='))
             parser.fail(SerdeErrorKind.invalidSyntax);

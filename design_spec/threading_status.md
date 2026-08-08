@@ -88,18 +88,20 @@ no architecture-specific assembly or hidden lock table is used.
 | Scoped structured-borrow syntax | pending | Feature 19 | Prove BetterC/no-GC closure behavior and non-escape properties or use the explicit context fallback. |
 | Broader `shared`/`inout` policy | pending | Cross-primitive API freeze | Feature 1 records only the atomic-specific result; mutex-protected object graphs and typed worker arguments still need focused experiments. |
 
-## Known baseline issue
+## Repository cleanup status
 
-The supplied `xtb-main` snapshot already has an unrelated `Option` API
-inconsistency: `xtb.os`, several serde tests, and serde examples still call
-`Option.set`, while the supplied `Option` implementation no longer provides
-that operation. The core, UTF-8, pretty-print, math, pretty-print/serde, and
-parser debug runners pass; the OS and serde runners stop at these pre-existing
-compile errors. Threading work must not silently fix or hide this unrelated
-baseline issue; repository-wide checks should report it until it is resolved
-separately.
+The stale `Option.set` call sites that were present in the supplied snapshot have
+been migrated to the current explicit `some(...)` assignment API in `xtb.os`,
+serde tests, and the serde example. The OS and serde debug runners now compile
+and pass alongside the other test targets.
 
-A repository-wide D-Scanner 0.15.2 pass also reports pre-existing findings
-outside threading, including parser incompatibilities in pretty-print sources and
-style/static-analysis warnings in core `result.d`, parser, and TOML code. The
-Feature 1 threading files pass D-Scanner cleanly and are dfmt-formatted.
+The repository-wide D-Scanner 0.15.2 policy pass is clean for every file that
+version can parse. `source/xtb/core/pretty_print.d` and
+`examples/pretty_print_demo.d` are excluded through the existing `dscanner.ini`
+compatibility mechanism because D-Scanner 0.15.2 cannot parse the interpolation
+sequence syntax they use; LDC continues to compile-check both files. The real
+style/static-analysis findings previously reported in core `result.d`, the
+intrusive-list layout assertions, parser, and TOML have been fixed.
+
+The repository still has pre-existing dfmt drift in files unrelated to threading;
+that formatting-only cleanup is intentionally not folded into feature work.

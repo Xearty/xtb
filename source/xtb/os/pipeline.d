@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.lifetime : move;
 import xtb.core.array;
 import xtb.core.memory : Allocator;
-import xtb.core.option : Option;
+import xtb.core.option : Option, some;
 version (XTB_Checked)
     import xtb.core.panic : require;
 import xtb.core.string;
@@ -27,7 +27,7 @@ struct PipelineStage
 
 PipelineStage withStderr(PipelineStage stage, ErrorRoute route) @system
 {
-    stage.stderrOverride.set(route);
+    stage.stderrOverride = some(route);
     return stage;
 }
 

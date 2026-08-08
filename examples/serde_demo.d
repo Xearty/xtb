@@ -3,7 +3,7 @@ module examples.serde_demo;
 import core.lifetime : move;
 import xtb.core.array;
 import xtb.core.memory : Allocator, mallocAllocator;
-import xtb.core.option : Option;
+import xtb.core.option : Option, some;
 import xtb.core.print : Writer, writeln;
 import xtb.core.string;
 import xtb.core.types : u8;
@@ -195,7 +195,7 @@ private bool demonstrateOwningDecode() nothrow @nogc
         config.deploymentNote.isSome);
     StringBuf deploymentNote = StringBuf.fromString(allocator,
         "promote after health checks");
-    config.deploymentNote.set(move(deploymentNote));
+    config.deploymentNote = some(move(deploymentNote));
 
     StringBuf feature = StringBuf.fromString(allocator, "compression");
     config.featureFlags.append(move(feature));
@@ -214,7 +214,7 @@ private bool demonstrateOwningDecode() nothrow @nogc
     fallback.port = 443;
     fallback.protocol = Protocol.https;
     fallback.labels = Array!StringBuf.create(allocator);
-    config.fallbackEndpoint.set(move(fallback));
+    config.fallbackEndpoint = some(move(fallback));
 
     if (!writeFormats(config))
         return false;

@@ -6,7 +6,7 @@ import xtb.core.array;
 import xtb.core.hash_map;
 import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
     mallocAllocator;
-import xtb.core.option : Option;
+import xtb.core.option : Option, some;
 import xtb.core.owned_string;
 import xtb.core.print : Writer;
 import xtb.core.string;
@@ -1028,9 +1028,9 @@ private void testJsonOptions() nothrow @nogc
     assert(error.kind == SerdeErrorKind.missingRequiredField);
 
     OptionalValues value;
-    value.title.set("release");
-    value.priority.set(4);
-    value.explicitToggle.set(true);
+    value.title = Option!String.some("release");
+    value.priority = some(4);
+    value.explicitToggle = some(true);
     StringBuf encoded = StringBuf.create(mallocAllocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, value);
@@ -1181,8 +1181,8 @@ private void testTomlOptions() nothrow @nogc
     assert(!decoded.value.explicitToggle.value);
 
     OptionalValues value;
-    value.priority.set(4);
-    value.explicitToggle.set(true);
+    value.priority = some(4);
+    value.explicitToggle = some(true);
     StringBuf encoded = StringBuf.create(mallocAllocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, value);
@@ -1222,7 +1222,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         assert(value.revision.value == 3);
 
         StringBuf title = StringBuf.fromString(allocator.allocator, "release");
-        value.title.set(move(title));
+        value.title = some(move(title));
         value.endpoint.value.hostName.append(".test");
 
         StringBuf encoded = StringBuf.create(allocator.allocator);

@@ -1006,7 +1006,10 @@ private struct IntrusiveContainerLayoutProbe
 }
 
 static assert(IntrusiveForwardList!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof * 2);
-static assert(IntrusiveQueue!IntrusiveContainerLayoutProbe.sizeof == IntrusiveForwardList!IntrusiveContainerLayoutProbe.sizeof);
+static assert(
+    IntrusiveQueue!IntrusiveContainerLayoutProbe.sizeof ==
+        IntrusiveForwardList!IntrusiveContainerLayoutProbe.sizeof,
+);
 static assert(IntrusiveStack!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof);
 static assert(__traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "insertAfter"));
 static assert(__traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "removeAfter"));

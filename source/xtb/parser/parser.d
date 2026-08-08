@@ -694,15 +694,18 @@ nothrow @nogc:
         if (!source.success)
             return ParseOutcome!U.failure(source.failureKind);
         static if (__traits(compiles, mapper(source.value)))
-            U value = mapper(source.value);
+        {
+            U mapped = mapper(source.value);
+            return ParseOutcome!U.succeed(move(mapped));
+        }
         else
         {
             version (XTB_Checked)
                 require(state.context_ !is null,
                     "context-aware parser mapping requires ParseContext");
-            U value = mapper(*state.context_, source.value);
+            U mappedWithContext = mapper(*state.context_, source.value);
+            return ParseOutcome!U.succeed(move(mappedWithContext));
         }
-        return ParseOutcome!U.succeed(move(value));
     }
 }
 
@@ -735,9 +738,9 @@ nothrow @nogc:
         ParseOutcome!T source = invokeParser(parser, state);
         if (!source.success)
             return ParseOutcome!U.failure(source.failureKind);
-        U value;
-        assignFlattened!(U, T, 0)(value, source.value);
-        return ParseOutcome!U.succeed(move(value));
+        U mapped;
+        assignFlattened!(U, T, 0)(mapped, source.value);
+        return ParseOutcome!U.succeed(move(mapped));
     }
 }
 

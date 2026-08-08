@@ -16,12 +16,12 @@ private enum ResultState : ubyte
     err,
 }
 
-private template IsCopyableResultValue(T)
+private template isCopyableResultValue(T)
 {
     static if (is(T == void))
-        enum bool IsCopyableResultValue = true;
+        enum bool isCopyableResultValue = true;
     else
-        enum bool IsCopyableResultValue = __traits(isCopyable, T);
+        enum bool isCopyableResultValue = __traits(isCopyable, T);
 }
 
 private enum bool isResultType(T) = is(T == Result!(Value, Error), Value, Error);
@@ -53,7 +53,7 @@ nothrow @nogc:
         private T value_;
     private E error_;
 
-    static if (!IsCopyableResultValue!T || !__traits(isCopyable, E))
+    static if (!isCopyableResultValue!T || !__traits(isCopyable, E))
         @disable this(this);
 
     static if (is(T == void))
