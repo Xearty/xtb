@@ -103,3 +103,12 @@ configuration "test-parser" {
     mainSourceFile "parser_tests.d"
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/parser/*.d"
 }
+
+configuration "test-threading" {
+    targetType "executable"
+    targetName "threading_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "threading_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/threading/*.d"
+    libs "pthread" platform="linux"
+}

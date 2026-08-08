@@ -33,7 +33,8 @@ xtb/
 │   ├── core/               # memory, containers, text, printing, logging
 │   ├── diagnostics/        # demangling, styled traces, crash observation
 │   ├── math/               # vectors, matrices, scalar algorithms, noise
-│   ├── os/                 # libc and platform adapters
+│   ├── os/                 # general libc and platform adapters
+│   ├── threading/          # threads, atomics, and synchronization backends
 │   ├── serde/              # attribute-driven structured data mapping
 │   ├── codec/              # image, audio, compression, and byte formats
 │   ├── window/             # window/input abstraction
@@ -75,10 +76,10 @@ examples / applications
  /      \              |
 graphics window        |
  \      /               |
-serde / codec / os      |
-      |                 |
-     math               |
-       \               /
+serde / codec / os / threading
+      |          |        |
+     math        |        |
+       \        |       /
              core
               |
           C ABI / libc
@@ -88,8 +89,13 @@ serde / codec / os      |
 - `diagnostics` depends on `core` plus its explicitly selected platform
   unwinder. Core must never import diagnostics or require libbacktrace.
 - `math` depends on `core` only when it needs shared primitive/result types.
-- `os` owns operating-system and libc calls. Higher layers do not call libc
-  directly unless they are themselves a foreign-library boundary.
+- `threading` depends on `core` and owns the narrow native thread/parking
+  boundary required to implement its public contracts. It must not depend on
+  `os`; `os` may later depend on `threading`, so reversing that edge would risk
+  a cycle.
+- `os` owns general operating-system and libc facilities. Other components do
+  not call libc directly unless they are themselves a deliberately isolated
+  foreign/platform boundary, such as the native backend inside `threading`.
 - `serde` maps user-defined values to structured key-value formats. Its schema
   and ownership rules are format-neutral; JSON, TOML, and future binary
   backends provide syntax and representation policy.
@@ -1501,6 +1507,7 @@ compatibility requirements.
 | --- | --- | --- |
 | allocator, arena, slices, arrays, strings | `xtb.core` | explicit allocator and ownership; no process-global allocator |
 | panic, logger, printing, stack traces, thread context | `xtb.core` | explicit sinks/storage/contexts; scratch, current logger, and panic recursion are TLS, while panic observation is process-wide |
+| threads, atomics, synchronization | `xtb.threading` | BetterC public primitives over compiler atomics and narrow per-platform thread/parking backends |
 | file and directory operations | `xtb.os` | platform-neutral API over per-platform adapters |
 | structured serialization | `xtb.serde` | compile-time schemas, explicit ownership, JSON and TOML backends |
 | BMP and other media formats | `xtb.codec` | bounds-checked byte transforms with no reflection dependency |
@@ -1509,8 +1516,8 @@ compatibility requirements.
 | GL loading and shaders | `xtb.graphics.opengl` | generated/foreign binding isolated from safe resource wrappers |
 | camera, geometry, material, renderer | `xtb.renderer` | backend-neutral values and orchestration over `graphics` |
 
-Implement in dependency order: `core`, `math`, `os`, serde/codecs, window/graphics,
-then renderer. A higher layer should not force premature abstractions into a
+Implement in dependency order: `core`, foundational `threading` and `math`,
+then `os`, serde/codecs, window/graphics, and finally renderer. A higher layer should not force premature abstractions into a
 lower one.
 
 ## Change checklist

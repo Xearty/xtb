@@ -1,0 +1,16 @@
+name "threading"
+description "BetterC threading and synchronization primitives"
+license "BSL-1.0"
+targetType "staticLibrary"
+targetName "xtb_threading"
+targetPath "$XTB_LIBRARY_OUTPUT_DIR"
+sourceFiles "*.d"
+importPaths "../.."
+dependency "xtb:core" version="*"
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-preview=dip1000" platform="ldc"
+
+buildType "release-safe" {
+    buildOptions "optimize" "inline"
+}

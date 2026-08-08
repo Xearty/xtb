@@ -53,6 +53,7 @@ targets:
       os
       parser
       serde
+      threading
       all          xtb plus every component library
 
     Examples:

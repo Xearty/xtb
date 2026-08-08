@@ -115,9 +115,10 @@ safe for a read-only Nix-store source and parallel `just` execution.
 
 ## Using the library
 
-Import the stable core surface with `import xtb.core;`, or import a focused
-module such as `xtb.core.arena`. All consuming targets must also compile with
-`-betterC`. Managed containers expose handwritten member APIs colocated with
+Import the stable core surface with `import xtb.core;`, the completed threading
+surface with `import xtb.threading;`, or a focused module such as
+`xtb.core.arena` or `xtb.threading.atomic`. All consuming targets must also
+compile with `-betterC`. Managed containers expose handwritten member APIs colocated with
 their unmanaged storage, plus a mutable allocator member; no generated adapter
 code or UFCS forwarding layer is involved. See `docs/managed-containers.md`.
 `IntrusiveList`, `IntrusiveForwardList`, `IntrusiveQueue`, and `IntrusiveStack` support multiple
@@ -189,8 +190,8 @@ just build static all release-safe
 
 `all` builds `libxtb.a` plus the independent component libraries
 `libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`, `libxtb_os.a`,
-`libxtb_parser.a`, and `libxtb_serde.a`. Additional component subpackages under `source/xtb` are
-discovered automatically.
+`libxtb_parser.a`, `libxtb_serde.a`, and `libxtb_threading.a`. Additional
+component subpackages under `source/xtb` are discovered automatically.
 
 Examples use the same mode names and accept short names with or without the
 `-demo` suffix:
