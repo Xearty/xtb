@@ -4,6 +4,8 @@ nothrow @nogc:
 
 import core.attribute : mustuse;
 import core.lifetime : forward, move, moveEmplace;
+import xtb.core.panic : panic;
+import xtb.core.types : String;
 version (XTB_Checked)
     import xtb.core.panic : require;
 
@@ -127,6 +129,26 @@ nothrow @nogc:
         return result;
     }
 
+    /// Transfers the value out or panics when this Option is absent.
+    ///
+    /// Unlike checked contracts, this state check is always enabled.
+    T unwrap()
+    {
+        if (!present_)
+            panic("called Option.unwrap() on none");
+        return take();
+    }
+
+    /// Transfers the value out or panics with `message` when absent.
+    ///
+    /// Unlike checked contracts, this state check is always enabled.
+    T expect(String message)
+    {
+        if (!present_)
+            panic(message);
+        return take();
+    }
+
     package(xtb) ref T storage() return @system
     {
         return value_;
@@ -244,6 +266,13 @@ unittest
     assert(number.isNone);
     assert(number.pointer is null);
 
+    number = some(51);
+    assert(number.unwrap() == 51);
+    assert(number.isNone);
+    number = some(52);
+    assert(number.expect("expected a number") == 52);
+    assert(number.isNone);
+
     Option!int copied = some(7);
     Option!int copiedAgain = copied;
     copied = some(9);
@@ -267,7 +296,7 @@ unittest
     assert(source.allocator is null);
     assert(text.value == "owned");
     text.value.append(" value");
-    StringBuf extracted = text.take();
+    StringBuf extracted = text.unwrap();
     assert(text.isNone);
     assert(extracted == "owned value");
     text = some(move(extracted));

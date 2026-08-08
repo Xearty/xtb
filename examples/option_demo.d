@@ -107,11 +107,14 @@ private void demonstrateValueState()
     number.reset();
     assert(number.isNone);
 
-    // take transfers the value out and leaves the Option empty.
+    // unwrap transfers the value out and panics if the Option is absent.
+    // expect does the same with a caller-provided panic message.
     number = some(99);
-    int extracted = number.take();
+    int extracted = number.unwrap();
     assert(extracted == 99 && number.isNone);
-    writeln("taken number: ", extracted);
+    number = some(100);
+    assert(number.expect("number must be present") == 100 && number.isNone);
+    writeln("unwrapped number: ", extracted);
 }
 
 private void demonstrateCopyingAndNesting()

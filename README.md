@@ -249,15 +249,19 @@ key allocations and is valid only when its values are recursively owning. Use
 `Option!T` for nullable fields; JSON maps absence to
 `null`, while TOML omits absent struct fields. See `examples/serde_demo.d`. The
 dedicated `examples/option_demo.d` covers every `Option!T` state transition,
-copy and move behavior, destruction, nesting, pointer access, return aliases,
-monadic transformations, and backend-specific serialization rules.
+copy and move behavior, destruction, nesting, pointer access, `unwrap`/`expect`,
+return aliases, monadic transformations, and backend-specific serialization
+rules.
 
 Core fallible values may use `Result!(T, E)`. A Result-returning function can
 opt into `mixin ResultReturns;` for concise `return ok(...)` /
 `return err(...)` construction and `return err(otherResult)` propagation.
-`map`, `mapError`, `andThen`, and `orElse` are allocation-free UFCS algorithms.
-They are free functions rather than members so alias lambdas remain compatible
-with `-betterC`. `Result!(void, E)` represents success without a value. See
+`unwrap`/`expect` consume the success value and panic on failure;
+`unwrapError`/`expectError` do the symmetric operation on the error side. These
+panic checks remain enabled in release-fast builds. `map`, `mapError`,
+`andThen`, and `orElse` are allocation-free UFCS algorithms. They are free
+functions rather than members so alias lambdas remain compatible with
+`-betterC`. `Result!(void, E)` represents success without a value. See
 `examples/result_demo.d`. Existing APIs are not required to use Result;
 out-parameter/status APIs remain valid when they are the clearer boundary.
 

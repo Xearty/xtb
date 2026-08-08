@@ -3,7 +3,7 @@ module xtb.os.process_io;
 nothrow @nogc:
 
 import xtb.core.duration : Duration;
-import xtb.core.option : Option;
+import xtb.core.option : Option, some;
 version (XTB_Checked)
     import xtb.core.panic : require;
 import xtb.core.types : u64, u8;
@@ -289,11 +289,11 @@ private OsError observeExit(
         require(exitStatus !is null, "communicate exit status pointer is null");
     if (!child.ownsProcess)
         return OsError.init;
-    const result = tryWait(child);
+    auto result = tryWait(child);
     if (result.error.failed)
         return result.error.os;
     if (result.state == WaitState.exited)
-        (*exitStatus).set(result.status);
+        *exitStatus = some(result.status);
     return OsError.init;
 }
 

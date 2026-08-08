@@ -4,6 +4,8 @@ nothrow @nogc:
 
 import core.attribute : mustuse;
 import core.lifetime : forward, move, moveEmplace;
+import xtb.core.panic : panic;
+import xtb.core.types : String;
 version (XTB_Checked)
     import xtb.core.panic : require;
 
@@ -134,6 +136,28 @@ nothrow @nogc:
             state_ = ResultState.empty;
             return result;
         }
+
+        /// Transfers the success value out or panics unless this Result is ok.
+        ///
+        /// Unlike checked contracts, this state check is always enabled.
+        T unwrap()
+        {
+            if (!isOk)
+                panic(isErr
+                    ? "called Result.unwrap() on err"
+                    : "called Result.unwrap() on empty Result");
+            return take();
+        }
+
+        /// Transfers the success value out or panics with `message` unless ok.
+        ///
+        /// Unlike checked contracts, this state check is always enabled.
+        T expect(String message)
+        {
+            if (!isOk)
+                panic(message);
+            return take();
+        }
     }
     else
     {
@@ -143,6 +167,29 @@ nothrow @nogc:
             version (XTB_Checked)
                 require(isOk, "cannot take the value of a non-ok Result");
             state_ = ResultState.empty;
+        }
+
+
+        /// Consumes this Result or panics unless it is ok.
+        ///
+        /// Unlike checked contracts, this state check is always enabled.
+        void unwrap()
+        {
+            if (!isOk)
+                panic(isErr
+                    ? "called Result.unwrap() on err"
+                    : "called Result.unwrap() on empty Result");
+            take();
+        }
+
+        /// Consumes this Result or panics with `message` unless it is ok.
+        ///
+        /// Unlike checked contracts, this state check is always enabled.
+        void expect(String message)
+        {
+            if (!isOk)
+                panic(message);
+            take();
         }
     }
 
@@ -164,6 +211,29 @@ nothrow @nogc:
             error_ = E.init;
         state_ = ResultState.empty;
         return result;
+    }
+
+
+    /// Transfers the error out or panics unless this Result is an error.
+    ///
+    /// Unlike checked contracts, this state check is always enabled.
+    E unwrapError()
+    {
+        if (!isErr)
+            panic(isOk
+                ? "called Result.unwrapError() on ok"
+                : "called Result.unwrapError() on empty Result");
+        return takeError();
+    }
+
+    /// Transfers the error out or panics with `message` unless this Result is an error.
+    ///
+    /// Unlike checked contracts, this state check is always enabled.
+    E expectError(String message)
+    {
+        if (!isErr)
+            panic(message);
+        return takeError();
     }
 }
 
@@ -384,14 +454,22 @@ unittest
     assert(success);
     assert(success.value == 42);
     success.value += 1;
-    assert(success.take() == 43);
+    assert(success.unwrap() == 43);
     assert(success.isEmpty);
+
+    auto expectedSuccess = Result!(int, ResultTestError).ok(44);
+    assert(expectedSuccess.expect("expected success") == 44);
+    assert(expectedSuccess.isEmpty);
 
     auto failure = Result!(int, ResultTestError).err(ResultTestError.second);
     assert(!failure);
     assert(failure.isErr && failure.error == ResultTestError.second);
-    assert(failure.takeError() == ResultTestError.second);
+    assert(failure.unwrapError() == ResultTestError.second);
     assert(failure.isEmpty);
+
+    auto expectedFailure = Result!(int, ResultTestError).err(ResultTestError.first);
+    assert(expectedFailure.expectError("expected error") == ResultTestError.first);
+    assert(expectedFailure.isEmpty);
 
     auto propagatedSuccess = resultTestPropagate(false);
     assert(propagatedSuccess && propagatedSuccess.value == 22);
@@ -438,8 +516,15 @@ unittest
     alias VoidResult = Result!(void, ResultTestError);
     auto success = VoidResult.ok();
     assert(success);
+    success.unwrap();
+    assert(success.isEmpty);
+
+    auto expectedSuccess = VoidResult.ok();
+    expectedSuccess.expect("expected void success");
+    assert(expectedSuccess.isEmpty);
 
     int calls;
+    success = VoidResult.ok();
     auto mapped = move(success).map!(() { ++calls; return 5; });
     assert(mapped && mapped.value == 5 && calls == 1);
 

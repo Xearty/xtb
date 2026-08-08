@@ -34,9 +34,12 @@ import xtb.diagnostics.crash;
 
 static assert(__traits(hasMember, StringBuf, "append"));
 static assert(__traits(hasMember, Array!int, "append"));
-static assert(__traits(hasMember, Option!int, "set"));
 static assert(__traits(hasMember, Option!int, "take"));
+static assert(__traits(hasMember, Option!int, "unwrap"));
+static assert(__traits(hasMember, Option!int, "expect"));
 static assert(__traits(hasMember, Result!(int, int), "take"));
+static assert(__traits(hasMember, Result!(int, int), "unwrap"));
+static assert(__traits(hasMember, Result!(int, int), "unwrapError"));
 static assert(__traits(hasMember, OwnedString, "view"));
 static assert(__traits(hasMember, HashMap!(int, int), "set"));
 static assert(__traits(hasMember, HashSet!int, "contains"));
@@ -167,6 +170,41 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         FlagSet!DeathFlag.fromBits(0b010);
     if (cStringEqual(name, "bit-flags-null-output"))
         FlagSet!DeathFlag.tryFromBits(0, null);
+    if (cStringEqual(name, "option-unwrap-none"))
+    {
+        Option!int option = none();
+        option.unwrap();
+    }
+    if (cStringEqual(name, "option-expect-none"))
+    {
+        Option!int option = none();
+        option.expect("expected option value");
+    }
+    if (cStringEqual(name, "result-unwrap-err"))
+    {
+        auto result = Result!(int, int).err(1);
+        result.unwrap();
+    }
+    if (cStringEqual(name, "result-unwrap-empty"))
+    {
+        Result!(int, int) result;
+        result.unwrap();
+    }
+    if (cStringEqual(name, "result-expect-err"))
+    {
+        auto result = Result!(int, int).err(1);
+        result.expect("expected result value");
+    }
+    if (cStringEqual(name, "result-unwrap-error-ok"))
+    {
+        auto result = Result!(int, int).ok(1);
+        result.unwrapError();
+    }
+    if (cStringEqual(name, "result-expect-error-ok"))
+    {
+        auto result = Result!(int, int).ok(1);
+        result.expectError("expected result error");
+    }
     if (cStringEqual(name, "scratch-without-context"))
         ScratchScope.acquire();
     if (cStringEqual(name, "thread-logger-null"))
@@ -531,6 +569,13 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "bit-flags-invalid-value");
         expectDeath(arguments[0], "bit-flags-invalid-mask");
         expectDeath(arguments[0], "bit-flags-null-output");
+        expectDeath(arguments[0], "option-unwrap-none");
+        expectDeath(arguments[0], "option-expect-none");
+        expectDeath(arguments[0], "result-unwrap-err");
+        expectDeath(arguments[0], "result-unwrap-empty");
+        expectDeath(arguments[0], "result-expect-err");
+        expectDeath(arguments[0], "result-unwrap-error-ok");
+        expectDeath(arguments[0], "result-expect-error-ok");
         expectDeath(arguments[0], "scratch-without-context");
         expectDeath(arguments[0], "thread-logger-null");
         expectDeath(arguments[0], "thread-logger-without-context");

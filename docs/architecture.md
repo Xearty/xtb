@@ -1174,8 +1174,11 @@ with range-oriented generic code; do not use it when directly inspecting an
 option. Construction and replacement are explicit: use `some(value)` for presence and
 `none()` for absence. Raw `T` values do not implicitly construct or assign an
 Option. `reset` is the equivalent direct mutating operation for returning an
-existing Option to absence, and `take` transfers the current value out. Access through `value`
-checks that it is present, and `value`/`pointer` propagate mutable, const, and
+existing Option to absence, and `take` transfers the current value out.
+`unwrap` is the always-checked consuming form of `take`: absence panics even in
+release-fast builds. `expect(message)` has the same behavior with a
+caller-provided panic message. Access through `value` checks that it is present,
+and `value`/`pointer` propagate mutable, const, and
 immutable qualifiers with `inout`. The option always contains valid `T.init`
 storage, which lets compiler-generated destruction handle owning `T` without a
 manually managed union. It is copyable exactly when `T` is copyable and is
@@ -1195,8 +1198,11 @@ result after `take`/`takeError`. Boolean conversion means `isOk`; callers use
 `isErr` or `isEmpty` when those states matter explicitly. Both payload slots
 remain valid initialized D values, avoiding a manually managed union and making
 normal destruction reliable for owning payloads. Copyability follows both
-payload types, and Result is `@mustuse`. `Result!(void, E)` represents success
-without a success payload.
+payload types, and Result is `@mustuse`. `unwrap`/`expect` consume a success
+payload and panic unless the result is ok; `unwrapError`/`expectError` do the
+symmetric operation for errors. Those checks are unconditional and remain
+enabled in release-fast builds. `Result!(void, E)` represents success without
+a success payload; its `unwrap`/`expect` consume the successful state.
 
 A function returning Result can opt into `mixin ResultReturns;`, which aliases
 `ok` and `err` to that function's exact return type. In addition to constructing

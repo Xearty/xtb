@@ -58,11 +58,13 @@ Future general-purpose additions are ranked separately in
 
 - `Option!T` with `isSome` and `isNone` state queries, presence truthiness,
   range-compatible `empty`, checked value access, pointer inspection, and
-  move-aware member `set`, `take`, and `reset`;
+  explicit `some(...)`/`none()` construction, explicit Option assignment,
+  move-aware `take`/`reset`, and always-checked consuming `unwrap`/`expect`;
 - `OptionReturns` return aliases plus consuming `map`, `andThen`, and `orElse`
   UFCS transformations;
 - `Result!(T, E)` with explicit `ok`, `err`, and empty/moved-from states,
-  checked value/error access, success truthiness, `take`, and `takeError`;
+  checked value/error access, success truthiness, `take`/`takeError`, and
+  always-checked `unwrap`/`expect` plus `unwrapError`/`expectError`;
 - `ResultReturns` for `return ok(...)`, `return err(...)`, and same-error-type
   propagation through `return err(otherResult)`;
 - consuming `map`, `mapError`, `andThen`, and `orElse` UFCS transformations,

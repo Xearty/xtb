@@ -45,6 +45,11 @@ extern (C) int main()
     auto failure = loadAndScale(true);
     assert(!failure && failure.error == DemoError.unavailable);
 
+    auto unwrapped = loadAndScale(false);
+    assert(unwrapped.unwrap() == 40 && unwrapped.isEmpty);
+    auto unwrappedError = loadAndScale(true);
+    assert(unwrappedError.unwrapError() == DemoError.unavailable);
+
     int offset = 2;
     auto pipeline = readValue(false)
         .map!(value => value + offset)
