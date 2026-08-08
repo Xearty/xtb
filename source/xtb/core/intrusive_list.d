@@ -75,7 +75,17 @@ private ref ListHook!Node listHookOf(Node, string hookMember)(Node* node)
     return __traits(getMember, *node, hookMember);
 }
 
+private ref const(ListHook!Node) listHookOf(Node, string hookMember)(const(Node)* node)
+{
+    return __traits(getMember, *node, hookMember);
+}
+
 private ref ForwardListHook!Node forwardListHookOf(Node, string hookMember)(Node* node)
+{
+    return __traits(getMember, *node, hookMember);
+}
+
+private ref const(ForwardListHook!Node) forwardListHookOf(Node, string hookMember)(const(Node)* node)
 {
     return __traits(getMember, *node, hookMember);
 }
@@ -119,6 +129,46 @@ struct IntrusiveList(Node, string hookMember = "listHook")
     inout(Node)* back() inout return pure
     {
         return back_;
+    }
+
+    /// Iterates nodes from front to back without modifying the list.
+    ///
+    /// The next hook is captured before invoking the callback, so removing the
+    /// current node from this list during the loop does not invalidate the
+    /// traversal. Other structural mutation during iteration is unspecified.
+    int opApply(
+        scope int delegate(Node*) nothrow @nogc callback,
+    ) nothrow @nogc
+    {
+        version (XTB_Checked)
+            require(callback !is null, "intrusive-list iteration callback is null");
+        for (Node* current = front_; current !is null;)
+        {
+            Node* next = listHookOf!(Node, hookMember)(current).next_;
+            const control = callback(current);
+            if (control != 0)
+                return control;
+            current = next;
+        }
+        return 0;
+    }
+
+    /// Const iteration yields pointers to const nodes.
+    int opApply(
+        scope int delegate(const(Node)*) nothrow @nogc callback,
+    ) const nothrow @nogc
+    {
+        version (XTB_Checked)
+            require(callback !is null, "intrusive-list iteration callback is null");
+        for (const(Node)* current = front_; current !is null;)
+        {
+            const(Node)* next = listHookOf!(Node, hookMember)(current).next_;
+            const control = callback(current);
+            if (control != 0)
+                return control;
+            current = next;
+        }
+        return 0;
     }
 
     private bool contains(Node* node)
@@ -344,6 +394,46 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
         return back_;
     }
 
+    /// Iterates nodes from front to back without modifying the list.
+    ///
+    /// The next hook is captured before invoking the callback, so removing the
+    /// current node from this list during the loop does not invalidate the
+    /// traversal. Other structural mutation during iteration is unspecified.
+    int opApply(
+        scope int delegate(Node*) nothrow @nogc callback,
+    ) nothrow @nogc
+    {
+        version (XTB_Checked)
+            require(callback !is null, "intrusive-forward-list iteration callback is null");
+        for (Node* current = front_; current !is null;)
+        {
+            Node* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            const control = callback(current);
+            if (control != 0)
+                return control;
+            current = next;
+        }
+        return 0;
+    }
+
+    /// Const iteration yields pointers to const nodes.
+    int opApply(
+        scope int delegate(const(Node)*) nothrow @nogc callback,
+    ) const nothrow @nogc
+    {
+        version (XTB_Checked)
+            require(callback !is null, "intrusive-forward-list iteration callback is null");
+        for (const(Node)* current = front_; current !is null;)
+        {
+            const(Node)* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            const control = callback(current);
+            if (control != 0)
+                return control;
+            current = next;
+        }
+        return 0;
+    }
+
     private bool contains(Node* node)
     {
         for (Node* current = front_; current !is null;
@@ -560,6 +650,22 @@ struct IntrusiveQueue(Node, string hookMember = "forwardListHook")
         return list_.back;
     }
 
+    /// Iterates queued nodes from front to back.
+    int opApply(
+        scope int delegate(Node*) nothrow @nogc callback,
+    ) nothrow @nogc
+    {
+        return list_.opApply(callback);
+    }
+
+    /// Const iteration yields pointers to const nodes.
+    int opApply(
+        scope int delegate(const(Node)*) nothrow @nogc callback,
+    ) const nothrow @nogc
+    {
+        return list_.opApply(callback);
+    }
+
     void pushBack(Node* node)
     {
         list_.pushBack(node);
@@ -596,6 +702,46 @@ struct IntrusiveStack(Node, string hookMember = "forwardListHook")
     inout(Node)* top() inout return pure
     {
         return top_;
+    }
+
+    /// Iterates nodes from the current top toward the bottom.
+    ///
+    /// The next hook is captured before invoking the callback, so popping the
+    /// current node during the loop does not invalidate the traversal. Other
+    /// structural mutation during iteration is unspecified.
+    int opApply(
+        scope int delegate(Node*) nothrow @nogc callback,
+    ) nothrow @nogc
+    {
+        version (XTB_Checked)
+            require(callback !is null, "intrusive-stack iteration callback is null");
+        for (Node* current = top_; current !is null;)
+        {
+            Node* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            const control = callback(current);
+            if (control != 0)
+                return control;
+            current = next;
+        }
+        return 0;
+    }
+
+    /// Const iteration yields pointers to const nodes.
+    int opApply(
+        scope int delegate(const(Node)*) nothrow @nogc callback,
+    ) const nothrow @nogc
+    {
+        version (XTB_Checked)
+            require(callback !is null, "intrusive-stack iteration callback is null");
+        for (const(Node)* current = top_; current !is null;)
+        {
+            const(Node)* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            const control = callback(current);
+            if (control != 0)
+                return control;
+            current = next;
+        }
+        return 0;
     }
 
     void push(Node* node)
@@ -1051,4 +1197,115 @@ unittest
         assert(!second.listHook.linked);
         assert(!third.listHook.linked);
     }
+}
+
+unittest
+{
+    struct ListNode
+    {
+        ListHook!ListNode listHook;
+        int value;
+    }
+
+    ListNode first;
+    first.value = 1;
+    ListNode second;
+    second.value = 2;
+    ListNode third;
+    third.value = 3;
+
+    IntrusiveList!ListNode list;
+    list.pushBack(&first);
+    list.pushBack(&second);
+    list.pushBack(&third);
+
+    int listValue;
+    foreach (node; list)
+    {
+        static assert(is(typeof(node) == ListNode*));
+        listValue = listValue * 10 + node.value;
+    }
+    assert(listValue == 123);
+
+    const(IntrusiveList!ListNode)* constList = &list;
+    int constListValue;
+    foreach (node; *constList)
+    {
+        static assert(is(typeof(node) == const(ListNode)*));
+        constListValue += node.value;
+    }
+    assert(constListValue == 6);
+
+    // The implementation snapshots the next hook before the body runs, so
+    // removing the current node is explicitly supported.
+    foreach (node; list)
+        list.remove(node);
+    assert(list.empty);
+
+    struct ForwardNode
+    {
+        ForwardListHook!ForwardNode listHook;
+        ForwardListHook!ForwardNode queueHook;
+        ForwardListHook!ForwardNode stackHook;
+        int value;
+    }
+
+    ForwardNode one;
+    one.value = 1;
+    ForwardNode two;
+    two.value = 2;
+    ForwardNode three;
+    three.value = 3;
+
+    IntrusiveForwardList!(ForwardNode, "listHook") forwardList;
+    forwardList.pushBack(&one);
+    forwardList.pushBack(&two);
+    forwardList.pushBack(&three);
+
+    int forwardValue;
+    foreach (node; forwardList)
+        forwardValue = forwardValue * 10 + node.value;
+    assert(forwardValue == 123);
+
+    IntrusiveQueue!(ForwardNode, "queueHook") queue;
+    queue.pushBack(&one);
+    queue.pushBack(&two);
+    queue.pushBack(&three);
+
+    int queueValue;
+    foreach (node; queue)
+        queueValue = queueValue * 10 + node.value;
+    assert(queueValue == 123);
+
+    IntrusiveStack!(ForwardNode, "stackHook") stack;
+    stack.push(&one);
+    stack.push(&two);
+    stack.push(&three);
+
+    int stackValue;
+    foreach (node; stack)
+        stackValue = stackValue * 10 + node.value;
+    assert(stackValue == 321);
+
+    const(IntrusiveForwardList!(ForwardNode, "listHook"))* constForwardList = &forwardList;
+    const(IntrusiveQueue!(ForwardNode, "queueHook"))* constQueue = &queue;
+    const(IntrusiveStack!(ForwardNode, "stackHook"))* constStack = &stack;
+
+    int constValue;
+    foreach (node; *constForwardList)
+    {
+        static assert(is(typeof(node) == const(ForwardNode)*));
+        constValue += node.value;
+    }
+    foreach (node; *constQueue)
+    {
+        static assert(is(typeof(node) == const(ForwardNode)*));
+        constValue += node.value;
+    }
+    foreach (node; *constStack)
+    {
+        static assert(is(typeof(node) == const(ForwardNode)*));
+        constValue += node.value;
+    }
+    assert(constValue == 18);
 }

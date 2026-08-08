@@ -90,6 +90,10 @@ Node* first = list.popFront();
 list.spliceBack(other);
 auto suffix = list.splitAfter(position);
 auto cursor = list.cursor();
+foreach (node; list)
+{
+    // node is Node*
+}
 ```
 
 `insertAfter` and `removeAfter` are structurally O(1). In `XTB_Checked` builds,
@@ -100,6 +104,13 @@ O(n). Unchecked builds omit the validation.
 `splitAfter` detaches the suffix following a node and returns it as another
 `IntrusiveForwardList`. Neither operation detaches individual hooks, so checked-build
 membership state remains set while the nodes move between list headers.
+
+All intrusive containers support `foreach`. Mutable containers yield `Node*`;
+const containers yield `const(Node)*`. `IntrusiveList`, `IntrusiveForwardList`,
+and `IntrusiveQueue` iterate from front to back, while `IntrusiveStack` iterates
+from top to bottom. Iteration captures the next hook before executing the loop
+body, so removing the current node is supported; other structural mutation
+while iterating is unspecified.
 
 `IntrusiveQueue` stores an `IntrusiveForwardList` internally and exposes only the queue-facing end
 operations already supported by XTB (`pushBack`, `pushFront`, and `popFront`),
