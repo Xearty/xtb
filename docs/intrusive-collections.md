@@ -1,29 +1,29 @@
 # Intrusive collections
 
-XTB's intrusive `List`, `ForwardList`, `Queue`, and `Stack` store linkage inside caller-owned
+XTB's `IntrusiveList`, `IntrusiveForwardList`, `IntrusiveQueue`, and `IntrusiveStack` store linkage inside caller-owned
 nodes. The containers do not allocate wrapper nodes, do not own node storage,
 and never destroy nodes. A node must outlive every intrusive container that
 currently references one of its hooks.
 
 ## Hooks represent membership
 
-A `ListLink!Node` or `ForwardLink!Node` is one independent membership slot.
+A `ListHook!Node` or `ForwardListHook!Node` is one independent membership slot.
 The node itself is not globally "linked" or "unlinked". This distinction lets
 one object participate in several intrusive structures at the same time:
 
 ```d
 struct Task
 {
-    ListLink!Task readyLink;
-    ListLink!Task allTasksLink;
-    ForwardLink!Task timeoutLink;
-    ForwardLink!Task dispatchLink;
+    ListHook!Task readyLink;
+    ListHook!Task allTasksLink;
+    ForwardListHook!Task timeoutLink;
+    ForwardListHook!Task dispatchLink;
 }
 
-List!(Task, "readyLink") ready;
-List!(Task, "allTasksLink") allTasks;
-ForwardList!(Task, "timeoutLink") timeouts;
-Queue!(Task, "dispatchLink") dispatch;
+IntrusiveList!(Task, "readyLink") ready;
+IntrusiveList!(Task, "allTasksLink") allTasks;
+IntrusiveForwardList!(Task, "timeoutLink") timeouts;
+IntrusiveQueue!(Task, "dispatchLink") dispatch;
 
 Task task;
 ready.pushBack(&task);
@@ -52,42 +52,42 @@ otherReadyList.pushBack(&task); // valid: readyLink is detached again
 Containers use a member name at compile time:
 
 ```d
-List!(Task, "readyLink") ready;
-ForwardList!(Task, "timeoutLink") timeouts;
-Queue!(Task, "dispatchLink") dispatch;
+IntrusiveList!(Task, "readyLink") ready;
+IntrusiveForwardList!(Task, "timeoutLink") timeouts;
+IntrusiveQueue!(Task, "dispatchLink") dispatch;
 ```
 
 The named member must have exactly the expected hook type:
 
-- `List` requires `ListLink!Node`;
-- `ForwardList`, `Queue`, and `Stack` require `ForwardLink!Node`.
+- `IntrusiveList` requires `ListHook!Node`;
+- `IntrusiveForwardList`, `IntrusiveQueue`, and `IntrusiveStack` require `ForwardListHook!Node`.
 
-The default member names are `listLink` and `forwardLink` respectively.
+The default member names are `listHook` and `forwardListHook` respectively.
 Multiple hooks of the same type are intentionally supported; give each role a
-separate field and select it through the container's `member` template
+separate field and select it through the container's `hookMember` template
 argument.
 
-## ForwardList, Queue, and Stack
+## IntrusiveForwardList, IntrusiveQueue, and IntrusiveStack
 
-`ForwardList` is XTB's general intrusive singly linked list. Each node contributes
-one `ForwardLink!Node`, while the list header caches both ends:
+`IntrusiveForwardList` is XTB's general intrusive singly linked list. Each node contributes
+one `ForwardListHook!Node`, while the list header caches both ends:
 
 ```text
-ForwardList = first pointer + last pointer
-ForwardLink = next pointer (+ linked_ in XTB_Checked)
+IntrusiveForwardList = front pointer + back pointer
+ForwardListHook = next pointer (+ linked_ in XTB_Checked)
 ```
 
-Caching `last` costs one pointer per list object, not per node, and makes both
+Caching `back` costs one pointer per list object, not per node, and makes both
 `pushFront` and `pushBack` O(1). The general API includes:
 
 ```d
-ForwardList!Node list;
+IntrusiveForwardList!Node list;
 list.pushFront(node);
 list.pushBack(node);
 list.insertAfter(position, node);
 Node* removed = list.removeAfter(position);
 Node* first = list.popFront();
-list.concatenate(other);
+list.spliceBack(other);
 auto suffix = list.splitAfter(position);
 auto cursor = list.cursor();
 ```
@@ -96,35 +96,35 @@ auto cursor = list.cursor();
 XTB first validates that `position` belongs to the list; that diagnostic walk is
 O(n). Unchecked builds omit the validation.
 
-`concatenate` transfers an entire source chain in O(1) and empties the source.
+`spliceBack` transfers an entire source chain in O(1) and empties the source.
 `splitAfter` detaches the suffix following a node and returns it as another
-`ForwardList`. Neither operation detaches individual hooks, so checked-build
+`IntrusiveForwardList`. Neither operation detaches individual hooks, so checked-build
 membership state remains set while the nodes move between list headers.
 
-`Queue` stores a `ForwardList` internally and exposes only the queue-facing end
+`IntrusiveQueue` stores an `IntrusiveForwardList` internally and exposes only the queue-facing end
 operations already supported by XTB (`pushBack`, `pushFront`, and `popFront`),
-plus `first`/`last`. It therefore shares the same two-pointer header and one
+plus `front`/`back`. It therefore shares the same two-pointer header and one
 canonical implementation of forward-chain maintenance instead of duplicating
 that logic.
 
-`Stack` deliberately does **not** use `ForwardList`. A stack needs only its top
+`IntrusiveStack` deliberately does **not** use `IntrusiveForwardList`. A stack needs only its top
 pointer, so wrapping a two-pointer list would enlarge every stack object for no
 benefit:
 
 ```text
-Queue / ForwardList = two container pointers
-Stack               = one container pointer
+IntrusiveQueue / IntrusiveForwardList = two container pointers
+IntrusiveStack               = one container pointer
 ```
 
-All three containers use the same `ForwardLink!Node` hook type and therefore
+All three containers use the same `ForwardListHook!Node` hook type and therefore
 support the same independent-hook membership model.
 
 ## Checked-build membership bookkeeping
 
 The structural pointers are always present because the containers need them:
 
-- `ListLink!Node` always stores `previous` and `next` pointers;
-- `ForwardLink!Node` always stores a `next` pointer.
+- `ListHook!Node` always stores `previous` and `next` pointers;
+- `ForwardListHook!Node` always stores a `next` pointer.
 
 `XTB_Checked` builds additionally store a private `linked_` flag in each hook.
 That flag lets XTB catch accidental double insertion even when the hook is the
@@ -136,8 +136,8 @@ accessor are compiled out completely. Consequently release-fast uses exactly
 the structural layouts:
 
 ```text
-ListLink     = two pointers
-ForwardLink  = one pointer
+ListHook     = two pointers
+ForwardListHook  = one pointer
 ```
 
 This is intentional. Per-hook membership tracking changes every caller-owned
@@ -166,8 +166,8 @@ Removal clears the selected hook back to its default state. In checked builds
 this also clears the membership flag. The node's payload and any other hooks
 are untouched.
 
-`List.concatenate` and `ForwardList.concatenate` transfer an entire chain from
-the source list to the destination. `ForwardList.splitAfter` transfers a suffix
+`IntrusiveList.spliceBack` and `IntrusiveForwardList.spliceBack` transfer an entire chain from
+the source list to the destination. `IntrusiveForwardList.splitAfter` transfers a suffix
 to a new list header. These operations do not detach and reattach individual
 hooks; membership remains live throughout the transfer.
 

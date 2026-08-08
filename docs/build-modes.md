@@ -36,7 +36,7 @@ contracts remain enabled. Final libraries are written below
 Use this mode when testing optimized code while retaining programmer-contract
 and language-runtime diagnostics.
 
-`ListLink` and `ForwardLink` carry their per-hook `linked_` diagnostic state
+`ListHook` and `ForwardListHook` carry their per-hook `linked_` diagnostic state
 under `XTB_Checked`, just like the contracts that consume it. Release-safe
 therefore detects same-hook double insertion while release-fast compiles both
 the state and its `linked` diagnostic accessor out completely. See

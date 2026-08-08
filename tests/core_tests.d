@@ -14,7 +14,7 @@ import xtb.core.thread_context;
 import xtb.core.array;
 import xtb.core.option;
 import xtb.core.flag_set;
-import xtb.core.list;
+import xtb.core.intrusive_list;
 import xtb.core.hash;
 import xtb.core.hash_map;
 import xtb.core.logger;
@@ -223,12 +223,12 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         {
             struct Node
             {
-                ListLink!Node listLink;
+                ListHook!Node listHook;
             }
 
             Node node;
-            List!Node first;
-            List!Node second;
+            IntrusiveList!Node first;
+            IntrusiveList!Node second;
             first.pushBack(&node);
             second.pushBack(&node);
         }
@@ -237,12 +237,12 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         {
             struct Node
             {
-                ForwardLink!Node forwardLink;
+                ForwardListHook!Node forwardListHook;
             }
 
             Node node;
-            ForwardList!Node first;
-            ForwardList!Node second;
+            IntrusiveForwardList!Node first;
+            IntrusiveForwardList!Node second;
             first.pushBack(&node);
             second.pushBack(&node);
         }
@@ -251,12 +251,12 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         {
             struct Node
             {
-                ForwardLink!Node forwardLink;
+                ForwardListHook!Node forwardListHook;
             }
 
             Node node;
-            Queue!Node queue;
-            Stack!Node stack;
+            IntrusiveQueue!Node queue;
+            IntrusiveStack!Node stack;
             queue.pushBack(&node);
             stack.push(&node);
         }
@@ -459,7 +459,7 @@ extern (C) int main(int argumentCount, char** arguments)
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.flag_set))
         testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.list))
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.intrusive_list))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.hash))
         testFunction();

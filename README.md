@@ -120,9 +120,9 @@ module such as `xtb.core.arena`. All consuming targets must also compile with
 `-betterC`. Managed containers expose handwritten member APIs colocated with
 their unmanaged storage, plus a mutable allocator member; no generated adapter
 code or UFCS forwarding layer is involved. See `docs/managed-containers.md`.
-Intrusive `List`, `ForwardList`, `Queue`, and `Stack` support multiple
-simultaneous memberships through separate hooks. `Queue` reuses the general
-two-pointer `ForwardList` implementation while `Stack` remains a minimal
+`IntrusiveList`, `IntrusiveForwardList`, `IntrusiveQueue`, and `IntrusiveStack` support multiple
+simultaneous memberships through separate hooks. `IntrusiveQueue` reuses the general
+two-pointer `IntrusiveForwardList` implementation while `IntrusiveStack` remains a minimal
 one-pointer container. Per-hook membership diagnostics exist in `XTB_Checked`
 builds and disappear entirely in release-fast. See
 `docs/intrusive-collections.md`. See `examples/core_demo.d`, `examples/hash_demo.d`,

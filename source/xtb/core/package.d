@@ -12,7 +12,7 @@ public import xtb.core.thread_context;
 public import xtb.core.array;
 public import xtb.core.option;
 public import xtb.core.flag_set;
-public import xtb.core.list;
+public import xtb.core.intrusive_list;
 public import xtb.core.hash;
 public import xtb.core.hash_map;
 public import xtb.core.utf8;
