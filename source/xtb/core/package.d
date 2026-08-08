@@ -11,6 +11,7 @@ public import xtb.core.arena;
 public import xtb.core.thread_context;
 public import xtb.core.array;
 public import xtb.core.option;
+public import xtb.core.result;
 public import xtb.core.flag_set;
 public import xtb.core.intrusive_list;
 public import xtb.core.hash;

@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.lifetime : move;
 import core.stdc.string : memmove;
 import xtb.core.memory : Allocator, allocateArray, allocateZeroedArray;
-import xtb.core.option : Option, reset, set, some;
+import xtb.core.option : Option, some;
 version (XTB_Checked)
     import xtb.core.panic : require;
 import xtb.core.string;

@@ -7,6 +7,7 @@ import xtb.core.array;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
+import xtb.core.result : Result;
 import xtb.core.owned_string;
 import xtb.core.string;
 import xtb.core.string_hash_map;
@@ -45,6 +46,7 @@ template OptionElement(T)
 }
 
 enum isOption(T) = is(Unqualified!T == Option!Element, Element);
+enum isResult(T) = is(Unqualified!T == Result!(Value, Error), Value, Error);
 
 template HashMapKey(T)
 {
@@ -119,8 +121,8 @@ enum isFixedArray(T) = is(Unqualified!T == Element[N], Element, size_t N) &&
 enum isSerdeUnion(T) = is(Unqualified!T == union);
 
 enum isSerdeStruct(T) = is(Unqualified!T == struct) && !isStringBuf!T &&
-    !isOwnedString!T && !isArray!T && !isOption!T && !isHashMap!T &&
-    !isStringHashMap!T &&
+    !isOwnedString!T && !isArray!T && !isOption!T && !isResult!T &&
+    !isHashMap!T && !isStringHashMap!T &&
     !isUnmanagedContainer!T &&
     !__traits(hasMember, Unqualified!T, "__dtor");
 
@@ -144,8 +146,31 @@ pure @safe
     return result;
 }
 
+// Type-level compiler attributes such as core.attribute.mustuse are returned
+// by __traits(getAttributes) as types rather than values. Inspect the symbol
+// directly here so serde's own type UDA detection does not try to pass those
+// types as function arguments.
+private template symbolAttributeCount(alias Symbol, A)
+{
+    enum size_t symbolAttributeCount = compute();
+
+    private size_t compute()() pure @safe
+    {
+        size_t result;
+        static foreach (attribute; __traits(getAttributes, Symbol))
+        {
+            static if (is(attribute == A))
+                ++result;
+            else static if (__traits(compiles, typeof(attribute)))
+                static if (is(typeof(attribute) == A))
+                    ++result;
+        }
+        return result;
+    }
+}
+
 enum isTaggedUnion(T) = is(Unqualified!T == struct) &&
-    countAttribute!TaggedUnion(__traits(getAttributes, Unqualified!T)) == 1;
+    symbolAttributeCount!(Unqualified!T, TaggedUnion) == 1;
 
 template FieldSymbol(T, size_t index)
 {

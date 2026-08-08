@@ -1168,18 +1168,58 @@ renames and aliases are exact and are never case-transformed. Empty or
 overlapping member names and aliases are compile-time schema errors.
 
 `Option!T` is an ordinary BetterC value. `Option.init` is absent; `isSome` and
-`isNone` are the state queries used by ordinary option code. `empty` is an alias
-for `isNone` provided only for compatibility with range-oriented generic code;
-do not use it when directly inspecting an option.
-`set` replaces its value by move, `reset` destroys the current value, and
-`take` transfers it out. Access through `value` checks that it is present. The
-option always contains valid `T.init` storage, which lets compiler-generated
-destruction handle owning `T` without a manually managed union. It is copyable
-exactly when `T` is copyable. JSON encodes an absent option as `null` and accepts
-`null`; TOML has no null value, so it omits absent option fields and makes an
-option present whenever its key is decoded. A missing field remains absent.
-`@required Option!T` requires the key to occur; in JSON, an explicitly present
-`null` still satisfies that key-presence rule while leaving the option absent.
+`isNone` are the state queries used by ordinary option code. Boolean conversion
+tests presence. `empty` is an alias for `isNone` provided only for compatibility
+with range-oriented generic code; do not use it when directly inspecting an
+option. Construction and replacement are explicit: use `some(value)` for presence and
+`none()` for absence. Raw `T` values do not implicitly construct or assign an
+Option. `reset` is the equivalent direct mutating operation for returning an
+existing Option to absence, and `take` transfers the current value out. Access through `value`
+checks that it is present, and `value`/`pointer` propagate mutable, const, and
+immutable qualifiers with `inout`. The option always contains valid `T.init`
+storage, which lets compiler-generated destruction handle owning `T` without a
+manually managed union. It is copyable exactly when `T` is copyable and is
+`@mustuse`. `OptionReturns` introduces return-type-specific `some` and `none`
+aliases, while the free UFCS `map`, `andThen`, and `orElse` algorithms provide
+consuming transformations without turning alias lambdas into BetterC-incompatible
+dual-context member closures. JSON encodes an absent option as `null` and
+accepts `null`; TOML has no null value, so it omits absent option fields and
+makes an option present whenever its key is decoded. A missing field remains
+absent. `@required Option!T` requires the key to occur; in JSON, an explicitly
+present `null` still satisfies that key-presence rule while leaving the option
+absent.
+
+`Result!(T, E)` is the corresponding BetterC error-flow value. It has explicit
+`ok` and `err` variants plus a valid empty state used by `Result.init` and by a
+result after `take`/`takeError`. Boolean conversion means `isOk`; callers use
+`isErr` or `isEmpty` when those states matter explicitly. Both payload slots
+remain valid initialized D values, avoiding a manually managed union and making
+normal destruction reliable for owning payloads. Copyability follows both
+payload types, and Result is `@mustuse`. `Result!(void, E)` represents success
+without a success payload.
+
+A function returning Result can opt into `mixin ResultReturns;`, which aliases
+`ok` and `err` to that function's exact return type. In addition to constructing
+an error from `E`, `err(otherResult)` consumes the error of a `Result!(U, E)`
+and rebinds it to the enclosing success type. Thus ordinary propagation is:
+
+```d
+auto value = operation();
+if (!value)
+    return err(value);
+return ok(value.take());
+```
+
+`map`, `mapError`, `andThen`, and `orElse` are free UFCS algorithms rather than
+member templates. This is deliberate: LDC requires a dual context when an alias
+lambda and a member-template receiver both carry context, which can require a
+GC closure under `-betterC`. Free UFCS functions preserve fluent call syntax
+without that restriction. They consume their wrapper argument by value: a
+temporary flows naturally, copyable lvalues follow normal D value semantics,
+and non-copyable lvalues require an explicit `move`. Result is not mandated as
+the representation for every fallible API. Explicit status-plus-out-parameter
+interfaces remain appropriate where they make ownership, partial output, ABI,
+or hot-path behavior clearer.
 
 Fields use narrowly scoped UDAs from `xtb.serde.attributes`:
 
@@ -1317,7 +1357,7 @@ records and fixed or dynamic owning arrays. `StringViewHashMap`/
 `HashMap!(String, V)` is intentionally absent from direct decoding because its
 stored `String` keys are borrowed views. `StringHashMap`
 qualifies only when its value type is recursively self-owning.
-An absent `Option!T` must be made present with `set` before its value is
+An absent `Option!T` is made present by assigning a value before its value is
 accessed.
 
 Serde permits compiler-generated destruction arising from supported owning

@@ -6,7 +6,7 @@ import xtb.core.array;
 import xtb.core.hash_map;
 import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
     mallocAllocator;
-import xtb.core.option : Option, set;
+import xtb.core.option : Option;
 import xtb.core.owned_string;
 import xtb.core.print : Writer;
 import xtb.core.string;

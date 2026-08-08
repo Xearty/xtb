@@ -3,7 +3,7 @@ module examples.serde_demo;
 import core.lifetime : move;
 import xtb.core.array;
 import xtb.core.memory : Allocator, mallocAllocator;
-import xtb.core.option : Option, set;
+import xtb.core.option : Option;
 import xtb.core.print : Writer, writeln;
 import xtb.core.string;
 import xtb.core.types : u8;

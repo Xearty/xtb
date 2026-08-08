@@ -3,7 +3,7 @@ module xtb.os.process_io;
 nothrow @nogc:
 
 import xtb.core.duration : Duration;
-import xtb.core.option : Option, set;
+import xtb.core.option : Option;
 version (XTB_Checked)
     import xtb.core.panic : require;
 import xtb.core.types : u64, u8;

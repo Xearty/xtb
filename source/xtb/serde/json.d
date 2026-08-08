@@ -12,7 +12,7 @@ import xtb.core.array;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
     tryAllocateInit, tryAllocateInitArray;
-import xtb.core.option : Option, reset;
+import xtb.core.option : Option;
 import xtb.core.owned_string;
 version (XTB_Checked)
     import xtb.core.panic : require;

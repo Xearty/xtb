@@ -10,6 +10,7 @@ import xtb.core.flag_set : FlagSet;
 import xtb.core.hash_map;
 import xtb.core.owned_string;
 import xtb.core.option : Option;
+import xtb.core.result : Result;
 import xtb.core.print : Writer;
 import xtb.core.string;
 import xtb.core.string_hash_map;
@@ -244,6 +245,16 @@ private enum isPointerType(T) = is(Unqualified!T == Pointee*, Pointee);
 
 private enum isArrayType(T) = is(Unqualified!T == Array!Element, Element);
 private enum isOptionType(T) = is(Unqualified!T == Option!Element, Element);
+private enum isResultType(T) = is(
+    Unqualified!T == Result!(Value, Error),
+    Value,
+    Error,
+);
+private template ResultValue(T)
+{
+    static if (is(Unqualified!T == Result!(Value, Error), Value, Error))
+        alias ResultValue = Value;
+}
 private enum isFlagSetType(T) = is(
     Unqualified!T == FlagSet!(Flag, Storage),
     Flag,
@@ -356,6 +367,10 @@ private void writePrettyImpl(T)(
     {
         writeOption(writer, value, options, context);
     }
+    else static if (isResultType!U)
+    {
+        writeResult(writer, value, options, context);
+    }
     else static if (isArrayType!U)
     {
         writeXtbArray(writer, value, options, context);
@@ -458,6 +473,72 @@ private void writeOption(T)(
         // recursion level, but not one visual indentation level.
         PrettyPrintContext childContext = descendWrapper(context);
         writePrettyImpl(writer, value.value, options, childContext);
+    }
+    writePunctuation(writer, ')', options);
+}
+
+private void writeResult(T)(
+    ref Writer writer,
+    scope const ref T value,
+    scope const ref PrettyPrintOptions options,
+    PrettyPrintContext context,
+)
+{
+    alias U = Unqualified!T;
+    alias Value = ResultValue!U;
+    if (options.showTypeNames)
+    {
+        writeTypeName!U(writer, options);
+        writePunctuation(writer, '.', options);
+    }
+
+    if (value.isEmpty)
+    {
+        writeStyledText(
+            writer,
+            options.showTypeNames ? "init" : "empty",
+            options.colorScheme.nullValue,
+            options,
+        );
+        return;
+    }
+
+    if (value.isErr)
+    {
+        writeStyledText(
+            writer,
+            "err",
+            options.colorScheme.booleanValue,
+            options,
+        );
+        writePunctuation(writer, '(', options);
+        if (depthLimitReached(context.recursionDepth, options))
+            writeDepthLimit(writer, options);
+        else
+        {
+            PrettyPrintContext childContext = descendWrapper(context);
+            writePrettyImpl(writer, value.error, options, childContext);
+        }
+        writePunctuation(writer, ')', options);
+        return;
+    }
+
+    writeStyledText(
+        writer,
+        "ok",
+        options.colorScheme.booleanValue,
+        options,
+    );
+    writePunctuation(writer, '(', options);
+    static if (!is(Value == void))
+    {
+        if (depthLimitReached(context.recursionDepth, options))
+            writeDepthLimit(writer, options);
+        else
+        {
+            PrettyPrintContext childContext = descendWrapper(context);
+            writePrettyImpl(writer, value.value, options, childContext);
+        }
     }
     writePunctuation(writer, ')', options);
 }
@@ -1568,6 +1649,52 @@ private WidthEstimate estimateWidth(T)(
             return unknownWidth();
         return knownWidth(total);
     }
+    else static if (isResultType!U)
+    {
+        alias Value = ResultValue!U;
+        size_t total = options.showTypeNames ? U.stringof.length + 1 : 0;
+        if (value.isEmpty)
+            return addWidth(
+                &total,
+                options.showTypeNames ? 4 : 5,
+                budget,
+            ) ? knownWidth(total) : unknownWidth();
+        if (value.isErr)
+        {
+            if (!addWidth(&total, 4, budget))
+                return unknownWidth();
+            if (depthLimitReached(depth, options))
+                return addWidth(&total, 4, budget) ? knownWidth(total) : unknownWidth();
+            const child = estimateWidth(
+                value.error,
+                options,
+                nextDepth(depth),
+                budget > total ? budget - total : 0,
+            );
+            if (!child.known || !addWidth(&total, child.width + 1, budget))
+                return unknownWidth();
+            return knownWidth(total);
+        }
+
+        if (!addWidth(&total, 3, budget))
+            return unknownWidth();
+        static if (is(Value == void))
+            return addWidth(&total, 1, budget) ? knownWidth(total) : unknownWidth();
+        else
+        {
+            if (depthLimitReached(depth, options))
+                return addWidth(&total, 4, budget) ? knownWidth(total) : unknownWidth();
+            const child = estimateWidth(
+                value.value,
+                options,
+                nextDepth(depth),
+                budget > total ? budget - total : 0,
+            );
+            if (!child.known || !addWidth(&total, child.width + 1, budget))
+                return unknownWidth();
+            return knownWidth(total);
+        }
+    }
     else static if (isArrayType!U)
     {
         size_t prefix = options.showTypeNames ? U.stringof.length + 1 : 0;
@@ -2403,6 +2530,23 @@ unittest
     Option!int absent;
     absent.expectPretty("none", noTypes);
     absent.expectPretty("Option!int.none", plain);
+
+    Result!(int, int) resultOk = Result!(int, int).ok(7);
+    resultOk.expectPretty("ok(7)", noTypes);
+    resultOk.expectPretty("Result!(int, int).ok(7)", plain);
+    resultOk.expectWidthEstimateCovers(plain);
+
+    Result!(int, int) resultErr = Result!(int, int).err(9);
+    resultErr.expectPretty("err(9)", noTypes);
+    resultErr.expectPretty("Result!(int, int).err(9)", plain);
+
+    Result!(int, int) resultEmpty;
+    resultEmpty.expectPretty("empty", noTypes);
+    resultEmpty.expectPretty("Result!(int, int).init", plain);
+
+    Result!(void, int) resultVoid = Result!(void, int).ok();
+    resultVoid.expectPretty("ok()", noTypes);
+    resultVoid.expectPretty("Result!(void, int).ok()", plain);
 
     Option!PrettyPrintTestRecord nested =
         Option!PrettyPrintTestRecord.some(PrettyPrintTestRecord(1, "one"));

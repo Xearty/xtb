@@ -54,14 +54,24 @@ Future general-purpose additions are ranked separately in
 - generic `subslice`, `drop`, `take`, `dropLast`, `takeLast`, `front`, and
   `back` UFCS algorithms.
 
-### Optional values
+### Optional and result values
 
-- `Option!T` with `isSome` and `isNone` state queries, range-compatible `empty`,
-  checked value access, pointer inspection, and move-aware `set`, `take`, and
-  `reset`;
-- copyability inherited from `T`, including non-copyable owning values;
-- normal compiler-generated destruction through always-valid `T.init` storage;
-- JSON null and TOML omission support through `xtb.serde`.
+- `Option!T` with `isSome` and `isNone` state queries, presence truthiness,
+  range-compatible `empty`, checked value access, pointer inspection, and
+  move-aware member `set`, `take`, and `reset`;
+- `OptionReturns` return aliases plus consuming `map`, `andThen`, and `orElse`
+  UFCS transformations;
+- `Result!(T, E)` with explicit `ok`, `err`, and empty/moved-from states,
+  checked value/error access, success truthiness, `take`, and `takeError`;
+- `ResultReturns` for `return ok(...)`, `return err(...)`, and same-error-type
+  propagation through `return err(otherResult)`;
+- consuming `map`, `mapError`, `andThen`, and `orElse` UFCS transformations,
+  including `Result!(void, E)`;
+- `@mustuse` on both wrappers and copyability inherited from their payloads,
+  including non-copyable owning values;
+- normal compiler-generated destruction through always-valid payload storage;
+- JSON null and TOML omission support for `Option!T` through `xtb.serde`;
+  `Result` is intentionally an error-flow type rather than a serde schema type.
 
 ### Hash containers
 

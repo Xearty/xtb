@@ -13,6 +13,7 @@ import xtb.core.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
 import xtb.core.option;
+import xtb.core.result;
 import xtb.core.flag_set;
 import xtb.core.intrusive_list;
 import xtb.core.hash;
@@ -33,6 +34,9 @@ import xtb.diagnostics.crash;
 
 static assert(__traits(hasMember, StringBuf, "append"));
 static assert(__traits(hasMember, Array!int, "append"));
+static assert(__traits(hasMember, Option!int, "set"));
+static assert(__traits(hasMember, Option!int, "take"));
+static assert(__traits(hasMember, Result!(int, int), "take"));
 static assert(__traits(hasMember, OwnedString, "view"));
 static assert(__traits(hasMember, HashMap!(int, int), "set"));
 static assert(__traits(hasMember, HashSet!int, "contains"));
@@ -456,6 +460,8 @@ extern (C) int main(int argumentCount, char** arguments)
     static foreach (testFunction; __traits(getUnitTests, xtb.core.array))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.option))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.result))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.flag_set))
         testFunction();

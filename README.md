@@ -5,9 +5,9 @@ allocators, arenas and thread-local scratch scopes, owning arrays, mutable
 string builders, exact immutable `OwnedString` values, borrowed-key
 `StringViewHashMap` maps, owning `StringHashMap` maps, borrowed
 `StringViewHashSet` sets, owning `StringHashSet` sets, intrusive lists,
-strongly typed bit flags, finite checked `Duration` values, panic/logging
-facilities, allocation-free formatted output, structured logging, and panic
-contracts.
+strongly typed bit flags, `Option!T` and typed `Result!(T, E)` values, finite
+checked `Duration` values, panic/logging facilities, allocation-free formatted
+output, structured logging, and panic contracts.
 Optional stack traces and crash observation live in `xtb.diagnostics`.
 
 ## Start an application
@@ -249,8 +249,17 @@ key allocations and is valid only when its values are recursively owning. Use
 `Option!T` for nullable fields; JSON maps absence to
 `null`, while TOML omits absent struct fields. See `examples/serde_demo.d`. The
 dedicated `examples/option_demo.d` covers every `Option!T` state transition,
-copy and move behavior, destruction, nesting, pointer access, and
-backend-specific serialization rules.
+copy and move behavior, destruction, nesting, pointer access, return aliases,
+monadic transformations, and backend-specific serialization rules.
+
+Core fallible values may use `Result!(T, E)`. A Result-returning function can
+opt into `mixin ResultReturns;` for concise `return ok(...)` /
+`return err(...)` construction and `return err(otherResult)` propagation.
+`map`, `mapError`, `andThen`, and `orElse` are allocation-free UFCS algorithms.
+They are free functions rather than members so alias lambdas remain compatible
+with `-betterC`. `Result!(void, E)` represents success without a value. See
+`examples/result_demo.d`. Existing APIs are not required to use Result;
+out-parameter/status APIs remain valid when they are the clearer boundary.
 
 The remaining C++ core capability audit and proposed implementation milestone
 are maintained in `docs/core-gap-analysis.md`.
