@@ -8,8 +8,8 @@ import xtb.core.hash_map : AddStatus, HashSet, HashSetUnmanaged;
 import xtb.core.memory : Allocator;
 import xtb.core.owned_string : OwnedString;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.released_storage : ReleasedStorage;
 import xtb.core.string : StringBuf;
 import xtb.core.string_hash_map : ConstStringHashMapCursor,
@@ -36,13 +36,13 @@ nothrow @nogc:
 private:
     StringHashMapUnmanaged!StringSetMarker map_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "StringHashSetUnmanaged pointer is null");
+        invariant
+        {
+            require(&this !is null, "StringHashSetUnmanaged pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -266,13 +266,13 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "StringHashSet pointer is null");
+        invariant
+        {
+            require(&this !is null, "StringHashSet pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -500,7 +500,6 @@ public:
     }
 }
 
-
 struct StringHashSetCursor
 {
 nothrow @nogc:
@@ -628,9 +627,9 @@ unittest
     static assert(!__traits(isCopyable, StringHashSet));
     static assert(!__traits(isCopyable, StringHashSetUnmanaged));
     static assert(is(typeof((cast(StringHashSet*) null).allocator()) ==
-        Allocator*));
+            Allocator*));
     static assert(!__traits(compiles,
-        (cast(const(StringHashSet)*) null).allocator()));
+            (cast(const(StringHashSet)*) null).allocator()));
 
     StringViewHashSet borrowed = StringViewHashSet.create(mallocAllocator());
     {

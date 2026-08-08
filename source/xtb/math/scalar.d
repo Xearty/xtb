@@ -3,8 +3,8 @@ module xtb.math.scalar;
 @safe nothrow @nogc:
 
 import core.stdc.math : floorf;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : i32;
 
 enum float pi = 3.14159265358979323846f;

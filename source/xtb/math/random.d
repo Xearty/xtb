@@ -2,8 +2,7 @@ module xtb.math.random;
 
 nothrow @safe @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : u32, u64;
 import xtb.math.scalar : isFinite;
 

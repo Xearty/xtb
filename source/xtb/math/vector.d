@@ -3,8 +3,8 @@ module xtb.math.vector;
 @safe nothrow @nogc:
 
 import core.stdc.math : acosf, cosf, fabsf, sinf, sqrtf;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.math.scalar : clamp, degrees, isFinite, lerp, max, min, radians;
 
 struct Vector2

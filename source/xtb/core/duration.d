@@ -2,8 +2,7 @@ module xtb.core.duration;
 
 nothrow @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : u64;
 
 enum u64 nanosecondsPerMicrosecond = 1_000;

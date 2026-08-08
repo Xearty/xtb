@@ -4,8 +4,7 @@ nothrow @nogc:
 
 public import xtb.core.types : String;
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : u8;
 
 enum Utf8ErrorKind : u8

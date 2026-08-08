@@ -14,8 +14,8 @@ import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
     tryAllocateInit, tryAllocateInitArray;
 import xtb.core.option : Option;
 import xtb.core.owned_string;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string;
 import xtb.core.string_hash_map;
@@ -965,8 +965,8 @@ nothrow @nogc:
             if (tablePath[index].owned)
                 allocator.deallocateArray(
                     (cast(char*) tablePath[index].value.ptr)[
-                        0 .. tablePath[index].value.length + 1
-                    ],
+                    0 .. tablePath[index].value.length + 1
+            ],
                 );
             tablePath[index] = ParsedKey.init;
         }

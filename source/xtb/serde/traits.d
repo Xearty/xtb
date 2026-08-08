@@ -67,7 +67,7 @@ template HashMapValue(T)
 }
 
 enum isHashMap(T) = is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
-    Key, Value, Hasher, Equal);
+        Key, Value, Hasher, Equal);
 
 template StringHashMapValue(T)
 {
@@ -86,22 +86,22 @@ enum isStringBufUnmanaged(T) =
     is(Unqualified!T == StringBufUnmanaged);
 
 enum isHashMapUnmanaged(T) = is(
-    Unqualified!T == HashMapUnmanaged!(
-        Key,
-        Value,
-        Hasher,
-        Equal,
-        Lookup,
-        KeyOps,
-        ValueOps,
+        Unqualified!T == HashMapUnmanaged!(
+            Key,
+            Value,
+            Hasher,
+            Equal,
+            Lookup,
+            KeyOps,
+            ValueOps,
     ),
     Key, Value, Hasher, Equal, Lookup, KeyOps, ValueOps,
-);
+    );
 
 enum isHashSetUnmanaged(T) = is(
-    Unqualified!T == HashSetUnmanaged!(Key, Hasher, Equal),
-    Key, Hasher, Equal,
-);
+        Unqualified!T == HashSetUnmanaged!(Key, Hasher, Equal),
+        Key, Hasher, Equal,
+    );
 
 enum isUnmanagedContainer(T) = isArrayUnmanaged!T ||
     isStringBufUnmanaged!T || isHashMapUnmanaged!T ||
@@ -887,10 +887,10 @@ package(xtb.serde) void initializeOwnedValue(T)(
         foreach (index; 0 .. output.length)
             initializeOwnedValue(allocator, &(*output)[index]);
     else static if (isSerdeStruct!U)
-    {
-        static foreach (index; 0 .. U.tupleof.length)
-            initializeOwnedValue(allocator, &output.tupleof[index]);
-    }
+                {
+                static foreach (index; 0 .. U.tupleof.length)
+                    initializeOwnedValue(allocator, &output.tupleof[index]);
+            }
 }
 
 private bool fieldsOverlap(A, size_t left, B, size_t right)() pure @safe

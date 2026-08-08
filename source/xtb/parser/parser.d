@@ -12,8 +12,8 @@ import xtb.core.arena : Arena;
 import xtb.core.memory : Allocator;
 import xtb.core.numeric : addOverflows;
 import xtb.core.option : Option;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : String;
 
 /// Whether a failed parser permits an enclosing choice to try another branch.
@@ -498,8 +498,7 @@ public:
         return parserFromNode!U(arena_, node);
     }
 
-    Parser!U mapTuple(U)() @trusted
-    if (__traits(isCopyable, T) && __traits(isCopyable, U))
+    Parser!U mapTuple(U)() @trusted if (__traits(isCopyable, T) && __traits(isCopyable, U))
     {
         static assert(flattenedCount!T == U.tupleof.length,
             "mapTuple destination field count must match flattened parser result count");
@@ -516,8 +515,7 @@ public:
         return parserFromNode!T(arena_, node);
     }
 
-    Parser!U replace(U)(U value) @trusted
-    if (__traits(isCopyable, U))
+    Parser!U replace(U)(U value) @trusted if (__traits(isCopyable, U))
     {
         ReplaceNode!(T, U) node;
         node.parser = this;
@@ -844,8 +842,7 @@ nothrow @nogc:
     }
 }
 
-package(xtb.parser) struct ArenaList(T)
-if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+package(xtb.parser) struct ArenaList(T) if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
 {
 nothrow @nogc:
     Arena* arena;
@@ -918,8 +915,7 @@ public:
         }
     }
 
-    auto fold(U, alias combine)(U initial) @trusted
-    if (__traits(isCopyable, U))
+    auto fold(U, alias combine)(U initial) @trusted if (__traits(isCopyable, U))
     {
         FoldNode!(T, U, combine) node;
         node.parser = parser_;
@@ -967,8 +963,7 @@ nothrow @nogc:
     }
 }
 
-private struct RepeatCollectNode(T)
-if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+private struct RepeatCollectNode(T) if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
 {
 nothrow @nogc:
     Parser!T parser;
@@ -1094,8 +1089,8 @@ nothrow @nogc:
             if (first.failureKind == FailureKind.committed)
                 return ParseOutcome!Unit.failure(FailureKind.committed);
             return requireOne
-                ? ParseOutcome!Unit.failure(FailureKind.recoverable)
-                : ParseOutcome!Unit.succeed(Unit.init);
+                ? ParseOutcome!Unit.failure(FailureKind.recoverable) : ParseOutcome!Unit.succeed(Unit
+                        .init);
         }
         while (true)
         {
@@ -1114,8 +1109,7 @@ nothrow @nogc:
     }
 }
 
-private struct SepCollectNode(T, S)
-if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+private struct SepCollectNode(T, S) if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
 {
 nothrow @nogc:
     Parser!T parser;
@@ -1734,8 +1728,7 @@ public:
         return satisfy!isAsciiHexDigitByte("hex digit");
     }
 
-    Parser!T choice(T, Rest...)(Parser!T first, Rest rest) @trusted
-    if (allParserTypes!(T, Rest))
+    Parser!T choice(T, Rest...)(Parser!T first, Rest rest) @trusted if (allParserTypes!(T, Rest))
     {
         enum count = 1 + Rest.length;
         Parser!T[] alternatives = arena_.allocateArray!(Parser!T)(count);
@@ -1775,6 +1768,7 @@ public:
     auto expressionTable(T, BinaryOp, UnaryOp)() @trusted
     {
         import xtb.parser.expression : ExpressionTable;
+
         return ExpressionTable!(T, BinaryOp, UnaryOp).create(&this);
     }
 
@@ -1973,10 +1967,11 @@ unittest
 
     struct Assignment
     {
-nothrow @nogc:
+    nothrow @nogc:
         String name;
         int value;
     }
+
     auto assignment = grammar.identifier()
         .then(grammar.value('=').after(grammar.integer!int()))
         .mapTuple!Assignment();

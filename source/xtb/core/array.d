@@ -8,8 +8,8 @@ import core.stdc.string : memmove;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
     tryReallocateArray;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.numeric : multiplyOverflows;
 import xtb.core.released_storage : ReleasedStorage;
 
@@ -498,7 +498,7 @@ public:
                     const sourceEnd = sourceOffset + values.length;
                     const leftCount = sourceOffset < index
                         ? (sourceEnd < index ? sourceEnd : index) -
-                            sourceOffset : 0;
+                sourceOffset : 0;
                     const rightCount = values.length - leftCount;
                     if (leftCount != 0)
                         memmove(data_ + index, data_ + sourceOffset,
@@ -678,13 +678,13 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "Array pointer is null");
+        invariant
+        {
+            require(&this !is null, "Array pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -966,7 +966,6 @@ package(xtb):
     }
 }
 
-
 private void requireValidAllocator(Allocator* allocator) @trusted
 {
     version (XTB_Checked)
@@ -1165,31 +1164,27 @@ unittest
 
     static assert(ArrayUnmanaged!int.sizeof == 3 * size_t.sizeof);
     static assert(Array!int.sizeof ==
-        ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
+            ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
     static assert(!__traits(isCopyable, ArrayUnmanaged!int));
     static assert(!__traits(isCopyable, Array!int));
     static assert(!__traits(isCopyable, Array!int.Released));
     static assert(is(typeof((cast(Array!int*) null).allocator()) == Allocator*));
     static assert(!__traits(compiles,
-        (cast(const(Array!int)*) null).allocator()));
+            (cast(const(Array!int)*) null).allocator()));
     static assert(is(typeof((cast(Array!int.Released*) null).allocator()) ==
-        Allocator*));
+            Allocator*));
     static assert(!__traits(compiles,
-        (cast(const(Array!int.Released)*) null).allocator()));
+            (cast(const(Array!int.Released)*) null).allocator()));
     static assert(!__traits(compiles, () @safe {
-        Array!int.Released released;
-        ref ArrayUnmanaged!int storage = released.storage;
-    }));
-    static assert(__traits(compiles,
-        (scope const Array!int.Released* released) @safe {
-            const length = released.storage.length;
+            Array!int.Released released;
+            ref ArrayUnmanaged!int storage = released.storage;
         }));
+    static assert(__traits(compiles,
+            (scope const Array!int.Released* released) @safe { const length = released.storage.length; }));
     static assert(!__traits(compiles, (ref Array!int.Released released) {
-        released.allocator = mallocAllocator();
-    }));
-    static assert(!__traits(compiles, (ref Array!int managed) {
-        ArrayUnmanaged!int storage = managed;
-    }));
+            released.allocator = mallocAllocator();
+        }));
+    static assert(!__traits(compiles, (ref Array!int managed) { ArrayUnmanaged!int storage = managed; }));
 
     ArrayUnmanaged!int zero;
     zero.deinit(null);
@@ -1286,9 +1281,9 @@ unittest
     int[4] inserted = [700, 701, 702, 703];
     assert(managed.tryInsert(17, inserted[]));
     assert(unmanaged.tryInsert(
-        unmanagedAllocator.allocator,
-        17,
-        inserted[],
+            unmanagedAllocator.allocator,
+            17,
+            inserted[],
     ));
     managed.removeRange(9, 11);
     unmanaged.removeRange(9, 11);

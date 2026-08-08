@@ -5,8 +5,8 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move;
 import xtb.core.memory : Allocator;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 
 private template ReleasedFunctionType(alias operation)
 {
@@ -67,8 +67,7 @@ public:
         static assert(publicDeinitCount!Storage() == 1,
             "ReleasedStorage requires Storage.deinit(Allocator*): " ~
                 "exactly one public overload is required");
-        static foreach (alias operation;
-            __traits(getOverloads, Storage, "deinit"))
+        static foreach (alias operation; __traits(getOverloads, Storage, "deinit"))
         {
             static if (__traits(getProtection, operation) == "public")
             {

@@ -4,8 +4,8 @@ import xtb.core.types;
 import xtb.core.numeric;
 import xtb.core.duration;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.metadata;
 import xtb.core.slice;
 import xtb.core.memory;
@@ -48,9 +48,9 @@ static assert(__traits(hasMember, StringHashMap!int, "set"));
 static assert(__traits(hasMember, StringHashSetUnmanaged, "contains"));
 static assert(__traits(hasMember, StringHashSet, "contains"));
 static assert(__traits(compiles,
-    (cast(StringBuf*) null).append("member lookup")));
+        (cast(StringBuf*) null).append("member lookup")));
 static assert(__traits(compiles,
-    (cast(const(StringBuf)*) null).view));
+        (cast(const(StringBuf)*) null).view));
 
 version (Posix)
 {

@@ -12,7 +12,6 @@ private int digitSum(int left, char digit) pure @safe
     return left + digit - '0';
 }
 
-
 private bool decimalDigit(char value) pure @safe
 {
     return value >= '0' && value <= '9';
@@ -135,6 +134,7 @@ private void testCoreCombinators()
         String name;
         int value;
     }
+
     auto assignment = grammar.identifier()
         .then(grammar.value('=').after(grammar.integer!int()))
         .mapTuple!Assignment();
@@ -190,7 +190,6 @@ private void testCoreCombinators()
     output.deinit();
 }
 
-
 private enum TestBinaryOperator : ubyte
 {
     power,
@@ -219,10 +218,10 @@ private int expressionBinary(
 {
     final switch (operation)
     {
-    case TestBinaryOperator.power:
-        return integerPower(left, right);
-    case TestBinaryOperator.less:
-        return left < right ? 1 : 0;
+        case TestBinaryOperator.power:
+            return integerPower(left, right);
+        case TestBinaryOperator.less:
+            return left < right ? 1 : 0;
     }
 }
 
@@ -233,13 +232,13 @@ private int expressionUnary(
 {
     final switch (operation)
     {
-    case TestUnaryOperator.negate:
-        return -value;
-    case TestUnaryOperator.factorial:
-        int result = 1;
-        foreach (current; 2 .. value + 1)
-            result *= current;
-        return result;
+        case TestUnaryOperator.negate:
+            return -value;
+        case TestUnaryOperator.factorial:
+            int result = 1;
+            foreach (current; 2 .. value + 1)
+                result *= current;
+            return result;
     }
 }
 
@@ -282,7 +281,7 @@ private void testExpressionTable()
 
 static assert(JsonValue.sizeof <= JsonKind.sizeof + (JsonValue[]).sizeof + (void*).alignof);
 static assert(ArithmeticExpression.sizeof <=
-    ArithmeticExpressionKind.sizeof + ArithmeticBinary.sizeof + (void*).alignof);
+        ArithmeticExpressionKind.sizeof + ArithmeticBinary.sizeof + (void*).alignof);
 
 private void assertNumber(const ArithmeticExpression* node, double expected)
 {

@@ -492,25 +492,17 @@ static assert(__traits(compiles,
         writeToml(writer, values);
     }));
 static assert(!__traits(compiles,
-        (ref Writer writer, ref HashMap!(int, int) values) {
-        writeJson(writer, values);
-    }));
-static assert(__traits(compiles, (ref Writer writer, ref int[3] values) {
-        writeJson(writer, values);
-    }));
+        (ref Writer writer, ref HashMap!(int, int) values) { writeJson(writer, values); }));
+static assert(__traits(compiles, (ref Writer writer, ref int[3] values) { writeJson(writer, values); }));
 static assert(__traits(compiles,
-        (Allocator* allocator, Deserialized!(int[])* output) {
-        readJson("[]", allocator, output);
-    }));
+        (Allocator* allocator, Deserialized!(int[])* output) { readJson("[]", allocator, output); }));
 static assert(__traits(compiles,
         (Allocator* allocator, Deserialized!(HashMap!(String, int))* output) {
         readJson("{}", allocator, output);
         readToml("", allocator, output);
     }));
 static assert(!__traits(compiles,
-        (Allocator* allocator, HashMap!(String, int)* output) {
-        readJson("{}", allocator, output);
-    }));
+        (Allocator* allocator, HashMap!(String, int)* output) { readJson("{}", allocator, output); }));
 static assert(!__traits(compiles, (ref Writer writer, ref int[3] values) {
         writeToml(writer, values);
     }));
@@ -1903,7 +1895,6 @@ private void testTomlHashMaps() nothrow @nogc
     source.deinit();
     encoded.deinit();
 }
-
 
 private void testOwnedStringsAndStringHashMaps() nothrow @nogc
 {

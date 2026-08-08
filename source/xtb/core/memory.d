@@ -11,8 +11,8 @@ else
     import core.stdc.stdlib : aligned_alloc;
 import core.stdc.string : memcpy, memset;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.numeric : multiplyOverflows;
 
 alias Allocator = extern (C) void* function(
@@ -679,6 +679,7 @@ unittest
     }
 
     import core.lifetime : move;
+
     MoveOnly movable;
     movable.value = 29;
     MoveOnly* moved = mallocAllocator().create!MoveOnly(move(movable));

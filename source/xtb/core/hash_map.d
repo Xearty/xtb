@@ -10,8 +10,8 @@ import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
     tryAllocateZeroedArray;
 import xtb.core.numeric : multiplyOverflows;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.released_storage : ReleasedStorage;
 
 private enum SlotState : ubyte
@@ -131,7 +131,7 @@ version (unittest)
 
         size_t opCall(scope const(int)* key) const pure nothrow @safe @nogc
         {
-            return parity ? cast(size_t) (*key & 1) : cast(size_t) *key;
+            return parity ? cast(size_t)(*key & 1) : cast(size_t)*key;
         }
     }
 
@@ -305,7 +305,7 @@ public:
     }
 
     static if (IsDefaultHashPolicy!(Hasher, K) &&
-            IsDefaultEqualPolicy!(Equal, K))
+        IsDefaultEqualPolicy!(Equal, K))
     {
         static HashMapUnmanaged seeded(HashSeed seed)
         {
@@ -852,13 +852,13 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "HashMap pointer is null");
+        invariant
+        {
+            require(&this !is null, "HashMap pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -916,7 +916,7 @@ public:
     }
 
     static if (IsDefaultHashPolicy!(Hasher, K) &&
-            IsDefaultEqualPolicy!(Equal, K))
+        IsDefaultEqualPolicy!(Equal, K))
     {
         static Self seeded(Allocator* allocator, HashSeed seed) @trusted
         {
@@ -1118,7 +1118,6 @@ package(xtb):
         return move(result);
     }
 }
-
 
 private void requireValidHashAllocator(Allocator* allocator) @trusted
 {
@@ -1414,7 +1413,7 @@ public:
     }
 
     static if (IsDefaultHashPolicy!(Hasher, K) &&
-            IsDefaultEqualPolicy!(Equal, K))
+        IsDefaultEqualPolicy!(Equal, K))
     {
         static HashSetUnmanaged seeded(HashSeed seed)
         {
@@ -1568,13 +1567,13 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "HashSet pointer is null");
+        invariant
+        {
+            require(&this !is null, "HashSet pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -1632,7 +1631,7 @@ public:
     }
 
     static if (IsDefaultHashPolicy!(Hasher, K) &&
-            IsDefaultEqualPolicy!(Equal, K))
+        IsDefaultEqualPolicy!(Equal, K))
     {
         static Self seeded(Allocator* allocator, HashSeed seed) @trusted
         {
@@ -1813,7 +1812,6 @@ package(xtb):
         return move(result);
     }
 }
-
 
 struct HashSetCursor(K)
 {
@@ -2170,9 +2168,9 @@ unittest
     alias IntSetStorage = HashSetUnmanaged!int;
 
     static assert(IntMap.sizeof ==
-        IntMapStorage.sizeof + (Allocator*).sizeof);
+            IntMapStorage.sizeof + (Allocator*).sizeof);
     static assert(IntSet.sizeof ==
-        IntSetStorage.sizeof + (Allocator*).sizeof);
+            IntSetStorage.sizeof + (Allocator*).sizeof);
     static assert(!__traits(isCopyable, IntMapStorage));
     static assert(!__traits(isCopyable, IntMap));
     static assert(!__traits(isCopyable, IntMap.Released));
@@ -2181,14 +2179,14 @@ unittest
     static assert(!__traits(isCopyable, IntSet.Released));
     static assert(is(typeof((cast(IntMap*) null).allocator()) == Allocator*));
     static assert(!__traits(compiles,
-        (cast(const(IntMap)*) null).allocator()));
+            (cast(const(IntMap)*) null).allocator()));
     static assert(is(typeof((cast(IntSet*) null).allocator()) == Allocator*));
     static assert(!__traits(compiles,
-        (cast(const(IntSet)*) null).allocator()));
+            (cast(const(IntSet)*) null).allocator()));
     static assert(!__traits(compiles, () @safe {
-        IntMap.Released released;
-        ref IntMapStorage storage = released.storage;
-    }));
+            IntMap.Released released;
+            ref IntMapStorage storage = released.storage;
+        }));
 
     IntMapStorage zeroMap;
     zeroMap.deinit(null);
@@ -2286,25 +2284,25 @@ unittest
 
         allocator.failAfter(0);
         assert(!IntMapStorage.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
         allocator.failAfter(1);
         assert(!IntMapStorage.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
         allocator.allowAllocations();
         assert(IntMapStorage.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.capacity >= 32);
         output.deinit(allocator.allocator);
@@ -2321,18 +2319,18 @@ unittest
 
         allocator.failAfter(1);
         assert(!IntMap.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.allocator is null);
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
         allocator.allowAllocations();
         assert(IntMap.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.allocator is allocator.allocator);
         assert(output.capacity >= 32);
@@ -2350,17 +2348,17 @@ unittest
 
         allocator.failAfter(1);
         assert(!IntSetStorage.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
         allocator.allowAllocations();
         assert(IntSetStorage.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.capacity >= 32);
         output.deinit(allocator.allocator);
@@ -2377,18 +2375,18 @@ unittest
 
         allocator.failAfter(1);
         assert(!IntSet.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.allocator is null);
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
         allocator.allowAllocations();
         assert(IntSet.tryWithCapacity(
-            allocator.allocator,
-            32,
-            &output,
+                allocator.allocator,
+                32,
+                &output,
         ));
         assert(output.allocator is allocator.allocator);
         assert(output.capacity >= 32);
@@ -2422,18 +2420,18 @@ unittest
     foreach (value; 0 .. 160)
     {
         assert(managed.trySet(value, value * 3) ==
-            unmanaged.trySet(unmanagedAllocator.allocator, value, value * 3));
+                unmanaged.trySet(unmanagedAllocator.allocator, value, value * 3));
     }
     foreach (value; 0 .. 80)
     {
         if ((value & 1) == 0)
             assert(managed.remove(value) ==
-                unmanaged.remove(unmanagedAllocator.allocator, value));
+                    unmanaged.remove(unmanagedAllocator.allocator, value));
     }
     foreach (value; 80 .. 120)
     {
         assert(managed.trySet(value, value * 5) ==
-            unmanaged.trySet(unmanagedAllocator.allocator, value, value * 5));
+                unmanaged.trySet(unmanagedAllocator.allocator, value, value * 5));
     }
     assert(managed.tryReserve(384));
     assert(unmanaged.tryReserve(unmanagedAllocator.allocator, 384));

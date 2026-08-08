@@ -6,8 +6,8 @@ import core.stdc.math : floorf, fmodf;
 import xtb.core.array;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.math.random : Random;
 import xtb.math.scalar : smootherstep;
 

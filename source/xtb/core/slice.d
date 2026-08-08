@@ -2,8 +2,7 @@ module xtb.core.slice;
 
 nothrow @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 
 T[] subslice(T)(return scope T[] values, size_t offset, size_t count)
 @system

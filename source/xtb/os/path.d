@@ -3,8 +3,8 @@ module xtb.os.path;
 nothrow @nogc:
 
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.string;
 
 /// A borrowed native path without embedded NUL bytes.

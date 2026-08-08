@@ -2,8 +2,7 @@ module xtb.core.numeric;
 
 nothrow @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 
 pure @safe
 T min(T)(T left, T right)

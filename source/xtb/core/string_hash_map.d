@@ -8,8 +8,8 @@ import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
 import xtb.core.owned_string;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.released_storage : ReleasedStorage;
 import xtb.core.string;
 
@@ -100,13 +100,13 @@ nothrow @nogc:
 private:
     OwnedStringMapStorage!V map_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "StringHashMapUnmanaged pointer is null");
+        invariant
+        {
+            require(&this !is null, "StringHashMapUnmanaged pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -520,7 +520,7 @@ private:
                     allocator,
                     key.view,
                     &owned,
-            ))
+                ))
                 return MoveKeyStatus.outOfMemory;
         }
 
@@ -576,7 +576,7 @@ private:
                     destination,
                     key.view,
                     &owned,
-            ))
+                ))
                 return MoveKeyStatus.outOfMemory;
         }
 
@@ -601,13 +601,13 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "StringHashMap pointer is null");
+        invariant
+        {
+            require(&this !is null, "StringHashMap pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -902,7 +902,6 @@ package(xtb):
     }
 }
 
-
 private void requireValidStringHashMapAllocator(Allocator* allocator) @trusted
 {
     version (XTB_Checked)
@@ -1054,9 +1053,9 @@ unittest
     static assert(is(StringViewHashMap!int == HashMap!(String, int)));
     static assert(!__traits(isCopyable, StringHashMap!int));
     static assert(is(typeof((cast(StringHashMap!int*) null).allocator()) ==
-        Allocator*));
+            Allocator*));
     static assert(!__traits(compiles,
-        (cast(const(StringHashMap!int)*) null).allocator()));
+            (cast(const(StringHashMap!int)*) null).allocator()));
 
     StringHashMap!int values = StringHashMap!int.create(mallocAllocator());
     StringBuf source = StringBuf.fromString(mallocAllocator(), "alpha");
@@ -1065,7 +1064,7 @@ unittest
     int first = 1;
     assert(values.addMove(&source, &first));
     assert(source.allocator is null &&
-        source.empty);
+            source.empty);
     assert(values.find("alpha") !is null && *values.find("alpha") == 1);
 
     auto cursor = values.cursor();
@@ -1075,7 +1074,7 @@ unittest
     StringBuf duplicate = StringBuf.fromString(mallocAllocator(), "alpha");
     int duplicateValue = 2;
     assert(values.tryAddMove(&duplicate, &duplicateValue) ==
-        AddStatus.alreadyPresent);
+            AddStatus.alreadyPresent);
     assert(duplicate.view == "alpha" && duplicateValue == 2);
 
     String mutableSource = "beta";
@@ -1088,6 +1087,7 @@ unittest
 unittest
 {
     import xtb.core.memory : mallocAllocator;
+
     Allocator* allocator = mallocAllocator();
     StringHashMapUnmanaged!int values;
     StringBuf source = StringBuf.fromString(allocator, "unmanaged");
@@ -1096,13 +1096,13 @@ unittest
     int value = 42;
 
     assert(values.tryAddMove(allocator, &source, &value) ==
-        AddStatus.inserted);
+            AddStatus.inserted);
     assert(source.allocator is null);
     StringHashMapUnmanaged!int* valuesPointer = &values;
     assert(valuesPointer.length == 1);
     assert(valuesPointer.contains("unmanaged"));
     assert(valuesPointer.find("unmanaged") !is null &&
-        *valuesPointer.find("unmanaged") == 42);
+            *valuesPointer.find("unmanaged") == 42);
     assert((*valuesPointer.cursor.key).ptr is sourcePointer);
 
     const(StringHashMapUnmanaged!int)* constValuesPointer = &values;
@@ -1116,6 +1116,7 @@ unittest
 {
     import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
         mallocAllocator;
+
     AllocationRecord[128] mapRecords;
     AllocationRecord[32] foreignRecords;
     InstrumentedAllocator mapAllocator = InstrumentedAllocator.create(
@@ -1131,7 +1132,7 @@ unittest
     StringBuf exact = StringBuf.fromString(mapAllocator.allocator, "stable");
     const(char)* exactPointer;
     {
-            exact.shrinkToFit();
+        exact.shrinkToFit();
         exactPointer = exact.view.ptr;
     }
     int first = 1;
@@ -1188,7 +1189,7 @@ unittest
     );
     int replacementValue = 20;
     assert(values.trySetMove(&replacement, &replacementValue) ==
-        SetStatus.replaced);
+            SetStatus.replaced);
     {
         assert(replacement.allocator is null && replacement.empty);
     }
@@ -1208,7 +1209,7 @@ unittest
     );
     int duplicateValue = 30;
     assert(values.tryAddMove(&duplicate, &duplicateValue) ==
-        AddStatus.alreadyPresent);
+            AddStatus.alreadyPresent);
     {
         assert(duplicate.view == "foreign" && duplicateValue == 30);
         duplicate.deinit();
@@ -1242,7 +1243,7 @@ unittest
     int retainedValue = 7;
     failedMapAllocator.failAfter(0);
     assert(failing.tryAddMove(&retained, &retainedValue) ==
-        AddStatus.outOfMemory);
+            AddStatus.outOfMemory);
     {
         assert(retained.view == "retained" && retainedValue == 7);
     }
@@ -1250,7 +1251,7 @@ unittest
 
     failedMapAllocator.failAfter(2);
     assert(failing.tryAddMove(&retained, &retainedValue) ==
-        AddStatus.outOfMemory);
+            AddStatus.outOfMemory);
     {
         assert(retained.view == "retained" && retainedValue == 7);
     }

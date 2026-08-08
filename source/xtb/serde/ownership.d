@@ -5,8 +5,8 @@ nothrow @nogc:
 import core.stdc.string : memcpy;
 import xtb.core.memory : Allocator, tryAllocateInit;
 import xtb.core.numeric : addOverflows;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.pretty_print : PrettyPrintOptions, writePretty;
 import xtb.core.print : Writer;
 
@@ -271,7 +271,6 @@ private bool isPowerOfTwo(size_t value) pure @safe
     return value != 0 && (value & (value - 1)) == 0;
 }
 
-
 version (unittest)
 {
     private struct PrettyPrintOwnershipRecord
@@ -306,7 +305,7 @@ unittest
     assert(valueResult.ok);
     assert(!valueResult.truncated);
     assert(valueStorage[0 .. valueResult.written].equal(
-        "PrettyPrintOwnershipRecord {id: 17}",
+            "PrettyPrintOwnershipRecord {id: 17}",
     ));
 
     decoded.deinit();

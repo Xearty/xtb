@@ -62,7 +62,7 @@ extern (C) int main()
     assert(convertedError.isErr && convertedError.error == 100);
 
     auto recovered = readValue(true).orElse!(error =>
-        Result!(int, int).ok(error == DemoError.unavailable ? 7 : 0));
+            Result!(int, int).ok(error == DemoError.unavailable ? 7 : 0));
     assert(recovered && recovered.value == 7);
     return 0;
 }

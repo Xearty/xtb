@@ -6,8 +6,8 @@ import core.lifetime : emplace, forward;
 import core.stdc.string : memcpy, memset;
 import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.numeric : addOverflows, multiplyOverflows;
 
@@ -683,6 +683,7 @@ unittest
     assert(constructed.value == 91);
 
     import xtb.core.memory : allocateInit;
+
     Allocator* arenaAllocator = arena.allocator;
     int* throughAllocator = arenaAllocator.allocateInit!int();
     assert(*throughAllocator == int.init);

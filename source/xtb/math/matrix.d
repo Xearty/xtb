@@ -3,8 +3,8 @@ module xtb.math.matrix;
 @safe nothrow @nogc:
 
 import core.stdc.math : cosf, sinf, tanf;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.math.scalar : pi;
 import xtb.math.vector : Vector2, Vector3, Vector4, cross, dot, isFinite,
     length, normalized, withW, xyz;

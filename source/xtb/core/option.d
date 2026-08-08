@@ -6,8 +6,8 @@ import core.attribute : mustuse;
 import core.lifetime : forward, move, moveEmplace;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 
 private enum bool isOptionType(T) = is(T == Option!Value, Value);
 
@@ -15,7 +15,6 @@ private enum bool isOptionType(T) = is(T == Option!Value, Value);
 struct None
 {
 }
-
 
 version (unittest) private struct TrackedOptionValue
 {
@@ -57,7 +56,6 @@ nothrow @nogc:
         reset();
         return this;
     }
-
 
     static Option none()
     {
@@ -106,7 +104,6 @@ nothrow @nogc:
     {
         return present_ ? &value_ : null;
     }
-
 
     /// Destroys the current value, if any, and makes this Option absent.
     void reset()
@@ -319,10 +316,7 @@ unittest
     assert(destructions == 2);
 
     static assert(!__traits(compiles,
-        (ref Option!StringBuf value)
-        {
-            Option!StringBuf copy = value;
-        }));
+            (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
 
     Option!(int*) presentNull = some(cast(int*) null);
     assert(presentNull.isSome && presentNull.value is null);

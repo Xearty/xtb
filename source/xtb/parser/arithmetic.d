@@ -7,8 +7,8 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdlib : strtod;
 import xtb.core.arena : Arena;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : String;
 import xtb.parser.expression : ExpressionTable;
 import xtb.parser.parser : FailureKind, Grammar, ParseContext, ParseErrorKind,
@@ -231,9 +231,9 @@ Parser!(ArithmeticExpression*) arithmeticExpression(Grammar* grammar) @trusted
         expression.parser.between(token.literal("("), token.literal(")"));
 
     primary.define(grammar.choice(
-        parenthesized,
-        numberExpression,
-        identifierExpression,
+            parenthesized,
+            numberExpression,
+            identifierExpression,
     ));
 
     auto operators = grammar.expressionTable!(

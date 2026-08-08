@@ -1,7 +1,6 @@
 module xtb.core.list;
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 
 nothrow @nogc:
 
@@ -162,11 +161,13 @@ struct List(Node, string member = "listLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null list node");
         ref link = listLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.previous_ = last_;
         link.next_ = null;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         if (last_ is null)
             first_ = node;
         else
@@ -179,11 +180,13 @@ struct List(Node, string member = "listLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null list node");
         ref link = listLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.previous_ = null;
         link.next_ = first_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         if (first_ is null)
             last_ = node;
         else
@@ -207,10 +210,12 @@ struct List(Node, string member = "listLink")
 
         ref positionLink = listLinkOf!(Node, member)(position);
         ref link = listLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
         link.previous_ = position;
         link.next_ = positionLink.next_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         listLinkOf!(Node, member)(positionLink.next_).previous_ = node;
         positionLink.next_ = node;
     }
@@ -231,10 +236,12 @@ struct List(Node, string member = "listLink")
 
         ref positionLink = listLinkOf!(Node, member)(position);
         ref link = listLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
         link.next_ = position;
         link.previous_ = positionLink.previous_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         listLinkOf!(Node, member)(positionLink.previous_).next_ = node;
         positionLink.previous_ = node;
     }
@@ -381,8 +388,8 @@ struct ForwardList(Node, string member = "forwardLink")
 
     private bool contains(Node* node)
     {
-        for (Node* current = first_; current !is null;
-             current = forwardLinkOf!(Node, member)(current).next_)
+        for (Node* current = first_; current !is null; current = forwardLinkOf!(Node, member)(current)
+            .next_)
         {
             if (current is node)
                 return true;
@@ -396,10 +403,12 @@ struct ForwardList(Node, string member = "forwardLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null forward-list node");
         ref link = forwardLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.next_ = first_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         first_ = node;
         if (last_ is null)
             last_ = node;
@@ -411,10 +420,12 @@ struct ForwardList(Node, string member = "forwardLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null forward-list node");
         ref link = forwardLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.next_ = null;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         if (last_ is null)
             first_ = node;
         else
@@ -442,9 +453,11 @@ struct ForwardList(Node, string member = "forwardLink")
 
         ref positionLink = forwardLinkOf!(Node, member)(position);
         ref link = forwardLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
         link.next_ = positionLink.next_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         positionLink.next_ = node;
     }
 
@@ -648,10 +661,12 @@ struct Stack(Node, string member = "forwardLink")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null stack node");
         ref link = forwardLinkOf!(Node, member)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.next_ = top_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         top_ = node;
     }
 
@@ -689,7 +704,8 @@ unittest
     assert(list.first.value == 1);
     assert(list.last.value == 2 && list.first.listLink.next is &middle);
     assert(list.popFront() is &first);
-    version (XTB_Checked) assert(!first.listLink.linked);
+    version (XTB_Checked)
+        assert(!first.listLink.linked);
     assert(list.popBack() is &second);
     list.remove(&middle);
     assert(list.empty);
@@ -722,7 +738,8 @@ unittest
     List!(MultiListNode, "secondLink") secondList;
     firstList.pushBack(&sharedNode);
     secondList.pushBack(&sharedNode);
-    version (XTB_Checked) assert(sharedNode.firstLink.linked && sharedNode.secondLink.linked);
+    version (XTB_Checked)
+        assert(sharedNode.firstLink.linked && sharedNode.secondLink.linked);
     firstList.popFront();
     secondList.popFront();
 
@@ -748,7 +765,6 @@ unittest
     assert(stack.pop() is &two);
     assert(stack.pop() is &one && stack.empty);
 }
-
 
 unittest
 {
@@ -791,16 +807,19 @@ unittest
     assert(list.removeAfter(&first) is &second);
     assert(first.forwardLink.next is &third);
     assert(list.last is &third);
-    version (XTB_Checked) assert(!second.forwardLink.linked);
+    version (XTB_Checked)
+        assert(!second.forwardLink.linked);
 
     list.insertAfter(&third, &second);
     assert(list.last is &second);
     assert(third.forwardLink.next is &second);
-    version (XTB_Checked) assert(second.forwardLink.linked);
+    version (XTB_Checked)
+        assert(second.forwardLink.linked);
 
     assert(list.removeAfter(&third) is &second);
     assert(list.last is &third && third.forwardLink.next is null);
-    version (XTB_Checked) assert(!second.forwardLink.linked);
+    version (XTB_Checked)
+        assert(!second.forwardLink.linked);
 
     // Splitting transfers a suffix without detaching its hooks. Concatenating
     // the result restores the chain in O(1).
@@ -905,7 +924,8 @@ private struct IntrusiveContainerLayoutProbe
 }
 
 static assert(ForwardList!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof * 2);
-static assert(Queue!IntrusiveContainerLayoutProbe.sizeof == ForwardList!IntrusiveContainerLayoutProbe.sizeof);
+static assert(Queue!IntrusiveContainerLayoutProbe.sizeof == ForwardList!IntrusiveContainerLayoutProbe
+        .sizeof);
 static assert(Stack!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof);
 static assert(__traits(hasMember, ForwardList!IntrusiveContainerLayoutProbe, "insertAfter"));
 static assert(__traits(hasMember, ForwardList!IntrusiveContainerLayoutProbe, "removeAfter"));
@@ -984,7 +1004,8 @@ unittest
     // A detached hook is immediately reusable.
     ready.pushFront(&first);
     assert(ready.first is &first && ready.last is &second);
-    version (XTB_Checked) assert(first.readyLink.linked);
+    version (XTB_Checked)
+        assert(first.readyLink.linked);
 
     ready.remove(&first);
     ready.remove(&second);

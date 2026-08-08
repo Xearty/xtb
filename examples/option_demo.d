@@ -62,7 +62,7 @@ private void demonstrateTransformations()
     assert(mapped.value == 43);
 
     auto chained = findNumber(true).andThen!(value =>
-        value > 0 ? some(value + 1) : Option!int.none());
+            value > 0 ? some(value + 1) : Option!int.none());
     assert(chained.value == 22);
 
     auto recovered = findNumber(false).orElse!(() => some(7));
@@ -156,10 +156,7 @@ private void demonstrateOwningValues(Allocator* allocator)
 
     // An Option is non-copyable when T is non-copyable.
     static assert(!__traits(compiles,
-        (ref Option!StringBuf value)
-        {
-            Option!StringBuf copy = value;
-        }));
+            (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
 
     StringBuf extracted = text.take();
     assert(text.isNone && extracted == "alpha-beta");

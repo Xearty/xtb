@@ -6,8 +6,8 @@ import core.stdc.signal : SIGABRT, SIGFPE, SIGILL, SIGSEGV, sig_atomic_t;
 import core.stdc.stdio : FILE, stderr;
 import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.core.panic : PanicHook, panic, setPanicHandler;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;

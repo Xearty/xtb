@@ -6,8 +6,8 @@ import core.lifetime : move;
 import core.stdc.string : memmove;
 import xtb.core.memory : Allocator, allocateArray, allocateZeroedArray;
 import xtb.core.option : Option, some;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : u32, u64, u8;

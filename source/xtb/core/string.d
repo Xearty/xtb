@@ -13,8 +13,8 @@ import xtb.core.array;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.hash : hashValue;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.released_storage : ReleasedStorage;
 import xtb.core.utf8 : ceilCodePointBoundary, encodeUtf8,
     isCodePointBoundary, validateUtf8;
@@ -1190,13 +1190,13 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "StringBuf pointer is null");
+        invariant
+        {
+            require(&this !is null, "StringBuf pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -1705,8 +1705,7 @@ public:
         const original = storage_.view;
         const trimmed = xtb.core.string.trimAscii(original);
         const begin = trimmed.length == 0
-            ? original.length
-            : cast(size_t) trimmed.ptr - cast(size_t) original.ptr;
+            ? original.length : cast(size_t) trimmed.ptr - cast(size_t) original.ptr;
         if (begin != 0)
             storage_.bytes_.removeRange(0, begin);
         storage_.truncateBytes(trimmed.length);
@@ -1779,7 +1778,6 @@ package(xtb):
         return adoptUnmanaged(allocator, &storage);
     }
 }
-
 
 private void requireValidStringBufAllocator(Allocator* allocator) @trusted
 {
@@ -1971,17 +1969,17 @@ unittest
 
     static assert(StringBufUnmanaged.sizeof == ArrayUnmanaged!char.sizeof);
     static assert(StringBuf.sizeof ==
-        StringBufUnmanaged.sizeof + (Allocator*).sizeof);
+            StringBufUnmanaged.sizeof + (Allocator*).sizeof);
     static assert(!__traits(isCopyable, StringBufUnmanaged));
     static assert(!__traits(isCopyable, StringBuf));
     static assert(!__traits(isCopyable, StringBuf.Released));
     static assert(is(typeof((cast(StringBuf*) null).allocator()) == Allocator*));
     static assert(!__traits(compiles,
-        (cast(const(StringBuf)*) null).allocator()));
+            (cast(const(StringBuf)*) null).allocator()));
     static assert(!__traits(compiles, () @safe {
-        StringBuf.Released released;
-        ref StringBufUnmanaged storage = released.storage;
-    }));
+            StringBuf.Released released;
+            ref StringBufUnmanaged storage = released.storage;
+        }));
 
     StringBufUnmanaged zero;
     zero.deinit(null);
@@ -2056,20 +2054,20 @@ unittest
     assert(unmanaged.tryAppend(unmanagedAllocator.allocator, "alpha"));
     assert(managed.tryAppend(cast(dchar) 0x1f642));
     assert(unmanaged.tryAppend(
-        unmanagedAllocator.allocator,
-        cast(dchar) 0x1f642,
+            unmanagedAllocator.allocator,
+            cast(dchar) 0x1f642,
     ));
     assert(managed.tryInsert(5, " beta"));
     assert(unmanaged.tryInsert(
-        unmanagedAllocator.allocator,
-        5,
-        " beta",
+            unmanagedAllocator.allocator,
+            5,
+            " beta",
     ));
     assert(managed.tryReplace("alpha", "A"));
     assert(unmanaged.tryReplace(
-        unmanagedAllocator.allocator,
-        "alpha",
-        "A",
+            unmanagedAllocator.allocator,
+            "alpha",
+            "A",
     ));
     assert(managed.tryReserve(128));
     assert(unmanaged.tryReserve(unmanagedAllocator.allocator, 128));
@@ -2149,7 +2147,7 @@ unittest
     StringBuf retained = StringBuf.fromString(failing.allocator, "small");
     failing.failAfter(0);
     assert(!retained.tryAssign(
-        "this replacement is intentionally larger than the current capacity",
+            "this replacement is intentionally larger than the current capacity",
     ));
     assert(retained == "small");
 }

@@ -6,8 +6,8 @@ import core.attribute : mustuse;
 import core.lifetime : forward, move, moveEmplace;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 
 private enum ResultState : ubyte
 {
@@ -30,6 +30,7 @@ private template ResultValue(T)
     static if (is(T == Result!(Value, Error), Value, Error))
         alias ResultValue = Value;
 }
+
 private template ResultError(T)
 {
     static if (is(T == Result!(Value, Error), Value, Error))
@@ -144,8 +145,7 @@ nothrow @nogc:
         {
             if (!isOk)
                 panic(isErr
-                    ? "called Result.unwrap() on err"
-                    : "called Result.unwrap() on empty Result");
+                        ? "called Result.unwrap() on err" : "called Result.unwrap() on empty Result");
             return take();
         }
 
@@ -169,7 +169,6 @@ nothrow @nogc:
             state_ = ResultState.empty;
         }
 
-
         /// Consumes this Result or panics unless it is ok.
         ///
         /// Unlike checked contracts, this state check is always enabled.
@@ -177,8 +176,7 @@ nothrow @nogc:
         {
             if (!isOk)
                 panic(isErr
-                    ? "called Result.unwrap() on err"
-                    : "called Result.unwrap() on empty Result");
+                        ? "called Result.unwrap() on err" : "called Result.unwrap() on empty Result");
             take();
         }
 
@@ -213,7 +211,6 @@ nothrow @nogc:
         return result;
     }
 
-
     /// Transfers the error out or panics unless this Result is an error.
     ///
     /// Unlike checked contracts, this state check is always enabled.
@@ -221,8 +218,7 @@ nothrow @nogc:
     {
         if (!isErr)
             panic(isOk
-                ? "called Result.unwrapError() on ok"
-                : "called Result.unwrapError() on empty Result");
+                    ? "called Result.unwrapError() on ok" : "called Result.unwrapError() on empty Result");
         return takeError();
     }
 
@@ -498,7 +494,7 @@ unittest
     assert(mappedError.isErr && mappedError.error == 10);
 
     auto chained = resultTestSource(false).andThen!(value =>
-        Result!(long, ResultTestError).ok(value + 5L));
+            Result!(long, ResultTestError).ok(value + 5L));
     assert(chained && chained.value == 25L);
 
     int offset = 3;
@@ -506,7 +502,8 @@ unittest
     assert(captured && captured.value == 23);
 
     auto recovered = resultTestSource(true).orElse!(error =>
-        Result!(int, int).ok(error == ResultTestError.first ? 99 : 0));
+            Result!(int, int)
+                .ok(error == ResultTestError.first ? 99 : 0));
     static assert(is(typeof(recovered) == Result!(int, int)));
     assert(recovered && recovered.value == 99);
 }
@@ -552,8 +549,7 @@ unittest
     assert(destructions == 1);
 
     static assert(!__traits(compiles,
-        (ref Result!(TrackedResultValue, ResultTestError) value)
-        {
+            (ref Result!(TrackedResultValue, ResultTestError) value) {
             Result!(TrackedResultValue, ResultTestError) copy = value;
         }));
 }

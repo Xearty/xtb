@@ -3,8 +3,8 @@ module xtb.os.file;
 nothrow @nogc:
 
 import xtb.core.array;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.core.types : i64, u16, u32, u64, u8;

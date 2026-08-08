@@ -2,8 +2,7 @@ module xtb.os.environment;
 
 nothrow @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
 import xtb.os.error : OsError, OsErrorKind, unsupported;

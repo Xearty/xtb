@@ -27,8 +27,7 @@ module xtb.core.flag_set;
 
 nothrow @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 
 private template EnumBaseType(E)
 {

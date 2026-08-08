@@ -2,8 +2,7 @@ module xtb.os.pipe;
 
 nothrow @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 

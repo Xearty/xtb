@@ -4,8 +4,8 @@ nothrow @nogc:
 
 import xtb.core.duration : Duration;
 import xtb.core.option : Option, some;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 import xtb.os.pipe : PipeReadState, PipeReader, PipeWriteState, PipeWriter,

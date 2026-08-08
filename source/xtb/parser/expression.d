@@ -4,8 +4,8 @@ nothrow @nogc:
 
 import core.lifetime : move;
 import xtb.core.arena : Arena;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.parser.parser : FailureKind, Grammar, ParseContext, ParseErrorKind,
     ParseOutcome, ParseState, Parser, Unit, invokeParser, parserFromNode;
 
@@ -137,7 +137,7 @@ private:
             require(parser.owningArena is grammar_.arena,
                 "expression operator belongs to another grammar");
             require(node_.associativity == OperatorAssociativity.none ||
-                node_.associativity == associativity,
+                    node_.associativity == associativity,
                 "binary operators in one precedence level must share associativity");
         }
         if (node_.associativity == OperatorAssociativity.none)
@@ -234,7 +234,7 @@ private T applyBinary(T, BinaryOp, alias builder)(
 )
 {
     static if (__traits(compiles,
-        builder(*cast(ParseContext*) null, left, operation, right)))
+            builder(*cast(ParseContext*) null, left, operation, right)))
     {
         version (XTB_Checked)
             require(state.context !is null,
@@ -246,7 +246,7 @@ private T applyBinary(T, BinaryOp, alias builder)(
     else
         static assert(false,
             "binary expression builder must accept (T, BinaryOp, T) or " ~
-            "(ref ParseContext, T, BinaryOp, T)");
+                "(ref ParseContext, T, BinaryOp, T)");
 }
 
 private T applyUnary(T, UnaryOp, alias builder)(
@@ -256,7 +256,7 @@ private T applyUnary(T, UnaryOp, alias builder)(
 )
 {
     static if (__traits(compiles,
-        builder(*cast(ParseContext*) null, operation, value)))
+            builder(*cast(ParseContext*) null, operation, value)))
     {
         version (XTB_Checked)
             require(state.context !is null,
@@ -268,7 +268,7 @@ private T applyUnary(T, UnaryOp, alias builder)(
     else
         static assert(false,
             "unary expression builder must accept (UnaryOp, T) or " ~
-            "(ref ParseContext, UnaryOp, T)");
+                "(ref ParseContext, UnaryOp, T)");
 }
 
 private struct ExpressionNode(
@@ -305,31 +305,31 @@ private:
 
         final switch (level.associativity)
         {
-        case OperatorAssociativity.left:
-            while (true)
-            {
-                OperatorMatch!BinaryOp matched =
-                    matchOperator!(BinaryOp, BinaryOperatorSpec!BinaryOp)(
-                        level.binaryFirst, state,
-                    );
-                if (!matched.found)
+            case OperatorAssociativity.left:
+                while (true)
                 {
-                    if (matched.failureKind == FailureKind.committed)
+                    OperatorMatch!BinaryOp matched =
+                        matchOperator!(BinaryOp, BinaryOperatorSpec!BinaryOp)(
+                            level.binaryFirst, state,
+                        );
+                    if (!matched.found)
+                    {
+                        if (matched.failureKind == FailureKind.committed)
+                            return ParseOutcome!T.failure(FailureKind.committed);
+                        return left;
+                    }
+                    ParseOutcome!T right = parseUnary(level, state);
+                    if (!right.success)
                         return ParseOutcome!T.failure(FailureKind.committed);
-                    return left;
+                    left.value = applyBinary!(T, BinaryOp, binaryBuilder)(
+                        state,
+                        move(left.value),
+                        matched.operation,
+                        move(right.value),
+                    );
                 }
-                ParseOutcome!T right = parseUnary(level, state);
-                if (!right.success)
-                    return ParseOutcome!T.failure(FailureKind.committed);
-                left.value = applyBinary!(T, BinaryOp, binaryBuilder)(
-                    state,
-                    move(left.value),
-                    matched.operation,
-                    move(right.value),
-                );
-            }
 
-        case OperatorAssociativity.right:
+            case OperatorAssociativity.right:
             {
                 OperatorMatch!BinaryOp matched =
                     matchOperator!(BinaryOp, BinaryOperatorSpec!BinaryOp)(
@@ -353,7 +353,7 @@ private:
                 return left;
             }
 
-        case OperatorAssociativity.nonassoc:
+            case OperatorAssociativity.nonassoc:
             {
                 OperatorMatch!BinaryOp matched =
                     matchOperator!(BinaryOp, BinaryOperatorSpec!BinaryOp)(
@@ -393,8 +393,8 @@ private:
                 return left;
             }
 
-        case OperatorAssociativity.none:
-            return left;
+            case OperatorAssociativity.none:
+                return left;
         }
     }
 

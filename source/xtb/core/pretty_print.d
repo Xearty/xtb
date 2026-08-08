@@ -246,42 +246,43 @@ private enum isPointerType(T) = is(Unqualified!T == Pointee*, Pointee);
 private enum isArrayType(T) = is(Unqualified!T == Array!Element, Element);
 private enum isOptionType(T) = is(Unqualified!T == Option!Element, Element);
 private enum isResultType(T) = is(
-    Unqualified!T == Result!(Value, Error),
-    Value,
-    Error,
-);
+        Unqualified!T == Result!(Value, Error),
+        Value,
+        Error,
+    );
 private template ResultValue(T)
 {
     static if (is(Unqualified!T == Result!(Value, Error), Value, Error))
         alias ResultValue = Value;
 }
+
 private enum isFlagSetType(T) = is(
-    Unqualified!T == FlagSet!(Flag, Storage),
-    Flag,
-    Storage,
-);
+        Unqualified!T == FlagSet!(Flag, Storage),
+        Flag,
+        Storage,
+    );
 private enum isHashMapType(T) = is(
-    Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
-    Key,
-    Value,
-    Hasher,
-    Equal,
-);
+        Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
+        Key,
+        Value,
+        Hasher,
+        Equal,
+    );
 private enum isHashSetType(T) = is(
-    Unqualified!T == HashSet!(Key, Hasher, Equal),
-    Key,
-    Hasher,
-    Equal,
-);
+        Unqualified!T == HashSet!(Key, Hasher, Equal),
+        Key,
+        Hasher,
+        Equal,
+    );
 private enum isOwnedStringType(T) = is(Unqualified!T == OwnedString) ||
     is(Unqualified!T == OwnedStringUnmanaged);
 private enum isStringHashMapType(T) = is(
-    Unqualified!T == StringHashMap!Value,
-    Value,
-) || is(
-    Unqualified!T == StringHashMapUnmanaged!Value,
-    Value,
-);
+        Unqualified!T == StringHashMap!Value,
+        Value,
+    ) || is(
+        Unqualified!T == StringHashMapUnmanaged!Value,
+        Value,
+    );
 
 /// Tracks semantic recursion separately from visual indentation. Constructor-
 /// like wrappers such as `some(...)` and `&...` increase recursion depth but
@@ -354,7 +355,7 @@ private void writePrettyImpl(T)(
         writeEnum(writer, value, options);
     }
     else static if ((__traits(isIntegral, U) &&
-        U.sizeof <= ulong.sizeof) || __traits(isFloating, U))
+            U.sizeof <= ulong.sizeof) || __traits(isFloating, U))
     {
         writeStyledValue(
             writer,
@@ -411,11 +412,11 @@ private void writePrettyImpl(T)(
 
 private enum hasPrettyFormatTo(T) = __traits(compiles,
 {
-    const(Unqualified!T)* value;
-    Writer* writer;
-    const(PrettyPrintOptions)* options;
-    (*value).prettyFormatTo(*writer, *options);
-});
+        const(Unqualified!T)* value;
+        Writer* writer;
+        const(PrettyPrintOptions)* options;
+        (*value).prettyFormatTo(*writer, *options);
+    });
 
 private void writeDefaultAggregateOrUnsupported(T)(
     ref Writer writer,
@@ -670,34 +671,36 @@ private void writeFlagSet(T)(
         writer.put('\n');
 
     static foreach (name; __traits(allMembers, Flag))
-    {{
-        enum flag = __traits(getMember, Flag, name);
-        if (value.contains(flag) && written < shown)
+    {
         {
-            if (compact)
+            enum flag = __traits(getMember, Flag, name);
+            if (value.contains(flag) && written < shown)
             {
-                if (written != 0)
-                    writePunctuation(writer, ", ", options);
-            }
-            else
-                writeIndent(writer, itemContext.indentationDepth, options);
+                if (compact)
+                {
+                    if (written != 0)
+                        writePunctuation(writer, ", ", options);
+                }
+                else
+                    writeIndent(writer, itemContext.indentationDepth, options);
 
-            writeStyledText(
-                writer,
-                name,
-                options.colorScheme.enumValue,
-                options,
-            );
+                writeStyledText(
+                    writer,
+                    name,
+                    options.colorScheme.enumValue,
+                    options,
+                );
 
-            ++written;
-            if (!compact)
-            {
-                if (written < shown || truncated)
-                    writePunctuation(writer, ',', options);
-                writer.put('\n');
+                ++written;
+                if (!compact)
+                {
+                    if (written < shown || truncated)
+                        writePunctuation(writer, ',', options);
+                    writer.put('\n');
+                }
             }
         }
-    }}
+    }
 
     if (truncated)
     {
@@ -936,45 +939,47 @@ private void writeStruct(T)(
     size_t visitedFields;
     size_t writtenFields;
     static foreach (index; 0 .. U.tupleof.length)
-    {{
-        enum name = __traits(identifier, U.tupleof[index]);
-        static if (name.length != 0)
+    {
         {
-            if (visitedFields < shown)
+            enum name = __traits(identifier, U.tupleof[index]);
+            static if (name.length != 0)
             {
-                if (compact)
+                if (visitedFields < shown)
                 {
-                    if (writtenFields != 0)
-                        writePunctuation(writer, ", ", options);
-                }
-                else
-                    writeIndent(writer, childContext.indentationDepth, options);
+                    if (compact)
+                    {
+                        if (writtenFields != 0)
+                            writePunctuation(writer, ", ", options);
+                    }
+                    else
+                        writeIndent(writer, childContext.indentationDepth, options);
 
-                writeStyledText(
-                    writer,
-                    name,
-                    options.colorScheme.fieldName,
-                    options,
-                );
-                writePunctuation(writer, ": ", options);
-                writePrettyImpl(
-                    writer,
-                    value.tupleof[index],
-                    options,
-                    childContext,
-                );
+                    writeStyledText(
+                        writer,
+                        name,
+                        options.colorScheme.fieldName,
+                        options,
+                    );
+                    writePunctuation(writer, ": ", options);
+                    writePrettyImpl(
+                        writer,
+                        value.tupleof[index],
+                        options,
+                        childContext,
+                    );
 
-                ++writtenFields;
-                if (!compact)
-                {
-                    if (writtenFields < shown || truncated)
-                        writePunctuation(writer, ',', options);
-                    writer.put('\n');
+                    ++writtenFields;
+                    if (!compact)
+                    {
+                        if (writtenFields < shown || truncated)
+                            writePunctuation(writer, ',', options);
+                        writer.put('\n');
+                    }
                 }
+                ++visitedFields;
             }
-            ++visitedFields;
         }
-    }}
+    }
 
     if (truncated)
     {
@@ -1089,18 +1094,20 @@ private void writeEnum(T)(
     alias U = Unqualified!T;
     String matchedName;
     static foreach (member; __traits(allMembers, U))
-    {{
-        static if (__traits(compiles, __traits(getMember, U, member)))
+    {
         {
-            alias M = typeof(__traits(getMember, U, member));
-            static if (is(Unqualified!M == U))
+            static if (__traits(compiles, __traits(getMember, U, member)))
             {
-                if (matchedName.length == 0 &&
-                    value == __traits(getMember, U, member))
-                    matchedName = member;
+                alias M = typeof(__traits(getMember, U, member));
+                static if (is(Unqualified!M == U))
+                {
+                    if (matchedName.length == 0 &&
+                        value == __traits(getMember, U, member))
+                        matchedName = member;
+                }
             }
         }
-    }}
+    }
 
     if (options.showTypeNames)
         writeTypeName!U(writer, options);
@@ -1795,8 +1802,7 @@ pure @safe
             return numeric <= ubyte.max ? 6 : numeric <= ushort.max ? 8 : 12;
         }
         const numeric = cast(uint) codePoint;
-        const encodedWidth = numeric <= 0x7f ? 1 : numeric <= 0x7ff ? 2 :
-            numeric <= 0xffff ? 3 : 4;
+        const encodedWidth = numeric <= 0x7f ? 1 : numeric <= 0x7ff ? 2 : numeric <= 0xffff ? 3 : 4;
         return encodedWidth + 2;
     }
 }
@@ -1810,33 +1816,35 @@ pure @safe
     alias U = Unqualified!T;
     size_t memberWidth;
     static foreach (member; __traits(allMembers, U))
-    {{
-        static if (__traits(compiles, __traits(getMember, U, member)))
+    {
         {
-            alias M = typeof(__traits(getMember, U, member));
-            static if (is(Unqualified!M == U))
+            static if (__traits(compiles, __traits(getMember, U, member)))
             {
-                if (memberWidth == 0 &&
-                    value == __traits(getMember, U, member))
-                    memberWidth = member.length;
+                alias M = typeof(__traits(getMember, U, member));
+                static if (is(Unqualified!M == U))
+                {
+                    if (memberWidth == 0 &&
+                        value == __traits(getMember, U, member))
+                        memberWidth = member.length;
+                }
             }
         }
-    }}
+    }
 
     if (memberWidth != 0)
         return knownWidth((options.showTypeNames ? U.stringof.length + 1 : 0) +
-            memberWidth);
+                memberWidth);
     static if (U.sizeof <= ulong.sizeof)
     {
         const numericWidth = integerWidth(value);
         return knownWidth(
             numericWidth +
-            (options.showTypeNames ? U.stringof.length + 2 : 0),
+                (options.showTypeNames ? U.stringof.length + 2 : 0),
         );
     }
     else
         return knownWidth((options.showTypeNames ? U.stringof.length + 1 : 0) +
-            "<invalid enum value>".length);
+                "<invalid enum value>".length);
 }
 
 private WidthEstimate estimateEscapedString(scope String value, size_t budget)
@@ -1914,17 +1922,19 @@ private WidthEstimate estimateFlagSet(T)(
     const shown = limitedItemCount(length, options.maxItems);
     size_t written;
     static foreach (name; __traits(allMembers, Flag))
-    {{
-        enum flag = __traits(getMember, Flag, name);
-        if (value.contains(flag) && written < shown)
+    {
         {
-            if (written != 0 && !addWidth(&total, 2, budget))
-                return unknownWidth();
-            if (!addWidth(&total, name.length, budget))
-                return unknownWidth();
-            ++written;
+            enum flag = __traits(getMember, Flag, name);
+            if (value.contains(flag) && written < shown)
+            {
+                if (written != 0 && !addWidth(&total, 2, budget))
+                    return unknownWidth();
+                if (!addWidth(&total, name.length, budget))
+                    return unknownWidth();
+                ++written;
+            }
         }
-    }}
+    }
 
     if (shown < length)
     {
@@ -2059,30 +2069,32 @@ private WidthEstimate estimateStruct(T)(
     size_t visitedFields;
     size_t writtenFields;
     static foreach (index; 0 .. U.tupleof.length)
-    {{
-        enum name = __traits(identifier, U.tupleof[index]);
-        static if (name.length != 0)
+    {
         {
-            if (visitedFields < shown)
+            enum name = __traits(identifier, U.tupleof[index]);
+            static if (name.length != 0)
             {
-                if (writtenFields != 0 && !addWidth(&total, 2, budget))
-                    return unknownWidth();
-                if (!addWidth(&total, name.length, budget) ||
-                    !addWidth(&total, 2, budget))
-                    return unknownWidth();
-                const child = estimateWidth(
-                    value.tupleof[index],
-                    options,
-                    nextDepth(depth),
-                    budget > total ? budget - total : 0,
-                );
-                if (!child.known || !addWidth(&total, child.width, budget))
-                    return unknownWidth();
-                ++writtenFields;
+                if (visitedFields < shown)
+                {
+                    if (writtenFields != 0 && !addWidth(&total, 2, budget))
+                        return unknownWidth();
+                    if (!addWidth(&total, name.length, budget) ||
+                        !addWidth(&total, 2, budget))
+                        return unknownWidth();
+                    const child = estimateWidth(
+                        value.tupleof[index],
+                        options,
+                        nextDepth(depth),
+                        budget > total ? budget - total : 0,
+                    );
+                    if (!child.known || !addWidth(&total, child.width, budget))
+                        return unknownWidth();
+                    ++writtenFields;
+                }
+                ++visitedFields;
             }
-            ++visitedFields;
         }
-    }}
+    }
 
     if (shown < fieldCount)
     {
@@ -2093,7 +2105,6 @@ private WidthEstimate estimateStruct(T)(
     }
     return knownWidth(total);
 }
-
 
 version (unittest)
 {
@@ -2204,35 +2215,33 @@ version (unittest)
     // than a runtime use-after-scope test.
     static assert(!__traits(compiles,
     {
-        PrettyValue!PrettyPrintTestRecord escapePrettyPrintBorrow() @safe
-        {
-            PrettyPrintTestRecord local;
-            return pretty(local);
-        }
-    }));
+            PrettyValue!PrettyPrintTestRecord escapePrettyPrintBorrow() @safe
+            {
+                PrettyPrintTestRecord local;
+                return pretty(local);
+            }
+        }));
 
     // `return scope` must not make pointer-free owned temporaries unusable from
     // safe code.
     static assert(__traits(compiles,
     {
-        OwnedPrettyValue!PrettyPrintTestEnumHolder
-            returnOwnedPrettyPrintValue() @safe
-        {
-            return PrettyPrintTestEnumHolder.init.pretty;
-        }
-    }));
+            OwnedPrettyValue!PrettyPrintTestEnumHolder returnOwnedPrettyPrintValue() @safe
+            {
+                return PrettyPrintTestEnumHolder.init.pretty;
+            }
+        }));
 
     // Owning the outer temporary is not deep ownership. The returned wrapper
     // must retain the lifetime of slices and pointers stored inside that value.
     static assert(!__traits(compiles,
     {
-        OwnedPrettyValue!PrettyPrintTestBorrowedSlice
-            escapePrettyPrintContainedBorrow() @safe
-        {
-            int[1] local = [1];
-            return PrettyPrintTestBorrowedSlice(local[]).pretty;
-        }
-    }));
+            OwnedPrettyValue!PrettyPrintTestBorrowedSlice escapePrettyPrintContainedBorrow() @safe
+            {
+                int[1] local = [1];
+                return PrettyPrintTestBorrowedSlice(local[]).pretty;
+            }
+        }));
 
     private struct PrettyPrintTestOverride
     {
@@ -2244,7 +2253,7 @@ version (unittest)
         ) const nothrow @nogc
         {
             writer.put(options.showTypeNames
-                ? "<pretty with options>" : "<pretty without types>");
+                    ? "<pretty with options>" : "<pretty without types>");
         }
     }
 
@@ -2440,7 +2449,7 @@ unittest
     assert(!plain.colored);
     assert(defaults.colored);
     assert(defaults.withLayout(PrettyPrintLayout.expanded).layout ==
-        PrettyPrintLayout.expanded);
+            PrettyPrintLayout.expanded);
 
     PrettyPrintColorScheme scheme = PrettyPrintColorScheme.init;
     scheme.numberValue = AnsiStyle.foreground(AnsiColor.brightRed);
@@ -2474,6 +2483,7 @@ unittest
     text.expectWidthEstimateCovers(plain);
 
     import xtb.core.memory : mallocAllocator;
+
     StringBuf buffer = StringBuf.fromString(mallocAllocator(), "owned\ntext");
     buffer.expectPretty("\"owned\\ntext\"", plain);
     buffer.deinit();
@@ -2668,9 +2678,9 @@ unittest
 
     PrettyPrintTestRecord record = PrettyPrintTestRecord(7, "Ada");
     static assert(is(typeof(pretty(record)) ==
-        PrettyValue!PrettyPrintTestRecord));
+            PrettyValue!PrettyPrintTestRecord));
     static assert(is(typeof(pretty(PrettyPrintTestRecord.init)) ==
-        OwnedPrettyValue!PrettyPrintTestRecord));
+            OwnedPrettyValue!PrettyPrintTestRecord));
 
     record.expectPretty(
         "PrettyPrintTestRecord {id: 7, name: \"Ada\"}",
@@ -2688,6 +2698,7 @@ unittest
     emptyWrapper.options = plain;
     import xtb.core.print : writeBuffer;
     import xtb.core.string;
+
     char[32] emptyStorage;
     const emptyResult = writeBuffer(emptyStorage[], emptyWrapper);
     assert(emptyResult.ok);
@@ -2703,7 +2714,7 @@ unittest
     assert(constWrapperResult.ok);
     assert(!constWrapperResult.truncated);
     assert(constWrapperStorage[0 .. constWrapperResult.written].equal(
-        "PrettyPrintTestRecord {id: 7, name: \"Ada\"}",
+            "PrettyPrintTestRecord {id: 7, name: \"Ada\"}",
     ));
 
     auto liveBorrow = record.pretty(plain);
@@ -2713,7 +2724,7 @@ unittest
     assert(liveBorrowResult.ok);
     assert(!liveBorrowResult.truncated);
     assert(liveBorrowStorage[0 .. liveBorrowResult.written].equal(
-        "PrettyPrintTestRecord {id: 8, name: \"Ada\"}",
+            "PrettyPrintTestRecord {id: 8, name: \"Ada\"}",
     ));
     record.id = 7;
 
@@ -2732,7 +2743,7 @@ unittest
     assert(constOwnedResult.ok);
     assert(!constOwnedResult.truncated);
     assert(constOwnedStorage[0 .. constOwnedResult.written].equal(
-        "PrettyPrintTestEnumHolder {value: PrettyPrintTestSigned.zero}",
+            "PrettyPrintTestEnumHolder {value: PrettyPrintTestSigned.zero}",
     ));
 
     PrettyPrintTestMoveOnly borrowedMoveOnly = PrettyPrintTestMoveOnly(4);
@@ -2776,7 +2787,7 @@ unittest
     assert(interpolationResult.ok);
     assert(!interpolationResult.truncated);
     assert(interpolationStorage[0 .. interpolationResult.written].equal(
-        "record=PrettyPrintTestRecord {id: 9, name: \"Lin\"}",
+            "record=PrettyPrintTestRecord {id: 9, name: \"Lin\"}",
     ));
 
     PrettyPrintOptions expanded = plain.withLayout(PrettyPrintLayout.expanded);
@@ -2826,7 +2837,7 @@ unittest
     const bothNormalResult = writeBuffer(bothNormalStorage[], both);
     assert(bothNormalResult.ok);
     assert(bothNormalStorage[0 .. bothNormalResult.written].equal(
-        "<normal format>",
+            "<normal format>",
     ));
 
     // Normal display formatting and structural debug formatting are separate.
@@ -2904,6 +2915,7 @@ unittest
 
     import xtb.core.print : writeBuffer;
     import xtb.core.string;
+
     char[128] addressStorage;
     const addressResult = writeBuffer(addressStorage[], pointer.pretty(noTypes));
     assert(addressResult.ok);
@@ -3034,7 +3046,7 @@ unittest
     const customResult = writeBuffer(customStorage[], number.pretty(custom));
     assert(customResult.ok);
     assert(customStorage[0 .. customResult.written].equal(
-        "\x1b[91m42\x1b[0m",
+            "\x1b[91m42\x1b[0m",
     ));
 
     char[2] tiny;
@@ -3044,7 +3056,6 @@ unittest
     assert(truncated.written == 1);
     assert(truncated.required == 2);
 }
-
 
 unittest
 {

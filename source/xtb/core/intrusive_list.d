@@ -1,7 +1,6 @@
 module xtb.core.intrusive_list;
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 
 nothrow @nogc:
 
@@ -187,11 +186,13 @@ struct IntrusiveList(Node, string hookMember = "listHook")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null list node");
         ref link = listHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.previous_ = back_;
         link.next_ = null;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         if (back_ is null)
             front_ = node;
         else
@@ -204,11 +205,13 @@ struct IntrusiveList(Node, string hookMember = "listHook")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null list node");
         ref link = listHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.previous_ = null;
         link.next_ = front_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         if (front_ is null)
             back_ = node;
         else
@@ -232,10 +235,12 @@ struct IntrusiveList(Node, string hookMember = "listHook")
 
         ref positionLink = listHookOf!(Node, hookMember)(position);
         ref link = listHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
         link.previous_ = position;
         link.next_ = positionLink.next_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         listHookOf!(Node, hookMember)(positionLink.next_).previous_ = node;
         positionLink.next_ = node;
     }
@@ -256,10 +261,12 @@ struct IntrusiveList(Node, string hookMember = "listHook")
 
         ref positionLink = listHookOf!(Node, hookMember)(position);
         ref link = listHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
         link.next_ = position;
         link.previous_ = positionLink.previous_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         listHookOf!(Node, hookMember)(positionLink.previous_).next_ = node;
         positionLink.previous_ = node;
     }
@@ -436,8 +443,8 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
 
     private bool contains(Node* node)
     {
-        for (Node* current = front_; current !is null;
-             current = forwardListHookOf!(Node, hookMember)(current).next_)
+        for (Node* current = front_; current !is null; current = forwardListHookOf!(Node, hookMember)(
+                current).next_)
         {
             if (current is node)
                 return true;
@@ -451,10 +458,12 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null forward-list node");
         ref link = forwardListHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.next_ = front_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         front_ = node;
         if (back_ is null)
             back_ = node;
@@ -466,10 +475,12 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null forward-list node");
         ref link = forwardListHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.next_ = null;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         if (back_ is null)
             front_ = node;
         else
@@ -497,9 +508,11 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
 
         ref positionLink = forwardListHookOf!(Node, hookMember)(position);
         ref link = forwardListHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
         link.next_ = positionLink.next_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         positionLink.next_ = node;
     }
 
@@ -749,10 +762,12 @@ struct IntrusiveStack(Node, string hookMember = "forwardListHook")
         version (XTB_Checked)
             require(node !is null, "cannot insert a null stack node");
         ref link = forwardListHookOf!(Node, hookMember)(node);
-        version (XTB_Checked) requireUnlinked(link);
+        version (XTB_Checked)
+            requireUnlinked(link);
 
         link.next_ = top_;
-        version (XTB_Checked) link.linked_ = true;
+        version (XTB_Checked)
+            link.linked_ = true;
         top_ = node;
     }
 
@@ -790,7 +805,8 @@ unittest
     assert(list.front.value == 1);
     assert(list.back.value == 2 && list.front.listHook.next is &middle);
     assert(list.popFront() is &first);
-    version (XTB_Checked) assert(!first.listHook.linked);
+    version (XTB_Checked)
+        assert(!first.listHook.linked);
     assert(list.popBack() is &second);
     list.remove(&middle);
     assert(list.empty);
@@ -823,7 +839,8 @@ unittest
     IntrusiveList!(MultiListNode, "secondHook") secondList;
     firstList.pushBack(&sharedNode);
     secondList.pushBack(&sharedNode);
-    version (XTB_Checked) assert(sharedNode.firstHook.linked && sharedNode.secondHook.linked);
+    version (XTB_Checked)
+        assert(sharedNode.firstHook.linked && sharedNode.secondHook.linked);
     firstList.popFront();
     secondList.popFront();
 
@@ -849,7 +866,6 @@ unittest
     assert(stack.pop() is &two);
     assert(stack.pop() is &one && stack.empty);
 }
-
 
 unittest
 {
@@ -892,16 +908,19 @@ unittest
     assert(list.removeAfter(&first) is &second);
     assert(first.forwardListHook.next is &third);
     assert(list.back is &third);
-    version (XTB_Checked) assert(!second.forwardListHook.linked);
+    version (XTB_Checked)
+        assert(!second.forwardListHook.linked);
 
     list.insertAfter(&third, &second);
     assert(list.back is &second);
     assert(third.forwardListHook.next is &second);
-    version (XTB_Checked) assert(second.forwardListHook.linked);
+    version (XTB_Checked)
+        assert(second.forwardListHook.linked);
 
     assert(list.removeAfter(&third) is &second);
     assert(list.back is &third && third.forwardListHook.next is null);
-    version (XTB_Checked) assert(!second.forwardListHook.linked);
+    version (XTB_Checked)
+        assert(!second.forwardListHook.linked);
 
     // Splitting transfers a suffix without detaching its hooks. Concatenating
     // the result restores the chain in O(1).
@@ -1088,7 +1107,8 @@ unittest
     // A detached hook is immediately reusable.
     ready.pushFront(&first);
     assert(ready.front is &first && ready.back is &second);
-    version (XTB_Checked) assert(first.readyHook.linked);
+    version (XTB_Checked)
+        assert(first.readyHook.linked);
 
     ready.remove(&first);
     ready.remove(&second);

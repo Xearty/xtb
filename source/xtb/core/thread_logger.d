@@ -4,8 +4,8 @@ nothrow @nogc:
 
 import explicitLogger = xtb.core.logger;
 import xtb.core.logger : Logger, LogLevel, LogResult, LogStatus;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.thread_context : ThreadContext, currentThreadContext;
 
 private template StartsWithLogger(Args...)

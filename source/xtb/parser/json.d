@@ -6,8 +6,8 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdlib : strtod;
 import xtb.core.arena : Arena;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : String;
 import xtb.core.utf8 : DecodedCodePoint, EncodedCodePoint, decodeCodePoint,
     encodeUtf8, encodedUtf8Length;
@@ -244,25 +244,25 @@ nothrow @nogc:
                 }
                 switch (input[cursor])
                 {
-                case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
-                    ++decodedLength;
-                    ++cursor;
-                    break;
-                case 'u':
-                    EscapeScan escaped;
-                    if (!scanUnicodeEscape(input, cursor, &escaped))
-                    {
-                        state.fail(ParseErrorKind.invalidSyntax, cursor, "valid Unicode escape");
+                    case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+                        ++decodedLength;
+                        ++cursor;
+                        break;
+                    case 'u':
+                        EscapeScan escaped;
+                        if (!scanUnicodeEscape(input, cursor, &escaped))
+                        {
+                            state.fail(ParseErrorKind.invalidSyntax, cursor, "valid Unicode escape");
+                            state.setOffset(cursor);
+                            return ParseOutcome!String.failure();
+                        }
+                        decodedLength += encodedUtf8Length(escaped.value);
+                        cursor = escaped.nextOffset;
+                        break;
+                    default:
+                        state.fail(ParseErrorKind.invalidSyntax, cursor, "valid JSON escape");
                         state.setOffset(cursor);
                         return ParseOutcome!String.failure();
-                    }
-                    decodedLength += encodedUtf8Length(escaped.value);
-                    cursor = escaped.nextOffset;
-                    break;
-                default:
-                    state.fail(ParseErrorKind.invalidSyntax, cursor, "valid JSON escape");
-                    state.setOffset(cursor);
-                    return ParseOutcome!String.failure();
                 }
                 continue;
             }
@@ -314,32 +314,56 @@ nothrow @nogc:
             ++source;
             switch (input[source])
             {
-            case '"': storage[target++] = '"'; ++source; break;
-            case '\\': storage[target++] = '\\'; ++source; break;
-            case '/': storage[target++] = '/'; ++source; break;
-            case 'b': storage[target++] = '\b'; ++source; break;
-            case 'f': storage[target++] = '\f'; ++source; break;
-            case 'n': storage[target++] = '\n'; ++source; break;
-            case 'r': storage[target++] = '\r'; ++source; break;
-            case 't': storage[target++] = '\t'; ++source; break;
-            case 'u':
-                EscapeScan escaped;
-                if (!scanUnicodeEscape(input, source, &escaped))
-                {
-                    state.fail(ParseErrorKind.invalidSyntax, source, "valid Unicode escape");
+                case '"':
+                    storage[target++] = '"';
+                    ++source;
+                    break;
+                case '\\':
+                    storage[target++] = '\\';
+                    ++source;
+                    break;
+                case '/':
+                    storage[target++] = '/';
+                    ++source;
+                    break;
+                case 'b':
+                    storage[target++] = '\b';
+                    ++source;
+                    break;
+                case 'f':
+                    storage[target++] = '\f';
+                    ++source;
+                    break;
+                case 'n':
+                    storage[target++] = '\n';
+                    ++source;
+                    break;
+                case 'r':
+                    storage[target++] = '\r';
+                    ++source;
+                    break;
+                case 't':
+                    storage[target++] = '\t';
+                    ++source;
+                    break;
+                case 'u':
+                    EscapeScan escaped;
+                    if (!scanUnicodeEscape(input, source, &escaped))
+                    {
+                        state.fail(ParseErrorKind.invalidSyntax, source, "valid Unicode escape");
+                        state.setOffset(source);
+                        return ParseOutcome!String.failure();
+                    }
+                    const EncodedCodePoint encoded = encodeUtf8(escaped.value);
+                    const bytes = encoded.codeUnits;
+                    foreach (index; 0 .. encoded.byteLength)
+                        storage[target++] = bytes[index];
+                    source = escaped.nextOffset;
+                    break;
+                default:
+                    state.fail(ParseErrorKind.invalidSyntax, source, "valid JSON escape");
                     state.setOffset(source);
                     return ParseOutcome!String.failure();
-                }
-                const EncodedCodePoint encoded = encodeUtf8(escaped.value);
-                const bytes = encoded.codeUnits;
-                foreach (index; 0 .. encoded.byteLength)
-                    storage[target++] = bytes[index];
-                source = escaped.nextOffset;
-                break;
-            default:
-                state.fail(ParseErrorKind.invalidSyntax, source, "valid JSON escape");
-                state.setOffset(source);
-                return ParseOutcome!String.failure();
             }
         }
 
@@ -443,13 +467,13 @@ Parser!JsonValue jsonDocument(Grammar* grammar) @trusted
         .named("JSON object");
 
     value.define(grammar.choice(
-        stringValue,
-        numberValue,
-        trueValue,
-        falseValue,
-        nullValue,
-        arrayValue,
-        objectValue,
+            stringValue,
+            numberValue,
+            trueValue,
+            falseValue,
+            nullValue,
+            arrayValue,
+            objectValue,
     ));
 
     return trivia

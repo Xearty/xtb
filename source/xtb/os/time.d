@@ -2,8 +2,7 @@ module xtb.os.time;
 
 nothrow @nogc:
 
-version (XTB_Checked)
-    import xtb.core.panic : require;
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.duration : Duration;
 import xtb.core.types : i64, u64;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;

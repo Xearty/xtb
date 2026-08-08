@@ -5,8 +5,8 @@ nothrow @nogc:
 import xtb.diagnostics.demangle : SignatureDetail;
 public import xtb.core.ansi : AnsiColor;
 import xtb.core.ansi : beginAnsi, endAnsi;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.print : Writer;
 import xtb.core.string;
 

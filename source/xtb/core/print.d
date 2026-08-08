@@ -9,8 +9,8 @@ import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
 import xtb.core.string;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : u8;
 import xtb.core.utf8 : encodeUtf8, floorCodePointBoundary, isValidUtf8;
 
@@ -878,10 +878,10 @@ unittest
 
     StringBuf fallibleSplitScalar;
     assert(tryFormatString!"{}{}"(
-        mallocAllocator(),
-        &fallibleSplitScalar,
-        splitScalarPrefixString,
-        "🙂",
+            mallocAllocator(),
+            &fallibleSplitScalar,
+            splitScalarPrefixString,
+            "🙂",
     ));
     assert(fallibleSplitScalar.byteLength == 515);
     assert(fallibleSplitScalar.view[511 .. $] == "🙂");

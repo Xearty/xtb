@@ -7,8 +7,8 @@ import core.stdc.string : memmove;
 import xtb.core.hash : hashValue;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.panic : panic;
-version (XTB_Checked)
-    import xtb.core.panic : require;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.released_storage : ReleasedStorage;
 import xtb.core.string : StringBuf, StringBufUnmanaged, asStringUnchecked;
 import xtb.core.types : String, u8;
@@ -125,7 +125,7 @@ public:
     }
 
     bool opEquals(scope ref const OwnedStringUnmanaged other) const
-        pure @safe
+    pure @safe
     {
         import xtb.core.string : equal;
 
@@ -174,13 +174,13 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-version (XTB_Checked)
-{
-    invariant
+    version (XTB_Checked)
     {
-        require(&this !is null, "OwnedString pointer is null");
+        invariant
+        {
+            require(&this !is null, "OwnedString pointer is null");
+        }
     }
-}
 
 public:
     @disable this(this);
@@ -428,7 +428,6 @@ package(xtb):
     }
 }
 
-
 private void requireValidOwnedStringAllocator(Allocator* allocator) @trusted
 {
     version (XTB_Checked)
@@ -440,7 +439,7 @@ static assert(OwnedStringUnmanaged.sizeof == String.sizeof);
 static assert(OwnedString.sizeof == (Allocator*).sizeof + String.sizeof);
 static assert(is(typeof((cast(OwnedString*) null).allocator()) == Allocator*));
 static assert(!__traits(compiles,
-    (cast(const(OwnedString)*) null).allocator()));
+        (cast(const(OwnedString)*) null).allocator()));
 
 unittest
 {
@@ -512,9 +511,9 @@ unittest
 
     OwnedStringUnmanaged exact;
     assert(OwnedStringUnmanaged.tryFromString(
-        allocator.allocator,
-        "sixteen bytes!!!",
-        &exact,
+            allocator.allocator,
+            "sixteen bytes!!!",
+            &exact,
     ));
     assert(exact.byteLength == 16);
     assert(allocator.stats.outstandingAllocations == 1);
