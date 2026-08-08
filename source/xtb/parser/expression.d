@@ -3,7 +3,7 @@ module xtb.parser.expression;
 nothrow @nogc:
 
 import core.lifetime : move;
-import xtb.core.arena : Arena;
+import xtb.core.allocators.arena : Arena;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.parser.parser : FailureKind, Grammar, ParseContext, ParseErrorKind,

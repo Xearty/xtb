@@ -2,8 +2,9 @@ module xtb.core.thread_context;
 
 nothrow @nogc:
 
-import xtb.core.arena : Arena, TempArena, pop, push;
-import xtb.core.memory : Allocator, allocateInit, dispose, mallocAllocator;
+import xtb.core.allocators.arena : Arena, TempArena, pop, push;
+import xtb.core.memory : Allocator, allocateInit, dispose;
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;

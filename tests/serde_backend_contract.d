@@ -2,7 +2,9 @@ module tests.serde_backend_contract;
 
 nothrow @nogc:
 
-import xtb.core.memory : Allocator, mallocAllocator;
+import xtb.core.memory : Allocator;
+
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option;
 import xtb.core.print : Writer;
 import xtb.core.string;

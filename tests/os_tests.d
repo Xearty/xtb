@@ -13,8 +13,8 @@ import xtb.os.process_io;
 import xtb.os.time;
 import xtb.os.terminal;
 import xtb.core.array;
-import xtb.core.arena : Arena, TempArena, pop, push;
-import xtb.core.memory : mallocAllocator;
+import xtb.core.allocators.arena : Arena, TempArena, pop, push;
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.string;
 import xtb.core.thread_context : ThreadContextScope, scratchArena;
 import xtb.core.types : i64, u64, u8;
@@ -483,7 +483,7 @@ version (linux) private void runPipelineIntegration(
 {
     import core.stdc.errno : ESRCH, errno;
     import core.sys.posix.signal : nativeKill = kill;
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 
     {
         String[1] copyArguments = ["copy"];

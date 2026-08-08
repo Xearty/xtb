@@ -1,0 +1,656 @@
+module xtb.threading.thread;
+
+nothrow @nogc:
+
+import core.attribute : mustuse;
+import core.internal.traits : Parameters, ReturnType, Unqual;
+import core.lifetime : emplace, forward, move;
+import xtb.core.memory : Allocator, deallocate, tryAllocate;
+import xtb.core.panic : panic;
+import xtb.core.result : Result;
+import xtb.core.types : String;
+import backend = xtb.threading.internal.thread_backend;
+
+/// Portable raw worker callback used by the lowest-level thread API.
+alias RawThreadFn = int function(void* context) nothrow @nogc;
+
+/// Portable category for native thread-creation failures.
+enum ThreadStartErrorKind : ubyte
+{
+    unsupported,
+    resourceExhausted,
+    permissionDenied,
+    invalidConfiguration,
+    system,
+}
+
+/// Recoverable failure to create a native thread.
+struct ThreadStartError
+{
+    ThreadStartErrorKind kind;
+    int nativeCode;
+}
+
+/// Portable category for allocator-backed thread-start failures.
+enum ThreadStartAllocErrorKind : ubyte
+{
+    allocationFailed,
+    threadStartFailed,
+}
+
+/// Recoverable failure from an allocator-backed thread start.
+///
+/// `threadStartError` is meaningful only when `kind == threadStartFailed`.
+struct ThreadStartAllocError
+{
+    ThreadStartAllocErrorKind kind;
+    ThreadStartError threadStartError;
+}
+
+/// Portable native-thread options shared by all thread creation surfaces.
+struct ThreadStartOptions
+{
+    /// Requested minimum native stack reservation in bytes; zero uses the
+    /// platform default.
+    size_t stackSize;
+}
+
+/// Opaque diagnostic identity for a thread.
+///
+/// IDs do not own or extend a thread lifetime. `.init` is the invalid sentinel;
+/// equality and inequality are the only portable semantic operations.
+struct ThreadId
+{
+    private ulong value_;
+}
+
+/// Portable category for thread-name failures.
+enum ThreadNameErrorKind : ubyte
+{
+    unsupported,
+    invalidName,
+    tooLong,
+    threadUnavailable,
+    system,
+}
+
+/// Recoverable failure to set a diagnostic native thread name.
+struct ThreadNameError
+{
+    ThreadNameErrorKind kind;
+    int nativeCode;
+}
+
+private ThreadStartError mapStartError(
+    backend.NativeThreadStartErrorKind kind,
+    int nativeCode,
+) pure @safe
+{
+    final switch (kind)
+    {
+        case backend.NativeThreadStartErrorKind.unsupported:
+            return ThreadStartError(
+                ThreadStartErrorKind.unsupported,
+                nativeCode,
+            );
+        case backend.NativeThreadStartErrorKind.resourceExhausted:
+            return ThreadStartError(
+                ThreadStartErrorKind.resourceExhausted,
+                nativeCode,
+            );
+        case backend.NativeThreadStartErrorKind.permissionDenied:
+            return ThreadStartError(
+                ThreadStartErrorKind.permissionDenied,
+                nativeCode,
+            );
+        case backend.NativeThreadStartErrorKind.invalidConfiguration:
+            return ThreadStartError(
+                ThreadStartErrorKind.invalidConfiguration,
+                nativeCode,
+            );
+        case backend.NativeThreadStartErrorKind.system:
+            return ThreadStartError(ThreadStartErrorKind.system, nativeCode);
+    }
+}
+
+private ThreadNameError mapNameError(
+    backend.NativeThreadNameErrorKind kind,
+    int nativeCode,
+) pure @safe
+{
+    final switch (kind)
+    {
+        case backend.NativeThreadNameErrorKind.unsupported:
+            return ThreadNameError(ThreadNameErrorKind.unsupported, nativeCode);
+        case backend.NativeThreadNameErrorKind.invalidName:
+            return ThreadNameError(ThreadNameErrorKind.invalidName, nativeCode);
+        case backend.NativeThreadNameErrorKind.tooLong:
+            return ThreadNameError(ThreadNameErrorKind.tooLong, nativeCode);
+        case backend.NativeThreadNameErrorKind.threadUnavailable:
+            return ThreadNameError(
+                ThreadNameErrorKind.threadUnavailable,
+                nativeCode,
+            );
+        case backend.NativeThreadNameErrorKind.system:
+            return ThreadNameError(ThreadNameErrorKind.system, nativeCode);
+    }
+}
+
+private bool hasFunctionAttribute(alias function_, string expected)()
+{
+    static foreach (attribute; __traits(getFunctionAttributes, function_))
+        static if (attribute == expected)
+            return true;
+    return false;
+}
+
+private bool parameterHasStorageClass(
+    alias function_,
+    size_t index,
+    string expected,
+)()
+{
+    static foreach (storageClass; __traits(getParameterStorageClasses, function_, index))
+        static if (storageClass == expected)
+            return true;
+    return false;
+}
+
+private void validateTypedWorker(alias function_)()
+{
+    static assert(
+        __traits(isStaticFunction, function_),
+        "typed Thread start requires a module-level or static function symbol",
+    );
+    static assert(
+        hasFunctionAttribute!(function_, "nothrow"),
+        "typed Thread worker must be nothrow",
+    );
+    static assert(
+        hasFunctionAttribute!(function_, "@nogc"),
+        "typed Thread worker must be @nogc",
+    );
+
+    alias WorkerReturn = ReturnType!function_;
+    static assert(
+        !hasFunctionAttribute!(function_, "ref"),
+        "typed Thread worker must return int or void by value; ref returns are not supported",
+    );
+    static assert(
+        is(WorkerReturn == void) || is(WorkerReturn == int),
+        "typed Thread worker must return void or int; use spawn for other result types",
+    );
+
+    static foreach (index; 0 .. Parameters!function_.length)
+    {
+        static assert(
+            !parameterHasStorageClass!(function_, index, "ref"),
+            "typed Thread start does not accept ref worker parameters",
+        );
+        static assert(
+            !parameterHasStorageClass!(function_, index, "out"),
+            "typed Thread start does not accept out worker parameters",
+        );
+        static assert(
+            !parameterHasStorageClass!(function_, index, "lazy"),
+            "typed Thread start does not accept lazy worker parameters",
+        );
+        static assert(
+            !parameterHasStorageClass!(function_, index, "in"),
+            "typed Thread start deliberately rejects in parameters because their "
+                ~ "reference/value semantics depend on the compiler preview mode",
+        );
+        static assert(
+            !is(Parameters!function_[index] == shared SharedBase, SharedBase),
+            "typed Thread start does not yet accept top-level shared parameters",
+        );
+        static assert(
+            !is(Parameters!function_[index] == inout InoutBase, InoutBase),
+            "typed Thread start does not yet accept top-level inout parameters",
+        );
+    }
+}
+
+// The union suppresses automatic destruction of `T`; exactly one capture member
+// is manually constructed after allocation and manually destroyed on either the
+// native-start failure path or the child-consumption path.
+private union CaptureSlot(T)
+{
+    T value;
+}
+
+private struct AllocatedTypedStartState(alias function_)
+{
+    alias WorkerParameters = Parameters!function_;
+
+    backend.NativeStableStartPacket native;
+    Allocator* allocator;
+
+    static foreach (index; 0 .. WorkerParameters.length)
+        mixin(
+            "CaptureSlot!(Unqual!(WorkerParameters[" ~ index.stringof
+                ~ "])) capture" ~ index.stringof ~ ";",
+        );
+}
+
+private template decimalIndex(size_t value)
+{
+    static if (value < 10)
+        enum decimalIndex = "0123456789"[value .. value + 1];
+    else
+        enum decimalIndex = decimalIndex!(value / 10) ~ decimalIndex!(value % 10);
+}
+
+private template movedWorkerArgumentList(size_t count)
+{
+    static if (count == 0)
+        enum movedWorkerArgumentList = "";
+    else static if (count == 1)
+        enum movedWorkerArgumentList = "move(argument0)";
+    else
+        enum movedWorkerArgumentList = movedWorkerArgumentList!(count - 1)
+            ~ ", move(argument" ~ decimalIndex!(count - 1) ~ ")";
+}
+
+private int typedAllocatedStartTrampoline(alias function_)(void* opaque) @system
+{
+    validateTypedWorker!function_();
+    alias WorkerParameters = Parameters!function_;
+    alias State = AllocatedTypedStartState!function_;
+    static assert(State.tupleof.length == WorkerParameters.length + 2);
+
+    State* state = cast(State*) opaque;
+    Allocator* allocator = state.allocator;
+
+    static foreach (index; 0 .. WorkerParameters.length)
+        mixin(
+            "Unqual!(WorkerParameters[" ~ decimalIndex!index ~ "]) argument"
+                ~ decimalIndex!index ~ " = move(state.tupleof["
+                ~ decimalIndex!(index + 2) ~ "].value);",
+        );
+
+    // Capture destruction order is an implementation detail; use one consistent
+    // order for manually managed source storage.
+    static foreach_reverse (index; 0 .. WorkerParameters.length)
+        destroy(state.tupleof[index + 2].value);
+
+    // Every typed capture now lives in child-local storage. Release the source
+    // allocation before entering potentially long-running user code.
+    destroy(*state);
+    allocator.deallocate(state);
+
+    static if (is(ReturnType!function_ == void))
+    {
+        mixin("function_(" ~ movedWorkerArgumentList!(WorkerParameters.length) ~ ");");
+        return 0;
+    }
+    else
+    {
+        mixin("return function_(" ~ movedWorkerArgumentList!(WorkerParameters.length) ~ ");");
+    }
+}
+
+private struct RawAllocatedStartState
+{
+    backend.NativeStableStartPacket native;
+    Allocator* allocator;
+    RawThreadFn function_;
+    void* context;
+}
+
+private int rawAllocatedStartTrampoline(void* opaque) @system
+{
+    RawAllocatedStartState* state = cast(RawAllocatedStartState*) opaque;
+    Allocator* allocator = state.allocator;
+    const function_ = state.function_;
+    void* context = state.context;
+
+    destroy(*state);
+    allocator.deallocate(state);
+    return function_(context);
+}
+
+private ThreadStartAllocError allocationStartFailure() pure @safe
+{
+    return ThreadStartAllocError(
+        ThreadStartAllocErrorKind.allocationFailed,
+        ThreadStartError.init,
+    );
+}
+
+private ThreadStartAllocError nativeStartFailure(ThreadStartError error) pure @safe
+{
+    return ThreadStartAllocError(
+        ThreadStartAllocErrorKind.threadStartFailed,
+        error,
+    );
+}
+
+/// Unique owner of a native thread's outstanding join/detach obligation.
+///
+/// A default, moved-from, joined, or detached `Thread` is empty. Destruction of
+/// a still-joinable thread is always a programming error: callers must choose
+/// `join` or `detach` explicitly.
+@mustuse struct Thread
+{
+nothrow @nogc:
+    @disable this(this);
+
+    private backend.NativeThreadHandle handle_;
+    private ThreadId id_;
+    private bool joinable_;
+
+    private this(
+        backend.NativeThreadHandle handle,
+        ThreadId id,
+    )
+    {
+        handle_ = handle;
+        id_ = id;
+        joinable_ = true;
+    }
+
+    ~this() @trusted
+    {
+        if (joinable_)
+            panic("destroyed a joinable Thread without join or detach");
+    }
+
+    /// Move-assigns a thread obligation into an empty destination.
+    ref Thread opAssign(Thread source) return @trusted
+    {
+        if (joinable_)
+            panic("cannot move-assign over a joinable Thread");
+
+        handle_ = source.handle_;
+        id_ = source.id_;
+        joinable_ = source.joinable_;
+        source.clear();
+        return this;
+    }
+
+    /// Starts a raw worker with platform-default thread options.
+    static Result!(Thread, ThreadStartError) startRaw(
+        RawThreadFn function_,
+        void* context = null,
+    ) @system
+    {
+        return startRawWith(ThreadStartOptions.init, function_, context);
+    }
+
+    /// Starts a raw worker with explicit native thread options.
+    static Result!(Thread, ThreadStartError) startRawWith(
+        ThreadStartOptions options,
+        RawThreadFn function_,
+        void* context = null,
+    ) @system
+    {
+        if (function_ is null)
+            panic("Thread.startRaw requires a non-null worker function");
+
+        const started = backend.startRaw(
+            options.stackSize,
+            function_,
+            context,
+        );
+        if (!started.succeeded)
+            return Result!(Thread, ThreadStartError).err(
+                mapStartError(started.kind, started.nativeCode),
+            );
+
+        Thread thread = fromNativeStart(started);
+        return Result!(Thread, ThreadStartError).ok(move(thread));
+    }
+
+    private static Thread fromNativeStart(
+        backend.NativeThreadStartResult started,
+    ) @trusted
+    {
+        const rawId = backend.threadIdValue(started.handle);
+        if (rawId == 0)
+            panic("native backend returned an invalid ThreadId");
+        return Thread(started.handle, ThreadId(rawId));
+    }
+
+    /// Starts a raw worker using allocator-backed stable startup state.
+    ///
+    /// Unlike `startRaw`, this returns as soon as native creation succeeds; it
+    /// does not wait for the child to consume an adapter packet. The supplied
+    /// allocator must remain valid until the child releases that packet and
+    /// must permit deallocation from the created thread.
+    static Result!(Thread, ThreadStartAllocError) startRawAlloc(
+        Allocator* allocator,
+        RawThreadFn function_,
+        void* context = null,
+    ) @system
+    {
+        return startRawAllocWith(
+            ThreadStartOptions.init,
+            allocator,
+            function_,
+            context,
+        );
+    }
+
+    /// Starts a raw allocator-backed worker with explicit native options.
+    static Result!(Thread, ThreadStartAllocError) startRawAllocWith(
+        ThreadStartOptions options,
+        Allocator* allocator,
+        RawThreadFn function_,
+        void* context = null,
+    ) @system
+    {
+        if (allocator is null || *allocator is null)
+            panic("Thread.startRawAlloc requires a valid allocator");
+        if (function_ is null)
+            panic("Thread.startRawAlloc requires a non-null worker function");
+
+        RawAllocatedStartState* state = allocator.tryAllocate!RawAllocatedStartState();
+        if (state is null)
+            return Result!(Thread, ThreadStartAllocError).err(
+                allocationStartFailure(),
+            );
+
+        emplace(state);
+        state.allocator = allocator;
+        state.function_ = function_;
+        state.context = context;
+        state.native = backend.NativeStableStartPacket(
+            &rawAllocatedStartTrampoline,
+            state,
+        );
+
+        const started = backend.startStable(options.stackSize, &state.native);
+        if (!started.succeeded)
+        {
+            const error = mapStartError(started.kind, started.nativeCode);
+            destroy(*state);
+            allocator.deallocate(state);
+            return Result!(Thread, ThreadStartAllocError).err(
+                nativeStartFailure(error),
+            );
+        }
+
+        Thread thread = fromNativeStart(started);
+        return Result!(Thread, ThreadStartAllocError).ok(move(thread));
+    }
+
+    /// Starts a typed worker from allocator-backed stable capture storage.
+    ///
+    /// Argument values are captured in the worker's declared parameter types.
+    /// The child moves them to its own stack, destroys the source captures, and
+    /// releases the allocation before invoking the worker. The allocator must
+    /// remain valid until that child-side release and must support deallocation
+    /// from the created thread.
+    static Result!(Thread, ThreadStartAllocError) startAlloc(
+        alias function_,
+        Args...,
+    )(
+        Allocator* allocator,
+        Args arguments,
+    ) @system
+    {
+        return startAllocWith!function_(
+            ThreadStartOptions.init,
+            allocator,
+            forward!arguments,
+        );
+    }
+
+    /// Starts a typed allocator-backed worker with explicit native options.
+    static Result!(Thread, ThreadStartAllocError) startAllocWith(
+        alias function_,
+        Args...,
+    )(
+        ThreadStartOptions options,
+        Allocator* allocator,
+        Args arguments,
+    ) @system
+    {
+        validateTypedWorker!function_();
+        alias WorkerParameters = Parameters!function_;
+        alias State = AllocatedTypedStartState!function_;
+
+        static assert(
+            Args.length == WorkerParameters.length,
+            "typed Thread start argument count must match worker parameter count",
+        );
+
+        if (allocator is null || *allocator is null)
+            panic("Thread.startAlloc requires a valid allocator");
+
+        State* state = allocator.tryAllocate!State();
+        if (state is null)
+            return Result!(Thread, ThreadStartAllocError).err(
+                allocationStartFailure(),
+            );
+
+        emplace(state);
+        state.allocator = allocator;
+        state.native = backend.NativeStableStartPacket(
+            &typedAllocatedStartTrampoline!function_,
+            state,
+        );
+
+        static foreach (index; 0 .. WorkerParameters.length)
+            emplace(
+                &state.tupleof[index + 2].value,
+                move(arguments[index]),
+            );
+
+        const started = backend.startStable(options.stackSize, &state.native);
+        if (!started.succeeded)
+        {
+            static foreach_reverse (index; 0 .. WorkerParameters.length)
+                destroy(state.tupleof[index + 2].value);
+            const error = mapStartError(started.kind, started.nativeCode);
+            destroy(*state);
+            allocator.deallocate(state);
+            return Result!(Thread, ThreadStartAllocError).err(
+                nativeStartFailure(error),
+            );
+        }
+
+        Thread thread = fromNativeStart(started);
+        return Result!(Thread, ThreadStartAllocError).ok(move(thread));
+    }
+
+    /// Whether this handle still owns a join/detach obligation.
+    bool joinable() const pure @safe
+    {
+        return joinable_;
+    }
+
+    /// Returns the represented thread identity while this handle is joinable.
+    ThreadId id() const @trusted
+    {
+        if (!joinable_)
+            panic("empty Thread has no id");
+        return id_;
+    }
+
+    /// Sets the represented live thread's diagnostic name.
+    Result!(void, ThreadNameError) setName(String name) @trusted
+    {
+        if (!joinable_)
+            panic("cannot name an empty Thread");
+
+        const named = backend.setThreadNameBackend(handle_, name);
+        if (!named.succeeded)
+            return Result!(void, ThreadNameError).err(
+                mapNameError(named.kind, named.nativeCode),
+            );
+        return Result!(void, ThreadNameError).ok();
+    }
+
+    /// Waits for completion, consumes the join obligation, and returns status.
+    int join() @trusted
+    {
+        if (!joinable_)
+            panic("cannot join an empty Thread");
+        if (backend.isCurrentThread(handle_))
+            panic("a Thread cannot join itself");
+
+        const joined = backend.joinThread(handle_);
+        if (!joined.succeeded)
+            panic("native thread join failed");
+
+        const status = joined.status;
+        clear();
+        return status;
+    }
+
+    /// Consumes the join obligation while allowing the worker to continue.
+    void detach() @trusted
+    {
+        if (!joinable_)
+            panic("cannot detach an empty Thread");
+
+        const code = backend.detachThread(handle_);
+        if (code != 0)
+            panic("native thread detach failed");
+        clear();
+    }
+
+    private void clear() pure @safe
+    {
+        handle_ = backend.NativeThreadHandle.init;
+        id_ = ThreadId.init;
+        joinable_ = false;
+    }
+}
+
+/// Returns the calling thread's opaque identity, or `.init` on an unsupported
+/// backend that cannot provide one.
+ThreadId currentThreadId() @trusted
+{
+    const value = backend.currentThreadIdValue();
+    return ThreadId(value);
+}
+
+/// Requests a best-effort scheduler yield. This is not a memory fence.
+void yieldThread() @trusted
+{
+    backend.yieldThreadBackend();
+}
+
+/// Returns the best available logical-processor concurrency hint, or zero when
+/// unavailable.
+uint hardwareConcurrency() @trusted
+{
+    return backend.hardwareConcurrencyBackend();
+}
+
+/// Sets the calling native thread's diagnostic name.
+Result!(void, ThreadNameError) setCurrentThreadName(String name) @trusted
+{
+    const named = backend.setCurrentThreadNameBackend(name);
+    if (!named.succeeded)
+        return Result!(void, ThreadNameError).err(
+            mapNameError(named.kind, named.nativeCode),
+        );
+    return Result!(void, ThreadNameError).ok();
+}
+
+static assert(!__traits(isCopyable, Thread));
+static assert(__traits(isCopyable, ThreadId));

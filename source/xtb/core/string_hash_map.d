@@ -1047,7 +1047,7 @@ public:
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.string : empty;
 
     static assert(is(StringViewHashMap!int == HashMap!(String, int)));
@@ -1086,7 +1086,7 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     Allocator* allocator = mallocAllocator();
     StringHashMapUnmanaged!int values;
@@ -1114,8 +1114,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     AllocationRecord[128] mapRecords;
     AllocationRecord[32] foreignRecords;

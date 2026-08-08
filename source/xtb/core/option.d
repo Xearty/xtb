@@ -234,7 +234,7 @@ version (unittest) private Option!int optionTestReturn(bool present)
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.string;
 
     // Option construction is explicit: raw values do not implicitly become Some.

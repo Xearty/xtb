@@ -3,18 +3,16 @@ module xtb.core.memory;
 nothrow @nogc:
 
 import core.lifetime : emplace, forward;
-import core.stdc.stdlib : free, malloc, realloc;
-
-version (Posix)
-    import core.sys.posix.stdlib : posix_memalign;
-else
-    import core.stdc.stdlib : aligned_alloc;
-import core.stdc.string : memcpy, memset;
+import core.stdc.string : memset;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.numeric : multiplyOverflows;
 
+/// Type-erased allocator callback used by XTB ownership APIs.
+///
+/// `allocator` is the address of the `Allocator` slot exposed by the owning
+/// allocator object. `newSize == 0` requests deallocation of `oldPointer`.
 alias Allocator = extern (C) void* function(
     void* allocator,
     size_t newSize,
@@ -23,77 +21,9 @@ alias Allocator = extern (C) void* function(
     size_t alignment,
 );
 
-private __gshared Allocator mallocAllocatorSlot = &mallocAllocatorProcedure;
-
-Allocator* mallocAllocator()
-{
-    return &mallocAllocatorSlot;
-}
-
 private bool isPowerOfTwo(size_t value) pure @safe
 {
     return value != 0 && (value & (value - 1)) == 0;
-}
-
-private size_t normalizedAlignment(size_t alignment) pure @safe
-{
-    const minimum = (void*).alignof;
-    return alignment < minimum ? minimum : alignment;
-}
-
-private extern (C) void* mallocAllocatorProcedure(
-    void*,
-    size_t newSize,
-    void* oldPointer,
-    size_t oldSize,
-    size_t alignment,
-)
-{
-    alignment = normalizedAlignment(alignment);
-    if (!isPowerOfTwo(alignment))
-        return null;
-
-    if (newSize == 0)
-    {
-        free(oldPointer);
-        return null;
-    }
-
-    if (alignment <= (void*).alignof)
-        return realloc(oldPointer, newSize);
-
-    void* replacement;
-    version (Posix)
-    {
-        if (posix_memalign(&replacement, alignment, newSize) != 0)
-            replacement = null;
-    }
-    else
-    {
-        size_t allocationSize;
-        const remainder = newSize & (alignment - 1);
-        if (remainder != 0)
-        {
-            const addition = alignment - remainder;
-            if (addition > size_t.max - newSize)
-                return null;
-            allocationSize = newSize + addition;
-        }
-        else
-            allocationSize = newSize;
-        replacement = aligned_alloc(alignment, allocationSize);
-    }
-    if (replacement is null)
-        return null;
-
-    if (oldPointer !is null)
-    {
-        const copySize = oldSize < newSize ? oldSize : newSize;
-        if (copySize != 0)
-            memcpy(replacement, oldPointer, copySize);
-        free(oldPointer);
-    }
-    return replacement;
 }
 
 void* tryReallocate(
@@ -373,192 +303,11 @@ void disposeArray(T)(Allocator* allocator, T[] values)
     allocator.deallocateArray(values);
 }
 
-struct AllocationRecord
-{
-    void* pointer;
-    size_t size;
-    size_t alignment;
-}
-
-struct AllocatorStats
-{
-    size_t allocationCalls;
-    size_t reallocationCalls;
-    size_t deallocationCalls;
-    size_t failedCalls;
-    size_t invalidCalls;
-    size_t outstandingAllocations;
-    size_t outstandingBytes;
-    size_t peakOutstandingBytes;
-}
-
-struct InstrumentedAllocator
-{
-nothrow @nogc:
-
-    private Allocator allocator_;
-    private Allocator* backing;
-    private AllocationRecord[] records;
-    private AllocatorStats stats_;
-    private size_t successesBeforeFailure = size_t.max;
-
-    @disable this(this);
-
-    static InstrumentedAllocator create(
-        Allocator* backing,
-        return scope AllocationRecord[] records,
-    )
-    {
-        version (XTB_Checked)
-            require(backing !is null && *backing !is null,
-                "instrumented allocator requires a valid backing allocator");
-        InstrumentedAllocator result;
-        result.allocator_ = &instrumentedAllocatorProcedure;
-        result.backing = backing;
-        result.records = records;
-        foreach (ref record; records)
-            record = AllocationRecord.init;
-        return result;
-    }
-
-    Allocator* allocator() return
-    {
-        return &allocator_;
-    }
-
-    AllocatorStats stats() const pure @safe
-    {
-        return stats_;
-    }
-
-    void failAfter(size_t successfulCalls)
-    {
-        successesBeforeFailure = successfulCalls;
-    }
-
-    void allowAllocations()
-    {
-        successesBeforeFailure = size_t.max;
-    }
-
-    bool clean() const pure @safe
-    {
-        return stats_.outstandingAllocations == 0 && stats_.outstandingBytes == 0;
-    }
-}
-
-static assert(InstrumentedAllocator.allocator_.offsetof == 0);
-
-private AllocationRecord* findRecord(
-    ref InstrumentedAllocator allocator,
-    void* pointer,
-)
-{
-    foreach (ref record; allocator.records)
-        if (record.pointer is pointer)
-            return &record;
-    return null;
-}
-
-private AllocationRecord* freeRecord(ref InstrumentedAllocator allocator)
-{
-    foreach (ref record; allocator.records)
-        if (record.pointer is null)
-            return &record;
-    return null;
-}
-
-private extern (C) void* instrumentedAllocatorProcedure(
-    void* context,
-    size_t newSize,
-    void* oldPointer,
-    size_t oldSize,
-    size_t alignment,
-)
-{
-    InstrumentedAllocator* allocator = cast(InstrumentedAllocator*) context;
-    AllocationRecord* oldRecord;
-    if (oldPointer !is null)
-    {
-        oldRecord = findRecord(*allocator, oldPointer);
-        if (oldRecord is null || oldRecord.size != oldSize ||
-            oldRecord.alignment != alignment)
-        {
-            ++allocator.stats_.invalidCalls;
-            return null;
-        }
-    }
-    else if (oldSize != 0)
-    {
-        ++allocator.stats_.invalidCalls;
-        return null;
-    }
-
-    if (newSize == 0)
-    {
-        if (oldPointer is null)
-            return null;
-        ++allocator.stats_.deallocationCalls;
-        (*allocator.backing)(allocator.backing, 0, oldPointer, oldSize, alignment);
-        --allocator.stats_.outstandingAllocations;
-        allocator.stats_.outstandingBytes -= oldSize;
-        *oldRecord = AllocationRecord.init;
-        return null;
-    }
-
-    if (allocator.successesBeforeFailure == 0)
-    {
-        ++allocator.stats_.failedCalls;
-        return null;
-    }
-
-    AllocationRecord* destinationRecord = oldRecord;
-    if (destinationRecord is null)
-    {
-        destinationRecord = freeRecord(*allocator);
-        if (destinationRecord is null)
-        {
-            ++allocator.stats_.failedCalls;
-            return null;
-        }
-        ++allocator.stats_.allocationCalls;
-    }
-    else
-        ++allocator.stats_.reallocationCalls;
-
-    void* replacement = (*allocator.backing)(
-        allocator.backing,
-        newSize,
-        oldPointer,
-        oldSize,
-        alignment,
-    );
-    if (replacement is null)
-    {
-        ++allocator.stats_.failedCalls;
-        return null;
-    }
-    if (allocator.successesBeforeFailure != size_t.max)
-        --allocator.successesBeforeFailure;
-
-    if (oldRecord is null)
-    {
-        ++allocator.stats_.outstandingAllocations;
-        allocator.stats_.outstandingBytes += newSize;
-    }
-    else
-    {
-        allocator.stats_.outstandingBytes -= oldSize;
-        allocator.stats_.outstandingBytes += newSize;
-    }
-    if (allocator.stats_.outstandingBytes > allocator.stats_.peakOutstandingBytes)
-        allocator.stats_.peakOutstandingBytes = allocator.stats_.outstandingBytes;
-    *destinationRecord = AllocationRecord(replacement, newSize, alignment);
-    return replacement;
-}
-
 unittest
 {
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
+
     Allocator* allocator = mallocAllocator();
 
     int* single = allocator.allocate!int();
@@ -593,6 +342,9 @@ unittest
 
 unittest
 {
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
+
     struct PodWithInitializer
     {
     nothrow @nogc:

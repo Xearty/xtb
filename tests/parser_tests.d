@@ -2,8 +2,8 @@ module tests.parser_tests;
 
 nothrow @nogc:
 
-import xtb.core.arena : Arena;
-import xtb.core.memory : mallocAllocator;
+import xtb.core.allocators.arena : Arena;
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.types : String;
 import xtb.parser;
 

@@ -281,7 +281,7 @@ version (unittest)
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.pretty_print : PrettyPrintOptions, pretty;
     import xtb.core.print : writeBuffer;
     import xtb.core.string;

@@ -124,7 +124,7 @@ void appendComponent(ref StringBuf output, Path component)
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     Path path = Path.fromString("var");
     assert(path.view == "var" && !path.absolute);

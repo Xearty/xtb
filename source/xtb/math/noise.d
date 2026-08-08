@@ -106,7 +106,7 @@ private Allocator rejectingAllocator = &rejectingAllocation;
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     ValueNoise1D a = ValueNoise1D.create(mallocAllocator(), 8, 1234);
     ValueNoise1D b = ValueNoise1D.create(mallocAllocator(), 8, 1234);

@@ -443,7 +443,8 @@ static assert(!__traits(compiles,
 
 unittest
 {
-    import xtb.core.memory : InstrumentedAllocator, mallocAllocator;
+    import xtb.core.allocators.instrumented : InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     OwnedString empty = OwnedString.fromString(mallocAllocator(), "");
     assert(empty.empty);
@@ -479,7 +480,7 @@ unittest
     }
     assert(adopted.view.ptr is exactPointer);
 
-    import xtb.core.memory : AllocationRecord;
+    import xtb.core.allocators.instrumented : AllocationRecord;
 
     AllocationRecord[8] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
@@ -500,8 +501,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     AllocationRecord[16] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(

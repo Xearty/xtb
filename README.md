@@ -117,7 +117,7 @@ safe for a read-only Nix-store source and parallel `just` execution.
 
 Import the stable core surface with `import xtb.core;`, the completed threading
 surface with `import xtb.threading;`, or a focused module such as
-`xtb.core.arena` or `xtb.threading.atomic`. All consuming targets must also
+`xtb.core.allocators.arena` or `xtb.threading.atomic`. All consuming targets must also
 compile with `-betterC`. Managed containers expose handwritten member APIs colocated with
 their unmanaged storage, plus a mutable allocator member; no generated adapter
 code or UFCS forwarding layer is involved. See `docs/managed-containers.md`.

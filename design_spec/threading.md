@@ -134,7 +134,8 @@ The library must provide:
 - all ordinary synchronization primitives (`Mutex`, `ConditionVariable`,
   `Semaphore`, `Latch`, `WaitGroup`, `Barrier`, `RwLock`, `Once`, and
   `OnceCell!T`) are allocation-free; only APIs that explicitly accept an
-  allocator (`spawn`, `threadScope`) allocate XTB bookkeeping/state;
+  allocator (`Thread.startRawAlloc`, `Thread.startAlloc`, `spawn`, and
+  `threadScope`) allocate XTB bookkeeping/state;
 - zero-valid-state synchronization primitives where the platform-independent
   representation permits it;
 - explicit ownership and join/detach obligations;
@@ -145,6 +146,9 @@ The following properties are mandatory:
 
 - `Thread.startRaw` performs no XTB allocation;
 - typed `Thread.start` performs no hidden allocation;
+- `Thread.startRawAlloc` and typed `Thread.startAlloc` allocate exactly through
+  the caller-supplied `Allocator*` and use that stable start state to avoid a
+  child-start capture rendezvous;
 - `spawn` allocates only through the `Allocator*` supplied by the caller;
 - `threadScope` allocates and deallocates child-tracking nodes through the same
   caller-supplied allocator, on the scope-owning thread;
@@ -367,6 +371,19 @@ struct Thread
         void* context = null,
     );
 
+    static Result!(Thread, ThreadStartAllocError) startRawAlloc(
+        Allocator* allocator,
+        RawThreadFn function_,
+        void* context = null,
+    );
+
+    static Result!(Thread, ThreadStartAllocError) startRawAllocWith(
+        ThreadStartOptions options,
+        Allocator* allocator,
+        RawThreadFn function_,
+        void* context = null,
+    );
+
     bool joinable() const;
     ThreadId id() const;
     Result!(void, ThreadNameError) setName(String name);
@@ -412,6 +429,27 @@ int status = thread.join();
 The caller owns the raw context. `startRaw` copies only the pointer. The pointed
 object must remain alive and correctly synchronized for as long as the worker
 can access it.
+
+### Raw adapter storage and start timing
+
+The portable `RawThreadFn` intentionally does not expose the native thread-entry
+ABI. A backend such as POSIX may therefore need an adapter containing both the
+runtime `RawThreadFn` and the user context pointer. Two explicit policies are
+provided:
+
+- `startRaw` / `startRawWith` remain allocation-free. If the backend cannot pass
+  the portable callback directly, it may place its adapter on the starting
+  thread's stack and wait only until the child has copied every adapter field it
+  needs. This child-start handoff is permitted even though the worker itself
+  remains asynchronous.
+- `startRawAlloc` / `startRawAllocWith` allocate stable adapter state through the
+  supplied allocator. They return as soon as native creation succeeds and do
+  not wait for the child to be scheduled merely to consume adapter state. The
+  child copies the callback/context, releases the allocation, and then invokes
+  the user worker.
+
+The allocating form does **not** take ownership of the raw user context or copy
+its pointee. Only XTB's native-ABI adapter state is allocated.
 
 ### Thread return value
 
@@ -537,6 +575,29 @@ of `nativeCode`; Windows may use a different native-code domain while preserving
 the same portable `kind` categories. Compile-time misuse remains a static
 error, and impossible library-generated configuration is an internal bug.
 
+Allocator-backed starts have one additional recoverable failure channel: the
+explicit start-state allocation can fail before native creation. They therefore
+return a separate error that preserves the distinction instead of pretending an
+allocator failure came from the operating system:
+
+```d
+enum ThreadStartAllocErrorKind : ubyte
+{
+    allocationFailed,
+    threadStartFailed,
+}
+
+struct ThreadStartAllocError
+{
+    ThreadStartAllocErrorKind kind;
+    ThreadStartError threadStartError;
+}
+```
+
+When `kind == allocationFailed`, `threadStartError` is `.init`. When
+`kind == threadStartFailed`, `threadStartError` contains the same native failure
+that the corresponding non-allocating start would have returned.
+
 ## Layer 2: typed `Thread.start`
 
 ### Public shape
@@ -546,6 +607,8 @@ The common thread-start API is a template over the worker function:
 ```d
 Thread.start!worker(args...)
 Thread.startWith!worker(options, args...)
+Thread.startAlloc!worker(allocator, args...)
+Thread.startAllocWith!worker(options, allocator, args...)
 ```
 
 Conceptually:
@@ -559,6 +622,19 @@ struct Thread
     static Result!(Thread, ThreadStartError)
     startWith(alias function_, Args...)(
         ThreadStartOptions options,
+        Args args,
+    );
+
+    static Result!(Thread, ThreadStartAllocError)
+    startAlloc(alias function_, Args...)(
+        Allocator* allocator,
+        Args args,
+    );
+
+    static Result!(Thread, ThreadStartAllocError)
+    startAllocWith(alias function_, Args...)(
+        ThreadStartOptions options,
+        Allocator* allocator,
         Args args,
     );
 }
@@ -607,8 +683,14 @@ do not make `alias function_` accidentally borrow a local variable that stores a
 function pointer.
 
 For the first implementation, worker parameters using `ref`, `out`, or `lazy`
-are rejected. Their cross-thread meaning is too easy to misunderstand. Shared
-borrowed state is explicit through pointer-like payloads:
+are rejected. Their cross-thread meaning is too easy to misunderstand. The
+supported LDC 1.42.0 / DMD 2.112.1 prototype also rejects `in` on typed starts:
+without `-preview=in` it currently behaves as a value parameter, while enabling
+that preview makes the same spelling alias caller storage. XTB does not let a
+build flag silently change a thread-transport lifetime contract. `scope` and
+`return` may decorate otherwise-by-value parameters; they do not by themselves
+make the captured transport slot alias caller storage. Shared borrowed state is
+explicit through pointer-like payloads:
 
 Top-level type qualifiers such as `const` are not themselves borrowing modes.
 The adapter may use an unqualified internal transport object when necessary to
@@ -616,12 +698,14 @@ perform a legal move and then pass it to the final by-value parameter with the
 worker's declared qualifier. This is an implementation detail: all user-visible
 conversion into the worker's value type still occurs before native start.
 
-`scope`/`return` storage-class interactions and the compiler's current meaning
-of `in` are a compiler-prototype item. The normative rule is that the ordinary
-typed API supports **value parameters** and rejects parameter modes that make the
-worker parameter an alias to caller storage. Add compile-time tests against the
-actual `ParameterStorageClassTuple` behavior of the supported LDC frontend
-before freezing the trait predicates.
+The normative rule is that typed starts support **value parameters** and reject
+parameter modes that make the worker parameter an alias to caller storage. The
+LDC prototype above is part of the v1 trait policy; if D later gives `in` one
+stable non-aliasing meaning across supported build modes, accepting it can be a
+separate API-compatible broadening. Top-level `shared`/`inout` worker parameter
+qualification is also rejected in the first typed implementation until the
+broader qualifier-preservation prototype is complete; pointers/references to
+explicitly shared pointees remain a separate shallow-capture case.
 
 ```d
 void worker(SharedState* state) nothrow @nogc;
@@ -630,9 +714,10 @@ Thread.start!worker(&state);
 
 The caller then owns the pointed object's lifetime and synchronization.
 
-A typed `Thread.start` worker returns either `int` or `void`. `void` maps to
-status zero. Other return types are rejected with a diagnostic directing the
-caller to `spawn`.
+A typed `Thread.start` worker returns either `int` or `void` **by value**. `void`
+maps to status zero. `ref` returns are rejected even when their referred-to type
+is `int`; other return types are rejected with a diagnostic directing the caller
+to `spawn`.
 
 ### Capture types and conversion timing
 
@@ -646,6 +731,15 @@ For example, if the worker accepts `Config` and the caller supplies a type that
 converts to `Config`, the `Config` capture is constructed before invoking the
 native start operation. If capture construction cannot satisfy `nothrow @nogc`,
 the typed overload is rejected at compile time.
+
+For `startAlloc`, ordinary D function-call copying/moving into the start
+function's by-value `Args` occurs before its body runs. The explicit state
+allocation is then attempted, and conversion from those argument values into the
+worker's declared parameter types occurs in the starting thread before native
+creation. Therefore an allocation failure may leave an explicitly moved caller
+value moved-from, but it does not run worker-parameter conversion side effects.
+A native-start failure occurs only after all typed captures have been
+constructed and must destroy those captures exactly once before deallocation.
 
 ### Argument ownership
 
@@ -736,11 +830,78 @@ This handshake makes typed `Thread.start` slightly more synchronous than
 `startRaw`, but the cost is dominated by native thread creation and buys
 zero-allocation typed ownership with a simple lifetime proof.
 
-This timing difference is observable and intentional: `startRaw` may return as
-soon as the OS reports successful creation, whereas typed `Thread.start` waits
-until the child has captured its packet. Typed `start` can therefore block if a
-successfully created child is not scheduled promptly. It does **not** wait for
-user worker completion, only for capture handoff.
+This timing difference is observable and intentional: allocation-free typed
+`Thread.start` waits until the child has captured its stack packet. On a backend
+whose portable raw callback also needs a stack adapter, `startRaw` may perform a
+smaller equivalent ABI handoff first. Neither operation waits for user worker
+completion. A successfully created child that is not scheduled promptly can
+therefore delay these zero-allocation start calls even though the thread's user
+work remains asynchronous.
+
+### Allocator-backed typed start without a capture rendezvous
+
+`startAlloc` and `startAllocWith` offer the other explicit policy. They allocate
+one stable typed start state through the supplied `Allocator*`, construct the
+worker-parameter captures in that storage on the starting thread, and pass the
+stable state directly to a native backend trampoline. Successful native creation
+can therefore return without waiting for the child to run.
+
+Conceptually:
+
+```text
+starting thread
+    |
+    | allocate StartAllocState!(worker, Params...)
+    | construct typed captures
+    v
+native create(stable state)
+    |
+    +----------------------------> startAlloc returns Thread
+                                     without child-start rendezvous
+
+child thread
+    | move every typed capture to child-local call storage
+    | destroy/mark source captures inactive
+    | release start-state allocation through supplied allocator
+    v
+invoke user worker
+```
+
+The start allocation is temporary transport storage only; it does not survive
+until `join` and does not store a typed result. The child must release it **before**
+entering user worker code once all callback/capture values needed by the worker
+are child-local. This keeps long-running workers from pinning temporary start
+storage.
+
+Successful native creation transfers ownership of the start allocation to the
+child. Native-start failure leaves ownership with the starting thread, which
+destroys all constructed captures and deallocates the state before returning
+`threadStartFailed`. Allocation failure returns `allocationFailed` and starts no
+native thread.
+
+The allocator contract is intentionally stronger than for the zero-allocation
+form:
+
+- the `Allocator*` object and any state it references must remain valid until the
+  child releases the start allocation;
+- deallocation may occur on the newly created child thread, so the allocator must
+  permit that cross-thread deallocation; and
+- arena/scratch/thread-affine allocators are unsuitable unless their own
+  lifetime and cross-thread rules explicitly satisfy both requirements. Resetting
+  or popping an arena before the child has consumed the packet is invalid.
+
+There is deliberately no handle method exposing "start packet consumed". A
+successful `join` is always late enough to end the allocator lifetime, but it is
+not necessary to retain the allocator for the entire worker if the application
+has some other valid lifetime guarantee. After `detach`, the caller must keep
+the allocator valid until it can independently guarantee that the child has
+consumed/released the start state. Long-lived process allocators such as XTB's
+malloc allocator naturally satisfy this use case.
+
+The callable restrictions, parameter-mode restrictions, shallow-reference rules,
+`int`/`void` return contract, and conversion-before-native-start semantics are the
+same as ordinary typed `Thread.start`. The difference is only the explicit
+allocation/lifetime policy and the absence of the child-start rendezvous.
 
 ## Layer 3: `spawn` and `JoinHandle!T`
 
@@ -2797,6 +2958,8 @@ Examples:
 ```d
 Result!(Thread, ThreadStartError) Thread.startRaw(...);
 Result!(Thread, ThreadStartError) Thread.start!worker(...);
+Result!(Thread, ThreadStartAllocError) Thread.startRawAlloc(...);
+Result!(Thread, ThreadStartAllocError) Thread.startAlloc!worker(...);
 Result!(JoinHandle!T, SpawnError) spawn!worker(...);
 Result!(void, SpawnError) ThreadScope.spawn!worker(...);
 ```
@@ -2851,6 +3014,16 @@ void* context: copied, pointee remains caller-owned
 Thread: owns native join obligation
 ```
 
+### `Thread.startRawAlloc`
+
+```text
+function pointer + void* context: copied into allocator-backed adapter state
+user context pointee: remains caller-owned
+start allocation: transferred to child and freed before user worker entry
+allocator: borrowed until child frees start allocation; must support child-thread deallocation
+Thread: owns native join obligation
+```
+
 ### `Thread.start!worker`
 
 ```text
@@ -2858,6 +3031,16 @@ arguments: copied/moved into start packet, then into worker stack
 start packet: borrowed only until child signals capture
 Thread: owns native join obligation
 allocation: none
+```
+
+### `Thread.startAlloc!worker`
+
+```text
+arguments: copied/moved into allocator-backed typed capture state
+captures: converted on starting thread before native creation
+start allocation: transferred to child and freed before user worker entry
+allocator: borrowed until child frees start allocation; must support child-thread deallocation
+Thread: owns native join obligation
 ```
 
 ### `spawn!worker`
@@ -2895,9 +3078,12 @@ is considered frozen:
    prevents the `ThreadScope` capability from escaping as far as D's lifetime
    system can express. The semantic contract in this document is fixed even if
    the exact call syntax changes.
-2. **Parameter storage-class introspection:** test `ref`, `out`, `lazy`, `scope`,
-   `return`, and the compiler's current `in` semantics so typed start/scoped
-   start reject aliasing modes intentionally rather than accidentally.
+2. **Parameter storage-class introspection:** **completed for typed starts on
+   LDC 1.42.0 / DMD 2.112.1.** `ref`, `out`, and `lazy` are explicit aliasing
+   modes and are rejected. `scope`/`return` can decorate by-value transport.
+   `in` changes from value-like behavior to caller aliasing under `-preview=in`,
+   so v1 typed starts reject `in` in all build modes. Scoped-start borrowing
+   still needs its separate lifetime prototype before `threadScope` is frozen.
 3. **`shared`/`inout` annotations:** establish which public methods can remain
    `@safe`/qualifier-preserving without casts and document the result.
 4. **LDC-created-thread TLS:** perform the TLS experiment described above before
@@ -2921,7 +3107,11 @@ Implement in this order so each layer has a stable foundation:
    and non-blocking operations.
 2. Architecture/platform utility foundations: `cpuRelax`, raw thread backend,
    `Thread.startRaw`/`join`/`detach`, `ThreadId`, `yieldThread`,
-   `hardwareConcurrency`, and current-thread naming.
+   `hardwareConcurrency`, current-thread naming, the stable native-start adapter,
+   allocator-backed `Thread.startRawAlloc`, and allocator-backed typed
+   `Thread.startAlloc`. The allocator-backed typed path deliberately comes before
+   the zero-allocation typed path because stable storage removes the parking/latch
+   dependency.
 3. Internal parking.
 4. Public `Atomic.wait`/`notifyOne`/`notifyAll` and the internal one-shot start
    latch used by typed thread startup.
@@ -2963,7 +3153,17 @@ tests.
 At minimum, test:
 
 - raw start/join with null and non-null contexts;
-- unsupported-backend start behavior;
+- `startRawAlloc` allocation failure, native-start failure cleanup, child-thread
+  deallocation before user worker entry, detach with a long-lived allocator, and
+  allocator lifetime/thread-safety contract documentation;
+- typed `startAlloc` copyable/move-only/qualified/shallow-reference captures,
+  starting-thread conversion timing, exact destruction counts, `void` status
+  normalization, stack options, allocation/native-start failure cleanup, and
+  child-thread deallocation before user worker entry;
+- compile-fail coverage for typed `ref`, `out`, `lazy`, `in`, non-static callable,
+  missing `nothrow`/`@nogc`, and non-`int`/`void` worker return contracts;
+- unsupported-backend start behavior, including allocator-backed starts cleaning
+  their state before reporting the nested unsupported native-start error;
 - native resource exhaustion/error mapping where injection is possible;
 - joining exactly once;
 - joining self and other lifecycle misuse through death tests;

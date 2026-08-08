@@ -619,7 +619,7 @@ private void requireValidStringHashSetAllocator(Allocator* allocator) @trusted
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.owned_string : OwnedString;
     import xtb.core.string : StringBuf;
 
@@ -727,8 +727,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.owned_string : OwnedString;
 
     AllocationRecord[16] setRecords;

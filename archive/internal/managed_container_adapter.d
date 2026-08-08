@@ -860,7 +860,7 @@ version (unittest)
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     assert(AdapterFixture.staticUtility(5) == 12);
 

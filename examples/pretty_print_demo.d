@@ -4,7 +4,7 @@ import xtb.core.ansi : AnsiColor, AnsiStyle, ansiReset, beginAnsi, endAnsi;
 import xtb.core.array;
 import xtb.core.flag_set : FlagSet;
 import xtb.core.hash_map;
-import xtb.core.memory : mallocAllocator;
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option;
 import xtb.core.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
     PrettyPrintOptions, pretty, writePretty;

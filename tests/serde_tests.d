@@ -4,8 +4,9 @@ import core.lifetime : move;
 import tests.serde_backend_contract : runSerdeBackendContracts;
 import xtb.core.array;
 import xtb.core.hash_map;
-import xtb.core.memory : AllocationRecord, Allocator, InstrumentedAllocator,
-    mallocAllocator;
+import xtb.core.memory : Allocator;
+import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, some;
 import xtb.core.owned_string;
 import xtb.core.print : Writer;

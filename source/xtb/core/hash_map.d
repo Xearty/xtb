@@ -6,8 +6,7 @@ import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move, moveEmplace;
 import core.stdc.string : memset;
 import xtb.core.hash : HashSeed, hashValue;
-import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
-    tryAllocateZeroedArray;
+import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
 import xtb.core.numeric : multiplyOverflows;
 import xtb.core.panic : panic;
 
@@ -1895,7 +1894,7 @@ struct ConstHashSetPointerRange(K)
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.types : String;
 
     HashMap!(String, int) counts = HashMap!(String, int).create(
@@ -2009,8 +2008,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     alias CollisionMap = HashMap!(int, int, ConstantIntHash, DefaultEqual!int);
     CollisionMap collisions = CollisionMap.create(mallocAllocator());
@@ -2063,7 +2062,7 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     int destructions;
     {
@@ -2159,8 +2158,9 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, Allocator,
-        InstrumentedAllocator, mallocAllocator;
+    import xtb.core.memory : Allocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     alias IntMap = HashMap!(int, int);
     alias IntMapStorage = HashMapUnmanaged!(int, int);
@@ -2266,8 +2266,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     alias IntMap = HashMap!(int, int);
     alias IntMapStorage = HashMapUnmanaged!(int, int);
@@ -2397,8 +2397,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     alias ManagedMap = HashMap!(int, int);
     alias UnmanagedMap = HashMapUnmanaged!(int, int);
@@ -2476,8 +2476,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     alias PolicyMap = HashMap!(int, int, ParityHash, ParityEqual);
     alias PolicyStorage = HashMapUnmanaged!(

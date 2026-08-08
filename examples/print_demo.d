@@ -1,7 +1,7 @@
 module examples.print_demo;
 
 import xtb.core.print;
-import xtb.core.memory : mallocAllocator;
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.string;
 
 struct Point

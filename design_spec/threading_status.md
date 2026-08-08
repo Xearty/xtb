@@ -20,27 +20,26 @@ Status values:
 | # | Status | Feature | Depends on | Notes |
 |---|---|---|---|---|
 | 1 | **complete** | Non-blocking atomics and memory model | — | `MemoryOrder`, scalar `Atomic!T`, `AtomicFlag`, load/store/exchange/CAS, integral fetch operations, and `atomicThreadFence`. Atomic wait/notify is intentionally separate. |
-| 2 | **next** | Raw thread layer and Linux backend | — | `Thread.startRaw`/`startRawWith`, lifecycle, join/detach, `ThreadId`, start options/errors, `currentThreadId`, `yieldThread`, `hardwareConcurrency`, and naming. |
-| 3 | pending | Processor relaxation | — | `cpuRelax`; kept separate from scheduler yielding. |
-| 4 | pending | Internal parking | 1 | Linux process-private futex compare-and-sleep plus wake-one/wake-all. |
-| 5 | pending | Atomic wait/notify and startup latch | 1, 4 | Public `Atomic.wait`/notify plus the allocation-free internal one-shot start latch. |
-| 6 | pending | `SpinWait` | 2, 3 | Bounded exponential processor relaxation followed by scheduler yield. |
-| 7 | pending | Typed zero-allocation `Thread.start` | 2, 5 | Typed by-value capture, stack-packet handoff, callable/parameter constraints, and `startWith`. |
-| 8 | pending | `Mutex` | 1, 2, 3, 4 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
-| 9 | pending | `ConditionVariable` | 4, 8 | Atomic unlock/wait/relock protocol, notify-one/all, checked mutex association. |
-| 10 | pending | `Semaphore` | 1, 4, 5 | Counting permits, overflow protection, efficient blocking wakeups. |
-| 11 | pending | `Once` | 1, 4, 5 | Exactly-once execution with publication and recursive-use diagnostics. |
-| 12 | pending | `OnceCell!T` | 11 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
-| 13 | pending | `Latch` | 1, 4, 5 | First public countdown primitive; one-shot countdown/wait semantics. |
-| 14 | pending | Internal countdown/generation machinery | 13 | Refactor proven countdown path and add reusable generation state. |
-| 15 | pending | `WaitGroup` | 14 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
-| 16 | pending | `Barrier` | 14 | Reusable generations, arrival/drop semantics, permanent completion. |
-| 17 | pending | `RwLock` | 1, 4 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
-| 18 | pending | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
-| 19 | pending | `threadScope` | 2, 18 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
-| 20 | pending | Lock guards | 8, 17 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
-| 21 | blocked | Monotonic time, sleeping, and timed waits | time foundation | Requires a stable monotonic-time abstraction that preserves the threading package dependency direction. |
-| 22 | pending | Windows backend coverage | public contracts above | Implement every completed OS-dependent primitive/utility with the same public semantics. |
+| 2 | **complete** | Raw thread/platform foundations + allocator-backed starts | 1 for the POSIX ABI handoff; typed `startAlloc` also uses core allocator/lifetime support | `cpuRelax`, `Thread.startRaw`/`startRawWith`, `startRawAlloc`/`startRawAllocWith`, typed `startAlloc`/`startAllocWith`, lifecycle, join/detach, `ThreadId`, start options/errors, stable native-start adapter, `currentThreadId`, `yieldThread`, `hardwareConcurrency`, Linux naming, and an explicit unsupported backend. |
+| 3 | **next** | Internal parking | 1 | Linux process-private futex compare-and-sleep plus wake-one/wake-all. |
+| 4 | pending | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/notify plus the allocation-free internal one-shot start latch. |
+| 5 | pending | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
+| 6 | pending | Typed zero-allocation `Thread.start` | 2, 4 | Stack-packet/latch handoff for `start`/`startWith`. Typed callable/parameter/capture rules are already exercised by the allocator-backed `startAlloc` path from Feature 2. |
+| 7 | pending | `Mutex` | 1, 2, 3 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
+| 8 | pending | `ConditionVariable` | 3, 7 | Atomic unlock/wait/relock protocol, notify-one/all, checked mutex association. |
+| 9 | pending | `Semaphore` | 1, 3, 4 | Counting permits, overflow protection, efficient blocking wakeups. |
+| 10 | pending | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
+| 11 | pending | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
+| 12 | pending | `Latch` | 1, 3, 4 | First public countdown primitive; one-shot countdown/wait semantics. |
+| 13 | pending | Internal countdown/generation machinery | 12 | Refactor proven countdown path and add reusable generation state. |
+| 14 | pending | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
+| 15 | pending | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
+| 16 | pending | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
+| 17 | pending | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
+| 18 | pending | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
+| 19 | pending | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
+| 20 | blocked | Monotonic time, sleeping, and timed waits | time foundation | Requires a stable monotonic-time abstraction that preserves the threading package dependency direction. |
+| 21 | pending | Windows backend coverage | public contracts above | Implement every completed OS-dependent primitive/utility with the same public semantics. |
 
 ## Feature 1 completion record
 
@@ -75,6 +74,98 @@ frontend, despite acquire being valid for a C/C++ read-modify-write operation.
 The implementation therefore builds exchange from the compiler CAS primitive;
 no architecture-specific assembly or hidden lock table is used.
 
+
+## Feature 2 completion record
+
+Implemented the raw native-thread/platform foundation with a Linux pthread
+backend and an explicit unsupported backend. The public surface now includes
+`Thread.startRaw`/`startRawWith`, allocator-backed `startRawAlloc`/
+`startRawAllocWith`, typed allocator-backed `startAlloc`/`startAllocWith`,
+`ThreadStartOptions`, `ThreadStartError`, `ThreadStartAllocError`, move-only
+`Thread` ownership, `ThreadId`, join/detach, thread naming, `currentThreadId`,
+`yieldThread`, `hardwareConcurrency`, and `cpuRelax`.
+
+The Linux backend now has two deliberate native-entry adapters. The
+allocation-free raw callback bridge preserves the portable `int function(void*)`
+contract with a small parent-stack packet: the child copies the runtime function
+pointer and user context, publishes completion with release ordering, and only
+then calls user code; the parent observes that publication with acquire ordering
+before returning. It waits only for ABI packet capture, never for worker
+execution.
+
+The second adapter accepts already-stable start storage. `startRawAlloc` uses one
+caller-allocator allocation for the raw function/context adapter, while typed
+`startAlloc` uses one allocation containing the backend adapter plus captures in
+the worker's declared parameter types. The allocator callback type now lives in
+the allocator contract in `xtb.core.memory`; concrete allocator implementations
+remain isolated under `xtb.core.allocators.*`, so threading can use the public
+allocator API without importing a concrete allocator implementation. After
+successful native creation the child moves/copies every value it needs into
+child-stack call storage, destroys
+all source captures, deallocates the start state on the child thread, and only
+then enters user code. These allocating forms therefore return after native
+creation without a child-start rendezvous. The allocator must remain valid until
+that child-side release and must allow deallocation from the child thread;
+short-lived arena/scratch/thread-affine allocators are invalid unless their own
+lifetime and cross-thread contracts explicitly satisfy those requirements.
+
+Validation performed with the supplied LDC 1.42.0 toolchain includes:
+
+- null and non-null raw contexts plus exact signed `int` status transport,
+  including `int.min` and `int.max`;
+- 1,024 batched raw start/join operations and explicit detach completion;
+- move construction, move assignment into an empty destination, and
+  unconditional death coverage for assignment over a live destination;
+- compile-time safety-boundary checks proving ordinary handle lifecycle and
+  utility operations are callable from `@safe` code through narrow trusted
+  wrappers while the raw `void*` start surface remains `@system`;
+- death tests for null entry, empty/double join and detach, empty `id`/naming,
+  self-join, destruction of a joinable owner, and process-fatal worker panic;
+- `ThreadId` agreement between parent handle and child `currentThreadId`,
+  distinction from the parent thread, and stable identity after worker
+  publication while the handle remains joinable;
+- default, tiny, explicit non-page-sized, and overflowing stack requests,
+  including native observation that normalized stack size never falls below the
+  requested minimum;
+- Linux current-thread and handle naming, exact 15-byte Linux name acceptance,
+  too-long and embedded-NUL errors, and the exited-but-unjoined
+  `threadUnavailable` race;
+- affinity-aware `hardwareConcurrency`, scheduler yield, and x86_64 assembly
+  inspection confirming `cpuRelax` emits `pause` rather than a scheduler yield;
+- direct LDC TLS probing from an XTB-created pthread, confirming independent
+  zero-initialized module TLS on this supported target;
+- deterministic internal errno mapping checks for `EAGAIN`/`ENOMEM` resource
+  exhaustion, `EPERM` permission failure, and `EINVAL` invalid configuration;
+- allocator-backed raw start proving exactly one allocation, child-thread
+  deallocation before user worker entry, signed status transport, and safe detach
+  with the long-lived malloc allocator;
+- allocator-backed typed start covering multiple/value/`const`/slice and
+  over-aligned captures, `void` status normalization, move-only capture with
+  exactly-once destruction,
+  parent-thread conversion into worker parameter types, explicit stack options,
+  allocation failure, native-start failure cleanup, and child-thread deallocation
+  before user worker entry;
+- compile-time rejection of typed `ref`, `out`, `lazy`, `in`, top-level `shared`,
+  non-static member and nested/capturing callables, argument-count mismatch,
+  missing `nothrow`/`@nogc`, `ref` returns, and non-`int`/`void` value returns,
+  plus acceptance of static member workers;
+- forced unsupported-backend runtime tests with no pthread backend linked,
+  including one-allocation cleanup for both raw and typed allocator-backed starts;
+- successful x86_64 Windows cross-compilation of `import xtb.threading` with raw
+  and typed allocator-backed starts instantiated, proving the unsupported backend
+  and allocator type dependency remain import/compile portable for that target;
+- focused D-Scanner/dfmt checks plus debug, optimized, release-safe,
+  release-fast, and AddressSanitizer threading test runs; and
+- static-library symbol inspection confirming no malloc/calloc/realloc/free,
+  `__atomic*`, TypeInfo/ModuleInfo, or D GC/runtime dependency is introduced by
+  the raw threading implementation. Native pthread/scheduler/sysconf symbols are
+  the expected Linux backend boundary.
+
+LDC's bundled FreeBSD headers reject the generic cross target before XTB code is
+semantically checked (`core.sys.freebsd.config` reports an unsupported FreeBSD
+version), so Windows is the exercised unsupported-platform cross-compile target
+for this completion record.
+
 ## Prototype gates
 
 | Gate | Status | Required before | Result / notes |
@@ -82,10 +173,10 @@ no architecture-specific assembly or hidden lock table is used.
 | Atomic backend widths / direct operations | **complete for LDC 1.42.0 x86_64 Linux** | Feature 1 | Probed 1/2/4/8-byte integral and enum values plus native pointers; LDC emitted native atomic instructions with no unresolved `__atomic*` runtime calls in the probe. |
 | Atomic/shared receiver behavior | **complete for Feature 1** | Feature 1 | D requires distinct shared and unshared receiver overloads. `Atomic!T`/`AtomicFlag` expose both, with qualifier casts contained inside trusted atomic boundaries. |
 | Static memory-order diagnostics | **documented language/API limitation** | Feature 1 | The specified public syntax passes `MemoryOrder` as a runtime value. D semantic analysis does not preserve whether that argument originated from an enum literal, so the implementation cannot reject a literal invalid order at compile time without changing the call syntax to template value parameters. All invalid orders/combinations are still unconditional programming-error panics. |
-| Parameter storage-class introspection | pending | Feature 7 | Probe `ref`, `out`, `lazy`, `scope`, `return`, and current `in` behavior under the supported frontend. |
-| LDC-created-thread TLS | pending | Raw/typed thread TLS guarantees | Must be tested with a thread created without druntime thread startup. |
-| Native thread naming limits/error mapping | pending | Feature 2 naming freeze | Verify Linux behavior and portable error mapping; do not expose Linux limits as portable constants. |
-| Scoped structured-borrow syntax | pending | Feature 19 | Prove BetterC/no-GC closure behavior and non-escape properties or use the explicit context fallback. |
+| Parameter storage-class introspection | **complete for typed starts** | Feature 2 allocator-backed typed start / Feature 6 zero-allocation typed start | LDC 1.42.0 reports `ref`/`out`/`lazy` explicitly; `scope`/`return` can decorate value transport. A focused address probe showed `in` is value-like under the repository flags but aliases caller storage under `-preview=in`, so v1 typed starts reject `in` in all modes. |
+| LDC-created-thread TLS | **complete for LDC 1.42.0 x86_64 Linux** | Raw/typed thread TLS guarantees | A raw XTB pthread sees module TLS at its independent zero-initialized value and writes do not affect the parent thread TLS instance. This validates compiler TLS for the supported Linux target; it is not a promise for untested compiler/platform combinations. |
+| Native thread naming limits/error mapping | **complete for Linux** | Feature 2 naming freeze | Linux `pthread_setname_np` behavior was tested: 15 UTF-8 bytes are accepted, 16 are `tooLong`, embedded NUL is `invalidName`, and an exited-but-unjoined pthread maps to `threadUnavailable`. The Linux byte limit remains private. |
+| Scoped structured-borrow syntax | pending | Feature 18 | Prove BetterC/no-GC closure behavior and non-escape properties or use the explicit context fallback. |
 | Broader `shared`/`inout` policy | pending | Cross-primitive API freeze | Feature 1 records only the atomic-specific result; mutex-protected object graphs and typed worker arguments still need focused experiments. |
 
 ## Repository cleanup status
@@ -96,12 +187,14 @@ serde tests, and the serde example. The OS and serde debug runners now compile
 and pass alongside the other test targets.
 
 The repository-wide D-Scanner 0.15.2 policy pass is clean for every file that
-version can parse. `source/xtb/core/pretty_print.d` and
-`examples/pretty_print_demo.d` are excluded through the existing `dscanner.ini`
-compatibility mechanism because D-Scanner 0.15.2 cannot parse the interpolation
-sequence syntax they use; LDC continues to compile-check both files. The real
+version can analyze reliably. The compatibility exclusions in `dscanner.ini`
+cover the print/pretty-print interpolation-sequence files plus logging and
+stacktrace-style files that this scanner version either cannot parse or does not
+terminate on; LDC continues to compile-check all excluded files. The real
 style/static-analysis findings previously reported in core `result.d`, the
 intrusive-list layout assertions, parser, and TOML have been fixed.
 
-The repository still has pre-existing dfmt drift in files unrelated to threading;
-that formatting-only cleanup is intentionally not folded into feature work.
+The repository-wide dfmt cleanup has been applied. Interpolation-expression
+sequence files were tested separately before inclusion; dfmt preserved the
+interpolation expressions and their focused compiler/runtime tests remained
+clean.

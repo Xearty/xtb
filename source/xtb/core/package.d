@@ -7,7 +7,7 @@ public import xtb.core.slice;
 public import xtb.core.panic;
 public import xtb.core.memory;
 public import xtb.core.released_storage;
-public import xtb.core.arena;
+public import xtb.core.allocators;
 public import xtb.core.thread_context;
 public import xtb.core.array;
 public import xtb.core.option;

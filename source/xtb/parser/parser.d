@@ -8,7 +8,7 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdlib : strtod;
 import core.stdc.string : memcpy;
-import xtb.core.arena : Arena;
+import xtb.core.allocators.arena : Arena;
 import xtb.core.memory : Allocator;
 import xtb.core.numeric : addOverflows;
 import xtb.core.option : Option;
@@ -1858,8 +1858,8 @@ version (unittest)
 
 unittest
 {
-    import xtb.core.arena : Arena;
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.arena : Arena;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     Grammar grammar = Grammar.create(mallocAllocator(), 256);
 

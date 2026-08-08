@@ -1,4 +1,4 @@
-module xtb.core.arena;
+module xtb.core.allocators.arena;
 
 nothrow @nogc:
 
@@ -624,7 +624,7 @@ void pop(ref TempArena temporary)
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     Arena arena = Arena.create(mallocAllocator(), 64);
     int* persistent = arena.allocate!int();
@@ -723,7 +723,7 @@ unittest
     lifetimeArena.deinit();
     assert(arenaDestroyed == 0);
 
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(

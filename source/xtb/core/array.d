@@ -5,8 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, move, moveEmplace;
 import core.stdc.string : memmove;
-import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray,
-    tryReallocateArray;
+import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryReallocateArray;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -1014,7 +1013,8 @@ private void destroyElements(T)(T* data, size_t length)
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     Array!int zero;
     zero.deinit();
@@ -1067,7 +1067,7 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     trackedDestructions = 0;
     destructionOrder[] = 0;
@@ -1117,7 +1117,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator, mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     copyableLiveElements = 0;
     {
@@ -1159,8 +1160,9 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, Allocator,
-        InstrumentedAllocator, mallocAllocator;
+    import xtb.core.memory : Allocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     static assert(ArrayUnmanaged!int.sizeof == 3 * size_t.sizeof);
     static assert(Array!int.sizeof ==
@@ -1255,8 +1257,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     AllocationRecord[64] managedRecords;
     AllocationRecord[64] unmanagedRecords;
@@ -1312,8 +1314,9 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, Allocator,
-        InstrumentedAllocator, mallocAllocator;
+    import xtb.core.memory : Allocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     Array!int zero;
     Array!int.Released first = zero.release();

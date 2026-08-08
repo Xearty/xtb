@@ -114,11 +114,18 @@ bindings live beside their adapter (for example `xtb.graphics.opengl.binding`)
 and are not treated as general-purpose core modules.
 
 Within core, `xtb.core.types` is a dependency-free leaf containing only the
-primitive aliases, including `String`. Generic scalar and checked-arithmetic
-operations live in `xtb.core.numeric`; that module may use the panic contract
-layer without forcing panic to depend on containers or builders. `xtb.core`
-publicly imports both modules, while implementation modules import the narrow
-module that owns the declaration they use.
+primitive aliases, including `String`. `xtb.core.memory` owns the type-erased
+`Allocator` callback contract and generic allocation/reallocation/lifetime
+helpers. Concrete allocator implementations are grouped under
+`xtb.core.allocators.*`: `malloc` provides the libc-backed allocator, `arena`
+provides arena allocation, and `instrumented` provides deterministic
+allocation tracking/failure injection. This lets APIs depend on the allocator
+contract without importing a concrete allocation policy. Generic scalar and
+checked-arithmetic operations live in `xtb.core.numeric`; that module may use
+the panic contract layer without forcing panic to depend on containers or
+builders. `xtb.core` publicly imports the allocator aggregate for convenience,
+while implementation modules import the narrow module that owns the declaration
+they use.
 
 The ordinary byte-unit helpers return their result directly and panic on
 overflow:

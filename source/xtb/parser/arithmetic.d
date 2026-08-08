@@ -6,7 +6,7 @@ import core.lifetime : move;
 import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdlib : strtod;
-import xtb.core.arena : Arena;
+import xtb.core.allocators.arena : Arena;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.types : String;

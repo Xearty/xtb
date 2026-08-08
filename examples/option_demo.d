@@ -3,7 +3,8 @@ module examples.option_demo;
 nothrow @nogc:
 
 import core.lifetime : move;
-import xtb.core.memory : Allocator, mallocAllocator;
+import xtb.core.memory : Allocator;
+import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, OptionReturns, andThen, map, none, orElse, some;
 import xtb.core.print : Writer, writeln;
 import xtb.core.string;

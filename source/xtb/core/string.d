@@ -1788,8 +1788,9 @@ private void requireValidStringBufAllocator(Allocator* allocator) @trusted
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        deallocate, mallocAllocator;
+    import xtb.core.memory : deallocate;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     String text = "  hello world  ";
     assert(text.trimAscii().equal("hello world"));
@@ -1964,8 +1965,9 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, Allocator,
-        InstrumentedAllocator, mallocAllocator;
+    import xtb.core.memory : Allocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     static assert(StringBufUnmanaged.sizeof == ArrayUnmanaged!char.sizeof);
     static assert(StringBuf.sizeof ==
@@ -2033,8 +2035,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     AllocationRecord[32] managedRecords;
     AllocationRecord[32] unmanagedRecords;
@@ -2092,8 +2094,8 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     StringBuf text = StringBuf.fromString(
         mallocAllocator(),

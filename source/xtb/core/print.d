@@ -835,8 +835,8 @@ pure @safe
 
 unittest
 {
-    import xtb.core.memory : AllocationRecord, InstrumentedAllocator,
-        mallocAllocator;
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     StringBuf buffer = StringBuf.create(mallocAllocator());
     buffer.writeTo("answer=", 42, ", hex=", hexadecimal(255));

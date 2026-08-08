@@ -2482,7 +2482,7 @@ unittest
     text.expectPretty("\"a\\n\\\"b\\\\c\\x01\"", plain);
     text.expectWidthEstimateCovers(plain);
 
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     StringBuf buffer = StringBuf.fromString(mallocAllocator(), "owned\ntext");
     buffer.expectPretty("\"owned\\ntext\"", plain);
@@ -2974,7 +2974,7 @@ unittest
 
 unittest
 {
-    import xtb.core.memory : mallocAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
 
     PrettyPrintOptions noTypes = plainOptions();
     noTypes.showTypeNames = false;
