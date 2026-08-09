@@ -1,10 +1,10 @@
 module xtb.threading.internal.thread_linux;
 
-version (linux): nothrow @nogc:
+version (linux)  : nothrow @nogc:
 
 import core.stdc.errno : EAGAIN, EINVAL, ENOENT, ENOMEM, ENOSYS, EPERM, ERANGE, ESRCH;
 import core.stdc.stdint : intptr_t;
-import core.sys.linux.sched : CPU_COUNT, cpu_set_t, sched_getaffinity;
+import core.sys.linux.sched : cpu_set_t, sched_getaffinity;
 import core.sys.posix.pthread : pthread_attr_destroy,
     pthread_attr_init,
     pthread_attr_setstacksize,
@@ -391,15 +391,31 @@ uint hardwareConcurrencyBackend() @system
     cpu_set_t available;
     if (sched_getaffinity(0, cpu_set_t.sizeof, &available) == 0)
     {
-        const count = CPU_COUNT(&available);
+        const count = countAffinityCpus(&available);
         if (count > 0)
-            return cast(uint) count;
+            return count;
     }
 
     const online = sysconf(_SC_NPROCESSORS_ONLN);
     if (online <= 0 || cast(ulong) online > uint.max)
         return 0;
     return cast(uint) online;
+}
+
+private uint countAffinityCpus(const(cpu_set_t)* available) pure @trusted
+{
+    const bytes = (cast(const(ubyte)*) available)[0 .. cpu_set_t.sizeof];
+    uint count;
+    foreach (value; bytes)
+    {
+        ubyte remaining = value;
+        while (remaining != 0)
+        {
+            remaining &= cast(ubyte)(remaining - 1);
+            ++count;
+        }
+    }
+    return count;
 }
 
 private enum size_t linuxThreadNameCapacity = 16;
