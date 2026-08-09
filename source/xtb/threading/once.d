@@ -38,6 +38,11 @@ nothrow @nogc:
             );
         }
     }
+
+    package(xtb.threading) bool completed() const @trusted
+    {
+        return state_.load(MemoryOrder.acquire) == onceInitialized;
+    }
 }
 
 /// Runs exactly one context-free initializer for `once`.

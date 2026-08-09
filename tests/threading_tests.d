@@ -12,6 +12,7 @@ import countdownModule = xtb.threading.internal.countdown;
 import latchModule = xtb.threading.latch;
 import mutexModule = xtb.threading.mutex;
 import onceModule = xtb.threading.once;
+import onceCellModule = xtb.threading.once_cell;
 import parkingModule = xtb.threading.internal.parking;
 import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
@@ -2138,6 +2139,50 @@ nothrow @nogc
     callOnce!recursiveOnceInitializer(*once, once);
 }
 
+version (Posix) private int recursiveOnceCellInitializer(OnceCell!int* cell)
+nothrow @nogc
+{
+    return cell.getOrInit!recursiveOnceCellInitializer(cell);
+}
+
+version (XTB_Checked) version (linux) private struct OnceCellDestroyContext
+{
+    OnceCell!int cell;
+    Atomic!uint entered;
+    Atomic!uint releaseInitializer;
+}
+
+version (XTB_Checked) version (linux) private int initializeDestroyedOnceCell(
+    OnceCellDestroyContext* context,
+) nothrow @nogc
+{
+    context.entered.store(1, MemoryOrder.release);
+    context.entered.notifyAll();
+    context.releaseInitializer.wait(0, MemoryOrder.acquire);
+    return 1;
+}
+
+version (XTB_Checked) version (linux) private int initializeDestroyedOnceCellWorker(
+    OnceCellDestroyContext* context,
+) nothrow @nogc
+{
+    return context.cell.getOrInit!initializeDestroyedOnceCell(context);
+}
+
+version (XTB_Checked) version (linux) private void triggerActiveOnceCellDestroy()
+nothrow @nogc
+{
+    OnceCellDestroyContext context;
+    auto started = Thread.start!initializeDestroyedOnceCellWorker(&context);
+    if (!started.isOk)
+        _exit(93);
+    Thread thread = started.unwrap();
+    if (!waitForAtomicAtLeast(&context.entered, 1))
+        _exit(94);
+    destroy(context.cell);
+    _exit(95);
+}
+
 version (Posix) private enum DeathCase : ubyte
 {
     loadRelease,
@@ -2173,6 +2218,8 @@ version (Posix) private enum DeathCase : ubyte
     semaphoreOverflow,
     latchUnderflow,
     onceRecursive,
+    onceCellRecursive,
+    onceCellDestroyActive,
 }
 
 version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
@@ -2380,6 +2427,20 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 callOnce!recursiveOnceInitializer(once, &once);
             }
             return;
+        case DeathCase.onceCellRecursive:
+            version (XTB_Checked)
+            {
+                OnceCell!int cell;
+                cell.getOrInit!recursiveOnceCellInitializer(&cell);
+            }
+            return;
+        case DeathCase.onceCellDestroyActive:
+            version (XTB_Checked)
+            {
+                version (linux)
+                    triggerActiveOnceCellDestroy();
+            }
+            return;
     }
 }
 
@@ -2479,6 +2540,12 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, condVarModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, semaphoreModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, latchModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, onceModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, onceCellModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();
@@ -2652,6 +2719,8 @@ extern (C) int main() nothrow @nogc
                 DeathCase.condVarWaitWithoutOwnership,
                 DeathCase.condVarMixedMutexes,
                 DeathCase.onceRecursive,
+                DeathCase.onceCellRecursive,
+                DeathCase.onceCellDestroyActive,
             ])
                 if (!expectAbort(deathCase))
                     return 45;

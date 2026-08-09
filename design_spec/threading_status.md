@@ -29,9 +29,9 @@ Status values:
 | 8 | **complete** | `CondVar` | 3, 7 | Stack-backed waiter queue, exact notify-one/all selection, and explicit waiter-node lifetime handshake. |
 | 9 | **complete** | `Semaphore` | 1, 3, 4 | Atomic fast permit path plus intrusive stack-waiter handoff; no shared wrapping wake epoch. |
 | 10 | **complete** | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
-| 11 | **next** | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
+| 11 | **complete** | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
 | 12 | **complete** | `Latch` | 1, 3, 4 | One-shot countdown with a full-width logical count and a 32-bit wait epoch. Implemented early while auditing the decided countdown design. |
-| 13 | pending | Internal generation machinery | 12 | Countdown state is complete with `Latch`; reusable generation state remains. |
+| 13 | **next** | Internal generation machinery | 12 | Countdown state is complete with `Latch`; reusable generation state remains. |
 | 14 | pending | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
 | 15 | pending | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
 | 16 | pending | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
@@ -508,6 +508,37 @@ Validation covers sequential exactly-once behavior, argument evaluation by a
 losing caller, compile-time callable/return/parameter rejection, eight-way
 contention with release/acquire publication, checked recursive-use death, and
 the non-copyable/release-representation contracts.
+
+## OnceCell completion record
+
+Implemented public allocation-free `OnceCell!T` in
+`xtb.threading.once_cell`. Each cell contains the completed `Once` state machine
+and union-backed raw storage for one `T`. The winning caller constructs the
+initializer result directly into that storage before `Once` publishes
+completion; `isInitialized`, `tryGet`, and every returning `getOrInit` call
+observe publication with acquire ordering. The aggregate threading module
+re-exports the new API.
+
+Initializers follow the context-free module/static `nothrow @nogc` policy and
+use ordinary by-value arguments. They must return an owned value constructible
+as `T`; `void` and borrowed `ref` returns plus `ref`, `out`, `lazy`, and `in`
+parameters are rejected. Move-only results are supported without adding a copy
+requirement. The cell suppresses automatic destruction of its raw slot and
+destroys `T` exactly once only after successful initialization.
+
+Validation covers empty and initialized nonblocking queries, stable mutable and
+const borrowed pointers, argument evaluation by losing callers, sequential and
+eight-way contended exactly-once initialization, release/acquire publication,
+move-only storage and exact destruction, compile-time callable rejection,
+checked recursive initialization, checked destruction during active
+initialization, non-copyability, and uncontended operation on the forced
+unsupported parking backend. The explicit BetterC runners now enumerate the
+`Latch`, `Once`, and `OnceCell` colocated tests on both backend configurations.
+Focused and repository-wide validation passes in checked debug, optimized,
+release-safe, and AddressSanitizer modes; release-fast production and test
+targets compile without checked metadata; every example runs; the public cell
+surface cross-compiles for x86-64 Windows; and the release threading archive
+introduces no allocator, TypeInfo, ModuleInfo, or D runtime dependency.
 
 ## Latch completion record
 
