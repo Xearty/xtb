@@ -1849,6 +1849,13 @@ extern (C) int main() nothrow @nogc
         if (!hardwareConcurrencyMatchesAffinity())
             return 22;
         cpuRelax();
+
+        SpinWait spinWait;
+        foreach (_; 0 .. 10)
+            spinWait.spin();
+        spinWait.reset();
+        spinWait.spin();
+
         yieldThread();
     }
 

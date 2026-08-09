@@ -353,3 +353,17 @@ The repository-wide dfmt cleanup has been applied. Interpolation-expression
 sequence files were tested separately before inclusion; dfmt preserved the
 interpolation expressions and their focused compiler/runtime tests remained
 clean.
+
+## SpinWait completion record
+
+Implemented public `SpinWait` in `xtb.threading.spin_wait`. `SpinWait.init` is
+round zero. Successive `spin()` calls use bounded exponential `cpuRelax()`
+batches of 1, 2, 4, 8, 16, 32, and 64 hints; after that the internal round
+counter saturates and each later `spin()` calls `yieldThread()` until `reset()`
+returns it to round zero. The helper never parks and provides no memory ordering.
+
+The implementation keeps the backoff schedule in one small private helper so the
+production path and deterministic unit test exercise the same state machine. The
+test policy counts relax/yield actions without sleeping or creating threads,
+verifying the exact initial v1 sequence, transition to yielding, saturation, and
+reset behavior while keeping the normal test suite fast.
