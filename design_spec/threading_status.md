@@ -30,8 +30,8 @@ Status values:
 | 9 | **complete** | `Semaphore` | 1, 3, 4 | Atomic fast permit path plus intrusive stack-waiter handoff; no shared wrapping wake epoch. |
 | 10 | **next** | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
 | 11 | pending | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
-| 12 | pending | `Latch` | 1, 3, 4 | First public countdown primitive; one-shot countdown/wait semantics. |
-| 13 | pending | Internal countdown/generation machinery | 12 | Refactor proven countdown path and add reusable generation state. |
+| 12 | **complete** | `Latch` | 1, 3, 4 | One-shot countdown with a full-width logical count and a 32-bit wait epoch. Implemented early while auditing the decided countdown design. |
+| 13 | pending | Internal generation machinery | 12 | Countdown state is complete with `Latch`; reusable generation state remains. |
 | 14 | pending | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
 | 15 | pending | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
 | 16 | pending | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
@@ -486,3 +486,25 @@ behavior. The threading suite passes checked debug, optimized, release-safe, and
 AddressSanitizer runs; the unchecked release-fast threading component compiles;
 and the standalone BetterC semaphore module cross-compiles for i686 Linux,
 AArch64 Linux, RISC-V64 Linux, and x86-64 Windows.
+
+## Latch completion record
+
+Implemented public allocation-free `Latch` over the package-private
+`CountdownState`. The logical count is an `Atomic!size_t`, while blocking uses
+a separate wait-supported 32-bit wake epoch. This keeps the full public
+`size_t` range without assuming that the native parking backend can wait on a
+machine-width count. `Latch.init` is complete, `countDown(0)` is a no-op, and a
+CAS loop rejects underflow before changing the count. The single zero
+transition advances the epoch and wakes all waiters.
+
+Release/acquire ordering publishes writes performed before every contributing
+countdown to waiters that observe completion. On an unsupported parking backend,
+zero-state operations and nonblocking queries remain functional; only a wait on
+an incomplete latch fails explicitly. The type is non-copyable and follows the
+package-wide address-stability rule once published.
+
+Validation covers the zero state, partial and batched countdown, zero-count
+no-op behavior, multi-waiter completion and publication, concurrent countdown
+publication, full join cleanup, and unconditional underflow death behavior.
+The aggregate module re-exports `Latch`, and both the native and forced-
+unsupported BetterC threading runners enumerate its module and internal state.

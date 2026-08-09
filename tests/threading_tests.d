@@ -8,6 +8,8 @@ import xtb.core.panic : panic;
 import xtb.threading;
 import atomicModule = xtb.threading.atomic;
 import condVarModule = xtb.threading.cond_var;
+import countdownModule = xtb.threading.internal.countdown;
+import latchModule = xtb.threading.latch;
 import mutexModule = xtb.threading.mutex;
 import parkingModule = xtb.threading.internal.parking;
 import semaphoreModule = xtb.threading.semaphore;
@@ -16,7 +18,7 @@ import spinWaitModule = xtb.threading.spin_wait;
 
 version (linux) import linuxBackendModule = xtb.threading.internal.thread_linux;
 
-version (linux) import core.sys.linux.sched : CPU_COUNT, cpu_set_t, sched_getaffinity;
+version (linux) import core.sys.linux.sched : cpu_set_t, sched_getaffinity;
 
 version (Posix)
 {
@@ -2162,6 +2164,7 @@ version (Posix) private enum DeathCase : ubyte
     condVarWaitWithoutOwnership,
     condVarMixedMutexes,
     semaphoreOverflow,
+    latchUnderflow,
 }
 
 version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
@@ -2218,12 +2221,15 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
         case DeathCase.nullRawFunction:
             cast(void) Thread.startRaw(null);
             _exit(80);
+            return;
         case DeathCase.nullRawAllocFunction:
             cast(void) Thread.startRawAlloc(mallocAllocator(), null);
             _exit(84);
+            return;
         case DeathCase.nullRawAllocAllocator:
             cast(void) Thread.startRawAlloc(null, &noOpRawWorker);
             _exit(85);
+            return;
         case DeathCase.joinEmpty:
             Thread thread;
             cast(void) thread.join();
@@ -2263,6 +2269,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             Thread second = secondStarted.unwrap();
             first = move(second);
             _exit(81);
+            return;
         case DeathCase.selfJoin:
             SelfJoinContext context;
             auto started = Thread.startRaw(&selfJoinWorker, &context);
@@ -2272,11 +2279,13 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             foreach (_; 0 .. 1_000_000)
                 yieldThread();
             _exit(82);
+            return;
         case DeathCase.workerPanic:
             auto started = Thread.startRaw(&panicRawWorker);
             Thread thread = started.unwrap();
             cast(void) thread.join();
             _exit(83);
+            return;
         case DeathCase.mutexUnlockUnlocked:
             version (XTB_Checked)
             {
@@ -2352,6 +2361,10 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             Semaphore full = Semaphore(size_t.max);
             full.release();
             return;
+        case DeathCase.latchUnderflow:
+            Latch latch = Latch(1);
+            latch.countDown(2);
+            return;
     }
 }
 
@@ -2376,7 +2389,17 @@ version (linux) private bool hardwareConcurrencyMatchesAffinity() nothrow @nogc
     cpu_set_t available;
     if (sched_getaffinity(0, cpu_set_t.sizeof, &available) != 0)
         return hardwareConcurrency() != 0;
-    const expected = CPU_COUNT(&available);
+    const bytes = (cast(const(ubyte)*)&available)[0 .. cpu_set_t.sizeof];
+    uint expected;
+    foreach (value; bytes)
+    {
+        ubyte remaining = value;
+        while (remaining != 0)
+        {
+            remaining &= cast(ubyte)(remaining - 1);
+            ++expected;
+        }
+    }
     return expected > 0 && hardwareConcurrency() == cast(uint) expected;
 }
 
@@ -2585,6 +2608,7 @@ extern (C) int main() nothrow @nogc
             DeathCase.selfJoin,
             DeathCase.workerPanic,
             DeathCase.semaphoreOverflow,
+            DeathCase.latchUnderflow,
         ])
             if (!expectAbort(deathCase))
                 return 30;
