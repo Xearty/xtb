@@ -382,19 +382,21 @@ path. It deliberately never scheduler-yields between active spinning and
 parking. Unlock exchanges the state to zero with release ordering and wakes one
 waiter when the previous state was contended.
 
-In `XTB_Checked` builds Mutex also carries an atomic owner identity used only for
-diagnostics. Blocking recursive lock, unlock of an unlocked mutex, double
-unlock, unlock by a non-owner, and destruction while locked are diagnosed as
-programming errors. `tryLock()` remains a non-blocking probe and returns `false`
-when the current thread already owns the mutex. The owner field is compiled out
-outside `XTB_Checked`; the release representation is only the 32-bit atomic
-state word.
+Unlock observes the previous state as part of its release exchange and panics
+unconditionally when that state was already unlocked, so unmatched and double
+unlock cannot pass silently in release-fast. In `XTB_Checked` builds Mutex also
+carries an atomic owner identity used to diagnose blocking recursive lock,
+unlock by a non-owner, and destruction while locked. `tryLock()` remains a
+non-blocking probe and returns `false` when the current thread already owns the
+mutex. The owner field is compiled out outside `XTB_Checked`; the release
+representation is only the 32-bit atomic state word.
 
 Validation covers basic lock/tryLock/unlock behavior, deterministic verification
 of the bounded 127 total relax hints, a short four-thread protected increment
-run, contended handoff with release/acquire publication, and checked-build death
-tests for the ownership/lifecycle diagnostics. The tests intentionally use
-small iteration counts so ordinary threading test runtime remains short.
+run, contended handoff with release/acquire publication, unconditional unlocked
+and double-unlock death tests, and checked-build death tests for the remaining
+ownership/lifecycle diagnostics. The tests intentionally use small iteration
+counts so ordinary threading test runtime remains short.
 
 ## CondVar completion record
 

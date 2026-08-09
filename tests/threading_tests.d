@@ -2353,20 +2353,14 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             _exit(83);
             return;
         case DeathCase.mutexUnlockUnlocked:
-            version (XTB_Checked)
-            {
-                Mutex mutex;
-                mutex.unlock();
-            }
+            Mutex mutex;
+            mutex.unlock();
             return;
         case DeathCase.mutexDoubleUnlock:
-            version (XTB_Checked)
-            {
-                Mutex mutex;
-                mutex.lock();
-                mutex.unlock();
-                mutex.unlock();
-            }
+            Mutex mutex;
+            mutex.lock();
+            mutex.unlock();
+            mutex.unlock();
             return;
         case DeathCase.mutexRecursiveLock:
             version (XTB_Checked)
@@ -2744,6 +2738,8 @@ extern (C) int main() nothrow @nogc
             DeathCase.moveAssignOverJoinable,
             DeathCase.selfJoin,
             DeathCase.workerPanic,
+            DeathCase.mutexUnlockUnlocked,
+            DeathCase.mutexDoubleUnlock,
             DeathCase.semaphoreOverflow,
             DeathCase.latchUnderflow,
             DeathCase.waitGroupOverflow,
@@ -2773,8 +2769,6 @@ extern (C) int main() nothrow @nogc
         version (linux)
         {
             static foreach (deathCase; [
-                DeathCase.mutexUnlockUnlocked,
-                DeathCase.mutexDoubleUnlock,
                 DeathCase.mutexRecursiveLock,
                 DeathCase.mutexDestroyLocked,
                 DeathCase.mutexUnlockNonOwner,

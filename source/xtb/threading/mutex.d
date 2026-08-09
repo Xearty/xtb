@@ -78,6 +78,7 @@ nothrow @nogc:
     }
 
     /// Releases a mutex owned by the calling thread.
+    /// Unlocking an already-unlocked mutex is fatal in every build.
     void unlock() @safe
     {
         version (XTB_Checked)
@@ -94,9 +95,8 @@ nothrow @nogc:
         }
 
         const previous = state_.exchange(mutexUnlocked, MemoryOrder.release);
-
-        version (XTB_Checked)
-            require(previous != mutexUnlocked, "cannot unlock an unlocked Mutex");
+        if (previous == mutexUnlocked)
+            unlockUnlockedMutex();
 
         static if (Atomic!uint.waitSupported)
             if (previous == mutexContended)
@@ -207,6 +207,13 @@ private noreturn unsupportedContention() @trusted
     import xtb.core.panic : panic;
 
     panic("Mutex contention requires a supported thread parking backend");
+}
+
+private noreturn unlockUnlockedMutex() @trusted
+{
+    import xtb.core.panic : panic;
+
+    panic("cannot unlock an unlocked Mutex");
 }
 
 static assert(!__traits(isCopyable, Mutex));

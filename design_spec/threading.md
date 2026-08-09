@@ -2270,6 +2270,12 @@ blocking `lock()` path where the mistake would otherwise become a self-deadlock.
 Owner bookkeeping itself must not introduce a data race while trying to
 diagnose one.
 
+`unlock` already observes the previous lock-state word to decide whether a
+contended waiter must be notified. If that state was unlocked, it panics in
+every build rather than silently accepting an unmatched or double unlock. This
+state check requires no owner metadata. Identifying a wrong-thread unlock while
+the mutex is genuinely locked remains a checked-only owner diagnostic.
+
 A practical checked representation is an atomic nonzero internal owner token
 (`uintptr_t`/backend token), with zero meaning no owner. Do not require
 `Atomic!ThreadId` if the opaque public `ThreadId` representation is not one of
