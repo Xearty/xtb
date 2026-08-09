@@ -20,7 +20,11 @@ version (linux)
 {
     import core.stdc.config : c_long;
     import core.stdc.errno : EAGAIN, EINTR, errno;
-    import core.sys.linux.unistd : syscall;
+
+    // Declare libc syscall directly instead of depending on druntime exposing
+    // it from core.sys.linux.unistd; that declaration is not present in every
+    // supported D toolchain.
+    extern (C) c_long syscall(c_long number, ...) nothrow @nogc;
 
     private enum c_long futexWait = 0;
     private enum c_long futexWake = 1;

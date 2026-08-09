@@ -190,9 +190,11 @@ fatal internal/programming failures rather than new recoverable API states. An
 unsupported parking backend also fails explicitly through `panic` rather than
 spinning or pretending to block.
 
-The supplied LDC 1.42.0 druntime headers expose `syscall` but not `SYS_futex`, so
-the Linux parking module contains the stable Linux syscall-number mapping for
-target architectures it recognizes and otherwise compiles with an explicit
+D toolchains are not consistent about exposing the libc `syscall` declaration
+through `core.sys.linux.unistd`, and the headers also need not expose `SYS_futex`.
+The Linux parking module therefore declares the libc `syscall` ABI directly and
+contains the stable Linux futex syscall-number mapping for target architectures
+it recognizes; unknown architectures still compile with an explicit
 unsupported-architecture panic path. Runtime validation for this feature is on
 x86_64 Linux.
 
