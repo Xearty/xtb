@@ -88,10 +88,14 @@ backend and an explicit unsupported backend. The public surface now includes
 The Linux backend now has two deliberate native-entry adapters. The
 allocation-free raw callback bridge preserves the portable `int function(void*)`
 contract with a small parent-stack packet: the child copies the runtime function
-pointer and user context, publishes completion with release ordering, and only
-then calls user code; the parent observes that publication with acquire ordering
-before returning. It waits only for ABI packet capture, never for worker
-execution.
+pointer and user context, signals the package-private one-shot `StartLatch`, and
+only then calls user code; the parent waits on that latch before returning. The
+latch supplies the release/acquire publication edge and parks rather than
+repeatedly yielding when the child is not scheduled promptly. It waits only for
+ABI packet capture, never for worker execution. Linux architectures without an
+implemented parking backend retain the original bounded-relax/`sched_yield`
+bootstrap fallback so raw thread creation does not acquire a new parking
+prerequisite.
 
 The second adapter accepts already-stable start storage. `startRawAlloc` uses one
 caller-allocator allocation for the raw function/context adapter, while typed
@@ -263,8 +267,31 @@ the stack-backed packet.
 Latch validation includes signal-before-wait, wait-before-signal, release/acquire
 publication, 1,024 independent one-shot handoffs, copy rejection, exact
 size/alignment checks, and forced-unsupported death behavior. Migration of the
-existing raw-thread bootstrap handoff to `StartLatch` remains a separate
-refactoring commit so this commit contains only the primitive and its tests.
+existing raw-thread bootstrap handoff to `StartLatch` is performed in the
+following refactoring commit so the latch commit itself contains only the
+primitive and its tests.
+
+## Raw-start latch integration record
+
+The Linux allocation-free raw start adapter now uses `StartLatch` for its
+parent-stack ownership handoff whenever the parking backend is supported. The
+child copies the function/context, signals the latch as its final packet access,
+and only then invokes user code; the parent waits only for that signal. This
+removes the host Linux raw-start spin/yield polling loop without changing the
+public API or the allocator-backed `startRawAlloc`/`startAlloc` paths.
+
+For Linux architectures where the parking backend is not implemented, the
+existing bounded relax-then-yield bootstrap remains compiled as a fallback.
+This preserves Feature 2 raw-thread availability instead of making thread
+creation itself depend on parking support.
+
+Integration validation includes the existing 1,024 raw start/join stress run,
+a dedicated test proving `startRaw` returns after adapter capture but before a
+blocked user worker completes, ten repeated debug stress-suite executions,
+optimized/release-safe/release-fast and AddressSanitizer runs, direct execution
+of the no-parking fallback, host symbol inspection proving the supported path
+references `StartLatch.wait`/`signal` rather than the old polling atomics, and
+Linux cross-compilation for every architecture with a v1 futex mapping.
 
 ## Prototype gates
 

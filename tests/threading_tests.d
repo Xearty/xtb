@@ -916,6 +916,85 @@ version (linux) private bool allocatedTypedStackOptionsWork() nothrow @nogc
     return thread.join() == 0 && context.observed >= requested;
 }
 
+version (linux) private struct RawStartHandoffContext
+{
+    Atomic!uint workerEntered;
+    Atomic!uint releaseWorker;
+    Atomic!uint startState;
+    int workerStatus;
+}
+
+version (linux) private int blockedRawHandoffWorker(void* opaque) nothrow @nogc
+{
+    RawStartHandoffContext* context = cast(RawStartHandoffContext*) opaque;
+    context.workerEntered.store(1, MemoryOrder.release);
+    context.releaseWorker.wait(0, MemoryOrder.acquire);
+    return 73;
+}
+
+version (linux) private extern (C) void* rawStartHandoffStarter(void* opaque)
+nothrow @nogc
+{
+    RawStartHandoffContext* context = cast(RawStartHandoffContext*) opaque;
+    auto started = Thread.startRaw(&blockedRawHandoffWorker, context);
+    if (!started.isOk)
+    {
+        context.startState.store(2, MemoryOrder.release);
+        return null;
+    }
+
+    Thread thread = started.unwrap();
+    context.startState.store(1, MemoryOrder.release);
+    context.workerStatus = thread.join();
+    return null;
+}
+
+version (linux) private bool rawStartReturnsBeforeWorkerCompletion()
+nothrow @nogc
+{
+    RawStartHandoffContext context;
+    pthread_t starter;
+    if (pthread_create(&starter, null, &rawStartHandoffStarter, &context) != 0)
+        return false;
+
+    bool workerEntered;
+    foreach (_; 0 .. 1_000_000)
+    {
+        if (context.workerEntered.load(MemoryOrder.acquire) != 0)
+        {
+            workerEntered = true;
+            break;
+        }
+        if (context.startState.load(MemoryOrder.acquire) == 2)
+            break;
+        yieldThread();
+    }
+
+    bool startReturned;
+    if (workerEntered)
+    {
+        foreach (_; 0 .. 1_000_000)
+        {
+            if (context.startState.load(MemoryOrder.acquire) == 1)
+            {
+                startReturned = true;
+                break;
+            }
+            yieldThread();
+        }
+    }
+
+    // Always release the user worker before joining the starter. If startRaw
+    // accidentally waited for user completion, this makes the test fail rather
+    // than deadlock the suite.
+    context.releaseWorker.store(1, MemoryOrder.release);
+    context.releaseWorker.notifyOne();
+
+    if (pthread_join(starter, null) != 0)
+        return false;
+    return workerEntered && startReturned && context.workerStatus == 73;
+}
+
 version (linux) private struct RawStressContext
 {
     Atomic!uint* completed;
@@ -1529,6 +1608,8 @@ extern (C) int main() nothrow @nogc
             return 11;
         if (!rawStartJoinStress())
             return 12;
+        if (!rawStartReturnsBeforeWorkerCompletion())
+            return 30;
         if (!detachCompletes())
             return 13;
         if (!threadIdentityMatches())

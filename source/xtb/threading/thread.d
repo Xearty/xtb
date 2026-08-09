@@ -370,6 +370,10 @@ nothrow @nogc:
     }
 
     /// Starts a raw worker with platform-default thread options.
+    ///
+    /// This allocation-free path may wait after successful native creation only
+    /// until the child has consumed the temporary ABI adapter. It never waits
+    /// for user worker completion.
     static Result!(Thread, ThreadStartError) startRaw(
         RawThreadFn function_,
         void* context = null,
@@ -379,6 +383,9 @@ nothrow @nogc:
     }
 
     /// Starts a raw worker with explicit native thread options.
+    ///
+    /// Like `startRaw`, successful creation may include the short adapter
+    /// handoff required to keep the zero-allocation start packet stack-backed.
     static Result!(Thread, ThreadStartError) startRawWith(
         ThreadStartOptions options,
         RawThreadFn function_,

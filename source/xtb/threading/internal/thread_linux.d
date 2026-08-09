@@ -22,8 +22,13 @@ import core.sys.posix.unistd : _SC_NPROCESSORS_ONLN,
     sysconf;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
-import xtb.threading.atomic : Atomic, MemoryOrder;
-import xtb.threading.spin_wait : cpuRelax;
+import xtb.threading.internal.start_latch : StartLatch, startLatchSupported;
+
+static if (!startLatchSupported)
+{
+    import xtb.threading.atomic : Atomic, MemoryOrder;
+    import xtb.threading.spin_wait : cpuRelax;
+}
 
 alias NativeRawThreadFn = int function(void* context) nothrow @nogc;
 private alias NativeThreadEntryFn = extern (C) void* function(void* context) nothrow @nogc;
@@ -87,7 +92,10 @@ private struct RawStartPacket
 {
     NativeRawThreadFn function_;
     void* context;
-    Atomic!uint captured;
+    static if (startLatchSupported)
+        StartLatch captured;
+    else
+        Atomic!uint captured;
 }
 
 private void* encodeThreadStatus(int status) pure @trusted
@@ -101,8 +109,11 @@ private extern (C) void* rawThreadTrampoline(void* opaque) @system
     const function_ = packet.function_;
     void* context = packet.context;
 
-    // This release marks the final access to parent-stack packet storage.
-    packet.captured.store(1, MemoryOrder.release);
+    // Signaling marks the final access to parent-stack packet storage.
+    static if (startLatchSupported)
+        packet.captured.signal();
+    else
+        packet.captured.store(1, MemoryOrder.release);
 
     return encodeThreadStatus(function_(context));
 }
@@ -280,18 +291,27 @@ NativeThreadStartResult startRaw(
 
     // The allocation-free path borrows this parent-stack packet. Wait only
     // until the child has copied the portable callback and context; user
-    // work still runs asynchronously after that handoff.
-    uint relaxCount;
-    while (packet.captured.load(MemoryOrder.acquire) == 0)
+    // work still runs asynchronously after that handoff. Use the parking-backed
+    // latch where available, while preserving the bootstrap spin/yield fallback
+    // on Linux architectures whose parking backend is not yet implemented.
+    static if (startLatchSupported)
     {
-        if (relaxCount < 64)
+        packet.captured.wait();
+    }
+    else
+    {
+        uint relaxCount;
+        while (packet.captured.load(MemoryOrder.acquire) == 0)
         {
-            cpuRelax();
-            ++relaxCount;
-        }
-        else
-        {
-            cast(void) sched_yield();
+            if (relaxCount < 64)
+            {
+                cpuRelax();
+                ++relaxCount;
+            }
+            else
+            {
+                cast(void) sched_yield();
+            }
         }
     }
 
