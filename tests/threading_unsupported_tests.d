@@ -3,6 +3,7 @@ module tests.threading_unsupported_tests;
 import core.stdc.stdlib : free, malloc;
 import xtb.core.memory : Allocator;
 import xtb.threading;
+import condVarModule = xtb.threading.cond_var;
 import mutexModule = xtb.threading.mutex;
 import parkingModule = xtb.threading.internal.parking;
 import startLatchModule = xtb.threading.internal.start_latch;
@@ -67,6 +68,8 @@ private extern (C) void* trackingAllocatorProcedure(
 extern (C) int main() nothrow @nogc
 {
     static foreach (testFunction; __traits(getUnitTests, mutexModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, condVarModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();

@@ -96,7 +96,7 @@ required.
 ### Address stability of synchronization objects
 
 Wait/wake primitives identify objects by memory address. Therefore `Atomic!T`
-when waited upon, `Mutex`, `ConditionVariable`, `Semaphore`, `Latch`,
+when waited upon, `Mutex`, `CondVar`, `Semaphore`, `Latch`,
 `WaitGroup`, `Barrier`, `RwLock`, `Once`, and `OnceCell!T` must be treated as
 address-stable after they have been published to another thread or after any
 thread could be waiting on them.
@@ -131,7 +131,7 @@ The library must provide:
 - mutexes, condition variables, semaphores, latches, wait groups, barriers,
   read/write locks, one-time initialization primitives, and `OnceCell!T`;
 - a narrow internal parking abstraction used to implement blocking primitives;
-- all ordinary synchronization primitives (`Mutex`, `ConditionVariable`,
+- all ordinary synchronization primitives (`Mutex`, `CondVar`,
   `Semaphore`, `Latch`, `WaitGroup`, `Barrier`, `RwLock`, `Once`, and
   `OnceCell!T`) are allocation-free; only APIs that explicitly accept an
   allocator (`Thread.startRawAlloc`, `Thread.startAlloc`, `spawn`, and
@@ -209,7 +209,7 @@ source/xtb/threading/
 ├── spawn.d
 ├── thread_scope.d
 ├── mutex.d
-├── condition_variable.d
+├── cond_var.d
 ├── semaphore.d
 ├── latch.d
 ├── wait_group.d
@@ -2285,12 +2285,12 @@ mutex. All owner-only fields and checks disappear from `release-fast`.
 A public recursive mutex is not part of v1. If one is eventually needed, it is a
 separate `RecursiveMutex` type rather than a mode on `Mutex`.
 
-## Condition variable
+## Condition variable (`CondVar`)
 
-The primitive is:
+The public primitive is intentionally small:
 
 ```d
-struct ConditionVariable
+struct CondVar
 {
     void wait(ref Mutex mutex);
     void notifyOne();
@@ -2298,20 +2298,27 @@ struct ConditionVariable
 }
 ```
 
-`ConditionVariable.init` is a valid condition variable with no waiters. The type
-is non-copyable/address-stable after publication.
+`CondVar.init` is a valid condition variable with no waiters. The type is
+non-copyable and address-stable after publication. The implementation is
+allocation-free and does not wrap `pthread_cond_t` or another native condition
+variable.
 
-`wait(mutex)` requires the caller to own `mutex`. Entering the wait
-atomically releases the mutex with respect to condition-variable notification
-and blocks the caller; before `wait` returns, it reacquires that same mutex.
+`wait(mutex)` requires the caller to own `mutex`. The waiter registers with the
+condition variable while it still owns that predicate mutex, then releases the
+predicate mutex as part of the registration commit. Before `wait` returns it
+reacquires the same mutex. This registration-before-unlock ordering is the
+semantic "atomically release and wait" guarantee: once a notifier can order
+after the waiter's commit, that waiter is already represented in `CondVar`
+state and cannot fall through an unlock-to-sleep lost-wakeup window.
 
-In checked builds, this operation must cooperate with `Mutex` owner diagnostics:
-the waiter is no longer recorded as owner while blocked and is recorded as owner
-again only after reacquisition. Calling `wait` without owning the supplied mutex
-is a checked programming error.
-This atomic release-and-wait property is required to avoid lost wakeups.
+In checked builds, calling `wait` without owning the supplied mutex is a
+programming error. Normal `Mutex.unlock`/`Mutex.lock` ownership bookkeeping is
+used when the waiter releases and reacquires the mutex; `CondVar` must not
+invent a second owner state that can disagree with `Mutex`.
 
-Spurious wakeups are permitted. Callers always wait in a predicate loop:
+Spurious wakeups remain part of the public contract even though the v1
+implementation normally returns from its blocking phase only after that
+particular wait call has been notified. Callers always wait in a predicate loop:
 
 ```d
 mutex.lock();
@@ -2321,46 +2328,295 @@ while (!ready)
 mutex.unlock();
 ```
 
-`notifyOne` and `notifyAll` do not require the notifying thread to hold the
-associated mutex, though predicate state itself must still be synchronized by
-the caller's protocol.
+Notifications are not stored as permits. `notifyOne`/`notifyAll` when there are
+no registered waiters have no effect on a later `wait`. Neither notification
+operation requires the notifying thread to hold the predicate mutex. Predicate
+publication comes from the caller's synchronization protocol, normally the
+predicate mutex's release/acquire edge; `CondVar` notification itself does not
+create a separate user-data happens-before relation.
 
-All concurrent waiters using one `ConditionVariable` must use the same mutex for
-the predicate protocol in v1.
+All concurrent waiters using one `CondVar` must use the same predicate mutex in
+v1. `XTB_Checked` keeps only diagnostic mutex-address/active-waiter metadata for
+this rule; it disappears from `release-fast` and is not required by the
+correctness algorithm.
 
-In `XTB_Checked`, the condition variable may keep a race-safe debug association
-with the mutex used by its active waiters plus an active-waiter count so mixing
-mutexes can produce a useful diagnostic. That metadata must disappear in
-release-fast and is not needed for the correctness algorithm itself. Mixing unrelated mutexes with the same
-condition variable is outside the contract even if a particular backend happens
-to tolerate it.
+`notifyOne` provides no public FIFO/fairness guarantee. The v1 implementation
+uses FIFO queue order internally to avoid gratuitous starvation, but the
+awakened waiter still competes to reacquire the predicate mutex and callers must
+not infer completion order from registration order. `notifyAll` affects exactly
+the waiter population registered before its serialized queue snapshot; waiters
+that register afterward are not part of that broadcast.
 
-The implementation must use a monotonic wake/generation state or an equivalent
-protocol that makes this sequence safe:
+### V1 stack-backed waiter queue
+
+V1 uses an explicit intrusive queue of waiter records. Every invocation of
+`wait` creates its own waiter record in that call's stack frame:
 
 ```text
-waiter (while owning mutex): snapshot condition generation
-waiter: atomically release mutex as part of entering wait protocol
-notifier: modify predicate under its synchronization protocol
-notifier: advance condition generation; notify one/all
-waiter: wait only if generation still equals snapshot
-waiter: reacquire mutex before returning
+Waiter:
+    32-bit atomic signaled word   // 0 -> waiting, 1 -> notified
+    ForwardListHook!Waiter queueHook // IntrusiveQueue membership while registered
+
+CondVar:
+    internal state mutex
+    IntrusiveQueue!(Waiter, "queueHook") waiters
+
+    XTB_Checked only:
+        associated predicate-mutex address
+        active wait count
 ```
 
-The phrase "atomically releases" is semantic: no notification that occurs after
-the waiter commits to waiting may be permanently lost between unlocking the
-mutex and sleeping. A backend sequence-counter implementation must account for
-counter wrap/ABA rather than assuming an unbounded integer.
+The queue stores pointers to stack records, but it does not own them and never
+allocates them. The `wait` call itself owns its record until the call returns.
+The implementation must therefore make the notifier-to-waiter lifetime
+handshake explicit; merely setting `signaled = 1` is not enough because the
+notifier still has to perform the wake operation on that same stack address.
 
-A straightforward way to satisfy this with a 32-bit parking word is to keep a
-wider logical notification generation plus a 32-bit `wakeEpoch`. A waiter
-snapshots both while owning the predicate mutex, releases the mutex, rechecks the
-wide generation, and parks only on the epoch if the logical generation is still
-unchanged. Notifications advance the logical generation, then the epoch, then
-wake. Equivalent protocols are allowed; the important requirement is that a
-long-delayed waiter cannot mistake epoch wrap for "nothing happened". Destroying a
-condition variable while waiters may still reference it is a programming error.
-Timed waits are added only after the monotonic-time contract exists.
+This design is deliberately different from the earlier two-group/generation
+proposal. A finite set of reusable 32-bit futex words either admits an eventual
+ABA when a thread can be delayed arbitrarily long or requires quiescent reuse.
+Quiescent reuse is mathematically strong, but it can make `notifyOne` wait for a
+descheduled old waiter before a slot can be recycled. The per-wait stack record
+avoids both compromises: a wait address is never reused during that wait's
+lifetime, so there is no generation counter, wraparound arithmetic, or slot
+reclamation on the notification path. The tradeoff is that `notifyAll` performs
+one wake operation per registered waiter rather than one shared-group wake-all.
+For XTB v1, correctness and simple progress reasoning take precedence over
+optimizing very large broadcasts.
+
+The implementation should use XTB core's `IntrusiveQueue` with one
+`ForwardListHook!Waiter` embedded in each waiter record. `xtb_threading` already
+depends on `xtb_core`, so duplicating queue head/tail manipulation inside
+`CondVar` would add no useful isolation. `IntrusiveQueue` is allocation-free,
+owns no waiter nodes, uses exactly one forward hook per node, and adds only
+checked-build hook-membership diagnostics beyond the raw next pointer needed by
+the queue. The queue remains protected entirely by the CondVar state mutex.
+
+### Required invariants
+
+The implementation must preserve all of these invariants:
+
+1. **Registration precedes predicate-mutex release.** `wait` acquires the
+   internal state mutex and enqueues its stack-backed waiter while it still owns
+   the caller's predicate mutex. It releases the predicate mutex before
+   releasing the internal state mutex. Therefore a notifier is serialized
+   either before the waiter commits, in which case that notification need not
+   affect the future wait, or after the commit, in which case the waiter is
+   already in the queue.
+
+2. **One wait call owns one unique wait address.** The `signaled` atomic belongs
+   to the waiter record in that invocation's stack frame. It starts at zero,
+   changes at most once to one, and is never reset or reused for another wait.
+   Consequently there is no finite-width notification-generation ABA.
+
+3. **The queue contains exactly the not-yet-notified registered waiters.** A
+   notifier removes a waiter from the queue before making it signaled. A waiter
+   never removes itself on the ordinary untimed path. With no cancellation or
+   timeout in v1, there is therefore no race between notification and waiter
+   withdrawal.
+
+4. **`notifyOne` selects one waiter exactly once.** Under the internal state
+   mutex it removes at most one queue node, stores `signaled = 1`, and performs
+   the wake on that waiter's private atomic before releasing the internal mutex.
+   A later notifier cannot select that same waiter again because it is already
+   detached from the queue.
+
+5. **`notifyAll` snapshots by serially draining the current queue.** While the
+   internal state mutex is held, it repeatedly pops the queue front and signals
+   that waiter. No later waiter can register until the mutex is released, so the
+   drained population is exactly the population present at the broadcast's
+   serialized snapshot.
+
+6. **The atomic signal closes signal-before-park races.** A notifier stores one
+   to the waiter's private atomic before waking it. If the waiter has not yet
+   entered the parking backend, `Atomic.wait(0)` observes the changed value and
+   does not sleep. If it is already parked, the wake makes it re-check. The
+   signal word never returns to zero.
+
+7. **The notifier retains waiter-node lifetime through its final pointer use.**
+   The internal state mutex remains held through both `signaled = 1` and the
+   corresponding wake call. The notifier must not keep a waiter pointer and
+   access it after releasing that mutex.
+
+8. **A notified waiter performs a lifetime barrier before returning.** After its
+   private atomic becomes nonzero, `wait` reacquires the predicate mutex and
+   then acquires/releases the internal state mutex before its stack waiter may
+   go out of scope. Successfully acquiring the internal mutex proves that every
+   notifier that could have held a pointer to that node has completed its final
+   node access. In `XTB_Checked`, the same critical section may update active
+   waiter diagnostics.
+
+9. **The lifetime barrier must not make notification depend on waiter progress.**
+   A notifier never waits for the awakened waiter to reacquire the predicate
+   mutex or to execute the lifetime barrier. It only performs bounded queue
+   bookkeeping and wake operations while holding the internal mutex. A stopped
+   waiter may delay destruction of its own stack frame, but it cannot prevent a
+   later `notifyOne` from notifying another registered waiter.
+
+10. **Lock ordering is consistent.** A waiter begins with the predicate mutex,
+    then acquires the internal state mutex; while still holding the internal
+    mutex it releases the predicate mutex. After notification it reacquires the
+    predicate mutex before taking the internal mutex for the final lifetime
+    barrier. A notifier may itself hold the predicate mutex when calling
+    `notifyOne`/`notifyAll`, but `CondVar` never acquires the predicate mutex
+    internally from a notification operation. No internal state-mutex ->
+    predicate-mutex acquisition edge is introduced.
+
+11. **No queue node may outlive its wait frame, and no `CondVar` may outlive its
+    users in reverse.** The lifetime barrier protects the stack node from late
+    notifier access. Independently, moving/destroying the `CondVar` while
+    another thread may be registering, waiting, notifying, or completing a
+    wait remains a caller programming error under the general address-stability
+    rule.
+
+### Wait operation
+
+Conceptually:
+
+```text
+caller owns predicate mutex
+create zeroed Waiter on this wait() stack frame
+
+lock CondVar state mutex
+    checked: validate/record predicate-mutex association
+    enqueue Waiter
+
+    unlock predicate mutex
+unlock CondVar state mutex
+
+Waiter.signaled.wait(0)
+// Atomic.wait internally tolerates backend-spurious wakes and returns only
+// after the atomic is observed != 0.
+
+lock predicate mutex
+
+lock CondVar state mutex
+    // lifetime barrier: no notifier can still access this Waiter
+    checked: decrement active waiter count / clear association if last
+unlock CondVar state mutex
+
+return with predicate mutex held
+```
+
+Keeping the internal mutex held across enqueue + predicate unlock is essential.
+Enqueueing and then dropping the internal mutex before releasing the predicate
+mutex would still be correct for lost wakeups, but the stronger serialized
+commit above gives one simple linearization story and matches the checked
+association update.
+
+The stack waiter is not an allocation and is not a borrowed user object. It is
+private storage whose lifetime is exactly the dynamic extent of `wait`.
+
+### `notifyOne`
+
+Conceptually:
+
+```text
+lock CondVar state mutex
+
+waiter = pop queue head
+if waiter exists:
+    waiter.signaled.store(1)
+    waiter.signaled.notifyOne()
+
+unlock CondVar state mutex
+```
+
+`IntrusiveQueue` is FIFO internally, so repeated notifications do not
+intentionally prefer the newest waiter. This is an implementation policy, not a
+public fairness guarantee.
+
+The wake must occur while the internal mutex is still held. Consider a waiter
+that observes `signaled = 1` immediately after the store, before the notifier
+has executed the wake syscall. Without the final lifetime barrier and the
+notifier-held mutex, that waiter could return and destroy its stack node while
+the notifier still tries to wake that address. The mutex handshake removes this
+use-after-lifetime race.
+
+### `notifyAll`
+
+Conceptually:
+
+```text
+lock CondVar state mutex
+
+while IntrusiveQueue is not empty:
+    waiter = IntrusiveQueue.popFront()
+    waiter.signaled.store(1)
+    waiter.signaled.notifyOne()
+
+unlock CondVar state mutex
+```
+
+Each waiter has a different parking address, so v1 requires one wake operation
+per waiter. `notifyAll` is therefore O(number of registered waiters) in both
+queue traversal and parking-backend wake calls. This cost is explicit and must
+not be hidden in the design. A future optimized broadcast protocol may replace
+the representation only if it preserves the same no-lost-wakeup and
+no-use-after-lifetime guarantees without adding hidden allocation or a finite
+counter-wrap correctness assumption.
+
+### Memory ordering and linearization
+
+The caller's predicate data is synchronized by the predicate mutex, not by the
+waiter's signal word. The private `signaled` atomic therefore needs only atomic
+coherence for the wait protocol; relaxed store/load/wait ordering is sufficient
+for v1. The notifier's internal-mutex unlock and the waiter's final
+internal-mutex acquisition provide the node-lifetime synchronization edge.
+Using stronger ordering on `signaled` must not be relied upon as a substitute
+for that lifetime barrier, because the notifier performs the wake call *after*
+the store.
+
+A useful linearization model is:
+
+- a `wait` becomes registered at its queue insertion while the state mutex is
+  held; its predicate-mutex release is completed before another CondVar
+  operation can acquire that state mutex;
+- `notifyOne` chooses its waiter when it removes the queue head under the state
+  mutex;
+- `notifyAll` chooses its waiter population while it drains the current
+  `IntrusiveQueue` under the state mutex; registration cannot interleave with
+  that drain.
+
+No notification operation itself publishes arbitrary user data. Callers still
+modify/test their predicate under the predicate mutex and use the standard
+predicate loop.
+
+### Required tests
+
+At minimum cover:
+
+- `.init`, harmless notification with no waiters, and non-copyability;
+- one waiter with `notifyOne`, including predicate-mutex reacquisition and
+  predicate-data publication through that mutex;
+- several waiters where one predicate permit plus `notifyOne` allows only one
+  predicate-loop completion without depending on which thread is scheduled
+  first;
+- `notifyAll` with several registered waiters;
+- notification with no registered waiter followed by a later waiter, proving
+  notifications are not stored as permits for future waits;
+- notification after registration but before the waiter enters `Atomic.wait`,
+  proving signal-before-park cannot be lost;
+- a deterministic lifetime test in which a notifier stores `signaled = 1` but
+  deliberately delays its wake/final node access while the waiter attempts its
+  final internal-mutex barrier, proving the waiter cannot outlive the notifier's
+  pointer use;
+- repeated bounded wait/notify cycles, including notifications performed while
+  the notifying thread holds the predicate mutex, proving notification never
+  waits for predicate-mutex reacquisition;
+- `XTB_Checked` diagnostics for waiting without owning the predicate mutex and
+  concurrent use of different predicate mutexes; and
+- unsupported-backend `wait` failure without hidden allocation or a native
+  condition-variable fallback.
+
+Keep stress counts short. No correctness test may depend on scheduler fairness
+or on the private FIFO selection policy becoming a public guarantee.
+
+Timed waits remain deferred until the monotonic-time API is stable. A timed wait
+must be able to remove its own still-queued stack node when timeout wins, racing
+correctly against `notifyOne`/`notifyAll`; that withdrawal state is deliberately
+absent from the untimed v1 protocol and must be designed explicitly rather than
+bolted on.
 
 ## Semaphore
 
@@ -2973,7 +3229,7 @@ void Thread.detach();
 void Mutex.lock();
 void Mutex.unlock();
 bool Mutex.tryLock();
-void ConditionVariable.notifyOne();
+void CondVar.notifyOne();
 ```
 
 A worker that has an expected domain failure returns its own `Result`:
@@ -3119,7 +3375,7 @@ Implement in this order so each layer has a stable foundation:
    `Thread.start!worker(args...)`.
 6. `Mutex`, initially with the bounded exponential relax-then-park policy and
    checked owner/recursive-lock diagnostics.
-7. `ConditionVariable`.
+7. `CondVar`.
 8. `Semaphore`, `Once`, and `OnceCell!T`.
 9. `Latch`, implemented directly on the atomic wait/notify countdown path and
    stress-tested as the first public countdown primitive.

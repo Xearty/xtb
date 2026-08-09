@@ -7,6 +7,7 @@ import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
 import xtb.threading;
 import atomicModule = xtb.threading.atomic;
+import condVarModule = xtb.threading.cond_var;
 import mutexModule = xtb.threading.mutex;
 import parkingModule = xtb.threading.internal.parking;
 import startLatchModule = xtb.threading.internal.start_latch;
@@ -1671,6 +1672,293 @@ version (XTB_Checked) version (linux) private int mutexNonOwnerUnlockWorker(
     return 0;
 }
 
+version (linux) private struct CondVarContext
+{
+    Mutex mutex;
+    CondVar condition;
+    Atomic!uint ready;
+    Atomic!uint completed;
+    uint permits;
+    int payload;
+    int observed;
+}
+
+version (linux) private int condVarWaiter(CondVarContext* context) nothrow @nogc
+{
+    context.mutex.lock();
+    context.ready.fetchAdd(1, MemoryOrder.release);
+    while (context.permits == 0)
+        context.condition.wait(context.mutex);
+    --context.permits;
+    context.observed = context.payload;
+    context.completed.fetchAdd(1, MemoryOrder.release);
+    context.mutex.unlock();
+    return 0;
+}
+
+version (linux) private bool condVarNotifyOneAndPublication() nothrow @nogc
+{
+    CondVarContext context;
+    auto started = Thread.start!condVarWaiter(&context);
+    if (!started.isOk)
+        return false;
+    Thread thread = started.unwrap();
+
+    if (!waitForAtomicAtLeast(&context.ready, 1))
+    {
+        context.mutex.lock();
+        context.permits = 1;
+        context.mutex.unlock();
+        context.condition.notifyAll();
+        cast(void) thread.join();
+        return false;
+    }
+
+    // Acquiring the predicate mutex proves the waiter has completed CondVar
+    // registration and released the mutex as part of entering wait().
+    context.mutex.lock();
+    context.payload = 0x2468_1357;
+    context.permits = 1;
+    context.mutex.unlock();
+    context.condition.notifyOne();
+
+    if (thread.join() != 0)
+        return false;
+    return context.completed.load(MemoryOrder.acquire) == 1 &&
+        context.observed == context.payload;
+}
+
+version (linux) private bool condVarNotifyOneReleasesOneLogicalWaiter() nothrow @nogc
+{
+    enum workerCount = 3;
+    CondVarContext context;
+    Thread[workerCount] threads;
+    size_t startedCount;
+
+    foreach (ref thread; threads)
+    {
+        auto started = Thread.start!condVarWaiter(&context);
+        if (!started.isOk)
+            break;
+        thread = started.unwrap();
+        ++startedCount;
+    }
+
+    if (startedCount != workerCount ||
+        !waitForAtomicAtLeast(&context.ready, workerCount))
+    {
+        context.mutex.lock();
+        context.permits = workerCount;
+        context.mutex.unlock();
+        context.condition.notifyAll();
+        foreach (index; 0 .. startedCount)
+            cast(void) threads[index].join();
+        return false;
+    }
+
+    context.mutex.lock();
+    context.permits = 1;
+    context.mutex.unlock();
+    context.condition.notifyOne();
+
+    if (!waitForAtomicAtLeast(&context.completed, 1))
+    {
+        context.mutex.lock();
+        context.permits = workerCount;
+        context.mutex.unlock();
+        context.condition.notifyAll();
+        foreach (ref thread; threads)
+            cast(void) thread.join();
+        return false;
+    }
+
+    // No second waiter has a predicate permit, regardless of which kernel
+    // sleeper consumed the CondVar signal.
+    foreach (_; 0 .. 32)
+        yieldThread();
+    if (context.completed.load(MemoryOrder.acquire) != 1)
+        return false;
+
+    context.mutex.lock();
+    context.permits = workerCount - 1;
+    context.mutex.unlock();
+    context.condition.notifyAll();
+
+    foreach (ref thread; threads)
+        if (thread.join() != 0)
+            return false;
+    return context.completed.load(MemoryOrder.acquire) == workerCount;
+}
+
+version (linux) private bool condVarNotifyAllReleasesWaiters() nothrow @nogc
+{
+    enum workerCount = 4;
+    CondVarContext context;
+    Thread[workerCount] threads;
+    size_t startedCount;
+
+    foreach (ref thread; threads)
+    {
+        auto started = Thread.start!condVarWaiter(&context);
+        if (!started.isOk)
+            break;
+        thread = started.unwrap();
+        ++startedCount;
+    }
+
+    if (startedCount != workerCount ||
+        !waitForAtomicAtLeast(&context.ready, workerCount))
+    {
+        context.mutex.lock();
+        context.permits = workerCount;
+        context.mutex.unlock();
+        context.condition.notifyAll();
+        foreach (index; 0 .. startedCount)
+            cast(void) threads[index].join();
+        return false;
+    }
+
+    context.mutex.lock();
+    context.payload = 0x1020_3040;
+    context.permits = workerCount;
+    context.mutex.unlock();
+    context.condition.notifyAll();
+
+    foreach (ref thread; threads)
+        if (thread.join() != 0)
+            return false;
+    return context.completed.load(MemoryOrder.acquire) == workerCount;
+}
+
+version (linux) private bool condVarNotificationIsNotStored() nothrow @nogc
+{
+    CondVarContext context;
+    context.condition.notifyAll();
+
+    auto started = Thread.start!condVarWaiter(&context);
+    if (!started.isOk)
+        return false;
+    Thread thread = started.unwrap();
+
+    if (!waitForAtomicAtLeast(&context.ready, 1))
+        return false;
+
+    // Acquiring the predicate mutex after ready becomes visible proves this
+    // waiter has actually registered and entered CondVar.wait(). The earlier
+    // broadcast must not act like a stored permit for this later wait.
+    context.mutex.lock();
+    context.mutex.unlock();
+    foreach (_; 0 .. 32)
+        yieldThread();
+    if (context.completed.load(MemoryOrder.acquire) != 0)
+        return false;
+
+    context.mutex.lock();
+    context.permits = 1;
+    context.mutex.unlock();
+    context.condition.notifyOne();
+
+    return thread.join() == 0 &&
+        context.completed.load(MemoryOrder.acquire) == 1;
+}
+
+version (linux) private struct CondVarGenerationContext
+{
+    Mutex mutex;
+    CondVar condition;
+    Atomic!uint ready;
+    Atomic!uint completed;
+    uint generation;
+    uint rounds;
+}
+
+version (linux) private int condVarGenerationWaiter(
+    CondVarGenerationContext* context,
+) nothrow @nogc
+{
+    context.mutex.lock();
+    foreach (target; 1 .. context.rounds + 1)
+    {
+        context.ready.store(target, MemoryOrder.release);
+        while (context.generation < target)
+            context.condition.wait(context.mutex);
+        context.completed.store(target, MemoryOrder.release);
+    }
+    context.mutex.unlock();
+    return 0;
+}
+
+version (linux) private bool condVarRepeatedWaits() nothrow @nogc
+{
+    enum rounds = 32;
+    CondVarGenerationContext context;
+    context.rounds = rounds;
+
+    auto started = Thread.start!condVarGenerationWaiter(&context);
+    if (!started.isOk)
+        return false;
+    Thread thread = started.unwrap();
+
+    foreach (round; 1 .. rounds + 1)
+    {
+        if (!waitForAtomicAtLeast(&context.ready, round))
+            return false;
+
+        // Hold the predicate mutex while notifying. A correct CondVar must never
+        // require the awakened waiter to reacquire this mutex before notifyOne returns.
+        context.mutex.lock();
+        context.generation = round;
+        context.condition.notifyOne();
+        context.mutex.unlock();
+
+        if (!waitForAtomicAtLeast(&context.completed, round))
+            return false;
+    }
+
+    return thread.join() == 0 &&
+        context.completed.load(MemoryOrder.acquire) == rounds;
+}
+
+version (XTB_Checked) version (linux) private struct CondVarMutexMixContext
+{
+    Mutex first;
+    Mutex second;
+    CondVar condition;
+    Atomic!uint ready;
+}
+
+version (XTB_Checked) version (linux) private int condVarFirstMutexWaiter(
+    CondVarMutexMixContext* context,
+) nothrow @nogc
+{
+    context.first.lock();
+    context.ready.store(1, MemoryOrder.release);
+    context.condition.wait(context.first);
+    context.first.unlock();
+    return 0;
+}
+
+version (XTB_Checked) version (linux) private void triggerCondVarMutexMix()
+nothrow @nogc
+{
+    CondVarMutexMixContext context;
+    auto started = Thread.start!condVarFirstMutexWaiter(&context);
+    if (!started.isOk)
+        _exit(88);
+    Thread thread = started.unwrap();
+    if (!waitForAtomicAtLeast(&context.ready, 1))
+        _exit(89);
+
+    // This lock can succeed only after the first waiter registered and released
+    // its predicate mutex inside CondVar.wait().
+    context.first.lock();
+    context.first.unlock();
+
+    context.second.lock();
+    context.condition.wait(context.second);
+    _exit(90);
+}
+
 version (Posix) private enum DeathCase : ubyte
 {
     loadRelease,
@@ -1701,6 +1989,8 @@ version (Posix) private enum DeathCase : ubyte
     mutexRecursiveLock,
     mutexDestroyLocked,
     mutexUnlockNonOwner,
+    condVarWaitWithoutOwnership,
+    condVarMixedMutexes,
 }
 
 version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
@@ -1865,6 +2155,28 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 }
             }
             return;
+        case DeathCase.condVarWaitWithoutOwnership:
+            version (XTB_Checked)
+            {
+                version (linux)
+                {
+                    Mutex mutex;
+                    CondVar condition;
+                    condition.wait(mutex);
+                    _exit(91);
+                }
+            }
+            return;
+        case DeathCase.condVarMixedMutexes:
+            version (XTB_Checked)
+            {
+                version (linux)
+                {
+                    triggerCondVarMutexMix();
+                    _exit(92);
+                }
+            }
+            return;
     }
 }
 
@@ -1950,6 +2262,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, atomicModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, mutexModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, condVarModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();
@@ -2050,6 +2364,16 @@ extern (C) int main() nothrow @nogc
             return 23;
         if (!mutexHandoffAndPublication())
             return 24;
+        if (!condVarNotifyOneAndPublication())
+            return 53;
+        if (!condVarNotifyOneReleasesOneLogicalWaiter())
+            return 54;
+        if (!condVarNotifyAllReleasesWaiters())
+            return 55;
+        if (!condVarNotificationIsNotStored())
+            return 56;
+        if (!condVarRepeatedWaits())
+            return 57;
 
         yieldThread();
     }
@@ -2102,6 +2426,8 @@ extern (C) int main() nothrow @nogc
                 DeathCase.mutexRecursiveLock,
                 DeathCase.mutexDestroyLocked,
                 DeathCase.mutexUnlockNonOwner,
+                DeathCase.condVarWaitWithoutOwnership,
+                DeathCase.condVarMixedMutexes,
             ])
                 if (!expectAbort(deathCase))
                     return 45;

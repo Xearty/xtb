@@ -24,10 +24,10 @@ Status values:
 | 3 | **complete** | Internal parking | 1 | Package-private 32-bit compare-and-sleep parking with Linux process-private futex wait/wake and explicit unsupported-platform failure. |
 | 4 | **complete** | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/`notifyOne`/`notifyAll` plus the allocation-free internal one-shot start latch are complete. |
 | 5 | **complete** | Typed zero-allocation `Thread.start` | 2, 4 | `start`/`startWith` use worker-typed parent-stack captures and a one-shot latch handoff; the worker runs only after capture ownership has moved to child-local storage. |
-| 6 | **next** | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
-| 7 | pending | `Mutex` | 1, 2, 3, 6 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
-| 8 | pending | `ConditionVariable` | 3, 7 | Atomic unlock/wait/relock protocol, notify-one/all, checked mutex association. |
-| 9 | pending | `Semaphore` | 1, 3, 4 | Counting permits, overflow protection, efficient blocking wakeups. |
+| 6 | **complete** | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
+| 7 | **complete** | `Mutex` | 1, 2, 3, 6 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
+| 8 | **complete** | `CondVar` | 3, 7 | Stack-backed waiter queue, exact notify-one/all selection, and explicit waiter-node lifetime handshake. |
+| 9 | **next** | `Semaphore` | 1, 3, 4 | Counting permits, overflow protection, efficient blocking wakeups. |
 | 10 | pending | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
 | 11 | pending | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
 | 12 | pending | `Latch` | 1, 3, 4 | First public countdown primitive; one-shot countdown/wait semantics. |
@@ -393,3 +393,46 @@ of the bounded 127 total relax hints, a short four-thread protected increment
 run, contended handoff with release/acquire publication, and checked-build death
 tests for the ownership/lifecycle diagnostics. The tests intentionally use
 small iteration counts so ordinary threading test runtime remains short.
+
+## CondVar completion record
+
+Implemented public allocation-free `CondVar` in `xtb.threading.cond_var` with
+`wait(ref Mutex)`, `notifyOne`, and `notifyAll`. The final implementation does
+not use the earlier wrapping sequence or two reusable group-slot designs. Each
+`wait` owns a private stack-backed waiter record containing one wait-supported
+32-bit atomic and one `ForwardListHook`. `CondVar` itself owns a private `Mutex`
+plus XTB core's allocation-free `IntrusiveQueue`; there is no hidden allocator,
+waiter table, native condition-variable object, notification generation, or
+finite-width reuse counter. The intrusive queue centralizes the ordinary FIFO
+head/tail invariants and contributes only checked-build membership diagnostics
+beyond the single forward link required by the waiter.
+
+A waiter enqueues while it still owns the predicate mutex and while the private
+CondVar mutex is held. The private mutex remains held across the predicate-mutex
+release, making registration/release one serialized wait commit. `notifyOne`
+removes one waiter (FIFO internally), stores its private signal word to one, and
+wakes that exact address. `notifyAll` drains the current `IntrusiveQueue` while
+holding the private mutex and signals/wakes every node in that serialized
+population; later registrations cannot enter the queue until the broadcast
+releases the mutex.
+
+The stack-pointer lifetime rule is explicit. A notifier retains the private
+CondVar mutex through its final waiter-node access, including the wake call.
+After notification, the waiter reacquires the predicate mutex and then
+acquires/releases the private CondVar mutex before returning, proving that no
+notifier can still hold a live pointer to its stack node. This removes both the
+32-bit generation ABA problem and the progress problem found in the abandoned
+quiescent-slot prototype: notification never waits for a descheduled waiter to
+release a slot-reuse reference. The deliberate tradeoff is that `notifyAll`
+performs one parking-backend wake per registered waiter rather than a shared
+single-word broadcast.
+
+Validation covers one-waiter publication/reacquisition, multiple waiters with a
+single logical `notifyOne`, multi-waiter `notifyAll`, deterministic
+registration-before-park notification, deterministic notifier/waiter node
+lifetime synchronization, repeated bounded wait/notify cycles including
+notification while holding the predicate mutex, checked misuse for waiting
+without mutex ownership and mixing predicate mutexes, forced
+unsupported-backend behavior, cross-compilation of the threading component,
+and the normal optimized, release-safe, release-fast, sanitizer, formatting,
+and lint passes. No test depends on FIFO completion order.
