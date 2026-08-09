@@ -4,6 +4,7 @@ import core.stdc.stdlib : free, malloc;
 import xtb.core.memory : Allocator;
 import xtb.threading;
 import parkingModule = xtb.threading.internal.parking;
+import startLatchModule = xtb.threading.internal.start_latch;
 
 static assert(!Atomic!uint.waitSupported);
 static assert(!__traits(hasMember, Atomic!uint, "wait"));
@@ -65,6 +66,8 @@ private extern (C) void* trackingAllocatorProcedure(
 extern (C) int main() nothrow @nogc
 {
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, startLatchModule))
         testFunction();
 
     auto started = Thread.startRaw(&worker);

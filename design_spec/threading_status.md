@@ -22,10 +22,10 @@ Status values:
 | 1 | **complete** | Non-blocking atomics and memory model | — | `MemoryOrder`, scalar `Atomic!T`, `AtomicFlag`, load/store/exchange/CAS, integral fetch operations, and `atomicThreadFence`. Atomic wait/notify is intentionally separate. |
 | 2 | **complete** | Raw thread/platform foundations + allocator-backed starts | 1 for the POSIX ABI handoff; typed `startAlloc` also uses core allocator/lifetime support | `cpuRelax`, `Thread.startRaw`/`startRawWith`, `startRawAlloc`/`startRawAllocWith`, typed `startAlloc`/`startAllocWith`, lifecycle, join/detach, `ThreadId`, start options/errors, stable native-start adapter, `currentThreadId`, `yieldThread`, `hardwareConcurrency`, Linux naming, and an explicit unsupported backend. |
 | 3 | **complete** | Internal parking | 1 | Package-private 32-bit compare-and-sleep parking with Linux process-private futex wait/wake and explicit unsupported-platform failure. |
-| 4 | **next** | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/`notifyOne`/`notifyAll` is complete; the allocation-free internal one-shot start latch is the remaining Feature 4 work. |
-| 5 | pending | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
-| 6 | pending | Typed zero-allocation `Thread.start` | 2, 4 | Stack-packet/latch handoff for `start`/`startWith`. Typed callable/parameter/capture rules are already exercised by the allocator-backed `startAlloc` path from Feature 2. |
-| 7 | pending | `Mutex` | 1, 2, 3 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
+| 4 | **complete** | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/`notifyOne`/`notifyAll` plus the allocation-free internal one-shot start latch are complete. |
+| 5 | **next** | Typed zero-allocation `Thread.start` | 2, 4 | Stack-packet/latch handoff for `start`/`startWith`. Typed callable/parameter/capture rules are already exercised by the allocator-backed `startAlloc` path from Feature 2. |
+| 6 | pending | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
+| 7 | pending | `Mutex` | 1, 2, 3, 6 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
 | 8 | pending | `ConditionVariable` | 3, 7 | Atomic unlock/wait/relock protocol, notify-one/all, checked mutex association. |
 | 9 | pending | `Semaphore` | 1, 3, 4 | Counting permits, overflow protection, efficient blocking wakeups. |
 | 10 | pending | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
@@ -209,7 +209,7 @@ Validation includes:
 - unsupported-target compile checks ensuring Linux-only syscall imports do not
   leak into non-Linux builds.
 
-## Feature 4 progress record — atomic wait/notification
+## Feature 4 completion record — atomic wait/notification and startup latch
 
 Implemented public blocking wait/notification on `Atomic!T` using the Feature 3
 parking backend. `Atomic!T.waitSupported` is a compile-time property of each
@@ -252,8 +252,19 @@ Validation for this commit includes:
 - x86_64 Windows/MSVC cross-compilation proving the unsupported parking backend
   reports `waitSupported == false` without leaking Linux futex imports.
 
-The one-shot startup latch and migration of the raw thread startup handoff are
-deliberately not part of this commit.
+The second Feature 4 commit adds package-private `StartLatch` on top of that
+atomic wait/notification path. `StartLatch.init` represents the pending state; it
+is non-copyable, contains exactly one 32-bit atomic state word, allocates nothing, has no reset
+operation, and uses a release store plus `notifyOne` on `signal` paired with an
+acquire `wait`. This matches the thread-start ownership-transfer protocol: once
+the signaling child publishes completion, the waiting starter may safely destroy
+the stack-backed packet.
+
+Latch validation includes signal-before-wait, wait-before-signal, release/acquire
+publication, 1,024 independent one-shot handoffs, copy rejection, exact
+size/alignment checks, and forced-unsupported death behavior. Migration of the
+existing raw-thread bootstrap handoff to `StartLatch` remains a separate
+refactoring commit so this commit contains only the primitive and its tests.
 
 ## Prototype gates
 
@@ -262,7 +273,7 @@ deliberately not part of this commit.
 | Atomic backend widths / direct operations | **complete for LDC 1.42.0 x86_64 Linux** | Feature 1 | Probed 1/2/4/8-byte integral and enum values plus native pointers; LDC emitted native atomic instructions with no unresolved `__atomic*` runtime calls in the probe. Feature 4 additionally restricts blocking wait/notify to 32-bit scalar atomics on a parking-supported backend through `Atomic!T.waitSupported`. |
 | Atomic/shared receiver behavior | **complete for Feature 1** | Feature 1 | D requires distinct shared and unshared receiver overloads. `Atomic!T`/`AtomicFlag` expose both, with qualifier casts contained inside trusted atomic boundaries. |
 | Static memory-order diagnostics | **documented language/API limitation** | Feature 1 | The specified public syntax passes `MemoryOrder` as a runtime value. D semantic analysis does not preserve whether that argument originated from an enum literal, so the implementation cannot reject a literal invalid order at compile time without changing the call syntax to template value parameters. All invalid orders/combinations are still unconditional programming-error panics. |
-| Parameter storage-class introspection | **complete for typed starts** | Feature 2 allocator-backed typed start / Feature 6 zero-allocation typed start | LDC 1.42.0 reports `ref`/`out`/`lazy` explicitly; `scope`/`return` can decorate value transport. A focused address probe showed `in` is value-like under the repository flags but aliases caller storage under `-preview=in`, so v1 typed starts reject `in` in all modes. |
+| Parameter storage-class introspection | **complete for typed starts** | Feature 2 allocator-backed typed start / Feature 5 zero-allocation typed start | LDC 1.42.0 reports `ref`/`out`/`lazy` explicitly; `scope`/`return` can decorate value transport. A focused address probe showed `in` is value-like under the repository flags but aliases caller storage under `-preview=in`, so v1 typed starts reject `in` in all modes. |
 | LDC-created-thread TLS | **complete for LDC 1.42.0 x86_64 Linux** | Raw/typed thread TLS guarantees | A raw XTB pthread sees module TLS at its independent zero-initialized value and writes do not affect the parent thread TLS instance. This validates compiler TLS for the supported Linux target; it is not a promise for untested compiler/platform combinations. |
 | Native thread naming limits/error mapping | **complete for Linux** | Feature 2 naming freeze | Linux `pthread_setname_np` behavior was tested: 15 UTF-8 bytes are accepted, 16 are `tooLong`, embedded NUL is `invalidName`, and an exited-but-unjoined pthread maps to `threadUnavailable`. The Linux byte limit remains private. |
 | Scoped structured-borrow syntax | pending | Feature 18 | Prove BetterC/no-GC closure behavior and non-escape properties or use the explicit context fallback. |
