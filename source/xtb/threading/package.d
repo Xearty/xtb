@@ -12,4 +12,5 @@ public import xtb.threading.semaphore;
 public import xtb.threading.spawn;
 public import xtb.threading.spin_wait;
 public import xtb.threading.thread;
+public import xtb.threading.thread_scope;
 public import xtb.threading.wait_group;

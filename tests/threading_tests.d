@@ -22,6 +22,7 @@ import semaphoreModule = xtb.threading.semaphore;
 import spawnModule = xtb.threading.spawn;
 import startLatchModule = xtb.threading.internal.start_latch;
 import spinWaitModule = xtb.threading.spin_wait;
+import threadScopeModule = xtb.threading.thread_scope;
 import waitGroupModule = xtb.threading.wait_group;
 
 version (linux) import linuxBackendModule = xtb.threading.internal.thread_linux;
@@ -737,6 +738,82 @@ version (linux) static assert(!__traits(compiles,
 version (linux) static assert(!__traits(compiles,
         spawn!constValueWorker(mallocAllocator(), 1, 2)));
 version (linux) static assert(!__traits(hasMember, JoinHandle!int, "detach"));
+
+version (linux) private struct StaticScopedWorker
+{
+    static void run(int) nothrow @nogc
+    {
+    }
+}
+
+version (linux) private void validThreadScopeCompileBody(
+    scope ref ThreadScope,
+    scope int*,
+) nothrow @nogc
+{
+}
+
+version (linux) private void missingScopeBody(
+    ref ThreadScope,
+    scope int*,
+) nothrow @nogc
+{
+}
+
+version (linux) private int returningThreadScopeBody(
+    scope ref ThreadScope,
+    scope int*,
+) nothrow @nogc
+{
+    return 0;
+}
+
+version (linux) private ThreadScope* escapedThreadScope;
+
+version (linux) private void threadScopeCompileChecks() nothrow @nogc @system
+{
+    ThreadScope scope_;
+    int value;
+
+    static assert(__traits(compiles,
+            scope_.spawn!refTypedWorker(value)));
+    static assert(!__traits(compiles,
+            scope_.spawn!refTypedWorker(1)));
+    static assert(!__traits(compiles,
+            scope_.spawn!outTypedWorker(value)));
+    static assert(!__traits(compiles,
+            scope_.spawn!lazyTypedWorker(value)));
+    static assert(!__traits(compiles,
+            scope_.spawn!inTypedWorker(value)));
+    static assert(!__traits(compiles,
+            scope_.spawn!wrongReturnTypedWorker(value)));
+    static assert(!__traits(compiles,
+            scope_.spawn!missingNothrowTypedWorker(value)));
+    static assert(!__traits(compiles,
+            scope_.spawn!missingNogcTypedWorker(value)));
+    static assert(__traits(compiles,
+            scope_.spawn!(StaticScopedWorker.run)(value)));
+    static assert(!__traits(hasMember, ThreadScope, "join"));
+    static assert(!__traits(hasMember, ThreadScope, "detach"));
+
+    static assert(__traits(compiles,
+            threadScope!validThreadScopeCompileBody(mallocAllocator(), &value)));
+    static assert(!__traits(compiles,
+            threadScope!missingScopeBody(mallocAllocator(), &value)));
+    static assert(!__traits(compiles,
+            threadScope!returningThreadScopeBody(mallocAllocator(), &value)));
+    static assert(!__traits(compiles, () { ThreadScope source; ThreadScope copy = source; }));
+    static assert(!__traits(compiles,
+            (scope ref ThreadScope borrowed) nothrow @nogc @safe { escapedThreadScope = &borrowed; }));
+
+    int captured;
+    void nestedWorker() nothrow @nogc
+    {
+        ++captured;
+    }
+
+    static assert(!__traits(compiles, scope_.spawn!nestedWorker()));
+}
 
 version (linux) private bool typedStartWorks() nothrow @nogc
 {
@@ -1555,6 +1632,347 @@ nothrow @nogc
 {
     context.ready.wait(0, MemoryOrder.acquire);
     return context.handle.join();
+}
+
+version (linux) private struct ThreadScopeManyContext
+{
+    enum childCount = 48;
+
+    int[childCount] values;
+    bool failed;
+}
+
+version (linux) private void writeScopedIndex(
+    size_t index,
+    int* values,
+) nothrow @nogc
+{
+    values[index] = cast(int) index + 1;
+}
+
+version (linux) private void manyThreadScopeBody(
+    scope ref ThreadScope scope_,
+    scope ThreadScopeManyContext* context,
+) nothrow @nogc
+{
+    foreach (index; 0 .. ThreadScopeManyContext.childCount)
+    {
+        auto started = scope_.spawn!writeScopedIndex(index, context.values.ptr);
+        if (started.isErr)
+        {
+            context.failed = true;
+            return;
+        }
+        started.unwrap();
+    }
+}
+
+version (linux) private void mutateScopedReference(
+    ref int value,
+    int increment,
+) nothrow @nogc
+{
+    value += increment;
+}
+
+version (linux) private void readScopedConstReference(
+    ref const int value,
+    int* observed,
+) nothrow @nogc
+{
+    *observed = value;
+}
+
+version (linux) private void consumeScopedMoveOnly(
+    MoveOnlyCapture capture,
+    int* observed,
+) nothrow @nogc
+{
+    *observed = capture.value;
+}
+
+version (linux) private struct ThreadScopeBorrowContext
+{
+    int value;
+    int constant;
+    int observedConstant;
+    int observedMove;
+    Atomic!uint* destructions;
+    MoveOnlyCapture capture;
+}
+
+version (linux) private void borrowedThreadScopeBody(
+    scope ref ThreadScope scope_,
+    scope ThreadScopeBorrowContext* context,
+) nothrow @nogc
+{
+    scope_.spawn!mutateScopedReference(context.value, 5).unwrap();
+    scope_.spawn!readScopedConstReference(
+        context.constant,
+        &context.observedConstant,
+    ).unwrap();
+    scope_.spawn!consumeScopedMoveOnly(
+        move(context.capture),
+        &context.observedMove,
+    ).unwrap();
+}
+
+version (linux) private bool threadScopeBorrowingAndManyChildren()
+nothrow @nogc
+{
+    ThreadScopeManyContext many;
+    threadScope!manyThreadScopeBody(mallocAllocator(), &many);
+    if (many.failed)
+        return false;
+    foreach (index, value; many.values)
+        if (value != cast(int) index + 1)
+            return false;
+
+    Atomic!uint destructions;
+    ThreadScopeBorrowContext borrowed;
+    borrowed.value = 37;
+    borrowed.constant = 73;
+    borrowed.destructions = &destructions;
+    borrowed.capture.destructions = &destructions;
+    borrowed.capture.value = 91;
+    threadScope!borrowedThreadScopeBody(mallocAllocator(), &borrowed);
+    return borrowed.value == 42 && borrowed.observedConstant == 73 &&
+        borrowed.observedMove == 91 && destructions.load() == 1;
+}
+
+version (linux) private void markScopedCompletion(Atomic!uint* completed)
+nothrow @nogc
+{
+    completed.store(1, MemoryOrder.release);
+}
+
+version (linux) private struct ThreadScopeFailureContext
+{
+    StartTrackingAllocator* tracker;
+    Atomic!uint firstCompleted;
+    Atomic!uint captureDestructions;
+    MoveOnlyCapture capture;
+    int observedCapture;
+    bool sawExpectedFailure;
+}
+
+version (linux) private void allocationFailureScopeBody(
+    scope ref ThreadScope scope_,
+    scope ThreadScopeFailureContext* context,
+) nothrow @nogc
+{
+    auto first = scope_.spawn!markScopedCompletion(&context.firstCompleted);
+    if (first.isErr)
+        return;
+    first.unwrap();
+
+    context.tracker.failAllocation = true;
+    auto second = scope_.spawn!consumeScopedMoveOnly(
+        move(context.capture),
+        &context.observedCapture,
+    );
+    if (second.isErr)
+    {
+        const error = second.unwrapError();
+        context.sawExpectedFailure =
+            error.kind == SpawnErrorKind.allocationFailed &&
+            error.threadStartError == ThreadStartError.init;
+    }
+    return;
+}
+
+version (linux) private void nativeFailureScopeBody(
+    scope ref ThreadScope scope_,
+    scope ThreadScopeFailureContext* context,
+) nothrow @nogc
+{
+    auto first = scope_.spawn!markScopedCompletion(&context.firstCompleted);
+    if (first.isErr)
+        return;
+    first.unwrap();
+
+    auto second = scope_.spawnWith!consumeScopedMoveOnly(
+        ThreadStartOptions(size_t.max),
+        move(context.capture),
+        &context.observedCapture,
+    );
+    if (second.isErr)
+    {
+        const error = second.unwrapError();
+        context.sawExpectedFailure =
+            error.kind == SpawnErrorKind.threadStartFailed &&
+            error.threadStartError.kind ==
+            ThreadStartErrorKind.invalidConfiguration;
+    }
+    return;
+}
+
+version (linux) private void emptyTrackedScopeBody(
+    scope ref ThreadScope,
+    scope ThreadScopeFailureContext*,
+) nothrow @nogc
+{
+}
+
+version (linux) private void successfulTrackedScopeBody(
+    scope ref ThreadScope scope_,
+    scope ThreadScopeFailureContext* context,
+) nothrow @nogc
+{
+    foreach (_; 0 .. 3)
+        scope_.spawn!markScopedCompletion(&context.firstCompleted).unwrap();
+}
+
+version (linux) private bool threadScopeFailuresStillJoinEarlierChildren()
+nothrow @nogc
+{
+    const owner = currentThreadId();
+
+    StartTrackingAllocator allocationTracker = StartTrackingAllocator.create();
+    ThreadScopeFailureContext allocationContext;
+    allocationContext.tracker = &allocationTracker;
+    allocationContext.capture.destructions =
+        &allocationContext.captureDestructions;
+    allocationContext.capture.value = 11;
+    threadScope!allocationFailureScopeBody(
+        allocationTracker.allocator,
+        &allocationContext,
+    );
+    if (!allocationContext.sawExpectedFailure ||
+        allocationContext.firstCompleted.load(MemoryOrder.acquire) != 1 ||
+        allocationTracker.allocationCalls.load() != 2 ||
+        allocationTracker.deallocationCalls.load() != 1 ||
+        allocationContext.captureDestructions.load() != 1 ||
+        allocationContext.observedCapture != 0 ||
+        allocationTracker.allocationThread != owner ||
+        allocationTracker.deallocationThread != owner)
+        return false;
+
+    StartTrackingAllocator nativeTracker = StartTrackingAllocator.create();
+    ThreadScopeFailureContext nativeContext;
+    nativeContext.tracker = &nativeTracker;
+    nativeContext.capture.destructions = &nativeContext.captureDestructions;
+    nativeContext.capture.value = 12;
+    threadScope!nativeFailureScopeBody(
+        nativeTracker.allocator,
+        &nativeContext,
+    );
+    if (!nativeContext.sawExpectedFailure ||
+        nativeContext.firstCompleted.load(MemoryOrder.acquire) != 1 ||
+        nativeTracker.allocationCalls.load() != 2 ||
+        nativeTracker.deallocationCalls.load() != 2 ||
+        nativeContext.captureDestructions.load() != 1 ||
+        nativeContext.observedCapture != 0 ||
+        nativeTracker.allocationThread != owner ||
+        nativeTracker.deallocationThread != owner)
+        return false;
+
+    StartTrackingAllocator emptyTracker = StartTrackingAllocator.create();
+    ThreadScopeFailureContext emptyContext;
+    threadScope!emptyTrackedScopeBody(emptyTracker.allocator, &emptyContext);
+    if (emptyTracker.allocationCalls.load() != 0 ||
+        emptyTracker.deallocationCalls.load() != 0)
+        return false;
+
+    StartTrackingAllocator successTracker = StartTrackingAllocator.create();
+    ThreadScopeFailureContext successContext;
+    successContext.tracker = &successTracker;
+    threadScope!successfulTrackedScopeBody(
+        successTracker.allocator,
+        &successContext,
+    );
+    return successContext.firstCompleted.load(MemoryOrder.acquire) == 1 &&
+        successTracker.allocationCalls.load() == 3 &&
+        successTracker.deallocationCalls.load() == 3 &&
+        successTracker.allocationThread == owner &&
+        successTracker.deallocationThread == owner;
+}
+
+version (linux) private struct ThreadScopeOptionsContext
+{
+    StackSizeContext stack;
+}
+
+version (linux) private void scopedStackSizeWorker(StackSizeContext* context)
+nothrow @nogc
+{
+    if (stackSizeWorker(context) != 0)
+        context.observed = 0;
+}
+
+version (linux) private void optionsThreadScopeBody(
+    scope ref ThreadScope scope_,
+    scope ThreadScopeOptionsContext* context,
+) nothrow @nogc
+{
+    enum requested = 256 * 1024 + 123;
+    scope_.spawnWith!scopedStackSizeWorker(
+        ThreadStartOptions(requested),
+        &context.stack,
+    ).unwrap();
+}
+
+version (linux) private bool threadScopeOptionsWork() nothrow @nogc
+{
+    enum requested = 256 * 1024 + 123;
+    ThreadScopeOptionsContext context;
+    threadScope!optionsThreadScopeBody(mallocAllocator(), &context);
+    return context.stack.observed >= requested;
+}
+
+version (linux) private bool inlineThreadScopeUsesSharedOwnershipCore()
+nothrow @nogc
+{
+    StartTrackingAllocator tracker = StartTrackingAllocator.create();
+    int[3] values;
+    threadScope(
+        tracker.allocator,
+        (scope ref ThreadScope scope_) nothrow @nogc {
+        foreach (index; 0 .. values.length)
+            scope_.spawn!writeScopedIndex(index, values.ptr).unwrap();
+        return;
+    },
+    );
+
+    foreach (index, value; values)
+        if (value != cast(int) index + 1)
+            return false;
+    return tracker.allocationCalls.load() == values.length &&
+        tracker.deallocationCalls.load() == values.length &&
+        tracker.allocationThread == currentThreadId() &&
+        tracker.deallocationThread == currentThreadId();
+}
+
+version (linux) private void scopedNoOpWorker() nothrow @nogc
+{
+}
+
+version (linux) private void scopedPanicWorker() nothrow @nogc
+{
+    panic("scoped worker panic death test");
+}
+
+version (linux) private struct WrongThreadScopeContext
+{
+    ThreadScope* scope_;
+}
+
+version (linux) private void useThreadScopeFromWrongThread(
+    WrongThreadScopeContext* context,
+) nothrow @nogc
+{
+    context.scope_.spawn!scopedNoOpWorker().unwrap();
+}
+
+version (linux) private void wrongThreadScopeBody(
+    scope ref ThreadScope scope_,
+    scope WrongThreadScopeContext* context,
+) nothrow @nogc
+{
+    context.scope_ = &scope_;
+    auto started = Thread.start!useThreadScopeFromWrongThread(context);
+    Thread thread = started.unwrap();
+    cast(void) thread.join();
 }
 
 version (linux) private struct RawStartHandoffContext
@@ -2654,6 +3072,12 @@ version (Posix) private enum DeathCase : ubyte
     spawnMoveAssignOverJoinable,
     spawnSelfJoin,
     spawnWorkerPanic,
+    threadScopeNullAllocator,
+    threadScopeNullBody,
+    threadScopeNullContext,
+    threadScopeInertSpawn,
+    threadScopeWrongThread,
+    threadScopeWorkerPanic,
     mutexUnlockUnlocked,
     mutexDoubleUnlock,
     mutexRecursiveLock,
@@ -2852,6 +3276,38 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             auto started = spawn!panicRawWorker(mallocAllocator(), null);
             JoinHandle!int handle = started.unwrap();
             cast(void) handle.join();
+            return;
+        case DeathCase.threadScopeNullAllocator:
+            threadScope(
+                null,
+                (scope ref ThreadScope) nothrow @nogc {},
+            );
+            return;
+        case DeathCase.threadScopeNullBody:
+            ThreadScopeBody body;
+            threadScope(mallocAllocator(), body);
+            return;
+        case DeathCase.threadScopeNullContext:
+            threadScope!validThreadScopeCompileBody(
+                mallocAllocator(),
+                cast(int*) null,
+            );
+            return;
+        case DeathCase.threadScopeInertSpawn:
+            ThreadScope scope_;
+            cast(void) scope_.spawn!scopedNoOpWorker();
+            return;
+        case DeathCase.threadScopeWrongThread:
+            WrongThreadScopeContext context;
+            threadScope!wrongThreadScopeBody(mallocAllocator(), &context);
+            return;
+        case DeathCase.threadScopeWorkerPanic:
+            threadScope(
+                mallocAllocator(),
+                (scope ref ThreadScope scope_) nothrow @nogc {
+                scope_.spawn!scopedPanicWorker().unwrap();
+            },
+            );
             return;
         case DeathCase.mutexUnlockUnlocked:
             Mutex mutex;
@@ -3173,6 +3629,8 @@ extern (C) int main() nothrow @nogc
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, spinWaitModule))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, threadScopeModule))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, waitGroupModule))
         testFunction();
     version (linux)
@@ -3243,6 +3701,14 @@ extern (C) int main() nothrow @nogc
             return 103;
         if (!spawnShortStress())
             return 104;
+        if (!threadScopeBorrowingAndManyChildren())
+            return 105;
+        if (!threadScopeFailuresStillJoinEarlierChildren())
+            return 106;
+        if (!threadScopeOptionsWork())
+            return 107;
+        if (!inlineThreadScopeUsesSharedOwnershipCore())
+            return 108;
         if (!moveOwnershipWorks())
             return 11;
         if (!rawStartJoinStress())
@@ -3332,6 +3798,12 @@ extern (C) int main() nothrow @nogc
             DeathCase.spawnMoveAssignOverJoinable,
             DeathCase.spawnSelfJoin,
             DeathCase.spawnWorkerPanic,
+            DeathCase.threadScopeNullAllocator,
+            DeathCase.threadScopeNullBody,
+            DeathCase.threadScopeNullContext,
+            DeathCase.threadScopeInertSpawn,
+            DeathCase.threadScopeWrongThread,
+            DeathCase.threadScopeWorkerPanic,
             DeathCase.mutexUnlockUnlocked,
             DeathCase.mutexDoubleUnlock,
             DeathCase.rwLockUnlockRead,

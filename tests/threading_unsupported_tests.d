@@ -15,6 +15,7 @@ import rwLockModule = xtb.threading.rw_lock;
 import semaphoreModule = xtb.threading.semaphore;
 import spawnModule = xtb.threading.spawn;
 import startLatchModule = xtb.threading.internal.start_latch;
+import threadScopeModule = xtb.threading.thread_scope;
 import waitGroupModule = xtb.threading.wait_group;
 
 static assert(!Atomic!uint.waitSupported);
@@ -30,6 +31,32 @@ private int worker(void* context) nothrow @nogc
 private int typedWorker(int value) nothrow @nogc
 {
     return value;
+}
+
+private void scopedWorker(int* value) nothrow @nogc
+{
+    *value = 42;
+}
+
+private struct UnsupportedScopeContext
+{
+    bool sawUnsupported;
+    int value;
+}
+
+private void unsupportedScopeBody(
+    scope ref ThreadScope scope_,
+    scope UnsupportedScopeContext* context,
+) nothrow @nogc
+{
+    auto started = scope_.spawn!scopedWorker(&context.value);
+    if (started.isErr)
+    {
+        const error = started.unwrapError();
+        context.sawUnsupported =
+            error.kind == SpawnErrorKind.threadStartFailed &&
+            error.threadStartError.kind == ThreadStartErrorKind.unsupported;
+    }
 }
 
 private struct TrackingAllocator
@@ -100,6 +127,8 @@ extern (C) int main() nothrow @nogc
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, startLatchModule))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, threadScopeModule))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, waitGroupModule))
         testFunction();
 
@@ -148,6 +177,35 @@ extern (C) int main() nothrow @nogc
         return 16;
     if (spawnTracker.allocations != 1 || spawnTracker.deallocations != 1)
         return 17;
+
+    TrackingAllocator scopeTracker = TrackingAllocator.create();
+    UnsupportedScopeContext scopeContext;
+    threadScope!unsupportedScopeBody(scopeTracker.allocator, &scopeContext);
+    if (!scopeContext.sawUnsupported || scopeContext.value != 0 ||
+        scopeTracker.allocations != 1 || scopeTracker.deallocations != 1)
+        return 18;
+
+    TrackingAllocator inlineScopeTracker = TrackingAllocator.create();
+    bool inlineUnsupported;
+    int inlineValue;
+    threadScope(
+        inlineScopeTracker.allocator,
+        (scope ref ThreadScope scope_) nothrow @nogc {
+        auto started = scope_.spawn!scopedWorker(&inlineValue);
+        if (started.isErr)
+        {
+            const error = started.unwrapError();
+            inlineUnsupported =
+                error.kind == SpawnErrorKind.threadStartFailed &&
+                error.threadStartError.kind ==
+                ThreadStartErrorKind.unsupported;
+        }
+    },
+    );
+    if (!inlineUnsupported || inlineValue != 0 ||
+        inlineScopeTracker.allocations != 1 ||
+        inlineScopeTracker.deallocations != 1)
+        return 19;
 
     auto named = setCurrentThreadName("unsupported");
     if (!named.isErr)

@@ -36,8 +36,8 @@ Status values:
 | 15 | **complete** | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
 | 16 | **complete** | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
 | 17 | **complete** | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
-| 18 | **next** | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
-| 19 | pending | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
+| 18 | **complete** | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
+| 19 | **next** | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
 | 20 | blocked | Monotonic time, sleeping, and timed waits | time foundation | Requires a stable monotonic-time abstraction that preserves the threading package dependency direction. |
 | 21 | pending | Windows backend coverage | public contracts above | Implement every completed OS-dependent primitive/utility with the same public semantics. |
 
@@ -762,3 +762,49 @@ manual release-fast, and AddressSanitizer test runs pass with LDC 1.41.0;
 release-fast test targets also compile with contracts, assertions, and bounds
 checks removed. The public spawn surface cross-compiles in checked and
 unchecked modes for x86-64 Windows/MSVC.
+
+## `threadScope` completion record
+
+Implemented public structured concurrency through both supported source forms:
+an inline stack-borrowed `threadScope(allocator, body)` delegate and a static
+`threadScope!body(allocator, context)` body with an explicit caller-owned
+context pointer. Both frontends create the same non-copyable, owner-thread-only
+`ThreadScope` capability and use the same spawn, intrusive tracking, join-all,
+and cleanup machinery. The static form is also available without a context.
+
+Each attempted child start allocates one concrete node containing a common
+type-erased header, stable native-start packet, and worker-typed captures.
+Successful heterogeneous nodes are linked through one
+`IntrusiveForwardList`; the scope owner joins every child, destroys the common
+header, and deallocates the exact original block. By-value captures move into
+child-local storage before the worker runs, while `ref` captures preserve their
+qualifiers and point at caller-owned lvalues. Allocation and native-start
+failures destroy active captures immediately without losing ownership of any
+earlier successful children.
+
+The inline delegate stays stack-backed under BetterC and may borrow values from
+its enclosing caller frame. D's lifetime system rejects an obvious `@safe`
+escape of the scoped capability, but cannot prove that every value passed from
+an `@system` callback outlives the callback itself. The public contract
+therefore explicitly forbids borrowing callback-local variables: join-all
+happens after the callback returns. The static context form makes the intended
+full-call lifetime source explicit when stronger reviewability is preferred.
+Scoped workers are static/module-level `void`, `nothrow @nogc` functions; `out`,
+`lazy`, preview-sensitive `in`, temporary `ref` arguments, result handles, and
+detach are rejected.
+
+Validation covers zero and 48-child scopes, heterogeneous value and mutable/
+const-reference captures, move-only destruction, explicit stack options, early
+body return, exact allocation/deallocation counts and owner-thread cleanup,
+allocation failure, native-start failure, and forced-unsupported execution for
+both entry syntaxes. Compile-time checks cover body and worker signatures,
+capability non-copyability/non-escape, ref-lvalue requirements, and the absent
+join/detach surface. Unconditional death tests cover invalid allocators and
+bodies, inert and wrong-thread capability use, and child panic.
+
+Repository-wide formatting and lint pass. Debug, optimized, release-safe,
+manual release-fast, and AddressSanitizer test runs pass with LDC 1.41.0. All
+production components build in debug, release-safe, and release-fast modes,
+every example runs, both public entry forms cross-compile in checked and
+unchecked modes for x86-64 Windows/MSVC, and the release threading archive adds
+no GC allocator, TypeInfo, ModuleInfo, or compiler atomic-runtime dependency.
