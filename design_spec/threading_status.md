@@ -34,8 +34,8 @@ Status values:
 | 13 | **complete** | Internal generation machinery | 12 | `GenerationWaitState` uses one 32-bit phase token for identity and parking, plus checked-build waiter tracking. |
 | 14 | **complete** | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
 | 15 | **complete** | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
-| 16 | **next** | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
-| 17 | pending | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
+| 16 | **complete** | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
+| 17 | **next** | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
 | 18 | pending | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
 | 19 | pending | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
 | 20 | blocked | Monotonic time, sleeping, and timed waits | time foundation | Requires a stable monotonic-time abstraction that preserves the threading package dependency direction. |
@@ -670,3 +670,48 @@ Focused formatting passes; the repository-wide format check remains blocked
 only by the existing mismatch in
 `source/xtb/threading/internal/thread_linux.d`, which this feature does not
 modify.
+
+## RwLock completion record
+
+Implemented public allocation-free `RwLock` as a writer-preferring atomic state
+machine. One wait-supported 32-bit word combines a 30-bit active-reader count,
+a writer-active bit, and a writer-pending reader gate. A separate full-width
+atomic counts queued writers so the last acquiring writer can open the reader
+gate without losing a concurrent writer registration. The gate-clear
+acquire/release handshake ensures a racing writer either remains represented by
+the existing pending bit or restores it itself.
+
+Read acquisition uses acquire CAS and succeeds only while both writer bits are
+clear. Publishing writer intent closes the gate before a blocking writer waits
+for existing readers or a writer owner to drain. All waiters park directly on
+the shared state word. Last-reader and writer unlocks wake all; when a writer is
+pending, awakened readers remain gated while a writer proceeds. This provides
+writer preference without promising writer FIFO, and sustained writers may
+still delay readers as documented. Acquire/release writer transitions publish
+writes in both directions, while acquire-release read unlocks form the RMW
+chain needed for a subsequent writer to observe every drained reader.
+
+Unmatched and double read/write unlocks plus active-reader and queued-writer
+overflow panic in every build before corrupting state. Checked builds add only
+an atomic writer-owner token, diagnosing recursive write acquisition,
+write-to-read self-deadlock, wrong-thread write unlock, and destruction while
+owned or contended. Per-reader identities, recursive acquisition, upgrades, and
+downgrades are deliberately absent. The owner token and checks disappear from
+release-fast; the correctness state remains two atomics.
+
+Validation covers the zero state, all four lock/try-lock paths, six simultaneous
+readers, deterministic gating of a late reader behind a queued writer,
+reader-to-writer and writer-to-reader publication, and mixed four-reader/two-
+writer contention over 2,048 writes. Death tests cover unconditional unmatched
+and double unlocks, both counter overflows, and checked writer-owner/lifecycle
+misuse. The forced unsupported backend keeps uncontended and try operations
+usable while a genuinely blocking operation fails explicitly. Both BetterC
+threading runners enumerate the module, and the aggregate package re-exports
+it.
+
+Repository-wide formatting, lint, debug, optimized, release-safe, release-fast
+compile and manual runtime, and AddressSanitizer test modes pass with LDC
+1.41.0. Monolithic and component libraries build in every production mode, all
+examples run, checked and unchecked public modules cross-compile for x86-64
+Windows, and the release archive adds no allocator, TypeInfo, ModuleInfo, or D
+runtime dependency.

@@ -11,6 +11,7 @@ import mutexModule = xtb.threading.mutex;
 import onceModule = xtb.threading.once;
 import onceCellModule = xtb.threading.once_cell;
 import parkingModule = xtb.threading.internal.parking;
+import rwLockModule = xtb.threading.rw_lock;
 import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
 import waitGroupModule = xtb.threading.wait_group;
@@ -89,6 +90,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, onceCellModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, rwLockModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, generationWaitModule))
         testFunction();

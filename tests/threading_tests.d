@@ -16,6 +16,7 @@ import mutexModule = xtb.threading.mutex;
 import onceModule = xtb.threading.once;
 import onceCellModule = xtb.threading.once_cell;
 import parkingModule = xtb.threading.internal.parking;
+import rwLockModule = xtb.threading.rw_lock;
 import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
 import spinWaitModule = xtb.threading.spin_wait;
@@ -1680,6 +1681,14 @@ version (XTB_Checked) version (linux) private int mutexNonOwnerUnlockWorker(
     return 0;
 }
 
+version (XTB_Checked) version (linux) private int rwLockNonOwnerWriteUnlockWorker(
+    RwLock* lock,
+) nothrow @nogc
+{
+    lock.unlockWrite();
+    return 0;
+}
+
 version (linux) private struct CondVarContext
 {
     Mutex mutex;
@@ -2216,6 +2225,15 @@ version (Posix) private enum DeathCase : ubyte
     mutexRecursiveLock,
     mutexDestroyLocked,
     mutexUnlockNonOwner,
+    rwLockUnlockRead,
+    rwLockDoubleUnlockRead,
+    rwLockUnlockWrite,
+    rwLockDoubleUnlockWrite,
+    rwLockRecursiveWrite,
+    rwLockWriterToRead,
+    rwLockDestroyReadOwned,
+    rwLockDestroyWriteOwned,
+    rwLockUnlockWriteNonOwner,
     condVarWaitWithoutOwnership,
     condVarMixedMutexes,
     semaphoreOverflow,
@@ -2392,6 +2410,74 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                     Thread thread = started.unwrap();
                     cast(void) thread.join();
                     _exit(87);
+                }
+            }
+            return;
+        case DeathCase.rwLockUnlockRead:
+            RwLock lock;
+            lock.unlockRead();
+            return;
+        case DeathCase.rwLockDoubleUnlockRead:
+            RwLock lock;
+            lock.lockRead();
+            lock.unlockRead();
+            lock.unlockRead();
+            return;
+        case DeathCase.rwLockUnlockWrite:
+            RwLock lock;
+            lock.unlockWrite();
+            return;
+        case DeathCase.rwLockDoubleUnlockWrite:
+            RwLock lock;
+            lock.lockWrite();
+            lock.unlockWrite();
+            lock.unlockWrite();
+            return;
+        case DeathCase.rwLockRecursiveWrite:
+            version (XTB_Checked)
+            {
+                RwLock lock;
+                lock.lockWrite();
+                lock.lockWrite();
+            }
+            return;
+        case DeathCase.rwLockWriterToRead:
+            version (XTB_Checked)
+            {
+                RwLock lock;
+                lock.lockWrite();
+                lock.lockRead();
+            }
+            return;
+        case DeathCase.rwLockDestroyReadOwned:
+            version (XTB_Checked)
+            {
+                RwLock lock;
+                lock.lockRead();
+            }
+            return;
+        case DeathCase.rwLockDestroyWriteOwned:
+            version (XTB_Checked)
+            {
+                RwLock lock;
+                lock.lockWrite();
+            }
+            return;
+        case DeathCase.rwLockUnlockWriteNonOwner:
+            version (XTB_Checked)
+            {
+                version (linux)
+                {
+                    RwLock lock;
+                    lock.lockWrite();
+                    auto started = Thread.start!rwLockNonOwnerWriteUnlockWorker(
+                        &lock,
+                    );
+                    if (!started.isOk)
+                        _exit(96);
+                    Thread thread = started.unwrap();
+                    cast(void) thread.join();
+                    _exit(97);
                 }
             }
             return;
@@ -2594,6 +2680,8 @@ extern (C) int main() nothrow @nogc
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, rwLockModule))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, generationWaitModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, startLatchModule))
@@ -2740,6 +2828,10 @@ extern (C) int main() nothrow @nogc
             DeathCase.workerPanic,
             DeathCase.mutexUnlockUnlocked,
             DeathCase.mutexDoubleUnlock,
+            DeathCase.rwLockUnlockRead,
+            DeathCase.rwLockDoubleUnlockRead,
+            DeathCase.rwLockUnlockWrite,
+            DeathCase.rwLockDoubleUnlockWrite,
             DeathCase.semaphoreOverflow,
             DeathCase.latchUnderflow,
             DeathCase.waitGroupOverflow,
@@ -2772,6 +2864,11 @@ extern (C) int main() nothrow @nogc
                 DeathCase.mutexRecursiveLock,
                 DeathCase.mutexDestroyLocked,
                 DeathCase.mutexUnlockNonOwner,
+                DeathCase.rwLockRecursiveWrite,
+                DeathCase.rwLockWriterToRead,
+                DeathCase.rwLockDestroyReadOwned,
+                DeathCase.rwLockDestroyWriteOwned,
+                DeathCase.rwLockUnlockWriteNonOwner,
                 DeathCase.condVarWaitWithoutOwnership,
                 DeathCase.condVarMixedMutexes,
                 DeathCase.onceRecursive,
