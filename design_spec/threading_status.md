@@ -28,8 +28,8 @@ Status values:
 | 7 | **complete** | `Mutex` | 1, 2, 3, 6 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
 | 8 | **complete** | `CondVar` | 3, 7 | Stack-backed waiter queue, exact notify-one/all selection, and explicit waiter-node lifetime handshake. |
 | 9 | **complete** | `Semaphore` | 1, 3, 4 | Atomic fast permit path plus intrusive stack-waiter handoff; no shared wrapping wake epoch. |
-| 10 | **next** | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
-| 11 | pending | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
+| 10 | **complete** | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
+| 11 | **next** | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
 | 12 | **complete** | `Latch` | 1, 3, 4 | One-shot countdown with a full-width logical count and a 32-bit wait epoch. Implemented early while auditing the decided countdown design. |
 | 13 | pending | Internal generation machinery | 12 | Countdown state is complete with `Latch`; reusable generation state remains. |
 | 14 | pending | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
@@ -486,6 +486,28 @@ behavior. The threading suite passes checked debug, optimized, release-safe, and
 AddressSanitizer runs; the unchecked release-fast threading component compiles;
 and the standalone BetterC semaphore module cross-compiles for i686 Linux,
 AArch64 Linux, RISC-V64 Linux, and x86-64 Windows.
+
+## Once completion record
+
+Implemented public allocation-free `Once` and `callOnce` in
+`xtb.threading.once`. The zero-valid state uses the specified uninitialized,
+initializing, and initialized atomic states. One caller wins the `0 -> 1` CAS,
+runs the selected context-free initializer synchronously, then publishes state
+2 with release ordering and wakes all waiters. Losing callers wait on the same
+32-bit state and return through an acquire observation of completion.
+
+Initializers must be module-level or static `nothrow @nogc` functions returning
+`void`. Their parameters use the same explicit by-value transport policy as
+ordinary typed thread starts: `ref`, `out`, `lazy`, and preview-sensitive `in`
+are rejected. Argument expressions are still evaluated for every caller before
+winner selection, while the initializer body runs exactly once. Checked builds
+record the initializing thread and reject recursive `callOnce` on the same
+object; that owner field is absent from release-fast representation.
+
+Validation covers sequential exactly-once behavior, argument evaluation by a
+losing caller, compile-time callable/return/parameter rejection, eight-way
+contention with release/acquire publication, checked recursive-use death, and
+the non-copyable/release-representation contracts.
 
 ## Latch completion record
 

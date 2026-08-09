@@ -11,6 +11,7 @@ import condVarModule = xtb.threading.cond_var;
 import countdownModule = xtb.threading.internal.countdown;
 import latchModule = xtb.threading.latch;
 import mutexModule = xtb.threading.mutex;
+import onceModule = xtb.threading.once;
 import parkingModule = xtb.threading.internal.parking;
 import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
@@ -2131,6 +2132,12 @@ nothrow @nogc
     _exit(90);
 }
 
+version (Posix) private void recursiveOnceInitializer(Once* once)
+nothrow @nogc
+{
+    callOnce!recursiveOnceInitializer(*once, once);
+}
+
 version (Posix) private enum DeathCase : ubyte
 {
     loadRelease,
@@ -2165,6 +2172,7 @@ version (Posix) private enum DeathCase : ubyte
     condVarMixedMutexes,
     semaphoreOverflow,
     latchUnderflow,
+    onceRecursive,
 }
 
 version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
@@ -2364,6 +2372,13 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
         case DeathCase.latchUnderflow:
             Latch latch = Latch(1);
             latch.countDown(2);
+            return;
+        case DeathCase.onceRecursive:
+            version (XTB_Checked)
+            {
+                Once once;
+                callOnce!recursiveOnceInitializer(once, &once);
+            }
             return;
     }
 }
@@ -2636,6 +2651,7 @@ extern (C) int main() nothrow @nogc
                 DeathCase.mutexUnlockNonOwner,
                 DeathCase.condVarWaitWithoutOwnership,
                 DeathCase.condVarMixedMutexes,
+                DeathCase.onceRecursive,
             ])
                 if (!expectAbort(deathCase))
                     return 45;

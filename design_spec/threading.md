@@ -3144,6 +3144,13 @@ public convenience is:
 callOnce!initializer(once, args...);
 ```
 
+Its declaration takes the synchronization object as a genuine free-algorithm
+receiver:
+
+```d
+void callOnce(alias initializer, Args...)(ref Once once, Args arguments);
+```
+
 It must remain `nothrow @nogc` and allocation-free.
 
 The v1 `initializer` is a context-free module/static function alias, matching the
@@ -3159,7 +3166,9 @@ specific initializer should consistently call that initializer rather than rely
 on scheduling order.
 
 Because XTB has no exceptions, there is no exception-poisoning behavior to
-emulate.
+emulate. Initializer parameters use by-value transport; `ref`, `out`, `lazy`,
+and preview-sensitive `in` parameters are rejected. Callers pass pointers or
+slices explicitly when the initializer must access external state.
 
 The reference `Once` state machine is:
 
@@ -3169,11 +3178,10 @@ The reference `Once` state machine is:
 2 = initialized
 ```
 
-`callOnce` attempts `0 -> 1`; the winner invokes the supplied initializer,
-
-The winning initializer runs synchronously on the caller thread that won the
-state transition; `callOnce` never creates another thread. then
-publishes `2` with release semantics and wakes all waiters. Losers that observe
+`callOnce` attempts `0 -> 1`; the winner invokes the supplied initializer
+synchronously on the caller thread that won the state transition; `callOnce`
+never creates another thread. The winner then publishes `2` with release
+semantics and wakes all waiters. Losers that observe
 `1` wait; callers that observe `2` return with acquire semantics. Because the
 initializer is `nothrow` and `panic` is process-fatal, there is no recoverable
 "poisoned" state. The v1 initializer returns `void`; non-void results belong in
