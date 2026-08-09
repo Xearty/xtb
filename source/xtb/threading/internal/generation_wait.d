@@ -9,16 +9,16 @@ version (XTB_Checked) import xtb.core.panic : require;
 
 /// Package-private reusable phase-change wait state.
 ///
-/// The full-width logical generation distinguishes semantic phases. The
-/// separate 32-bit epoch is only the address parked on by the current backend;
-/// callers must always decide completion from `generation_`.
+/// The 32-bit generation is both the semantic phase token and the address
+/// parked on by the current backend. `WaitGroup` reuse rules and `Barrier`
+/// participation guarantee that a valid waiter cannot span enough completed
+/// phases for generation wrap to become ambiguous.
 package(xtb.threading) struct GenerationWaitState
 {
 nothrow @nogc:
     @disable this(this);
 
-    private Atomic!size_t generation_;
-    private Atomic!uint wakeEpoch_;
+    private Atomic!uint generation_;
     version (XTB_Checked) private Atomic!size_t waiters_;
 
     version (XTB_Checked)
@@ -32,14 +32,14 @@ nothrow @nogc:
         }
     }
 
-    /// Returns the current logical generation with acquire ordering.
-    package(xtb.threading) size_t currentGeneration() const @safe
+    /// Returns the current generation with acquire ordering.
+    package(xtb.threading) uint currentGeneration() const @safe
     {
         return generation_.load(MemoryOrder.acquire);
     }
 
     /// Reports whether `expected` has completed with acquire ordering.
-    package(xtb.threading) bool hasChanged(size_t expected) const @safe
+    package(xtb.threading) bool hasChanged(uint expected) const @safe
     {
         return currentGeneration() != expected;
     }
@@ -49,19 +49,14 @@ nothrow @nogc:
     {
         cast(void) generation_.fetchAdd(1, MemoryOrder.release);
         static if (Atomic!uint.waitSupported)
-        {
-            cast(void) wakeEpoch_.fetchAdd(1, MemoryOrder.release);
-            wakeEpoch_.notifyAll();
-        }
+            generation_.notifyAll();
     }
 
-    /// Blocks until the logical generation differs from `expected`.
+    /// Blocks until the generation differs from `expected`.
     ///
-    /// The waitable epoch is sampled before a second logical-generation check,
-    /// closing the transition-before-park lost-wakeup race. Epoch wrap cannot
-    /// create semantic ambiguity because every return decision rechecks the
-    /// full logical generation.
-    package(xtb.threading) void waitForChange(size_t expected) @safe
+    /// Atomic compare-and-sleep prevents a completion between the caller's
+    /// observation and parking from becoming a lost wakeup.
+    package(xtb.threading) void waitForChange(uint expected) @safe
     {
         version (XTB_Checked)
             registerWaiter();
@@ -74,9 +69,7 @@ nothrow @nogc:
             }
             else
             {
-                const epoch = wakeEpoch_.load(MemoryOrder.relaxed);
-                if (!hasChanged(expected))
-                    wakeEpoch_.wait(epoch, MemoryOrder.acquire);
+                generation_.wait(expected, MemoryOrder.acquire);
             }
         }
 
@@ -147,6 +140,11 @@ version (XTB_Checked)
 }
 
 static assert(!__traits(isCopyable, GenerationWaitState));
+version (XTB_Checked)
+    static assert(GenerationWaitState.sizeof >=
+            Atomic!uint.sizeof + Atomic!size_t.sizeof);
+else
+    static assert(GenerationWaitState.sizeof == Atomic!uint.sizeof);
 
 unittest
 {
@@ -308,7 +306,7 @@ version (unittest)
         unittest
         {
             GenerationWaitState state;
-            state.wakeEpoch_.store(uint.max, MemoryOrder.relaxed);
+            state.generation_.store(uint.max, MemoryOrder.relaxed);
             Atomic!uint entered;
             Atomic!uint completed;
             int payload = 91;
@@ -329,7 +327,7 @@ version (unittest)
 
             assert(waiter.join() == 0);
             assert(observed == payload);
-            assert(state.wakeEpoch_.load(MemoryOrder.relaxed) == 0);
+            assert(state.currentGeneration() == 0);
         }
     }
 }

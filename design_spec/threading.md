@@ -2900,6 +2900,14 @@ protocols such as condition variables that may receive arbitrarily many
 notifications while one waiter is delayed, retain/recheck a wider logical
 generation in addition to the waitable epoch if needed.
 
+For `GenerationWaitState`, the 32-bit waitable word is itself the generation.
+The `WaitGroup` reuse rule and `Barrier` participation rule prove that a valid
+waiter cannot remain associated with one phase across enough phase completions
+for 32-bit wrap to become ambiguous. Do not add a second wide generation unless
+a future consumer permits waiters to fall arbitrarily many phases behind. The
+separate full-width `size_t` value remains necessary for public work and
+participant counts; it is not a second phase identifier.
+
 ## Wait group
 
 `WaitGroup` tracks a dynamically registered set of outstanding operations and
