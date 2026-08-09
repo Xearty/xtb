@@ -7,7 +7,7 @@ import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move, moveEmplace;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
-import xtb.core.result : Result;
+import xtb.core.result : Result, ResultReturns;
 import xtb.threading.thread : Thread,
     ThreadStartError,
     ThreadStartOptions,
@@ -334,6 +334,7 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawn(
     Args arguments,
 ) @system
 {
+    mixin ResultReturns;
     return spawnWith!function_(
         ThreadStartOptions.init,
         allocator,
@@ -354,6 +355,7 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
     Args arguments,
 ) @system
 {
+    mixin ResultReturns;
     validateSpawnWorker!function_();
     alias WorkerParameters = Parameters!function_;
     alias WorkerReturn = ReturnType!function_;
@@ -371,9 +373,7 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
 
     State* state = allocator.tryAllocate!State();
     if (state is null)
-        return Result!(JoinHandle!WorkerReturn, SpawnError).err(
-            allocationFailure(),
-        );
+        return err(allocationFailure());
 
     emplace(state);
     state.base.allocator = allocator;
@@ -398,9 +398,7 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
         const error = started.unwrapError();
         destroy(*state);
         allocator.deallocate(state);
-        return Result!(JoinHandle!WorkerReturn, SpawnError).err(
-            threadStartFailure(error),
-        );
+        return err(threadStartFailure(error));
     }
 
     Thread thread = started.unwrap();
@@ -408,7 +406,7 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
         move(thread),
         &state.base,
     );
-    return Result!(JoinHandle!WorkerReturn, SpawnError).ok(move(handle));
+    return ok(move(handle));
 }
 
 static assert(!__traits(isCopyable, JoinHandle!int));

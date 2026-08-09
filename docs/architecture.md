@@ -1196,14 +1196,16 @@ immutable qualifiers with `inout`. The option always contains valid `T.init`
 storage, which lets compiler-generated destruction handle owning `T` without a
 manually managed union. It is copyable exactly when `T` is copyable and is
 `@mustuse`. `OptionReturns` introduces return-type-specific `some` and `none`
-aliases, while the free UFCS `map`, `andThen`, and `orElse` algorithms provide
-consuming transformations without turning alias lambdas into BetterC-incompatible
-dual-context member closures. JSON encodes an absent option as `null` and
-accepts `null`; TOML has no null value, so it omits absent option fields and
-makes an option present whenever its key is decoded. A missing field remains
-absent. `@required Option!T` requires the key to occur; in JSON, an explicitly
-present `null` still satisfies that key-presence rule while leaving the option
-absent.
+aliases. Every non-constructor function with an explicit `Option!T` return type
+uses that mixin and constructs its returns through those aliases. The free UFCS
+`map`, `andThen`, and `orElse` algorithms infer their transformed return types
+and therefore construct through their computed type aliases instead. This
+keeps alias lambdas out of BetterC-incompatible dual-context member closures.
+JSON encodes an absent option as `null` and accepts `null`; TOML has no null
+value, so it omits absent option fields and makes an option present whenever its
+key is decoded. A missing field remains absent. `@required Option!T` requires
+the key to occur; in JSON, an explicitly present `null` still satisfies that
+key-presence rule while leaving the option absent.
 
 `Result!(T, E)` is the corresponding BetterC error-flow value. It has explicit
 `ok` and `err` variants plus a valid empty state used by `Result.init` and by a
@@ -1217,10 +1219,12 @@ symmetric operation for errors. Those checks are unconditional and remain
 enabled in release-fast builds. `Result!(void, E)` represents success without
 a success payload; its `unwrap`/`expect` consume the successful state.
 
-A function returning Result can opt into `mixin ResultReturns;`, which aliases
-`ok` and `err` to that function's exact return type. In addition to constructing
-an error from `E`, `err(otherResult)` consumes the error of a `Result!(U, E)`
-and rebinds it to the enclosing success type. Thus ordinary propagation is:
+Every non-constructor function with an explicit `Result!(T, E)` return type uses
+`mixin ResultReturns;`, which aliases `ok` and `err` to that function's exact
+return type. The generic transformation algorithms infer a computed Result type
+and construct through that type alias instead. In addition to constructing an
+error from `E`, `err(otherResult)` consumes the error of a `Result!(U, E)` and
+rebinds it to the enclosing success type. Thus ordinary propagation is:
 
 ```d
 auto value = operation();

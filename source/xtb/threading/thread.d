@@ -7,7 +7,7 @@ import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
-import xtb.core.result : Result;
+import xtb.core.result : Result, ResultReturns;
 import xtb.core.types : String;
 import xtb.threading.internal.start_latch : StartLatch, startLatchSupported;
 import backend = xtb.threading.internal.thread_backend;
@@ -434,6 +434,7 @@ nothrow @nogc:
         void* context = null,
     ) @system
     {
+        mixin ResultReturns;
         return startRawWith(ThreadStartOptions.init, function_, context);
     }
 
@@ -447,6 +448,7 @@ nothrow @nogc:
         void* context = null,
     ) @system
     {
+        mixin ResultReturns;
         if (function_ is null)
             panic("Thread.startRaw requires a non-null worker function");
 
@@ -456,12 +458,12 @@ nothrow @nogc:
             context,
         );
         if (!started.succeeded)
-            return Result!(Thread, ThreadStartError).err(
+            return err(
                 mapStartError(started.kind, started.nativeCode),
             );
 
         Thread thread = fromNativeStart(started);
-        return Result!(Thread, ThreadStartError).ok(move(thread));
+        return ok(move(thread));
     }
 
     /// Starts a typed worker without allocating startup storage.
@@ -477,6 +479,7 @@ nothrow @nogc:
         Args arguments,
     ) @system
     {
+        mixin ResultReturns;
         return startWith!function_(
             ThreadStartOptions.init,
             forward!arguments,
@@ -492,6 +495,7 @@ nothrow @nogc:
         Args arguments,
     ) @system
     {
+        mixin ResultReturns;
         validateTypedWorker!function_();
         alias WorkerParameters = Parameters!function_;
         alias State = StackTypedStartState!function_;
@@ -511,7 +515,7 @@ nothrow @nogc:
         static if (!startLatchSupported)
         {
             destroyTypedCaptures!function_(state.captures);
-            return Result!(Thread, ThreadStartError).err(
+            return err(
                 ThreadStartError(ThreadStartErrorKind.unsupported, 0),
             );
         }
@@ -525,14 +529,12 @@ nothrow @nogc:
             if (started.isErr)
             {
                 destroyTypedCaptures!function_(state.captures);
-                return Result!(Thread, ThreadStartError).err(
-                    started.unwrapError(),
-                );
+                return err(started.unwrapError());
             }
 
             state.captured.wait();
             Thread thread = started.unwrap();
-            return Result!(Thread, ThreadStartError).ok(move(thread));
+            return ok(move(thread));
         }
     }
 
@@ -558,6 +560,7 @@ nothrow @nogc:
         void* context = null,
     ) @system
     {
+        mixin ResultReturns;
         return startRawAllocWith(
             ThreadStartOptions.init,
             allocator,
@@ -574,6 +577,7 @@ nothrow @nogc:
         void* context = null,
     ) @system
     {
+        mixin ResultReturns;
         if (allocator is null || *allocator is null)
             panic("Thread.startRawAlloc requires a valid allocator");
         if (function_ is null)
@@ -581,9 +585,7 @@ nothrow @nogc:
 
         RawAllocatedStartState* state = allocator.tryAllocate!RawAllocatedStartState();
         if (state is null)
-            return Result!(Thread, ThreadStartAllocError).err(
-                allocationStartFailure(),
-            );
+            return err(allocationStartFailure());
 
         emplace(state);
         state.allocator = allocator;
@@ -600,13 +602,11 @@ nothrow @nogc:
             const error = mapStartError(started.kind, started.nativeCode);
             destroy(*state);
             allocator.deallocate(state);
-            return Result!(Thread, ThreadStartAllocError).err(
-                nativeStartFailure(error),
-            );
+            return err(nativeStartFailure(error));
         }
 
         Thread thread = fromNativeStart(started);
-        return Result!(Thread, ThreadStartAllocError).ok(move(thread));
+        return ok(move(thread));
     }
 
     /// Starts a typed worker from allocator-backed stable capture storage.
@@ -624,6 +624,7 @@ nothrow @nogc:
         Args arguments,
     ) @system
     {
+        mixin ResultReturns;
         return startAllocWith!function_(
             ThreadStartOptions.init,
             allocator,
@@ -641,6 +642,7 @@ nothrow @nogc:
         Args arguments,
     ) @system
     {
+        mixin ResultReturns;
         validateTypedWorker!function_();
         alias WorkerParameters = Parameters!function_;
         alias State = AllocatedTypedStartState!function_;
@@ -655,9 +657,7 @@ nothrow @nogc:
 
         State* state = allocator.tryAllocate!State();
         if (state is null)
-            return Result!(Thread, ThreadStartAllocError).err(
-                allocationStartFailure(),
-            );
+            return err(allocationStartFailure());
 
         emplace(state);
         state.allocator = allocator;
@@ -679,13 +679,11 @@ nothrow @nogc:
             const error = mapStartError(started.kind, started.nativeCode);
             destroy(*state);
             allocator.deallocate(state);
-            return Result!(Thread, ThreadStartAllocError).err(
-                nativeStartFailure(error),
-            );
+            return err(nativeStartFailure(error));
         }
 
         Thread thread = fromNativeStart(started);
-        return Result!(Thread, ThreadStartAllocError).ok(move(thread));
+        return ok(move(thread));
     }
 
     /// Whether this handle still owns a join/detach obligation.
@@ -705,15 +703,16 @@ nothrow @nogc:
     /// Sets the represented live thread's diagnostic name.
     Result!(void, ThreadNameError) setName(String name) @trusted
     {
+        mixin ResultReturns;
         if (!joinable_)
             panic("cannot name an empty Thread");
 
         const named = backend.setThreadNameBackend(handle_, name);
         if (!named.succeeded)
-            return Result!(void, ThreadNameError).err(
+            return err(
                 mapNameError(named.kind, named.nativeCode),
             );
-        return Result!(void, ThreadNameError).ok();
+        return ok();
     }
 
     /// Waits for completion, consumes the join obligation, and returns status.
@@ -763,17 +762,18 @@ package(xtb.threading) Result!(Thread, ThreadStartError) startStableThread(
     backend.NativeStableStartPacket* packet,
 ) @system
 {
+    mixin ResultReturns;
     if (packet is null || packet.function_ is null)
         panic("stable thread start requires a valid packet and worker");
 
     const started = backend.startStable(options.stackSize, packet);
     if (!started.succeeded)
-        return Result!(Thread, ThreadStartError).err(
+        return err(
             mapStartError(started.kind, started.nativeCode),
         );
 
     Thread thread = Thread.fromNativeStart(started);
-    return Result!(Thread, ThreadStartError).ok(move(thread));
+    return ok(move(thread));
 }
 
 /// Returns the calling thread's opaque identity, or `.init` on an unsupported
@@ -800,12 +800,13 @@ uint hardwareConcurrency() @trusted
 /// Sets the calling native thread's diagnostic name.
 Result!(void, ThreadNameError) setCurrentThreadName(String name) @trusted
 {
+    mixin ResultReturns;
     const named = backend.setCurrentThreadNameBackend(name);
     if (!named.succeeded)
-        return Result!(void, ThreadNameError).err(
+        return err(
             mapNameError(named.kind, named.nativeCode),
         );
-    return Result!(void, ThreadNameError).ok();
+    return ok();
 }
 
 static assert(!__traits(isCopyable, Thread));

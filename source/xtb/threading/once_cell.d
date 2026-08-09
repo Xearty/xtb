@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.internal.traits : Parameters, ReturnType;
 import core.lifetime : emplace, forward, move;
-import xtb.core.option : Option;
+import xtb.core.option : Option, OptionReturns;
 import xtb.threading.once : Once, callOnce;
 
 version (unittest) import xtb.threading.atomic : Atomic, MemoryOrder;
@@ -48,17 +48,19 @@ nothrow @nogc:
     /// Returns a borrowed pointer to the stored value without blocking.
     Option!(T*) tryGet() return @trusted
     {
+        mixin OptionReturns;
         if (!once_.completed())
-            return Option!(T*).none();
-        return Option!(T*).some(&storage_.value);
+            return none();
+        return some(&storage_.value);
     }
 
     /// Ditto, for a const cell.
     Option!(const(T)*) tryGet() const return @trusted
     {
+        mixin OptionReturns;
         if (!once_.completed())
-            return Option!(const(T)*).none();
-        return Option!(const(T)*).some(&storage_.value);
+            return none();
+        return some(&storage_.value);
     }
 
     /// Initializes the cell exactly once and returns its stored value.

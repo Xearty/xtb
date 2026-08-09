@@ -7,7 +7,7 @@ import core.lifetime : emplace, forward, move;
 import xtb.core.intrusive_list : ForwardListHook, IntrusiveForwardList;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
-import xtb.core.result : Result;
+import xtb.core.result : Result, ResultReturns;
 import xtb.threading.spawn : SpawnError, SpawnErrorKind;
 import xtb.threading.thread : Thread,
     ThreadId,
@@ -251,6 +251,7 @@ nothrow @nogc:
         auto ref Args arguments,
     ) @system
     {
+        mixin ResultReturns;
         return spawnWith!function_(
             ThreadStartOptions.init,
             forward!arguments,
@@ -263,6 +264,7 @@ nothrow @nogc:
         auto ref Args arguments,
     ) @system
     {
+        mixin ResultReturns;
         validateScopedWorker!function_();
         alias WorkerParameters = Parameters!function_;
         alias Node = ScopedChildNode!function_;
@@ -281,7 +283,7 @@ nothrow @nogc:
 
         Node* node = allocator_.tryAllocate!Node();
         if (node is null)
-            return Result!(void, SpawnError).err(scopeAllocationFailure());
+            return err(scopeAllocationFailure());
 
         emplace(node);
         node.header.allocation = node;
@@ -316,14 +318,12 @@ nothrow @nogc:
             const error = started.unwrapError();
             destroy(*node);
             allocator_.deallocate(node);
-            return Result!(void, SpawnError).err(
-                scopeThreadStartFailure(error),
-            );
+            return err(scopeThreadStartFailure(error));
         }
 
         node.header.thread = started.unwrap();
         children_.pushFront(&node.header);
-        return Result!(void, SpawnError).ok();
+        return ok();
     }
 
     private void finish() @trusted

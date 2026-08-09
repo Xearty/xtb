@@ -5,7 +5,7 @@ import core.stdc.stdlib : free, malloc;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
-import xtb.core.result : Result;
+import xtb.core.result : Result, ResultReturns;
 import xtb.threading;
 import atomicModule = xtb.threading.atomic;
 import barrierModule = xtb.threading.barrier;
@@ -1286,9 +1286,10 @@ nothrow @nogc
 version (linux) private Result!(int, ubyte) nestedSpawnResult(int value)
 nothrow @nogc
 {
+    mixin ResultReturns;
     if (value < 0)
-        return Result!(int, ubyte).err(7);
-    return Result!(int, ubyte).ok(value);
+        return err(7);
+    return ok(value);
 }
 
 version (linux) private int oneCaptureSpawnWorker(int value) nothrow @nogc

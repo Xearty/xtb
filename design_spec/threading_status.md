@@ -14,6 +14,8 @@ Status values:
 - **next**: highest-priority feature whose prerequisites are complete;
 - **pending**: not yet implemented;
 - **blocked**: waiting on a prerequisite or prototype/design gate.
+- **postponed**: intentionally deferred until its validation environment is
+  available.
 
 ## Feature order
 
@@ -39,7 +41,7 @@ Status values:
 | 18 | **complete** | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
 | 19 | **complete** | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
 | 20 | blocked | Monotonic time, sleeping, and timed waits | time foundation | Requires a stable monotonic-time abstraction that preserves the threading package dependency direction. |
-| 21 | **next** | Windows backend coverage | public contracts above | Implement every completed OS-dependent primitive/utility with the same public semantics. |
+| 21 | postponed | Windows backend coverage | public contracts above | Deferred until a Windows validation environment is available. |
 
 ## Feature 1 completion record
 
