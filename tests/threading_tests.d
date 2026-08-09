@@ -7,6 +7,7 @@ import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
 import xtb.threading;
 import atomicModule = xtb.threading.atomic;
+import barrierModule = xtb.threading.barrier;
 import condVarModule = xtb.threading.cond_var;
 import countdownModule = xtb.threading.internal.countdown;
 import generationWaitModule = xtb.threading.internal.generation_wait;
@@ -2222,6 +2223,11 @@ version (Posix) private enum DeathCase : ubyte
     waitGroupOverflow,
     waitGroupUnderflow,
     waitGroupDestroyActive,
+    barrierZeroParticipants,
+    barrierInitWait,
+    barrierInitDrop,
+    barrierCompletedWait,
+    barrierCompletedDrop,
     onceRecursive,
     onceCellRecursive,
     onceCellDestroyActive,
@@ -2442,6 +2448,27 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 group.add();
             }
             return;
+        case DeathCase.barrierZeroParticipants:
+            Barrier barrier = Barrier(0);
+            return;
+        case DeathCase.barrierInitWait:
+            Barrier barrier;
+            barrier.arriveAndWait();
+            return;
+        case DeathCase.barrierInitDrop:
+            Barrier barrier;
+            barrier.arriveAndDrop();
+            return;
+        case DeathCase.barrierCompletedWait:
+            Barrier barrier = Barrier(1);
+            barrier.arriveAndDrop();
+            barrier.arriveAndWait();
+            return;
+        case DeathCase.barrierCompletedDrop:
+            Barrier barrier = Barrier(1);
+            barrier.arriveAndDrop();
+            barrier.arriveAndDrop();
+            return;
         case DeathCase.onceRecursive:
             version (XTB_Checked)
             {
@@ -2556,6 +2583,8 @@ version (linux) private bool moveOwnershipWorks() nothrow @nogc
 extern (C) int main() nothrow @nogc
 {
     static foreach (testFunction; __traits(getUnitTests, atomicModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, barrierModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, mutexModule))
         testFunction();
@@ -2719,6 +2748,11 @@ extern (C) int main() nothrow @nogc
             DeathCase.latchUnderflow,
             DeathCase.waitGroupOverflow,
             DeathCase.waitGroupUnderflow,
+            DeathCase.barrierZeroParticipants,
+            DeathCase.barrierInitWait,
+            DeathCase.barrierInitDrop,
+            DeathCase.barrierCompletedWait,
+            DeathCase.barrierCompletedDrop,
         ])
             if (!expectAbort(deathCase))
                 return 30;

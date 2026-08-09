@@ -33,8 +33,8 @@ Status values:
 | 12 | **complete** | `Latch` | 1, 3, 4 | One-shot countdown with a full-width logical count and a 32-bit wait epoch. Implemented early while auditing the decided countdown design. |
 | 13 | **complete** | Internal generation machinery | 12 | `GenerationWaitState` uses one 32-bit phase token for identity and parking, plus checked-build waiter tracking. |
 | 14 | **complete** | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
-| 15 | **next** | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
-| 16 | pending | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
+| 15 | **complete** | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
+| 16 | **next** | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
 | 17 | pending | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
 | 18 | pending | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
 | 19 | pending | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
@@ -627,3 +627,44 @@ allocator, TypeInfo, ModuleInfo, or D runtime dependency. Focused formatting
 passes; the repository-wide format check remains blocked only by the existing
 format mismatch in `source/xtb/threading/internal/thread_linux.d`, which this
 feature does not modify.
+
+## Barrier completion record
+
+Implemented public allocation-free `Barrier` with full-width `size_t` current
+and next-generation counts plus the shared 32-bit `GenerationWaitState`. A
+private mutex makes arrival, permanent drop, phase reset, and generation
+advance linearizable. Non-final `arriveAndWait` callers register before
+releasing the state mutex and park without holding it; the final arrival resets
+the next phase, advances the generation with release ordering, and wakes every
+waiter. The mutex handoff chain and generation acquire establish publication
+for writes contributed by every participant.
+
+`Barrier.init` is a valid inert state whose arrival operations fail explicitly.
+The explicit constructor accepts the complete positive `size_t` range and
+rejects zero in every build. `arriveAndDrop` contributes the caller's current
+arrival, reduces all later phase counts, and never waits for phase completion.
+The final drop advances the current generation before entering the permanent
+zero-participant state; both arrival operations reject subsequent use. The type
+is non-copyable and retains checked active-waiter diagnostics through the shared
+generation state.
+
+Validation covers a one-participant fast path, eight participants crossing 512
+phases, simultaneous arrivals, release/acquire publication, staged participant
+reduction from four to zero, an early nonblocking drop, and a final drop that
+publishes data while waking a parked waiter. Unconditional death tests cover a
+zero constructor, both arrival operations on `Barrier.init`, and both arrival
+operations after permanent completion. The forced unsupported backend supports
+single-participant phase completion and all-drop completion while a genuinely
+blocking arrival fails explicitly. Both BetterC threading runners enumerate the
+module, and the aggregate package re-exports it.
+
+Repository-wide lint and debug, optimized, release-safe, release-fast compile
+and manual runtime, and AddressSanitizer test modes pass with LDC 1.41.0. The
+monolithic and component libraries build in every production mode, all examples
+run, checked and unchecked public modules cross-compile for x86-64 Windows, and
+the release archive adds no allocator, TypeInfo, ModuleInfo, or D runtime
+dependency.
+Focused formatting passes; the repository-wide format check remains blocked
+only by the existing mismatch in
+`source/xtb/threading/internal/thread_linux.d`, which this feature does not
+modify.

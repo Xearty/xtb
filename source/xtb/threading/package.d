@@ -1,6 +1,7 @@
 module xtb.threading;
 
 public import xtb.threading.atomic;
+public import xtb.threading.barrier;
 public import xtb.threading.cond_var;
 public import xtb.threading.latch;
 public import xtb.threading.mutex;
