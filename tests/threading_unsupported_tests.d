@@ -4,6 +4,7 @@ import core.stdc.stdlib : free, malloc;
 import xtb.core.memory : Allocator;
 import xtb.threading;
 import condVarModule = xtb.threading.cond_var;
+import generationWaitModule = xtb.threading.internal.generation_wait;
 import latchModule = xtb.threading.latch;
 import mutexModule = xtb.threading.mutex;
 import onceModule = xtb.threading.once;
@@ -84,6 +85,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, onceCellModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, generationWaitModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, startLatchModule))
         testFunction();

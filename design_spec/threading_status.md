@@ -31,8 +31,8 @@ Status values:
 | 10 | **complete** | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
 | 11 | **complete** | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
 | 12 | **complete** | `Latch` | 1, 3, 4 | One-shot countdown with a full-width logical count and a 32-bit wait epoch. Implemented early while auditing the decided countdown design. |
-| 13 | **next** | Internal generation machinery | 12 | Countdown state is complete with `Latch`; reusable generation state remains. |
-| 14 | pending | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
+| 13 | **complete** | Internal generation machinery | 12 | `GenerationWaitState` separates the full-width logical phase from its 32-bit parkable wake epoch and tracks checked-build waiters. |
+| 14 | **next** | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
 | 15 | pending | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
 | 16 | pending | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
 | 17 | pending | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
@@ -561,3 +561,32 @@ no-op behavior, multi-waiter completion and publication, concurrent countdown
 publication, full join cleanup, and unconditional underflow death behavior.
 The aggregate module re-exports `Latch`, and both the native and forced-
 unsupported BetterC threading runners enumerate its module and internal state.
+
+## Internal generation machinery completion record
+
+Implemented package-private `GenerationWaitState` in
+`xtb.threading.internal.generation_wait` as the reusable phase-change waiting
+foundation for `WaitGroup` and `Barrier`. A full-width `size_t` logical
+generation carries phase identity and acquire/release publication, while a
+separate wait-supported 32-bit epoch supplies the parking address. Waiters
+snapshot the epoch, recheck the logical generation, and only then park, closing
+the completion-before-park lost-wakeup race without restricting phase identity
+to the native futex width.
+
+Every return decision uses the logical generation rather than notification or
+epoch state. A wrapped wake epoch therefore remains only a wake hint and cannot
+make an old phase look current. Checked builds additionally register active
+waiters with overflow/underflow protection, expose a package-level reuse query,
+and diagnose destruction while a waiter remains registered; this metadata is
+absent from release-fast builds.
+
+Validation covers zero-state and immediate changed-generation behavior,
+eight-waiter wake-all publication, exact waiter registration/cleanup, 2,048
+rapid reusable generations with deliberate completion-before-park races, forced
+32-bit wake-epoch wrap, non-copyability, and nonblocking operation on the forced
+unsupported backend. Both explicit BetterC threading runners enumerate the new
+internal module. Focused and repository-wide validation passes in checked debug,
+optimized, release-safe, and AddressSanitizer modes; release-fast production and
+test targets compile; every example runs; the module cross-compiles for x86-64
+Windows; and the release threading archive adds no allocator, TypeInfo,
+ModuleInfo, or D runtime dependency.
