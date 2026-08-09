@@ -494,6 +494,11 @@ nothrow @nogc
     entered.store(1, MemoryOrder.release);
 }
 
+version (linux) private int zeroArgTypedWorker() nothrow @nogc
+{
+    return 31;
+}
+
 version (linux) private int constValueWorker(const int value) nothrow @nogc
 {
     return value;
@@ -630,9 +635,26 @@ version (linux) private void nestedTypedWorkerCompileCheck() nothrow @nogc @syst
         return value + captured;
     }
 
+    static assert(!__traits(compiles, Thread.start!nested(1)));
     static assert(!__traits(compiles,
             Thread.startAlloc!nested(mallocAllocator(), 1)));
 }
+
+version (linux) static assert(!__traits(compiles, Thread.start!refTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!outTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!lazyTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!inTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!sharedTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!wrongReturnTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!refReturnTypedWorker()));
+version (linux) static assert(!__traits(compiles, Thread.start!missingNothrowTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!missingNogcTypedWorker(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!(MemberTypedWorker.run)(1)));
+version (linux) static assert(__traits(compiles, Thread.start!(StaticMemberTypedWorker.run)(1)));
+version (linux) static assert(!__traits(compiles, Thread.start!constValueWorker()));
+version (linux) static assert(!__traits(compiles, Thread.start!constValueWorker(1, 2)));
+version (linux) static assert(__traits(compiles,
+        Thread.startWith!constValueWorker(ThreadStartOptions.init, 1)));
 
 version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!refTypedWorker(mallocAllocator(), 1)));
@@ -660,6 +682,187 @@ version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!constValueWorker(mallocAllocator())));
 version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!constValueWorker(mallocAllocator(), 1, 2)));
+
+version (linux) private bool typedStartWorks() nothrow @nogc
+{
+    auto zeroStarted = Thread.start!zeroArgTypedWorker();
+    if (!zeroStarted.isOk)
+        return false;
+    Thread zeroThread = zeroStarted.unwrap();
+    if (zeroThread.join() != 31)
+        return false;
+
+    auto constStarted = Thread.start!constValueWorker(73);
+    if (!constStarted.isOk)
+        return false;
+    Thread constThread = constStarted.unwrap();
+    if (constThread.join() != 73)
+        return false;
+
+    Atomic!uint entered;
+    auto voidStarted = Thread.start!allocatedVoidWorker(&entered);
+    if (!voidStarted.isOk)
+        return false;
+    Thread voidThread = voidStarted.unwrap();
+    if (voidThread.join() != 0 || entered.load(MemoryOrder.acquire) != 1)
+        return false;
+
+    int[4] values = [3, 5, 7, 11];
+    auto sliceStarted = Thread.start!sliceValueWorker(values[]);
+    if (!sliceStarted.isOk)
+        return false;
+    Thread sliceThread = sliceStarted.unwrap();
+    if (sliceThread.join() != 26)
+        return false;
+
+    auto alignedStarted = Thread.start!overAlignedWorker(OverAlignedCapture(84));
+    if (!alignedStarted.isOk)
+        return false;
+    Thread alignedThread = alignedStarted.unwrap();
+    return alignedThread.join() == 84;
+}
+
+version (linux) private bool typedMoveLifetimeWorks() nothrow @nogc
+{
+    Atomic!uint destructions;
+    MoveOnlyCapture capture;
+    capture.destructions = &destructions;
+    capture.value = 91;
+
+    auto started = Thread.start!moveOnlyWorker(move(capture));
+    if (!started.isOk)
+        return false;
+    Thread thread = started.unwrap();
+    return thread.join() == 91 && destructions.load() == 1;
+}
+
+version (linux) private bool typedConversionRunsOnParent() nothrow @nogc
+{
+    ThreadId convertedOn;
+    ThreadId workerThread;
+    ConversionSource source = ConversionSource(&convertedOn, 55);
+    const parent = currentThreadId();
+
+    auto started = Thread.start!convertedCaptureWorker(source, &workerThread);
+    if (!started.isOk)
+        return false;
+    Thread thread = started.unwrap();
+    return thread.join() == 55 && convertedOn == parent &&
+        workerThread != ThreadId.init && workerThread != parent;
+}
+
+version (linux) private bool typedStartFailureCleansUp() nothrow @nogc
+{
+    Atomic!uint destructions;
+    MoveOnlyCapture capture;
+    capture.destructions = &destructions;
+    capture.value = 13;
+
+    auto started = Thread.startWith!moveOnlyWorker(
+        ThreadStartOptions(size_t.max),
+        move(capture),
+    );
+    if (!started.isErr)
+        return false;
+    return started.unwrapError().kind ==
+        ThreadStartErrorKind.invalidConfiguration && destructions.load() == 1;
+}
+
+version (linux) private bool typedStackOptionsWork() nothrow @nogc
+{
+    enum requested = 256 * 1024 + 123;
+    StackSizeContext context;
+    auto started = Thread.startWith!stackSizeWorker(
+        ThreadStartOptions(requested),
+        &context,
+    );
+    if (!started.isOk)
+        return false;
+    Thread thread = started.unwrap();
+    return thread.join() == 0 && context.observed >= requested;
+}
+
+version (linux) private struct TypedStartHandoffContext
+{
+    Atomic!uint workerEntered;
+    Atomic!uint releaseWorker;
+    Atomic!uint startState;
+    int workerStatus;
+}
+
+version (linux) private int blockedTypedHandoffWorker(
+    Atomic!uint* workerEntered,
+    Atomic!uint* releaseWorker,
+) nothrow @nogc
+{
+    workerEntered.store(1, MemoryOrder.release);
+    releaseWorker.wait(0, MemoryOrder.acquire);
+    return 74;
+}
+
+version (linux) private extern (C) void* typedStartHandoffStarter(void* opaque)
+nothrow @nogc
+{
+    TypedStartHandoffContext* context = cast(TypedStartHandoffContext*) opaque;
+    auto started = Thread.start!blockedTypedHandoffWorker(
+        &context.workerEntered,
+        &context.releaseWorker,
+    );
+    if (!started.isOk)
+    {
+        context.startState.store(2, MemoryOrder.release);
+        return null;
+    }
+
+    Thread thread = started.unwrap();
+    context.startState.store(1, MemoryOrder.release);
+    context.workerStatus = thread.join();
+    return null;
+}
+
+version (linux) private bool typedStartReturnsBeforeWorkerCompletion()
+nothrow @nogc
+{
+    TypedStartHandoffContext context;
+    pthread_t starter;
+    if (pthread_create(&starter, null, &typedStartHandoffStarter, &context) != 0)
+        return false;
+
+    bool workerEntered;
+    bool startReturned;
+    foreach (_; 0 .. 100_000)
+    {
+        workerEntered = context.workerEntered.load(MemoryOrder.acquire) != 0;
+        startReturned = context.startState.load(MemoryOrder.acquire) == 1;
+        if (workerEntered && startReturned)
+            break;
+        if (context.startState.load(MemoryOrder.acquire) == 2)
+            break;
+        yieldThread();
+    }
+
+    context.releaseWorker.store(1, MemoryOrder.release);
+    context.releaseWorker.notifyOne();
+
+    if (pthread_join(starter, null) != 0)
+        return false;
+    return workerEntered && startReturned && context.workerStatus == 74;
+}
+
+version (linux) private bool typedStartShortStress() nothrow @nogc
+{
+    enum rounds = 32;
+    foreach (_; 0 .. rounds)
+    {
+        auto started = Thread.start!zeroArgTypedWorker();
+        if (!started.isOk)
+            return false;
+        Thread thread = started.unwrap();
+        if (thread.join() != 31)
+            return false;
+    }
+    return true;
+}
 
 version (linux) private bool allocatedRawStartWorks() nothrow @nogc
 {
@@ -1590,6 +1793,20 @@ extern (C) int main() nothrow @nogc
             return 45;
         if (!rawThreadBasics())
             return 10;
+        if (!typedStartWorks())
+            return 46;
+        if (!typedMoveLifetimeWorks())
+            return 47;
+        if (!typedConversionRunsOnParent())
+            return 48;
+        if (!typedStartFailureCleansUp())
+            return 49;
+        if (!typedStackOptionsWork())
+            return 50;
+        if (!typedStartReturnsBeforeWorkerCompletion())
+            return 51;
+        if (!typedStartShortStress())
+            return 52;
         if (!allocatedRawStartWorks())
             return 23;
         if (!allocatedTypedStartWorks())

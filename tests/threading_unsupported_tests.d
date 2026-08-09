@@ -76,6 +76,13 @@ extern (C) int main() nothrow @nogc
     if (started.unwrapError().kind != ThreadStartErrorKind.unsupported)
         return 2;
 
+    auto typedZeroAllocStarted = Thread.start!typedWorker(42);
+    if (!typedZeroAllocStarted.isErr)
+        return 13;
+    if (typedZeroAllocStarted.unwrapError().kind !=
+        ThreadStartErrorKind.unsupported)
+        return 14;
+
     TrackingAllocator rawTracker = TrackingAllocator.create();
     auto rawAllocStarted = Thread.startRawAlloc(rawTracker.allocator, &worker);
     if (!rawAllocStarted.isErr)

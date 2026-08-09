@@ -9,6 +9,7 @@ import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result;
 import xtb.core.types : String;
+import xtb.threading.internal.start_latch : StartLatch, startLatchSupported;
 import backend = xtb.threading.internal.thread_backend;
 
 /// Portable raw worker callback used by the lowest-level thread API.
@@ -212,25 +213,43 @@ private void validateTypedWorker(alias function_)()
 }
 
 // The union suppresses automatic destruction of `T`; exactly one capture member
-// is manually constructed after allocation and manually destroyed on either the
-// native-start failure path or the child-consumption path.
+// is manually constructed in explicit start storage and manually destroyed on
+// either the native-start failure path or the child-consumption path.
 private union CaptureSlot(T)
 {
     T value;
 }
 
-private struct AllocatedTypedStartState(alias function_)
+private struct TypedCaptures(alias function_)
 {
     alias WorkerParameters = Parameters!function_;
-
-    backend.NativeStableStartPacket native;
-    Allocator* allocator;
 
     static foreach (index; 0 .. WorkerParameters.length)
         mixin(
             "CaptureSlot!(Unqual!(WorkerParameters[" ~ index.stringof
                 ~ "])) capture" ~ index.stringof ~ ";",
         );
+}
+
+private void destroyTypedCaptures(alias function_)(
+    ref TypedCaptures!function_ captures,
+) @system
+{
+    static foreach_reverse (index; 0 .. Parameters!function_.length)
+        destroy(captures.tupleof[index].value);
+}
+
+private struct AllocatedTypedStartState(alias function_)
+{
+    backend.NativeStableStartPacket native;
+    Allocator* allocator;
+    TypedCaptures!function_ captures;
+}
+
+private struct StackTypedStartState(alias function_)
+{
+    StartLatch captured;
+    TypedCaptures!function_ captures;
 }
 
 private template decimalIndex(size_t value)
@@ -257,7 +276,6 @@ private int typedAllocatedStartTrampoline(alias function_)(void* opaque) @system
     validateTypedWorker!function_();
     alias WorkerParameters = Parameters!function_;
     alias State = AllocatedTypedStartState!function_;
-    static assert(State.tupleof.length == WorkerParameters.length + 2);
 
     State* state = cast(State*) opaque;
     Allocator* allocator = state.allocator;
@@ -265,19 +283,48 @@ private int typedAllocatedStartTrampoline(alias function_)(void* opaque) @system
     static foreach (index; 0 .. WorkerParameters.length)
         mixin(
             "Unqual!(WorkerParameters[" ~ decimalIndex!index ~ "]) argument"
-                ~ decimalIndex!index ~ " = move(state.tupleof["
-                ~ decimalIndex!(index + 2) ~ "].value);",
+                ~ decimalIndex!index ~ " = move(state.captures.tupleof["
+                ~ decimalIndex!index ~ "].value);",
         );
 
-    // Capture destruction order is an implementation detail; use one consistent
-    // order for manually managed source storage.
-    static foreach_reverse (index; 0 .. WorkerParameters.length)
-        destroy(state.tupleof[index + 2].value);
+    destroyTypedCaptures!function_(state.captures);
 
     // Every typed capture now lives in child-local storage. Release the source
     // allocation before entering potentially long-running user code.
     destroy(*state);
     allocator.deallocate(state);
+
+    static if (is(ReturnType!function_ == void))
+    {
+        mixin("function_(" ~ movedWorkerArgumentList!(WorkerParameters.length) ~ ");");
+        return 0;
+    }
+    else
+    {
+        mixin("return function_(" ~ movedWorkerArgumentList!(WorkerParameters.length) ~ ");");
+    }
+}
+
+private int typedStackStartTrampoline(alias function_)(void* opaque) @system
+{
+    validateTypedWorker!function_();
+    alias WorkerParameters = Parameters!function_;
+    alias State = StackTypedStartState!function_;
+
+    State* state = cast(State*) opaque;
+
+    static foreach (index; 0 .. WorkerParameters.length)
+        mixin(
+            "Unqual!(WorkerParameters[" ~ decimalIndex!index ~ "]) argument"
+                ~ decimalIndex!index ~ " = move(state.captures.tupleof["
+                ~ decimalIndex!index ~ "].value);",
+        );
+
+    destroyTypedCaptures!function_(state.captures);
+
+    // This is the final access to the parent-stack packet. The caller may let
+    // that storage disappear as soon as the signal is observed.
+    state.captured.signal();
 
     static if (is(ReturnType!function_ == void))
     {
@@ -407,6 +454,78 @@ nothrow @nogc:
 
         Thread thread = fromNativeStart(started);
         return Result!(Thread, ThreadStartError).ok(move(thread));
+    }
+
+    /// Starts a typed worker without allocating startup storage.
+    ///
+    /// Arguments are captured synchronously in the starting thread using the
+    /// worker's declared parameter types. After native creation, this call waits
+    /// only until the child has moved those captures to child-local storage; it
+    /// does not wait for user worker completion.
+    static Result!(Thread, ThreadStartError) start(
+        alias function_,
+        Args...,
+    )(
+        Args arguments,
+    ) @system
+    {
+        return startWith!function_(
+            ThreadStartOptions.init,
+            forward!arguments,
+        );
+    }
+
+    /// Starts a typed zero-allocation worker with explicit native options.
+    static Result!(Thread, ThreadStartError) startWith(
+        alias function_,
+        Args...,
+    )(
+        ThreadStartOptions options,
+        Args arguments,
+    ) @system
+    {
+        validateTypedWorker!function_();
+        alias WorkerParameters = Parameters!function_;
+        alias State = StackTypedStartState!function_;
+
+        static assert(
+            Args.length == WorkerParameters.length,
+            "typed Thread start argument count must match worker parameter count",
+        );
+
+        State state;
+        static foreach (index; 0 .. WorkerParameters.length)
+            emplace(
+                &state.captures.tupleof[index].value,
+                move(arguments[index]),
+            );
+
+        static if (!startLatchSupported)
+        {
+            destroyTypedCaptures!function_(state.captures);
+            return Result!(Thread, ThreadStartError).err(
+                ThreadStartError(ThreadStartErrorKind.unsupported, 0),
+            );
+        }
+        else
+        {
+            auto started = startRawWith(
+                options,
+                &typedStackStartTrampoline!function_,
+                &state,
+            );
+            if (started.isErr)
+            {
+                destroyTypedCaptures!function_(state.captures);
+                return Result!(Thread, ThreadStartError).err(
+                    started.unwrapError(),
+                );
+            }
+
+            state.captured.wait();
+            Thread thread = started.unwrap();
+            return Result!(Thread, ThreadStartError).ok(move(thread));
+        }
     }
 
     private static Thread fromNativeStart(
@@ -541,15 +660,14 @@ nothrow @nogc:
 
         static foreach (index; 0 .. WorkerParameters.length)
             emplace(
-                &state.tupleof[index + 2].value,
+                &state.captures.tupleof[index].value,
                 move(arguments[index]),
             );
 
         const started = backend.startStable(options.stackSize, &state.native);
         if (!started.succeeded)
         {
-            static foreach_reverse (index; 0 .. WorkerParameters.length)
-                destroy(state.tupleof[index + 2].value);
+            destroyTypedCaptures!function_(state.captures);
             const error = mapStartError(started.kind, started.nativeCode);
             destroy(*state);
             allocator.deallocate(state);

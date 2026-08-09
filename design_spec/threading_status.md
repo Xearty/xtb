@@ -23,8 +23,8 @@ Status values:
 | 2 | **complete** | Raw thread/platform foundations + allocator-backed starts | 1 for the POSIX ABI handoff; typed `startAlloc` also uses core allocator/lifetime support | `cpuRelax`, `Thread.startRaw`/`startRawWith`, `startRawAlloc`/`startRawAllocWith`, typed `startAlloc`/`startAllocWith`, lifecycle, join/detach, `ThreadId`, start options/errors, stable native-start adapter, `currentThreadId`, `yieldThread`, `hardwareConcurrency`, Linux naming, and an explicit unsupported backend. |
 | 3 | **complete** | Internal parking | 1 | Package-private 32-bit compare-and-sleep parking with Linux process-private futex wait/wake and explicit unsupported-platform failure. |
 | 4 | **complete** | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/`notifyOne`/`notifyAll` plus the allocation-free internal one-shot start latch are complete. |
-| 5 | **next** | Typed zero-allocation `Thread.start` | 2, 4 | Stack-packet/latch handoff for `start`/`startWith`. Typed callable/parameter/capture rules are already exercised by the allocator-backed `startAlloc` path from Feature 2. |
-| 6 | pending | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
+| 5 | **complete** | Typed zero-allocation `Thread.start` | 2, 4 | `start`/`startWith` use worker-typed parent-stack captures and a one-shot latch handoff; the worker runs only after capture ownership has moved to child-local storage. |
+| 6 | **next** | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
 | 7 | pending | `Mutex` | 1, 2, 3, 6 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
 | 8 | pending | `ConditionVariable` | 3, 7 | Atomic unlock/wait/relock protocol, notify-one/all, checked mutex association. |
 | 9 | pending | `Semaphore` | 1, 3, 4 | Counting permits, overflow protection, efficient blocking wakeups. |
@@ -292,6 +292,34 @@ optimized/release-safe/release-fast and AddressSanitizer runs, direct execution
 of the no-parking fallback, host symbol inspection proving the supported path
 references `StartLatch.wait`/`signal` rather than the old polling atomics, and
 Linux cross-compilation for every architecture with a v1 futex mapping.
+
+## Feature 5 completion record — typed zero-allocation thread start
+
+Implemented `Thread.start!worker(args...)` and `Thread.startWith!worker(options,
+args...)` as the allocation-free typed start surface. Argument conversion into the
+worker's declared parameter types occurs synchronously in the starting thread.
+Those captures live in a parent-stack packet until the child moves them into
+child-local values, destroys the source captures, and signals `StartLatch` as its
+final packet access. Only then may the parent return and let the packet disappear;
+the user worker is invoked after the signal, so worker duration does not extend
+the start call.
+
+The stack-backed and allocator-backed typed paths reuse the same generated
+`TypedCaptures` storage and exact-destruction helper. Their trampolines remain
+separate because their ownership completions differ deliberately: stack-backed
+start signals the parent latch, while allocator-backed start deallocates stable
+state on the child thread. Callable validation and worker argument rules are
+shared unchanged between both surfaces.
+
+Validation includes zero-argument, `int`, and `void` workers; `const`, slice, and
+over-aligned captures; move-only exact destruction; parent-thread conversion
+into the declared worker parameter type; explicit stack options; native-start
+failure cleanup; a blocked worker proving typed start returns after capture
+handoff rather than worker completion; a short 32-start handoff stress run; and
+compile-time acceptance/rejection checks matching the allocator-backed typed
+surface. Forced-unsupported tests verify `Thread.start` returns
+`ThreadStartErrorKind.unsupported` rather than attempting to use an unavailable
+start latch.
 
 ## Prototype gates
 
