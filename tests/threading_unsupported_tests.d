@@ -6,6 +6,7 @@ import xtb.threading;
 import condVarModule = xtb.threading.cond_var;
 import mutexModule = xtb.threading.mutex;
 import parkingModule = xtb.threading.internal.parking;
+import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
 
 static assert(!Atomic!uint.waitSupported);
@@ -70,6 +71,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, mutexModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, condVarModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, semaphoreModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();

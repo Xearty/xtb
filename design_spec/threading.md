@@ -2625,36 +2625,192 @@ The counting semaphore surface is:
 ```d
 struct Semaphore
 {
+    this(size_t initialPermits);
+
     void release(size_t count = 1);
     void acquire();
     bool tryAcquire();
 }
 ```
 
-A zero-initialized semaphore has zero permits. Overflowing the representable
-permit count is a programming error.
+`Semaphore.init` is valid and contains zero permits. `Semaphore(n)` starts with
+exactly `n` immediately available permits. The type is allocation-free,
+non-copyable, and address-stable after publication. Destroying or relocating it
+while another thread can access it or while an acquire is active is a programming
+error.
 
-`release(0)` is a no-op. `release(n)` publishes preceding writes with release
-semantics before making permits available; a successful `acquire`/`tryAcquire`
-uses acquire semantics when consuming a permit. `acquire` decrements the count
-exactly once and blocks only while no permit is available. `tryAcquire` never
-parks. V1 provides no FIFO/fairness guarantee between waiters.
+`release(0)` is a no-op. `release(n)` contributes exactly `n` permits. A
+successful `acquire` or `tryAcquire` consumes exactly one. Overflowing the
+`size_t` count of unreserved permits is an unconditional programming error; the
+implementation must detect overflow before committing a wrapping arithmetic
+update.
 
-The implementation may wake one waiter per newly available permit or use a more
-coalesced wake strategy provided it cannot strand waiters while permits remain.
-Destroying/relocating a semaphore while another thread can access or wait on it
-is a programming error.
+### Fast permit counter plus private waiter queue
 
-The semaphore is non-copyable. A destructive move is only permitted before
-publication under the general address-stability rule.
+V1 deliberately does **not** use the earlier proposed shared 32-bit
+`wakeEpoch`. A forever-reused finite-width epoch brings back a theoretical ABA
+case for a thread delayed between observing the epoch and entering the parking
+operation. Adding enough generation/reclamation machinery to eliminate that ABA
+would make this primitive more complicated than necessary.
 
-Do not require the permit counter itself to be directly waitable. A portable v1
-implementation may keep `Atomic!size_t permits` plus a separate wait-supported
-32-bit `wakeEpoch`. An acquiring thread that sees zero snapshots the epoch,
-rechecks permits, then waits on the epoch only if permits are still zero.
-`release` first makes permits visible, then advances/notifies the epoch. This
-keeps `size_t` API capacity independent of futex wait-word width and closes the
-check-before-sleep race. Equivalent protocols are allowed.
+Instead the semaphore combines:
+
+```text
+Atomic!size_t permits                 # available, unreserved permits
+Mutex stateMutex                     # serializes slow registration/release
+IntrusiveQueue!(SemaphoreWaiter, ...) waiters
+
+SemaphoreWaiter (lives on acquire() caller's stack)
+├── Atomic!uint state                 # queued / parking / signaled
+└── ForwardListHook queueHook
+```
+
+`permits` is independent of parking width and therefore preserves the full
+`size_t` public count on both 32-bit and 64-bit targets. Each blocking acquire
+owns a unique one-shot 32-bit wait word for only that call, so no wait word is
+reused across logical semaphore generations and there is no finite-width
+wake-counter wrap/ABA problem. The intrusive queue allocates nothing; it links
+only stack nodes whose lifetime is explicitly protected by the protocol below.
+
+The central invariant is:
+
+> **If the waiter queue is non-empty, `permits == 0`.**
+
+A permit represented in `permits` is unreserved and may be consumed by the fast
+path. A permit handed directly to a queued waiter is already reserved for that
+waiter and is never inserted into `permits`. Thus a racing `tryAcquire` cannot
+steal a permit that `release` has selected for an existing blocked acquire.
+
+### `tryAcquire`
+
+`tryAcquire` is a true non-blocking operation: it never takes `stateMutex` and
+never parks. It repeatedly CAS-decrements `permits` only while the observed value
+is nonzero. Successful consumption uses acquire ordering; failure may use relaxed
+loads/CAS failure ordering.
+
+This means internal slow-path mutex contention cannot make `tryAcquire` block.
+Returning `false` means no unreserved permit was successfully consumed during
+the operation; permits already reserved for queued waiters are intentionally not
+available to it.
+
+### `acquire`
+
+`acquire` first executes the same atomic permit-consumption fast path as
+`tryAcquire`. If it succeeds, no internal mutex or parking operation is touched.
+
+After a fast-path miss, on a parking-supported backend it performs:
+
+```text
+lock stateMutex
+    recheck permits with the same atomic consume operation
+    if successful:
+        unlock stateMutex
+        return
+
+    enqueue this acquire's stack waiter
+unlock stateMutex
+
+commit waiter state from queued -> parking
+if release already changed it to signaled:
+    do not park
+else:
+    Atomic.wait while state == parking
+
+lock + unlock stateMutex   # waiter-node lifetime barrier
+return
+```
+
+The second permit check is mandatory. It closes the race in which `release` adds
+an unreserved permit after the first fast-path miss but before slow-path
+registration. Registration and release selection are serialized by `stateMutex`,
+so after that recheck the acquire either consumes a real permit or is present in
+the queue before a later release can decide where its permits go.
+
+The waiter state is one-shot:
+
+```text
+queued   = registered, but has not committed to entering Atomic.wait
+parking  = waiter intends to park on this private word
+signaled = one permit has been handed directly to this waiter
+```
+
+The waiter CASes `queued -> parking`. `release` atomically changes either
+`queued` or `parking` to `signaled` with release ordering. If `release` observes
+`queued`, no wake syscall is needed: the waiter's CAS observes `signaled` and it
+never parks. If `release` observes `parking`, it calls `notifyOne`; a wake before
+the kernel sleep point remains safe because `Atomic.wait`/parking compares the
+changed value before sleeping. The waiter observes `signaled` with acquire
+semantics, establishing publication for a directly handed-off permit.
+
+On a backend without parking support, the atomic fast path remains functional.
+An `acquire` that finds an available permit succeeds normally. Only an acquire
+that would actually need to block fails through the explicit unsupported-platform
+panic. `release` and `tryAcquire` therefore remain usable without a parking
+backend.
+
+### `release`
+
+`release(count)` takes `stateMutex` on a parking-supported backend and consumes
+the requested count in this order:
+
+1. while both `count != 0` and queued waiters exist, pop the oldest waiter and
+   hand one permit directly to it by changing its private state to `signaled`;
+2. decrement the local release count for each direct handoff; and
+3. add any remainder to `permits` using a release CAS with overflow checking.
+
+The FIFO queue is a private selection policy, not a public fairness guarantee. A
+signaled thread must still be scheduled and complete its acquire-side lifetime
+barrier, so completion order is unspecified. The useful invariant is only that a
+permit selected for an already queued waiter cannot be barged by the atomic fast
+path.
+
+Adding the remainder to `permits` uses release ordering. A fast-path
+CAS-decrement uses acquire ordering. Direct handoff uses a release update of the
+waiter's private state paired with the acquiring waiter observing that state with
+acquire ordering. Thus writes sequenced before the providing `release` happen
+before code sequenced after the corresponding successful acquire. Wake calls
+themselves carry no publication ordering.
+
+### Stack waiter lifetime
+
+As with `CondVar`, the intrusive queue stores pointers to waiter records on other
+threads' stacks, so the final pointer use must be proven before `acquire` returns.
+`release` retains `stateMutex` through its final access to each selected waiter,
+including any required `notifyOne`. After observing `signaled`, the waiter
+acquires and releases `stateMutex` before returning. That mutex crossing proves
+that no releaser can still hold a live pointer to the waiter node when its stack
+lifetime ends.
+
+The releaser never waits for the selected waiter to run; it performs only its
+normal bounded queue/state work and wake syscall while owning `stateMutex`. This
+avoids the progress problem of a reclamation scheme that would wait for a
+descheduled waiter before reusing shared parking storage.
+
+### Required `Semaphore` tests
+
+At minimum cover:
+
+- `.init`, `Semaphore(n)`, `release(0)`, `release(n)`, and exact
+  `tryAcquire` consumption;
+- `tryAcquire` while `stateMutex` is deliberately held, proving the public
+  non-blocking path does not take that mutex;
+- release/acquire publication through both stored permits and a direct waiter
+  handoff;
+- deterministic release after waiter registration but before the waiter commits
+  to parking, proving the wake is retained without a wake syscall requirement;
+- deterministic waiter-node lifetime synchronization where the waiter observes
+  `signaled` before the releaser's final wake/pointer access completes;
+- several waiters with `release(k)` proving exactly `k` permits become
+  consumable and no permit is duplicated;
+- repeated bounded contention with an initial capacity greater than one, proving
+  concurrent critical-section occupancy never exceeds the permit count;
+- overflow at `size_t.max` as an unconditional fatal programming error;
+- non-copyability/address-stability expectations; and
+- unsupported-backend behavior where non-blocking permit operations still work
+  and only an acquire that must block fails explicitly.
+
+Keep stress counts bounded. Do not make correctness depend on FIFO scheduling or
+on a particular kernel wake order.
 
 ## Latch
 

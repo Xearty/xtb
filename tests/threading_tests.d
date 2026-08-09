@@ -10,6 +10,7 @@ import atomicModule = xtb.threading.atomic;
 import condVarModule = xtb.threading.cond_var;
 import mutexModule = xtb.threading.mutex;
 import parkingModule = xtb.threading.internal.parking;
+import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
 import spinWaitModule = xtb.threading.spin_wait;
 
@@ -1919,6 +1920,175 @@ version (linux) private bool condVarRepeatedWaits() nothrow @nogc
         context.completed.load(MemoryOrder.acquire) == rounds;
 }
 
+version (linux) private struct SemaphorePublicationContext
+{
+    Semaphore semaphore;
+    Atomic!uint entered;
+    int payload;
+    int observed;
+}
+
+version (linux) private int semaphorePublicationWaiter(
+    SemaphorePublicationContext* context,
+) nothrow @nogc
+{
+    context.entered.store(1, MemoryOrder.release);
+    context.semaphore.acquire();
+    context.observed = context.payload;
+    return 0;
+}
+
+version (linux) private bool semaphoreHandoffPublishes() nothrow @nogc
+{
+    SemaphorePublicationContext context;
+    auto started = Thread.start!semaphorePublicationWaiter(&context);
+    if (!started.isOk)
+        return false;
+    Thread waiter = started.unwrap();
+
+    if (!waitForAtomicAtLeast(&context.entered, 1))
+    {
+        context.semaphore.release();
+        cast(void) waiter.join();
+        return false;
+    }
+
+    context.payload = 0x43ac_7712;
+    context.semaphore.release();
+    if (waiter.join() != 0)
+        return false;
+    return context.observed == context.payload &&
+        !context.semaphore.tryAcquire();
+}
+
+version (linux) private struct SemaphoreBatchContext
+{
+    Semaphore* semaphore;
+    Atomic!uint entered;
+    Atomic!uint completed;
+}
+
+version (linux) private int semaphoreBatchWaiter(
+    SemaphoreBatchContext* context,
+) nothrow @nogc
+{
+    context.entered.fetchAdd(1, MemoryOrder.release);
+    context.semaphore.acquire();
+    context.completed.fetchAdd(1, MemoryOrder.release);
+    return 0;
+}
+
+version (linux) private bool semaphoreReleaseCountIsExact() nothrow @nogc
+{
+    enum waiterCount = 4;
+    Semaphore semaphore;
+    SemaphoreBatchContext context;
+    context.semaphore = &semaphore;
+    Thread[waiterCount] waiters;
+
+    foreach (ref waiter; waiters)
+    {
+        auto started = Thread.start!semaphoreBatchWaiter(&context);
+        if (!started.isOk)
+            return false;
+        waiter = started.unwrap();
+    }
+
+    if (!waitForAtomicAtLeast(&context.entered, waiterCount))
+    {
+        semaphore.release(waiterCount);
+        foreach (ref waiter; waiters)
+            if (waiter.joinable())
+                cast(void) waiter.join();
+        return false;
+    }
+
+    semaphore.release(2);
+    if (!waitForAtomicAtLeast(&context.completed, 2))
+    {
+        semaphore.release(2);
+        foreach (ref waiter; waiters)
+            cast(void) waiter.join();
+        return false;
+    }
+
+    foreach (_; 0 .. 64)
+        yieldThread();
+    if (context.completed.load(MemoryOrder.acquire) != 2)
+    {
+        semaphore.release(2);
+        foreach (ref waiter; waiters)
+            cast(void) waiter.join();
+        return false;
+    }
+
+    semaphore.release(2);
+    foreach (ref waiter; waiters)
+        if (waiter.join() != 0)
+            return false;
+
+    return context.completed.load(MemoryOrder.acquire) == waiterCount &&
+        !semaphore.tryAcquire();
+}
+
+version (linux) private struct SemaphoreBoundContext
+{
+    Semaphore* semaphore;
+    Atomic!uint inside;
+    Atomic!uint failed;
+    uint iterations;
+}
+
+version (linux) private int semaphoreBoundWorker(
+    SemaphoreBoundContext* context,
+) nothrow @nogc
+{
+    foreach (_; 0 .. context.iterations)
+    {
+        context.semaphore.acquire();
+        const previous = context.inside.fetchAdd(1, MemoryOrder.acquireRelease);
+        if (previous >= 2)
+            context.failed.store(1, MemoryOrder.release);
+        yieldThread();
+        context.inside.fetchSub(1, MemoryOrder.release);
+        context.semaphore.release();
+    }
+    return 0;
+}
+
+version (linux) private bool semaphoreRepeatedContention() nothrow @nogc
+{
+    enum workerCount = 4;
+    enum iterations = 96;
+    Semaphore semaphore = Semaphore(2);
+    SemaphoreBoundContext context;
+    context.semaphore = &semaphore;
+    context.iterations = iterations;
+    Thread[workerCount] workers;
+
+    foreach (ref worker; workers)
+    {
+        auto started = Thread.start!semaphoreBoundWorker(&context);
+        if (!started.isOk)
+            return false;
+        worker = started.unwrap();
+    }
+
+    foreach (ref worker; workers)
+        if (worker.join() != 0)
+            return false;
+
+    if (context.failed.load(MemoryOrder.acquire) != 0 ||
+        context.inside.load(MemoryOrder.acquire) != 0)
+        return false;
+
+    if (!semaphore.tryAcquire())
+        return false;
+    if (!semaphore.tryAcquire())
+        return false;
+    return !semaphore.tryAcquire();
+}
+
 version (XTB_Checked) version (linux) private struct CondVarMutexMixContext
 {
     Mutex first;
@@ -1991,6 +2161,7 @@ version (Posix) private enum DeathCase : ubyte
     mutexUnlockNonOwner,
     condVarWaitWithoutOwnership,
     condVarMixedMutexes,
+    semaphoreOverflow,
 }
 
 version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
@@ -2177,6 +2348,10 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 }
             }
             return;
+        case DeathCase.semaphoreOverflow:
+            Semaphore full = Semaphore(size_t.max);
+            full.release();
+            return;
     }
 }
 
@@ -2264,6 +2439,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, mutexModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, condVarModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, semaphoreModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();
@@ -2374,6 +2551,12 @@ extern (C) int main() nothrow @nogc
             return 56;
         if (!condVarRepeatedWaits())
             return 57;
+        if (!semaphoreHandoffPublishes())
+            return 58;
+        if (!semaphoreReleaseCountIsExact())
+            return 59;
+        if (!semaphoreRepeatedContention())
+            return 60;
 
         yieldThread();
     }
@@ -2401,6 +2584,7 @@ extern (C) int main() nothrow @nogc
             DeathCase.moveAssignOverJoinable,
             DeathCase.selfJoin,
             DeathCase.workerPanic,
+            DeathCase.semaphoreOverflow,
         ])
             if (!expectAbort(deathCase))
                 return 30;

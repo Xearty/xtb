@@ -27,8 +27,8 @@ Status values:
 | 6 | **complete** | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
 | 7 | **complete** | `Mutex` | 1, 2, 3, 6 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
 | 8 | **complete** | `CondVar` | 3, 7 | Stack-backed waiter queue, exact notify-one/all selection, and explicit waiter-node lifetime handshake. |
-| 9 | **next** | `Semaphore` | 1, 3, 4 | Counting permits, overflow protection, efficient blocking wakeups. |
-| 10 | pending | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
+| 9 | **complete** | `Semaphore` | 1, 3, 4 | Atomic fast permit path plus intrusive stack-waiter handoff; no shared wrapping wake epoch. |
+| 10 | **next** | `Once` | 1, 3, 4 | Exactly-once execution with publication and recursive-use diagnostics. |
 | 11 | pending | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
 | 12 | pending | `Latch` | 1, 3, 4 | First public countdown primitive; one-shot countdown/wait semantics. |
 | 13 | pending | Internal countdown/generation machinery | 12 | Refactor proven countdown path and add reusable generation state. |
@@ -436,3 +436,51 @@ without mutex ownership and mixing predicate mutexes, forced
 unsupported-backend behavior, cross-compilation of the threading component,
 and the normal optimized, release-safe, release-fast, sanitizer, formatting,
 and lint passes. No test depends on FIFO completion order.
+
+## Semaphore completion record
+
+Implemented public allocation-free `Semaphore` in `xtb.threading.semaphore`.
+`Semaphore.init` has zero permits and `Semaphore(n)` supports an explicit initial
+count. The fast state is an `Atomic!size_t` count of available, unreserved
+permits. `tryAcquire` is a true non-blocking CAS-decrement path: it does not take
+the semaphore's private mutex and cannot park. Immediate `acquire` uses that same
+path.
+
+A blocking acquire uses a stack-backed `SemaphoreWaiter` containing one 32-bit
+one-shot state word and one `ForwardListHook`, registered in XTB core's
+`IntrusiveQueue` under a private `Mutex`. The slow path rechecks the atomic permit
+count while registration is serialized, closing the release-before-registration
+race. The invariant is that a non-empty waiter queue implies zero unreserved
+permits. `release(n)` therefore hands its first permits directly to queued waiters
+and publishes only the remainder into the atomic count, preventing fast-path
+barging from stealing a permit already selected for a waiter.
+
+The waiter word has `queued`, `parking`, and `signaled` states. If release wins
+before the waiter commits to parking, the waiter observes `signaled` and no futex
+wake syscall is necessary. If the waiter has committed to parking, release wakes
+that private address after publishing `signaled`. Every blocking call owns a
+unique wait word, so the discarded shared `wakeEpoch` design's finite-width
+wrap/ABA problem does not exist. Release/acquire ordering is carried by the
+atomic permit CAS for stored permits and by the waiter-state release/acquire pair
+for direct handoffs.
+
+Releasers keep the private mutex through their final access to a stack waiter,
+including any wake. A signaled acquire crosses that mutex before returning,
+proving the waiter node cannot leave scope while another thread can still touch
+it. This is the same lifetime principle used by `CondVar`, without reusable
+parking-slot reclamation or waiting for a descheduled waiter. Overflow of the
+`size_t` unreserved-permit count is an unconditional fatal programming error.
+On unsupported parking backends, `release`, `tryAcquire`, and an immediately
+successful `acquire` remain functional; only an acquire that actually needs to
+block panics explicitly.
+
+Validation covers zero/nonzero initial counts, release-zero, exact multi-permit
+release, a deliberately locked internal mutex proving `tryAcquire` stays
+non-blocking, separate stored-permit and direct-handoff publication tests,
+deterministic registration-before-park release, deterministic stack-node lifetime
+synchronization, repeated four-thread contention with capacity two, permit
+conservation, `size_t.max` overflow death, and forced unsupported-backend
+behavior. The threading suite passes checked debug, optimized, release-safe, and
+AddressSanitizer runs; the unchecked release-fast threading component compiles;
+and the standalone BetterC semaphore module cross-compiles for i686 Linux,
+AArch64 Linux, RISC-V64 Linux, and x86-64 Windows.
