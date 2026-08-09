@@ -1,6 +1,9 @@
 module xtb.threading.internal.thread_linux;
 
-version (linux)  : nothrow @nogc:
+// dfmt off
+version (linux):
+// dfmt on
+nothrow @nogc:
 
 import core.stdc.errno : EAGAIN, EINVAL, ENOENT, ENOMEM, ENOSYS, EPERM, ERANGE, ESRCH;
 import core.stdc.stdint : intptr_t;
