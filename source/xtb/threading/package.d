@@ -9,6 +9,7 @@ public import xtb.threading.once;
 public import xtb.threading.once_cell;
 public import xtb.threading.rw_lock;
 public import xtb.threading.semaphore;
+public import xtb.threading.spawn;
 public import xtb.threading.spin_wait;
 public import xtb.threading.thread;
 public import xtb.threading.wait_group;

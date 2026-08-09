@@ -35,8 +35,8 @@ Status values:
 | 14 | **complete** | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
 | 15 | **complete** | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
 | 16 | **complete** | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
-| 17 | **next** | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
-| 18 | pending | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
+| 17 | **complete** | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
+| 18 | **next** | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
 | 19 | pending | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
 | 20 | blocked | Monotonic time, sleeping, and timed waits | time foundation | Requires a stable monotonic-time abstraction that preserves the threading package dependency direction. |
 | 21 | pending | Windows backend coverage | public contracts above | Implement every completed OS-dependent primitive/utility with the same public semantics. |
@@ -715,3 +715,50 @@ compile and manual runtime, and AddressSanitizer test modes pass with LDC
 examples run, checked and unchecked public modules cross-compile for x86-64
 Windows, and the release archive adds no allocator, TypeInfo, ModuleInfo, or D
 runtime dependency.
+
+## Spawn and JoinHandle completion record
+
+Implemented public allocator-explicit `spawn!worker` and `spawnWith!worker`
+with arbitrary typed result transport and move-only `JoinHandle!T` ownership.
+Each attempted start that reaches allocation requests exactly one concrete
+state block containing the stable native packet, allocator provenance, typed
+captures, and raw result storage. The common header records the original
+pointer, size, and alignment, so a handle can release the exact allocation
+without retaining the worker or capture tuple type.
+
+The child trampoline moves every capture into child-local call storage and ends
+the source capture lifetimes before invoking user code. Non-void workers move
+their result into the stable raw slot and mark it live; `Thread.join` supplies
+the completion synchronization before `JoinHandle.join` moves that result out,
+ends its lifetime, destroys the common header, and deallocates through the
+caller-supplied allocator. `void` omits result storage. Native-start failure
+destroys all constructed captures and releases the block on the starting
+thread. Allocation and native-start failures remain distinct through
+`SpawnError`, while a worker-returned `Result!(T, E)` stays the unflattened
+computation result.
+
+`JoinHandle` has no detach surface. Default, moved-from, and joined handles are
+empty; move construction and assignment transfer the thread and state
+obligation. Empty/double join, self-join, destruction while live, and assignment
+over a live destination panic in every build. Spawned callables follow typed
+`Thread.start`'s module/static, `nothrow @nogc`, by-value parameter policy and
+reject borrowed `ref` returns. The aggregate threading package re-exports the
+new module.
+
+Validation covers scalar, aggregate, `void`, over-aligned, and move-only
+results; exact capture/result destruction; nested worker `Result`; synchronous
+capture conversion; two workers with the same result and different state
+layouts; one-allocation accounting; allocation and native-start cleanup;
+explicit stack options; return-before-worker-completion behavior; moving and
+joining a handle on another thread; and repeated batched spawning. Compile-time
+checks cover callable attributes, parameter modes, argument counts, static
+callability, `ref` returns, the arbitrary-result widening over `Thread.start`,
+and absence of detach. Forced-unsupported execution proves one-allocation
+cleanup and error mapping. Lifecycle and worker-panic death tests run in checked
+and unchecked modes.
+
+Repository-wide formatting and lint pass. Debug, optimized, release-safe,
+manual release-fast, and AddressSanitizer test runs pass with LDC 1.41.0;
+release-fast test targets also compile with contracts, assertions, and bounds
+checks removed. The public spawn surface cross-compiles in checked and
+unchecked modes for x86-64 Windows/MSVC.

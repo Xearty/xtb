@@ -13,6 +13,7 @@ import onceCellModule = xtb.threading.once_cell;
 import parkingModule = xtb.threading.internal.parking;
 import rwLockModule = xtb.threading.rw_lock;
 import semaphoreModule = xtb.threading.semaphore;
+import spawnModule = xtb.threading.spawn;
 import startLatchModule = xtb.threading.internal.start_latch;
 import waitGroupModule = xtb.threading.wait_group;
 
@@ -83,6 +84,8 @@ extern (C) int main() nothrow @nogc
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, semaphoreModule))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, spawnModule))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, latchModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, onceModule))
@@ -134,6 +137,17 @@ extern (C) int main() nothrow @nogc
         return 11;
     if (typedTracker.allocations != 1 || typedTracker.deallocations != 1)
         return 12;
+
+    TrackingAllocator spawnTracker = TrackingAllocator.create();
+    auto spawnStarted = spawn!typedWorker(spawnTracker.allocator, 42);
+    if (!spawnStarted.isErr)
+        return 15;
+    const spawnError = spawnStarted.unwrapError();
+    if (spawnError.kind != SpawnErrorKind.threadStartFailed ||
+        spawnError.threadStartError.kind != ThreadStartErrorKind.unsupported)
+        return 16;
+    if (spawnTracker.allocations != 1 || spawnTracker.deallocations != 1)
+        return 17;
 
     auto named = setCurrentThreadName("unsupported");
     if (!named.isErr)

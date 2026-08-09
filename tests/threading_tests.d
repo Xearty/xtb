@@ -5,6 +5,7 @@ import core.stdc.stdlib : free, malloc;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
+import xtb.core.result : Result;
 import xtb.threading;
 import atomicModule = xtb.threading.atomic;
 import barrierModule = xtb.threading.barrier;
@@ -18,6 +19,7 @@ import onceCellModule = xtb.threading.once_cell;
 import parkingModule = xtb.threading.internal.parking;
 import rwLockModule = xtb.threading.rw_lock;
 import semaphoreModule = xtb.threading.semaphore;
+import spawnModule = xtb.threading.spawn;
 import startLatchModule = xtb.threading.internal.start_latch;
 import spinWaitModule = xtb.threading.spin_wait;
 import waitGroupModule = xtb.threading.wait_group;
@@ -406,6 +408,20 @@ version (linux) private void safeDetach(ref Thread thread) nothrow @nogc @safe
     thread.detach();
 }
 
+version (linux) private int safeJoinHandle(ref JoinHandle!int handle)
+nothrow @nogc @safe
+{
+    cast(void) handle.joinable();
+    return handle.join();
+}
+
+version (linux) private void safeVoidJoinHandle(ref JoinHandle!void handle)
+nothrow @nogc @safe
+{
+    cast(void) handle.joinable();
+    handle.join();
+}
+
 version (linux) static assert(!__traits(compiles, () nothrow @nogc @safe {
         Thread.startRaw(&safeSurfaceWorker);
     }));
@@ -693,6 +709,34 @@ version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!constValueWorker(mallocAllocator())));
 version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!constValueWorker(mallocAllocator(), 1, 2)));
+
+version (linux) static assert(!__traits(compiles,
+        spawn!refTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!outTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!lazyTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!inTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!sharedTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!refReturnTypedWorker(mallocAllocator())));
+version (linux) static assert(!__traits(compiles,
+        spawn!missingNothrowTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!missingNogcTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!(MemberTypedWorker.run)(mallocAllocator(), 1)));
+version (linux) static assert(__traits(compiles,
+        spawn!(StaticMemberTypedWorker.run)(mallocAllocator(), 1)));
+version (linux) static assert(__traits(compiles,
+        spawn!wrongReturnTypedWorker(mallocAllocator(), 1)));
+version (linux) static assert(!__traits(compiles,
+        spawn!constValueWorker(mallocAllocator())));
+version (linux) static assert(!__traits(compiles,
+        spawn!constValueWorker(mallocAllocator(), 1, 2)));
+version (linux) static assert(!__traits(hasMember, JoinHandle!int, "detach"));
 
 version (linux) private bool typedStartWorks() nothrow @nogc
 {
@@ -1128,6 +1172,389 @@ version (linux) private bool allocatedTypedStackOptionsWork() nothrow @nogc
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 0 && context.observed >= requested;
+}
+
+version (linux) private struct SpawnMoveOnlyResult
+{
+    Atomic!uint* destructions;
+    int value;
+
+    @disable this(this);
+
+    ~this() nothrow @nogc
+    {
+        if (destructions !is null)
+            destructions.fetchAdd(1, MemoryOrder.relaxed);
+    }
+}
+
+version (linux) private SpawnMoveOnlyResult makeSpawnMoveOnlyResult(
+    Atomic!uint* destructions,
+    int value,
+) nothrow @nogc
+{
+    SpawnMoveOnlyResult result;
+    result.destructions = destructions;
+    result.value = value;
+    return move(result);
+}
+
+version (linux) private int consumeSpawnCapture(MoveOnlyCapture capture)
+nothrow @nogc
+{
+    return capture.value;
+}
+
+version (linux) private Result!(int, ubyte) nestedSpawnResult(int value)
+nothrow @nogc
+{
+    if (value < 0)
+        return Result!(int, ubyte).err(7);
+    return Result!(int, ubyte).ok(value);
+}
+
+version (linux) private int oneCaptureSpawnWorker(int value) nothrow @nogc
+{
+    return value + 1;
+}
+
+version (linux) private int twoCaptureSpawnWorker(long left, short right)
+nothrow @nogc
+{
+    return cast(int)(left + right);
+}
+
+version (linux) align(64) private struct SpawnAlignedResult
+{
+    int value;
+}
+
+version (linux) private SpawnAlignedResult makeAlignedSpawnResult(
+    OverAlignedCapture capture,
+) nothrow @nogc
+{
+    return SpawnAlignedResult(capture.value);
+}
+
+version (linux) private int joinSpawnHandle(
+    JoinHandle!int handle,
+    int* result,
+) nothrow @nogc
+{
+    *result = handle.join();
+    return 0;
+}
+
+version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
+{
+    auto scalarStarted = spawn!oneCaptureSpawnWorker(mallocAllocator(), 41);
+    if (!scalarStarted.isOk)
+        return false;
+    JoinHandle!int handleSource = scalarStarted.unwrap();
+    JoinHandle!int constructed = move(handleSource);
+    if (handleSource.joinable() || !constructed.joinable())
+        return false;
+    JoinHandle!int assigned;
+    assigned = move(constructed);
+    if (constructed.joinable() || !assigned.joinable() || assigned.join() != 42 ||
+        assigned.joinable())
+        return false;
+
+    auto firstLayout = spawn!oneCaptureSpawnWorker(mallocAllocator(), 8);
+    auto secondLayout = spawn!twoCaptureSpawnWorker(
+        mallocAllocator(),
+        20L,
+        cast(short) 13,
+    );
+    if (!firstLayout.isOk || !secondLayout.isOk)
+        return false;
+    JoinHandle!int first = firstLayout.unwrap();
+    JoinHandle!int second = secondLayout.unwrap();
+    if (first.join() != 9 || second.join() != 33)
+        return false;
+
+    auto nestedStarted = spawn!nestedSpawnResult(mallocAllocator(), -1);
+    if (!nestedStarted.isOk)
+        return false;
+    JoinHandle!(Result!(int, ubyte)) nestedHandle = nestedStarted.unwrap();
+    auto nested = nestedHandle.join();
+    if (!nested.isErr || nested.unwrapError() != 7)
+        return false;
+
+    auto alignedStarted = spawn!makeAlignedSpawnResult(
+        mallocAllocator(),
+        OverAlignedCapture(71),
+    );
+    if (!alignedStarted.isOk)
+        return false;
+    JoinHandle!SpawnAlignedResult aligned = alignedStarted.unwrap();
+    if (aligned.join().value != 71)
+        return false;
+
+    Atomic!uint captureDestructions;
+    MoveOnlyCapture capture;
+    capture.destructions = &captureDestructions;
+    capture.value = 64;
+    auto captureStarted = spawn!consumeSpawnCapture(
+        mallocAllocator(),
+        move(capture),
+    );
+    if (!captureStarted.isOk)
+        return false;
+    JoinHandle!int captureHandle = captureStarted.unwrap();
+    if (captureHandle.join() != 64 || captureDestructions.load() != 1)
+        return false;
+
+    ThreadId convertedOn;
+    ThreadId workerThread;
+    ConversionSource source = ConversionSource(&convertedOn, 55);
+    const parent = currentThreadId();
+    auto convertedStarted = spawn!convertedCaptureWorker(
+        mallocAllocator(),
+        source,
+        &workerThread,
+    );
+    if (!convertedStarted.isOk)
+        return false;
+    JoinHandle!int convertedHandle = convertedStarted.unwrap();
+    if (convertedHandle.join() != 55 || convertedOn != parent ||
+        workerThread == ThreadId.init || workerThread == parent)
+        return false;
+
+    Atomic!uint resultDestructions;
+    {
+        auto resultStarted = spawn!makeSpawnMoveOnlyResult(
+            mallocAllocator(),
+            &resultDestructions,
+            91,
+        );
+        if (!resultStarted.isOk)
+            return false;
+        JoinHandle!SpawnMoveOnlyResult resultHandle = resultStarted.unwrap();
+        SpawnMoveOnlyResult result = resultHandle.join();
+        if (result.value != 91 || resultDestructions.load() != 0)
+            return false;
+    }
+    return resultDestructions.load() == 1;
+}
+
+version (linux) private bool spawnFailuresCleanUp() nothrow @nogc
+{
+    Atomic!uint allocationDestructions;
+    MoveOnlyCapture allocationCapture;
+    allocationCapture.destructions = &allocationDestructions;
+    allocationCapture.value = 12;
+    StartTrackingAllocator failing = StartTrackingAllocator.create(true);
+    auto allocationFailed = spawn!consumeSpawnCapture(
+        failing.allocator,
+        move(allocationCapture),
+    );
+    if (!allocationFailed.isErr)
+        return false;
+    const allocationError = allocationFailed.unwrapError();
+    if (allocationError.kind != SpawnErrorKind.allocationFailed ||
+        allocationError.threadStartError != ThreadStartError.init ||
+        allocationDestructions.load() != 1 ||
+        failing.allocationCalls.load() != 1 ||
+        failing.deallocationCalls.load() != 0)
+        return false;
+
+    Atomic!uint startDestructions;
+    MoveOnlyCapture startCapture;
+    startCapture.destructions = &startDestructions;
+    startCapture.value = 13;
+    StartTrackingAllocator invalidStack = StartTrackingAllocator.create();
+    auto startFailed = spawnWith!consumeSpawnCapture(
+        ThreadStartOptions(size_t.max),
+        invalidStack.allocator,
+        move(startCapture),
+    );
+    if (!startFailed.isErr)
+        return false;
+    const startError = startFailed.unwrapError();
+    return startError.kind == SpawnErrorKind.threadStartFailed &&
+        startError.threadStartError.kind ==
+        ThreadStartErrorKind.invalidConfiguration &&
+        startDestructions.load() == 1 &&
+        invalidStack.allocationCalls.load() == 1 &&
+        invalidStack.deallocationCalls.load() == 1 &&
+        invalidStack.deallocationThread == currentThreadId();
+}
+
+version (linux) private bool spawnUsesOneStableAllocation() nothrow @nogc
+{
+    StartTrackingAllocator tracker = StartTrackingAllocator.create();
+    auto started = spawn!twoCaptureSpawnWorker(
+        tracker.allocator,
+        17L,
+        cast(short) 25,
+    );
+    if (!started.isOk || tracker.allocationCalls.load() != 1 ||
+        tracker.deallocationCalls.load() != 0)
+        return false;
+
+    JoinHandle!int handle = started.unwrap();
+    if (handle.join() != 42 || tracker.allocationCalls.load() != 1 ||
+        tracker.deallocationCalls.load() != 1 ||
+        tracker.deallocationThread != currentThreadId())
+        return false;
+
+    Atomic!uint entered;
+    StartTrackingAllocator voidTracker = StartTrackingAllocator.create();
+    auto voidStarted = spawn!allocatedVoidWorker(
+        voidTracker.allocator,
+        &entered,
+    );
+    if (!voidStarted.isOk || voidTracker.allocationCalls.load() != 1 ||
+        voidTracker.deallocationCalls.load() != 0)
+        return false;
+    JoinHandle!void voidHandle = voidStarted.unwrap();
+    voidHandle.join();
+    return entered.load(MemoryOrder.acquire) == 1 &&
+        voidTracker.allocationCalls.load() == 1 &&
+        voidTracker.deallocationCalls.load() == 1 &&
+        voidTracker.deallocationThread == currentThreadId() &&
+        tracker.allocationCalls.load() == 1 &&
+        tracker.deallocationCalls.load() == 1 &&
+        tracker.deallocationThread == currentThreadId();
+}
+
+version (linux) private bool spawnOptionsWork() nothrow @nogc
+{
+    enum requested = 256 * 1024 + 123;
+    StackSizeContext context;
+    auto started = spawnWith!stackSizeWorker(
+        ThreadStartOptions(requested),
+        mallocAllocator(),
+        &context,
+    );
+    if (!started.isOk)
+        return false;
+    JoinHandle!int handle = started.unwrap();
+    return handle.join() == 0 && context.observed >= requested;
+}
+
+version (linux) private bool spawnHandleMovesAcrossThreads() nothrow @nogc
+{
+    StartTrackingAllocator tracker = StartTrackingAllocator.create();
+    auto spawned = spawn!oneCaptureSpawnWorker(tracker.allocator, 41);
+    if (!spawned.isOk)
+        return false;
+    JoinHandle!int handle = spawned.unwrap();
+
+    int result;
+    auto joinerStarted = Thread.start!joinSpawnHandle(move(handle), &result);
+    if (!joinerStarted.isOk || handle.joinable())
+        return false;
+    Thread joiner = joinerStarted.unwrap();
+    return joiner.join() == 0 && result == 42 &&
+        tracker.deallocationCalls.load() == 1 &&
+        tracker.deallocationThread != tracker.allocationThread;
+}
+
+version (linux) private int blockedSpawnWorker(
+    Atomic!uint* entered,
+    Atomic!uint* releaseWorker,
+) nothrow @nogc
+{
+    entered.store(1, MemoryOrder.release);
+    releaseWorker.wait(0, MemoryOrder.acquire);
+    return 74;
+}
+
+version (linux) private struct SpawnHandoffContext
+{
+    Atomic!uint workerEntered;
+    Atomic!uint releaseWorker;
+    Atomic!uint startState;
+    JoinHandle!int handle;
+}
+
+version (linux) private extern (C) void* spawnHandoffStarter(void* opaque)
+nothrow @nogc
+{
+    SpawnHandoffContext* context = cast(SpawnHandoffContext*) opaque;
+    auto started = spawn!blockedSpawnWorker(
+        mallocAllocator(),
+        &context.workerEntered,
+        &context.releaseWorker,
+    );
+    if (!started.isOk)
+    {
+        context.startState.store(2, MemoryOrder.release);
+        return null;
+    }
+
+    context.handle = started.unwrap();
+    context.startState.store(1, MemoryOrder.release);
+    return null;
+}
+
+version (linux) private bool spawnReturnsBeforeWorkerCompletion()
+nothrow @nogc
+{
+    SpawnHandoffContext context;
+    pthread_t starter;
+    if (pthread_create(&starter, null, &spawnHandoffStarter, &context) != 0)
+        return false;
+
+    bool workerEntered;
+    bool startReturned;
+    foreach (_; 0 .. 1_000_000)
+    {
+        workerEntered = context.workerEntered.load(MemoryOrder.acquire) != 0;
+        const state = context.startState.load(MemoryOrder.acquire);
+        startReturned = state == 1;
+        if ((workerEntered && startReturned) || state == 2)
+            break;
+        yieldThread();
+    }
+
+    context.releaseWorker.store(1, MemoryOrder.release);
+    context.releaseWorker.notifyOne();
+    if (pthread_join(starter, null) != 0 || !workerEntered || !startReturned ||
+        !context.handle.joinable())
+        return false;
+    return context.handle.join() == 74;
+}
+
+version (linux) private bool spawnShortStress() nothrow @nogc
+{
+    enum batchSize = 16;
+    enum batchCount = 8;
+
+    foreach (batch; 0 .. batchCount)
+    {
+        JoinHandle!int[batchSize] handles;
+        foreach (index, ref handle; handles)
+        {
+            auto started = spawn!twoCaptureSpawnWorker(
+                mallocAllocator(),
+                cast(long) batch,
+                cast(short) index,
+            );
+            if (!started.isOk)
+                return false;
+            handle = started.unwrap();
+        }
+        foreach (index, ref handle; handles)
+            if (handle.join() != cast(int)(batch + index))
+                return false;
+    }
+    return true;
+}
+
+version (linux) private struct SpawnSelfJoinContext
+{
+    Atomic!uint ready;
+    JoinHandle!int* handle;
+}
+
+version (linux) private int spawnSelfJoinWorker(SpawnSelfJoinContext* context)
+nothrow @nogc
+{
+    context.ready.wait(0, MemoryOrder.acquire);
+    return context.handle.join();
 }
 
 version (linux) private struct RawStartHandoffContext
@@ -2220,6 +2647,13 @@ version (Posix) private enum DeathCase : ubyte
     moveAssignOverJoinable,
     selfJoin,
     workerPanic,
+    spawnNullAllocator,
+    spawnJoinEmpty,
+    spawnJoinTwice,
+    spawnDestroyJoinable,
+    spawnMoveAssignOverJoinable,
+    spawnSelfJoin,
+    spawnWorkerPanic,
     mutexUnlockUnlocked,
     mutexDoubleUnlock,
     mutexRecursiveLock,
@@ -2369,6 +2803,55 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             Thread thread = started.unwrap();
             cast(void) thread.join();
             _exit(83);
+            return;
+        case DeathCase.spawnNullAllocator:
+            cast(void) spawn!oneCaptureSpawnWorker(null, 1);
+            return;
+        case DeathCase.spawnJoinEmpty:
+            JoinHandle!int handle;
+            cast(void) handle.join();
+            return;
+        case DeathCase.spawnJoinTwice:
+            auto started = spawn!oneCaptureSpawnWorker(mallocAllocator(), 1);
+            JoinHandle!int handle = started.unwrap();
+            cast(void) handle.join();
+            cast(void) handle.join();
+            return;
+        case DeathCase.spawnDestroyJoinable:
+            auto started = spawn!oneCaptureSpawnWorker(mallocAllocator(), 1);
+            JoinHandle!int handle = started.unwrap();
+            return;
+        case DeathCase.spawnMoveAssignOverJoinable:
+            auto firstStarted = spawn!oneCaptureSpawnWorker(
+                mallocAllocator(),
+                1,
+            );
+            auto secondStarted = spawn!oneCaptureSpawnWorker(
+                mallocAllocator(),
+                2,
+            );
+            JoinHandle!int first = firstStarted.unwrap();
+            JoinHandle!int second = secondStarted.unwrap();
+            first = move(second);
+            return;
+        case DeathCase.spawnSelfJoin:
+            SpawnSelfJoinContext context;
+            auto started = spawn!spawnSelfJoinWorker(
+                mallocAllocator(),
+                &context,
+            );
+            JoinHandle!int handle = started.unwrap();
+            context.handle = &handle;
+            context.ready.store(1, MemoryOrder.release);
+            context.ready.notifyOne();
+            foreach (_; 0 .. 1_000_000)
+                yieldThread();
+            _exit(103);
+            return;
+        case DeathCase.spawnWorkerPanic:
+            auto started = spawn!panicRawWorker(mallocAllocator(), null);
+            JoinHandle!int handle = started.unwrap();
+            cast(void) handle.join();
             return;
         case DeathCase.mutexUnlockUnlocked:
             Mutex mutex;
@@ -2672,6 +3155,8 @@ extern (C) int main() nothrow @nogc
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, semaphoreModule))
         testFunction();
+    static foreach (testFunction; __traits(getUnitTests, spawnModule))
+        testFunction();
     static foreach (testFunction; __traits(getUnitTests, latchModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, onceModule))
@@ -2744,6 +3229,20 @@ extern (C) int main() nothrow @nogc
             return 28;
         if (!allocatedDetachCompletes())
             return 29;
+        if (!spawnResultsAndOwnershipWork())
+            return 98;
+        if (!spawnFailuresCleanUp())
+            return 99;
+        if (!spawnUsesOneStableAllocation())
+            return 100;
+        if (!spawnOptionsWork())
+            return 101;
+        if (!spawnHandleMovesAcrossThreads())
+            return 102;
+        if (!spawnReturnsBeforeWorkerCompletion())
+            return 103;
+        if (!spawnShortStress())
+            return 104;
         if (!moveOwnershipWorks())
             return 11;
         if (!rawStartJoinStress())
@@ -2826,6 +3325,13 @@ extern (C) int main() nothrow @nogc
             DeathCase.moveAssignOverJoinable,
             DeathCase.selfJoin,
             DeathCase.workerPanic,
+            DeathCase.spawnNullAllocator,
+            DeathCase.spawnJoinEmpty,
+            DeathCase.spawnJoinTwice,
+            DeathCase.spawnDestroyJoinable,
+            DeathCase.spawnMoveAssignOverJoinable,
+            DeathCase.spawnSelfJoin,
+            DeathCase.spawnWorkerPanic,
             DeathCase.mutexUnlockUnlocked,
             DeathCase.mutexDoubleUnlock,
             DeathCase.rwLockUnlockRead,

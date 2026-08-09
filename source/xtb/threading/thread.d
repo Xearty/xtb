@@ -753,6 +753,29 @@ nothrow @nogc:
     }
 }
 
+/// Starts a native thread from caller-owned stable packet storage.
+///
+/// The packet must remain valid until the callback begins. This package-only
+/// boundary exists for higher-level threading owners whose own stable state
+/// already provides that lifetime.
+package(xtb.threading) Result!(Thread, ThreadStartError) startStableThread(
+    ThreadStartOptions options,
+    backend.NativeStableStartPacket* packet,
+) @system
+{
+    if (packet is null || packet.function_ is null)
+        panic("stable thread start requires a valid packet and worker");
+
+    const started = backend.startStable(options.stackSize, packet);
+    if (!started.succeeded)
+        return Result!(Thread, ThreadStartError).err(
+            mapStartError(started.kind, started.nativeCode),
+        );
+
+    Thread thread = Thread.fromNativeStart(started);
+    return Result!(Thread, ThreadStartError).ok(move(thread));
+}
+
 /// Returns the calling thread's opaque identity, or `.init` on an unsupported
 /// backend that cannot provide one.
 ThreadId currentThreadId() @trusted
