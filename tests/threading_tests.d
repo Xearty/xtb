@@ -7,6 +7,7 @@ import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
 import xtb.threading;
 import atomicModule = xtb.threading.atomic;
+import parkingModule = xtb.threading.internal.parking;
 import spinWaitModule = xtb.threading.spin_wait;
 
 version (linux) import linuxBackendModule = xtb.threading.internal.thread_linux;
@@ -1212,6 +1213,8 @@ version (linux) private bool moveOwnershipWorks() nothrow @nogc
 extern (C) int main() nothrow @nogc
 {
     static foreach (testFunction; __traits(getUnitTests, atomicModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, spinWaitModule))
         testFunction();

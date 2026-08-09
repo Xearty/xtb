@@ -109,7 +109,7 @@ configuration "test-threading" {
     targetName "threading_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "threading_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/threading/*.d" "../source/xtb/threading/internal/thread_backend.d" "../source/xtb/threading/internal/thread_unsupported.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/threading/*.d" "../source/xtb/threading/internal/parking.d" "../source/xtb/threading/internal/thread_backend.d" "../source/xtb/threading/internal/thread_unsupported.d"
     sourceFiles "../source/xtb/threading/internal/thread_linux.d" platform="linux"
     libs "pthread" platform="linux"
 }
@@ -119,6 +119,6 @@ configuration "test-threading-unsupported" {
     targetName "threading_unsupported_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "threading_unsupported_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/threading/*.d" "../source/xtb/threading/internal/thread_backend.d" "../source/xtb/threading/internal/thread_unsupported.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/threading/*.d" "../source/xtb/threading/internal/parking.d" "../source/xtb/threading/internal/thread_backend.d" "../source/xtb/threading/internal/thread_unsupported.d"
     versions "XTB_TestUnsupportedThreadBackend"
 }

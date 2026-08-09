@@ -21,8 +21,8 @@ Status values:
 |---|---|---|---|---|
 | 1 | **complete** | Non-blocking atomics and memory model | — | `MemoryOrder`, scalar `Atomic!T`, `AtomicFlag`, load/store/exchange/CAS, integral fetch operations, and `atomicThreadFence`. Atomic wait/notify is intentionally separate. |
 | 2 | **complete** | Raw thread/platform foundations + allocator-backed starts | 1 for the POSIX ABI handoff; typed `startAlloc` also uses core allocator/lifetime support | `cpuRelax`, `Thread.startRaw`/`startRawWith`, `startRawAlloc`/`startRawAllocWith`, typed `startAlloc`/`startAllocWith`, lifecycle, join/detach, `ThreadId`, start options/errors, stable native-start adapter, `currentThreadId`, `yieldThread`, `hardwareConcurrency`, Linux naming, and an explicit unsupported backend. |
-| 3 | **next** | Internal parking | 1 | Linux process-private futex compare-and-sleep plus wake-one/wake-all. |
-| 4 | pending | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/notify plus the allocation-free internal one-shot start latch. |
+| 3 | **complete** | Internal parking | 1 | Package-private 32-bit compare-and-sleep parking with Linux process-private futex wait/wake and explicit unsupported-platform failure. |
+| 4 | **next** | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/notify plus the allocation-free internal one-shot start latch. |
 | 5 | pending | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
 | 6 | pending | Typed zero-allocation `Thread.start` | 2, 4 | Stack-packet/latch handoff for `start`/`startWith`. Typed callable/parameter/capture rules are already exercised by the allocator-backed `startAlloc` path from Feature 2. |
 | 7 | pending | `Mutex` | 1, 2, 3 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
@@ -165,6 +165,49 @@ LDC's bundled FreeBSD headers reject the generic cross target before XTB code is
 semantically checked (`core.sys.freebsd.config` reports an unsupported FreeBSD
 version), so Windows is the exercised unsupported-platform cross-compile target
 for this completion record.
+
+
+## Feature 3 completion record
+
+Implemented `xtb.threading.internal.parking` as the package-private blocking
+foundation for later atomic wait/notify and synchronization primitives. The v1
+wait word is exactly 32 bits. `park(address, expected)` uses the Linux futex
+compare-and-sleep operation, so a value change that races with the transition
+into the kernel produces `ParkResult.valueMismatch` instead of sleeping on a
+stale observation. Successful wakes, `EINTR`, and other permitted spurious
+returns are represented as `ParkResult.wokenOrSpurious`; higher-level protocols
+remain responsible for looping and re-checking their atomic state.
+
+Linux uses `FUTEX_WAIT_PRIVATE`/`FUTEX_WAKE_PRIVATE`, deliberately limiting the
+v1 parking contract to synchronization between threads in one process. Wake
+operations carry no memory ordering themselves; publication belongs to the
+atomic state transition performed by the caller. Unexpected futex errors are
+fatal internal/programming failures rather than new recoverable API states. An
+unsupported parking backend also fails explicitly through `panic` rather than
+spinning or pretending to block.
+
+The supplied LDC 1.42.0 druntime headers expose `syscall` but not `SYS_futex`, so
+the Linux parking module contains the stable Linux syscall-number mapping for
+target architectures it recognizes and otherwise compiles with an explicit
+unsupported-architecture panic path. Runtime validation for this feature is on
+x86_64 Linux.
+
+Validation includes:
+
+- deterministic `EAGAIN` -> `valueMismatch` and `EINTR` ->
+  `wokenOrSpurious` result classification;
+- direct mismatch without sleeping;
+- a gated wake-before-park race proving the kernel compare-and-sleep check
+  closes the lost-wakeup window;
+- wake-one against a live waiter without changing the wait word;
+- eight concurrent waiters across 64 repeated generations using wake-all, with
+  bounded progress checks around every generation;
+- forced-unsupported death tests for `park`, `wakeOne`, and `wakeAll`;
+- debug, optimized, release-safe, release-fast, and AddressSanitizer threading
+  runs;
+- dfmt and D-Scanner checks for the new/modified files; and
+- unsupported-target compile checks ensuring Linux-only syscall imports do not
+  leak into non-Linux builds.
 
 ## Prototype gates
 

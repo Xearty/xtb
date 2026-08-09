@@ -3,6 +3,7 @@ module tests.threading_unsupported_tests;
 import core.stdc.stdlib : free, malloc;
 import xtb.core.memory : Allocator;
 import xtb.threading;
+import parkingModule = xtb.threading.internal.parking;
 
 private int worker(void* context) nothrow @nogc
 {
@@ -58,6 +59,9 @@ private extern (C) void* trackingAllocatorProcedure(
 
 extern (C) int main() nothrow @nogc
 {
+    static foreach (testFunction; __traits(getUnitTests, parkingModule))
+        testFunction();
+
     auto started = Thread.startRaw(&worker);
     if (!started.isErr)
         return 1;
