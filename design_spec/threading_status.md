@@ -22,7 +22,7 @@ Status values:
 | 1 | **complete** | Non-blocking atomics and memory model | — | `MemoryOrder`, scalar `Atomic!T`, `AtomicFlag`, load/store/exchange/CAS, integral fetch operations, and `atomicThreadFence`. Atomic wait/notify is intentionally separate. |
 | 2 | **complete** | Raw thread/platform foundations + allocator-backed starts | 1 for the POSIX ABI handoff; typed `startAlloc` also uses core allocator/lifetime support | `cpuRelax`, `Thread.startRaw`/`startRawWith`, `startRawAlloc`/`startRawAllocWith`, typed `startAlloc`/`startAllocWith`, lifecycle, join/detach, `ThreadId`, start options/errors, stable native-start adapter, `currentThreadId`, `yieldThread`, `hardwareConcurrency`, Linux naming, and an explicit unsupported backend. |
 | 3 | **complete** | Internal parking | 1 | Package-private 32-bit compare-and-sleep parking with Linux process-private futex wait/wake and explicit unsupported-platform failure. |
-| 4 | **next** | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/notify plus the allocation-free internal one-shot start latch. |
+| 4 | **next** | Atomic wait/notify and startup latch | 1, 3 | Public `Atomic.wait`/`notifyOne`/`notifyAll` is complete; the allocation-free internal one-shot start latch is the remaining Feature 4 work. |
 | 5 | pending | `SpinWait` | 2 | Bounded exponential processor relaxation followed by scheduler yield. |
 | 6 | pending | Typed zero-allocation `Thread.start` | 2, 4 | Stack-packet/latch handoff for `start`/`startWith`. Typed callable/parameter/capture rules are already exercised by the allocator-backed `startAlloc` path from Feature 2. |
 | 7 | pending | `Mutex` | 1, 2, 3 | Fast acquire, bounded relax-then-park slow path, checked owner diagnostics. |
@@ -209,11 +209,57 @@ Validation includes:
 - unsupported-target compile checks ensuring Linux-only syscall imports do not
   leak into non-Linux builds.
 
+## Feature 4 progress record — atomic wait/notification
+
+Implemented public blocking wait/notification on `Atomic!T` using the Feature 3
+parking backend. `Atomic!T.waitSupported` is a compile-time property of each
+atomic instantiation. For the current Linux futex backend it is true only for
+32-bit supported atomic scalar types on architectures for which the parking
+backend has a known futex syscall mapping. Unsupported widths and unsupported
+parking backends retain the existing non-blocking atomic operations but do not
+expose `wait`, `notifyOne`, or `notifyAll`.
+
+`wait(oldValue, order)` validates that the load order is `relaxed`, `acquire`,
+or `sequentiallyConsistent`, repeatedly performs an atomic load, and parks only
+while the full atomic value still equals `oldValue`. Every return from the
+parking backend is followed by another atomic comparison, so notifications that
+do not change the value, `EINTR`, and other permitted spurious wakes cannot
+cause the public wait operation to return early. `notifyOne` and `notifyAll`
+carry no independent publication ordering; callers publish state with the
+atomic store/RMW that precedes notification.
+
+Validation for this commit includes:
+
+- compile-time wait-support checks for 16-, 32-, and 64-bit atomic widths,
+  32-bit enum values, shared receivers, and the forced-unsupported backend;
+- immediate-return checks for all three valid wait memory orders;
+- release/acquire publication through the wait path;
+- repeated notification without a state change, stress-checking that public `wait`
+  rechecks the value instead of exposing a notification/backend wake;
+- 2,048 generation transitions using `notifyOne`, deliberately allowing each
+  notification to race with the next entry into `wait` and thereby stressing
+  the wake-before-park/lost-wakeup boundary;
+- eight concurrent waiters released through `notifyAll`;
+- a signed 32-bit waited value (`-1`) to exercise exact futex expected-word
+  conversion;
+- unconditional death tests for `release`, `acquireRelease`, and an invalid
+  `MemoryOrder` value passed to `wait`;
+- debug, optimized, release-safe, release-fast, and AddressSanitizer focused
+  threading runs; and
+- Linux cross-compilation of wait/notify probes for i686, ARM, AArch64,
+  RISC-V64, PPC64LE, s390x, and LoongArch64, including the 32-bit pointer-wait
+  path where applicable; and
+- x86_64 Windows/MSVC cross-compilation proving the unsupported parking backend
+  reports `waitSupported == false` without leaking Linux futex imports.
+
+The one-shot startup latch and migration of the raw thread startup handoff are
+deliberately not part of this commit.
+
 ## Prototype gates
 
 | Gate | Status | Required before | Result / notes |
 |---|---|---|---|
-| Atomic backend widths / direct operations | **complete for LDC 1.42.0 x86_64 Linux** | Feature 1 | Probed 1/2/4/8-byte integral and enum values plus native pointers; LDC emitted native atomic instructions with no unresolved `__atomic*` runtime calls in the probe. |
+| Atomic backend widths / direct operations | **complete for LDC 1.42.0 x86_64 Linux** | Feature 1 | Probed 1/2/4/8-byte integral and enum values plus native pointers; LDC emitted native atomic instructions with no unresolved `__atomic*` runtime calls in the probe. Feature 4 additionally restricts blocking wait/notify to 32-bit scalar atomics on a parking-supported backend through `Atomic!T.waitSupported`. |
 | Atomic/shared receiver behavior | **complete for Feature 1** | Feature 1 | D requires distinct shared and unshared receiver overloads. `Atomic!T`/`AtomicFlag` expose both, with qualifier casts contained inside trusted atomic boundaries. |
 | Static memory-order diagnostics | **documented language/API limitation** | Feature 1 | The specified public syntax passes `MemoryOrder` as a runtime value. D semantic analysis does not preserve whether that argument originated from an enum literal, so the implementation cannot reject a literal invalid order at compile time without changing the call syntax to template value parameters. All invalid orders/combinations are still unconditional programming-error panics. |
 | Parameter storage-class introspection | **complete for typed starts** | Feature 2 allocator-backed typed start / Feature 6 zero-allocation typed start | LDC 1.42.0 reports `ref`/`out`/`lazy` explicitly; `scope`/`return` can decorate value transport. A focused address probe showed `in` is value-like under the repository flags but aliases caller storage under `-preview=in`, so v1 typed starts reject `in` in all modes. |

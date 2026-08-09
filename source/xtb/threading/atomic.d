@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import core.atomic;
 import xtb.core.panic : panic;
+import xtb.threading.internal.parking : park, parkingSupported, wakeAll, wakeOne;
 
 /// C/C++-style memory ordering for XTB atomic operations.
 ///
@@ -45,6 +46,9 @@ private enum bool isAtomicTypeSupported(T) =
     !isTopLevelQualified!T &&
     isAtomicWidthSupported!T &&
     (isAtomicIntegral!T || isAtomicEnum!T || isAtomicPointer!T);
+
+private enum bool isAtomicWaitSupported(T) =
+    parkingSupported && T.sizeof == uint.sizeof;
 
 private template CoreMemoryOrder(MemoryOrder order)
 {
@@ -135,6 +139,15 @@ nothrow @nogc:
 
     @disable this(this);
 
+    /// Whether this atomic type can use the active backend's allocation-free
+    /// blocking wait/notification path.
+    ///
+    /// V1 Linux parking uses a 32-bit futex wait word, so only atomic scalar
+    /// types with the same storage width are waitable. Other supported atomic
+    /// widths retain their non-blocking operations but do not expose
+    /// `wait`/`notifyOne`/`notifyAll`.
+    enum bool waitSupported = isAtomicWaitSupported!T;
+
     private T value_;
 
     /// Constructs an atomic value before publication to another thread.
@@ -157,6 +170,65 @@ nothrow @nogc:
     ) shared const @trusted
     {
         return loadAt(cast(T*)&value_, order);
+    }
+
+    static if (waitSupported)
+    {
+        /// Blocks while the atomic value compares equal to `oldValue`.
+        ///
+        /// Internal parking may return spuriously, so this method always
+        /// re-checks the atomic value and returns only after observing a value
+        /// different from `oldValue`. `release` and `acquireRelease` are not
+        /// valid wait orders because the operation performs atomic loads.
+        ///
+        /// Once another thread may wait on this object, its address must remain
+        /// stable until all such waiters have finished.
+        void wait(
+            T oldValue,
+            MemoryOrder order = MemoryOrder.sequentiallyConsistent,
+        ) const @trusted
+        {
+            waitAt(cast(T*)&value_, oldValue, order);
+        }
+
+        /// Ditto, for a `shared Atomic!T` receiver.
+        void wait(
+            T oldValue,
+            MemoryOrder order = MemoryOrder.sequentiallyConsistent,
+        ) shared const @trusted
+        {
+            waitAt(cast(T*)&value_, oldValue, order);
+        }
+
+        /// Wakes at most one thread blocked in `wait` on this atomic.
+        ///
+        /// Notification itself carries no publication ordering. Callers must
+        /// publish protocol state with an atomic store/RMW before notifying.
+        void notifyOne() const @trusted
+        {
+            wakeOne(waitAddress(cast(T*)&value_));
+        }
+
+        /// Ditto, for a `shared Atomic!T` receiver.
+        void notifyOne() shared const @trusted
+        {
+            wakeOne(waitAddress(cast(T*)&value_));
+        }
+
+        /// Wakes all threads currently blocked in `wait` on this atomic.
+        ///
+        /// Notification itself carries no publication ordering. Callers must
+        /// publish protocol state with an atomic store/RMW before notifying.
+        void notifyAll() const @trusted
+        {
+            wakeAll(waitAddress(cast(T*)&value_));
+        }
+
+        /// Ditto, for a `shared Atomic!T` receiver.
+        void notifyAll() shared const @trusted
+        {
+            wakeAll(waitAddress(cast(T*)&value_));
+        }
     }
 
     /// Atomically stores a new value.
@@ -361,6 +433,54 @@ nothrow @nogc:
                 panic("invalid memory order for Atomic.load");
             default:
                 panic("invalid MemoryOrder value for Atomic.load");
+        }
+    }
+
+    static if (waitSupported)
+    {
+        private static void validateWaitOrder(MemoryOrder order)
+        {
+            switch (order)
+            {
+                case MemoryOrder.relaxed:
+                case MemoryOrder.acquire:
+                case MemoryOrder.sequentiallyConsistent:
+                    return;
+                case MemoryOrder.release:
+                case MemoryOrder.acquireRelease:
+                    panic("invalid memory order for Atomic.wait");
+                default:
+                    panic("invalid MemoryOrder value for Atomic.wait");
+            }
+        }
+
+        private static uint waitBits(T value) @trusted
+        {
+            static assert(T.sizeof == uint.sizeof);
+            static if (isAtomicPointer!T)
+                return cast(uint) cast(size_t) value;
+            else
+                return cast(uint) value;
+        }
+
+        private static uint* waitAddress(T* address) @trusted
+        {
+            static assert(T.sizeof == uint.sizeof);
+            static assert(T.alignof >= uint.alignof);
+            return cast(uint*) address;
+        }
+
+        private static void waitAt(
+            T* address,
+            T oldValue,
+            MemoryOrder order,
+        ) @trusted
+        {
+            validateWaitOrder(order);
+            const expectedBits = waitBits(oldValue);
+
+            while (loadAt(address, order) == oldValue)
+                cast(void) park(waitAddress(address), expectedBits);
         }
     }
 
@@ -689,6 +809,32 @@ static assert(!__traits(compiles, Atomic!(immutable int).init));
 static assert(!__traits(compiles, Atomic!(shared int).init));
 static assert(Atomic!long.alignof >= long.alignof);
 static assert(Atomic!(int*).alignof >= (int*).alignof);
+static assert(Atomic!uint.waitSupported == parkingSupported);
+static assert(Atomic!int.waitSupported == parkingSupported);
+static assert(Atomic!dchar.waitSupported == parkingSupported);
+static assert(Atomic!AtomicTestEnum.waitSupported == parkingSupported);
+static assert(!Atomic!ushort.waitSupported);
+static assert(!Atomic!ulong.waitSupported);
+static if (parkingSupported)
+{
+    static assert(__traits(hasMember, Atomic!uint, "wait"));
+    static assert(__traits(hasMember, Atomic!uint, "notifyOne"));
+    static assert(__traits(hasMember, Atomic!uint, "notifyAll"));
+    static assert(__traits(compiles, () @safe nothrow @nogc {
+            shared Atomic!uint value;
+            value.wait(0, MemoryOrder.acquire);
+            value.notifyOne();
+            value.notifyAll();
+        }));
+}
+else
+{
+    static assert(!__traits(hasMember, Atomic!uint, "wait"));
+    static assert(!__traits(hasMember, Atomic!uint, "notifyOne"));
+    static assert(!__traits(hasMember, Atomic!uint, "notifyAll"));
+}
+static assert(!__traits(hasMember, Atomic!ushort, "wait"));
+static assert(!__traits(hasMember, Atomic!ulong, "wait"));
 static assert(__traits(hasMember, Atomic!int, "fetchAdd"));
 static assert(!__traits(hasMember, Atomic!bool, "fetchAdd"));
 static assert(!__traits(hasMember, Atomic!AtomicTestEnum, "fetchAdd"));

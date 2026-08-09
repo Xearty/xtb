@@ -114,6 +114,255 @@ version (Posix) private bool releaseAcquirePublishes() nothrow @nogc
     return context.observed == 0x5a5a_1234;
 }
 
+version (linux) private bool waitForAtomicAtLeast(
+    Atomic!uint* value,
+    uint target,
+) nothrow @nogc
+{
+    foreach (_; 0 .. 1_000_000)
+    {
+        if (value.load(MemoryOrder.acquire) >= target)
+            return true;
+        yieldThread();
+    }
+    return false;
+}
+
+version (linux) private struct AtomicWaitPublicationContext
+{
+    Atomic!uint state;
+    Atomic!uint entered;
+    Atomic!uint completed;
+    int payload;
+    int observed;
+}
+
+version (linux) private extern (C) void* atomicWaitPublicationWorker(
+    void* opaque,
+) nothrow @nogc
+{
+    AtomicWaitPublicationContext* context =
+        cast(AtomicWaitPublicationContext*) opaque;
+    context.entered.store(1, MemoryOrder.release);
+    context.state.wait(0, MemoryOrder.acquire);
+    context.observed = context.payload;
+    context.completed.store(1, MemoryOrder.release);
+    return null;
+}
+
+version (linux) private bool atomicWaitPublishesAndRechecks() nothrow @nogc
+{
+    AtomicWaitPublicationContext context;
+    pthread_t worker;
+    if (pthread_create(
+            &worker,
+            null,
+            &atomicWaitPublicationWorker,
+            &context,
+        ) != 0)
+        return false;
+
+    if (!waitForAtomicAtLeast(&context.entered, 1))
+    {
+        context.state.store(1, MemoryOrder.release);
+        context.state.notifyAll();
+        cast(void) pthread_join(worker, null);
+        return false;
+    }
+
+    // Notifications without a value change may wake the futex internally, but
+    // Atomic.wait must re-check and remain blocked while the value is still 0.
+    foreach (_; 0 .. 256)
+    {
+        context.state.notifyOne();
+        yieldThread();
+    }
+    if (context.completed.load(MemoryOrder.acquire) != 0)
+    {
+        context.state.store(1, MemoryOrder.release);
+        context.state.notifyAll();
+        cast(void) pthread_join(worker, null);
+        return false;
+    }
+
+    context.payload = 0x3a4b_5c6d;
+    context.state.store(1, MemoryOrder.release);
+    context.state.notifyOne();
+    if (pthread_join(worker, null) != 0)
+        return false;
+    return context.completed.load(MemoryOrder.acquire) == 1 &&
+        context.observed == context.payload;
+}
+
+version (linux) private struct AtomicWaitGenerationContext
+{
+    Atomic!uint generation;
+    Atomic!uint completedGeneration;
+    Atomic!uint failed;
+    uint rounds;
+}
+
+version (linux) private extern (C) void* atomicWaitGenerationWorker(
+    void* opaque,
+) nothrow @nogc
+{
+    AtomicWaitGenerationContext* context =
+        cast(AtomicWaitGenerationContext*) opaque;
+    foreach (round; 0 .. context.rounds)
+    {
+        context.generation.wait(round, MemoryOrder.acquire);
+        if (context.generation.load(MemoryOrder.relaxed) != round + 1)
+        {
+            context.failed.store(1, MemoryOrder.release);
+            return null;
+        }
+        context.completedGeneration.store(round + 1, MemoryOrder.release);
+    }
+    return null;
+}
+
+version (linux) private bool atomicWaitWakeBeforeParkStress() nothrow @nogc
+{
+    enum rounds = 2_048;
+    AtomicWaitGenerationContext context;
+    context.rounds = rounds;
+
+    pthread_t worker;
+    if (pthread_create(
+            &worker,
+            null,
+            &atomicWaitGenerationWorker,
+            &context,
+        ) != 0)
+        return false;
+
+    bool succeeded = true;
+    foreach (generation; 1 .. rounds + 1)
+    {
+        context.generation.store(generation, MemoryOrder.release);
+        context.generation.notifyOne();
+        if (!waitForAtomicAtLeast(&context.completedGeneration, generation))
+        {
+            succeeded = false;
+            break;
+        }
+    }
+
+    if (!succeeded)
+    {
+        context.generation.store(uint.max, MemoryOrder.release);
+        context.generation.notifyAll();
+    }
+
+    if (pthread_join(worker, null) != 0)
+        return false;
+    return succeeded && context.failed.load(MemoryOrder.acquire) == 0 &&
+        context.completedGeneration.load(MemoryOrder.acquire) == rounds;
+}
+
+version (linux) private struct AtomicWaitAllContext
+{
+    Atomic!uint state;
+    Atomic!uint ready;
+    Atomic!uint completed;
+}
+
+version (linux) private extern (C) void* atomicWaitAllWorker(
+    void* opaque,
+) nothrow @nogc
+{
+    AtomicWaitAllContext* context = cast(AtomicWaitAllContext*) opaque;
+    context.ready.fetchAdd(1, MemoryOrder.release);
+    context.state.wait(0, MemoryOrder.acquire);
+    context.completed.fetchAdd(1, MemoryOrder.release);
+    return null;
+}
+
+version (linux) private bool atomicNotifyAllReleasesWaiters() nothrow @nogc
+{
+    enum workerCount = 8;
+    AtomicWaitAllContext context;
+    pthread_t[workerCount] workers;
+    uint started;
+
+    foreach (ref worker; workers)
+    {
+        if (pthread_create(&worker, null, &atomicWaitAllWorker, &context) != 0)
+            break;
+        ++started;
+    }
+
+    if (started != workerCount ||
+        !waitForAtomicAtLeast(&context.ready, workerCount))
+    {
+        context.state.store(1, MemoryOrder.release);
+        context.state.notifyAll();
+        foreach (index; 0 .. started)
+            cast(void) pthread_join(workers[index], null);
+        return false;
+    }
+
+    context.state.store(1, MemoryOrder.release);
+    context.state.notifyAll();
+
+    bool joined = true;
+    foreach (worker; workers)
+        if (pthread_join(worker, null) != 0)
+            joined = false;
+    return joined &&
+        context.completed.load(MemoryOrder.acquire) == workerCount;
+}
+
+version (linux) private bool atomicWaitImmediateOrders() nothrow @nogc
+{
+    Atomic!uint value = Atomic!uint(1);
+    value.wait(0, MemoryOrder.relaxed);
+    value.wait(0, MemoryOrder.acquire);
+    value.wait(0, MemoryOrder.sequentiallyConsistent);
+    return value.load(MemoryOrder.relaxed) == 1;
+}
+
+version (linux) private struct SignedAtomicWaitContext
+{
+    Atomic!int state;
+    Atomic!uint entered;
+    Atomic!uint completed;
+}
+
+version (linux) private extern (C) void* signedAtomicWaitWorker(
+    void* opaque,
+) nothrow @nogc
+{
+    SignedAtomicWaitContext* context = cast(SignedAtomicWaitContext*) opaque;
+    context.entered.store(1, MemoryOrder.release);
+    context.state.wait(-1, MemoryOrder.acquire);
+    context.completed.store(1, MemoryOrder.release);
+    return null;
+}
+
+version (linux) private bool signedAtomicWaitUsesValueBits() nothrow @nogc
+{
+    SignedAtomicWaitContext context;
+    context.state.store(-1, MemoryOrder.relaxed);
+
+    pthread_t worker;
+    if (pthread_create(&worker, null, &signedAtomicWaitWorker, &context) != 0)
+        return false;
+    if (!waitForAtomicAtLeast(&context.entered, 1))
+    {
+        context.state.store(-2, MemoryOrder.release);
+        context.state.notifyAll();
+        cast(void) pthread_join(worker, null);
+        return false;
+    }
+
+    context.state.store(-2, MemoryOrder.release);
+    context.state.notifyOne();
+    if (pthread_join(worker, null) != 0)
+        return false;
+    return context.completed.load(MemoryOrder.acquire) == 1;
+}
+
 version (linux) private int nullContextRawWorker(void* context) nothrow @nogc
 {
     return context is null ? 17 : -1;
@@ -1014,6 +1263,9 @@ version (Posix) private enum DeathCase : ubyte
     flagClearAcquire,
     invalidOrderValue,
     invalidFenceOrder,
+    waitRelease,
+    waitAcquireRelease,
+    invalidWaitOrderValue,
     nullRawFunction,
     nullRawAllocFunction,
     nullRawAllocAllocator,
@@ -1067,6 +1319,18 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             return;
         case DeathCase.invalidFenceOrder:
             atomicThreadFence(cast(MemoryOrder) 0xff);
+            return;
+        case DeathCase.waitRelease:
+            static if (Atomic!uint.waitSupported)
+                value.wait(0, MemoryOrder.release);
+            return;
+        case DeathCase.waitAcquireRelease:
+            static if (Atomic!uint.waitSupported)
+                value.wait(0, MemoryOrder.acquireRelease);
+            return;
+        case DeathCase.invalidWaitOrderValue:
+            static if (Atomic!uint.waitSupported)
+                value.wait(0, cast(MemoryOrder) 0xff);
             return;
         case DeathCase.nullRawFunction:
             cast(void) Thread.startRaw(null);
@@ -1232,6 +1496,16 @@ extern (C) int main() nothrow @nogc
 
     version (linux)
     {
+        if (!atomicWaitImmediateOrders())
+            return 40;
+        if (!atomicWaitPublishesAndRechecks())
+            return 41;
+        if (!atomicWaitWakeBeforeParkStress())
+            return 42;
+        if (!atomicNotifyAllReleasesWaiters())
+            return 43;
+        if (!signedAtomicWaitUsesValueBits())
+            return 45;
         if (!rawThreadBasics())
             return 10;
         if (!allocatedRawStartWorks())
@@ -1303,6 +1577,17 @@ extern (C) int main() nothrow @nogc
         ])
             if (!expectAbort(deathCase))
                 return 30;
+    }
+
+    version (linux)
+    {
+        static foreach (deathCase; [
+            DeathCase.waitRelease,
+            DeathCase.waitAcquireRelease,
+            DeathCase.invalidWaitOrderValue,
+        ])
+            if (!expectAbort(deathCase))
+                return 44;
     }
 
     return 0;

@@ -5,6 +5,11 @@ import xtb.core.memory : Allocator;
 import xtb.threading;
 import parkingModule = xtb.threading.internal.parking;
 
+static assert(!Atomic!uint.waitSupported);
+static assert(!__traits(hasMember, Atomic!uint, "wait"));
+static assert(!__traits(hasMember, Atomic!uint, "notifyOne"));
+static assert(!__traits(hasMember, Atomic!uint, "notifyAll"));
+
 private int worker(void* context) nothrow @nogc
 {
     return 0;

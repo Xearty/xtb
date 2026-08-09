@@ -126,6 +126,13 @@ version (linux)
     }
 }
 
+version (XTB_TestUnsupportedThreadBackend)
+    package(xtb.threading) enum bool parkingSupported = false;
+else version (linux)
+    package(xtb.threading) enum bool parkingSupported = futexSyscallAvailable;
+else
+    package(xtb.threading) enum bool parkingSupported = false;
+
 /// Atomically compares `*address` with `expected` at the backend sleep point
 /// and sleeps only while they compare equal.
 ///
