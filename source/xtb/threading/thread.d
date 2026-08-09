@@ -65,6 +65,14 @@ struct ThreadId
     private ulong value_;
 }
 
+/// Package-private access to the opaque identity bits for synchronization
+/// diagnostics. These bits remain non-portable and must not escape the
+/// threading package.
+package(xtb.threading) ulong threadIdBits(ThreadId id) pure @safe
+{
+    return id.value_;
+}
+
 /// Portable category for thread-name failures.
 enum ThreadNameErrorKind : ubyte
 {

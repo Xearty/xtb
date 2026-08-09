@@ -7,6 +7,7 @@ import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
 import xtb.threading;
 import atomicModule = xtb.threading.atomic;
+import mutexModule = xtb.threading.mutex;
 import parkingModule = xtb.threading.internal.parking;
 import startLatchModule = xtb.threading.internal.start_latch;
 import spinWaitModule = xtb.threading.spin_wait;
@@ -1537,6 +1538,139 @@ version (linux) private int panicRawWorker(void* context) nothrow @nogc
     panic("worker panic death test");
 }
 
+version (linux) private struct MutexIncrementContext
+{
+    Mutex* mutex;
+    uint* value;
+    uint iterations;
+}
+
+version (linux) private int mutexIncrementWorker(
+    MutexIncrementContext* context,
+) nothrow @nogc
+{
+    foreach (_; 0 .. context.iterations)
+    {
+        context.mutex.lock();
+        ++*context.value;
+        context.mutex.unlock();
+    }
+    return 0;
+}
+
+version (linux) private bool mutexMutualExclusion() nothrow @nogc
+{
+    enum workerCount = 4;
+    enum iterations = 2_000;
+
+    Mutex mutex;
+    uint value;
+    MutexIncrementContext context = MutexIncrementContext(
+        &mutex,
+        &value,
+        iterations,
+    );
+    Thread[workerCount] threads;
+    size_t startedCount;
+
+    foreach (ref thread; threads)
+    {
+        auto started = Thread.start!mutexIncrementWorker(&context);
+        if (!started.isOk)
+        {
+            foreach (index; 0 .. startedCount)
+                cast(void) threads[index].join();
+            return false;
+        }
+        thread = started.unwrap();
+        ++startedCount;
+    }
+
+    foreach (ref thread; threads)
+        if (thread.join() != 0)
+            return false;
+
+    return value == workerCount * iterations;
+}
+
+version (linux) private struct MutexHandoffContext
+{
+    Mutex* mutex;
+    Atomic!uint entered;
+    Atomic!uint acquired;
+    int* payload;
+    int observed;
+}
+
+version (linux) private int mutexHandoffWorker(
+    MutexHandoffContext* context,
+) nothrow @nogc
+{
+    context.entered.store(1, MemoryOrder.release);
+    context.mutex.lock();
+    context.observed = *context.payload;
+    context.acquired.store(1, MemoryOrder.release);
+    context.mutex.unlock();
+    return 0;
+}
+
+version (linux) private bool mutexHandoffAndPublication() nothrow @nogc
+{
+    Mutex mutex;
+    int payload;
+    MutexHandoffContext context = MutexHandoffContext(
+        &mutex,
+        Atomic!uint.init,
+        Atomic!uint.init,
+        &payload,
+        0,
+    );
+
+    mutex.lock();
+    auto started = Thread.start!mutexHandoffWorker(&context);
+    if (!started.isOk)
+    {
+        mutex.unlock();
+        return false;
+    }
+    Thread thread = started.unwrap();
+
+    if (!waitForAtomicAtLeast(&context.entered, 1))
+    {
+        mutex.unlock();
+        cast(void) thread.join();
+        return false;
+    }
+
+    // Give the child a few scheduling opportunities while the mutex remains
+    // locked. It must not enter the protected region until unlock publishes
+    // the payload with release semantics.
+    foreach (_; 0 .. 16)
+        yieldThread();
+    if (context.acquired.load(MemoryOrder.acquire) != 0)
+    {
+        mutex.unlock();
+        cast(void) thread.join();
+        return false;
+    }
+
+    payload = 0x1234_5678;
+    mutex.unlock();
+    if (thread.join() != 0)
+        return false;
+
+    return context.acquired.load(MemoryOrder.acquire) == 1 &&
+        context.observed == payload;
+}
+
+version (XTB_Checked) version (linux) private int mutexNonOwnerUnlockWorker(
+    Mutex* mutex,
+) nothrow @nogc
+{
+    mutex.unlock();
+    return 0;
+}
+
 version (Posix) private enum DeathCase : ubyte
 {
     loadRelease,
@@ -1562,6 +1696,11 @@ version (Posix) private enum DeathCase : ubyte
     moveAssignOverJoinable,
     selfJoin,
     workerPanic,
+    mutexUnlockUnlocked,
+    mutexDoubleUnlock,
+    mutexRecursiveLock,
+    mutexDestroyLocked,
+    mutexUnlockNonOwner,
 }
 
 version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
@@ -1677,6 +1816,55 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             Thread thread = started.unwrap();
             cast(void) thread.join();
             _exit(83);
+        case DeathCase.mutexUnlockUnlocked:
+            version (XTB_Checked)
+            {
+                Mutex mutex;
+                mutex.unlock();
+            }
+            return;
+        case DeathCase.mutexDoubleUnlock:
+            version (XTB_Checked)
+            {
+                Mutex mutex;
+                mutex.lock();
+                mutex.unlock();
+                mutex.unlock();
+            }
+            return;
+        case DeathCase.mutexRecursiveLock:
+            version (XTB_Checked)
+            {
+                Mutex mutex;
+                mutex.lock();
+                mutex.lock();
+            }
+            return;
+        case DeathCase.mutexDestroyLocked:
+            version (XTB_Checked)
+            {
+                Mutex mutex;
+                mutex.lock();
+            }
+            return;
+        case DeathCase.mutexUnlockNonOwner:
+            version (XTB_Checked)
+            {
+                version (linux)
+                {
+                    Mutex mutex;
+                    mutex.lock();
+                    auto started = Thread.start!mutexNonOwnerUnlockWorker(
+                        &mutex,
+                    );
+                    if (!started.isOk)
+                        _exit(86);
+                    Thread thread = started.unwrap();
+                    cast(void) thread.join();
+                    _exit(87);
+                }
+            }
+            return;
     }
 }
 
@@ -1760,6 +1948,8 @@ version (linux) private bool moveOwnershipWorks() nothrow @nogc
 extern (C) int main() nothrow @nogc
 {
     static foreach (testFunction; __traits(getUnitTests, atomicModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, mutexModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, parkingModule))
         testFunction();
@@ -1856,6 +2046,11 @@ extern (C) int main() nothrow @nogc
         spinWait.reset();
         spinWait.spin();
 
+        if (!mutexMutualExclusion())
+            return 23;
+        if (!mutexHandoffAndPublication())
+            return 24;
+
         yieldThread();
     }
 
@@ -1897,6 +2092,20 @@ extern (C) int main() nothrow @nogc
             if (!expectAbort(deathCase))
                 return 44;
     }
+
+    version (XTB_Checked)
+        version (linux)
+        {
+            static foreach (deathCase; [
+                DeathCase.mutexUnlockUnlocked,
+                DeathCase.mutexDoubleUnlock,
+                DeathCase.mutexRecursiveLock,
+                DeathCase.mutexDestroyLocked,
+                DeathCase.mutexUnlockNonOwner,
+            ])
+                if (!expectAbort(deathCase))
+                    return 45;
+        }
 
     return 0;
 }

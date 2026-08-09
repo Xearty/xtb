@@ -367,3 +367,29 @@ production path and deterministic unit test exercise the same state machine. The
 test policy counts relax/yield actions without sleeping or creating threads,
 verifying the exact initial v1 sequence, transition to yielding, saturation, and
 reset behavior while keeping the normal test suite fast.
+
+## Mutex completion record
+
+Implemented public allocation-free `Mutex` with zero-valid unlocked state,
+non-copyable value semantics, and the v1 three-state atomic protocol: `0` is
+unlocked, `1` is locked without known contention, and `2` is locked/contended.
+The fast path acquires with CAS `0 -> 1`. The slow path performs bounded
+1/2/4/8/16/32/64 `cpuRelax()` batches with acquisition retries, preserves a
+locally observed contended state, then uses the atomic wait/notification parking
+path. It deliberately never scheduler-yields between active spinning and
+parking. Unlock exchanges the state to zero with release ordering and wakes one
+waiter when the previous state was contended.
+
+In `XTB_Checked` builds Mutex also carries an atomic owner identity used only for
+diagnostics. Blocking recursive lock, unlock of an unlocked mutex, double
+unlock, unlock by a non-owner, and destruction while locked are diagnosed as
+programming errors. `tryLock()` remains a non-blocking probe and returns `false`
+when the current thread already owns the mutex. The owner field is compiled out
+outside `XTB_Checked`; the release representation is only the 32-bit atomic
+state word.
+
+Validation covers basic lock/tryLock/unlock behavior, deterministic verification
+of the bounded 127 total relax hints, a short four-thread protected increment
+run, contended handoff with release/acquire publication, and checked-build death
+tests for the ownership/lifecycle diagnostics. The tests intentionally use
+small iteration counts so ordinary threading test runtime remains short.
