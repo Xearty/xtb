@@ -12,6 +12,7 @@ import onceCellModule = xtb.threading.once_cell;
 import parkingModule = xtb.threading.internal.parking;
 import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
+import waitGroupModule = xtb.threading.wait_group;
 
 static assert(!Atomic!uint.waitSupported);
 static assert(!__traits(hasMember, Atomic!uint, "wait"));
@@ -89,6 +90,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, generationWaitModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, startLatchModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, waitGroupModule))
         testFunction();
 
     auto started = Thread.startRaw(&worker);

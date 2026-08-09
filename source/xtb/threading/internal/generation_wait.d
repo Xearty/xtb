@@ -61,6 +61,15 @@ nothrow @nogc:
         version (XTB_Checked)
             registerWaiter();
 
+        waitForChangeRegistered(expected);
+
+        version (XTB_Checked)
+            unregisterWaiter();
+    }
+
+    /// Waits after a caller has performed any required external registration.
+    package(xtb.threading) void waitForChangeRegistered(uint expected) @safe
+    {
         while (!hasChanged(expected))
         {
             static if (!Atomic!uint.waitSupported)
@@ -72,9 +81,6 @@ nothrow @nogc:
                 generation_.wait(expected, MemoryOrder.acquire);
             }
         }
-
-        version (XTB_Checked)
-            unregisterWaiter();
     }
 
     version (XTB_Checked)
@@ -85,7 +91,7 @@ nothrow @nogc:
             return waiters_.load(MemoryOrder.acquire) != 0;
         }
 
-        private void registerWaiter() @safe
+        package(xtb.threading) void registerWaiter() @safe
         {
             size_t observed = waiters_.load(MemoryOrder.relaxed);
             while (true)
@@ -102,7 +108,7 @@ nothrow @nogc:
             }
         }
 
-        private void unregisterWaiter() @safe
+        package(xtb.threading) void unregisterWaiter() @safe
         {
             size_t observed = waiters_.load(MemoryOrder.relaxed);
             while (true)

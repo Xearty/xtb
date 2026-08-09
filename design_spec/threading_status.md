@@ -32,8 +32,8 @@ Status values:
 | 11 | **complete** | `OnceCell!T` | 10 | Allocation-free typed one-time initialization and exact manual lifetime handling. |
 | 12 | **complete** | `Latch` | 1, 3, 4 | One-shot countdown with a full-width logical count and a 32-bit wait epoch. Implemented early while auditing the decided countdown design. |
 | 13 | **complete** | Internal generation machinery | 12 | `GenerationWaitState` uses one 32-bit phase token for identity and parking, plus checked-build waiter tracking. |
-| 14 | **next** | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
-| 15 | pending | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
+| 14 | **complete** | `WaitGroup` | 13 | Dynamic registration, reuse across generations, underflow/reuse misuse checks. |
+| 15 | **next** | `Barrier` | 13 | Reusable generations, arrival/drop semantics, permanent completion. |
 | 16 | pending | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
 | 17 | pending | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
 | 18 | pending | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
@@ -589,3 +589,41 @@ optimized, release-safe, and AddressSanitizer modes; release-fast production and
 test targets compile; every example runs; the module cross-compiles for x86-64
 Windows; and the release threading archive adds no allocator, TypeInfo,
 ModuleInfo, or D runtime dependency.
+
+## WaitGroup completion record
+
+Implemented public allocation-free `WaitGroup` with a full-width atomic
+outstanding count and the shared 32-bit `GenerationWaitState`. A private mutex
+serializes count-changing operations and waiter registration so that the final
+`done` publishes zero and advances the generation as one semantic transition;
+a zero-to-positive `add` cannot open a new generation between those actions.
+The atomic count keeps `tryWait` nonblocking, while positive-count `wait` calls
+snapshot and park on the generation token without holding the mutex.
+
+Positive adds while work remains join the current generation, enabling dynamic
+child registration. Zero-count adds and completions are no-ops. Overflow and
+underflow are unconditional fatal programming errors. Checked builds retain
+waiter registration through the post-wake return gate, diagnose premature
+zero-to-positive reuse and destruction with outstanding work, and remove that
+diagnostic bookkeeping from release-fast builds. Final completion uses
+release/acquire ordering and the mutex's release chain so every contributing
+worker write is visible to returning waiters.
+
+Validation covers the zero state, no-op operations, the complete `size_t`
+range, batched completion, concurrent dynamic registration, eight completing
+workers, four waiters, publication, 512 immediate reuse generations, and full
+thread cleanup. Death tests cover unconditional count overflow/underflow plus
+checked premature reuse and active destruction. The forced unsupported backend
+keeps uncontended and nonblocking operations usable while a positive-count
+wait fails explicitly. The aggregate module re-exports `WaitGroup`, and both
+BetterC threading runners enumerate its colocated tests.
+
+Repository-wide lint and debug, optimized, release-safe, release-fast compile
+and manual runtime, and AddressSanitizer test modes pass with LDC 1.41.0. The
+threading component
+builds in all three production modes, every example runs, the public module
+cross-compiles for x86-64 Windows, and the release threading archive adds no
+allocator, TypeInfo, ModuleInfo, or D runtime dependency. Focused formatting
+passes; the repository-wide format check remains blocked only by the existing
+format mismatch in `source/xtb/threading/internal/thread_linux.d`, which this
+feature does not modify.

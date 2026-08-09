@@ -18,6 +18,7 @@ import parkingModule = xtb.threading.internal.parking;
 import semaphoreModule = xtb.threading.semaphore;
 import startLatchModule = xtb.threading.internal.start_latch;
 import spinWaitModule = xtb.threading.spin_wait;
+import waitGroupModule = xtb.threading.wait_group;
 
 version (linux) import linuxBackendModule = xtb.threading.internal.thread_linux;
 
@@ -2218,6 +2219,9 @@ version (Posix) private enum DeathCase : ubyte
     condVarMixedMutexes,
     semaphoreOverflow,
     latchUnderflow,
+    waitGroupOverflow,
+    waitGroupUnderflow,
+    waitGroupDestroyActive,
     onceRecursive,
     onceCellRecursive,
     onceCellDestroyActive,
@@ -2421,6 +2425,23 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             Latch latch = Latch(1);
             latch.countDown(2);
             return;
+        case DeathCase.waitGroupOverflow:
+            WaitGroup group;
+            group.add(size_t.max);
+            group.add();
+            return;
+        case DeathCase.waitGroupUnderflow:
+            WaitGroup group;
+            group.add();
+            group.done(2);
+            return;
+        case DeathCase.waitGroupDestroyActive:
+            version (XTB_Checked)
+            {
+                WaitGroup group;
+                group.add();
+            }
+            return;
         case DeathCase.onceRecursive:
             version (XTB_Checked)
             {
@@ -2555,6 +2576,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, startLatchModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, spinWaitModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, waitGroupModule))
         testFunction();
     version (linux)
         static foreach (testFunction; __traits(getUnitTests, linuxBackendModule))
@@ -2694,6 +2717,8 @@ extern (C) int main() nothrow @nogc
             DeathCase.workerPanic,
             DeathCase.semaphoreOverflow,
             DeathCase.latchUnderflow,
+            DeathCase.waitGroupOverflow,
+            DeathCase.waitGroupUnderflow,
         ])
             if (!expectAbort(deathCase))
                 return 30;
@@ -2724,6 +2749,7 @@ extern (C) int main() nothrow @nogc
                 DeathCase.onceRecursive,
                 DeathCase.onceCellRecursive,
                 DeathCase.onceCellDestroyActive,
+                DeathCase.waitGroupDestroyActive,
             ])
                 if (!expectAbort(deathCase))
                     return 45;
