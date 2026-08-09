@@ -37,9 +37,9 @@ Status values:
 | 16 | **complete** | `RwLock` | 1, 3 | Writer-preference reader/writer lock and checked writer-owner diagnostics. |
 | 17 | **complete** | `spawn` and `JoinHandle!T` | 2 | Explicit allocator-backed typed result transport and move-only join ownership. |
 | 18 | **complete** | `threadScope` | 2, 17 | Allocator-backed heterogeneous child tracking, scoped borrowing, guaranteed join-all. |
-| 19 | **next** | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
+| 19 | **complete** | Lock guards | 7, 16 | `LockGuard`, `ReadLockGuard`, and `WriteLockGuard` with move-only lexical ownership. |
 | 20 | blocked | Monotonic time, sleeping, and timed waits | time foundation | Requires a stable monotonic-time abstraction that preserves the threading package dependency direction. |
-| 21 | pending | Windows backend coverage | public contracts above | Implement every completed OS-dependent primitive/utility with the same public semantics. |
+| 21 | **next** | Windows backend coverage | public contracts above | Implement every completed OS-dependent primitive/utility with the same public semantics. |
 
 ## Feature 1 completion record
 
@@ -806,5 +806,42 @@ Repository-wide formatting and lint pass. Debug, optimized, release-safe,
 manual release-fast, and AddressSanitizer test runs pass with LDC 1.41.0. All
 production components build in debug, release-safe, and release-fast modes,
 every example runs, both public entry forms cross-compile in checked and
+unchecked modes for x86-64 Windows/MSVC, and the release threading archive adds
+no GC allocator, TypeInfo, ModuleInfo, or compiler atomic-runtime dependency.
+
+## Lock guards completion record
+
+Implemented allocation-free `LockGuard!Mutex`, `ReadLockGuard!RwLock`, and
+`WriteLockGuard!RwLock`. Construction takes an explicit non-null lock pointer
+and acquires the corresponding mutex, read, or write mode. Each destructor
+releases exactly that mode. The pointer parameters use `return scope`, allowing
+DIP1000 to reject returning a guard that refers to a safe function's local lock.
+The guards are `@mustuse`, `@safe`, `nothrow @nogc`, non-copyable, and exactly
+one pointer wide.
+
+Default and moved-from guards are empty and have no destructor action. Move
+construction and move assignment transfer the pointer obligation; assignment
+is accepted only when the destination is empty. Null construction and moving
+over an owning destination panic in every build, including release-fast. There
+is deliberately no deferred acquisition, adopt-lock, manual release, or
+multi-lock surface. Mutex and write guards retain their underlying locks'
+thread affinity, with checked owner diagnostics catching destruction after an
+illicit cross-thread transfer.
+
+Validation covers lexical acquisition/release for all three modes, multiple
+simultaneous readers, exclusion while write-owned, move construction, move
+assignment into empty destinations, moved-from destruction, and subsequent
+successful reacquisition proving exactly-once release. Compile-time checks
+cover pointer-only layout, non-copyability, lock-type restrictions, absent
+manual release, safe use, and rejection of guards escaping local lock storage.
+Death tests cover every null constructor and active-destination move assignment
+in checked and release-fast execution, plus checked cross-thread destruction of
+mutex and write guards. The forced-unsupported runner exercises all uncontended
+guard modes.
+
+Repository-wide formatting and lint pass. Debug, optimized, release-safe,
+manual release-fast, and AddressSanitizer test runs pass with LDC 1.41.0. All
+production components build in debug, release-safe, and release-fast modes,
+every example runs, the public guard surface cross-compiles in checked and
 unchecked modes for x86-64 Windows/MSVC, and the release threading archive adds
 no GC allocator, TypeInfo, ModuleInfo, or compiler atomic-runtime dependency.

@@ -7,6 +7,7 @@ import barrierModule = xtb.threading.barrier;
 import condVarModule = xtb.threading.cond_var;
 import generationWaitModule = xtb.threading.internal.generation_wait;
 import latchModule = xtb.threading.latch;
+import lockGuardModule = xtb.threading.lock_guard;
 import mutexModule = xtb.threading.mutex;
 import onceModule = xtb.threading.once;
 import onceCellModule = xtb.threading.once_cell;
@@ -104,6 +105,8 @@ private extern (C) void* trackingAllocatorProcedure(
 extern (C) int main() nothrow @nogc
 {
     static foreach (testFunction; __traits(getUnitTests, barrierModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, lockGuardModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, mutexModule))
         testFunction();

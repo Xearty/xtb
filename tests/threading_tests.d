@@ -13,6 +13,7 @@ import condVarModule = xtb.threading.cond_var;
 import countdownModule = xtb.threading.internal.countdown;
 import generationWaitModule = xtb.threading.internal.generation_wait;
 import latchModule = xtb.threading.latch;
+import lockGuardModule = xtb.threading.lock_guard;
 import mutexModule = xtb.threading.mutex;
 import onceModule = xtb.threading.once;
 import onceCellModule = xtb.threading.once_cell;
@@ -2534,6 +2535,20 @@ version (XTB_Checked) version (linux) private int rwLockNonOwnerWriteUnlockWorke
     return 0;
 }
 
+version (XTB_Checked) version (linux) private int destroyMutexGuardOnWrongThread(
+    LockGuard!Mutex,
+) nothrow @nogc
+{
+    return 0;
+}
+
+version (XTB_Checked) version (linux) private int destroyWriteGuardOnWrongThread(
+    WriteLockGuard!RwLock,
+) nothrow @nogc
+{
+    return 0;
+}
+
 version (linux) private struct CondVarContext
 {
     Mutex mutex;
@@ -3092,6 +3107,14 @@ version (Posix) private enum DeathCase : ubyte
     rwLockDestroyReadOwned,
     rwLockDestroyWriteOwned,
     rwLockUnlockWriteNonOwner,
+    lockGuardNullMutex,
+    readLockGuardNullLock,
+    writeLockGuardNullLock,
+    lockGuardMoveAssignOwned,
+    readLockGuardMoveAssignOwned,
+    writeLockGuardMoveAssignOwned,
+    lockGuardWrongThread,
+    writeLockGuardWrongThread,
     condVarWaitWithoutOwnership,
     condVarMixedMutexes,
     semaphoreOverflow,
@@ -3420,6 +3443,72 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 }
             }
             return;
+        case DeathCase.lockGuardNullMutex:
+            LockGuard!Mutex guard = LockGuard!Mutex(null);
+            return;
+        case DeathCase.readLockGuardNullLock:
+            ReadLockGuard!RwLock guard = ReadLockGuard!RwLock(null);
+            return;
+        case DeathCase.writeLockGuardNullLock:
+            WriteLockGuard!RwLock guard = WriteLockGuard!RwLock(null);
+            return;
+        case DeathCase.lockGuardMoveAssignOwned:
+            Mutex firstLock;
+            Mutex secondLock;
+            LockGuard!Mutex first = LockGuard!Mutex(&firstLock);
+            LockGuard!Mutex second = LockGuard!Mutex(&secondLock);
+            first = move(second);
+            return;
+        case DeathCase.readLockGuardMoveAssignOwned:
+            RwLock firstLock;
+            RwLock secondLock;
+            ReadLockGuard!RwLock first = ReadLockGuard!RwLock(&firstLock);
+            ReadLockGuard!RwLock second = ReadLockGuard!RwLock(&secondLock);
+            first = move(second);
+            return;
+        case DeathCase.writeLockGuardMoveAssignOwned:
+            RwLock firstLock;
+            RwLock secondLock;
+            WriteLockGuard!RwLock first = WriteLockGuard!RwLock(&firstLock);
+            WriteLockGuard!RwLock second = WriteLockGuard!RwLock(&secondLock);
+            first = move(second);
+            return;
+        case DeathCase.lockGuardWrongThread:
+            version (XTB_Checked)
+            {
+                version (linux)
+                {
+                    Mutex mutex;
+                    LockGuard!Mutex guard = LockGuard!Mutex(&mutex);
+                    auto started = Thread.start!destroyMutexGuardOnWrongThread(
+                        move(guard),
+                    );
+                    if (!started.isOk)
+                        _exit(98);
+                    Thread thread = started.unwrap();
+                    cast(void) thread.join();
+                    _exit(99);
+                }
+            }
+            return;
+        case DeathCase.writeLockGuardWrongThread:
+            version (XTB_Checked)
+            {
+                version (linux)
+                {
+                    RwLock lock;
+                    WriteLockGuard!RwLock guard = WriteLockGuard!RwLock(&lock);
+                    auto started = Thread.start!destroyWriteGuardOnWrongThread(
+                        move(guard),
+                    );
+                    if (!started.isOk)
+                        _exit(100);
+                    Thread thread = started.unwrap();
+                    cast(void) thread.join();
+                    _exit(101);
+                }
+            }
+            return;
         case DeathCase.condVarWaitWithoutOwnership:
             version (XTB_Checked)
             {
@@ -3604,6 +3693,8 @@ extern (C) int main() nothrow @nogc
     static foreach (testFunction; __traits(getUnitTests, atomicModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, barrierModule))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, lockGuardModule))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, mutexModule))
         testFunction();
@@ -3810,6 +3901,12 @@ extern (C) int main() nothrow @nogc
             DeathCase.rwLockDoubleUnlockRead,
             DeathCase.rwLockUnlockWrite,
             DeathCase.rwLockDoubleUnlockWrite,
+            DeathCase.lockGuardNullMutex,
+            DeathCase.readLockGuardNullLock,
+            DeathCase.writeLockGuardNullLock,
+            DeathCase.lockGuardMoveAssignOwned,
+            DeathCase.readLockGuardMoveAssignOwned,
+            DeathCase.writeLockGuardMoveAssignOwned,
             DeathCase.semaphoreOverflow,
             DeathCase.latchUnderflow,
             DeathCase.waitGroupOverflow,
@@ -3847,6 +3944,8 @@ extern (C) int main() nothrow @nogc
                 DeathCase.rwLockDestroyReadOwned,
                 DeathCase.rwLockDestroyWriteOwned,
                 DeathCase.rwLockUnlockWriteNonOwner,
+                DeathCase.lockGuardWrongThread,
+                DeathCase.writeLockGuardWrongThread,
                 DeathCase.condVarWaitWithoutOwnership,
                 DeathCase.condVarMixedMutexes,
                 DeathCase.onceRecursive,
