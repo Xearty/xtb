@@ -2,16 +2,18 @@
 
 ## Status
 
-Feature proposal. This is the canonical design for adding allocation-only arena
-regions, native arena reallocation, and arena-native arrays to xtb.
+Archived feature proposal. This document is retained as design history and is
+not an active implementation plan while xtb's destructor-based ownership model
+is being reconsidered.
 
 The feature is not yet implemented. API sketches are normative where they state
 ownership, lifetime, destruction, or build-mode behavior. Exact overload sets
 may be adjusted during implementation to match the existing `Array!T` surface,
 provided those rules remain unchanged.
 
-This proposal supersedes the earlier arena-container, region-rationale,
-zero-cost, usage-migration, and example documents.
+At the time it was written, this proposal superseded the earlier
+arena-container, region-rationale, zero-cost, usage-migration, and example
+documents.
 
 ---
 
