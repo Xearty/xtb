@@ -2177,12 +2177,18 @@ unittest
     static assert(!__traits(isCopyable, IntSetStorage));
     static assert(!__traits(isCopyable, IntSet));
     static assert(!__traits(isCopyable, IntSet.Released));
-    static assert(is(typeof((cast(IntMap*) null).allocator()) == Allocator*));
-    static assert(!__traits(compiles,
-            (cast(const(IntMap)*) null).allocator()));
-    static assert(is(typeof((cast(IntSet*) null).allocator()) == Allocator*));
-    static assert(!__traits(compiles,
-            (cast(const(IntSet)*) null).allocator()));
+    static assert(__traits(compiles, (scope IntMap* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
+    static assert(!__traits(compiles, (scope const IntMap* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
+    static assert(__traits(compiles, (scope IntSet* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
+    static assert(!__traits(compiles, (scope const IntSet* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
     static assert(!__traits(compiles, () @safe {
             IntMap.Released released;
             ref IntMapStorage storage = released.storage;

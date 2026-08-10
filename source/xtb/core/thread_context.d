@@ -106,7 +106,7 @@ private Arena* selectScratchArena(scope Allocator*[] conflicts)
     foreach (i; 0 .. context.arenaCount)
     {
         Arena* candidate = &context.arenas[i];
-        Allocator* candidateAllocator = candidate.allocator();
+        Allocator* candidateAllocator = candidate.allocator;
         bool conflictsWithCandidate;
         foreach (conflict; conflicts)
         {
@@ -169,12 +169,12 @@ nothrow @nogc:
 
     Arena* arena() return
     {
-        return temporary_.arena();
+        return temporary_.arena;
     }
 
     Allocator* allocator() return
     {
-        return temporary_.allocator();
+        return temporary_.allocator;
     }
 
     private static ScratchScope fromArena(Arena* arena)

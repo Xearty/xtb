@@ -1052,10 +1052,10 @@ unittest
 
     static assert(is(StringViewHashMap!int == HashMap!(String, int)));
     static assert(!__traits(isCopyable, StringHashMap!int));
-    static assert(is(typeof((cast(StringHashMap!int*) null).allocator()) ==
-            Allocator*));
+    static assert(__traits(compiles,
+            (scope StringHashMap!int* value) @safe { Allocator* allocator = value.allocator; }));
     static assert(!__traits(compiles,
-            (cast(const(StringHashMap!int)*) null).allocator()));
+            (scope const StringHashMap!int* value) @safe { Allocator* allocator = value.allocator; }));
 
     StringHashMap!int values = StringHashMap!int.create(mallocAllocator());
     StringBuf source = StringBuf.fromString(mallocAllocator(), "alpha");

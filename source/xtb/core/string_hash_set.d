@@ -626,10 +626,11 @@ unittest
     static assert(is(StringViewHashSet == HashSet!String));
     static assert(!__traits(isCopyable, StringHashSet));
     static assert(!__traits(isCopyable, StringHashSetUnmanaged));
-    static assert(is(typeof((cast(StringHashSet*) null).allocator()) ==
-            Allocator*));
+    static assert(__traits(compiles, (scope StringHashSet* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
     static assert(!__traits(compiles,
-            (cast(const(StringHashSet)*) null).allocator()));
+            (scope const StringHashSet* value) @safe { Allocator* allocator = value.allocator; }));
 
     StringViewHashSet borrowed = StringViewHashSet.create(mallocAllocator());
     {

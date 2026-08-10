@@ -1170,13 +1170,16 @@ unittest
     static assert(!__traits(isCopyable, ArrayUnmanaged!int));
     static assert(!__traits(isCopyable, Array!int));
     static assert(!__traits(isCopyable, Array!int.Released));
-    static assert(is(typeof((cast(Array!int*) null).allocator()) == Allocator*));
+    static assert(__traits(compiles, (scope Array!int* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
+    static assert(!__traits(compiles, (scope const Array!int* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
+    static assert(__traits(compiles,
+            (scope Array!int.Released* value) @safe { Allocator* allocator = value.allocator; }));
     static assert(!__traits(compiles,
-            (cast(const(Array!int)*) null).allocator()));
-    static assert(is(typeof((cast(Array!int.Released*) null).allocator()) ==
-            Allocator*));
-    static assert(!__traits(compiles,
-            (cast(const(Array!int.Released)*) null).allocator()));
+            (scope const Array!int.Released* value) @safe { Allocator* allocator = value.allocator; }));
     static assert(!__traits(compiles, () @safe {
             Array!int.Released released;
             ref ArrayUnmanaged!int storage = released.storage;

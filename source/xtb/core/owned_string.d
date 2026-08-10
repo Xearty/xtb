@@ -437,9 +437,12 @@ private void requireValidOwnedStringAllocator(Allocator* allocator) @trusted
 
 static assert(OwnedStringUnmanaged.sizeof == String.sizeof);
 static assert(OwnedString.sizeof == (Allocator*).sizeof + String.sizeof);
-static assert(is(typeof((cast(OwnedString*) null).allocator()) == Allocator*));
-static assert(!__traits(compiles,
-        (cast(const(OwnedString)*) null).allocator()));
+static assert(__traits(compiles, (scope OwnedString* value) @safe {
+        Allocator* allocator = value.allocator;
+    }));
+static assert(!__traits(compiles, (scope const OwnedString* value) @safe {
+        Allocator* allocator = value.allocator;
+    }));
 
 unittest
 {

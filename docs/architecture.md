@@ -1080,7 +1080,7 @@ String makePath(
 {
     ScratchScope scratch = ScratchScope.acquire(outputAllocator);
 
-    StringBuf temporary = StringBuf.create(scratch.allocator());
+    StringBuf temporary = StringBuf.create(scratch.allocator);
     temporary.append(left);
     temporary.append('/');
     temporary.append(right);

@@ -539,7 +539,7 @@ nothrow @nogc:
 
     Allocator* allocator() return
     {
-        return arena().allocator();
+        return arena.allocator;
     }
 
     bool active() const pure @safe

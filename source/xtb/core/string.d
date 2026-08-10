@@ -1975,9 +1975,12 @@ unittest
     static assert(!__traits(isCopyable, StringBufUnmanaged));
     static assert(!__traits(isCopyable, StringBuf));
     static assert(!__traits(isCopyable, StringBuf.Released));
-    static assert(is(typeof((cast(StringBuf*) null).allocator()) == Allocator*));
-    static assert(!__traits(compiles,
-            (cast(const(StringBuf)*) null).allocator()));
+    static assert(__traits(compiles, (scope StringBuf* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
+    static assert(!__traits(compiles, (scope const StringBuf* value) @safe {
+            Allocator* allocator = value.allocator;
+        }));
     static assert(!__traits(compiles, () @safe {
             StringBuf.Released released;
             ref StringBufUnmanaged storage = released.storage;
