@@ -4,8 +4,41 @@ nothrow @nogc:
 
 import core.internal.traits : Unqual, hasElaborateDestructor;
 import core.lifetime : coreMoveEmplace = moveEmplace;
+import xtb.core.types : String;
 
 private alias AliasSeq(T...) = T;
+
+/// Associates a raw union field with its discriminator and inactive tag.
+///
+/// Apply this to the union field of a containing aggregate:
+///
+/// ```d
+/// @taggedBy("kind", Kind.none)
+/// Payload payload;
+/// ```
+struct TaggedBy(Tag)
+{
+    String discriminator;
+    Tag inactive;
+}
+
+/// Overrides the default enum-member-name mapping for one raw union member.
+struct TaggedCase(Tag)
+{
+    Tag tag;
+}
+
+/// Creates tagged-union lifetime metadata for a raw union field.
+TaggedBy!Tag taggedBy(Tag)(String discriminator, Tag inactive) pure @safe
+{
+    return TaggedBy!Tag(discriminator, inactive);
+}
+
+/// Overrides the discriminator value associated with a raw union member.
+TaggedCase!Tag taggedCase(Tag)(Tag tag) pure @safe
+{
+    return TaggedCase!Tag(tag);
+}
 
 private template MemberFunctionType(alias operation)
 {
@@ -113,6 +146,272 @@ private template exactDeinitOverloadCount(T, Args...)
     }
 }
 
+private template IsTaggedByAttribute(A)
+{
+    static if (is(A == TaggedBy!Tag, Tag))
+        enum IsTaggedByAttribute = true;
+    else
+        enum IsTaggedByAttribute = false;
+}
+
+private template IsTaggedCaseAttribute(A)
+{
+    static if (is(A == TaggedCase!Tag, Tag))
+        enum IsTaggedCaseAttribute = true;
+    else
+        enum IsTaggedCaseAttribute = false;
+}
+
+private template HasNamedField(T, size_t index)
+{
+    alias U = Unqual!T;
+    enum name = __traits(identifier, U.tupleof[index]);
+    enum HasNamedField = __traits(compiles, __traits(getMember, U, name));
+}
+
+private template FieldSymbol(T, size_t index)
+{
+    alias U = Unqual!T;
+    enum name = __traits(identifier, U.tupleof[index]);
+    alias FieldSymbol = __traits(getMember, U, name);
+}
+
+private template UnionMemberSymbol(T, size_t index)
+{
+    alias U = Unqual!T;
+    enum name = __traits(identifier, U.tupleof[index]);
+    alias UnionMemberSymbol = __traits(getMember, U, name);
+}
+
+private size_t taggedByAttributeCount(T, size_t index)() pure @safe
+{
+    size_t result;
+    static if (HasNamedField!(T, index))
+        static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+            {
+            static if (__traits(compiles, typeof(attribute)))
+                static if (IsTaggedByAttribute!(typeof(attribute)))
+                    ++result;
+        }
+    return result;
+}
+
+private auto taggedByAttribute(T, size_t index)() pure @safe
+{
+    static assert(taggedByAttributeCount!(T, index) == 1,
+        "tagged lifetime payload field must have exactly one @taggedBy");
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+    {
+        static if (__traits(compiles, typeof(attribute)))
+            static if (IsTaggedByAttribute!(typeof(attribute)))
+                return attribute;
+    }
+}
+
+private size_t taggedCaseAttributeCount(T, size_t index)() pure @safe
+{
+    size_t result;
+    static foreach (attribute; __traits(getAttributes,
+            UnionMemberSymbol!(T, index)))
+    {
+        static if (__traits(compiles, typeof(attribute)))
+            static if (IsTaggedCaseAttribute!(typeof(attribute)))
+                ++result;
+    }
+    return result;
+}
+
+private auto taggedCaseAttribute(T, size_t index)() pure @safe
+{
+    static assert(taggedCaseAttributeCount!(T, index) == 1,
+        "tagged union member must have exactly one @taggedCase override");
+    static foreach (attribute; __traits(getAttributes,
+            UnionMemberSymbol!(T, index)))
+    {
+        static if (__traits(compiles, typeof(attribute)))
+            static if (IsTaggedCaseAttribute!(typeof(attribute)))
+                return attribute;
+    }
+}
+
+private size_t fieldIndexNamed(T, String name, size_t index = 0)() pure @safe
+{
+    alias U = Unqual!T;
+    static if (index == U.tupleof.length)
+        return size_t.max;
+    else static if (__traits(identifier, U.tupleof[index]) == name)
+        return index;
+    else
+        return fieldIndexNamed!(U, name, index + 1)();
+}
+
+private size_t enumValueCount(Tag)(Tag value) pure @safe
+{
+    alias U = Unqual!Tag;
+    size_t result;
+    static foreach (member; __traits(allMembers, U))
+    {
+        static if (__traits(hasMember, U, member))
+            if (__traits(getMember, U, member) == value)
+                ++result;
+    }
+    return result;
+}
+
+private bool enumValuesAreUnique(Tag)() pure @safe
+{
+    alias U = Unqual!Tag;
+    alias members = __traits(allMembers, U);
+    static foreach (leftIndex, left; members)
+    {
+        static if (__traits(hasMember, U, left))
+            static foreach (rightIndex, right; members)
+                {
+                static if (rightIndex > leftIndex &&
+                    __traits(hasMember, U, right))
+                    if (__traits(getMember, U, left) ==
+                        __traits(getMember, U, right))
+                        return false;
+            }
+    }
+    return true;
+}
+
+private Tag unionMemberTag(Payload, size_t index, Tag)() pure @safe
+{
+    alias P = Unqual!Payload;
+    alias U = Unqual!Tag;
+    enum caseAttributeCount = taggedCaseAttributeCount!(P, index)();
+    static assert(caseAttributeCount <= 1,
+        "a tagged union member may have at most one @taggedCase override");
+
+    static if (caseAttributeCount == 1)
+    {
+        enum attribute = taggedCaseAttribute!(P, index)();
+        static assert(is(Unqual!(typeof(attribute.tag)) == U),
+            "@taggedCase value must have the discriminator enum type");
+        return cast(U) attribute.tag;
+    }
+    else
+    {
+        enum memberName = __traits(identifier, P.tupleof[index]);
+        static assert(__traits(hasMember, U, memberName),
+            "tagged union member has no same-named discriminator value; add @taggedCase");
+        enum value = __traits(getMember, U, memberName);
+        static assert(is(typeof(value) == U),
+            "same-named tagged union discriminator symbol is not an enum member");
+        return value;
+    }
+}
+
+private size_t unionMembersForTag(Payload, Tag)(Tag tag) pure @safe
+{
+    alias P = Unqual!Payload;
+    size_t result;
+    static foreach (index; 0 .. P.tupleof.length)
+        if (unionMemberTag!(P, index, Tag)() == tag)
+            ++result;
+    return result;
+}
+
+private template ValidateTaggedPayload(T, size_t payloadIndex)
+{
+    alias U = Unqual!T;
+    enum metadata = taggedByAttribute!(U, payloadIndex)();
+    alias MetadataTag = Unqual!(typeof(metadata.inactive));
+    enum discriminatorIndex = fieldIndexNamed!(U, metadata.discriminator)();
+
+    static assert(discriminatorIndex != size_t.max,
+        "@taggedBy discriminator field does not exist in the containing aggregate");
+    alias Discriminator = Unqual!(typeof(U.tupleof[discriminatorIndex]));
+    alias Payload = Unqual!(typeof(U.tupleof[payloadIndex]));
+    static assert(is(Discriminator == enum),
+        "@taggedBy discriminator field must have an enum type");
+    static assert(is(Discriminator == MetadataTag),
+        "@taggedBy inactive value must have the discriminator enum type");
+    static assert(is(Payload == union),
+        "@taggedBy may only annotate a raw union field");
+    static assert(enumValuesAreUnique!Discriminator(),
+        "tagged union discriminator enum values must be unique");
+    static assert(enumValueCount!Discriminator(metadata.inactive) == 1,
+        "@taggedBy inactive value must identify exactly one discriminator enum member");
+
+    static foreach (memberIndex; 0 .. Payload.tupleof.length)
+    {
+        static assert(enumValueCount!Discriminator(
+                unionMemberTag!(Payload, memberIndex, Discriminator)()) == 1,
+            "tagged union member maps to a value not declared by the discriminator enum");
+        static assert(unionMemberTag!(Payload, memberIndex, Discriminator)() !=
+                metadata.inactive,
+            "the inactive discriminator value cannot identify an active union member");
+        static foreach (otherIndex; memberIndex + 1 .. Payload.tupleof.length)
+            static assert(unionMemberTag!(Payload, memberIndex, Discriminator)() !=
+                    unionMemberTag!(Payload, otherIndex, Discriminator)(),
+                "multiple tagged union members map to the same discriminator value");
+    }
+
+    static foreach (member; __traits(allMembers, Discriminator))
+    {
+        static if (__traits(hasMember, Discriminator, member))
+            static if (__traits(getMember, Discriminator, member) != metadata.inactive)
+                static assert(unionMembersForTag!(Payload, Discriminator)(
+                        __traits(getMember, Discriminator, member)) == 1,
+                    "every non-inactive discriminator value must map to exactly one union member");
+    }
+
+    enum ValidateTaggedPayload = true;
+}
+
+private template ValidateTaggedLifetime(T)
+{
+    alias U = Unqual!T;
+    static foreach (index; 0 .. U.tupleof.length)
+    {
+        static assert(taggedByAttributeCount!(U, index)() <= 1,
+            "an aggregate field may have at most one @taggedBy attribute");
+        static if (taggedByAttributeCount!(U, index)() == 1)
+            static assert(ValidateTaggedPayload!(U, index));
+    }
+    enum ValidateTaggedLifetime = true;
+}
+
+private template IsTaggedPayloadField(T, size_t index)
+{
+    enum IsTaggedPayloadField = taggedByAttributeCount!(Unqual!T, index)() == 1;
+}
+
+private void deinitTaggedPayload(T, size_t payloadIndex)(ref T value)
+{
+    alias U = Unqual!T;
+    static assert(ValidateTaggedPayload!(U, payloadIndex));
+    enum metadata = taggedByAttribute!(U, payloadIndex)();
+    alias Tag = Unqual!(typeof(metadata.inactive));
+    alias Payload = Unqual!(typeof(U.tupleof[payloadIndex]));
+    enum discriminatorIndex = fieldIndexNamed!(U, metadata.discriminator)();
+    const active = value.tupleof[discriminatorIndex];
+
+    if (active == metadata.inactive)
+        return;
+
+    static foreach (memberIndex; 0 .. Payload.tupleof.length)
+    {
+        {
+            enum mappedTag = unionMemberTag!(Payload, memberIndex, Tag)();
+            if (active == mappedTag)
+            {
+                static if (needsDeinit!(typeof(Payload.tupleof[memberIndex])))
+                    deinit(value.tupleof[payloadIndex].tupleof[memberIndex]);
+                return;
+            }
+        }
+    }
+
+    // A discriminator outside the declared enum domain provides no safe active
+    // member to inspect. Checked builds retain the assertion; release-fast
+    // avoids guessing which union storage is live.
+    assert(false, "invalid tagged union discriminator");
+}
+
 private template NeedsDeinitImpl(T)
 {
     alias U = Unqual!T;
@@ -136,6 +435,7 @@ private template NeedsDeinitImpl(T)
             enum NeedsDeinitImpl = false;
         else
         {
+            static assert(ValidateTaggedLifetime!U);
             enum bool result = () {
                 static foreach (index; 0 .. U.tupleof.length)
                 {
@@ -217,11 +517,17 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
         {
             static foreach (offset; 0 .. U.tupleof.length)
             {
-                static if (needsDeinit!(typeof(
-                        U.tupleof[U.tupleof.length - 1 - offset])))
+                static if (IsTaggedPayloadField!(U,
+                        U.tupleof.length - 1 - offset))
                 {
-                    deinit(value.tupleof[U.tupleof.length - 1 - offset]);
+                    static if (needsDeinit!(typeof(
+                            U.tupleof[U.tupleof.length - 1 - offset])))
+                        deinitTaggedPayload!(U,
+                            U.tupleof.length - 1 - offset)(value);
                 }
+                else static if (needsDeinit!(typeof(
+                        U.tupleof[U.tupleof.length - 1 - offset])))
+                    deinit(value.tupleof[U.tupleof.length - 1 - offset]);
             }
         }
         else static if (is(U == union))
@@ -413,4 +719,247 @@ unittest
 
     static assert(!needsDeinit!DestructorOnly);
     static assert(!needsDeinit!ContainsDestructorOnly);
+}
+
+unittest
+{
+    struct TaggedOwner
+    {
+    nothrow @nogc:
+
+        int id;
+        size_t* count;
+        int* order;
+
+        @disable this(this);
+
+        void deinit()
+        {
+            order[(*count)++] = id;
+        }
+    }
+
+    enum FirstKind : ubyte
+    {
+        none,
+        text,
+    }
+
+    union FirstPayload
+    {
+        TaggedOwner text;
+    }
+
+    enum SecondKind : ubyte
+    {
+        none,
+        values,
+    }
+
+    union SecondPayload
+    {
+        @taggedCase(SecondKind.values)
+        TaggedOwner differentlyNamed;
+    }
+
+    struct Message
+    {
+        TaggedOwner name;
+
+        FirstKind firstKind;
+        @taggedBy("firstKind", FirstKind.none)
+        FirstPayload firstPayload;
+
+        SecondKind secondKind;
+        @taggedBy("secondKind", SecondKind.none)
+        SecondPayload secondPayload;
+    }
+
+    static assert(needsDeinit!Message);
+
+    size_t count;
+    int[8] order;
+    Message message;
+    message.name = TaggedOwner(1, &count, order.ptr);
+    message.firstKind = FirstKind.text;
+    message.firstPayload.text = TaggedOwner(2, &count, order.ptr);
+    message.secondKind = SecondKind.values;
+    message.secondPayload.differentlyNamed = TaggedOwner(3, &count, order.ptr);
+
+    deinit(message);
+    assert(count == 3);
+    assert(order[0] == 3);
+    assert(order[1] == 2);
+    assert(order[2] == 1);
+    assert(message.firstKind == FirstKind.text);
+    assert(message.secondKind == SecondKind.values);
+    assert(message.firstPayload.text.id == 2);
+    assert(message.secondPayload.differentlyNamed.id == 3);
+
+    struct Inactive
+    {
+        FirstKind kind;
+        @taggedBy("kind", FirstKind.none)
+        FirstPayload payload;
+    }
+
+    Inactive inactive;
+    deinit(inactive);
+}
+
+unittest
+{
+    struct Owner
+    {
+        void deinit()
+        {
+        }
+    }
+
+    enum Kind : ubyte
+    {
+        none,
+        one,
+        two,
+    }
+
+    union ValidPayload
+    {
+        Owner one;
+        Owner two;
+    }
+
+    struct MissingDiscriminator
+    {
+        Kind kind;
+        @taggedBy("missing", Kind.none)
+        ValidPayload payload;
+    }
+
+    struct NonEnumDiscriminator
+    {
+        int kind;
+        @taggedBy("kind", Kind.none)
+        ValidPayload payload;
+    }
+
+    struct NonUnionPayload
+    {
+        Kind kind;
+        @taggedBy("kind", Kind.none)
+        Owner payload;
+    }
+
+    struct UnknownInactive
+    {
+        Kind kind;
+        @taggedBy("kind", cast(Kind) 99)
+        ValidPayload payload;
+    }
+
+    union MissingCasePayload
+    {
+        Owner one;
+    }
+
+    struct MissingCase
+    {
+        Kind kind;
+        @taggedBy("kind", Kind.none)
+        MissingCasePayload payload;
+    }
+
+    union MissingNamePayload
+    {
+        Owner differentlyNamed;
+        Owner two;
+    }
+
+    struct MissingName
+    {
+        Kind kind;
+        @taggedBy("kind", Kind.none)
+        MissingNamePayload payload;
+    }
+
+    union DuplicateCasePayload
+    {
+        Owner one;
+        @taggedCase(Kind.one)
+        Owner duplicate;
+        Owner two;
+    }
+
+    struct DuplicateCase
+    {
+        Kind kind;
+        @taggedBy("kind", Kind.none)
+        DuplicateCasePayload payload;
+    }
+
+    union InactiveCasePayload
+    {
+        @taggedCase(Kind.none)
+        Owner inactive;
+        Owner one;
+        Owner two;
+    }
+
+    struct InactiveCase
+    {
+        Kind kind;
+        @taggedBy("kind", Kind.none)
+        InactiveCasePayload payload;
+    }
+
+    enum DuplicateValueKind : ubyte
+    {
+        none = 0,
+        one = 1,
+        two = 1,
+    }
+
+    union DuplicateValuePayload
+    {
+        Owner one;
+        @taggedCase(DuplicateValueKind.two)
+        Owner two;
+    }
+
+    struct DuplicateEnumValue
+    {
+        DuplicateValueKind kind;
+        @taggedBy("kind", DuplicateValueKind.none)
+        DuplicateValuePayload payload;
+    }
+
+    enum OtherKind : ubyte
+    {
+        value,
+    }
+
+    union WrongCaseTypePayload
+    {
+        @taggedCase(OtherKind.value)
+        Owner one;
+        Owner two;
+    }
+
+    struct WrongCaseType
+    {
+        Kind kind;
+        @taggedBy("kind", Kind.none)
+        WrongCaseTypePayload payload;
+    }
+
+    static assert(!__traits(compiles, needsDeinit!MissingDiscriminator));
+    static assert(!__traits(compiles, needsDeinit!NonEnumDiscriminator));
+    static assert(!__traits(compiles, needsDeinit!NonUnionPayload));
+    static assert(!__traits(compiles, needsDeinit!UnknownInactive));
+    static assert(!__traits(compiles, needsDeinit!MissingCase));
+    static assert(!__traits(compiles, needsDeinit!MissingName));
+    static assert(!__traits(compiles, needsDeinit!DuplicateCase));
+    static assert(!__traits(compiles, needsDeinit!InactiveCase));
+    static assert(!__traits(compiles, needsDeinit!DuplicateEnumValue));
+    static assert(!__traits(compiles, needsDeinit!WrongCaseType));
 }

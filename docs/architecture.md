@@ -115,7 +115,15 @@ and are not treated as general-purpose core modules.
 
 Within core, `xtb.core.types` is a dependency-free leaf containing only the
 primitive aliases, including `String`. `xtb.core.lifetime` owns the explicit
-`deinit` protocol, `needsDeinit`, and XTB move/replacement primitives.
+`deinit` protocol, `needsDeinit`, and XTB move/replacement primitives. It also
+owns raw tagged-union lifetime metadata because active-member cleanup must be
+available below serde. Annotate a raw union field with
+`@taggedBy("discriminator", Tag.inactive)`; union members map to same-named enum
+members by default, and `@taggedCase(Tag.value)` overrides only irregular
+names. The lifetime layer validates the complete mapping at compile time and
+structural `deinit` visits only the active member without rewriting the tag or
+payload storage. Serde may reuse this relationship later, but wire layout and
+deserialization policy remain serde concerns.
 `xtb.core.memory` owns the type-erased `Allocator` callback contract and generic
 allocation/reallocation/disposal helpers, delegating typed finalization to the
 lifetime layer. Concrete allocator implementations are grouped under
