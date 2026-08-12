@@ -6,6 +6,7 @@ public import xtb.core.metadata;
 public import xtb.core.slice;
 public import xtb.core.panic;
 public import xtb.core.memory;
+public import xtb.core.lifetime;
 public import xtb.core.released_storage;
 public import xtb.core.allocators;
 public import xtb.core.thread_context;

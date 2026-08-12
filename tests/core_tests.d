@@ -9,6 +9,7 @@ version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.metadata;
 import xtb.core.slice;
 import xtb.core.memory;
+import xtb.core.lifetime;
 import xtb.core.allocators;
 import xtb.core.allocators.arena;
 import xtb.core.thread_context;
@@ -491,6 +492,8 @@ extern (C) int main(int argumentCount, char** arguments)
     static foreach (testFunction; __traits(getUnitTests, xtb.core.slice))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.memory))
+        testFunction();
+    static foreach (testFunction; __traits(getUnitTests, xtb.core.lifetime))
         testFunction();
     static foreach (testFunction; __traits(getUnitTests, xtb.core.allocators.arena))
         testFunction();

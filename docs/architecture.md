@@ -114,9 +114,11 @@ bindings live beside their adapter (for example `xtb.graphics.opengl.binding`)
 and are not treated as general-purpose core modules.
 
 Within core, `xtb.core.types` is a dependency-free leaf containing only the
-primitive aliases, including `String`. `xtb.core.memory` owns the type-erased
-`Allocator` callback contract and generic allocation/reallocation/lifetime
-helpers. Concrete allocator implementations are grouped under
+primitive aliases, including `String`. `xtb.core.lifetime` owns the explicit
+`deinit` protocol, `needsDeinit`, and XTB move/replacement primitives.
+`xtb.core.memory` owns the type-erased `Allocator` callback contract and generic
+allocation/reallocation/disposal helpers, delegating typed finalization to the
+lifetime layer. Concrete allocator implementations are grouped under
 `xtb.core.allocators.*`: `malloc` provides the libc-backed allocator, `arena`
 provides arena allocation, and `instrumented` provides deterministic
 allocation tracking/failure injection. This lets APIs depend on the allocator

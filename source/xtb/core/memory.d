@@ -2,8 +2,10 @@ module xtb.core.memory;
 
 nothrow @nogc:
 
+import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, forward;
 import core.stdc.string : memset;
+import xtb.core.lifetime : deinit, needsDeinit;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -286,20 +288,34 @@ void deallocateArray(T)(Allocator* allocator, T[] values)
     );
 }
 
-/// Destroys one initialized `T` and releases its storage.
+/// Finalizes one initialized `T` according to its lifetime domain and releases
+/// the raw allocation. Explicit-deinit values use XTB `deinit`; legacy/lexical
+/// destructor-bearing values retain D destruction until their owning API is
+/// migrated or deliberately kept RAII.
 void dispose(T)(Allocator* allocator, T* pointer)
 {
     if (pointer is null)
         return;
-    destroy(*pointer);
+    static if (needsDeinit!T)
+        deinit(*pointer);
+    else static if (hasElaborateDestructor!T)
+        destroy(*pointer);
     allocator.deallocate(pointer);
 }
 
-/// Destroys initialized array elements in reverse order and releases storage.
+/// Finalizes initialized array elements in reverse order and releases storage.
 void disposeArray(T)(Allocator* allocator, T[] values)
 {
-    foreach_reverse (ref value; values)
-        destroy(value);
+    static if (needsDeinit!T)
+    {
+        foreach_reverse (ref value; values)
+            deinit(value);
+    }
+    else static if (hasElaborateDestructor!T)
+    {
+        foreach_reverse (ref value; values)
+            destroy(value);
+    }
     allocator.deallocateArray(values);
 }
 
@@ -396,6 +412,19 @@ unittest
         }
     }
 
+    struct ExplicitOwner
+    {
+    nothrow @nogc:
+
+        int* deinitialized;
+
+        void deinit()
+        {
+            if (deinitialized !is null)
+                ++*deinitialized;
+        }
+    }
+
     static assert(__traits(isPOD, PodWithInitializer));
     static assert(!__traits(compiles,
             mallocAllocator().allocateZeroed!Owning()));
@@ -472,4 +501,17 @@ unittest
         value.destroyed = &destroyed;
     mallocAllocator().disposeArray(tracked);
     assert(destroyed == 4);
+
+    int explicitDeinits;
+    ExplicitOwner* explicitOwner = mallocAllocator().allocateInit!ExplicitOwner();
+    explicitOwner.deinitialized = &explicitDeinits;
+    mallocAllocator().dispose(explicitOwner);
+    assert(explicitDeinits == 1);
+
+    ExplicitOwner[] explicitOwners = mallocAllocator()
+        .allocateInitArray!ExplicitOwner(3);
+    foreach (ref owner; explicitOwners)
+        owner.deinitialized = &explicitDeinits;
+    mallocAllocator().disposeArray(explicitOwners);
+    assert(explicitDeinits == 4);
 }
