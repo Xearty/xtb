@@ -5,6 +5,7 @@ import xtb.core.array;
 import xtb.core.flag_set : FlagSet;
 import xtb.core.hash_map;
 import xtb.core.allocators.malloc : mallocAllocator;
+import xtb.core.lifetime : taggedBy, taggedCase;
 import xtb.core.option : Option;
 import xtb.core.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
     PrettyPrintOptions, pretty, writePretty;
@@ -57,6 +58,34 @@ struct ScalarSamples
 
 struct EmptyMarker
 {
+}
+
+enum TaggedValueKind : ubyte
+{
+    none,
+    integer,
+    endpoint,
+    retry,
+}
+
+union TaggedValuePayload
+{
+    int integer;
+    Endpoint endpoint;
+
+    // The field name does not need to match the discriminator when an explicit
+    // case mapping is clearer.
+    @taggedCase(TaggedValueKind.retry)
+    uint retryAfterSeconds;
+}
+
+struct TaggedValue
+{
+    String label;
+    TaggedValueKind kind;
+
+    @taggedBy("kind", TaggedValueKind.none)
+    TaggedValuePayload payload;
 }
 
 union RawValue
@@ -240,6 +269,40 @@ extern (C) int main()
     plainExpanded.showTypeNames = false;
     writeln("plain expanded:\n", service.pretty(plainExpanded));
 
+    heading("TAGGED UNION LAYOUTS");
+
+    // Tagged raw unions are printed through their containing aggregate. The
+    // discriminator selects the one member that is safe to inspect.
+    TaggedValue taggedEndpoint;
+    taggedEndpoint.label = "upstream";
+    taggedEndpoint.kind = TaggedValueKind.endpoint;
+    taggedEndpoint.payload.endpoint = Endpoint("api.internal", 9443);
+
+    writeln("automatic:       ", taggedEndpoint.pretty(vivid));
+    writeln("forced compact:  ", taggedEndpoint.pretty(compact));
+    writeln("forced expanded:\n", taggedEndpoint.pretty(expanded));
+
+    // Automatic layout accounts for the active payload only. Tightening the
+    // visible width expands both the containing struct and nested Endpoint.
+    PrettyPrintOptions taggedNarrow = vivid;
+    taggedNarrow.softMaxWidth = 36;
+    writeln("automatic width 36:\n", taggedEndpoint.pretty(taggedNarrow));
+
+    // The inactive discriminator prints an empty payload rather than reading
+    // raw union storage.
+    TaggedValue taggedInactive;
+    taggedInactive.label = "idle";
+    writeln("inactive:        ", taggedInactive.pretty(compact));
+
+    // `@taggedCase` supports an intentionally different field/tag name while
+    // retaining the same active-member behavior in every layout.
+    TaggedValue taggedRetry;
+    taggedRetry.label = "backoff";
+    taggedRetry.kind = TaggedValueKind.retry;
+    taggedRetry.payload.retryAfterSeconds = 15;
+    writeln("mapped compact:  ", taggedRetry.pretty(compact));
+    writeln("mapped expanded:\n", taggedRetry.pretty(expanded));
+
     heading("SCALARS, ENUMS, STRINGS, AND OPTION");
 
     ScalarSamples scalars = ScalarSamples(
@@ -340,6 +403,13 @@ extern (C) int main()
     writeln("function pointer: ", callback.pretty(followed));
     void* opaquePointer = cast(void*) responsePointer;
     writeln("void pointer:     ", opaquePointer.pretty(followed));
+
+    // Even for a tagged union, an invalid runtime discriminator does not make
+    // the formatter guess which bytes are live. It emits a diagnostic marker
+    // without touching the raw payload.
+    TaggedValue invalidTagged = taggedEndpoint;
+    invalidTagged.kind = cast(TaggedValueKind) 99;
+    writeln("invalid tagged union: ", invalidTagged.pretty(compact));
 
     // A raw union has no active-member metadata, so the formatter refuses to
     // guess and emits a safe marker instead of reading arbitrary storage.

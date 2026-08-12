@@ -52,6 +52,14 @@ configuration "test-core" {
     libs "backtrace" platform="linux"
 }
 
+configuration "test-lifetime" {
+    targetType "executable"
+    targetName "lifetime_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "lifetime_tests.d"
+    sourceFiles "../source/xtb/core/lifetime.d" "../source/xtb/core/types.d" "../source/xtb/core/memory.d" "../source/xtb/core/numeric.d" "../source/xtb/core/panic.d" "../source/xtb/core/allocators/instrumented.d" "../source/xtb/core/allocators/malloc.d"
+}
+
 configuration "test-pretty-print" {
     targetType "executable"
     targetName "pretty_print_tests"
