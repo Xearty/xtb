@@ -112,14 +112,28 @@ private template IsCompatibleDeinitOverload(alias operation, arguments...)
     }
 }
 
-private template hasDeinitFamily(T)
+private template instanceDeinitOverloadCount(T)
 {
     alias U = Unqual!T;
-    static if ((is(U == struct) || is(U == union)) &&
-        __traits(hasMember, U, "deinit"))
-        enum hasDeinitFamily = __traits(getOverloads, U, "deinit").length != 0;
+    static if (!((is(U == struct) || is(U == union)) &&
+            __traits(hasMember, U, "deinit")))
+        enum instanceDeinitOverloadCount = 0;
     else
-        enum hasDeinitFamily = false;
+    {
+        enum size_t count = () {
+            size_t result;
+            static foreach (alias operation; __traits(getOverloads, U, "deinit"))
+                static if (!__traits(isStaticFunction, operation))
+                    ++result;
+            return result;
+        }();
+        enum instanceDeinitOverloadCount = count;
+    }
+}
+
+private template hasDeinitFamily(T)
+{
+    enum hasDeinitFamily = instanceDeinitOverloadCount!(Unqual!T) != 0;
 }
 
 private template validDeinitOverloadCount(T)
@@ -136,7 +150,9 @@ private template validDeinitOverloadCount(T)
                 static if (
                     __traits(getProtection, operation) == "public" &&
                     !__traits(isStaticFunction, operation) &&
-                    is(MemberReturnType!operation == void))
+                    is(MemberReturnType!operation == void) &&
+                    !hasFunctionAttribute!(operation, "immutable")() &&
+                    !hasFunctionAttribute!(operation, "shared")())
                 {
                     ++result;
                 }
@@ -474,7 +490,7 @@ private template NeedsDeinitImpl(T)
         static assert(
             validDeinitOverloadCount!U != 0,
             U.stringof ~
-                ".deinit must contain a public, non-static void overload",
+                ".deinit must contain a public, non-static void overload callable on a mutable value",
         );
         enum NeedsDeinitImpl = true;
     }
@@ -553,14 +569,12 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
                 ".deinit has no public member overload compatible with the requested signature",
         );
         static assert(
-            __traits(compiles,
-                __traits(getMember, value, "deinit")(forward!arguments)),
+            __traits(compiles, value.deinit(forward!arguments)),
             U.stringof ~ ".deinit overload resolution failed for the requested signature",
         );
-        static assert(is(typeof(
-                __traits(getMember, value, "deinit")(forward!arguments)) == void),
+        static assert(is(typeof(value.deinit(forward!arguments)) == void),
             U.stringof ~ ".deinit must return void");
-        __traits(getMember, value, "deinit")(forward!arguments);
+        value.deinit(forward!arguments);
     }
     else
     {
@@ -675,12 +689,22 @@ unittest
         TrackedOwner owner;
     }
 
+    struct StaticDeinitMember
+    {
+        TrackedOwner owner;
+
+        static void deinit()
+        {
+        }
+    }
+
     static assert(!needsDeinit!int);
     static assert(!needsDeinit!(int*));
     static assert(!needsDeinit!(int[]));
     static assert(needsDeinit!TrackedOwner);
     static assert(needsDeinit!Aggregate);
     static assert(needsDeinit!NamedDeinitField);
+    static assert(needsDeinit!StaticDeinitMember);
     static assert(needsDeinit!(TrackedOwner[2]));
 
     size_t count;
@@ -727,6 +751,11 @@ unittest
     );
     deinit(namedField);
     assert(order[6] == 8);
+
+    StaticDeinitMember staticMember;
+    staticMember.owner = TrackedOwner(9, &count, order.ptr);
+    deinit(staticMember);
+    assert(order[7] == 9);
 }
 
 unittest
@@ -773,6 +802,15 @@ unittest
         }
     }
 
+    struct ConstOnlyOwner
+    {
+    nothrow @nogc:
+
+        void deinit() const
+        {
+        }
+    }
+
     union Untagged
     {
         ContextOwner owner;
@@ -799,6 +837,9 @@ unittest
             (ref RefContextOwner value) { deinit(value, 3); }));
     static assert(__traits(compiles,
             (ref QualifiedOwner value) { deinit(value); }));
+    static assert(needsDeinit!ConstOnlyOwner);
+    static assert(__traits(compiles,
+            (ref ConstOnlyOwner value) { deinit(value); }));
 
     int calls;
     int context;
@@ -818,6 +859,9 @@ unittest
     QualifiedOwner qualifiedOwner = QualifiedOwner(&mutableCalls);
     deinit(qualifiedOwner);
     assert(mutableCalls == 1);
+
+    ConstOnlyOwner constOnly;
+    deinit(constOnly);
 }
 
 unittest
