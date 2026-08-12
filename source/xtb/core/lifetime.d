@@ -3,7 +3,7 @@ module xtb.core.lifetime;
 nothrow @nogc:
 
 import core.internal.traits : Unqual, hasElaborateDestructor;
-import core.lifetime : coreMoveEmplace = moveEmplace;
+import core.lifetime : coreMoveEmplace = moveEmplace, forward;
 import xtb.core.types : String;
 
 private alias AliasSeq(T...) = T;
@@ -67,30 +67,57 @@ private template MemberReturnType(alias operation)
         alias MemberReturnType = void;
 }
 
-private template HasExactParameterTypes(alias operation, Args...)
+private bool hasFunctionAttribute(alias operation, String wanted)() pure @safe
+{
+    static foreach (attribute; __traits(getFunctionAttributes, operation))
+        if (attribute == wanted)
+            return true;
+    return false;
+}
+
+private bool parameterRequiresLvalue(alias operation, size_t index)() pure @safe
+{
+    alias FunctionPointer = typeof(&operation);
+    static foreach (storageClass; __traits(getParameterStorageClasses, FunctionPointer, index))
+        if (storageClass == "ref" || storageClass == "out")
+            return true;
+    return false;
+}
+
+private template IsCompatibleDeinitOverload(alias operation, arguments...)
 {
     alias Parameters = MemberParameters!operation;
-    static if (Parameters.length != Args.length)
-        enum HasExactParameterTypes = false;
+    static if (
+        __traits(getProtection, operation) != "public" ||
+        __traits(isStaticFunction, operation) ||
+        !is(MemberReturnType!operation == void) ||
+        hasFunctionAttribute!(operation, "immutable")() ||
+        hasFunctionAttribute!(operation, "shared")() ||
+        Parameters.length != arguments.length)
+        enum IsCompatibleDeinitOverload = false;
     else
     {
         enum bool matches = () {
-            static foreach (index; 0 .. Args.length)
+            static foreach (index; 0 .. arguments.length)
             {
-                static if (!is(Parameters[index] == Args[index]))
+                static if (!is(Parameters[index] == typeof(arguments[index])))
+                    return false;
+                static if (parameterRequiresLvalue!(operation, index)() &&
+                    !__traits(isRef, arguments[index]))
                     return false;
             }
             return true;
         }();
-        enum HasExactParameterTypes = matches;
+        enum IsCompatibleDeinitOverload = matches;
     }
 }
 
 private template hasDeinitFamily(T)
 {
     alias U = Unqual!T;
-    static if (is(U == struct) || is(U == union))
-        enum hasDeinitFamily = __traits(hasMember, U, "deinit");
+    static if ((is(U == struct) || is(U == union)) &&
+        __traits(hasMember, U, "deinit"))
+        enum hasDeinitFamily = __traits(getOverloads, U, "deinit").length != 0;
     else
         enum hasDeinitFamily = false;
 }
@@ -120,29 +147,23 @@ private template validDeinitOverloadCount(T)
     }
 }
 
-private template exactDeinitOverloadCount(T, Args...)
+private template compatibleDeinitOverloadCount(T, arguments...)
 {
     alias U = Unqual!T;
     static if (!hasDeinitFamily!U)
-        enum exactDeinitOverloadCount = 0;
+        enum compatibleDeinitOverloadCount = 0;
     else
     {
         enum size_t count = () {
             size_t result;
             static foreach (alias operation; __traits(getOverloads, U, "deinit"))
             {
-                static if (
-                    __traits(getProtection, operation) == "public" &&
-                    !__traits(isStaticFunction, operation) &&
-                    is(MemberReturnType!operation == void) &&
-                    HasExactParameterTypes!(operation, Args))
-                {
+                static if (IsCompatibleDeinitOverload!(operation, arguments))
                     ++result;
-                }
             }
             return result;
         }();
-        enum exactDeinitOverloadCount = count;
+        enum compatibleDeinitOverloadCount = count;
     }
 }
 
@@ -335,6 +356,8 @@ private template ValidateTaggedPayload(T, size_t payloadIndex)
         "tagged union discriminator enum values must be unique");
     static assert(enumValueCount!Discriminator(metadata.inactive) == 1,
         "@taggedBy inactive value must identify exactly one discriminator enum member");
+    static assert(U.init.tupleof[discriminatorIndex] == metadata.inactive,
+        "@taggedBy inactive value must match the discriminator field's .init value");
 
     static foreach (memberIndex; 0 .. Payload.tupleof.length)
     {
@@ -525,11 +548,19 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
     static if (hasDeinitFamily!U)
     {
         static assert(
-            exactDeinitOverloadCount!(U, Args) == 1,
+            compatibleDeinitOverloadCount!(U, arguments) != 0,
             U.stringof ~
-                ".deinit has no unique public overload with the requested signature",
+                ".deinit has no public member overload compatible with the requested signature",
         );
-        __traits(getMember, value, "deinit")(arguments);
+        static assert(
+            __traits(compiles,
+                __traits(getMember, value, "deinit")(forward!arguments)),
+            U.stringof ~ ".deinit overload resolution failed for the requested signature",
+        );
+        static assert(is(typeof(
+                __traits(getMember, value, "deinit")(forward!arguments)) == void),
+            U.stringof ~ ".deinit must return void");
+        __traits(getMember, value, "deinit")(forward!arguments);
     }
     else
     {
@@ -638,11 +669,18 @@ unittest
         }
     }
 
+    struct NamedDeinitField
+    {
+        int deinit;
+        TrackedOwner owner;
+    }
+
     static assert(!needsDeinit!int);
     static assert(!needsDeinit!(int*));
     static assert(!needsDeinit!(int[]));
     static assert(needsDeinit!TrackedOwner);
     static assert(needsDeinit!Aggregate);
+    static assert(needsDeinit!NamedDeinitField);
     static assert(needsDeinit!(TrackedOwner[2]));
 
     size_t count;
@@ -682,6 +720,13 @@ unittest
     assert(target.id == 6);
     deinit(target);
     assert(order[5] == 6);
+
+    NamedDeinitField namedField = NamedDeinitField(
+        42,
+        TrackedOwner(8, &count, order.ptr),
+    );
+    deinit(namedField);
+    assert(order[6] == 8);
 }
 
 unittest
@@ -696,6 +741,35 @@ unittest
         {
             ++*calls;
             ++*context;
+        }
+    }
+
+    struct RefContextOwner
+    {
+    nothrow @nogc:
+
+        int* calls;
+
+        void deinit(ref int context)
+        {
+            ++*calls;
+            ++context;
+        }
+    }
+
+    struct QualifiedOwner
+    {
+    nothrow @nogc:
+
+        int* mutableCalls;
+
+        void deinit()
+        {
+            ++*mutableCalls;
+        }
+
+        void deinit() const
+        {
         }
     }
 
@@ -719,6 +793,12 @@ unittest
             (ref int value) { deinit(value); }));
     static assert(!__traits(compiles,
             (ref Untagged value) { deinit(value); }));
+    static assert(__traits(compiles,
+            (ref RefContextOwner value, ref int context) { deinit(value, context); }));
+    static assert(!__traits(compiles,
+            (ref RefContextOwner value) { deinit(value, 3); }));
+    static assert(__traits(compiles,
+            (ref QualifiedOwner value) { deinit(value); }));
 
     int calls;
     int context;
@@ -726,6 +806,18 @@ unittest
     deinit(owner, &context);
     assert(calls == 1);
     assert(context == 1);
+
+    int refCalls;
+    int refContext;
+    RefContextOwner refOwner = RefContextOwner(&refCalls);
+    deinit(refOwner, refContext);
+    assert(refCalls == 1);
+    assert(refContext == 1);
+
+    int mutableCalls;
+    QualifiedOwner qualifiedOwner = QualifiedOwner(&mutableCalls);
+    deinit(qualifiedOwner);
+    assert(mutableCalls == 1);
 }
 
 unittest
@@ -887,6 +979,26 @@ unittest
         ValidPayload payload;
     }
 
+    enum NonInactiveDefaultKind : ubyte
+    {
+        one,
+        none,
+        two,
+    }
+
+    union NonInactiveDefaultPayload
+    {
+        Owner one;
+        Owner two;
+    }
+
+    struct NonInactiveDefault
+    {
+        NonInactiveDefaultKind kind;
+        @taggedBy("kind", NonInactiveDefaultKind.none)
+        NonInactiveDefaultPayload payload;
+    }
+
     union MissingCasePayload
     {
         Owner one;
@@ -986,6 +1098,7 @@ unittest
     static assert(!__traits(compiles, needsDeinit!NonEnumDiscriminator));
     static assert(!__traits(compiles, needsDeinit!NonUnionPayload));
     static assert(!__traits(compiles, needsDeinit!UnknownInactive));
+    static assert(!__traits(compiles, needsDeinit!NonInactiveDefault));
     static assert(!__traits(compiles, needsDeinit!MissingCase));
     static assert(!__traits(compiles, needsDeinit!MissingName));
     static assert(!__traits(compiles, needsDeinit!DuplicateCase));
