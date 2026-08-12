@@ -380,6 +380,36 @@ private template IsTaggedPayloadField(T, size_t index)
     enum IsTaggedPayloadField = taggedByAttributeCount!(Unqual!T, index)() == 1;
 }
 
+// Package-level tagged-union introspection used by other core facilities such
+// as structural pretty printing. Keep the reflection and validation rules in
+// one place so observers cannot accidentally disagree with lifetime cleanup
+// about which raw union member is active.
+package template isTaggedPayloadField(T, size_t index)
+{
+    enum isTaggedPayloadField = IsTaggedPayloadField!(T, index);
+}
+
+package auto taggedPayloadMetadata(T, size_t payloadIndex)() pure @safe
+{
+    alias U = Unqual!T;
+    static assert(ValidateTaggedPayload!(U, payloadIndex));
+    return taggedByAttribute!(U, payloadIndex)();
+}
+
+package size_t taggedPayloadDiscriminatorIndex(T, size_t payloadIndex)()
+pure @safe
+{
+    alias U = Unqual!T;
+    enum metadata = taggedPayloadMetadata!(U, payloadIndex)();
+    return fieldIndexNamed!(U, metadata.discriminator)();
+}
+
+package Tag taggedPayloadMemberTag(Payload, size_t memberIndex, Tag)()
+pure @safe
+{
+    return unionMemberTag!(Payload, memberIndex, Tag)();
+}
+
 private void deinitTaggedPayload(T, size_t payloadIndex)(ref T value)
 {
     alias U = Unqual!T;

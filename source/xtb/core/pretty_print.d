@@ -8,6 +8,12 @@ import xtb.core.ansi : AnsiColor, AnsiStyle, beginAnsi, endAnsi;
 import xtb.core.array;
 import xtb.core.flag_set : FlagSet;
 import xtb.core.hash_map;
+import xtb.core.lifetime : isTaggedPayloadField,
+    taggedBy,
+    taggedCase,
+    taggedPayloadDiscriminatorIndex,
+    taggedPayloadMemberTag,
+    taggedPayloadMetadata;
 import xtb.core.owned_string;
 import xtb.core.option : Option;
 import xtb.core.result : Result;
@@ -961,12 +967,20 @@ private void writeStruct(T)(
                         options,
                     );
                     writePunctuation(writer, ": ", options);
-                    writePrettyImpl(
-                        writer,
-                        value.tupleof[index],
-                        options,
-                        childContext,
-                    );
+                    static if (isTaggedPayloadField!(U, index))
+                        writeTaggedPayload!(U, index)(
+                            writer,
+                            value,
+                            options,
+                            childContext,
+                        );
+                    else
+                        writePrettyImpl(
+                            writer,
+                            value.tupleof[index],
+                            options,
+                            childContext,
+                        );
 
                     ++writtenFields;
                     if (!compact)
@@ -998,6 +1012,145 @@ private void writeStruct(T)(
     if (!compact)
         writeIndent(writer, context.indentationDepth, options);
     writePunctuation(writer, '}', options);
+}
+
+private void writeTaggedPayload(T, size_t payloadIndex)(
+    ref Writer writer,
+    scope const ref T value,
+    scope const ref PrettyPrintOptions options,
+    PrettyPrintContext context,
+)
+{
+    alias U = Unqualified!T;
+    enum metadata = taggedPayloadMetadata!(U, payloadIndex)();
+    alias Tag = Unqualified!(typeof(metadata.inactive));
+    alias Payload = Unqualified!(typeof(U.tupleof[payloadIndex]));
+    enum discriminatorIndex = taggedPayloadDiscriminatorIndex!(U, payloadIndex)();
+    const active = value.tupleof[discriminatorIndex];
+
+    if (active == metadata.inactive)
+    {
+        if (options.showTypeNames)
+        {
+            writeTypeName!Payload(writer, options);
+            writer.put(' ');
+        }
+        writePunctuation(writer, "{}", options);
+        return;
+    }
+
+    if (depthLimitReached(context.recursionDepth, options))
+    {
+        writeDepthLimit(writer, options);
+        return;
+    }
+
+    if (options.showTypeNames)
+    {
+        writeTypeName!Payload(writer, options);
+        writer.put(' ');
+    }
+
+    static foreach (memberIndex; 0 .. Payload.tupleof.length)
+    {
+        {
+            enum mappedTag = taggedPayloadMemberTag!(
+                    Payload,
+                    memberIndex,
+                    Tag,
+                )();
+            if (active == mappedTag)
+            {
+                if (options.maxItems == 0)
+                {
+                    writePunctuation(writer, '{', options);
+                    writeTruncation(writer, 1, options);
+                    writePunctuation(writer, '}', options);
+                    return;
+                }
+
+                const compact = chooseTaggedPayloadCompact!(U, payloadIndex)(
+                    value,
+                    options,
+                    context,
+                );
+                PrettyPrintContext childContext = descendAggregate(context);
+                enum name = __traits(identifier, Payload.tupleof[memberIndex]);
+
+                writePunctuation(writer, '{', options);
+                if (!compact)
+                {
+                    writer.put('\n');
+                    writeIndent(
+                        writer,
+                        childContext.indentationDepth,
+                        options,
+                    );
+                }
+
+                writeStyledText(
+                    writer,
+                    name,
+                    options.colorScheme.fieldName,
+                    options,
+                );
+                writePunctuation(writer, ": ", options);
+                writePrettyImpl(
+                    writer,
+                    value.tupleof[payloadIndex].tupleof[memberIndex],
+                    options,
+                    childContext,
+                );
+
+                if (!compact)
+                {
+                    writer.put('\n');
+                    writeIndent(writer, context.indentationDepth, options);
+                }
+                writePunctuation(writer, '}', options);
+                return;
+            }
+        }
+    }
+
+    writeStyledText(
+        writer,
+        "<invalid tagged union discriminator>",
+        options.colorScheme.unsupported,
+        options,
+    );
+}
+
+private bool chooseTaggedPayloadCompact(T, size_t payloadIndex)(
+    scope const ref T value,
+    scope const ref PrettyPrintOptions options,
+    PrettyPrintContext context,
+)
+{
+    final switch (options.layout)
+    {
+        case PrettyPrintLayout.compact:
+            return true;
+        case PrettyPrintLayout.expanded:
+            return false;
+        case PrettyPrintLayout.automatic:
+            break;
+    }
+
+    if (options.softMaxWidth == 0)
+        return false;
+    const indentation = cast(size_t) context.indentationDepth *
+        options.indentSize;
+    if (indentation >= options.softMaxWidth)
+        return false;
+    const available = cast(size_t) options.softMaxWidth - indentation;
+    const estimate = estimateTaggedPayload!(T, payloadIndex)(
+        value,
+        options,
+        context.recursionDepth,
+        available,
+    );
+    return estimate.known && estimate.width <= available;
 }
 
 private void writeUnion(T)(
@@ -2043,6 +2196,70 @@ private WidthEstimate estimateHashSet(T)(
     return knownWidth(total);
 }
 
+private WidthEstimate estimateTaggedPayload(T, size_t payloadIndex)(
+    scope const ref T value,
+    scope const ref PrettyPrintOptions options,
+    ushort depth,
+    size_t budget,
+)
+{
+    alias U = Unqualified!T;
+    enum metadata = taggedPayloadMetadata!(U, payloadIndex)();
+    alias Tag = Unqualified!(typeof(metadata.inactive));
+    alias Payload = Unqualified!(typeof(U.tupleof[payloadIndex]));
+    enum discriminatorIndex = taggedPayloadDiscriminatorIndex!(U, payloadIndex)();
+    const active = value.tupleof[discriminatorIndex];
+
+    if (active == metadata.inactive)
+    {
+        size_t total = options.showTypeNames ? Payload.stringof.length + 1 : 0;
+        return addWidth(&total, 2, budget) ? knownWidth(total) : unknownWidth();
+    }
+    if (depthLimitReached(depth, options))
+        return knownWidth(3);
+
+    size_t total = options.showTypeNames ? Payload.stringof.length + 1 : 0;
+    if (options.maxItems == 0)
+    {
+        if (!addWidth(&total, 2, budget) ||
+            !addWidth(&total, truncationWidth(1), budget))
+            return unknownWidth();
+        return knownWidth(total);
+    }
+
+    static foreach (memberIndex; 0 .. Payload.tupleof.length)
+    {
+        {
+            enum mappedTag = taggedPayloadMemberTag!(
+                    Payload,
+                    memberIndex,
+                    Tag,
+                )();
+            if (active == mappedTag)
+            {
+                enum name = __traits(identifier, Payload.tupleof[memberIndex]);
+                if (!addWidth(&total, 2 + name.length + 2, budget))
+                    return unknownWidth();
+                const child = estimateWidth(
+                    value.tupleof[payloadIndex].tupleof[memberIndex],
+                    options,
+                    nextDepth(depth),
+                    budget > total ? budget - total : 0,
+                );
+                if (!child.known || !addWidth(&total, child.width, budget))
+                    return unknownWidth();
+                return knownWidth(total);
+            }
+        }
+    }
+
+    return addWidth(
+        &total,
+        "<invalid tagged union discriminator>".length,
+        budget,
+    ) ? knownWidth(total) : unknownWidth();
+}
+
 private WidthEstimate estimateStruct(T)(
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
@@ -2081,12 +2298,20 @@ private WidthEstimate estimateStruct(T)(
                     if (!addWidth(&total, name.length, budget) ||
                         !addWidth(&total, 2, budget))
                         return unknownWidth();
-                    const child = estimateWidth(
-                        value.tupleof[index],
-                        options,
-                        nextDepth(depth),
-                        budget > total ? budget - total : 0,
-                    );
+                    static if (isTaggedPayloadField!(U, index))
+                        const child = estimateTaggedPayload!(U, index)(
+                            value,
+                            options,
+                            nextDepth(depth),
+                            budget > total ? budget - total : 0,
+                        );
+                    else
+                        const child = estimateWidth(
+                            value.tupleof[index],
+                            options,
+                            nextDepth(depth),
+                            budget > total ? budget - total : 0,
+                        );
                     if (!child.known || !addWidth(&total, child.width, budget))
                         return unknownWidth();
                     ++writtenFields;
@@ -2325,6 +2550,29 @@ version (unittest)
     {
         int integer;
         double floating;
+    }
+
+    private enum PrettyPrintTestTaggedKind : ubyte
+    {
+        none,
+        integer,
+        floating,
+    }
+
+    private union PrettyPrintTestTaggedPayload
+    {
+        int integer;
+
+        @taggedCase(PrettyPrintTestTaggedKind.floating)
+        int renamedFloating;
+    }
+
+    private struct PrettyPrintTestTaggedValue
+    {
+        PrettyPrintTestTaggedKind kind;
+
+        @taggedBy("kind", PrettyPrintTestTaggedKind.none)
+        PrettyPrintTestTaggedPayload payload;
     }
 
     private extern (C) int prettyPrintTestFunction(int value)
@@ -2970,6 +3218,66 @@ unittest
         plain,
     );
     value.expectWidthEstimateCovers(plain);
+}
+
+unittest
+{
+    PrettyPrintOptions compact = plainOptions().withLayout(
+        PrettyPrintLayout.compact,
+    );
+    PrettyPrintOptions expanded = plainOptions().withLayout(
+        PrettyPrintLayout.expanded,
+    );
+
+    PrettyPrintTestTaggedValue value;
+    value.kind = PrettyPrintTestTaggedKind.integer;
+    value.payload.integer = 7;
+    value.expectPretty(
+        "PrettyPrintTestTaggedValue {kind: PrettyPrintTestTaggedKind.integer, "
+            ~ "payload: PrettyPrintTestTaggedPayload {integer: 7}}",
+        compact,
+    );
+    value.expectPretty(
+        "PrettyPrintTestTaggedValue {
+"
+            ~ "  kind: PrettyPrintTestTaggedKind.integer,
+"
+            ~ "  payload: PrettyPrintTestTaggedPayload {
+"
+            ~ "    integer: 7
+"
+            ~ "  }
+"
+            ~ "}",
+        expanded,
+    );
+    value.expectWidthEstimateCovers(compact);
+
+    value.kind = PrettyPrintTestTaggedKind.floating;
+    value.payload.renamedFloating = 9;
+    value.expectPretty(
+        "PrettyPrintTestTaggedValue {kind: PrettyPrintTestTaggedKind.floating, "
+            ~ "payload: PrettyPrintTestTaggedPayload {renamedFloating: 9}}",
+        compact,
+    );
+    value.expectWidthEstimateCovers(compact);
+
+    value.kind = PrettyPrintTestTaggedKind.none;
+    value.expectPretty(
+        "PrettyPrintTestTaggedValue {kind: PrettyPrintTestTaggedKind.none, "
+            ~ "payload: PrettyPrintTestTaggedPayload {}}",
+        compact,
+    );
+    value.expectWidthEstimateCovers(compact);
+
+    value.kind = cast(PrettyPrintTestTaggedKind) 99;
+    value.expectPretty(
+        "PrettyPrintTestTaggedValue {kind: PrettyPrintTestTaggedKind(99), "
+            ~ "payload: PrettyPrintTestTaggedPayload "
+            ~ "<invalid tagged union discriminator>}",
+        compact,
+    );
+    value.expectWidthEstimateCovers(compact);
 }
 
 unittest
