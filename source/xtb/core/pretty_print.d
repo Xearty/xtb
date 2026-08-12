@@ -883,6 +883,14 @@ private void writeHashSet(T)(
     writePunctuation(writer, '}', options);
 }
 
+private template HasNamedStructField(T, size_t index)
+{
+    alias U = Unqualified!T;
+    enum name = __traits(identifier, U.tupleof[index]);
+    enum HasNamedStructField = name.length != 0 &&
+        __traits(compiles, __traits(getMember, U, name));
+}
+
 private size_t countNamedFields(T)()
 pure @safe
 {
@@ -893,7 +901,7 @@ pure @safe
         // iterations unless an explicit nested scope is introduced. Avoid a
         // per-iteration named enum here so structs with multiple fields do not
         // redeclare the same symbol.
-        static if (__traits(identifier, T.tupleof[index]).length != 0)
+        static if (HasNamedStructField!(T, index))
             ++result;
     }
     return result;
@@ -948,7 +956,7 @@ private void writeStruct(T)(
     {
         {
             enum name = __traits(identifier, U.tupleof[index]);
-            static if (name.length != 0)
+            static if (HasNamedStructField!(U, index))
             {
                 if (visitedFields < shown)
                 {
@@ -2289,7 +2297,7 @@ private WidthEstimate estimateStruct(T)(
     {
         {
             enum name = __traits(identifier, U.tupleof[index]);
-            static if (name.length != 0)
+            static if (HasNamedStructField!(U, index))
             {
                 if (visitedFields < shown)
                 {
@@ -2912,6 +2920,23 @@ unittest
 unittest
 {
     PrettyPrintOptions plain = plainOptions();
+
+    struct LocalRecord
+    {
+        int value;
+
+        void touch()
+        {
+        }
+    }
+
+    LocalRecord localRecord;
+    localRecord.value = 11;
+    localRecord.expectPretty("LocalRecord {value: 11}", plain);
+    localRecord.expectWidthEstimateCovers(plain);
+    PrettyPrintOptions localLimited = plain.withLayout(PrettyPrintLayout.compact);
+    localLimited.maxItems = 1;
+    localRecord.expectPretty("LocalRecord {value: 11}", localLimited);
 
     PrettyPrintTestEmpty empty;
     empty.expectPretty("PrettyPrintTestEmpty {}", plain);
