@@ -82,6 +82,8 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
         assert(output.slice.asStringUnchecked.equal(
                 "custom-zero\0hello world\0\0quote\"mark\0",
@@ -105,6 +107,8 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
 
         StringBuf expected = StringBuf.fromString(
@@ -128,6 +132,8 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
         assert(output.slice.asStringUnchecked.equal(temporaryDirectory.view));
     }
@@ -147,6 +153,8 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
         assert(output.slice == input[]);
     }
@@ -160,6 +168,8 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
         assert(output.slice.asStringUnchecked.equal("out\0dataerror-data"));
     }
@@ -173,7 +183,11 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         Array!u8 errorOutput = Array!u8.create(mallocAllocator());
+        scope (exit)
+            errorOutput.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
         readPipeEntirely(child.stderrPipe, &errorOutput);
         assert(output.slice.asStringUnchecked.equal("out\0data"));
@@ -196,6 +210,8 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         readPipeEntirely(&external.reader, &output);
         assert(output.slice.asStringUnchecked.equal("out\0data"));
     }
@@ -313,12 +329,18 @@ version (linux) private void runCommunicateIntegration(
         enum floodBytes = 128 * 1024;
         enum inputBytes = 256 * 1024;
         Array!u8 input = Array!u8.create(mallocAllocator());
+        scope (exit)
+            input.deinit();
         input.resize(inputBytes);
         foreach (i, ref value; input.slice)
             value = cast(u8)(i % 251);
         Array!u8 outputStorage = Array!u8.create(mallocAllocator());
+        scope (exit)
+            outputStorage.deinit();
         outputStorage.resize(floodBytes + inputBytes);
         Array!u8 errorStorage = Array!u8.create(mallocAllocator());
+        scope (exit)
+            errorStorage.deinit();
         errorStorage.resize(floodBytes);
         CaptureBuffer output = CaptureBuffer(outputStorage.slice);
         CaptureBuffer errorOutput = CaptureBuffer(errorStorage.slice);
@@ -507,6 +529,8 @@ version (linux) private void runPipelineIntegration(
         assert(close(pipeline.stdinPipe).succeeded);
         assert(waitPipeline(&pipeline).succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         readPipeEntirely(pipeline.stdoutPipe, &output);
         assert(output.slice == input[] && pipeline.completed &&
                 pipeline.succeeded);
@@ -514,6 +538,8 @@ version (linux) private void runPipelineIntegration(
         {
             assert(pipeline.status(index).succeeded);
             Array!u8 errorOutput = Array!u8.create(mallocAllocator());
+            scope (exit)
+                errorOutput.deinit();
             readPipeEntirely(pipeline.stderrPipe(index), &errorOutput);
             assert(errorOutput.empty);
         }
@@ -540,7 +566,11 @@ version (linux) private void runPipelineIntegration(
                 stages[], options, mallocAllocator(), &pipeline).succeeded);
         assert(waitPipeline(&pipeline).succeeded && pipeline.succeeded);
         Array!u8 output = Array!u8.create(mallocAllocator());
+        scope (exit)
+            output.deinit();
         Array!u8 errorOutput = Array!u8.create(mallocAllocator());
+        scope (exit)
+            errorOutput.deinit();
         readPipeEntirely(pipeline.stdoutPipe, &output);
         readPipeEntirely(pipeline.stderrPipe(0), &errorOutput);
         assert(output.slice.asStringUnchecked.equal("out\0data"));
@@ -683,6 +713,8 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(information.type == FileType.regular && information.size == contents.length);
 
     Array!u8 loaded = Array!u8.create(mallocAllocator());
+    scope (exit)
+        loaded.deinit();
     assert(readEntireFile(firstPath, loaded).succeeded);
     assert(loaded.slice == contents[]);
 
@@ -738,6 +770,8 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(executablePath(executable).succeeded && executable.view.length != 0);
 
     Array!u8 procStatus = Array!u8.create(mallocAllocator());
+    scope (exit)
+        procStatus.deinit();
     assert(readEntireFile(Path.fromString("/proc/self/status"), procStatus).succeeded);
     assert(procStatus.length != 0);
 

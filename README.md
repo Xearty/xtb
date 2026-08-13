@@ -241,8 +241,8 @@ associativity. See `design_spec/parser.md`.
 Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
 `Deserialized!T` with `String`, slices, and `StringViewHashMap!V` (the readable
 alias for `HashMap!(String, V)`) for one document-owned graph. Direct owning
-decodes may use `StringBuf`, `OwnedString`, `Array!T`, and
-`StringHashMap!V`. JSON accepts every supported value at the document root.
+decodes may use `StringBuf`, `OwnedString`, shallow `Array!T` for elements that
+need no cleanup, `OwnedArray!T` for owned element graphs, and `StringHashMap!V`. JSON accepts every supported value at the document root.
 TOML roots remain tables represented by a serde struct, tagged union, borrowed
 string-view map, or owning string map; nested maps use inline tables. Borrowed
 map keys live under `Deserialized!T`, while `StringHashMap` stores exact owned

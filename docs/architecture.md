@@ -115,7 +115,12 @@ and are not treated as general-purpose core modules.
 
 Within core, `xtb.core.types` is a dependency-free leaf containing only the
 primitive aliases, including `String`. `xtb.core.lifetime` owns the explicit
-`deinit` protocol, `needsDeinit`, and XTB move/replacement primitives. It also
+`deinit` protocol, `needsDeinit`, and XTB move/replacement primitives. Its
+one-argument `move` preserves normal D behavior for trivial values but
+reconstructs explicit-deinit owners to `.init`, so `move(owner)` has transfer
+semantics even when the owner is otherwise POD/copyable. `moveEmplace` uses the
+same source rule for fresh storage, while `moveAssign` first deinitializes a live
+destination. It also
 owns raw tagged-union lifetime metadata because active-member cleanup must be
 available below serde. Annotate a raw union field with
 `@taggedBy("discriminator", Tag.inactive)`; union members map to same-named enum
@@ -1375,16 +1380,18 @@ the result expires when that owner is reset or destroyed.
 
 A self-owning decode writes an ordinary caller-owned value directly. JSON root
 values may be scalars, `StringBuf`, `OwnedString`, fixed arrays, `Array!T`,
-`StringHashMap!V`, or structs composed from those shapes. TOML direct roots
+`OwnedArray!T`, `StringHashMap!V`, or structs composed from those shapes. TOML direct roots
 remain serde structs, tagged unions, or `StringHashMap!V` table documents.
 Each container uses the allocator passed to `readJson` or `readToml`; no
 tracking allocator or result wrapper is involved. Decoding is transactional:
-the backend builds a temporary RAII value, destroys it on any failure, and
-replaces the caller's previous output by move only after the whole document
-succeeds. The previous value therefore remains intact on syntax, schema, range,
+the backend builds a temporary explicit-lifetime value, deinitializes it on any
+failure, and replaces the caller's previous output by move only after the whole
+document succeeds. The previous value therefore remains intact on syntax, schema, range,
 limit, or allocation failure. The resulting value can be mutated, moved,
-reset, and extended using the normal `StringBuf` and `Array!T` APIs. Every
-direct owning container in a successful result is initialized with the decode
+reset, and extended using the normal `StringBuf`, `Array!T`, and `OwnedArray!T`
+APIs. `Array!T` is valid only when the element does not itself require cleanup;
+owned element graphs use `OwnedArray!T`. Every direct owning container in a
+successful result is initialized with the decode
 allocator even when its field was absent, including containers inside nested
 records and fixed or dynamic owning arrays. `StringViewHashMap`/
 `HashMap!(String, V)` is intentionally absent from direct decoding because its
@@ -1429,20 +1436,21 @@ no filesystem access. File convenience functions, if added later, must compose
 
 - Prefer structs, tagged unions, templates, and function composition; classes
   and runtime reflection are unavailable.
-- Keep the name `Array!T` for the allocator-owning growable container. Native
-  D slices remain the borrowed representation. `Array!T` is non-copyable and
-  its ordinary API is a handwritten member surface colocated with
-  `ArrayUnmanaged!T`; D struct-pointer member lookup handles non-null pointer
-  receivers without duplicate forwarding overloads. It owns every live element:
-  removal, shrinking, clearing,
-  release, and destruction run
-  element destructors in reverse lifetime order where applicable. Relocation
-  uses move construction for elaborate types and leaves moved-from storage
-  uninitialized; only POD elements use raw reallocation and byte movement.
-  Value append/insert operations accept movable non-copyable structs. Slice
-  factories and slice append/insert operations exist only for copyable element
-  types. Element construction, movement, and destruction must satisfy the
-  container's `nothrow @nogc` contract.
+- `Array!T` and `OwnedArray!T` are the two allocator-owning growable array
+  semantics; native D slices remain borrowed views. Both are non-copyable and
+  share private `ArrayUnmanaged!T` storage machinery. `Array!T` owns only its
+  backing allocation: removal, shrinking, clearing, and `deinit` abandon logical
+  elements without calling their cleanup protocol. `OwnedArray!T` additionally
+  owns every logical element and calls free `deinit` in reverse order whenever a
+  value is discarded without transfer. `pop` transfers ownership in both types,
+  and growth/reallocation is relocation rather than discard. Fallible singular
+  insertion uses `T*`: success moves from `*value`, while allocation failure
+  leaves it unchanged, including when the pointer aliases an existing element.
+  Managed array generated assignment is disabled; use `moveAssign` to replace a
+  live array owner. There is no public shallow/owned conversion or mutable
+  `Array!T` downgrade.
+  `Array.release()` returns explicit-deinit `ReleasedStorage`; `OwnedArray` has
+  no release/adopt surface.
 - Use `HashMap!(K, V)` and `HashSet!K` for general allocator-owned hashed
   collections. They use open addressing rather than node allocation and are
   non-copyable. Managed generic-map keys must be copyable and remain immutable

@@ -3,6 +3,7 @@ module xtb.os.pipeline;
 nothrow @nogc:
 
 import core.lifetime : move;
+import xtb.core.lifetime : moveEmplace;
 import xtb.core.array;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
@@ -212,7 +213,15 @@ nothrow @nogc:
 
     void deinit() @system
     {
+        // Array is intentionally shallow. Pipeline owns the semantic process
+        // lifecycle, so resolve each child explicitly before releasing backing
+        // storage rather than making Array guess whether discard means kill,
+        // wait, or detach.
+        foreach_reverse (ref child; children_.slice)
+            child.deinit();
+        children_.clear();
         children_.deinit();
+        statuses_.clear();
         statuses_.deinit();
         success_ = PipelineSuccess.init;
     }
@@ -334,8 +343,10 @@ private ProcessError spawnPipelineSlice(Stage)(
         return error;
 
     Pipeline created;
-    created.children_ = Array!ChildProcess.create(allocator);
-    created.statuses_ = Array!ExitStatus.create(allocator);
+    Array!ChildProcess children = Array!ChildProcess.create(allocator);
+    Array!ExitStatus statuses = Array!ExitStatus.create(allocator);
+    moveEmplace(children, created.children_);
+    moveEmplace(statuses, created.statuses_);
     created.success_ = options.success;
     if (!created.children_.tryResize(stages.length) ||
         !created.statuses_.tryResize(stages.length))

@@ -249,7 +249,9 @@ private enum isVoidPointee(T) = is(T == void) || is(T == const(void)) ||
 // redeclares that alias for pointer instantiations.
 private enum isPointerType(T) = is(Unqualified!T == Pointee*, Pointee);
 
-private enum isArrayType(T) = is(Unqualified!T == Array!Element, Element);
+private enum isArrayType(T) =
+    is(Unqualified!T == Array!Element, Element) ||
+    is(Unqualified!T == OwnedArray!Element, Element);
 private enum isOptionType(T) = is(Unqualified!T == Option!Element, Element);
 private enum isResultType(T) = is(
         Unqualified!T == Result!(Value, Error),
@@ -3322,6 +3324,13 @@ unittest
     noneShown.maxItems = 0;
     values.expectPretty("[... (2 more)]", noneShown);
     values.deinit();
+
+    OwnedArray!int ownedValues = OwnedArray!int.create(mallocAllocator());
+    ownedValues.append(3);
+    ownedValues.append(4);
+    ownedValues.expectPretty("[3, 4]", noTypes);
+    ownedValues.expectWidthEstimateCovers(noTypes);
+    ownedValues.deinit();
 
     HashMap!(String, int) map = HashMap!(String, int).create(mallocAllocator());
     map.expectPretty("{}", noTypes);

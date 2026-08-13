@@ -2161,6 +2161,7 @@ unittest
     import xtb.core.memory : Allocator;
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
+    import xtb.core.lifetime : deinit;
 
     alias IntMap = HashMap!(int, int);
     alias IntMapStorage = HashMapUnmanaged!(int, int);
@@ -2220,6 +2221,7 @@ unittest
         assert(*released.storage.find(1) == 10);
         released.storage.set(released.allocator, 2, 20);
         assert(*released.storage.find(2) == 20);
+        deinit(released);
     }
     assert(tracked.clean);
 
@@ -2274,6 +2276,7 @@ unittest
 {
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
+    import xtb.core.lifetime : deinit;
 
     alias IntMap = HashMap!(int, int);
     alias IntMapStorage = HashMapUnmanaged!(int, int);

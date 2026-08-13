@@ -4,6 +4,7 @@ import core.lifetime : move;
 import tests.serde_backend_contract : runSerdeBackendContracts;
 import xtb.core.array;
 import xtb.core.hash_map;
+import xtb.core.lifetime : deinitValue = deinit;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
@@ -361,6 +362,11 @@ private struct TopLevelOwnedItem
 {
     @required StringBuf displayName;
     int value;
+
+    void deinit() nothrow @nogc
+    {
+        deinitValue(displayName);
+    }
 }
 
 private enum ConflictingAdapterRepresentation
@@ -429,7 +435,13 @@ private struct OwnedEndpoint
 {
     @required StringBuf hostName;
     ushort port;
-    Array!StringBuf labels;
+    OwnedArray!StringBuf labels;
+
+    void deinit() nothrow @nogc
+    {
+        deinitValue(labels);
+        deinitValue(hostName);
+    }
 }
 
 @fieldCase(KeyCase.snake)
@@ -437,12 +449,22 @@ private struct OwnedDocument
 {
     @required StringBuf applicationName;
     OwnedEndpoint primaryEndpoint;
-    Array!OwnedEndpoint replicaEndpoints;
-    Array!StringBuf featureFlags;
+    OwnedArray!OwnedEndpoint replicaEndpoints;
+    OwnedArray!StringBuf featureFlags;
     @omitDefault StringBuf description;
-    @omitDefault Array!StringBuf experiments;
+    @omitDefault OwnedArray!StringBuf experiments;
     int[3] retryDelays;
     @omitDefault bool tracingEnabled;
+
+    void deinit() nothrow @nogc
+    {
+        deinitValue(experiments);
+        deinitValue(description);
+        deinitValue(featureFlags);
+        deinitValue(replicaEndpoints);
+        deinitValue(primaryEndpoint);
+        deinitValue(applicationName);
+    }
 }
 
 @fieldCase(KeyCase.snake)
@@ -452,6 +474,19 @@ private struct OwnedOptionalValues
     Option!OwnedEndpoint endpoint;
     Option!uint revision;
     @required Option!bool explicitToggle;
+}
+
+private void deinitOwnedOptionalValues(ref OwnedOptionalValues value) nothrow @nogc
+{
+    // Option is migrated to explicit lifetime semantics in a later step. Until
+    // then, explicitly release the OwnedArray nested in its Endpoint payload
+    // before Option.reset invokes the payload's current D destruction path.
+    if (value.endpoint.isSome)
+        value.endpoint.value.labels.deinit();
+    value.endpoint.reset();
+    value.title.reset();
+    value.revision.reset();
+    value.explicitToggle.reset();
 }
 
 private struct UnmanagedContainerFields
@@ -1235,6 +1270,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         assert(value.endpoint.value.hostName == "jobs.internal");
         assert(value.endpoint.value.labels[0] == "stable");
         assert(value.revision.isNone);
+        deinitOwnedOptionalValues(value);
     }
     assert(allocator.clean);
     assert(allocator.stats.invalidCalls == 0);
@@ -1250,7 +1286,10 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
             OwnedOptionalValues value;
             SerdeError error = readJson(jsonInput, failureAllocator.allocator, &value);
             if (error.ok)
+            {
+                deinitOwnedOptionalValues(value);
                 reachedSuccess = true;
+            }
             else
                 assert(error.kind == SerdeErrorKind.allocationFailure);
         }
@@ -1309,6 +1348,8 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
             "\"labels\":[\"canary\"]}]," ~
             "\"feature_flags\":[\"audit\",\"telemetry\",\"compression\"]," ~
             "\"retry_delays\":[1,5,60]}");
+    encoded.deinit();
+    deinitValue(document);
 }
 
 private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
@@ -1357,6 +1398,8 @@ private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
             "feature_flags = [\"batch-v2\", \"priority\"]\n" ~
             "retry_delays = [1, 3, 9]\n" ~
             "tracing_enabled = true");
+    encoded.deinit();
+    deinitValue(document);
 }
 
 private void testOwnedDecodeIsTransactional() nothrow @nogc
@@ -1404,7 +1447,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
     assert(document.primaryEndpoint.hostName ==
             "initialized after decode");
     assert(document.featureFlags[0] == "late");
-    destroy(document);
+    deinitValue(document);
     assert(allocator.clean);
     assert(allocator.stats.invalidCalls == 0);
 }
@@ -1430,6 +1473,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
             if (error.ok)
             {
                 assert(document.applicationName == "owned");
+                deinitValue(document);
                 reachedSuccess = true;
             }
             else
@@ -1461,6 +1505,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
             if (error.ok)
             {
                 assert(document.applicationName == "owned");
+                deinitValue(document);
                 reachedSuccess = true;
             }
             else
@@ -1535,7 +1580,7 @@ private void testJsonTopLevelValues() nothrow @nogc
     assert(error.kind == SerdeErrorKind.typeMismatch);
     assert(decodedFixed == [4, 5, 6]);
 
-    Array!TopLevelOwnedItem ownedItems;
+    OwnedArray!TopLevelOwnedItem ownedItems;
     error = readJson(
         "[{\"display_name\":\"owned\",\"value\":7}]",
         mallocAllocator(),

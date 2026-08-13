@@ -3,6 +3,7 @@ module xtb.serde.traits;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
+import xtb.core.lifetime : deinitValue = deinit, moveEmplace, needsDeinit;
 import xtb.core.array;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
@@ -31,11 +32,15 @@ template ArrayElement(T)
 {
     static if (is(Unqualified!T == Array!Element, Element))
         alias ArrayElement = Element;
+    else static if (is(Unqualified!T == OwnedArray!Element, Element))
+        alias ArrayElement = Element;
     else
-        static assert(false, T.stringof ~ " is not an Array");
+        static assert(false, T.stringof ~ " is not an Array/OwnedArray");
 }
 
-enum isArray(T) = is(Unqualified!T == Array!Element, Element);
+enum isShallowArray(T) = is(Unqualified!T == Array!Element, Element);
+enum isOwnedArray(T) = is(Unqualified!T == OwnedArray!Element, Element);
+enum isArray(T) = isShallowArray!T || isOwnedArray!T;
 
 template OptionElement(T)
 {
@@ -812,8 +817,12 @@ private bool ownedValue(T)() pure @safe
         return true;
     else static if (isOption!U)
         return ownedValue!(OptionElement!U);
-    else static if (isArray!U)
+    else static if (isOwnedArray!U)
         return ownedValue!(ArrayElement!U);
+    else static if (isShallowArray!U)
+        return ownedValue!(ArrayElement!U) &&
+            !needsDeinit!(ArrayElement!U) &&
+            !hasElaborateDestructor!(ArrayElement!U);
     else static if (isStringHashMap!U)
         return ownedValue!(StringHashMapValue!U);
     else static if (isFixedArray!U)
@@ -840,14 +849,14 @@ package(xtb.serde) void validateBorrowedValue(T)()
     validateValueSchema!T();
     static assert(borrowedValue!T,
         "Deserialized values use String, slices, pointers, and " ~
-            "HashMap!(String, V); StringBuf and Array require direct decoding");
+            "HashMap!(String, V); StringBuf, Array, and OwnedArray require direct decoding");
 }
 
 package(xtb.serde) void validateOwnedValue(T)()
 {
     validateValueSchema!T();
     static assert(ownedValue!T,
-        "directly decoded values use StringBuf, OwnedString, Array, and " ~
+        "directly decoded values use StringBuf, OwnedString, Array, OwnedArray, and " ~
             "StringHashMap; String, slices, raw pointers, and HashMap " ~
             "require Deserialized");
 }
@@ -857,14 +866,14 @@ void validateBorrowedSchema(T)()
     validateSchema!T();
     static assert(borrowedValue!T,
         "Deserialized schemas use String, slices, pointers, and " ~
-            "HashMap!(String, V); StringBuf and Array require direct decoding");
+            "HashMap!(String, V); StringBuf, Array, and OwnedArray require direct decoding");
 }
 
 void validateOwnedSchema(T)()
 {
     validateSchema!T();
     static assert(ownedValue!T,
-        "directly decoded schemas use StringBuf, OwnedString, Array, and " ~
+        "directly decoded schemas use StringBuf, OwnedString, Array, OwnedArray, and " ~
             "StringHashMap; String, slices, raw pointers, and HashMap " ~
             "require Deserialized");
 }
@@ -882,7 +891,10 @@ package(xtb.serde) void initializeOwnedValue(T)(
     else static if (isOption!U)
         initializeOwnedValue(allocator, &(*output).storage());
     else static if (isArray!U)
-        *cast(U*) output = U.create(allocator);
+    {
+        U created = U.create(allocator);
+        moveEmplace(created, *cast(U*) output);
+    }
     else static if (isFixedArray!U)
         foreach (index; 0 .. output.length)
             initializeOwnedValue(allocator, &(*output)[index]);
@@ -891,6 +903,50 @@ package(xtb.serde) void initializeOwnedValue(T)(
                 static foreach (index; 0 .. U.tupleof.length)
                     initializeOwnedValue(allocator, &output.tupleof[index]);
             }
+}
+
+package(xtb.serde) void deinitOwnedValue(T)(T* value)
+{
+    alias U = Unqualified!T;
+    static if (isOption!U)
+    {
+        // Direct serde decoding initializes Option storage before the payload
+        // has necessarily decoded far enough to become `Some`. Clean the
+        // storage regardless of the logical tag so partial values cannot leak.
+        deinitOwnedValue(&(*value).storage());
+    }
+    else static if (isStringBuf!U || isOwnedString!U ||
+        isStringHashMap!U || isArray!U)
+    {
+        static if (needsDeinit!U)
+        {
+            deinitValue(*value);
+            static if (hasElaborateDestructor!U)
+            {
+                U empty;
+                moveEmplace(empty, *value);
+            }
+        }
+    }
+    else static if (isFixedArray!U)
+    {
+        size_t index = value.length;
+        while (index != 0)
+            deinitOwnedValue(&(*value)[--index]);
+    }
+    else static if (isSerdeStruct!U)
+    {
+        static if (needsDeinit!U)
+            deinitValue(*value);
+        else
+            static foreach_reverse (index; 0 .. U.tupleof.length)
+            deinitOwnedValue(&value.tupleof[index]);
+        static if (hasElaborateDestructor!U)
+        {
+            U empty;
+            moveEmplace(empty, *value);
+        }
+    }
 }
 
 private bool fieldsOverlap(A, size_t left, B, size_t right)() pure @safe

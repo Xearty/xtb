@@ -7,6 +7,7 @@ import core.stdc.math : isfinite;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
 import core.lifetime : move;
+import xtb.core.lifetime : moveEmplace;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array;
 import xtb.core.hash_map;
@@ -34,7 +35,7 @@ import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
     HashMapKey, HashMapValue, isArray, isDefaultValueAttribute, isDynamicArray,
     isFixedArray, isHashMap, isOption, isOwnedSerdeValue, isOwnedString,
     isSerdeStruct, isString, isStringBuf, isStringHashMap, isTaggedUnion,
-    initializeOwnedValue, OptionElement, StringHashMapValue,
+    deinitOwnedValue, initializeOwnedValue, OptionElement, StringHashMapValue,
     payloadIndex, PayloadType, schemaCase,
     serializedFieldCount, taggedUnionLayout, unionCaseIsActive, UnionMemberType,
     validateBorrowedValue, validateOwnedValue, validateValueSchema;
@@ -165,8 +166,13 @@ SerdeError readJson(T)(
             parser.fail(SerdeErrorKind.invalidSyntax);
     }
     if (!parser.error.ok)
-        return parser.error;
-    move(decoded, *output);
+    {
+        SerdeError error = parser.error;
+        deinitOwnedValue(&decoded);
+        return error;
+    }
+    deinitOwnedValue(output);
+    moveEmplace(decoded, *output);
     return success();
 }
 
@@ -289,7 +295,8 @@ private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
             }
         return result;
     }
-    else static if (hasElaborateDestructor!(Unqualified!F))
+    else static if (hasElaborateDestructor!(Unqualified!F) ||
+        !__traits(isCopyable, Unqualified!F))
     {
         Unqualified!F defaults;
         return valuesEqual(value, defaults);
@@ -776,7 +783,7 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
     else static if (is(U == Pointee*, Pointee))
         decodePointer(parser, output, depth);
     else static if (isArray!U)
-        decodeArray!(ArrayElement!U)(parser, cast(U*) output, depth);
+        decodeArray(parser, cast(U*) output, depth);
     else static if (isDynamicArray!U)
         decodeDynamicArray(parser, output, depth);
     else static if (isFixedArray!U)
@@ -1608,12 +1615,13 @@ private void decodeDynamicArray(T)(ref JsonParser parser, T* output, size_t dept
     }
 }
 
-private void decodeArray(Element)(
+private void decodeArray(Container)(
     ref JsonParser parser,
-    Array!Element* output,
+    Container* output,
     size_t depth,
-)
+) if (isArray!Container)
 {
+    alias Element = ArrayElement!Container;
     JsonParser counter = parser;
     size_t count;
     countArray(counter, depth, &count);
@@ -1622,33 +1630,59 @@ private void decodeArray(Element)(
         parser.error = counter.error;
         return;
     }
-    Array!Element values = Array!Element.create(parser.allocator);
+    Container values = Container.create(parser.allocator);
     if (!values.tryResize(count))
     {
+        values.deinit();
         parser.fail(SerdeErrorKind.allocationFailure);
         return;
     }
     foreach (index; 0 .. count)
         initializeOwnedValue(parser.allocator, &values[index]);
-    parser.consume('[');
+    if (!parser.consume('['))
+    {
+        values.deinit();
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
     parser.skipWhitespace();
     foreach (index; 0 .. count)
     {
         decodeValue(parser, &values[index], depth + 1);
         if (!parser.error.ok)
+        {
+            values.deinit();
             return;
+        }
         parser.skipWhitespace();
         if (index + 1 == count)
-            parser.consume(']');
+        {
+            if (!parser.consume(']'))
+            {
+                values.deinit();
+                parser.fail(SerdeErrorKind.invalidSyntax);
+                return;
+            }
+        }
         else
         {
-            parser.consume(',');
+            if (!parser.consume(','))
+            {
+                values.deinit();
+                parser.fail(SerdeErrorKind.invalidSyntax);
+                return;
+            }
             parser.skipWhitespace();
         }
     }
-    if (count == 0)
-        parser.consume(']');
-    move(values, *output);
+    if (count == 0 && !parser.consume(']'))
+    {
+        values.deinit();
+        parser.fail(SerdeErrorKind.invalidSyntax);
+        return;
+    }
+    deinitOwnedValue(output);
+    moveEmplace(values, *output);
 }
 
 private void decodeHashMap(K, V, Hasher, Equal)(

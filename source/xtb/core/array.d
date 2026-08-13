@@ -3,8 +3,9 @@ module xtb.core.array;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
-import core.lifetime : emplace, move, moveEmplace;
+import core.lifetime : emplace;
 import core.stdc.string : memmove;
+import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryReallocateArray;
 import xtb.core.panic : panic;
 
@@ -26,11 +27,10 @@ package(xtb) struct RawArrayStorage(T)
 
 version (unittest)
 {
-    private __gshared size_t trackedDestructions;
-    private __gshared int[16] destructionOrder;
-    private __gshared int copyableLiveElements;
+    private __gshared size_t trackedDeinits;
+    private __gshared int[32] deinitOrder;
 
-    private struct TrackedElement
+    private struct TrackedOwner
     {
     nothrow @nogc:
 
@@ -45,12 +45,43 @@ version (unittest)
             active = true;
         }
 
-        ~this()
+        void deinit()
         {
             if (!active)
                 return;
-            destructionOrder[trackedDestructions++] = value;
+            deinitOrder[trackedDeinits++] = value;
             active = false;
+        }
+    }
+
+    private struct CopyableOwner
+    {
+    nothrow @nogc:
+
+        int value;
+        bool active;
+        size_t* deinits;
+
+        this(int value, size_t* deinits)
+        {
+            this.value = value;
+            this.deinits = deinits;
+            active = true;
+        }
+
+        void deinit()
+        {
+            if (!active)
+                return;
+            active = false;
+            ++*deinits;
+        }
+    }
+
+    private struct DestructorOnly
+    {
+        ~this()
+        {
         }
     }
 
@@ -62,40 +93,13 @@ version (unittest)
     {
         storage.append(allocator, value);
     }
-
-    private struct CopyableElement
-    {
-    nothrow @nogc:
-
-        int value;
-        bool active;
-
-        this(int value)
-        {
-            this.value = value;
-            active = true;
-            ++copyableLiveElements;
-        }
-
-        this(this)
-        {
-            if (active)
-                ++copyableLiveElements;
-        }
-
-        ~this()
-        {
-            if (!active)
-                return;
-            active = false;
-            --copyableLiveElements;
-        }
-    }
 }
 
 struct ArrayUnmanaged(T)
 {
 nothrow @nogc:
+
+    alias Self = ArrayUnmanaged!T;
 
 private:
     T* data_;
@@ -122,7 +126,7 @@ public:
         ArrayUnmanaged temporary;
         if (capacity != 0 && !temporary.tryReserve(allocator, capacity))
             return false;
-        *output = move(temporary);
+        moveEmplace(temporary, *output);
         return true;
     }
 
@@ -195,21 +199,20 @@ package(xtb):
     }
 
 public:
+    /// Releases backing storage without finalizing logical elements.
     void deinit(Allocator* allocator)
     {
         if (capacity_ != 0)
             requireValidAllocator(allocator);
-        destroyElements(data_, length_);
         if (capacity_ != 0)
             allocator.deallocateArray(data_[0 .. capacity_]);
-        this = ArrayUnmanaged.init;
     }
 
+    /// Releases backing storage and leaves this unmanaged array reusable.
     void resetAndRelease(Allocator* allocator)
     {
         if (capacity_ != 0)
             requireValidAllocator(allocator);
-        destroyElements(data_, length_);
         if (capacity_ != 0)
             allocator.deallocateArray(data_[0 .. capacity_]);
         data_ = null;
@@ -286,7 +289,6 @@ public:
         requireValidAllocator(allocator);
         if (requested < length_)
         {
-            destroyElements(data_ + requested, length_ - requested);
             length_ = requested;
             return true;
         }
@@ -306,19 +308,29 @@ public:
             panic("Array allocation failed");
     }
 
-    bool tryAppend(Allocator* allocator, T value)
+    /// Attempts to append by moving from `*value` only after capacity succeeds.
+    /// On failure `*value` and the array are unchanged.
+    bool tryAppend(Allocator* allocator, scope T* value) @system
     {
         requireValidAllocator(allocator);
-        if (length_ == size_t.max || !tryReserve(allocator, length_ + 1))
+        version (XTB_Checked)
+            require(value !is null, "Array append value pointer is null");
+        if (length_ == size_t.max)
             return false;
-        constructMove(data_ + length_, value);
+
+        size_t sourceIndex;
+        const aliases = logicalElementIndex(value, &sourceIndex);
+        if (!tryReserve(allocator, length_ + 1))
+            return false;
+        T* source = aliases ? data_ + sourceIndex : value;
+        constructMove(data_ + length_, *source);
         ++length_;
         return true;
     }
 
     void append(Allocator* allocator, T value)
     {
-        if (!tryAppend(allocator, move(value)))
+        if (!tryAppend(allocator, &value))
             panic("Array allocation failed");
     }
 
@@ -416,14 +428,23 @@ public:
     bool tryInsert(
         Allocator* allocator,
         size_t index,
-        T value,
-    )
+        scope T* value,
+    ) @system
     {
         requireValidAllocator(allocator);
         version (XTB_Checked)
+        {
             require(index <= length_, "Array insert index out of bounds");
-        if (length_ == size_t.max || !tryReserve(allocator, length_ + 1))
+            require(value !is null, "Array insert value pointer is null");
+        }
+        if (length_ == size_t.max)
             return false;
+
+        size_t sourceIndex;
+        const aliases = logicalElementIndex(value, &sourceIndex);
+        if (!tryReserve(allocator, length_ + 1))
+            return false;
+
         static if (__traits(isPOD, T))
         {
             const following = length_ - index;
@@ -440,7 +461,9 @@ public:
                 --position;
             }
         }
-        constructMove(data_ + index, value);
+        T* source = aliases
+            ? data_ + (sourceIndex >= index ? sourceIndex + 1 : sourceIndex) : value;
+        constructMove(data_ + index, *source);
         ++length_;
         return true;
     }
@@ -533,7 +556,7 @@ public:
 
     void insert(Allocator* allocator, size_t index, T value)
     {
-        if (!tryInsert(allocator, index, move(value)))
+        if (!tryInsert(allocator, index, &value))
             panic("Array allocation failed");
     }
 
@@ -563,9 +586,9 @@ public:
         return result;
     }
 
+    /// Discards logical elements without finalizing them.
     void clear()
     {
-        destroyElements(data_, length_);
         length_ = 0;
     }
 
@@ -582,7 +605,6 @@ public:
         }
         else
         {
-            destroyElement(data_ + index);
             foreach (i; index .. length_ - 1)
                 constructMove(data_ + i, data_[i + 1]);
         }
@@ -608,7 +630,6 @@ public:
         }
         else
         {
-            destroyElements(data_ + index, count);
             foreach (i; index .. length_ - count)
                 constructMove(data_ + i, data_[i + count]);
         }
@@ -635,6 +656,22 @@ public:
     }
 
 private:
+    bool logicalElementIndex(scope const T* value, scope size_t* index) const @system
+    {
+        if (value is null || data_ is null || length_ == 0)
+            return false;
+        const address = cast(size_t) value;
+        const begin = cast(size_t) data_;
+        const end = begin + length_ * T.sizeof;
+        if (address < begin || address >= end)
+            return false;
+        const byteOffset = address - begin;
+        if (byteOffset % T.sizeof != 0)
+            return false;
+        *index = byteOffset / T.sizeof;
+        return true;
+    }
+
     bool trySetCapacity(Allocator* allocator, size_t capacity)
     {
         if (multiplyOverflows(capacity, T.sizeof))
@@ -665,6 +702,11 @@ private:
     }
 }
 
+/// Managed shallow array.
+///
+/// `Array` owns only its backing allocation. Discard operations never finalize
+/// logical elements; use `OwnedArray` when the container must own element
+/// cleanup.
 struct Array(T)
 {
 nothrow @nogc:
@@ -687,6 +729,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref Self opAssign(Self source) return;
 
     /// Creates an empty managed array bound to `allocator`.
     static Self create(Allocator* allocator) @safe
@@ -714,7 +757,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, capacity, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -730,9 +773,10 @@ public:
     /// Creates a managed array containing `length` default-initialized values.
     static Self withLength(Allocator* allocator, size_t length) @trusted
     {
+        Storage storage = Storage.withLength(allocator, length);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = Storage.withLength(allocator, length);
+        moveEmplace(storage, result.storage_);
         return move(result);
     }
 
@@ -744,9 +788,10 @@ public:
             scope const(T)[] values,
         ) @trusted
         {
+            Storage storage = Storage.fromSlice(allocator, values);
             Self result;
             result.allocator_ = allocator;
-            result.storage_ = Storage.fromSlice(allocator, values);
+            moveEmplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -760,13 +805,8 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(storage);
+        moveEmplace(storage, result.storage_);
         return move(result);
-    }
-
-    ~this() @trusted
-    {
-        this.deinit();
     }
 
     /// Releases all storage and unbinds the allocator. The zero state is valid.
@@ -837,9 +877,9 @@ public:
         storage_.resize(allocator_, requested);
     }
 
-    bool tryAppend(T value) @trusted
+    bool tryAppend(scope T* value) @trusted
     {
-        return storage_.tryAppend(allocator_, move(value));
+        return storage_.tryAppend(allocator_, value);
     }
 
     void append(T value) @trusted
@@ -870,9 +910,9 @@ public:
         }
     }
 
-    bool tryInsert(size_t index, T value) @trusted
+    bool tryInsert(size_t index, scope T* value) @trusted
     {
-        return storage_.tryInsert(allocator_, index, move(value));
+        return storage_.tryInsert(allocator_, index, value);
     }
 
     void insert(size_t index, T value) @trusted
@@ -949,7 +989,7 @@ package(xtb):
             require(storage !is null, "ArrayUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(*storage);
+        moveEmplace(*storage, result.storage_);
         return move(result);
     }
 
@@ -962,6 +1002,301 @@ package(xtb):
     {
         Storage storage = Storage.adopt(data, length, capacity);
         return adoptUnmanaged(allocator, &storage);
+    }
+}
+
+private template supportsOwnedElementDeinit(T)
+{
+    static if (!needsDeinit!T)
+        enum supportsOwnedElementDeinit = true;
+    else
+        enum supportsOwnedElementDeinit = __traits(compiles,
+                deinitValue(*cast(T*) null));
+}
+
+/// Managed contiguous storage with ownership of logical element cleanup.
+///
+/// `OwnedArray` owns both its backing allocation and every live element. Any
+/// operation that discards an element without returning it calls free `deinit`
+/// when the element participates in the explicit lifetime protocol. Transfers
+/// such as `pop` do not finalize the returned value.
+struct OwnedArray(T)
+{
+nothrow @nogc:
+
+    alias Self = OwnedArray!T;
+    alias Storage = ArrayUnmanaged!T;
+
+private:
+    Allocator* allocator_;
+    Storage storage_;
+
+    version (XTB_Checked)
+    {
+        invariant
+        {
+            require(&this !is null, "OwnedArray pointer is null");
+        }
+    }
+
+    void deinitRange(size_t index, size_t count) @trusted
+    {
+        static if (needsDeinit!T)
+        {
+            size_t end = index + count;
+            while (end != index)
+                deinitValue(storage_.slice[--end]);
+        }
+    }
+
+public:
+    static assert(!hasElaborateDestructor!T || needsDeinit!T,
+        "OwnedArray cannot own lexical destructor-only element types");
+    static assert(supportsOwnedElementDeinit!T,
+        "OwnedArray element cleanup must support free deinit(value) without context");
+
+    @disable this(this);
+    @disable ref Self opAssign(Self source) return;
+
+    static Self create(Allocator* allocator) @safe
+    {
+        requireValidAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        return result;
+    }
+
+    static bool tryWithCapacity(
+        Allocator* allocator,
+        size_t capacity,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "OwnedArray output pointer is null");
+            require(output.allocator_ is null,
+                "OwnedArray output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryWithCapacity(allocator, capacity, &storage))
+            return false;
+        output.allocator_ = allocator;
+        moveEmplace(storage, output.storage_);
+        return true;
+    }
+
+    static Self withCapacity(Allocator* allocator, size_t capacity) @trusted
+    {
+        Self result;
+        if (!tryWithCapacity(allocator, capacity, &result))
+            panic("OwnedArray allocation failed");
+        return move(result);
+    }
+
+    static Self withLength(Allocator* allocator, size_t length) @trusted
+    {
+        Storage storage = Storage.withLength(allocator, length);
+        Self result;
+        result.allocator_ = allocator;
+        moveEmplace(storage, result.storage_);
+        return move(result);
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        static Self fromSlice(
+            Allocator* allocator,
+            scope const(T)[] values,
+        ) @trusted
+        {
+            Storage storage = Storage.fromSlice(allocator, values);
+            Self result;
+            result.allocator_ = allocator;
+            moveEmplace(storage, result.storage_);
+            return move(result);
+        }
+    }
+
+    /// Finalizes every live element and releases backing storage.
+    void deinit() @trusted
+    {
+        if (allocator_ is null)
+            return;
+        deinitRange(0, storage_.length);
+        storage_.deinit(allocator_);
+        allocator_ = null;
+    }
+
+    /// Finalizes every element, releases storage, and keeps the allocator.
+    void resetAndRelease() @trusted
+    {
+        deinitRange(0, storage_.length);
+        storage_.resetAndRelease(allocator_);
+    }
+
+    size_t length() const pure @safe
+    {
+        return storage_.length;
+    }
+
+    size_t capacity() const pure @safe
+    {
+        return storage_.capacity;
+    }
+
+    bool empty() const pure @safe
+    {
+        return storage_.empty;
+    }
+
+    T[] slice() return @system
+    {
+        return storage_.slice;
+    }
+
+    const(T)[] slice() const return @system
+    {
+        return storage_.slice;
+    }
+
+    bool tryReserve(size_t requested) @trusted
+    {
+        return storage_.tryReserve(allocator_, requested);
+    }
+
+    void reserve(size_t requested) @trusted
+    {
+        storage_.reserve(allocator_, requested);
+    }
+
+    bool tryResize(size_t requested) @trusted
+    {
+        if (requested < storage_.length)
+        {
+            requireValidAllocator(allocator_);
+            deinitRange(requested, storage_.length - requested);
+        }
+        return storage_.tryResize(allocator_, requested);
+    }
+
+    void resize(size_t requested) @trusted
+    {
+        if (!tryResize(requested))
+            panic("OwnedArray allocation failed");
+    }
+
+    bool tryAppend(scope T* value) @trusted
+    {
+        return storage_.tryAppend(allocator_, value);
+    }
+
+    void append(T value) @trusted
+    {
+        storage_.append(allocator_, move(value));
+    }
+
+    void appendAssumeCapacity(T value) @trusted
+    {
+        storage_.appendAssumeCapacity(move(value));
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        bool tryAppend(scope const(T)[] values) @trusted
+        {
+            return storage_.tryAppend(allocator_, values);
+        }
+
+        void append(scope const(T)[] values) @trusted
+        {
+            storage_.append(allocator_, values);
+        }
+
+        void appendAssumeCapacity(scope const(T)[] values) @trusted
+        {
+            storage_.appendAssumeCapacity(values);
+        }
+    }
+
+    bool tryInsert(size_t index, scope T* value) @trusted
+    {
+        return storage_.tryInsert(allocator_, index, value);
+    }
+
+    void insert(size_t index, T value) @trusted
+    {
+        storage_.insert(allocator_, index, move(value));
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        bool tryInsert(size_t index, scope const(T)[] values) @trusted
+        {
+            return storage_.tryInsert(allocator_, index, values);
+        }
+
+        void insert(size_t index, scope const(T)[] values) @trusted
+        {
+            storage_.insert(allocator_, index, values);
+        }
+    }
+
+    T pop() @trusted
+    {
+        return storage_.pop();
+    }
+
+    void clear() @trusted
+    {
+        deinitRange(0, storage_.length);
+        storage_.clear();
+    }
+
+    void removeAt(size_t index) @trusted
+    {
+        version (XTB_Checked)
+            require(index < storage_.length, "OwnedArray index out of bounds");
+        deinitRange(index, 1);
+        storage_.removeAt(index);
+    }
+
+    void removeRange(size_t index, size_t count) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(index <= storage_.length,
+                "OwnedArray range index out of bounds");
+            require(count <= storage_.length - index,
+                "OwnedArray range count out of bounds");
+        }
+        deinitRange(index, count);
+        storage_.removeRange(index, count);
+    }
+
+    bool tryShrinkToFit() @trusted
+    {
+        return storage_.tryShrinkToFit(allocator_);
+    }
+
+    void shrinkToFit() @trusted
+    {
+        storage_.shrinkToFit(allocator_);
+    }
+
+    ref T opIndex(size_t index) return @system
+    {
+        return storage_[index];
+    }
+
+    ref const(T) opIndex(size_t index) const return @system
+    {
+        return storage_[index];
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
     }
 }
 
@@ -982,7 +1317,10 @@ private void constructInitial(T)(T* destination)
 
 private void constructMove(T)(T* destination, ref T source)
 {
-    static if (__traits(isPOD, T))
+    // Pointer-based move APIs promise that the source enters its normal
+    // moved-from state. An explicit-deinit POD value may still own resources,
+    // so a raw assignment would duplicate ownership and leave the source live.
+    static if (__traits(isPOD, T) && !needsDeinit!T)
         *destination = source;
     else
         moveEmplace(source, *destination);
@@ -996,25 +1334,40 @@ private void constructCopy(T, U)(T* destination, ref U source)
         emplace(destination, source);
 }
 
-private void destroyElement(T)(T* element)
-{
-    static if (hasElaborateDestructor!T)
-        destroy!false(*element);
-}
-
-private void destroyElements(T)(T* data, size_t length)
-{
-    static if (hasElaborateDestructor!T)
-    {
-        while (length != 0)
-            destroyElement(data + --length);
-    }
-}
-
 unittest
 {
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
+
+    static assert(ArrayUnmanaged!int.sizeof == 3 * size_t.sizeof);
+    static assert(Array!int.sizeof ==
+            ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
+    static assert(OwnedArray!int.sizeof == Array!int.sizeof);
+    static assert(!__traits(isCopyable, ArrayUnmanaged!int));
+    static assert(!__traits(isCopyable, Array!int));
+    static assert(!__traits(isCopyable, OwnedArray!int));
+    static assert(!__traits(isCopyable, Array!int.Released));
+    static assert(!__traits(compiles, () { Array!int left; Array!int right; left = move(right); }));
+    static assert(!__traits(compiles, () {
+            OwnedArray!int left;
+            OwnedArray!int right;
+            left = move(right);
+        }));
+    static assert(!__traits(compiles, () {
+            Array!int.Released left;
+            Array!int.Released right;
+            left = move(right);
+        }));
+    static assert(!hasElaborateDestructor!(Array!int));
+    static assert(!hasElaborateDestructor!(OwnedArray!int));
+    static assert(!hasElaborateDestructor!(Array!int.Released));
+    static assert(needsDeinit!(Array!int));
+    static assert(needsDeinit!(OwnedArray!int));
+    static assert(needsDeinit!(Array!int.Released));
+    static assert(!__traits(compiles, () { OwnedArray!DestructorOnly value; }));
+    static assert(!__traits(compiles, () { OwnedArray!(ArrayUnmanaged!int) value; }));
+    static assert(!__traits(hasMember, OwnedArray!int, "release"));
+    static assert(!__traits(hasMember, OwnedArray!int, "adopt"));
 
     Array!int zero;
     zero.deinit();
@@ -1025,16 +1378,14 @@ unittest
     int[3] more = [2, 3, 4];
     values.append(more[]);
     values.append(values.slice[1 .. 3]);
-    assert(values.length == 6);
-    assert(values[2] == 3);
+    assert(values.slice == [1, 2, 3, 4, 2, 3]);
     values.removeAt(1);
-    assert(values.slice.length == 5);
-    assert(values[1] == 3);
+    assert(values.slice == [1, 3, 4, 2, 3]);
     assert(values.pop() == 3);
     values.insert(1, 9);
-    assert(values[1] == 9);
+    assert(values.slice == [1, 9, 3, 4, 2]);
     values.removeRange(1, 2);
-    assert(values.length == 3);
+    assert(values.slice == [1, 4, 2]);
     values.shrinkToFit();
     assert(values.capacity == values.length);
     values.clear();
@@ -1048,6 +1399,7 @@ unittest
     );
     selfInserted.insert(2, selfInserted.slice[1 .. 4]);
     assert(selfInserted.slice == [1, 2, 2, 3, 4, 3, 4, 5, 6, 7, 8]);
+    selfInserted.deinit();
 
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
@@ -1057,62 +1409,185 @@ unittest
     Array!int fallible = Array!int.withCapacity(tracked.allocator, 1);
     while (fallible.length < fallible.capacity)
         fallible.appendAssumeCapacity(42);
+    int candidate = 7;
     const previousLength = fallible.length;
     tracked.failAfter(0);
-    assert(!fallible.tryAppend(7));
+    assert(!fallible.tryAppend(&candidate));
+    assert(candidate == 7);
     assert(fallible.length == previousLength && fallible[0] == 42);
+    tracked.allowAllocations();
     fallible.deinit();
-    assert(tracked.clean);
+    assert(tracked.clean && tracked.stats.invalidCalls == 0);
 }
 
 unittest
 {
     import xtb.core.allocators.malloc : mallocAllocator;
 
-    trackedDestructions = 0;
-    destructionOrder[] = 0;
+    trackedDeinits = 0;
+    deinitOrder[] = 0;
 
-    Array!TrackedElement values = Array!TrackedElement.withCapacity(
+    // Array is shallow: discard paths do not deinitialize elements.
+    Array!TrackedOwner shallow = Array!TrackedOwner.withCapacity(
+        mallocAllocator(),
+        4,
+    );
+    shallow.append(TrackedOwner(1));
+    shallow.append(TrackedOwner(2));
+    shallow.append(TrackedOwner(3));
+    shallow.removeAt(1);
+    assert(trackedDeinits == 0);
+    shallow.resize(1);
+    assert(trackedDeinits == 0);
+    shallow.clear();
+    assert(trackedDeinits == 0);
+    shallow.deinit();
+    assert(trackedDeinits == 0);
+
+    // OwnedArray deep-cleans every discard path in reverse order where a range
+    // is discarded.
+    OwnedArray!TrackedOwner owned = OwnedArray!TrackedOwner.withCapacity(
+        mallocAllocator(),
+        4,
+    );
+    owned.append(TrackedOwner(10));
+    owned.append(TrackedOwner(20));
+    owned.append(TrackedOwner(30));
+    owned.removeAt(1);
+    assert(trackedDeinits == 1 && deinitOrder[0] == 20);
+    owned.append(TrackedOwner(40));
+    owned.append(TrackedOwner(50));
+    owned.removeRange(1, 2);
+    assert(trackedDeinits == 3);
+    assert(deinitOrder[1] == 40);
+    assert(deinitOrder[2] == 30);
+    owned.append(TrackedOwner(60));
+    owned.append(TrackedOwner(70));
+    owned.resize(1);
+    assert(trackedDeinits == 6);
+    assert(deinitOrder[3] == 70);
+    assert(deinitOrder[4] == 60);
+    assert(deinitOrder[5] == 50);
+    owned.clear();
+    assert(trackedDeinits == 7 && deinitOrder[6] == 10);
+    owned.deinit();
+    assert(trackedDeinits == 7);
+}
+
+unittest
+{
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
+
+    AllocationRecord[32] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    // pop transfers ownership and therefore does not deinitialize the payload.
+    OwnedArray!(Array!int) nested = OwnedArray!(Array!int).create(
+        tracked.allocator,
+    );
+    Array!int first = Array!int.create(tracked.allocator);
+    first.append(11);
+    nested.append(move(first));
+    Array!int second = Array!int.create(tracked.allocator);
+    second.append(22);
+    nested.append(move(second));
+    assert(tracked.stats.outstandingAllocations == 3);
+
+    Array!int transferred = nested.pop();
+    assert(transferred[0] == 22);
+    assert(tracked.stats.outstandingAllocations == 3);
+    transferred.deinit();
+    assert(tracked.stats.outstandingAllocations == 2);
+
+    nested.clear();
+    // Only the OwnedArray backing allocation remains after its child is
+    // deep-cleaned.
+    assert(tracked.stats.outstandingAllocations == 1);
+    nested.deinit();
+    assert(tracked.clean && tracked.stats.invalidCalls == 0);
+}
+
+unittest
+{
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
+    import xtb.core.string : StringBuf;
+
+    AllocationRecord[32] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    // Fallible pointer insertion preserves caller ownership on allocation
+    // failure, including move-only explicit owners.
+    Array!StringBuf values = Array!StringBuf.withCapacity(tracked.allocator, 1);
+    StringBuf first = StringBuf.fromString(tracked.allocator, "first");
+    values.append(move(first));
+    while (values.length < values.capacity)
+    {
+        StringBuf filler = StringBuf.fromString(tracked.allocator, "filler");
+        values.appendAssumeCapacity(move(filler));
+    }
+    StringBuf candidate = StringBuf.fromString(tracked.allocator, "candidate");
+    const oldLength = values.length;
+    tracked.failAfter(0);
+    assert(!values.tryAppend(&candidate));
+    assert(candidate.view == "candidate");
+    assert(values.length == oldLength);
+    tracked.allowAllocations();
+
+    // Array is shallow, so explicitly finalize its elements before releasing
+    // the backing allocation in this test.
+    foreach_reverse (ref value; values.slice)
+        deinitValue(value);
+    values.clear();
+    values.deinit();
+    candidate.deinit();
+    assert(tracked.clean && tracked.stats.invalidCalls == 0);
+}
+
+unittest
+{
+    import xtb.core.allocators.malloc : mallocAllocator;
+
+    // tryAppend supports pointers into the array even when reserve relocates
+    // storage. The original slot becomes the normal moved-from value.
+    trackedDeinits = 0;
+    deinitOrder[] = 0;
+    OwnedArray!TrackedOwner values = OwnedArray!TrackedOwner.withCapacity(
         mallocAllocator(),
         1,
     );
-    values.append(TrackedElement(1));
-    values.append(TrackedElement(3));
-    values.insert(1, TrackedElement(2));
-    assert(values.length == 3);
-    assert(values[0].value == 1);
-    assert(values[1].value == 2);
-    assert(values[2].value == 3);
-    assert(trackedDestructions == 0);
-
-    values.removeAt(1);
+    values.append(TrackedOwner(7));
+    assert(values.tryAppend(&values[0]));
     assert(values.length == 2);
-    assert(values[1].value == 3);
-    assert(trackedDestructions == 1);
-    assert(destructionOrder[0] == 2);
-
-    {
-        TrackedElement value = values.pop();
-        assert(value.value == 3);
-        assert(trackedDestructions == 1);
-    }
-    assert(trackedDestructions == 2);
-    assert(destructionOrder[1] == 3);
-
-    values.append(TrackedElement(4));
-    values.append(TrackedElement(5));
-    values.clear();
-    assert(trackedDestructions == 5);
-    assert(destructionOrder[2] == 5);
-    assert(destructionOrder[3] == 4);
-    assert(destructionOrder[4] == 1);
-
-    values.append(TrackedElement(6));
-    values.resetAndRelease();
-    assert(trackedDestructions == 6);
-    assert(destructionOrder[5] == 6);
+    assert(!values[0].active);
+    assert(values[1].active && values[1].value == 7);
+    assert(trackedDeinits == 0);
     values.deinit();
-    assert(trackedDestructions == 6);
+    assert(trackedDeinits == 1 && deinitOrder[0] == 7);
+
+    // The same alias rule applies to fallible insertion. If the source lies at
+    // or after the insertion point it follows the shift before being consumed.
+    trackedDeinits = 0;
+    OwnedArray!TrackedOwner inserted = OwnedArray!TrackedOwner.withCapacity(
+        mallocAllocator(),
+        2,
+    );
+    inserted.append(TrackedOwner(1));
+    inserted.append(TrackedOwner(2));
+    assert(inserted.tryInsert(0, &inserted[1]));
+    assert(inserted.length == 3);
+    assert(inserted[0].active && inserted[0].value == 2);
+    assert(inserted[1].active && inserted[1].value == 1);
+    assert(!inserted[2].active);
+    inserted.deinit();
+    assert(trackedDeinits == 2);
 }
 
 unittest
@@ -1120,142 +1595,42 @@ unittest
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
 
-    copyableLiveElements = 0;
-    {
-        CopyableElement[2] source = [CopyableElement(7), CopyableElement(8)];
-        assert(copyableLiveElements == 2);
-        Array!CopyableElement values = Array!CopyableElement.fromSlice(
-            mallocAllocator(),
-            source[],
-        );
-        assert(copyableLiveElements == 4);
-        values.append(source[]);
-        assert(copyableLiveElements == 6);
-        values.shrinkToFit();
-        values.append(values.slice[0 .. 2]);
-        assert(copyableLiveElements == 8);
-        values.removeRange(1, 2);
-        assert(copyableLiveElements == 6);
-        values.shrinkToFit();
-        assert(copyableLiveElements == 6);
-    }
-    assert(copyableLiveElements == 0);
+    size_t deinits;
+    CopyableOwner[2] source = [
+        CopyableOwner(7, &deinits),
+        CopyableOwner(8, &deinits),
+    ];
+    OwnedArray!CopyableOwner values = OwnedArray!CopyableOwner.fromSlice(
+        mallocAllocator(),
+        source[],
+    );
+    values.append(source[]);
+    values.shrinkToFit();
+    values.append(values.slice[0 .. 2]);
+    values.removeRange(1, 2);
+    assert(deinits == 2);
+    values.deinit();
+    assert(deinits == 6);
+    foreach_reverse (ref value; source)
+        deinitValue(value);
+    assert(deinits == 8);
 
     AllocationRecord[16] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
         mallocAllocator(),
         records[],
     );
-    Array!(Array!int) arrays = Array!(Array!int).create(tracked.allocator);
-    Array!int child = Array!int.create(tracked.allocator);
-    child.append(42);
-    arrays.append(move(child));
-    assert(arrays.length == 1);
-    assert(arrays[0][0] == 42);
-    arrays.clear();
-    assert(arrays.empty);
-    arrays.resetAndRelease();
-    assert(tracked.clean);
-}
-
-unittest
-{
-    import xtb.core.memory : Allocator;
-    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.core.allocators.malloc : mallocAllocator;
-
-    static assert(ArrayUnmanaged!int.sizeof == 3 * size_t.sizeof);
-    static assert(Array!int.sizeof ==
-            ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
-    static assert(!__traits(isCopyable, ArrayUnmanaged!int));
-    static assert(!__traits(isCopyable, Array!int));
-    static assert(!__traits(isCopyable, Array!int.Released));
-    static assert(__traits(compiles, (scope Array!int* value) @safe {
-            Allocator* allocator = value.allocator;
-        }));
-    static assert(!__traits(compiles, (scope const Array!int* value) @safe {
-            Allocator* allocator = value.allocator;
-        }));
-    static assert(__traits(compiles,
-            (scope Array!int.Released* value) @safe { Allocator* allocator = value.allocator; }));
-    static assert(!__traits(compiles,
-            (scope const Array!int.Released* value) @safe { Allocator* allocator = value.allocator; }));
-    static assert(!__traits(compiles, () @safe {
-            Array!int.Released released;
-            ref ArrayUnmanaged!int storage = released.storage;
-        }));
-    static assert(__traits(compiles,
-            (scope const Array!int.Released* released) @safe { const length = released.storage.length; }));
-    static assert(!__traits(compiles, (ref Array!int.Released released) {
-            released.allocator = mallocAllocator();
-        }));
-    static assert(!__traits(compiles, (ref Array!int managed) { ArrayUnmanaged!int storage = managed; }));
-
-    ArrayUnmanaged!int zero;
-    zero.deinit(null);
-    zero.resetAndRelease(null);
-    assert(zero.empty && zero.capacity == 0);
-
-    AllocationRecord[16] records;
-    InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
-        records[],
+    Array!int releasedSource = Array!int.fromSlice(
+        tracked.allocator,
+        [1, 2, 3],
     );
-
-    {
-        Array!int values = Array!int.withCapacity(tracked.allocator, 2);
-        values.append(10);
-        values.append(20);
-
-        Array!int.Released released = values.release();
-        assert(values.allocator is null);
-        assert(values.empty && values.capacity == 0);
-        assert(released.allocator is tracked.allocator);
-        assert(released.storage.slice == [10, 20]);
-
-        appendReleasedValue(
-            released.storage,
-            released.allocator,
-            30,
-        );
-        assert(released.storage.slice == [10, 20, 30]);
-    }
-    assert(tracked.clean);
-
-    {
-        Array!int source = Array!int.fromSlice(
-            tracked.allocator,
-            [1, 2, 3],
-        );
-        Array!int.Released released = source.release();
-        Array!int adopted = Array!int.adopt(&released);
-
-        assert(source.allocator is null && source.empty);
-        assert(released.allocator is null);
-        assert(released.storage.empty);
-        assert(adopted.allocator is tracked.allocator);
-        assert(adopted.slice == [1, 2, 3]);
-    }
-    assert(tracked.clean);
-
-    {
-        Array!int source = Array!int.fromSlice(
-            tracked.allocator,
-            [4, 5],
-        );
-        Array!int.Released released = source.release();
-
-        Allocator* allocator;
-        ArrayUnmanaged!int storage = released.extract(&allocator);
-        assert(allocator is tracked.allocator);
-        assert(released.allocator is null);
-        assert(released.storage.empty);
-
-        storage.append(allocator, 6);
-        assert(storage.slice == [4, 5, 6]);
-        storage.deinit(allocator);
-    }
-    assert(tracked.clean);
+    Array!int.Released released = releasedSource.release();
+    assert(releasedSource.allocator is null && releasedSource.empty);
+    assert(released.allocator is tracked.allocator);
+    appendReleasedValue(released.storage, released.allocator, 4);
+    assert(released.storage.slice == [1, 2, 3, 4]);
+    deinitValue(released);
+    assert(tracked.clean && tracked.stats.invalidCalls == 0);
 }
 
 unittest
@@ -1276,11 +1651,12 @@ unittest
 
     Array!int managed = Array!int.create(managedAllocator.allocator);
     ArrayUnmanaged!int unmanaged;
-
     foreach (value; 0 .. 96)
     {
-        assert(managed.tryAppend(value));
-        assert(unmanaged.tryAppend(unmanagedAllocator.allocator, value));
+        int managedValue = value;
+        int unmanagedValue = value;
+        assert(managed.tryAppend(&managedValue));
+        assert(unmanaged.tryAppend(unmanagedAllocator.allocator, &unmanagedValue));
     }
 
     int[4] inserted = [700, 701, 702, 703];
@@ -1302,58 +1678,10 @@ unittest
     assert(managed.capacity == unmanaged.capacity);
     assert(managedAllocator.stats == unmanagedAllocator.stats);
 
-    const managedStatsBeforeClear = managedAllocator.stats;
-    const unmanagedStatsBeforeClear = unmanagedAllocator.stats;
     managed.clear();
     unmanaged.clear();
-    assert(managedAllocator.stats == managedStatsBeforeClear);
-    assert(unmanagedAllocator.stats == unmanagedStatsBeforeClear);
-
     managed.deinit();
     unmanaged.deinit(unmanagedAllocator.allocator);
     assert(managedAllocator.stats == unmanagedAllocator.stats);
     assert(managedAllocator.clean && unmanagedAllocator.clean);
-}
-
-unittest
-{
-    import xtb.core.memory : Allocator;
-    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.core.allocators.malloc : mallocAllocator;
-
-    Array!int zero;
-    Array!int.Released first = zero.release();
-    assert(zero.allocator is null && zero.empty);
-    assert(first.allocator is null && first.storage.empty);
-
-    Array!int adopted = Array!int.adopt(&first);
-    assert(first.allocator is null && first.storage.empty);
-    assert(adopted.allocator is null && adopted.empty);
-
-    Array!int.Released second = adopted.release();
-    Allocator* allocator = cast(Allocator*) 1;
-    ArrayUnmanaged!int storage = second.extract(&allocator);
-    assert(allocator is null);
-    assert(storage.empty && storage.capacity == 0);
-    assert(second.allocator is null && second.storage.empty);
-    storage.deinit(null);
-
-    AllocationRecord[8] records;
-    InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
-        records[],
-    );
-    trackedDestructions = 0;
-    destructionOrder[] = 0;
-    {
-        Array!TrackedElement values =
-            Array!TrackedElement.create(tracked.allocator);
-        values.append(TrackedElement(91));
-        auto released = values.release();
-        assert(values.allocator is null && values.empty);
-        assert(trackedDestructions == 0);
-    }
-    assert(trackedDestructions == 1);
-    assert(destructionOrder[0] == 91);
-    assert(tracked.clean && tracked.stats.invalidCalls == 0);
 }

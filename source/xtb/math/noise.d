@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import core.stdc.math : floorf, fmodf;
 import xtb.core.array;
+import xtb.core.lifetime : moveEmplace;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic;
 
@@ -39,7 +40,8 @@ nothrow @nogc:
             require(period <= 16_777_216, "ValueNoise1D period exceeds exact float integer range");
         }
         output.deinit();
-        output.values_ = Array!float.create(allocator);
+        Array!float values = Array!float.create(allocator);
+        moveEmplace(values, output.values_);
         if (!output.values_.tryResize(period))
         {
             output.deinit();

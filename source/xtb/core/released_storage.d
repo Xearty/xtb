@@ -3,7 +3,7 @@ module xtb.core.released_storage;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
-import core.lifetime : move;
+import xtb.core.lifetime : move, moveEmplace;
 import xtb.core.memory : Allocator;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -42,8 +42,9 @@ private size_t publicDeinitCount(Storage)()
     return result;
 }
 
-/// Move-only RAII owner used while transferring allocator-bound unmanaged
-/// storage out of a managed container.
+/// Move-only explicit owner used while transferring allocator-bound unmanaged
+/// storage out of a managed container. Call free `deinit` if ownership is not
+/// transferred onward with `extract`/adopt.
 struct ReleasedStorage(Storage)
 {
 nothrow @nogc:
@@ -94,12 +95,13 @@ public:
             "unmanaged storage must provide deinit");
 
     @disable this(this);
+    @disable ref ReleasedStorage opAssign(ReleasedStorage source) return;
 
-    ~this() @trusted
+    /// Explicitly releases the owned allocator/storage pair.
+    void deinit() @trusted
     {
         if (allocator_ !is null)
             storage_.deinit(allocator_);
-        allocator_ = null;
     }
 
     /// Returns the exact allocator associated with the owned storage.
@@ -145,7 +147,7 @@ package(xtb):
                 "ReleasedStorage storage pointer is null");
         ReleasedStorage result;
         result.allocator_ = allocator;
-        result.storage_ = takeStorage(storage);
+        moveEmplace(*storage, result.storage_);
         return move(result);
     }
 }

@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Managed containers bind an allocator to an unmanaged storage type and add RAII
-cleanup. Their public API is handwritten so declarations remain visible to the
+Managed containers bind an allocator to an unmanaged storage type and provide
+explicit ownership cleanup through free `deinit`. Their public API is handwritten so declarations remain visible to the
 compiler, language servers, documentation tools, and reviewers. Do not generate
 managed methods with string mixins, reflection over `allMembers`, or an adapter
 template.
@@ -39,6 +39,7 @@ version (XTB_Checked)
 
 public:
     @disable this(this);
+    @disable ref Example opAssign(Example source) return;
 
     static Example create(Allocator* allocator) @trusted;
     static bool tryWithCapacity(
@@ -62,11 +63,6 @@ public:
     {
         return allocator_;
     }
-
-    ~this() @trusted
-    {
-        this.deinit();
-    }
 }
 ```
 
@@ -80,8 +76,9 @@ The allocator binding is a mutable-only member query. It returns `Allocator*`
 because allocators are operational handles rather than const data. Do not add a
 const allocator accessor or free-function allocator adapters.
 
-D-required hooks such as `~this`, `opIndex`, `opApply`, `opEquals`, and range
-primitives remain members as usual. They should delegate to the same unmanaged
+D-required hooks such as `opIndex`, `opApply`, `opEquals`, and range primitives
+remain members as usual. Ordinary owners do not add `~this` merely for resource
+cleanup; destructors are reserved for genuine lexical `Guard`/`Scope` types. They should delegate to the same unmanaged
 storage logic as ordinary methods.
 
 ## Member calls through pointers
@@ -127,8 +124,12 @@ explicitly:
 
 - `create` validates and stores a non-null allocator handle in checked builds.
 - Fallible factories leave their output in the zero state on failure.
-- `deinit` accepts repeated calls, destroys live elements, releases storage, and
-  clears the allocator binding.
+- `deinit` releases the resources promised by that container's ownership
+  semantics. It need not be idempotent or restore `.init`; callers must treat the
+  value as dead until reconstructed.
+- Ordinary manual owners disable compiler-generated assignment unless the type
+  deliberately implements correct replacement semantics. Use `moveAssign` for a
+  live explicit-deinit destination and `moveEmplace` only for fresh/dead storage.
 - `resetAndRelease` releases storage while preserving the allocator binding.
 - `release` transfers the exact allocator/storage pair and leaves the source in
   its zero state.
@@ -147,7 +148,8 @@ storage.clear(allocator);
 ```
 
 `ReleasedStorage` requires its payload to expose the lifecycle hooks needed to
-release detached storage.
+release detached storage. The token itself is an explicit owner: if it is not
+adopted or extracted, call free `deinit(released)`; scope exit does not free it.
 
 ## Member versus free-function rule
 
@@ -215,7 +217,8 @@ Before adding or changing a managed container, verify:
 1. The type, unmanaged storage, and member implementation are visible in one
    file.
 2. No generated declarations or reflection-driven forwarding remain.
-3. The managed type is non-copyable and its zero state is safe to destroy.
+3. The managed type is non-copyable, unsafe generated assignment is disabled,
+   and its zero state is safe to deinitialize.
 4. Ordinary receiver-owned operations are real members, not UFCS adapters.
 5. The allocator accessor is mutable-only and returns `Allocator*`.
 6. Checked-mode null-receiver diagnostics are provided without adding runtime

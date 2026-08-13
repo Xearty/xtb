@@ -269,6 +269,7 @@ public:
 
         if (source.empty)
         {
+            source.resetAndRelease();
             source.deinit();
             Self result = Self.create(destination);
             *output = move(result);
@@ -299,6 +300,7 @@ public:
         Self copied;
         if (!Self.tryFromString(destination, source.view, &copied))
             return false;
+        source.resetAndRelease();
         source.deinit();
         *output = move(copied);
         return true;

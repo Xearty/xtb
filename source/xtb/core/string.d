@@ -7,6 +7,7 @@ public import xtb.core.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
     asString;
 
 import core.lifetime : move;
+import xtb.core.lifetime : moveEmplace;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
 import xtb.core.array;
@@ -551,7 +552,8 @@ bool trySplitWhen(
         require(predicate !is null, "split predicate is null");
         require(output !is null, "split output is null");
     }
-    *output = Array!String.create(allocator);
+    Array!String created = Array!String.create(allocator);
+    moveEmplace(created, *output);
 
     size_t tokenBegin;
     size_t index;
@@ -571,7 +573,7 @@ bool trySplitWhen(
 
         String token = value[tokenBegin .. index];
         if ((!discardEmpty || token.length != 0) &&
-            !output.tryAppend(token))
+            !output.tryAppend(&token))
         {
             output.deinit();
             return false;
@@ -582,7 +584,7 @@ bool trySplitWhen(
 
     String token = value[tokenBegin .. $];
     if ((!discardEmpty || token.length != 0) &&
-        !output.tryAppend(token))
+        !output.tryAppend(&token))
     {
         output.deinit();
         return false;
@@ -873,7 +875,7 @@ public:
         version (XTB_Checked)
             require(cast(u8) value <= 0x7f,
                 "non-ASCII char appended to StringBuf; use dchar");
-        return bytes_.tryAppend(allocator, value);
+        return bytes_.tryAppend(allocator, &value);
     }
 
     void append(Allocator* allocator, dchar value)
@@ -1849,6 +1851,8 @@ unittest
     Array!String words = "  alpha\t beta  ".splitWhitespace(mallocAllocator());
     assert(words.length == 2);
     assert(words[0].equal("alpha") && words[1].equal("beta"));
+    words.deinit();
+    tokens.deinit();
 
     StringBuf buffer = StringBuf.fromString(mallocAllocator(), "hello");
     assert(buffer == "hello");
@@ -1968,6 +1972,7 @@ unittest
     import xtb.core.memory : Allocator;
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
+    import xtb.core.lifetime : deinit;
 
     static assert(StringBufUnmanaged.sizeof == ArrayUnmanaged!char.sizeof);
     static assert(StringBuf.sizeof ==
@@ -2006,6 +2011,7 @@ unittest
 
         released.storage.append(released.allocator, " beta");
         assert(released.storage.view == "alpha beta");
+        deinit(released);
     }
     assert(tracked.clean);
 
@@ -2137,6 +2143,7 @@ unittest
     Array!String parts = pointer.split(',', mallocAllocator());
     assert(parts.length == 3);
     assert(parts[0] == "a" && parts[1] == "b" && parts[2] == "c");
+    parts.deinit();
 
     pointer.assign("\t  words  \n");
     pointer.trimAsciiStartInPlace();

@@ -3,6 +3,7 @@ module examples.serde_demo;
 import core.lifetime : move;
 import xtb.core.array;
 import xtb.core.memory : Allocator;
+import xtb.core.lifetime : deinitValue = deinit, moveEmplace;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, some;
 import xtb.core.print : Writer, writeln;
@@ -25,7 +26,13 @@ private struct Endpoint
     @required StringBuf hostName;
     ushort port;
     Protocol protocol;
-    Array!StringBuf labels;
+    OwnedArray!StringBuf labels;
+
+    void deinit() nothrow @nogc
+    {
+        deinitValue(labels);
+        deinitValue(hostName);
+    }
 }
 
 @fieldCase(KeyCase.snake)
@@ -33,13 +40,28 @@ private struct ServiceConfig
 {
     @rename("service") @required StringBuf serviceName;
     @aliasName("primary") Endpoint primaryEndpoint;
-    Array!Endpoint replicaEndpoints;
-    Array!StringBuf featureFlags;
+    OwnedArray!Endpoint replicaEndpoints;
+    OwnedArray!StringBuf featureFlags;
     int[3] retryDelays;
     Option!StringBuf deploymentNote;
     Option!Endpoint fallbackEndpoint;
     @omitDefault bool tracingEnabled;
     @ignore uint runtimeRequests;
+
+    void deinit() nothrow @nogc
+    {
+        // Option gets native explicit-deinit payload handling in its dedicated
+        // lifetime step. For now release the nested array before reset uses
+        // Option's current D destruction path.
+        if (fallbackEndpoint.isSome)
+            fallbackEndpoint.value.labels.deinit();
+        fallbackEndpoint.reset();
+        deploymentNote.reset();
+        deinitValue(featureFlags);
+        deinitValue(replicaEndpoints);
+        deinitValue(primaryEndpoint);
+        deinitValue(serviceName);
+    }
 }
 
 @fieldCase(KeyCase.snake)
@@ -180,6 +202,8 @@ private bool demonstrateOwningDecode() nothrow @nogc
         writeln("JSON decode failed at ", error.line, ":", error.column);
         return false;
     }
+    scope (exit)
+        config.deinit();
 
     writeln("parsed service: ", config.serviceName.view);
     writeln("primary: ", config.primaryEndpoint.hostName.view,
@@ -205,7 +229,8 @@ private bool demonstrateOwningDecode() nothrow @nogc
     replica.hostName = StringBuf.fromString(allocator, "api-2.internal");
     replica.port = 9443;
     replica.protocol = Protocol.https;
-    replica.labels = Array!StringBuf.create(allocator);
+    OwnedArray!StringBuf replicaLabels = OwnedArray!StringBuf.create(allocator);
+    moveEmplace(replicaLabels, replica.labels);
     StringBuf canary = StringBuf.fromString(allocator, "canary");
     replica.labels.append(move(canary));
     config.replicaEndpoints.append(move(replica));
@@ -214,8 +239,10 @@ private bool demonstrateOwningDecode() nothrow @nogc
     fallback.hostName = StringBuf.fromString(allocator, "fallback.internal");
     fallback.port = 443;
     fallback.protocol = Protocol.https;
-    fallback.labels = Array!StringBuf.create(allocator);
-    config.fallbackEndpoint = some(move(fallback));
+    OwnedArray!StringBuf fallbackLabels = OwnedArray!StringBuf.create(allocator);
+    moveEmplace(fallbackLabels, fallback.labels);
+    Option!Endpoint fallbackOption = some(move(fallback));
+    moveEmplace(fallbackOption, config.fallbackEndpoint);
 
     if (!writeFormats(config))
         return false;
