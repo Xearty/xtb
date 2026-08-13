@@ -2,8 +2,10 @@ module xtb.core.lifetime;
 
 nothrow @nogc:
 
-import core.internal.traits : Unqual, hasElaborateDestructor;
-import core.lifetime : coreEmplace = emplace, coreMoveEmplace = moveEmplace, forward;
+import core.internal.lifetime : emplaceInitializer;
+import core.internal.traits : Unqual, hasElaborateCopyConstructor,
+    hasElaborateDestructor;
+import core.lifetime : coreMoveEmplace = moveEmplace, forward;
 import xtb.core.types : String;
 
 private alias AliasSeq(T...) = T;
@@ -644,8 +646,9 @@ void moveEmplace(T)(ref T source, ref T target) @system
     // duplicated representation would still carry the same cleanup obligation.
     // Reconstruct those sources to `.init` so every successful XTB move leaves
     // a live, safely deinitializable moved-from value.
-    static if (needsDeinit!T && !hasElaborateDestructor!T)
-        coreEmplace(&source);
+    static if (needsDeinit!T && !hasElaborateDestructor!T &&
+        !hasElaborateCopyConstructor!T)
+        emplaceInitializer(source);
 }
 
 /// Replaces a live explicit-deinit owner with `source`.
@@ -662,6 +665,44 @@ void moveAssign(T)(ref T source, ref T target) @system
 
     deinit(target);
     moveEmplace(source, target);
+}
+
+unittest
+{
+    static struct DisabledDefaultOwner
+    {
+    nothrow @nogc:
+
+        int* deinits;
+        bool active;
+
+        @disable this();
+        @disable this(this);
+
+        this(int* deinits)
+        {
+            this.deinits = deinits;
+            active = true;
+        }
+
+        void deinit()
+        {
+            if (active)
+            {
+                ++*deinits;
+                active = false;
+            }
+        }
+    }
+
+    int deinits;
+    DisabledDefaultOwner source = DisabledDefaultOwner(&deinits);
+    DisabledDefaultOwner target = move(source);
+    assert(source == DisabledDefaultOwner.init);
+    deinit(source);
+    assert(deinits == 0);
+    deinit(target);
+    assert(deinits == 1);
 }
 
 unittest
