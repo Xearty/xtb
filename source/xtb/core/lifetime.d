@@ -3,7 +3,7 @@ module xtb.core.lifetime;
 nothrow @nogc:
 
 import core.internal.traits : Unqual, hasElaborateDestructor;
-import core.lifetime : coreMoveEmplace = moveEmplace, forward;
+import core.lifetime : coreEmplace = emplace, coreMoveEmplace = moveEmplace, forward;
 import xtb.core.types : String;
 
 private alias AliasSeq(T...) = T;
@@ -622,11 +622,30 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
     }
 }
 
+/// Moves `source` into a returned value.
+///
+/// Unlike druntime's move for plain POD structs, an XTB explicit owner is
+/// reconstructed to `.init` so the source remains safely deinitializable.
+T move(T)(ref T source) @system
+{
+    T result = void;
+    moveEmplace(source, result);
+    return result;
+}
+
 /// Move-constructs `target` from `source` without cleaning `target` first.
 /// `target` must denote dead or uninitialized storage.
 void moveEmplace(T)(ref T source, ref T target) @system
 {
     coreMoveEmplace(source, target);
+
+    // druntime only wipes a moved source when D destructor/copy machinery is
+    // elaborate. XTB explicit owners may deliberately have neither, while a
+    // duplicated representation would still carry the same cleanup obligation.
+    // Reconstruct those sources to `.init` so every successful XTB move leaves
+    // a live, safely deinitializable moved-from value.
+    static if (needsDeinit!T && !hasElaborateDestructor!T)
+        coreEmplace(&source);
 }
 
 /// Replaces a live explicit-deinit owner with `source`.
@@ -642,7 +661,57 @@ void moveAssign(T)(ref T source, ref T target) @system
         return;
 
     deinit(target);
-    coreMoveEmplace(source, target);
+    moveEmplace(source, target);
+}
+
+unittest
+{
+    static struct ExplicitPodOwner
+    {
+    nothrow @nogc:
+
+        int* deinits;
+        bool active;
+
+        void deinit()
+        {
+            if (active)
+            {
+                ++*deinits;
+                active = false;
+            }
+        }
+    }
+
+    static assert(__traits(isPOD, ExplicitPodOwner));
+    static assert(__traits(isCopyable, ExplicitPodOwner));
+    int deinits;
+    ExplicitPodOwner source = ExplicitPodOwner(&deinits, true);
+    ExplicitPodOwner target = void;
+    moveEmplace(source, target);
+    assert(source == ExplicitPodOwner.init);
+    deinit(source);
+    assert(deinits == 0);
+    deinit(target);
+    assert(deinits == 1);
+
+    ExplicitPodOwner returnedSource = ExplicitPodOwner(&deinits, true);
+    ExplicitPodOwner returned = move(returnedSource);
+    assert(returnedSource == ExplicitPodOwner.init);
+    deinit(returnedSource);
+    assert(deinits == 1);
+    deinit(returned);
+    assert(deinits == 2);
+
+    ExplicitPodOwner replacementSource = ExplicitPodOwner(&deinits, true);
+    ExplicitPodOwner replacementTarget = ExplicitPodOwner(&deinits, true);
+    moveAssign(replacementSource, replacementTarget);
+    assert(replacementSource == ExplicitPodOwner.init);
+    assert(deinits == 3);
+    deinit(replacementSource);
+    assert(deinits == 3);
+    deinit(replacementTarget);
+    assert(deinits == 4);
 }
 
 unittest
