@@ -817,6 +817,8 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     runCommunicateIntegration(helperExecutable.view);
     runPipelineIntegration(helperExecutable.view);
 
+    walkArena.deinit();
+
     assert(removeFile(firstPath).succeeded);
     assert(removeFile(renamedPath).succeeded);
     assert(removeEmptyDirectory(rootPath).succeeded);

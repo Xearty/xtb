@@ -68,6 +68,14 @@ configuration "test-array" {
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
 }
 
+configuration "test-arena" {
+    targetType "executable"
+    targetName "arena_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "arena_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+}
+
 configuration "test-hash" {
     targetType "executable"
     targetName "hash_tests"

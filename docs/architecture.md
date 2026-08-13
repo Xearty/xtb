@@ -129,6 +129,15 @@ names. The lifetime layer validates the complete mapping at compile time and
 structural `deinit` visits only the active member without rewriting the tag or
 payload storage. Serde may reuse this relationship later, but wire layout and
 deserialization policy remain serde concerns.
+`xtb.core.allocators.arena.Arena` is an ordinary explicit owner, not an RAII
+object. Call `deinit(arena)` (or its member customization internally) to release
+its chunks. `clear` and `deinit` reclaim arena storage without walking allocated
+objects or invoking their explicit `deinit` functions. Typed construction helpers
+(`allocateInit*` and `create`) reject types with D destructors because lexical
+RAII values cannot be safely abandoned by bulk arena reclamation; raw allocation
+remains unrestricted. Arena assignment is disabled, so ownership transfer uses
+the lifetime move primitives.
+
 `xtb.core.memory` owns the type-erased `Allocator` callback contract and generic
 allocation/reallocation/disposal helpers, delegating typed finalization to the
 lifetime layer. Concrete allocator implementations are grouped under

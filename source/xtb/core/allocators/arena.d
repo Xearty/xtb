@@ -2,7 +2,9 @@ module xtb.core.allocators.arena;
 
 nothrow @nogc:
 
+import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, forward;
+import xtb.core.lifetime : moveEmplace, needsDeinit;
 import core.stdc.string : memcpy, memset;
 import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic;
@@ -67,11 +69,7 @@ nothrow @nogc:
     private bool poisonRewoundMemory_;
 
     @disable this(this);
-
-    ~this()
-    {
-        deinit();
-    }
+    @disable ref Arena opAssign(Arena source) return;
 
     static Arena create(
         Allocator* backingAllocator,
@@ -222,6 +220,7 @@ nothrow @nogc:
     }
 
     T* tryAllocateInit(T)()
+        if (!hasElaborateDestructor!T)
     {
         T* result = tryAllocate!T();
         if (result !is null)
@@ -230,6 +229,7 @@ nothrow @nogc:
     }
 
     T* allocateInit(T)()
+        if (!hasElaborateDestructor!T)
     {
         T* result = allocate!T();
         emplace(result);
@@ -237,6 +237,7 @@ nothrow @nogc:
     }
 
     T[] tryAllocateInitArray(T)(size_t length)
+        if (!hasElaborateDestructor!T)
     {
         T[] result = tryAllocateArray!T(length);
         foreach (index; 0 .. result.length)
@@ -245,6 +246,7 @@ nothrow @nogc:
     }
 
     T[] allocateInitArray(T)(size_t length)
+        if (!hasElaborateDestructor!T)
     {
         T[] result = allocateArray!T(length);
         foreach (index; 0 .. result.length)
@@ -253,6 +255,7 @@ nothrow @nogc:
     }
 
     T* tryCreate(T, Args...)(auto ref Args arguments)
+        if (!hasElaborateDestructor!T)
     {
         T* result = tryAllocate!T();
         if (result !is null)
@@ -261,6 +264,7 @@ nothrow @nogc:
     }
 
     T* create(T, Args...)(auto ref Args arguments)
+        if (!hasElaborateDestructor!T)
     {
         T* result = allocate!T();
         emplace(result, forward!arguments);
@@ -698,30 +702,50 @@ unittest
     arena.trim();
     arena.deinit();
 
-    int arenaDestroyed;
     struct ArenaConstructed
     {
     nothrow @nogc:
 
-        int* destroyed;
-
-        this(int* destroyed)
-        {
-            this.destroyed = destroyed;
-        }
-
         ~this()
         {
-            ++*destroyed;
         }
     }
 
-    Arena lifetimeArena = Arena.create(mallocAllocator(), 64);
-    ArenaConstructed* arenaConstructed = lifetimeArena
-        .create!ArenaConstructed(&arenaDestroyed);
-    assert(arenaConstructed.destroyed is &arenaDestroyed);
-    lifetimeArena.deinit();
-    assert(arenaDestroyed == 0);
+    static assert(!__traits(compiles, (ref Arena value) {
+            value.create!ArenaConstructed();
+        }));
+    static assert(!__traits(compiles, (ref Arena value) {
+            value.allocateInit!ArenaConstructed();
+        }));
+
+    static assert(!hasElaborateDestructor!Arena);
+    static assert(needsDeinit!Arena);
+    static assert(!__traits(compiles, (ref Arena left, ref Arena right) {
+            left = right;
+        }));
+
+    int explicitDeinits;
+    struct ExplicitOwner
+    {
+    nothrow @nogc:
+
+        int* deinits;
+
+        void deinit()
+        {
+            ++*deinits;
+        }
+    }
+
+    Arena abandonment = Arena.create(mallocAllocator(), 64);
+    ExplicitOwner* abandoned = abandonment.create!ExplicitOwner();
+    abandoned.deinits = &explicitDeinits;
+    abandonment.clear();
+    assert(explicitDeinits == 0);
+    abandoned = abandonment.create!ExplicitOwner();
+    abandoned.deinits = &explicitDeinits;
+    abandonment.deinit();
+    assert(explicitDeinits == 0);
 
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 

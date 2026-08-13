@@ -10,6 +10,7 @@ import core.stdc.stdlib : strtod;
 import core.stdc.string : memcpy;
 import xtb.core.allocators.arena : Arena;
 import xtb.core.memory : Allocator;
+import xtb.core.lifetime : moveEmplace;
 import xtb.core.numeric : addOverflows;
 import xtb.core.option : Option;
 
@@ -1587,6 +1588,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref Grammar opAssign(Grammar source) return;
 
     ~this()
     {
@@ -1599,7 +1601,8 @@ public:
     )
     {
         Grammar result;
-        result.arena_ = Arena.create(allocator, chunkSize);
+        Arena arena = Arena.create(allocator, chunkSize);
+        moveEmplace(arena, result.arena_);
         return result;
     }
 
