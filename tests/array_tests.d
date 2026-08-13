@@ -32,6 +32,40 @@ nothrow @nogc:
 
 static assert(__traits(isPOD, PodOwner));
 
+private struct DisabledDefaultOwner
+{
+nothrow @nogc:
+
+    Allocator* allocator;
+    ubyte[] bytes;
+
+    @disable this();
+    @disable this(this);
+
+    this(Allocator* allocator, size_t size)
+    {
+        this.allocator = allocator;
+        bytes = allocator.tryAllocateArray!ubyte(size);
+        assert(bytes.ptr !is null);
+    }
+
+    void deinit()
+    {
+        if (bytes.ptr !is null)
+            allocator.deallocateArray(bytes);
+    }
+}
+
+static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "withLength"));
+static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "resize"));
+static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "tryResize"));
+static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "withLength"));
+static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "resize"));
+static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "tryResize"));
+static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "withLength"));
+static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "resize"));
+static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "tryResize"));
+
 private void assertClean(ref const InstrumentedAllocator allocator)
 {
     assert(allocator.clean);
@@ -55,6 +89,34 @@ private void testPointerMoveConsumesExplicitPodOwner() @system
     assert(tracked.stats.outstandingAllocations == 2);
 
     deinit(source);
+    deinit(values);
+    assertClean(tracked);
+}
+
+private void testDisabledDefaultOwnerMoves() @system
+{
+    AllocationRecord[8] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    OwnedArray!DisabledDefaultOwner values =
+        OwnedArray!DisabledDefaultOwner.withCapacity(tracked.allocator, 1);
+    DisabledDefaultOwner source = DisabledDefaultOwner(tracked.allocator, 37);
+    assert(values.tryAppend(&source));
+    assert(source.allocator is null && source.bytes.ptr is null);
+    assert(values.length == 1 && values[0].bytes.length == 37);
+
+    DisabledDefaultOwner second = DisabledDefaultOwner(tracked.allocator, 41);
+    assert(values.tryAppend(&second));
+    assert(second.allocator is null && second.bytes.ptr is null);
+    assert(values.length == 2);
+    assert(values[0].bytes.length == 37);
+    assert(values[1].bytes.length == 41);
+
+    deinit(source);
+    deinit(second);
     deinit(values);
     assertClean(tracked);
 }
@@ -249,6 +311,7 @@ extern (C) int main()
         testFunction();
 
     testPointerMoveConsumesExplicitPodOwner();
+    testDisabledDefaultOwnerMoves();
     testRepeatedOwnedArrayCleanup();
     testFallibleAppendPreservesOwnership();
     testAliasingPointerMovesDoNotLeak();

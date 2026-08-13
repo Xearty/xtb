@@ -13,6 +13,11 @@ version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.numeric : multiplyOverflows;
 import xtb.core.released_storage : ReleasedStorage;
 
+private template supportsDefaultInitialization(T)
+{
+    enum supportsDefaultInitialization = __traits(compiles, () { T value; });
+}
+
 /// Raw allocation detached from an unmanaged array.
 ///
 /// This package-only token has no destructor. The caller assumes ownership of
@@ -141,14 +146,17 @@ public:
         return result;
     }
 
-    static ArrayUnmanaged withLength(
-        Allocator* allocator,
-        size_t length,
-    )
+    static if (supportsDefaultInitialization!T)
     {
-        ArrayUnmanaged result;
-        result.resize(allocator, length);
-        return result;
+        static ArrayUnmanaged withLength(
+            Allocator* allocator,
+            size_t length,
+        )
+        {
+            ArrayUnmanaged result;
+            result.resize(allocator, length);
+            return result;
+        }
     }
 
     static if (__traits(isCopyable, T))
@@ -284,28 +292,31 @@ public:
             panic("Array allocation failed");
     }
 
-    bool tryResize(Allocator* allocator, size_t requested)
+    static if (supportsDefaultInitialization!T)
     {
-        requireValidAllocator(allocator);
-        if (requested < length_)
+        bool tryResize(Allocator* allocator, size_t requested)
         {
-            length_ = requested;
+            requireValidAllocator(allocator);
+            if (requested < length_)
+            {
+                length_ = requested;
+                return true;
+            }
+            if (!tryReserve(allocator, requested))
+                return false;
+            while (length_ < requested)
+            {
+                constructInitial(data_ + length_);
+                ++length_;
+            }
             return true;
         }
-        if (!tryReserve(allocator, requested))
-            return false;
-        while (length_ < requested)
-        {
-            constructInitial(data_ + length_);
-            ++length_;
-        }
-        return true;
-    }
 
-    void resize(Allocator* allocator, size_t requested)
-    {
-        if (!tryResize(allocator, requested))
-            panic("Array allocation failed");
+        void resize(Allocator* allocator, size_t requested)
+        {
+            if (!tryResize(allocator, requested))
+                panic("Array allocation failed");
+        }
     }
 
     /// Attempts to append by moving from `*value` only after capacity succeeds.
@@ -770,14 +781,17 @@ public:
         return move(result);
     }
 
-    /// Creates a managed array containing `length` default-initialized values.
-    static Self withLength(Allocator* allocator, size_t length) @trusted
+    static if (supportsDefaultInitialization!T)
     {
-        Storage storage = Storage.withLength(allocator, length);
-        Self result;
-        result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
-        return move(result);
+        /// Creates a managed array containing `length` default-initialized values.
+        static Self withLength(Allocator* allocator, size_t length) @trusted
+        {
+            Storage storage = Storage.withLength(allocator, length);
+            Self result;
+            result.allocator_ = allocator;
+            moveEmplace(storage, result.storage_);
+            return move(result);
+        }
     }
 
     static if (__traits(isCopyable, T))
@@ -867,14 +881,17 @@ public:
         storage_.reserve(allocator_, requested);
     }
 
-    bool tryResize(size_t requested) @trusted
+    static if (supportsDefaultInitialization!T)
     {
-        return storage_.tryResize(allocator_, requested);
-    }
+        bool tryResize(size_t requested) @trusted
+        {
+            return storage_.tryResize(allocator_, requested);
+        }
 
-    void resize(size_t requested) @trusted
-    {
-        storage_.resize(allocator_, requested);
+        void resize(size_t requested) @trusted
+        {
+            storage_.resize(allocator_, requested);
+        }
     }
 
     bool tryAppend(scope T* value) @trusted
@@ -1094,13 +1111,16 @@ public:
         return move(result);
     }
 
-    static Self withLength(Allocator* allocator, size_t length) @trusted
+    static if (supportsDefaultInitialization!T)
     {
-        Storage storage = Storage.withLength(allocator, length);
-        Self result;
-        result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
-        return move(result);
+        static Self withLength(Allocator* allocator, size_t length) @trusted
+        {
+            Storage storage = Storage.withLength(allocator, length);
+            Self result;
+            result.allocator_ = allocator;
+            moveEmplace(storage, result.storage_);
+            return move(result);
+        }
     }
 
     static if (__traits(isCopyable, T))
@@ -1170,20 +1190,23 @@ public:
         storage_.reserve(allocator_, requested);
     }
 
-    bool tryResize(size_t requested) @trusted
+    static if (supportsDefaultInitialization!T)
     {
-        if (requested < storage_.length)
+        bool tryResize(size_t requested) @trusted
         {
-            requireValidAllocator(allocator_);
-            deinitRange(requested, storage_.length - requested);
+            if (requested < storage_.length)
+            {
+                requireValidAllocator(allocator_);
+                deinitRange(requested, storage_.length - requested);
+            }
+            return storage_.tryResize(allocator_, requested);
         }
-        return storage_.tryResize(allocator_, requested);
-    }
 
-    void resize(size_t requested) @trusted
-    {
-        if (!tryResize(requested))
-            panic("OwnedArray allocation failed");
+        void resize(size_t requested) @trusted
+        {
+            if (!tryResize(requested))
+                panic("OwnedArray allocation failed");
+        }
     }
 
     bool tryAppend(scope T* value) @trusted
