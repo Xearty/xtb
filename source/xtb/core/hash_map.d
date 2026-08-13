@@ -3,7 +3,7 @@ module xtb.core.hash_map;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
-import core.lifetime : move, moveEmplace;
+import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
 import core.stdc.string : memset;
 import xtb.core.hash : HashSeed, hashValue;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
@@ -28,7 +28,13 @@ struct DefaultHash(K)
 
     size_t opCall(scope const(K)* key) const
     {
-        return hashValue(*key, seed);
+        static if (__traits(compiles, hashValue(*key, seed)))
+            return hashValue(*key, seed);
+        else static if (__traits(compiles, (*key).toHash()))
+            return hashValue((*key).toHash(), seed);
+        else
+            static assert(false,
+                "DefaultHash requires hashValue(value) or value.toHash()");
     }
 }
 
@@ -75,14 +81,43 @@ private:
     bool found_;
 }
 
-/// Default allocator-aware element lifetime policy used by `HashMapUnmanaged`.
+/// Shallow element policy used by ordinary hash containers.
 struct DefaultHashMapElementOps(T)
 {
+    static void destroy(Allocator*, T*)
+    {
+    }
+}
+
+private template supportsOwnedHashElementDeinit(T)
+{
+    static if (!needsDeinit!T)
+        enum supportsOwnedHashElementDeinit = true;
+    else
+        enum supportsOwnedHashElementDeinit = __traits(compiles,
+                deinitValue(*cast(T*) null));
+}
+
+private struct OwnedHashMapElementOps(T)
+{
+nothrow @nogc:
+
+    static assert(!hasElaborateDestructor!T || needsDeinit!T,
+        "owned hash containers cannot own lexical destructor-only element types");
+    static assert(supportsOwnedHashElementDeinit!T,
+        "owned hash element cleanup must support free deinit(value) without context");
+
     static void destroy(Allocator*, T* element)
     {
-        static if (hasElaborateDestructor!T)
-            object.destroy!false(*element);
+        static if (needsDeinit!T)
+            deinitValue(*element);
     }
+}
+
+private template isSimpleHashValue(T)
+{
+    enum isSimpleHashValue = __traits(isCopyable, T) &&
+        !needsDeinit!T && !hasElaborateDestructor!T;
 }
 
 private template IsDefaultHashPolicy(Hasher, K)
@@ -147,6 +182,20 @@ version (unittest)
         }
     }
 
+    private struct CleanupHashPolicy
+    {
+    nothrow @nogc:
+
+        size_t opCall(scope const(int)* key) const pure @safe
+        {
+            return cast(size_t)*key;
+        }
+
+        void deinit()
+        {
+        }
+    }
+
     private struct TrackedHashValue
     {
     nothrow @nogc:
@@ -157,10 +206,12 @@ version (unittest)
 
         @disable this(this);
 
-        ~this()
+        void deinit()
         {
-            if (active)
-                ++*destructions;
+            if (!active)
+                return;
+            active = false;
+            ++*destructions;
         }
     }
 
@@ -180,16 +231,14 @@ version (unittest)
             ++*live;
         }
 
-        this(this)
-        {
-            if (active)
-                ++*live;
-        }
+        @disable this(this);
 
-        ~this()
+        void deinit()
         {
-            if (active)
-                --*live;
+            if (!active)
+                return;
+            active = false;
+            --*live;
         }
     }
 
@@ -235,11 +284,11 @@ struct HashMapUnmanaged(
 nothrow @nogc:
 
     static assert(__traits(isCopyable, Hasher) &&
-            !hasElaborateDestructor!Hasher,
-        "HashMap hash policies must be copyable and have no destructor");
+            !hasElaborateDestructor!Hasher && !needsDeinit!Hasher,
+        "HashMap hash policies must be copyable and require no cleanup");
     static assert(__traits(isCopyable, Equal) &&
-            !hasElaborateDestructor!Equal,
-        "HashMap equality policies must be copyable and have no destructor");
+            !hasElaborateDestructor!Equal && !needsDeinit!Equal,
+        "HashMap equality policies must be copyable and require no cleanup");
     static assert(__traits(compiles,
             KeyOps.destroy(cast(Allocator*) null, cast(K*) null)),
         "HashMap key lifetime policy must provide destroy(Allocator*, K*)");
@@ -258,6 +307,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref HashMapUnmanaged opAssign(HashMapUnmanaged source) return;
 
     static HashMapUnmanaged withPolicies(
         Hasher hasher,
@@ -265,8 +315,8 @@ public:
     )
     {
         HashMapUnmanaged result;
-        result.hasher_ = move(hasher);
-        result.equal_ = move(equal);
+        moveEmplace(hasher, result.hasher_);
+        moveEmplace(equal, result.equal_);
         return result;
     }
 
@@ -288,7 +338,7 @@ public:
         HashMapUnmanaged temporary;
         if (!temporary.tryReserve(allocator, requested))
             return false;
-        *output = move(temporary);
+        moveEmplace(temporary, *output);
         return true;
     }
 
@@ -335,7 +385,6 @@ public:
             allocator.deallocateArray(entries_[0 .. capacity_]);
             allocator.deallocateArray(states_[0 .. capacity_]);
         }
-        this = HashMapUnmanaged.init;
     }
 
     void resetAndRelease(Allocator* allocator)
@@ -447,7 +496,117 @@ public:
             panic("HashMap allocation failed");
     }
 
-    static if (__traits(isCopyable, K))
+    /// Fallible insertion that consumes caller ownership only on success.
+    /// Duplicate and allocation-failure paths leave both inputs unchanged.
+    AddStatus tryAdd(
+        Allocator* allocator,
+        scope K* key,
+        scope V* value,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(key !is null, "HashMap insertion key pointer is null");
+            require(value !is null, "HashMap insertion value pointer is null");
+            require(!hashStorageOverlaps(key, value),
+                "HashMap insertion key and value storage overlap");
+        }
+        requireValidHashAllocator(allocator);
+        const hash = hasher_(key);
+        ProbeResult location = probeStored(key, hash);
+        if (location.found)
+            return AddStatus.alreadyPresent;
+        version (XTB_Checked)
+        {
+            require(!pointsIntoEntryStorage(key),
+                "HashMap insertion key aliases table storage");
+            require(!pointsIntoEntryStorage(value),
+                "HashMap insertion value aliases table storage");
+        }
+        if (!tryPrepareInsert(allocator))
+            return AddStatus.outOfMemory;
+
+        location = probeStored(key, hash);
+        Entry!(K, V)* destination = entries_ + location.index;
+        const reusedRemoved = states_[location.index] == SlotState.removed;
+        destination.hash = hash;
+        constructHashMove(&destination.key, *key);
+        constructHashMove(&destination.value, *value);
+        states_[location.index] = SlotState.occupied;
+        ++length_;
+        if (reusedRemoved)
+            --removed_;
+        return AddStatus.inserted;
+    }
+
+    bool add(Allocator* allocator, scope K* key, scope V* value) @system
+    {
+        const status = tryAdd(allocator, key, value);
+        if (status == AddStatus.outOfMemory)
+            panic("HashMap allocation failed");
+        return status == AddStatus.inserted;
+    }
+
+    /// Fallible insert-or-replace. On insertion both inputs are consumed.
+    /// On replacement only `*value` is consumed and `*key` is unchanged.
+    SetStatus trySet(
+        Allocator* allocator,
+        scope K* key,
+        scope V* value,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(key !is null, "HashMap insertion key pointer is null");
+            require(value !is null, "HashMap insertion value pointer is null");
+            require(!hashStorageOverlaps(key, value),
+                "HashMap insertion key and value storage overlap");
+        }
+        requireValidHashAllocator(allocator);
+        const hash = hasher_(key);
+        ProbeResult location = probeStored(key, hash);
+        if (location.found)
+        {
+            V* destination = &entries_[location.index].value;
+            version (XTB_Checked)
+                require(!pointsIntoEntryStorage(value) || value is destination,
+                    "HashMap replacement value aliases another table entry");
+            if (destination !is value)
+                replaceHashElement!ValueOps(allocator, destination, *value);
+            return SetStatus.replaced;
+        }
+        version (XTB_Checked)
+        {
+            require(!pointsIntoEntryStorage(key),
+                "HashMap insertion key aliases table storage");
+            require(!pointsIntoEntryStorage(value),
+                "HashMap insertion value aliases table storage");
+        }
+        if (!tryPrepareInsert(allocator))
+            return SetStatus.outOfMemory;
+
+        location = probeStored(key, hash);
+        Entry!(K, V)* destination = entries_ + location.index;
+        const reusedRemoved = states_[location.index] == SlotState.removed;
+        destination.hash = hash;
+        constructHashMove(&destination.key, *key);
+        constructHashMove(&destination.value, *value);
+        states_[location.index] = SlotState.occupied;
+        ++length_;
+        if (reusedRemoved)
+            --removed_;
+        return SetStatus.inserted;
+    }
+
+    bool set(Allocator* allocator, scope K* key, scope V* value) @system
+    {
+        const status = trySet(allocator, key, value);
+        if (status == SetStatus.outOfMemory)
+            panic("HashMap allocation failed");
+        return status == SetStatus.inserted;
+    }
+
+    static if (isSimpleHashValue!K && isSimpleHashValue!V)
     {
         SetStatus trySet(Allocator* allocator, K key, V value)
         {
@@ -519,43 +678,126 @@ public:
         }
     }
 
-    V* find(scope Lookup key) return
+    V* find(scope const(Lookup)* key) return
     {
+        version (XTB_Checked)
+            require(key !is null, "HashMap lookup key pointer is null");
         if (capacity_ == 0)
             return null;
-        const hash = hasher_(&key);
-        const location = probeLookup(&key, hash);
+        const hash = hasher_(key);
+        const location = probeLookup(key, hash);
         return location.found ? &entries_[location.index].value : null;
     }
 
-    const(V)* find(scope Lookup key) const return
+    const(V)* find(scope const(Lookup)* key) const return
     {
+        version (XTB_Checked)
+            require(key !is null, "HashMap lookup key pointer is null");
         if (capacity_ == 0)
             return null;
-        const hash = hasher_(&key);
-        const location = probeLookup(&key, hash);
+        const hash = hasher_(key);
+        const location = probeLookup(key, hash);
         return location.found ? &entries_[location.index].value : null;
     }
 
-    bool contains(scope Lookup key) const
+    bool contains(scope const(Lookup)* key) const
     {
         return find(key) !is null;
     }
 
-    bool remove(Allocator* allocator, scope Lookup key)
+    bool remove(Allocator* allocator, scope const(Lookup)* key)
     {
+        version (XTB_Checked)
+            require(key !is null, "HashMap removal key pointer is null");
         if (capacity_ == 0)
             return false;
         requireValidHashAllocator(allocator);
-        const hash = hasher_(&key);
-        const location = probeLookup(&key, hash);
+        const hash = hasher_(key);
+        const location = probeLookup(key, hash);
         if (!location.found)
             return false;
 
         Entry!(K, V)* entry = entries_ + location.index;
         ValueOps.destroy(allocator, &entry.value);
         KeyOps.destroy(allocator, &entry.key);
-        states_[location.index] = SlotState.removed;
+        markRemoved(location.index);
+        return true;
+    }
+
+    /// Transfers an entry without running key/value cleanup.
+    /// `keyOutput` and `valueOutput` must point to dead/uninitialized storage.
+    bool take(
+        scope const(Lookup)* key,
+        scope K* keyOutput,
+        scope V* valueOutput,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(key !is null, "HashMap take key pointer is null");
+            require(keyOutput !is null, "HashMap take key output pointer is null");
+            require(valueOutput !is null, "HashMap take value output pointer is null");
+            require(!hashStorageOverlaps(keyOutput, valueOutput),
+                "HashMap take key and value output storage overlap");
+            require(!hashStorageOverlaps(key, keyOutput),
+                "HashMap take lookup key overlaps key output storage");
+            require(!hashStorageOverlaps(key, valueOutput),
+                "HashMap take lookup key overlaps value output storage");
+            require(!pointsIntoEntryStorage(keyOutput),
+                "HashMap take key output aliases table storage");
+            require(!pointsIntoEntryStorage(valueOutput),
+                "HashMap take value output aliases table storage");
+        }
+        if (capacity_ == 0)
+            return false;
+        const hash = hasher_(key);
+        const location = probeLookup(key, hash);
+        if (!location.found)
+            return false;
+
+        Entry!(K, V)* entry = entries_ + location.index;
+        constructHashMove(keyOutput, entry.key);
+        constructHashMove(valueOutput, entry.value);
+        markRemoved(location.index);
+        return true;
+    }
+
+    static if (isSimpleHashValue!Lookup)
+    {
+        V* find(scope Lookup key) return
+        {
+            return find(&key);
+        }
+
+        const(V)* find(scope Lookup key) const return
+        {
+            return find(&key);
+        }
+
+        bool contains(scope Lookup key) const
+        {
+            return contains(&key);
+        }
+
+        bool remove(Allocator* allocator, scope Lookup key)
+        {
+            return remove(allocator, &key);
+        }
+
+        bool take(
+            scope Lookup key,
+            scope K* keyOutput,
+            scope V* valueOutput,
+        ) @system
+        {
+            return take(&key, keyOutput, valueOutput);
+        }
+    }
+
+private:
+    void markRemoved(size_t index)
+    {
+        states_[index] = SlotState.removed;
         --length_;
         ++removed_;
         if (length_ == 0)
@@ -563,9 +805,9 @@ public:
             memset(states_, SlotState.empty, capacity_);
             removed_ = 0;
         }
-        return true;
     }
 
+public:
     void clear(Allocator* allocator)
     {
         if (length_ != 0)
@@ -670,6 +912,10 @@ package(xtb):
                 "stale prepared HashMap insertion");
             require(states_[prepared.index_] != SlotState.occupied,
                 "prepared HashMap insertion slot is occupied");
+            require(!pointsIntoEntryStorage(key),
+                "prepared HashMap insertion key aliases table storage");
+            require(!pointsIntoEntryStorage(value),
+                "prepared HashMap insertion value aliases table storage");
         }
 
         Entry!(K, V)* destination = entries_ + prepared.index_;
@@ -703,16 +949,32 @@ package(xtb):
                     states_[prepared.index_] == SlotState.occupied,
                 "stale prepared HashMap replacement");
         }
-
-        replaceHashElement!ValueOps(
-            allocator,
-            &entries_[prepared.index_].value,
-            *value,
-        );
+        V* destination = &entries_[prepared.index_].value;
+        version (XTB_Checked)
+            require(!pointsIntoEntryStorage(value) || value is destination,
+                "prepared HashMap replacement aliases another table entry");
+        if (destination !is value)
+            replaceHashElement!ValueOps(allocator, destination, *value);
         *prepared = PreparedHashMapInsert.init;
     }
 
+    bool aliasesEntryStorage(T)(scope const(T)* pointer) const @system
+    {
+        return pointsIntoEntryStorage(pointer);
+    }
+
 private:
+    bool pointsIntoEntryStorage(T)(scope const(T)* pointer) const @system
+    {
+        if (entries_ is null || pointer is null || capacity_ == 0)
+            return false;
+        const begin = cast(size_t) entries_;
+        const address = cast(size_t) pointer;
+        if (address < begin)
+            return false;
+        return address - begin < capacity_ * Entry!(K, V).sizeof;
+    }
+
     ProbeResult probeStored(scope const(K)* key, size_t hash) const
     {
         if (capacity_ == 0)
@@ -840,11 +1102,12 @@ struct HashMap(K, V, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
 
-    static assert(__traits(isCopyable, K),
-        "HashMap keys must be copyable; use StringHashMap for owned string keys");
-
     alias Self = HashMap!(K, V, Hasher, Equal);
-    alias Storage = HashMapUnmanaged!(K, V, Hasher, Equal);
+    alias Storage = HashMapUnmanaged!(
+        K, V, Hasher, Equal, K,
+        DefaultHashMapElementOps!K,
+        DefaultHashMapElementOps!V,
+    );
     alias Released = ReleasedStorage!Storage;
 
 private:
@@ -861,6 +1124,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @trusted
     {
@@ -879,7 +1143,8 @@ public:
         requireValidHashAllocator(allocator);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = Storage.withPolicies(move(hasher), move(equal));
+        Storage storage = Storage.withPolicies(move(hasher), move(equal));
+        moveEmplace(storage, result.storage_);
         return move(result);
     }
 
@@ -899,7 +1164,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -922,7 +1187,8 @@ public:
             requireValidHashAllocator(allocator);
             Self result;
             result.allocator_ = allocator;
-            result.storage_ = Storage.seeded(seed);
+            Storage storage = Storage.seeded(seed);
+            moveEmplace(storage, result.storage_);
             return move(result);
         }
 
@@ -934,11 +1200,8 @@ public:
         {
             Self result;
             result.allocator_ = allocator;
-            result.storage_ = Storage.withCapacity(
-                allocator,
-                requested,
-                seed,
-            );
+            Storage storage = Storage.withCapacity(allocator, requested, seed);
+            moveEmplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -952,13 +1215,8 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(storage);
+        moveEmplace(storage, result.storage_);
         return move(result);
-    }
-
-    ~this() @trusted
-    {
-        this.deinit();
     }
 
     void deinit() @trusted
@@ -1026,44 +1284,100 @@ public:
         storage_.reserve(allocator_, requested);
     }
 
-    SetStatus trySet(K key, V value) @trusted
+    SetStatus trySet(scope K* key, scope V* value) @system
     {
-        return storage_.trySet(allocator_, move(key), move(value));
+        return storage_.trySet(allocator_, key, value);
     }
 
-    bool set(K key, V value) @trusted
+    bool set(scope K* key, scope V* value) @system
     {
-        return storage_.set(allocator_, move(key), move(value));
+        return storage_.set(allocator_, key, value);
     }
 
-    AddStatus tryAdd(K key, V value) @trusted
+    AddStatus tryAdd(scope K* key, scope V* value) @system
     {
-        return storage_.tryAdd(allocator_, move(key), move(value));
+        return storage_.tryAdd(allocator_, key, value);
     }
 
-    bool add(K key, V value) @trusted
+    bool add(scope K* key, scope V* value) @system
     {
-        return storage_.add(allocator_, move(key), move(value));
+        return storage_.add(allocator_, key, value);
     }
 
-    V* find(scope K key) return @trusted
+    static if (isSimpleHashValue!K && isSimpleHashValue!V)
+    {
+        SetStatus trySet(K key, V value) @trusted
+        {
+            return storage_.trySet(allocator_, key, value);
+        }
+
+        bool set(K key, V value) @trusted
+        {
+            return storage_.set(allocator_, key, value);
+        }
+
+        AddStatus tryAdd(K key, V value) @trusted
+        {
+            return storage_.tryAdd(allocator_, key, value);
+        }
+
+        bool add(K key, V value) @trusted
+        {
+            return storage_.add(allocator_, key, value);
+        }
+    }
+
+    V* find(scope const(K)* key) return @trusted
     {
         return storage_.find(key);
     }
 
-    const(V)* find(scope K key) const return @trusted
+    const(V)* find(scope const(K)* key) const return @trusted
     {
         return storage_.find(key);
     }
 
-    bool contains(scope K key) const @trusted
+    bool contains(scope const(K)* key) const @trusted
     {
         return storage_.contains(key);
     }
 
-    bool remove(scope K key) @trusted
+    bool remove(scope const(K)* key) @trusted
     {
         return storage_.remove(allocator_, key);
+    }
+
+    bool take(scope const(K)* key, scope K* keyOutput, scope V* valueOutput) @system
+    {
+        return storage_.take(key, keyOutput, valueOutput);
+    }
+
+    static if (isSimpleHashValue!K)
+    {
+        V* find(scope K key) return @trusted
+        {
+            return storage_.find(key);
+        }
+
+        const(V)* find(scope K key) const return @trusted
+        {
+            return storage_.find(key);
+        }
+
+        bool contains(scope K key) const @trusted
+        {
+            return storage_.contains(key);
+        }
+
+        bool remove(scope K key) @trusted
+        {
+            return storage_.remove(allocator_, key);
+        }
+
+        bool take(scope K key, scope K* keyOutput, scope V* valueOutput) @system
+        {
+            return storage_.take(&key, keyOutput, valueOutput);
+        }
     }
 
     void clear() @trusted
@@ -1113,9 +1427,324 @@ package(xtb):
                 "HashMapUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(*storage);
+        moveEmplace(*storage, result.storage_);
         return move(result);
     }
+}
+
+/// Managed hash map that owns cleanup of stored keys and values.
+struct OwnedHashMap(K, V, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
+{
+nothrow @nogc:
+
+    static assert((!hasElaborateDestructor!K || needsDeinit!K) &&
+            (!hasElaborateDestructor!V || needsDeinit!V),
+        "OwnedHashMap cannot own lexical destructor-only key/value types");
+    static assert(supportsOwnedHashElementDeinit!K &&
+            supportsOwnedHashElementDeinit!V,
+        "OwnedHashMap key/value cleanup must support deinit(value) without context");
+
+    alias Self = OwnedHashMap!(K, V, Hasher, Equal);
+    alias Storage = HashMapUnmanaged!(
+        K, V, Hasher, Equal, K,
+        OwnedHashMapElementOps!K,
+        OwnedHashMapElementOps!V,
+    );
+
+private:
+    Allocator* allocator_;
+    Storage storage_;
+
+    version (XTB_Checked)
+    {
+        invariant
+        {
+            require(&this !is null, "OwnedHashMap pointer is null");
+        }
+    }
+
+public:
+    @disable this(this);
+    @disable ref Self opAssign(Self source) return;
+
+    static Self create(Allocator* allocator) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        return result;
+    }
+
+    static Self withPolicies(
+        Allocator* allocator,
+        Hasher hasher,
+        Equal equal,
+    ) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self result;
+        result.allocator_ = allocator;
+        Storage storage = Storage.withPolicies(move(hasher), move(equal));
+        moveEmplace(storage, result.storage_);
+        return move(result);
+    }
+
+    static bool tryWithCapacity(
+        Allocator* allocator,
+        size_t requested,
+        scope Self* output,
+    ) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "OwnedHashMap output pointer is null");
+            require(output.allocator_ is null,
+                "OwnedHashMap output is already initialized");
+        }
+        Storage storage;
+        if (!Storage.tryWithCapacity(allocator, requested, &storage))
+            return false;
+        output.allocator_ = allocator;
+        moveEmplace(storage, output.storage_);
+        return true;
+    }
+
+    static Self withCapacity(
+        Allocator* allocator,
+        size_t requested,
+    ) @trusted
+    {
+        Self result;
+        if (!tryWithCapacity(allocator, requested, &result))
+            panic("OwnedHashMap allocation failed");
+        return move(result);
+    }
+
+    static if (IsDefaultHashPolicy!(Hasher, K) &&
+        IsDefaultEqualPolicy!(Equal, K))
+    {
+        static Self seeded(Allocator* allocator, HashSeed seed) @trusted
+        {
+            requireValidHashAllocator(allocator);
+            Self result;
+            result.allocator_ = allocator;
+            Storage storage = Storage.seeded(seed);
+            moveEmplace(storage, result.storage_);
+            return move(result);
+        }
+
+        static Self withCapacity(
+            Allocator* allocator,
+            size_t requested,
+            HashSeed seed,
+        ) @trusted
+        {
+            Self result;
+            result.allocator_ = allocator;
+            Storage storage = Storage.withCapacity(allocator, requested, seed);
+            moveEmplace(storage, result.storage_);
+            return move(result);
+        }
+    }
+
+    void deinit() @trusted
+    {
+        if (allocator_ is null)
+            return;
+        storage_.deinit(allocator_);
+        allocator_ = null;
+    }
+
+    void resetAndRelease() @trusted
+    {
+        storage_.resetAndRelease(allocator_);
+    }
+
+    size_t length() const pure @trusted
+    {
+        return storage_.length;
+    }
+
+    size_t capacity() const pure @trusted
+    {
+        return storage_.capacity;
+    }
+
+    bool empty() const pure @trusted
+    {
+        return storage_.empty;
+    }
+
+    HashMapCursor!(K, V) cursor() return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    ConstHashMapCursor!(K, V) cursor() const return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    HashMapPointerRange!(K, V) pointerItems() return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    ConstHashMapPointerRange!(K, V) pointerItems() const return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    bool tryReserve(size_t requested) @trusted
+    {
+        return storage_.tryReserve(allocator_, requested);
+    }
+
+    void reserve(size_t requested) @trusted
+    {
+        storage_.reserve(allocator_, requested);
+    }
+
+    SetStatus trySet(scope K* key, scope V* value) @system
+    {
+        return storage_.trySet(allocator_, key, value);
+    }
+
+    bool set(scope K* key, scope V* value) @system
+    {
+        return storage_.set(allocator_, key, value);
+    }
+
+    AddStatus tryAdd(scope K* key, scope V* value) @system
+    {
+        return storage_.tryAdd(allocator_, key, value);
+    }
+
+    bool add(scope K* key, scope V* value) @system
+    {
+        return storage_.add(allocator_, key, value);
+    }
+
+    static if (isSimpleHashValue!K && isSimpleHashValue!V)
+    {
+        SetStatus trySet(K key, V value) @trusted
+        {
+            return storage_.trySet(allocator_, key, value);
+        }
+
+        bool set(K key, V value) @trusted
+        {
+            return storage_.set(allocator_, key, value);
+        }
+
+        AddStatus tryAdd(K key, V value) @trusted
+        {
+            return storage_.tryAdd(allocator_, key, value);
+        }
+
+        bool add(K key, V value) @trusted
+        {
+            return storage_.add(allocator_, key, value);
+        }
+    }
+
+    V* find(scope const(K)* key) return @trusted
+    {
+        return storage_.find(key);
+    }
+
+    const(V)* find(scope const(K)* key) const return @trusted
+    {
+        return storage_.find(key);
+    }
+
+    bool contains(scope const(K)* key) const @trusted
+    {
+        return storage_.contains(key);
+    }
+
+    bool remove(scope const(K)* key) @trusted
+    {
+        return storage_.remove(allocator_, key);
+    }
+
+    bool take(scope const(K)* key, scope K* keyOutput, scope V* valueOutput) @system
+    {
+        return storage_.take(key, keyOutput, valueOutput);
+    }
+
+    static if (isSimpleHashValue!K)
+    {
+        V* find(scope K key) return @trusted
+        {
+            return storage_.find(key);
+        }
+
+        const(V)* find(scope K key) const return @trusted
+        {
+            return storage_.find(key);
+        }
+
+        bool contains(scope K key) const @trusted
+        {
+            return storage_.contains(key);
+        }
+
+        bool remove(scope K key) @trusted
+        {
+            return storage_.remove(allocator_, key);
+        }
+
+        bool take(scope K key, scope K* keyOutput, scope V* valueOutput) @system
+        {
+            return storage_.take(&key, keyOutput, valueOutput);
+        }
+    }
+
+    void clear() @trusted
+    {
+        storage_.clear(allocator_);
+    }
+
+    bool tryShrinkToFit() @trusted
+    {
+        return storage_.tryShrinkToFit(allocator_);
+    }
+
+    void shrinkToFit() @trusted
+    {
+        storage_.shrinkToFit(allocator_);
+    }
+
+    // Foreach is a D language hook.
+    int opApply(
+        scope int delegate(ref const(K), ref V) nothrow @nogc callback,
+    )
+    {
+        return storage_.opApply(callback);
+    }
+
+    int opApply(
+        scope int delegate(ref const(K), ref const(V)) nothrow @nogc callback,
+    ) const
+    {
+        return storage_.opApply(callback);
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
+    }
+}
+
+private bool hashStorageOverlaps(A, B)(scope const(A)* left, scope const(B)* right)
+pure @system
+{
+    const leftAddress = cast(size_t) left;
+    const rightAddress = cast(size_t) right;
+    if (leftAddress <= rightAddress)
+        return rightAddress - leftAddress < A.sizeof;
+    return leftAddress - rightAddress < B.sizeof;
 }
 
 private void requireValidHashAllocator(Allocator* allocator) @trusted
@@ -1127,10 +1756,7 @@ private void requireValidHashAllocator(Allocator* allocator) @trusted
 
 private void constructHashMove(T)(T* destination, ref T source)
 {
-    static if (__traits(isPOD, T))
-        *destination = source;
-    else
-        moveEmplace(source, *destination);
+    moveEmplace(source, *destination);
 }
 
 private void replaceHashElement(alias Ops, T)(
@@ -1356,28 +1982,30 @@ private struct SetMarker
 
 /// Allocator-owned set sharing the same probing and lifetime semantics as
 /// `HashMap`. Stored values are exposed only as const pointers.
+/// Allocator-explicit set sharing the same storage engine as `HashMapUnmanaged`.
 struct HashSetUnmanaged(
     K,
     Hasher = DefaultHash!K,
     Equal = DefaultEqual!K,
+    ElementOps = DefaultHashMapElementOps!K,
 )
 {
 nothrow @nogc:
 
 private:
-    HashMapUnmanaged!(K, SetMarker, Hasher, Equal) map_;
+    HashMapUnmanaged!(K, SetMarker, Hasher, Equal, K,
+        ElementOps, DefaultHashMapElementOps!SetMarker) map_;
 
 public:
     @disable this(this);
+    @disable ref HashSetUnmanaged opAssign(HashSetUnmanaged source) return;
 
     static HashSetUnmanaged withPolicies(Hasher hasher, Equal equal)
     {
         HashSetUnmanaged result;
-        result.map_ = typeof(result.map_).withPolicies(
-            move(hasher),
-            move(equal),
-        );
-        return result;
+        auto storage = typeof(result.map_).withPolicies(move(hasher), move(equal));
+        moveEmplace(storage, result.map_);
+        return move(result);
     }
 
     static bool tryWithCapacity(
@@ -1388,37 +2016,33 @@ public:
     {
         version (XTB_Checked)
         {
-            require(output !is null,
-                "HashSetUnmanaged output pointer is null");
+            require(output !is null, "HashSetUnmanaged output pointer is null");
             require(output.map_.capacity == 0 && output.map_.empty,
                 "HashSetUnmanaged output is not empty");
         }
         HashSetUnmanaged temporary;
         if (!temporary.tryReserve(allocator, requested))
             return false;
-        *output = move(temporary);
+        moveEmplace(temporary, *output);
         return true;
     }
 
-    static HashSetUnmanaged withCapacity(
-        Allocator* allocator,
-        size_t requested,
-    )
+    static HashSetUnmanaged withCapacity(Allocator* allocator, size_t requested)
     {
         HashSetUnmanaged result;
         if (!tryWithCapacity(allocator, requested, &result))
             panic("HashSet allocation failed");
-        return result;
+        return move(result);
     }
 
-    static if (IsDefaultHashPolicy!(Hasher, K) &&
-        IsDefaultEqualPolicy!(Equal, K))
+    static if (IsDefaultHashPolicy!(Hasher, K) && IsDefaultEqualPolicy!(Equal, K))
     {
         static HashSetUnmanaged seeded(HashSeed seed)
         {
             HashSetUnmanaged result;
-            result.map_ = typeof(result.map_).seeded(seed);
-            return result;
+            auto storage = typeof(result.map_).seeded(seed);
+            moveEmplace(storage, result.map_);
+            return move(result);
         }
 
         static HashSetUnmanaged withCapacity(
@@ -1429,7 +2053,7 @@ public:
         {
             HashSetUnmanaged result = seeded(seed);
             result.reserve(allocator, requested);
-            return result;
+            return move(result);
         }
     }
 
@@ -1478,9 +2102,7 @@ public:
         return ConstHashSetPointerRange!K(cursor());
     }
 
-    int opApply(
-        scope int delegate(ref const(K)) nothrow @nogc callback,
-    )
+    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback)
     {
         foreach (index; 0 .. map_.capacity_)
         {
@@ -1493,9 +2115,7 @@ public:
         return 0;
     }
 
-    int opApply(
-        scope int delegate(ref const(K)) nothrow @nogc callback,
-    ) const
+    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback) const
     {
         foreach (index; 0 .. map_.capacity_)
         {
@@ -1508,24 +2128,64 @@ public:
         return 0;
     }
 
-    AddStatus tryAdd(Allocator* allocator, K value)
+    AddStatus tryAdd(Allocator* allocator, scope K* value) @system
     {
-        return map_.tryAdd(allocator, move(value), SetMarker.init);
+        SetMarker marker;
+        return map_.tryAdd(allocator, value, &marker);
     }
 
-    bool add(Allocator* allocator, K value)
+    bool add(Allocator* allocator, scope K* value) @system
     {
-        return map_.add(allocator, move(value), SetMarker.init);
+        SetMarker marker;
+        return map_.add(allocator, value, &marker);
     }
 
-    bool contains(scope K value) const
+    static if (isSimpleHashValue!K)
+    {
+        AddStatus tryAdd(Allocator* allocator, K value)
+        {
+            return map_.tryAdd(allocator, value, SetMarker.init);
+        }
+
+        bool add(Allocator* allocator, K value)
+        {
+            return map_.add(allocator, value, SetMarker.init);
+        }
+    }
+
+    bool contains(scope const(K)* value) const
     {
         return map_.contains(value);
     }
 
-    bool remove(Allocator* allocator, scope K value)
+    bool remove(Allocator* allocator, scope const(K)* value)
     {
         return map_.remove(allocator, value);
+    }
+
+    bool take(scope const(K)* value, scope K* output) @system
+    {
+        SetMarker marker = void;
+        return map_.take(value, output, &marker);
+    }
+
+    static if (isSimpleHashValue!K)
+    {
+        bool contains(scope K value) const
+        {
+            return map_.contains(value);
+        }
+
+        bool remove(Allocator* allocator, scope K value)
+        {
+            return map_.remove(allocator, value);
+        }
+
+        bool take(scope K value, scope K* output) @system
+        {
+            SetMarker marker = void;
+            return map_.take(&value, output, &marker);
+        }
     }
 
     bool tryReserve(Allocator* allocator, size_t requested)
@@ -1554,29 +2214,19 @@ public:
     }
 }
 
+/// Managed shallow hash set. Owns table storage but not element cleanup.
 struct HashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
-
     alias Self = HashSet!(K, Hasher, Equal);
     alias Storage = HashSetUnmanaged!(K, Hasher, Equal);
     alias Released = ReleasedStorage!Storage;
-
 private:
     Allocator* allocator_;
     Storage storage_;
-
-    version (XTB_Checked)
-    {
-        invariant
-        {
-            require(&this !is null, "HashSet pointer is null");
-        }
-    }
-
 public:
     @disable this(this);
-
+    @disable ref Self opAssign(Self source) return;
     static Self create(Allocator* allocator) @trusted
     {
         requireValidHashAllocator(allocator);
@@ -1585,43 +2235,32 @@ public:
         return result;
     }
 
-    static Self withPolicies(
-        Allocator* allocator,
-        Hasher hasher,
-        Equal equal,
-    ) @trusted
+    static Self withPolicies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
     {
         requireValidHashAllocator(allocator);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = Storage.withPolicies(move(hasher), move(equal));
+        Storage storage = Storage.withPolicies(move(hasher), move(equal));
+        moveEmplace(storage, result.storage_);
         return move(result);
     }
 
-    static bool tryWithCapacity(
-        Allocator* allocator,
-        size_t requested,
-        scope Self* output,
-    ) @trusted
+    static bool tryWithCapacity(Allocator* allocator, size_t requested, scope Self* output) @trusted
     {
         version (XTB_Checked)
         {
             require(output !is null, "HashSet output pointer is null");
-            require(output.allocator_ is null,
-                "HashSet output is already initialized");
+            require(output.allocator_ is null, "HashSet output is already initialized");
         }
         Storage storage;
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
-    static Self withCapacity(
-        Allocator* allocator,
-        size_t requested,
-    ) @trusted
+    static Self withCapacity(Allocator* allocator, size_t requested) @trusted
     {
         Self result;
         if (!tryWithCapacity(allocator, requested, &result))
@@ -1629,59 +2268,46 @@ public:
         return move(result);
     }
 
-    static if (IsDefaultHashPolicy!(Hasher, K) &&
-        IsDefaultEqualPolicy!(Equal, K))
+    static if (IsDefaultHashPolicy!(Hasher, K) && IsDefaultEqualPolicy!(Equal, K))
     {
         static Self seeded(Allocator* allocator, HashSeed seed) @trusted
         {
             requireValidHashAllocator(allocator);
             Self result;
             result.allocator_ = allocator;
-            result.storage_ = Storage.seeded(seed);
+            Storage storage = Storage.seeded(seed);
+            moveEmplace(storage, result.storage_);
             return move(result);
         }
 
-        static Self withCapacity(
-            Allocator* allocator,
-            size_t requested,
-            HashSeed seed,
-        ) @trusted
+        static Self withCapacity(Allocator* allocator, size_t requested, HashSeed seed) @trusted
         {
             Self result;
             result.allocator_ = allocator;
-            result.storage_ = Storage.withCapacity(
-                allocator,
-                requested,
-                seed,
-            );
+            Storage storage = Storage.withCapacity(allocator, requested, seed);
+            moveEmplace(storage, result.storage_);
             return move(result);
         }
     }
-
     static Self adopt(scope Released* released) @trusted
     {
         version (XTB_Checked)
-            require(released !is null,
-                "released HashSet storage pointer is null");
+            require(released !is null, "released HashSet storage pointer is null");
         Allocator* allocator;
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(storage);
+        moveEmplace(storage, result.storage_);
         return move(result);
-    }
-
-    ~this() @trusted
-    {
-        this.deinit();
     }
 
     void deinit() @trusted
     {
-        if (allocator_ is null)
-            return;
-        storage_.deinit(allocator_);
-        allocator_ = null;
+        if (allocator_ !is null)
+        {
+            storage_.deinit(allocator_);
+            allocator_ = null;
+        }
     }
 
     void resetAndRelease() @trusted
@@ -1731,26 +2357,60 @@ public:
         return storage_.pointerItems();
     }
 
-    AddStatus tryAdd(K value) @trusted
+    AddStatus tryAdd(scope K* value) @system
     {
-        return storage_.tryAdd(allocator_, move(value));
+        return storage_.tryAdd(allocator_, value);
     }
 
-    bool add(K value) @trusted
+    bool add(scope K* value) @system
     {
-        return storage_.add(allocator_, move(value));
+        return storage_.add(allocator_, value);
     }
 
-    bool contains(scope K value) const @trusted
+    static if (isSimpleHashValue!K)
+    {
+        AddStatus tryAdd(K value) @trusted
+        {
+            return storage_.tryAdd(allocator_, value);
+        }
+
+        bool add(K value) @trusted
+        {
+            return storage_.add(allocator_, value);
+        }
+    }
+    bool contains(scope const(K)* value) const @trusted
     {
         return storage_.contains(value);
     }
 
-    bool remove(scope K value) @trusted
+    bool remove(scope const(K)* value) @trusted
     {
         return storage_.remove(allocator_, value);
     }
 
+    bool take(scope const(K)* value, scope K* output) @system
+    {
+        return storage_.take(value, output);
+    }
+
+    static if (isSimpleHashValue!K)
+    {
+        bool contains(scope K value) const @trusted
+        {
+            return storage_.contains(value);
+        }
+
+        bool remove(scope K value) @trusted
+        {
+            return storage_.remove(allocator_, value);
+        }
+
+        bool take(scope K value, scope K* output) @system
+        {
+            return storage_.take(value, output);
+        }
+    }
     bool tryReserve(size_t requested) @trusted
     {
         return storage_.tryReserve(allocator_, requested);
@@ -1776,16 +2436,12 @@ public:
         storage_.shrinkToFit(allocator_);
     }
 
-    int opApply(
-        scope int delegate(ref const(K)) nothrow @nogc callback,
-    )
+    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback)
     {
         return storage_.opApply(callback);
     }
 
-    int opApply(
-        scope int delegate(ref const(K)) nothrow @nogc callback,
-    ) const
+    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback) const
     {
         return storage_.opApply(callback);
     }
@@ -1796,19 +2452,237 @@ public:
     }
 
 package(xtb):
-    static Self adoptUnmanaged(
-        Allocator* allocator,
-        scope Storage* storage,
-    ) @system
+    static Self adoptUnmanaged(Allocator* allocator, scope Storage* storage) @system
     {
         requireValidHashAllocator(allocator);
         version (XTB_Checked)
-            require(storage !is null,
-                "HashSetUnmanaged pointer is null");
+            require(storage !is null, "HashSetUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(*storage);
+        moveEmplace(*storage, result.storage_);
         return move(result);
+    }
+}
+
+/// Managed hash set that owns cleanup of stored elements.
+struct OwnedHashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
+{
+nothrow @nogc:
+    static assert(!hasElaborateDestructor!K || needsDeinit!K,
+        "OwnedHashSet cannot own lexical destructor-only element types");
+    static assert(supportsOwnedHashElementDeinit!K,
+        "OwnedHashSet element cleanup must support free deinit(value) without context");
+    alias Self = OwnedHashSet!(K, Hasher, Equal);
+    alias Storage = HashSetUnmanaged!(K, Hasher, Equal, OwnedHashMapElementOps!K);
+private:
+    Allocator* allocator_;
+    Storage storage_;
+public:
+    @disable this(this);
+    @disable ref Self opAssign(Self source) return;
+    static Self create(Allocator* allocator) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self r;
+        r.allocator_ = allocator;
+        return r;
+    }
+
+    static Self withPolicies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
+    {
+        requireValidHashAllocator(allocator);
+        Self r;
+        r.allocator_ = allocator;
+        Storage st = Storage.withPolicies(move(hasher), move(equal));
+        moveEmplace(st, r.storage_);
+        return move(r);
+    }
+
+    static bool tryWithCapacity(Allocator* allocator, size_t requested, scope Self* output) @trusted
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "OwnedHashSet output pointer is null");
+            require(output.allocator_ is null, "OwnedHashSet output is already initialized");
+        }
+        Storage st;
+        if (!Storage.tryWithCapacity(allocator, requested, &st))
+            return false;
+        output.allocator_ = allocator;
+        moveEmplace(st, output.storage_);
+        return true;
+    }
+
+    static Self withCapacity(Allocator* allocator, size_t requested) @trusted
+    {
+        Self r;
+        if (!tryWithCapacity(allocator, requested, &r))
+            panic("OwnedHashSet allocation failed");
+        return move(r);
+    }
+
+    static if (IsDefaultHashPolicy!(Hasher, K) && IsDefaultEqualPolicy!(Equal, K))
+    {
+        static Self seeded(Allocator* allocator, HashSeed seed) @trusted
+        {
+            requireValidHashAllocator(allocator);
+            Self r;
+            r.allocator_ = allocator;
+            Storage st = Storage.seeded(seed);
+            moveEmplace(st, r.storage_);
+            return move(r);
+        }
+
+        static Self withCapacity(Allocator* allocator, size_t requested, HashSeed seed) @trusted
+        {
+            Self r;
+            r.allocator_ = allocator;
+            Storage st = Storage.withCapacity(allocator, requested, seed);
+            moveEmplace(st, r.storage_);
+            return move(r);
+        }
+    }
+    void deinit() @trusted
+    {
+        if (allocator_ !is null)
+        {
+            storage_.deinit(allocator_);
+            allocator_ = null;
+        }
+    }
+
+    void resetAndRelease() @trusted
+    {
+        storage_.resetAndRelease(allocator_);
+    }
+
+    size_t length() const pure @trusted
+    {
+        return storage_.length;
+    }
+
+    size_t capacity() const pure @trusted
+    {
+        return storage_.capacity;
+    }
+
+    bool empty() const pure @trusted
+    {
+        return storage_.empty;
+    }
+
+    HashSetCursor!K cursor() return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    ConstHashSetCursor!K cursor() const return @trusted
+    {
+        return storage_.cursor();
+    }
+
+    HashSetPointerRange!K pointerItems() return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    ConstHashSetPointerRange!K pointerItems() const return @trusted
+    {
+        return storage_.pointerItems();
+    }
+
+    AddStatus tryAdd(scope K* value) @system
+    {
+        return storage_.tryAdd(allocator_, value);
+    }
+
+    bool add(scope K* value) @system
+    {
+        return storage_.add(allocator_, value);
+    }
+
+    static if (isSimpleHashValue!K)
+    {
+        AddStatus tryAdd(K value) @trusted
+        {
+            return storage_.tryAdd(allocator_, value);
+        }
+
+        bool add(K value) @trusted
+        {
+            return storage_.add(allocator_, value);
+        }
+    }
+    bool contains(scope const(K)* value) const @trusted
+    {
+        return storage_.contains(value);
+    }
+
+    bool remove(scope const(K)* value) @trusted
+    {
+        return storage_.remove(allocator_, value);
+    }
+
+    bool take(scope const(K)* value, scope K* output) @system
+    {
+        return storage_.take(value, output);
+    }
+
+    static if (isSimpleHashValue!K)
+    {
+        bool contains(scope K value) const @trusted
+        {
+            return storage_.contains(value);
+        }
+
+        bool remove(scope K value) @trusted
+        {
+            return storage_.remove(allocator_, value);
+        }
+
+        bool take(scope K value, scope K* output) @system
+        {
+            return storage_.take(value, output);
+        }
+    }
+    bool tryReserve(size_t requested) @trusted
+    {
+        return storage_.tryReserve(allocator_, requested);
+    }
+
+    void reserve(size_t requested) @trusted
+    {
+        storage_.reserve(allocator_, requested);
+    }
+
+    void clear() @trusted
+    {
+        storage_.clear(allocator_);
+    }
+
+    bool tryShrinkToFit() @trusted
+    {
+        return storage_.tryShrinkToFit(allocator_);
+    }
+
+    void shrinkToFit() @trusted
+    {
+        storage_.shrinkToFit(allocator_);
+    }
+
+    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback)
+    {
+        return storage_.opApply(callback);
+    }
+
+    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback) const
+    {
+        return storage_.opApply(callback);
+    }
+
+    Allocator* allocator() return pure @safe
+    {
+        return allocator_;
     }
 }
 
@@ -2004,6 +2878,10 @@ unittest
     pointers.set(&second, 2);
     assert(*pointers.find(&first) == 1);
     assert(*pointers.find(&second) == 2);
+
+    numbers.deinit();
+    preallocated.deinit();
+    pointers.deinit();
 }
 
 unittest
@@ -2025,6 +2903,7 @@ unittest
     foreach (value; 1 .. 128)
         if ((value & 1) != 0)
             assert(*collisions.find(value) == value * 3);
+    collisions.deinit();
 
     AllocationRecord[16] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
@@ -2066,23 +2945,29 @@ unittest
 
     int destructions;
     {
-        HashMap!(int, TrackedHashValue) values =
-            HashMap!(int, TrackedHashValue).create(mallocAllocator());
-        assert(values.add(1, TrackedHashValue(&destructions, 10, true)));
-        assert(values.add(2, TrackedHashValue(&destructions, 20, true)));
-        assert(!values.set(1, TrackedHashValue(&destructions, 11, true)));
+        OwnedHashMap!(int, TrackedHashValue) values =
+            OwnedHashMap!(int, TrackedHashValue).create(mallocAllocator());
+        int key1 = 1;
+        int key2 = 2;
+        TrackedHashValue value1 = TrackedHashValue(&destructions, 10, true);
+        TrackedHashValue value2 = TrackedHashValue(&destructions, 20, true);
+        assert(values.add(&key1, &value1));
+        assert(values.add(&key2, &value2));
+        TrackedHashValue replacement = TrackedHashValue(&destructions, 11, true);
+        assert(!values.set(&key1, &replacement));
         assert(destructions == 1);
         assert(values.find(1).value == 11);
         assert(values.remove(2));
         assert(destructions == 2);
         values.clear();
         assert(destructions == 3);
+        values.deinit();
     }
     assert(destructions == 3);
 
     int liveKeys;
     {
-        alias TrackedMap = HashMap!(
+        alias TrackedMap = OwnedHashMap!(
             TrackedHashKey,
             int,
             TrackedKeyHash,
@@ -2090,12 +2975,19 @@ unittest
         );
         TrackedMap trackedKeys = TrackedMap.create(mallocAllocator());
         foreach (value; 0 .. 32)
-            trackedKeys.add(TrackedHashKey(value, &liveKeys), value);
+        {
+            TrackedHashKey tracked = TrackedHashKey(value, &liveKeys);
+            int stored = value;
+            assert(trackedKeys.add(&tracked, &stored));
+        }
         assert(liveKeys == 32);
         TrackedHashKey key = TrackedHashKey(7, &liveKeys);
-        assert(trackedKeys.remove(key));
-        assert(!trackedKeys.contains(key));
+        assert(trackedKeys.remove(&key));
+        assert(!trackedKeys.contains(&key));
         trackedKeys.clear();
+        assert(liveKeys == 1);
+        deinitValue(key);
+        trackedKeys.deinit();
     }
     assert(liveKeys == 0);
 
@@ -2149,6 +3041,7 @@ unittest
         48,
     );
     assert(preallocated.capacity >= 48);
+    preallocated.deinit();
 
     static assert(!__traits(compiles,
             (ref HashMap!(int, int) map) { HashMap!(int, int) copy = map; }));
@@ -2173,6 +3066,10 @@ unittest
     static assert(IntSet.sizeof ==
             IntSetStorage.sizeof + (Allocator*).sizeof);
     static assert(!__traits(isCopyable, IntMapStorage));
+    static assert(!__traits(compiles,
+            (ref IntMapStorage left, ref IntMapStorage right) { left = move(right); }));
+    static assert(!__traits(compiles, HashMapUnmanaged!(
+            int, int, CleanupHashPolicy, DefaultEqual!int).init));
     static assert(!__traits(isCopyable, IntMap));
     static assert(!__traits(isCopyable, IntMap.Released));
     static assert(!__traits(isCopyable, IntSetStorage));
@@ -2197,13 +3094,15 @@ unittest
 
     IntMapStorage zeroMap;
     zeroMap.deinit(null);
-    zeroMap.resetAndRelease(null);
-    assert(zeroMap.empty && zeroMap.capacity == 0);
+    IntMapStorage resetMap;
+    resetMap.resetAndRelease(null);
+    assert(resetMap.empty && resetMap.capacity == 0);
 
     IntSetStorage zeroSet;
     zeroSet.deinit(null);
-    zeroSet.resetAndRelease(null);
-    assert(zeroSet.empty && zeroSet.capacity == 0);
+    IntSetStorage resetSet;
+    resetSet.resetAndRelease(null);
+    assert(resetSet.empty && resetSet.capacity == 0);
 
     AllocationRecord[32] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
@@ -2235,6 +3134,7 @@ unittest
         assert(released.allocator is null && released.storage.empty);
         assert(adopted.allocator is tracked.allocator);
         assert(*adopted.find(3) == 30);
+        adopted.deinit();
     }
     assert(tracked.clean);
 
@@ -2268,6 +3168,7 @@ unittest
         IntSet adopted = IntSet.adopt(&released);
         assert(released.allocator is null && released.storage.empty);
         assert(adopted.contains(7) && adopted.contains(8));
+        adopted.deinit();
     }
     assert(tracked.clean);
 }
@@ -2530,10 +3431,6 @@ unittest
     unmanaged.resetAndRelease(allocator.allocator);
     unmanaged.set(allocator.allocator, 5, 50);
     assert(unmanaged.find(7) !is null);
-    unmanaged.deinit(allocator.allocator);
-
-    unmanaged.set(allocator.allocator, 9, 90);
-    assert(unmanaged.find(11) is null);
     unmanaged.deinit(allocator.allocator);
     assert(allocator.clean && allocator.stats.invalidCalls == 0);
 }

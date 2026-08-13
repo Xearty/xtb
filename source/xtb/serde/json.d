@@ -791,7 +791,7 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
     else static if (isHashMap!U)
         decodeHashMap(parser, cast(U*) output, depth);
     else static if (isStringHashMap!U)
-        decodeStringHashMap!(StringHashMapValue!U)(
+        decodeStringHashMap!U(
             parser,
             cast(U*) output,
             depth,
@@ -1705,10 +1705,12 @@ private void decodeHashMap(K, V, Hasher, Equal)(
     }
 
     Map values = Map.create(parser.allocator);
+    scope (exit)
+        values.deinit();
     parser.skipWhitespace();
     if (parser.consume('}'))
     {
-        move(values, *output);
+        moveEmplace(values, *output);
         return;
     }
 
@@ -1741,7 +1743,7 @@ private void decodeHashMap(K, V, Hasher, Equal)(
         decodeValue(parser, &value, depth + 1);
         if (!parser.error.ok)
             return;
-        final switch (values.tryAdd(key, move(value)))
+        final switch (values.tryAdd(&key, &value))
         {
             case AddStatus.inserted:
                 break;
@@ -1768,16 +1770,16 @@ private void decodeHashMap(K, V, Hasher, Equal)(
             return;
         }
     }
-    move(values, *output);
+    moveEmplace(values, *output);
 }
 
-private void decodeStringHashMap(V)(
+private void decodeStringHashMap(Map)(
     ref JsonParser parser,
-    StringHashMap!V* output,
+    Map* output,
     size_t depth,
-)
+) if (isStringHashMap!Map)
 {
-    alias Map = StringHashMap!V;
+    alias V = StringHashMapValue!Map;
     if (depth >= parser.options.limits.maxDepth)
     {
         parser.fail(SerdeErrorKind.depthLimit);
@@ -1790,10 +1792,12 @@ private void decodeStringHashMap(V)(
     }
 
     Map values = Map.create(parser.allocator);
+    scope (exit)
+        deinitOwnedValue(&values);
     parser.skipWhitespace();
     if (parser.consume('}'))
     {
-        move(values, *output);
+        moveEmplace(values, *output);
         return;
     }
 
@@ -1807,6 +1811,8 @@ private void decodeStringHashMap(V)(
         }
         const keyStart = parser.position;
         OwnedString key;
+        scope (exit)
+            key.deinit();
         decodeOwnedString(parser, &key);
         if (!parser.error.ok)
             return;
@@ -1821,6 +1827,8 @@ private void decodeStringHashMap(V)(
 
         V value;
         initializeOwnedValue(parser.allocator, &value);
+        scope (exit)
+            deinitOwnedValue(&value);
         decodeValue(parser, &value, depth + 1);
         if (!parser.error.ok)
             return;
@@ -1851,7 +1859,7 @@ private void decodeStringHashMap(V)(
             return;
         }
     }
-    move(values, *output);
+    moveEmplace(values, *output);
 }
 
 private void decodeFixedArray(T)(ref JsonParser parser, T* output, size_t depth)

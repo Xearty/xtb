@@ -2,7 +2,7 @@ module xtb.core.string_hash_set;
 
 nothrow @nogc:
 
-import core.lifetime : move;
+import xtb.core.lifetime : move, moveEmplace;
 import xtb.core.hash : HashSeed;
 import xtb.core.hash_map : AddStatus, HashSet, HashSetUnmanaged;
 import xtb.core.memory : Allocator;
@@ -46,11 +46,13 @@ private:
 
 public:
     @disable this(this);
+    @disable ref StringHashSetUnmanaged opAssign(StringHashSetUnmanaged source) return;
 
     static StringHashSetUnmanaged seeded(HashSeed seed) @trusted
     {
         StringHashSetUnmanaged result;
-        result.map_ = typeof(result.map_).seeded(seed);
+        auto map = typeof(result.map_).seeded(seed);
+        moveEmplace(map, result.map_);
         return move(result);
     }
 
@@ -70,7 +72,7 @@ public:
         StringHashMapUnmanaged!StringSetMarker map;
         if (!typeof(map).tryWithCapacity(allocator, requested, &map))
             return false;
-        output.map_ = move(map);
+        moveEmplace(map, output.map_);
         return true;
     }
 
@@ -254,7 +256,7 @@ public:
     }
 }
 
-/// RAII string set that owns every inserted string.
+/// Explicit owner for every inserted string and the set backing storage.
 struct StringHashSet
 {
 nothrow @nogc:
@@ -276,6 +278,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref StringHashSet opAssign(StringHashSet source) return;
 
     static StringHashSet create(Allocator* allocator) @trusted
     {
@@ -293,7 +296,8 @@ public:
         requireValidStringHashSetAllocator(allocator);
         StringHashSet result;
         result.allocator_ = allocator;
-        result.storage_ = Storage.seeded(seed);
+        Storage storage = Storage.seeded(seed);
+        moveEmplace(storage, result.storage_);
         return move(result);
     }
 
@@ -313,7 +317,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -337,7 +341,8 @@ public:
         requireValidStringHashSetAllocator(allocator);
         StringHashSet result;
         result.allocator_ = allocator;
-        result.storage_ = Storage.withCapacity(allocator, requested, seed);
+        Storage storage = Storage.withCapacity(allocator, requested, seed);
+        moveEmplace(storage, result.storage_);
         return move(result);
     }
 
@@ -350,13 +355,8 @@ public:
         Storage storage = released.extract(&allocator);
         StringHashSet result;
         result.allocator_ = allocator;
-        result.storage_ = move(storage);
+        moveEmplace(storage, result.storage_);
         return move(result);
-    }
-
-    ~this() @trusted
-    {
-        this.deinit();
     }
 
     void deinit() @trusted
@@ -626,6 +626,8 @@ unittest
     static assert(is(StringViewHashSet == HashSet!String));
     static assert(!__traits(isCopyable, StringHashSet));
     static assert(!__traits(isCopyable, StringHashSetUnmanaged));
+    static assert(!__traits(compiles,
+            (ref StringHashSetUnmanaged left, ref StringHashSetUnmanaged right) { left = move(right); }));
     static assert(__traits(compiles, (scope StringHashSet* value) @safe {
             Allocator* allocator = value.allocator;
         }));
@@ -637,6 +639,7 @@ unittest
         assert(borrowed.add("borrowed"));
         assert(borrowed.contains("borrowed"));
     }
+    borrowed.deinit();
 
     StringHashSetUnmanaged unmanaged;
     StringHashSetUnmanaged* unmanagedPointer = &unmanaged;
@@ -724,6 +727,7 @@ unittest
     assert(values.allocator is null && values.empty);
     StringHashSet adopted = StringHashSet.adopt(&released);
     assert(adopted.contains("beta") && adopted.contains("gamma"));
+    adopted.deinit();
 }
 
 unittest

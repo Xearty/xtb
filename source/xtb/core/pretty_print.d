@@ -275,9 +275,20 @@ private enum isHashMapType(T) = is(
         Value,
         Hasher,
         Equal,
+    ) || is(
+        Unqualified!T == OwnedHashMap!(Key, Value, Hasher, Equal),
+        Key,
+        Value,
+        Hasher,
+        Equal,
     );
 private enum isHashSetType(T) = is(
         Unqualified!T == HashSet!(Key, Hasher, Equal),
+        Key,
+        Hasher,
+        Equal,
+    ) || is(
+        Unqualified!T == OwnedHashSet!(Key, Hasher, Equal),
         Key,
         Hasher,
         Equal,
@@ -285,11 +296,11 @@ private enum isHashSetType(T) = is(
 private enum isOwnedStringType(T) = is(Unqualified!T == OwnedString) ||
     is(Unqualified!T == OwnedStringUnmanaged);
 private enum isStringHashMapType(T) = is(
-        Unqualified!T == StringHashMap!Value,
-        Value,
+        Unqualified!T == BasicStringHashMap!(Value, ValueOps, OwnsValues),
+        Value, ValueOps, bool OwnsValues,
     ) || is(
-        Unqualified!T == StringHashMapUnmanaged!Value,
-        Value,
+        Unqualified!T == StringHashMapUnmanaged!(Value, ValueOps),
+        Value, ValueOps,
     );
 
 /// Tracks semantic recursion separately from visual indentation. Constructor-
@@ -3347,6 +3358,22 @@ unittest
     hashSet.expectWidthEstimateCovers(noTypes);
     hashSet.expectPretty("{... (1 more)}", noneShown);
     hashSet.deinit();
+
+    OwnedHashMap!(String, int) ownedMap =
+        OwnedHashMap!(String, int).create(mallocAllocator());
+    String ownedKey = "owned";
+    int ownedValue = 9;
+    assert(ownedMap.add(&ownedKey, &ownedValue));
+    ownedMap.expectPretty("{\"owned\": 9}", noTypes);
+    ownedMap.expectWidthEstimateCovers(noTypes);
+    ownedMap.deinit();
+
+    OwnedHashSet!int ownedSet = OwnedHashSet!int.create(mallocAllocator());
+    int ownedElement = 11;
+    assert(ownedSet.add(&ownedElement));
+    ownedSet.expectPretty("{11}", noTypes);
+    ownedSet.expectWidthEstimateCovers(noTypes);
+    ownedSet.deinit();
 }
 
 unittest

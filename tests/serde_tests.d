@@ -4,7 +4,7 @@ import core.lifetime : move;
 import tests.serde_backend_contract : runSerdeBackendContracts;
 import xtb.core.array;
 import xtb.core.hash_map;
-import xtb.core.lifetime : deinitValue = deinit;
+import xtb.core.lifetime : deinitValue = deinit, moveEmplace;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
@@ -13,6 +13,7 @@ import xtb.core.owned_string;
 import xtb.core.print : Writer;
 import xtb.core.string;
 import xtb.core.string_hash_map;
+import xtb.core.string_hash_set : StringHashSet;
 import xtb.core.types : u8;
 import xtb.serde.attributes;
 import xtb.serde.casing;
@@ -411,14 +412,20 @@ private struct HashMapDocument
 
 private struct OwnedStringMapDocument
 {
-    StringHashMap!OwnedString values;
+    OwnedStringHashMap!OwnedString values;
 }
+
+alias OwnedStringArrayMap = OwnedStringHashMap!(OwnedArray!int);
 
 private struct HashMapContainers
 {
     HashMap!(String, int)[] values;
     HashMap!(String, int)* pointer;
 }
+
+static assert(!isSerdeStruct!(HashSet!int));
+static assert(!isSerdeStruct!(OwnedHashSet!int));
+static assert(!isSerdeStruct!StringHashSet);
 
 private struct StaticInitializer
 {
@@ -1836,7 +1843,8 @@ private void testTomlHashMaps() nothrow @nogc
     assert(decoded.empty);
 
     HashMapDocument document;
-    document.values = HashMap!(String, int).create(mallocAllocator());
+    auto documentValues = HashMap!(String, int).create(mallocAllocator());
+    moveEmplace(documentValues, document.values);
     assert(document.values.tryAdd("one", 1) == AddStatus.inserted);
     encoded.clear();
     writer = Writer.fromSink(&bufferSink, &encoded);
@@ -2106,6 +2114,103 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
             break;
     }
     assert(tomlReachedSuccess);
+
+    // Direct owned decoding must also clean a decoded value that could not be
+    // inserted because the key was duplicated. The map only owns values after
+    // successful insertion; retained locals remain the decoder's responsibility.
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        OwnedStringArrayMap allocated;
+        error = readJson(
+            "{\"same\":[1,2],\"same\":[3,4]}",
+            allocator.allocator,
+            &allocated,
+        );
+        assert(error.kind == SerdeErrorKind.duplicateField);
+        assert(allocated.empty);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+    }
+
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        OwnedStringArrayMap allocated;
+        error = readToml(
+            "same = [1, 2]\nsame = [3, 4]\n",
+            allocator.allocator,
+            &allocated,
+        );
+        assert(error.kind == SerdeErrorKind.duplicateField);
+        assert(allocated.empty);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+    }
+
+    bool ownedJsonReachedSuccess;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        OwnedStringArrayMap allocated;
+        error = readJson(
+            "{\"one\":[1,2,3],\"two\":[4,5,6]}",
+            allocator.allocator,
+            &allocated,
+        );
+        if (error.ok)
+        {
+            assert(allocated.length == 2);
+            allocated.deinit();
+            ownedJsonReachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(allocated.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (ownedJsonReachedSuccess)
+            break;
+    }
+    assert(ownedJsonReachedSuccess);
+
+    bool ownedTomlReachedSuccess;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        OwnedStringArrayMap allocated;
+        error = readToml(
+            "one = [1, 2, 3]\ntwo = [4, 5, 6]\n",
+            allocator.allocator,
+            &allocated,
+        );
+        if (error.ok)
+        {
+            assert(allocated.length == 2);
+            allocated.deinit();
+            ownedTomlReachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(allocated.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (ownedTomlReachedSuccess)
+            break;
+    }
+    assert(ownedTomlReachedSuccess);
 
     nestedToml.values.deinit();
     nestedJson.values.deinit();

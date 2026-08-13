@@ -12,6 +12,7 @@ import xtb.core.result : Result;
 import xtb.core.owned_string;
 import xtb.core.string;
 import xtb.core.string_hash_map;
+import xtb.core.string_hash_set : StringHashSet, StringHashSetUnmanaged;
 import xtb.core.types : String;
 import xtb.serde.attributes;
 import xtb.serde.casing : casedNamesEqual, matchesCased;
@@ -53,6 +54,13 @@ template OptionElement(T)
 enum isOption(T) = is(Unqualified!T == Option!Element, Element);
 enum isResult(T) = is(Unqualified!T == Result!(Value, Error), Value, Error);
 
+enum isHashMap(T) = is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
+        Key, Value, Hasher, Equal);
+enum isOwnedHashMap(T) = is(
+        Unqualified!T == OwnedHashMap!(Key, Value, Hasher, Equal),
+        Key, Value, Hasher, Equal,
+    );
+
 template HashMapKey(T)
 {
     static if (is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
@@ -71,18 +79,46 @@ template HashMapValue(T)
         static assert(false, T.stringof ~ " is not a HashMap");
 }
 
-enum isHashMap(T) = is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
-        Key, Value, Hasher, Equal);
+enum isHashSet(T) = is(
+        Unqualified!T == HashSet!(Key, Hasher, Equal),
+        Key, Hasher, Equal,
+    );
+enum isOwnedHashSet(T) = is(
+        Unqualified!T == OwnedHashSet!(Key, Hasher, Equal),
+        Key, Hasher, Equal,
+    );
+
+enum isStringHashSet(T) = is(Unqualified!T == StringHashSet);
 
 template StringHashMapValue(T)
 {
-    static if (is(Unqualified!T == StringHashMap!Value, Value))
+    alias U = Unqualified!T;
+    static if (is(U == BasicStringHashMap!(Value, ValueOps, OwnsValues),
+            Value, ValueOps, bool OwnsValues))
         alias StringHashMapValue = Value;
     else
         static assert(false, T.stringof ~ " is not a StringHashMap");
 }
 
-enum isStringHashMap(T) = is(Unqualified!T == StringHashMap!Value, Value);
+template isStringHashMap(T)
+{
+    alias U = Unqualified!T;
+    static if (is(U == BasicStringHashMap!(Value, ValueOps, OwnsValues),
+            Value, ValueOps, bool OwnsValues))
+        enum isStringHashMap = true;
+    else
+        enum isStringHashMap = false;
+}
+
+template isOwnedStringHashMap(T)
+{
+    alias U = Unqualified!T;
+    static if (is(U == BasicStringHashMap!(Value, ValueOps, OwnsValues),
+            Value, ValueOps, bool OwnsValues))
+        enum isOwnedStringHashMap = OwnsValues;
+    else
+        enum isOwnedStringHashMap = false;
+}
 
 enum isArrayUnmanaged(T) =
     is(Unqualified!T == ArrayUnmanaged!Element, Element);
@@ -104,14 +140,15 @@ enum isHashMapUnmanaged(T) = is(
     );
 
 enum isHashSetUnmanaged(T) = is(
-        Unqualified!T == HashSetUnmanaged!(Key, Hasher, Equal),
-        Key, Hasher, Equal,
+        Unqualified!T == HashSetUnmanaged!(Key, Hasher, Equal, ElementOps),
+        Key, Hasher, Equal, ElementOps,
     );
 
 enum isUnmanagedContainer(T) = isArrayUnmanaged!T ||
     isStringBufUnmanaged!T || isHashMapUnmanaged!T ||
-    isHashSetUnmanaged!T || is(Unqualified!T == OwnedStringUnmanaged) ||
-    is(Unqualified!T == StringHashMapUnmanaged!Value, Value);
+    isHashSetUnmanaged!T || is(Unqualified!T == StringHashSetUnmanaged) ||
+    is(Unqualified!T == OwnedStringUnmanaged) ||
+    is(Unqualified!T == StringHashMapUnmanaged!(Value, ValueOps), Value, ValueOps);
 
 private enum isSerdeHashMapKey(T) = is(Unqualified!T == String);
 
@@ -127,7 +164,8 @@ enum isSerdeUnion(T) = is(Unqualified!T == union);
 
 enum isSerdeStruct(T) = is(Unqualified!T == struct) && !isStringBuf!T &&
     !isOwnedString!T && !isArray!T && !isOption!T && !isResult!T &&
-    !isHashMap!T && !isStringHashMap!T &&
+    !isHashMap!T && !isOwnedHashMap!T && !isHashSet!T &&
+    !isOwnedHashSet!T && !isStringHashMap!T && !isStringHashSet!T &&
     !isUnmanagedContainer!T &&
     !__traits(hasMember, Unqualified!T, "__dtor");
 
@@ -823,8 +861,12 @@ private bool ownedValue(T)() pure @safe
         return ownedValue!(ArrayElement!U) &&
             !needsDeinit!(ArrayElement!U) &&
             !hasElaborateDestructor!(ArrayElement!U);
-    else static if (isStringHashMap!U)
+    else static if (isOwnedStringHashMap!U)
         return ownedValue!(StringHashMapValue!U);
+    else static if (isStringHashMap!U)
+        return ownedValue!(StringHashMapValue!U) &&
+            !needsDeinit!(StringHashMapValue!U) &&
+            !hasElaborateDestructor!(StringHashMapValue!U);
     else static if (isFixedArray!U)
         return ownedValue!(typeof(U.init[0]));
     else static if (isTaggedUnion!U)
@@ -887,7 +929,10 @@ package(xtb.serde) void initializeOwnedValue(T)(
     static if (isStringBuf!U)
         *cast(StringBuf*) output = StringBuf.create(allocator);
     else static if (isStringHashMap!U)
-        *cast(U*) output = U.create(allocator);
+    {
+        U created = U.create(allocator);
+        moveEmplace(created, *cast(U*) output);
+    }
     else static if (isOption!U)
         initializeOwnedValue(allocator, &(*output).storage());
     else static if (isArray!U)

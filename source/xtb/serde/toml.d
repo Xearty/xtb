@@ -170,7 +170,7 @@ SerdeError readToml(T)(
     parser.line = 1;
     parser.column = 1;
     static if (isStringHashMap!T)
-        parseStringHashMapDocument!(StringHashMapValue!T)(parser, &decoded);
+        parseStringHashMapDocument!T(parser, &decoded);
     else
     {
         bool[tomlNodeCount!T] seen;
@@ -1318,6 +1318,8 @@ private void parseHashMapDocument(K, V, Hasher, Equal)(
     alias Map = HashMap!(K, V, Hasher, Equal);
     static assert(is(Unqualified!K == String));
     Map values = Map.create(parser.allocator);
+    scope (exit)
+        values.deinit();
     parser.spaceAndComments();
     size_t assignments;
     while (!parser.atEnd && parser.error.ok)
@@ -1348,7 +1350,7 @@ private void parseHashMapDocument(K, V, Hasher, Equal)(
             decodeValue(parser, &value, 0);
         if (parser.error.ok)
         {
-            final switch (values.tryAdd(key[0].value, move(value)))
+            final switch (values.tryAdd(&key[0].value, &value))
             {
                 case AddStatus.inserted:
                     key[0].owned = false;
@@ -1367,16 +1369,18 @@ private void parseHashMapDocument(K, V, Hasher, Equal)(
             finishDocumentEntry(parser);
     }
     if (parser.error.ok)
-        move(values, *output);
+        moveEmplace(values, *output);
 }
 
-private void parseStringHashMapDocument(V)(
+private void parseStringHashMapDocument(Map)(
     ref TomlParser parser,
-    StringHashMap!V* output,
-)
+    Map* output,
+) if (isStringHashMap!Map)
 {
-    alias Map = StringHashMap!V;
+    alias V = StringHashMapValue!Map;
     Map values = Map.create(parser.allocator);
+    scope (exit)
+        deinitOwnedValue(&values);
     parser.spaceAndComments();
     size_t assignments;
     while (!parser.atEnd && parser.error.ok)
@@ -1403,6 +1407,8 @@ private void parseStringHashMapDocument(V)(
         parser.horizontalSpace();
 
         OwnedString ownedKey;
+        scope (exit)
+            ownedKey.deinit();
         if (parser.error.ok &&
             !OwnedString.tryFromString(
                 parser.allocator,
@@ -1413,6 +1419,8 @@ private void parseStringHashMapDocument(V)(
 
         V value;
         initializeOwnedValue(parser.allocator, &value);
+        scope (exit)
+            deinitOwnedValue(&value);
         if (parser.error.ok)
             decodeValue(parser, &value, 0);
         if (parser.error.ok)
@@ -1435,7 +1443,7 @@ private void parseStringHashMapDocument(V)(
             finishDocumentEntry(parser);
     }
     if (parser.error.ok)
-        move(values, *output);
+        moveEmplace(values, *output);
 }
 
 private void parseDocument(T)(ref TomlParser parser, T* output, bool* seen)
@@ -1876,11 +1884,7 @@ private void decodeValue(T)(ref TomlParser parser, T* output, size_t depth)
     else static if (isHashMap!U)
         decodeHashMapInline(parser, cast(U*) output, depth);
     else static if (isStringHashMap!U)
-        decodeStringHashMapInline!(StringHashMapValue!U)(
-            parser,
-            cast(U*) output,
-            depth,
-        );
+        decodeStringHashMapInline!U(parser, cast(U*) output, depth);
     else static if (isTaggedUnion!U)
         decodeTaggedInline(parser, output, depth);
     else static if (isSerdeStruct!U)
@@ -2295,10 +2299,12 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
         return;
     }
     Map values = Map.create(parser.allocator);
+    scope (exit)
+        values.deinit();
     parser.horizontalSpace();
     if (parser.consume('}'))
     {
-        move(values, *output);
+        moveEmplace(values, *output);
         return;
     }
     size_t count;
@@ -2325,7 +2331,7 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
             decodeValue(parser, &value, depth + 1);
         if (parser.error.ok)
         {
-            final switch (values.tryAdd(key[0].value, move(value)))
+            final switch (values.tryAdd(&key[0].value, &value))
             {
                 case AddStatus.inserted:
                     key[0].owned = false;
@@ -2357,26 +2363,28 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
             return;
         }
     }
-    move(values, *output);
+    moveEmplace(values, *output);
 }
 
-private void decodeStringHashMapInline(V)(
+private void decodeStringHashMapInline(Map)(
     ref TomlParser parser,
-    StringHashMap!V* output,
+    Map* output,
     size_t depth,
-)
+) if (isStringHashMap!Map)
 {
-    alias Map = StringHashMap!V;
+    alias V = StringHashMapValue!Map;
     if (!parser.consume('{'))
     {
         parser.fail(SerdeErrorKind.typeMismatch);
         return;
     }
     Map values = Map.create(parser.allocator);
+    scope (exit)
+        deinitOwnedValue(&values);
     parser.horizontalSpace();
     if (parser.consume('}'))
     {
-        move(values, *output);
+        moveEmplace(values, *output);
         return;
     }
     size_t count;
@@ -2398,6 +2406,8 @@ private void decodeStringHashMapInline(V)(
         parser.horizontalSpace();
 
         OwnedString ownedKey;
+        scope (exit)
+            ownedKey.deinit();
         if (parser.error.ok &&
             !OwnedString.tryFromString(
                 parser.allocator,
@@ -2408,6 +2418,8 @@ private void decodeStringHashMapInline(V)(
 
         V value;
         initializeOwnedValue(parser.allocator, &value);
+        scope (exit)
+            deinitOwnedValue(&value);
         if (parser.error.ok)
             decodeValue(parser, &value, depth + 1);
         if (parser.error.ok)
@@ -2443,7 +2455,7 @@ private void decodeStringHashMapInline(V)(
             return;
         }
     }
-    move(values, *output);
+    moveEmplace(values, *output);
 }
 
 private void decodeInlineTable(T)(

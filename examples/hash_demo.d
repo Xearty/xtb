@@ -60,5 +60,10 @@ extern (C) int main() nothrow @nogc
     assert(ownedLabels.contains("moved-label"));
 
     assert(labels.contains("fresh"));
+
+    ownedLabels.deinit();
+    owned.deinit();
+    labels.deinit();
+    inventory.deinit();
     return 0;
 }

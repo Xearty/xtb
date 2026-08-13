@@ -1175,17 +1175,21 @@ policies without pretending they are strings.
 
 Schemas support booleans, signed and unsigned integers, floating-point values,
 enums, nested structs, fixed arrays, `Option!T`, borrowed
-`StringViewHashMap!V`/`HashMap!(String, V)`, and owning `StringHashMap!V`, plus
+`StringViewHashMap!V`/`HashMap!(String, V)`, and owning string-key maps, plus
 two deliberate ownership families. Document-owned schemas use `String`,
 dynamic slices, legacy nullable pointers, and borrowed string-view maps whose
 values recursively follow the same document-owned model. Self-owning schemas
-use `StringBuf`, `OwnedString`, `Array!T`, and `StringHashMap!V`; they do not
-contain raw owning pointers, borrowed slices, or borrowed-key maps.
+use `StringBuf`, `OwnedString`, `Array!T`, `OwnedArray!T`, `StringHashMap!V`,
+and `OwnedStringHashMap!V`; they do not contain raw owning pointers, borrowed
+slices, or borrowed-key maps. `StringHashMap!V` remains shallow in its values
+and is therefore a direct self-owning shape only when `V` itself requires no
+cleanup. `OwnedStringHashMap!V` owns cleanup-bearing values.
 `Option!T` is the preferred nullable representation in either family and
 recursively adopts the ownership model of `T`. JSON accepts any supported value
 at the document root. TOML remains a table document, so its root is a serde
-struct, tagged union, `HashMap!(String, V)`, or `StringHashMap!V`; standalone
-arrays and scalars are rejected at compile time. Unsupported or mixed
+struct, tagged union, `HashMap!(String, V)`, `StringHashMap!V`, or
+`OwnedStringHashMap!V`; standalone arrays and scalars are rejected at compile
+time. Unsupported or mixed
 ownership shapes fail at compile time with the field and type in the diagnostic.
 
 Enums use their D member names in text formats by default. `@variantCase`
@@ -1380,8 +1384,9 @@ the result expires when that owner is reset or destroyed.
 
 A self-owning decode writes an ordinary caller-owned value directly. JSON root
 values may be scalars, `StringBuf`, `OwnedString`, fixed arrays, `Array!T`,
-`OwnedArray!T`, `StringHashMap!V`, or structs composed from those shapes. TOML direct roots
-remain serde structs, tagged unions, or `StringHashMap!V` table documents.
+`OwnedArray!T`, `StringHashMap!V`, `OwnedStringHashMap!V`, or structs composed
+from those shapes. TOML direct roots remain serde structs, tagged unions,
+`StringHashMap!V`, or `OwnedStringHashMap!V` table documents.
 Each container uses the allocator passed to `readJson` or `readToml`; no
 tracking allocator or result wrapper is involved. Decoding is transactional:
 the backend builds a temporary explicit-lifetime value, deinitializes it on any
@@ -1395,8 +1400,10 @@ successful result is initialized with the decode
 allocator even when its field was absent, including containers inside nested
 records and fixed or dynamic owning arrays. `StringViewHashMap`/
 `HashMap!(String, V)` is intentionally absent from direct decoding because its
-stored `String` keys are borrowed views. `StringHashMap`
-qualifies only when its value type is recursively self-owning.
+stored `String` keys are borrowed views. `StringHashMap!V` qualifies only when
+`V` is recursively self-owning and requires no cleanup, because the map is
+shallow in its values. `OwnedStringHashMap!V` is the direct-decoding container
+for recursively self-owning values that do require cleanup.
 An absent `Option!T` is made present by assigning a value before its value is
 accessed.
 
@@ -1451,31 +1458,48 @@ no filesystem access. File convenience functions, if added later, must compose
   `Array!T` downgrade.
   `Array.release()` returns explicit-deinit `ReleasedStorage`; `OwnedArray` has
   no release/adopt surface.
-- Use `HashMap!(K, V)` and `HashSet!K` for general allocator-owned hashed
-  collections. They use open addressing rather than node allocation and are
-  non-copyable. Managed generic-map keys must be copyable and remain immutable
-  through the container. `StringViewHashMap!V` is the explicit readability
-  alias for `HashMap!(String, V)` and borrows every key's bytes, which must
-  outlive the entry. `StringHashMap!V` instead stores
-  `OwnedStringUnmanaged` keys, owns one exact allocation per nonempty key, and
-  shares one allocator across the whole map. `StringViewHashSet` and
-  `StringHashSet` provide the corresponding borrowing and owning set policies.
-  All four string hash families accept borrowed `String` lookup/removal values
-  without allocation. Lookup returns
-  `V*` (or `const(V)*` through a const map) to keep mutation
-  explicit. Direct iteration uses
-  `foreach (ref const key, ref value; map)`; the `ref` at the call site is the
-  explicit mutation marker. `foreach (item; map.pointerItems)` is the
-  pointer-oriented alternative and exposes `const(K)* key` plus `V* value`.
-  A set similarly offers `ref const` elements or a `pointerItems` range of
-  `const(K)*`. Hash and equality policies are compile-time types with
-  `nothrow @nogc` pointer-based calls and copyable destructor-free state.
-  `HashSeed.init` is deliberately deterministic, while `seeded` permits
-  process-specific layouts. The built-in hash remains non-cryptographic under
-  either API; applications handling adversarial keys supply a stronger keyed
-  custom policy. Insertions and reserve operations keep the old table intact
-  when allocation fails. Structural mutation invalidates cursors and storage
-  pointers, and iteration order is unspecified.
+- `HashMap!(K, V)` and `HashSet!K` are the shallow allocator-owning hash
+  containers. They own open-addressed table storage but do not call element
+  cleanup when keys/values are removed, cleared, or deinitialized.
+  `OwnedHashMap!(K, V)` and `OwnedHashSet!K` use the same probing/storage engine
+  while additionally owning free-`deinit` responsibility for discarded keys
+  and values. Rehashing, reserve growth, and shrinking are relocation rather
+  than discard and therefore never clean entries. `take` transfers an entry or
+  element without cleanup. Managed hash owners are non-copyable and generated
+  assignment is disabled; use explicit move construction or `moveAssign` for a
+  live-owner replacement. Owned variants intentionally expose no shallow
+  release/adopt or conversion surface.
+
+  Fallible insertion of potentially owning or move-only values is pointer based:
+  `tryAdd(&key, &value)` consumes both only after insertion is guaranteed, while
+  duplicate and allocation-failure paths leave both unchanged. `trySet` consumes
+  both on insertion; when replacing an existing entry it leaves the caller's key
+  untouched, cleans the old owned value exactly once, and consumes the new value.
+  Simple copyable values retain convenient by-value overloads. Keys remain
+  immutable through the table, and move-only keys are fully supported because
+  lookup borrows them and rehash moves rather than copies stored entries.
+
+  `StringViewHashMap!V` is the readability alias for `HashMap!(String, V)` and
+  borrows every key's bytes, which must outlive the entry. `StringHashMap!V`
+  instead owns one exact `OwnedStringUnmanaged` allocation per nonempty key but
+  remains shallow with respect to values. `OwnedStringHashMap!V` has the same
+  key representation and additionally deinitializes discarded values. The two
+  managed spellings share private implementation machinery; cleanup policy is
+  not a public template parameter. Move-key insertion consumes an `OwnedString`
+  or `StringBuf` only when that key is actually inserted. On `trySetMove`
+  replacement, the existing stored key is retained, the incoming value is
+  consumed, and the unused incoming key remains owned by the caller. Duplicate
+  `tryAddMove` and allocation failure likewise preserve caller ownership.
+  `StringViewHashSet` and `StringHashSet`
+  provide the corresponding borrowed-key and owned-key string set policies.
+  Lookup returns `V*` (or `const(V)*` through a const map) to keep
+  mutation explicit. Direct iteration uses
+  `foreach (ref const key, ref value; map)`; `map.pointerItems` is the
+  pointer-oriented alternative. Hash and equality policies are compile-time,
+  copyable, destructor-free `nothrow @nogc` types. `HashSeed.init` is
+  deterministic, while `seeded` permits process-specific layouts. Structural
+  mutation invalidates cursors and storage pointers, and iteration order is
+  unspecified.
 - Use `FlagSet!E` for a small, allocation-free set of enum flags. Enum values
   are bit positions rather than masks, so sequential enum declarations map to
   consecutive bits and composite enum members are not supported. Positions
