@@ -163,7 +163,7 @@ package(xtb):
     }
 }
 
-/// Standalone RAII wrapper around `OwnedStringUnmanaged`.
+/// Standalone explicit-lifetime wrapper around `OwnedStringUnmanaged`.
 struct OwnedString
 {
 nothrow @nogc:
@@ -333,11 +333,6 @@ public:
         return move(result);
     }
 
-    ~this() @trusted
-    {
-        this.deinit();
-    }
-
     void deinit() @trusted
     {
         if (allocator_ is null)
@@ -451,6 +446,8 @@ static assert(!__traits(compiles, (scope const OwnedString* value) @safe {
 
 unittest
 {
+    import core.internal.traits : hasElaborateDestructor;
+    import xtb.core.lifetime : needsDeinit;
     import xtb.core.allocators.instrumented : InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
 
@@ -465,6 +462,13 @@ unittest
     assert(text.toHash == hashValue("hello"));
     static assert(!__traits(isCopyable, OwnedString));
     static assert(!__traits(isCopyable, OwnedStringUnmanaged));
+    static assert(!hasElaborateDestructor!OwnedString);
+    static assert(!hasElaborateDestructor!OwnedStringUnmanaged);
+    static assert(needsDeinit!OwnedString);
+    static assert(!__traits(compiles, (ref OwnedString left,
+            ref OwnedString right) { left = move(right); }));
+    static assert(!__traits(compiles, (ref OwnedStringUnmanaged left,
+            ref OwnedStringUnmanaged right) { left = move(right); }));
 
     OwnedString copy = text.clone(mallocAllocator());
     assert(copy == text);
@@ -505,6 +509,12 @@ unittest
     }
     assert(failed.allocator is null && failed.empty);
     assert(failing.clean);
+
+    failed.deinit();
+    adopted.deinit();
+    copy.deinit();
+    text.deinit();
+    empty.deinit();
 }
 
 unittest

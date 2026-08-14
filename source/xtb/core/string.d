@@ -1317,11 +1317,6 @@ public:
         return move(result);
     }
 
-    ~this() @trusted
-    {
-        this.deinit();
-    }
-
     /// Releases all storage and unbinds the allocator. The zero state is valid.
     void deinit() @trusted
     {
@@ -1968,14 +1963,29 @@ unittest
     assert(emptyCString.tryCString(&emptyPointer));
     assert(emptyPointer !is null && emptyPointer[0] == '\0');
     assert(emptyCString.empty);
+
+    emptyCString.deinit();
+    failedScalar.deinit();
+    failedBytes.deinit();
+    selfEscape.deinit();
+    selfPrepend.deinit();
+    scalarWidths.deinit();
+    unicode.deinit();
+    emptyBuffer.deinit();
+    different.deinit();
+    same.deinit();
+    buffer.deinit();
+    emptyBytes.deinit();
+    copiedBytes.deinit();
 }
 
 unittest
 {
+    import core.internal.traits : hasElaborateDestructor;
     import xtb.core.memory : Allocator;
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
-    import xtb.core.lifetime : deinit;
+    import xtb.core.lifetime : deinit, needsDeinit;
 
     static assert(StringBufUnmanaged.sizeof == ArrayUnmanaged!char.sizeof);
     static assert(StringBuf.sizeof ==
@@ -1983,6 +1993,13 @@ unittest
     static assert(!__traits(isCopyable, StringBufUnmanaged));
     static assert(!__traits(isCopyable, StringBuf));
     static assert(!__traits(isCopyable, StringBuf.Released));
+    static assert(!hasElaborateDestructor!StringBufUnmanaged);
+    static assert(!hasElaborateDestructor!StringBuf);
+    static assert(needsDeinit!StringBuf);
+    static assert(!__traits(compiles, (ref StringBufUnmanaged left,
+            ref StringBufUnmanaged right) { left = move(right); }));
+    static assert(!__traits(compiles, (ref StringBuf left,
+            ref StringBuf right) { left = move(right); }));
     static assert(__traits(compiles, (scope StringBuf* value) @safe {
             Allocator* allocator = value.allocator;
         }));
@@ -2027,6 +2044,7 @@ unittest
         assert(released.allocator is null && released.storage.empty);
         assert(adopted.allocator is tracked.allocator);
         assert(adopted.view == "adopted");
+        adopted.deinit();
     }
     assert(tracked.clean);
 
@@ -2165,4 +2183,7 @@ unittest
             "this replacement is intentionally larger than the current capacity",
     ));
     assert(retained == "small");
+    retained.deinit();
+    assert(failing.clean);
+    text.deinit();
 }

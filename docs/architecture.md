@@ -797,10 +797,10 @@ violates both unchecked functions' preconditions. Binary ownership uses
 
 `StringBuf` owns a growable byte allocation and stores its `Allocator*`, data
 pointer, logical length, and capacity. It is non-copyable, has a useful empty
-zero state, and releases its allocation in `deinit`/RAII cleanup according to
-the allocator contract. Ownership transfer, if needed, uses an explicitly
-named move/release operation that leaves the source empty; ordinary assignment
-must not duplicate ownership.
+zero state, and releases its allocation only through explicit `deinit` according
+to the allocator contract. It has no D destructor. Ownership transfer, if
+needed, uses an explicitly named move/release operation that leaves the source
+empty; ordinary assignment must not duplicate or replace ownership.
 
 The zero state may be queried, cleared, moved, or destroyed, but it has no
 allocator and therefore cannot grow. Fallible growth returns `false`; panicking
@@ -825,8 +825,9 @@ String result = buffer.view;
 The same rule applies to `Array!T`, `HashMap`, `HashSet`, `OwnedString`, the
 string hash containers, and future managed containers. Their structs contain
 ownership fields, static factories, ordinary member operations, one
-mutable-only `Allocator* allocator()` member, and D-required hooks such as a
-destructor, indexing, equality, or `foreach`. D's normal struct-pointer member
+mutable-only `Allocator* allocator()` member, and D-required hooks such as
+indexing, equality, or `foreach`. Ordinary owners do not use destructors for
+resource cleanup. D's normal struct-pointer member
 lookup makes duplicate pointer forwarding overloads unnecessary. In checked
 builds a version-gated invariant rejects a null receiver; release-fast removes
 that contract entirely. Reserve, resize, append, prepend, insert,
@@ -884,7 +885,9 @@ persistent names and values. Construction from a borrowed `String` copies
 exactly once. `clone` is explicit because it allocates. Copying is disabled;
 move, `release`, `adopt`, and `ReleasedStorage` preserve allocator provenance.
 Empty managed values created through a factory remain bound to their allocator,
-just like other managed containers.
+just like other managed containers. `OwnedString` has no D destructor; callers
+end its owning lifetime explicitly with `deinit`, while `release` transfers that
+cleanup obligation into a `ReleasedStorage` token.
 
 Conversion from `StringBuf` is transactional. A same-allocator buffer with
 exact capacity transfers its allocation directly; spare capacity is first

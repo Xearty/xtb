@@ -132,6 +132,7 @@ private void runBackendContract(Backend)()
     error = Backend.read(Backend.unknown, mallocAllocator(), &legacy);
     assert(error.kind == SerdeErrorKind.unknownField);
     assert(legacy.empty);
+    encoded.deinit();
 }
 
 void runSerdeBackendContracts()

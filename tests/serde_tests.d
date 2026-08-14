@@ -655,6 +655,8 @@ private void testSharedPolicies() nothrow @nogc
     assert(error.ok);
     assert(tomlDefaults.value.pointer.value == 11);
     assert(tomlDefaults.value.items[0].value == 11);
+    toml.deinit();
+    json.deinit();
 }
 
 private void testJsonTaggedUnions() nothrow @nogc
@@ -720,6 +722,7 @@ private void testJsonTaggedUnions() nothrow @nogc
         mallocAllocator(), &decodedAdjacent);
     assert(error.kind == SerdeErrorKind.unknownVariant);
     assert(decodedAdjacent.empty);
+    encoded.deinit();
 }
 
 private void testTomlTaggedUnions() nothrow @nogc
@@ -818,6 +821,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     error = readToml(encoded.view, mallocAllocator(), &rootInternal);
     assert(error.ok);
     assert(rootInternal.value.data.deleted.id == 9);
+    encoded.deinit();
 }
 
 private void testJsonRoundTrip() nothrow @nogc
@@ -867,6 +871,7 @@ private void testJsonRoundTrip() nothrow @nogc
     assert(decoded.value.ports.length == 3);
     assert(decoded.value.ports[2] == 8080);
     assert(decoded.value.pair == [7, 9]);
+    encoded.deinit();
 }
 
 private void testJsonPolicies() nothrow @nogc
@@ -984,6 +989,8 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
     error = writeJson(omittedWriter, defaults);
     assert(error.ok);
     assert(omitted == "{\"retryCount\":0,\"enabled\":false}");
+    omitted.deinit();
+    encoded.deinit();
 }
 
 private void testJsonAllocationFailures() nothrow @nogc
@@ -1073,6 +1080,7 @@ private void testJsonOptions() nothrow @nogc
     assert(encoded ==
             "{\"title\":\"release\",\"priority\":4,\"child\":null," ~
             "\"explicit_toggle\":true}");
+    encoded.deinit();
 }
 
 private void testTomlRoundTrip() nothrow @nogc
@@ -1117,6 +1125,7 @@ private void testTomlRoundTrip() nothrow @nogc
     error = readToml(invalidToml[], mallocAllocator(), &decoded);
     assert(error.kind == SerdeErrorKind.invalidUtf8);
     assert(error.offset == invalidPrefix.length);
+    encoded.deinit();
 }
 
 private void testTomlTablesAndSyntax() nothrow @nogc
@@ -1226,6 +1235,7 @@ private void testTomlOptions() nothrow @nogc
 
     error = readToml("priority = 1\n", mallocAllocator(), &decoded);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
+    encoded.deinit();
 }
 
 private void testOwnedOptionsAndFailures() nothrow @nogc
@@ -1277,6 +1287,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         assert(value.endpoint.value.hostName == "jobs.internal");
         assert(value.endpoint.value.labels[0] == "stable");
         assert(value.revision.isNone);
+        encoded.deinit();
         deinitOwnedOptionalValues(value);
     }
     assert(allocator.clean);
