@@ -1,7 +1,9 @@
 module tests.threading_tests;
 
+import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move;
 import core.stdc.stdlib : free, malloc;
+import xtb.core.lifetime : lifetimeDeinit = deinit, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
@@ -49,6 +51,38 @@ int nativePthreadGetAttr(pthread_t thread, pthread_attr_t* attributes) nothrow @
 
 version (linux) private extern (C) pragma(mangle, "pthread_getname_np")
 int nativePthreadGetName(pthread_t thread, char* name, size_t length) nothrow @nogc;
+
+// Ordinary synchronization state is destructor-free. It owns no resource that
+// requires automatic lexical cleanup; callers must instead respect each type's
+// quiescence/stable-address contract.
+static assert(!hasElaborateDestructor!Mutex);
+static assert(!hasElaborateDestructor!RwLock);
+static assert(!hasElaborateDestructor!CondVar);
+static assert(!hasElaborateDestructor!Semaphore);
+static assert(!hasElaborateDestructor!WaitGroup);
+static assert(!hasElaborateDestructor!Latch);
+static assert(!hasElaborateDestructor!Barrier);
+static assert(!hasElaborateDestructor!Once);
+static assert(!needsDeinit!Mutex);
+static assert(!needsDeinit!RwLock);
+static assert(!needsDeinit!CondVar);
+static assert(!needsDeinit!Semaphore);
+static assert(!needsDeinit!WaitGroup);
+static assert(!needsDeinit!Latch);
+static assert(!needsDeinit!Barrier);
+static assert(!needsDeinit!Once);
+
+// OnceCell is an explicit owner rather than an ordinary synchronization value.
+static assert(!hasElaborateDestructor!(OnceCell!int));
+static assert(needsDeinit!(OnceCell!int));
+
+// These remain destructor-bearing intentionally because scope exit is their
+// abstraction. Thread/JoinHandle lifecycle diagnostics are a separate policy
+// decision and are deliberately unchanged by this audit.
+static assert(hasElaborateDestructor!(LockGuard!Mutex));
+static assert(hasElaborateDestructor!(ReadLockGuard!RwLock));
+static assert(hasElaborateDestructor!(WriteLockGuard!RwLock));
+static assert(hasElaborateDestructor!ThreadScope);
 
 version (Posix) private struct IncrementContext
 {
@@ -3018,15 +3052,15 @@ nothrow @nogc
     return cell.getOrInit!recursiveOnceCellInitializer(cell);
 }
 
-version (XTB_Checked) version (linux) private struct OnceCellDestroyContext
+version (XTB_Checked) version (linux) private struct OnceCellDeinitContext
 {
     OnceCell!int cell;
     Atomic!uint entered;
     Atomic!uint releaseInitializer;
 }
 
-version (XTB_Checked) version (linux) private int initializeDestroyedOnceCell(
-    OnceCellDestroyContext* context,
+version (XTB_Checked) version (linux) private int initializeDeinitializedOnceCell(
+    OnceCellDeinitContext* context,
 ) nothrow @nogc
 {
     context.entered.store(1, MemoryOrder.release);
@@ -3035,24 +3069,24 @@ version (XTB_Checked) version (linux) private int initializeDestroyedOnceCell(
     return 1;
 }
 
-version (XTB_Checked) version (linux) private int initializeDestroyedOnceCellWorker(
-    OnceCellDestroyContext* context,
+version (XTB_Checked) version (linux) private int initializeDeinitializedOnceCellWorker(
+    OnceCellDeinitContext* context,
 ) nothrow @nogc
 {
-    return context.cell.getOrInit!initializeDestroyedOnceCell(context);
+    return context.cell.getOrInit!initializeDeinitializedOnceCell(context);
 }
 
-version (XTB_Checked) version (linux) private void triggerActiveOnceCellDestroy()
+version (XTB_Checked) version (linux) private void triggerActiveOnceCellDeinit()
 nothrow @nogc
 {
-    OnceCellDestroyContext context;
-    auto started = Thread.start!initializeDestroyedOnceCellWorker(&context);
+    OnceCellDeinitContext context;
+    auto started = Thread.start!initializeDeinitializedOnceCellWorker(&context);
     if (!started.isOk)
         _exit(93);
     Thread thread = started.unwrap();
     if (!waitForAtomicAtLeast(&context.entered, 1))
         _exit(94);
-    destroy(context.cell);
+    lifetimeDeinit(context.cell);
     _exit(95);
 }
 
@@ -3097,7 +3131,6 @@ version (Posix) private enum DeathCase : ubyte
     mutexUnlockUnlocked,
     mutexDoubleUnlock,
     mutexRecursiveLock,
-    mutexDestroyLocked,
     mutexUnlockNonOwner,
     rwLockUnlockRead,
     rwLockDoubleUnlockRead,
@@ -3105,8 +3138,6 @@ version (Posix) private enum DeathCase : ubyte
     rwLockDoubleUnlockWrite,
     rwLockRecursiveWrite,
     rwLockWriterToRead,
-    rwLockDestroyReadOwned,
-    rwLockDestroyWriteOwned,
     rwLockUnlockWriteNonOwner,
     lockGuardNullMutex,
     readLockGuardNullLock,
@@ -3122,7 +3153,6 @@ version (Posix) private enum DeathCase : ubyte
     latchUnderflow,
     waitGroupOverflow,
     waitGroupUnderflow,
-    waitGroupDestroyActive,
     barrierZeroParticipants,
     barrierInitWait,
     barrierInitDrop,
@@ -3130,7 +3160,7 @@ version (Posix) private enum DeathCase : ubyte
     barrierCompletedDrop,
     onceRecursive,
     onceCellRecursive,
-    onceCellDestroyActive,
+    onceCellDeinitActive,
 }
 
 version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
@@ -3351,13 +3381,6 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 mutex.lock();
             }
             return;
-        case DeathCase.mutexDestroyLocked:
-            version (XTB_Checked)
-            {
-                Mutex mutex;
-                mutex.lock();
-            }
-            return;
         case DeathCase.mutexUnlockNonOwner:
             version (XTB_Checked)
             {
@@ -3410,20 +3433,6 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 RwLock lock;
                 lock.lockWrite();
                 lock.lockRead();
-            }
-            return;
-        case DeathCase.rwLockDestroyReadOwned:
-            version (XTB_Checked)
-            {
-                RwLock lock;
-                lock.lockRead();
-            }
-            return;
-        case DeathCase.rwLockDestroyWriteOwned:
-            version (XTB_Checked)
-            {
-                RwLock lock;
-                lock.lockWrite();
             }
             return;
         case DeathCase.rwLockUnlockWriteNonOwner:
@@ -3550,13 +3559,6 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             group.add();
             group.done(2);
             return;
-        case DeathCase.waitGroupDestroyActive:
-            version (XTB_Checked)
-            {
-                WaitGroup group;
-                group.add();
-            }
-            return;
         case DeathCase.barrierZeroParticipants:
             Barrier barrier = Barrier(0);
             return;
@@ -3592,11 +3594,11 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                 cell.getOrInit!recursiveOnceCellInitializer(&cell);
             }
             return;
-        case DeathCase.onceCellDestroyActive:
+        case DeathCase.onceCellDeinitActive:
             version (XTB_Checked)
             {
                 version (linux)
-                    triggerActiveOnceCellDestroy();
+                    triggerActiveOnceCellDeinit();
             }
             return;
     }
@@ -3938,12 +3940,9 @@ extern (C) int main() nothrow @nogc
         {
             static foreach (deathCase; [
                 DeathCase.mutexRecursiveLock,
-                DeathCase.mutexDestroyLocked,
                 DeathCase.mutexUnlockNonOwner,
                 DeathCase.rwLockRecursiveWrite,
                 DeathCase.rwLockWriterToRead,
-                DeathCase.rwLockDestroyReadOwned,
-                DeathCase.rwLockDestroyWriteOwned,
                 DeathCase.rwLockUnlockWriteNonOwner,
                 DeathCase.lockGuardWrongThread,
                 DeathCase.writeLockGuardWrongThread,
@@ -3951,8 +3950,7 @@ extern (C) int main() nothrow @nogc
                 DeathCase.condVarMixedMutexes,
                 DeathCase.onceRecursive,
                 DeathCase.onceCellRecursive,
-                DeathCase.onceCellDestroyActive,
-                DeathCase.waitGroupDestroyActive,
+                DeathCase.onceCellDeinitActive,
             ])
                 if (!expectAbort(deathCase))
                     return 45;

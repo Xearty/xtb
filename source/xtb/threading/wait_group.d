@@ -7,8 +7,6 @@ import xtb.threading.atomic : Atomic, MemoryOrder;
 import xtb.threading.internal.generation_wait : GenerationWaitState;
 import xtb.threading.mutex : Mutex;
 
-version (XTB_Checked) import xtb.core.panic : require;
-
 /// Allocation-free dynamic work countdown reusable across generations.
 ///
 /// `WaitGroup.init` has no outstanding work. Positive `add` calls while work
@@ -23,17 +21,6 @@ nothrow @nogc:
     private Mutex stateMutex_;
     private Atomic!size_t count_;
     private GenerationWaitState generation_;
-
-    version (XTB_Checked)
-    {
-        ~this() @safe
-        {
-            require(
-                count_.load(MemoryOrder.relaxed) == 0,
-                "cannot destroy a WaitGroup with outstanding work",
-            );
-        }
-    }
 
     /// Registers `count` work items. A positive add from zero opens a new
     /// generation and must occur only after previous waiters have returned.

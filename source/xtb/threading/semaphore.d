@@ -141,18 +141,6 @@ nothrow @nogc:
         return tryTakePermit();
     }
 
-    version (XTB_Checked)
-    {
-        ~this() @safe
-        {
-            static if (Atomic!uint.waitSupported)
-                require(
-                    activeWaiters_ == 0,
-                    "cannot destroy a Semaphore while an acquire is active",
-                );
-        }
-    }
-
 private:
     bool tryTakePermit() @safe
     {

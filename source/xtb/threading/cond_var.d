@@ -122,18 +122,6 @@ nothrow @nogc:
         }
     }
 
-    version (XTB_Checked)
-    {
-        ~this() @safe
-        {
-            static if (Atomic!uint.waitSupported)
-                require(
-                    activeWaiters_ == 0,
-                    "cannot destroy a CondVar while a wait is active",
-                );
-        }
-    }
-
 private:
     static if (Atomic!uint.waitSupported)
     {

@@ -388,16 +388,17 @@ Unlock observes the previous state as part of its release exchange and panics
 unconditionally when that state was already unlocked, so unmatched and double
 unlock cannot pass silently in release-fast. In `XTB_Checked` builds Mutex also
 carries an atomic owner identity used to diagnose blocking recursive lock,
-unlock by a non-owner, and destruction while locked. `tryLock()` remains a
-non-blocking probe and returns `false` when the current thread already owns the
-mutex. The owner field is compiled out outside `XTB_Checked`; the release
-representation is only the 32-bit atomic state word.
+unlock by a non-owner. `Mutex` itself is destructor-free; ordinary scope exit
+does not perform a lock-state diagnostic. `tryLock()` remains a non-blocking
+probe and returns `false` when the current thread already owns the mutex. The
+owner field is compiled out outside `XTB_Checked`; the release representation is
+only the 32-bit atomic state word.
 
 Validation covers basic lock/tryLock/unlock behavior, deterministic verification
 of the bounded 127 total relax hints, a short four-thread protected increment
 run, contended handoff with release/acquire publication, unconditional unlocked
 and double-unlock death tests, and checked-build death tests for the remaining
-ownership/lifecycle diagnostics. The tests intentionally use small iteration
+ownership diagnostics. The tests intentionally use small iteration
 counts so ordinary threading test runtime remains short.
 
 ## CondVar completion record
@@ -527,17 +528,22 @@ Initializers follow the context-free module/static `nothrow @nogc` policy and
 use ordinary by-value arguments. They must return an owned value constructible
 as `T`; `void` and borrowed `ref` returns plus `ref`, `out`, `lazy`, and `in`
 parameters are rejected. Move-only results are supported without adding a copy
-requirement. The cell suppresses automatic destruction of its raw slot and
-destroys `T` exactly once only after successful initialization.
+requirement. `OnceCell` has no D destructor. Successful initialization makes the
+cell an explicit-lifetime owner: after callers have made access quiescent,
+`deinit()` ends the stored value's lifetime. Payloads participating in XTB's
+explicit lifetime protocol use generic `deinit`; payloads that still have D
+destructor semantics are explicitly `destroy`ed. Checked builds reject
+`deinit()` while initialization itself is still active.
 
 Validation covers empty and initialized nonblocking queries, stable mutable and
 const borrowed pointers, argument evaluation by losing callers, sequential and
 eight-way contended exactly-once initialization, release/acquire publication,
-move-only storage and exact destruction, compile-time callable rejection,
-checked recursive initialization, checked destruction during active
-initialization, non-copyability, and uncontended operation on the forced
-unsupported parking backend. The explicit BetterC runners now enumerate the
-`Latch`, `Once`, and `OnceCell` colocated tests on both backend configurations.
+move-only storage and exact explicit cleanup, compile-time callable rejection,
+checked recursive initialization, checked `deinit` during active initialization,
+non-copyability, explicit-owner payload cleanup, D-destructor payload cleanup,
+and uncontended operation on the forced unsupported parking backend. The
+explicit BetterC runners now enumerate the `Latch`, `Once`, and `OnceCell`
+colocated tests on both backend configurations.
 Focused and repository-wide validation passes in checked debug, optimized,
 release-safe, and AddressSanitizer modes; release-fast production and test
 targets compile without checked metadata; every example runs; the public cell
@@ -579,9 +585,10 @@ This modulo-width token is sufficient because `WaitGroup` forbids opening the
 next generation until old waiters return, while a `Barrier` waiter necessarily
 spans only its current phase. A valid waiter therefore cannot remain associated
 with one value through 2^32 completions. Checked builds additionally register
-active waiters with overflow/underflow protection, expose a package-level reuse
-query, and diagnose destruction while a waiter remains registered; this
-metadata is absent from release-fast builds.
+active waiters with overflow/underflow protection and expose a package-level
+reuse query; this metadata is absent from release-fast builds. The generation
+state itself is destructor-free, so scope exit performs no waiter-lifecycle
+check.
 
 Validation covers zero-state and immediate changed-generation behavior,
 eight-waiter wake-all publication, exact waiter registration/cleanup, 2,048
@@ -608,17 +615,17 @@ Positive adds while work remains join the current generation, enabling dynamic
 child registration. Zero-count adds and completions are no-ops. Overflow and
 underflow are unconditional fatal programming errors. Checked builds retain
 waiter registration through the post-wake return gate, diagnose premature
-zero-to-positive reuse and destruction with outstanding work, and remove that
-diagnostic bookkeeping from release-fast builds. Final completion uses
-release/acquire ordering and the mutex's release chain so every contributing
+zero-to-positive reuse, and remove that diagnostic bookkeeping from release-fast
+builds. `WaitGroup` itself is destructor-free; scope exit performs no lifecycle
+check. Final completion uses release/acquire ordering and the mutex's release chain so every contributing
 worker write is visible to returning waiters.
 
 Validation covers the zero state, no-op operations, the complete `size_t`
 range, batched completion, concurrent dynamic registration, eight completing
 workers, four waiters, publication, 512 immediate reuse generations, and full
 thread cleanup. Death tests cover unconditional count overflow/underflow plus
-checked premature reuse and active destruction. The forced unsupported backend
-keeps uncontended and nonblocking operations usable while a positive-count
+checked premature reuse. The forced unsupported backend keeps uncontended and
+nonblocking operations usable while a positive-count
 wait fails explicitly. The aggregate module re-exports `WaitGroup`, and both
 BetterC threading runners enumerate its colocated tests.
 
@@ -649,8 +656,9 @@ rejects zero in every build. `arriveAndDrop` contributes the caller's current
 arrival, reduces all later phase counts, and never waits for phase completion.
 The final drop advances the current generation before entering the permanent
 zero-participant state; both arrival operations reject subsequent use. The type
-is non-copyable and retains checked active-waiter diagnostics through the shared
-generation state.
+is non-copyable. The shared generation state remains destructor-free; checked
+waiter bookkeeping supports synchronization invariants without turning scope
+exit into a lifecycle operation.
 
 Validation covers a one-participant fast path, eight participants crossing 512
 phases, simultaneous arrivals, release/acquire publication, staged participant
@@ -696,17 +704,18 @@ chain needed for a subsequent writer to observe every drained reader.
 Unmatched and double read/write unlocks plus active-reader and queued-writer
 overflow panic in every build before corrupting state. Checked builds add only
 an atomic writer-owner token, diagnosing recursive write acquisition,
-write-to-read self-deadlock, wrong-thread write unlock, and destruction while
-owned or contended. Per-reader identities, recursive acquisition, upgrades, and
-downgrades are deliberately absent. The owner token and checks disappear from
+write-to-read self-deadlock, and wrong-thread write unlock. `RwLock` itself is
+destructor-free; ordinary scope exit does not perform a lock-state diagnostic.
+Per-reader identities, recursive acquisition, upgrades, and downgrades are
+deliberately absent. The owner token and checks disappear from
 release-fast; the correctness state remains two atomics.
 
 Validation covers the zero state, all four lock/try-lock paths, six simultaneous
 readers, deterministic gating of a late reader behind a queued writer,
 reader-to-writer and writer-to-reader publication, and mixed four-reader/two-
 writer contention over 2,048 writes. Death tests cover unconditional unmatched
-and double unlocks, both counter overflows, and checked writer-owner/lifecycle
-misuse. The forced unsupported backend keeps uncontended and try operations
+and double unlocks, both counter overflows, and checked writer-owner misuse. The
+forced unsupported backend keeps uncontended and try operations
 usable while a genuinely blocking operation fails explicitly. Both BetterC
 threading runners enumerate the module, and the aggregate package re-exports
 it.
@@ -836,6 +845,7 @@ assignment into empty destinations, moved-from destruction, and subsequent
 successful reacquisition proving exactly-once release. Compile-time checks
 cover pointer-only layout, non-copyability, lock-type restrictions, absent
 manual release, safe use, and rejection of guards escaping local lock storage.
+
 Death tests cover every null constructor and active-destination move assignment
 in checked and release-fast execution, plus checked cross-thread destruction of
 mutex and write guards. The forced-unsupported runner exercises all uncontended
@@ -847,3 +857,25 @@ production components build in debug, release-safe, and release-fast modes,
 every example runs, the public guard surface cross-compiles in checked and
 unchecked modes for x86-64 Windows/MSVC, and the release threading archive adds
 no GC allocator, TypeInfo, ModuleInfo, or compiler atomic-runtime dependency.
+
+## Explicit lifetime / lexical RAII audit
+
+The explicit-lifetime audit separates synchronization state from scope guards.
+`Mutex`, `RwLock`, `CondVar`, `Semaphore`, `WaitGroup`, `Latch`, `Barrier`,
+`Once`, and the internal generation-wait state have no D destructors merely for
+checked diagnostics. These values own synchronization state but no resource
+whose release is a scope-exit action; callers must satisfy their documented
+quiescence and stable-address requirements directly. Operation-time checked
+misuse diagnostics remain where they protect an operation's correctness.
+
+`OnceCell!T` is the exception among the ordinary synchronization values because
+successful initialization gives it an actual payload cleanup obligation. It is
+therefore a destructor-free XTB explicit owner with `deinit()` rather than a
+lexical RAII object. Generated assignment is disabled, and XTB move semantics
+leave a moved-from cell inert.
+
+The lock guards and `ThreadScope` deliberately retain D destructors because
+scope exit is their abstraction: guards unlock and `ThreadScope` joins its
+tracked children. `Thread` and `JoinHandle` also retain their existing
+join-obligation diagnostics in this audit; deciding their broader semantic
+lifecycle policy is separate from the synchronization-state cleanup pass.

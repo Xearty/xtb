@@ -3,11 +3,21 @@ module xtb.threading.once_cell;
 nothrow @nogc:
 
 import core.internal.traits : Parameters, ReturnType;
-import core.lifetime : emplace, forward, move;
+import core.lifetime : emplace, forward;
+import xtb.core.lifetime : lifetimeDeinit = deinit, move, needsDeinit;
 import xtb.core.option : Option, OptionReturns;
+
+version (XTB_Checked) import xtb.core.panic : require;
 import xtb.threading.once : Once, callOnce;
 
-version (unittest) import xtb.threading.atomic : Atomic, MemoryOrder;
+version (unittest)
+{
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
+    import xtb.core.memory : Allocator;
+    import xtb.core.owned_string : OwnedString;
+    import xtb.threading.atomic : Atomic, MemoryOrder;
+}
 
 /// Raw storage whose `T` lifetime is managed explicitly by `OnceCell`.
 private union OnceCellStorage(T)
@@ -18,8 +28,9 @@ private union OnceCellStorage(T)
 /// Allocation-free storage for a value initialized at most once.
 ///
 /// `OnceCell.init` is uninitialized. The cell owns the value after successful
-/// initialization and destroys it exactly once. Returned pointers and
-/// references borrow the cell, which must remain alive and at a stable address.
+/// initialization. `deinit()` explicitly ends that owned value's lifetime;
+/// ordinary lexical scope exit does nothing. Returned pointers and references
+/// borrow the cell, which must remain alive and at a stable address.
 struct OnceCell(T)
 {
 nothrow @nogc:
@@ -30,9 +41,26 @@ nothrow @nogc:
     private Once once_;
     private OnceCellStorage!T storage_;
 
-    ~this() @trusted
+    @disable ref OnceCell opAssign(OnceCell source) return;
+
+    /// Explicitly ends the stored value's lifetime when initialization completed.
+    ///
+    /// The caller must ensure no thread can still access the cell. In checked
+    /// builds, deinitialization while an initializer is active is rejected.
+    void deinit() @trusted
     {
-        if (once_.completed())
+        version (XTB_Checked)
+            require(
+                !once_.initializing(),
+                "cannot deinit OnceCell while initialization is active",
+            );
+
+        if (!once_.completed())
+            return;
+
+        static if (needsDeinit!T)
+            lifetimeDeinit(storage_.value);
+        else
             destroy(storage_.value);
     }
 
@@ -144,6 +172,8 @@ private bool parameterHasStorageClass(
 }
 
 static assert(!__traits(isCopyable, OnceCell!int));
+static assert(needsDeinit!(OnceCell!int));
+static assert(!__traits(compiles, () { OnceCell!int source; OnceCell!int target; target = source; }));
 
 version (unittest)
 {
@@ -252,6 +282,10 @@ version (unittest)
         }
 
         static assert(!__traits(compiles, cell.getOrInit!nested()));
+
+        constructedCell.deinit();
+        evaluatedCell.deinit();
+        cell.deinit();
     }
 
     private struct TrackedCellValue
@@ -288,22 +322,77 @@ version (unittest)
     {
         int calls;
         int destructions;
-        {
-            OnceCell!TrackedCellValue cell;
-            ref value = cell.getOrInit!initializeTracked(
-                &calls,
-                &destructions,
-            );
-            assert(value.value == 27);
-            assert(calls == 1);
-            assert(destructions == 0);
-        }
+
+        OnceCell!TrackedCellValue cell;
+        ref value = cell.getOrInit!initializeTracked(
+            &calls,
+            &destructions,
+        );
+        assert(value.value == 27);
+        assert(calls == 1);
+        assert(destructions == 0);
+
+        cell.deinit();
         assert(destructions == 1);
 
-        {
-            OnceCell!TrackedCellValue empty;
-        }
+        OnceCell!TrackedCellValue empty;
+        empty.deinit();
         assert(destructions == 1);
+    }
+
+    private struct ExplicitCellValue
+    {
+    nothrow @nogc:
+        int* deinits;
+
+        @disable this(this);
+
+        void deinit()
+        {
+            ++*deinits;
+        }
+    }
+
+    private ExplicitCellValue initializeExplicit(int* deinits) nothrow @nogc
+    {
+        return ExplicitCellValue(deinits);
+    }
+
+    unittest
+    {
+        int deinits;
+        OnceCell!ExplicitCellValue cell;
+        ref value = cell.getOrInit!initializeExplicit(&deinits);
+        assert(value.deinits is &deinits);
+        assert(deinits == 0);
+
+        OnceCell!ExplicitCellValue moved = move(cell);
+        cell.deinit();
+        assert(deinits == 0);
+        moved.deinit();
+        assert(deinits == 1);
+    }
+
+    private OwnedString initializeOwnedString(Allocator* allocator) nothrow @nogc
+    {
+        return OwnedString.fromString(allocator, "once-cell");
+    }
+
+    unittest
+    {
+        AllocationRecord[8] records;
+        InstrumentedAllocator tracked = InstrumentedAllocator.create(
+            mallocAllocator(),
+            records[],
+        );
+        OnceCell!OwnedString cell;
+        ref value = cell.getOrInit!initializeOwnedString(tracked.allocator());
+        assert(value == "once-cell");
+        assert(tracked.stats.outstandingAllocations == 1);
+
+        cell.deinit();
+        assert(tracked.clean);
+        assert(tracked.stats.invalidCalls == 0);
     }
 
     static if (Atomic!uint.waitSupported)
@@ -385,6 +474,7 @@ version (unittest)
             assert(argumentEvaluations.load(MemoryOrder.relaxed) == callerCount);
             assert(initializerCalls.load(MemoryOrder.relaxed) == 1);
             assert(cell.isInitialized());
+            cell.deinit();
         }
     }
 }

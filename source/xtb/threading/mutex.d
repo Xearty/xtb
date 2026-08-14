@@ -103,17 +103,6 @@ nothrow @nogc:
                 state_.notifyOne();
     }
 
-    version (XTB_Checked)
-    {
-        ~this() @safe
-        {
-            require(
-                state_.load(MemoryOrder.relaxed) == mutexUnlocked,
-                "cannot destroy a locked Mutex",
-            );
-        }
-    }
-
 private:
     void lockSlow(uint observed) @safe
     {

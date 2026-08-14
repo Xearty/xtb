@@ -26,22 +26,14 @@ nothrow @nogc:
     private Atomic!uint state_;
     version (XTB_Checked) private Atomic!ulong initializingOwner_;
 
-    version (XTB_Checked)
-    {
-        ~this() @safe
-        {
-            import xtb.core.panic : require;
-
-            require(
-                state_.load(MemoryOrder.relaxed) != onceInitializing,
-                "cannot destroy Once while initialization is active",
-            );
-        }
-    }
-
     package(xtb.threading) bool completed() const @trusted
     {
         return state_.load(MemoryOrder.acquire) == onceInitialized;
+    }
+
+    version (XTB_Checked) package(xtb.threading) bool initializing() const @trusted
+    {
+        return state_.load(MemoryOrder.relaxed) == onceInitializing;
     }
 }
 

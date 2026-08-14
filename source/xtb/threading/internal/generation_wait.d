@@ -5,8 +5,6 @@ nothrow @nogc:
 import xtb.core.panic : panic;
 import xtb.threading.atomic : Atomic, MemoryOrder;
 
-version (XTB_Checked) import xtb.core.panic : require;
-
 /// Package-private reusable phase-change wait state.
 ///
 /// The 32-bit generation is both the semantic phase token and the address
@@ -20,17 +18,6 @@ nothrow @nogc:
 
     private Atomic!uint generation_;
     version (XTB_Checked) private Atomic!size_t waiters_;
-
-    version (XTB_Checked)
-    {
-        ~this() @safe
-        {
-            require(
-                waiters_.load(MemoryOrder.relaxed) == 0,
-                "cannot destroy generation state with active waiters",
-            );
-        }
-    }
 
     /// Returns the current generation with acquire ordering.
     package(xtb.threading) uint currentGeneration() const @safe

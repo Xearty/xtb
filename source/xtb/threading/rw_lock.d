@@ -194,19 +194,6 @@ nothrow @nogc:
         }
     }
 
-    version (XTB_Checked)
-    {
-        ~this() @safe
-        {
-            const state = state_.load(MemoryOrder.relaxed);
-            const waiting = waitingWriters_.load(MemoryOrder.relaxed);
-            require(
-                state == 0 && waiting == 0,
-                "cannot destroy an owned or contended RwLock",
-            );
-        }
-    }
-
 private:
     void waitForStateChange(uint observed) @safe
     {
