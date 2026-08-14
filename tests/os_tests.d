@@ -12,12 +12,49 @@ import xtb.os.process;
 import xtb.os.process_io;
 import xtb.os.time;
 import xtb.os.terminal;
+import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array;
 import xtb.core.allocators.arena : Arena, TempArena, pop, push;
+import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
+import xtb.core.option : Option;
+import xtb.core.result : Result;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.string;
 import xtb.core.thread_context : ThreadContextScope, scratchArena;
 import xtb.core.types : i64, u64, u8;
+
+static assert(!hasElaborateDestructor!File);
+static assert(needsDeinit!File);
+static assert(!__traits(isCopyable, File));
+static assert(!__traits(compiles, () { File left; File right; left = right; }));
+static assert(needsDeinit!(Option!File));
+static assert(needsDeinit!(Result!(File, OsError)));
+static assert(needsDeinit!(OwnedArray!File));
+
+private struct FileOwnerComposition
+{
+    File file;
+}
+
+static assert(needsDeinit!FileOwnerComposition);
+
+version (linux) private size_t openDescriptorCount() nothrow @system @nogc
+{
+    DirectoryIterator iterator;
+    assert(openDirectory(Path.fromString("/proc/self/fd"), &iterator).succeeded);
+    size_t result;
+    DirectoryEntry entry;
+    for (;;)
+    {
+        const nextResult = (&iterator).next(&entry);
+        assert(nextResult.status != DirectoryStatus.failed);
+        if (nextResult.status == DirectoryStatus.finished)
+            break;
+        ++result;
+    }
+    assert(close(&iterator).succeeded);
+    return result;
+}
 
 version (linux) private bool countEntry(Path, FileType, void* context) nothrow @system @nogc
 {
@@ -699,13 +736,15 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     first.append("/first.bin");
     const firstPath = Path.fromString(first.view);
     const u8[6] contents = [0, 1, 2, 3, 0, 255];
+    const helperDescriptorCount = openDescriptorCount();
     assert(writeEntireFile(firstPath, contents[]).succeeded);
 
     File explicitFile;
     assert(open(firstPath, OpenOptions.init, &explicitFile).succeeded);
     assert(explicitFile.valid);
-    assert(close(&explicitFile).succeeded && !explicitFile.valid);
+    assert(explicitFile.close().succeeded && !explicitFile.valid);
     assert(close(&explicitFile).succeeded);
+    deinit(explicitFile);
     OpenOptions invalidOptions;
     invalidOptions.read = false;
     assert(open(firstPath, invalidOptions, &explicitFile).kind == OsErrorKind.invalidArgument);
@@ -719,6 +758,81 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         loaded.deinit();
     assert(readEntireFile(firstPath, loaded).succeeded);
     assert(loaded.slice == contents[]);
+    assert(openDescriptorCount() == helperDescriptorCount);
+
+    {
+        import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+
+        const baseline = openDescriptorCount();
+        AllocationRecord[2] records;
+        InstrumentedAllocator failing = InstrumentedAllocator.create(
+            mallocAllocator(), records[],
+        );
+        failing.failAfter(0);
+        Array!u8 failedRead = Array!u8.create(failing.allocator);
+        assert(readEntireFile(firstPath, failedRead).kind == OsErrorKind.system);
+        assert(openDescriptorCount() == baseline);
+        deinit(failedRead);
+        assert(failing.clean);
+    }
+
+    {
+        const baseline = openDescriptorCount();
+        File source;
+        File target;
+        assert(open(firstPath, OpenOptions.init, &source).succeeded);
+        assert(open(firstPath, OpenOptions.init, &target).succeeded);
+        assert(openDescriptorCount() == baseline + 2);
+        moveAssign(source, target);
+        assert(!source.valid && target.valid);
+        assert(openDescriptorCount() == baseline + 1);
+        deinit(source);
+        deinit(target);
+        assert(openDescriptorCount() == baseline);
+    }
+
+    {
+        const baseline = openDescriptorCount();
+        File file;
+        assert(open(firstPath, OpenOptions.init, &file).succeeded);
+        Option!File optional = Option!File.some(move(file));
+        assert(!file.valid && optional.value.valid);
+        deinit(optional);
+        assert(openDescriptorCount() == baseline);
+    }
+
+    {
+        const baseline = openDescriptorCount();
+        File file;
+        assert(open(firstPath, OpenOptions.init, &file).succeeded);
+        Result!(File, OsError) result = Result!(File, OsError).ok(move(file));
+        assert(!file.valid && result.value.valid);
+        deinit(result);
+        assert(openDescriptorCount() == baseline);
+    }
+
+    {
+        const baseline = openDescriptorCount();
+        OwnedArray!File files = OwnedArray!File.create(mallocAllocator());
+        File firstFile;
+        File secondFile;
+        assert(open(firstPath, OpenOptions.init, &firstFile).succeeded);
+        assert(open(firstPath, OpenOptions.init, &secondFile).succeeded);
+        files.append(move(firstFile));
+        files.append(move(secondFile));
+        assert(!firstFile.valid && !secondFile.valid);
+        assert(openDescriptorCount() == baseline + 2);
+        deinit(files);
+        assert(openDescriptorCount() == baseline);
+    }
+
+    {
+        const baseline = openDescriptorCount();
+        FileOwnerComposition owner;
+        assert(open(firstPath, OpenOptions.init, &owner.file).succeeded);
+        deinit(owner);
+        assert(openDescriptorCount() == baseline);
+    }
 
     MappedFile mapping;
     assert(mapReadOnly(firstPath, &mapping).succeeded);

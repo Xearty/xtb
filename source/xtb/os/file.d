@@ -77,15 +77,34 @@ nothrow @nogc:
     private int descriptor_ = -1;
 
     @disable this(this);
+    @disable ref File opAssign(File source) return;
 
-    ~this()
+    /// Closes this file if it is open and reports any native close error.
+    OsError close() @system
     {
-        deinit();
+        if (!valid)
+            return OsError.init;
+        version (linux)
+        {
+            import core.sys.posix.unistd : nativeClose = close;
+
+            const descriptor = descriptor_;
+            descriptor_ = -1;
+            return nativeClose(descriptor) == 0 ? OsError.init : lastError();
+        }
+        else
+        {
+            descriptor_ = -1;
+            return unsupported();
+        }
     }
 
-    void deinit()
+    /// Explicitly ends this file's lifetime.
+    ///
+    /// Close errors are discarded; call `close` directly when they matter.
+    void deinit() @system
     {
-        close(&this);
+        cast(void) close();
     }
 
     bool valid() const pure @safe
@@ -103,21 +122,7 @@ OsError close(File* file) @system
 {
     version (XTB_Checked)
         require(file !is null, "File pointer is null");
-    if (!file.valid)
-        return OsError.init;
-    version (linux)
-    {
-        import core.sys.posix.unistd : nativeClose = close;
-
-        const descriptor = file.descriptor_;
-        file.descriptor_ = -1;
-        return nativeClose(descriptor) == 0 ? OsError.init : lastError();
-    }
-    else
-    {
-        file.descriptor_ = -1;
-        return unsupported();
-    }
+    return file.close();
 }
 
 OsError flush(File* file) @system
@@ -369,6 +374,8 @@ OsError readEntireFile(Path path, ref Array!u8 output) @system
 {
     output.clear();
     File file;
+    scope (exit)
+        file.deinit();
     OsError error = open(path, OpenOptions.init, &file);
     if (error.failed)
         return error;
@@ -411,6 +418,8 @@ OsError writeEntireFile(
     options.createMode = createMode;
     options.truncate = true;
     File file;
+    scope (exit)
+        file.deinit();
     OsError error = open(path, options, &file);
     if (error.failed)
         return error;
