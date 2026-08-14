@@ -249,14 +249,17 @@ and denied access are query results rather than failures. Unsupported backends
 return `OsErrorKind.unsupported` while retaining the API and allowing the whole
 library to compile.
 
-`File`, `DirectoryIterator`, and `MappedFile` are non-copyable RAII owners with
-valid empty states and idempotent `deinit`. Operations that mutate or advance
-them take explicit pointers. `IoResult` distinguishes partial progress from
-failure; complete I/O loops over short transfers and interruptions. Explicit
-`close` and `unmap` operations report cleanup errors, while destructors are
-best-effort fallbacks. Whole-file helpers use caller-owned `Array!ubyte`, read
-until EOF, preserve embedded NUL bytes, and make allocation explicit. File
-metadata is only a capacity hint and never defines how many bytes exist.
+`File`, `DirectoryIterator`, `MappedFile`, `PipeReader`, `PipeWriter`, and
+`Pipe` are non-copyable explicit-lifetime owners. Ordinary scope exit does not release
+their OS resource. Call `deinit` when cleanup errors can be discarded, or the
+resource-specific `close`/`unmap` operation when the native cleanup error
+matters. XTB move operations reconstruct the source to its inert `.init` state,
+and generated owner assignment is disabled. Operations that mutate or advance
+these owners take explicit pointers. `IoResult` distinguishes partial progress
+from failure; complete I/O loops over short transfers and interruptions.
+Whole-file helpers use caller-owned `Array!ubyte`, read until EOF, preserve
+embedded NUL bytes, and make allocation explicit. File metadata is only a
+capacity hint and never defines how many bytes exist.
 
 Policy choices use enums: `CreateMode` distinguishes opening, creating when
 missing, and creating a new file exclusively; `SymlinkMode` states whether
@@ -281,7 +284,8 @@ string uses scratch space, so the public operation requires an installed
 thread context. Raw `getenv` pointers remain package-private OS boundaries.
 `currentDirectory`, `executablePath`, and
 `canonicalPath` write owned bytes into a supplied `StringBuf`. Read-only maps
-remain valid until their `MappedFile` is destroyed. Monotonic timestamps serve
+remain valid until their `MappedFile` is explicitly unmapped or deinitialized.
+Monotonic timestamps serve
 elapsed-time measurement; wall-clock and file-modification timestamps are
 signed Unix-epoch nanoseconds, represent pre-epoch values, and may jump when
 the system clock changes.
@@ -696,9 +700,11 @@ Use these representations consistently:
 - arena/scratch allocation: request-scoped data with an explicit checkpoint
   and rewind. Values backed by scratch memory must not escape that scope.
 
-Prefer a useful zero state. `deinit` should tolerate it and leave the value
-zeroed so accidental double cleanup is harmless where the resource permits.
-Do not rely on postblits, hidden heap allocation, array concatenation/appending,
+Prefer a useful zero state, and require XTB moves to leave the source safely
+deinitializable. `deinit` should tolerate the zero state; code must not assume
+the value remains generally usable after its owning lifetime has ended unless
+the API explicitly documents reuse. Do not rely on postblits, hidden heap
+allocation, array concatenation/appending,
 closures that allocate, or Phobos templates without confirming their BetterC
 link behavior.
 

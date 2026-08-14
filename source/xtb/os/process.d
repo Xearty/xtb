@@ -2,7 +2,7 @@ module xtb.os.process;
 
 nothrow @nogc:
 
-import core.lifetime : move;
+import xtb.core.lifetime : moveAssign;
 import core.stdc.string : memmove;
 import xtb.core.memory : Allocator, allocateArray, allocateZeroedArray;
 import xtb.core.option : Option, some;
@@ -536,6 +536,12 @@ ProcessError spawn(
     Pipe childInput;
     Pipe childOutput;
     Pipe childError;
+    scope (exit)
+    {
+        childInput.deinit();
+        childOutput.deinit();
+        childError.deinit();
+    }
     int stdinDescriptor = routeDescriptor(options.stdin);
     int stdoutDescriptor = routeDescriptor(options.stdout);
     int stderrDescriptor = routeDescriptor(options.stderr);
@@ -589,11 +595,11 @@ ProcessError spawn(
     output.processId_ = processId;
     output.isolation_ = options.isolation;
     if (options.stdin.kind_ == RouteKind.piped)
-        move(childInput.writer, output.stdinPipe_);
+        moveAssign(childInput.writer, output.stdinPipe_);
     if (options.stdout.kind_ == RouteKind.piped)
-        move(childOutput.reader, output.stdoutPipe_);
+        moveAssign(childOutput.reader, output.stdoutPipe_);
     if (options.stderr.kind_ == RouteKind.piped)
-        move(childError.reader, output.stderrPipe_);
+        moveAssign(childError.reader, output.stderrPipe_);
     return ProcessError.init;
 }
 
@@ -880,6 +886,8 @@ version (linux) private ProcessError spawnLinux(
         );
 
     NativeSpawn spawnState;
+    scope (exit)
+        spawnState.deinit();
     OsError error = spawnState.prepare(
         options,
         stdinDescriptor,
@@ -923,22 +931,32 @@ nothrow @nogc:
     private int[3] stagedDescriptors = [-1, -1, -1];
 
     @disable this(this);
+    @disable ref NativeSpawn opAssign(NativeSpawn source) return;
 
-    ~this()
+    void deinit() @system
     {
         import core.sys.posix.spawn : posix_spawn_file_actions_destroy,
             posix_spawnattr_destroy;
         import core.sys.posix.unistd : nativeClose = close;
 
-        foreach (descriptor; stagedDescriptors)
+        foreach (ref descriptor; stagedDescriptors)
         {
             if (descriptor >= 0)
-                nativeClose(descriptor);
+            {
+                cast(void) nativeClose(descriptor);
+                descriptor = -1;
+            }
         }
         if (actionsActive)
-            posix_spawn_file_actions_destroy(&actions);
+        {
+            cast(void) posix_spawn_file_actions_destroy(&actions);
+            actionsActive = false;
+        }
         if (attributesActive)
-            posix_spawnattr_destroy(&attributes);
+        {
+            cast(void) posix_spawnattr_destroy(&attributes);
+            attributesActive = false;
+        }
     }
 
     OsError prepare(

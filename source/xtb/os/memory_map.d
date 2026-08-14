@@ -17,13 +17,12 @@ nothrow @nogc:
     private size_t length_;
 
     @disable this(this);
+    @disable ref MappedFile opAssign(MappedFile source) return;
 
-    ~this()
-    {
-        deinit();
-    }
-
-    void deinit()
+    /// Explicitly ends this mapping's owning lifetime.
+    ///
+    /// Unmap errors are discarded; call `unmap` directly when they matter.
+    void deinit() @system
     {
         cast(void) unmap(&this);
     }

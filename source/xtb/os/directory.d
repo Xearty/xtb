@@ -54,13 +54,12 @@ nothrow @nogc:
     }
 
     @disable this(this);
+    @disable ref DirectoryIterator opAssign(DirectoryIterator source) return;
 
-    ~this()
-    {
-        deinit();
-    }
-
-    void deinit()
+    /// Explicitly ends this iterator's owning lifetime.
+    ///
+    /// Close errors are discarded; call `close` directly when they matter.
+    void deinit() @system
     {
         cast(void) close(&this);
     }
@@ -380,6 +379,8 @@ private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor 
     OsError error = openDirectory(root, &iterator);
     if (error.failed)
         return error;
+    scope (exit)
+        iterator.deinit();
     DirectoryEntry entry;
     StringBuf full = StringBuf.create(temporaryAllocator);
     for (;;)

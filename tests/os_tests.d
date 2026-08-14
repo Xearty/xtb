@@ -23,6 +23,27 @@ import xtb.core.string;
 import xtb.core.thread_context : ThreadContextScope, scratchArena;
 import xtb.core.types : i64, u64, u8;
 
+static assert(!hasElaborateDestructor!DirectoryIterator);
+static assert(needsDeinit!DirectoryIterator);
+static assert(!__traits(isCopyable, DirectoryIterator));
+static assert(!__traits(compiles, () { DirectoryIterator left; DirectoryIterator right; left = right; }));
+static assert(!hasElaborateDestructor!MappedFile);
+static assert(needsDeinit!MappedFile);
+static assert(!__traits(isCopyable, MappedFile));
+static assert(!__traits(compiles, () { MappedFile left; MappedFile right; left = right; }));
+static assert(!hasElaborateDestructor!PipeReader);
+static assert(!hasElaborateDestructor!PipeWriter);
+static assert(!hasElaborateDestructor!Pipe);
+static assert(needsDeinit!PipeReader);
+static assert(needsDeinit!PipeWriter);
+static assert(needsDeinit!Pipe);
+static assert(!__traits(isCopyable, PipeReader));
+static assert(!__traits(isCopyable, PipeWriter));
+static assert(!__traits(isCopyable, Pipe));
+static assert(!__traits(compiles, () { PipeReader left; PipeReader right; left = right; }));
+static assert(!__traits(compiles, () { PipeWriter left; PipeWriter right; left = right; }));
+static assert(!__traits(compiles, () { Pipe left; Pipe right; left = right; }));
+
 static assert(!hasElaborateDestructor!File);
 static assert(needsDeinit!File);
 static assert(!__traits(isCopyable, File));
@@ -252,6 +273,7 @@ version (linux) private void runProcessIntegration(
             output.deinit();
         readPipeEntirely(&external.reader, &output);
         assert(output.slice.asStringUnchecked.equal("out\0data"));
+        external.deinit();
     }
 
     {
@@ -319,14 +341,20 @@ version (linux) private void runProcessIntegration(
     }
 
     {
+        const baseline = openDescriptorCount();
+        const options = SpawnOptions.init
+            .withStdin(InputRoute.piped())
+            .withStdout(OutputRoute.piped())
+            .withStderr(ErrorRoute.piped());
         ChildProcess child;
         const error = spawn(
             Command.exact(Path.fromString("/definitely/missing/xtb-helper")),
-            SpawnOptions.init,
+            options,
             &child,
         );
         assert(error.failed && error.operation == ProcessOperation.spawn);
         assert(error.os.kind == OsErrorKind.notFound && child.empty);
+        assert(openDescriptorCount() == baseline);
     }
 }
 
@@ -343,6 +371,7 @@ version (linux) private void runCommunicateIntegration(
         .withStderr(ErrorRoute.piped());
 
     {
+        const baseline = openDescriptorCount();
         String[1] arguments = ["copy"];
         ChildProcess child;
         assert(spawn(Command.exact(Path.fromString(helperExecutable),
@@ -362,6 +391,7 @@ version (linux) private void runCommunicateIntegration(
         assert(result.inputWritten == input.length &&
                 result.exitStatus.isSome && result.exitStatus.value.succeeded);
         assert(output.bytes == input[] && !output.truncated && child.empty);
+        assert(openDescriptorCount() == baseline);
     }
 
     {
@@ -676,6 +706,7 @@ version (linux) private void runPipelineIntegration(
     }
 
     {
+        const baseline = openDescriptorCount();
         String[1] copyArguments = ["copy"];
         Command[2] commands = [
             Command.exact(Path.fromString(helperExecutable), copyArguments[]),
@@ -691,6 +722,7 @@ version (linux) private void runPipelineIntegration(
         assert(error.failed &&
                 error.operation == ProcessOperation.pipelineSpawn &&
                 error.stageIndex == 1 && pipeline.empty);
+        assert(openDescriptorCount() == baseline);
     }
 
     {
@@ -834,6 +866,48 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         assert(openDescriptorCount() == baseline);
     }
 
+    {
+        const baseline = openDescriptorCount();
+        DirectoryIterator source;
+        DirectoryIterator target;
+        assert(openDirectory(rootPath, &source).succeeded);
+        assert(openDirectory(rootPath, &target).succeeded);
+        assert(openDescriptorCount() == baseline + 2);
+        moveAssign(source, target);
+        assert(!source.valid && target.valid);
+        assert(openDescriptorCount() == baseline + 1);
+        deinit(source);
+        deinit(target);
+        assert(openDescriptorCount() == baseline);
+    }
+
+    {
+        const baseline = openDescriptorCount();
+        Pipe source;
+        Pipe target;
+        assert(createPipe(PipeOptions.init, &source).succeeded);
+        assert(createPipe(PipeOptions.init, &target).succeeded);
+        assert(openDescriptorCount() == baseline + 4);
+        moveAssign(source, target);
+        assert(!source.valid && target.valid);
+        assert(openDescriptorCount() == baseline + 2);
+        deinit(source);
+        deinit(target);
+        assert(openDescriptorCount() == baseline);
+    }
+
+    {
+        MappedFile source;
+        MappedFile target;
+        assert(mapReadOnly(firstPath, &source).succeeded);
+        assert(mapReadOnly(firstPath, &target).succeeded);
+        moveAssign(source, target);
+        assert(source.empty);
+        assert(target.bytes == contents[]);
+        deinit(source);
+        deinit(target);
+    }
+
     MappedFile mapping;
     assert(mapReadOnly(firstPath, &mapping).succeeded);
     assert(mapping.bytes == contents[]);
@@ -870,8 +944,10 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(close(&iterator).succeeded);
     size_t walked;
     Arena walkArena = Arena.create(mallocAllocator(), 256);
+    const walkDescriptorBaseline = openDescriptorCount();
     assert(walkDirectory(rootPath, walkArena.allocator, &countEntry, &walked).succeeded);
     assert(walked == 2);
+    assert(openDescriptorCount() == walkDescriptorBaseline);
 
     bool exists;
     assert(queryAccess(firstPath, Access.exists, &exists).succeeded && exists);

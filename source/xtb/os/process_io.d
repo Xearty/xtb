@@ -128,6 +128,8 @@ CommunicateResult communicate(
         return communicationFailure(error, 0);
 
     ProcessWatch watch;
+    scope (exit)
+        watch.deinit();
     error = watch.open(child);
     if (error.failed)
         return communicationFailure(error, 0);
@@ -513,11 +515,7 @@ nothrow @nogc:
     int descriptor = -1;
 
     @disable this(this);
-
-    ~this()
-    {
-        deinit();
-    }
+    @disable ref ProcessWatch opAssign(ProcessWatch source) return;
 
     void deinit() @system
     {

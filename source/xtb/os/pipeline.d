@@ -2,8 +2,8 @@ module xtb.os.pipeline;
 
 nothrow @nogc:
 
-import core.lifetime : move;
-import xtb.core.lifetime : moveEmplace;
+import core.lifetime : coreMove = move;
+import xtb.core.lifetime : moveAssign, moveEmplace;
 import xtb.core.array;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
@@ -356,9 +356,13 @@ private ProcessError spawnPipelineSlice(Stage)(
         );
 
     PipeReader pendingInput;
+    scope (exit)
+        pendingInput.deinit();
     foreach (index; 0 .. stages.length)
     {
         Pipe connection;
+        scope (exit)
+            connection.deinit();
         if (index + 1 != stages.length)
         {
             const pipeError = createPipe(PipeOptions.init, &connection);
@@ -410,10 +414,10 @@ private ProcessError spawnPipelineSlice(Stage)(
                 );
         }
         if (connection.reader.valid)
-            move(connection.reader, pendingInput);
+            moveAssign(connection.reader, pendingInput);
     }
 
-    move(created, *output);
+    coreMove(created, *output);
     return ProcessError.init;
 }
 

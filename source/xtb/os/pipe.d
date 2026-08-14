@@ -55,15 +55,14 @@ nothrow @nogc:
     private int descriptor_ = -1;
 
     @disable this(this);
+    @disable ref PipeReader opAssign(PipeReader source) return;
 
-    ~this()
+    /// Explicitly ends this pipe endpoint's owning lifetime.
+    ///
+    /// Close errors are discarded; call `close` directly when they matter.
+    void deinit() @system
     {
-        deinit();
-    }
-
-    void deinit()
-    {
-        close(&this);
+        cast(void) close(&this);
     }
 
     bool valid() const pure @safe
@@ -84,15 +83,14 @@ nothrow @nogc:
     private int descriptor_ = -1;
 
     @disable this(this);
+    @disable ref PipeWriter opAssign(PipeWriter source) return;
 
-    ~this()
+    /// Explicitly ends this pipe endpoint's owning lifetime.
+    ///
+    /// Close errors are discarded; call `close` directly when they matter.
+    void deinit() @system
     {
-        deinit();
-    }
-
-    void deinit()
-    {
-        close(&this);
+        cast(void) close(&this);
     }
 
     bool valid() const pure @safe
@@ -114,6 +112,7 @@ nothrow @nogc:
     PipeWriter writer;
 
     @disable this(this);
+    @disable ref Pipe opAssign(Pipe source) return;
 
     bool valid() const pure @safe
     {
@@ -362,6 +361,7 @@ unittest
         assert(close(&nonBlocking.reader).succeeded);
         assert((&nonBlocking.writer).writeSome(bytes[]).state ==
                 PipeWriteState.peerClosed);
+        nonBlocking.deinit();
 
         PipeOptions invalid;
         invalid.readerMode = cast(PipeMode) 2;
