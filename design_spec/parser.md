@@ -56,6 +56,7 @@ This distinction is intentional:
 
 ```d
 Grammar grammar = Grammar.create(mallocAllocator());
+scope (exit) grammar.deinit();
 auto parser = grammar.integer!int().before(grammar.eof());
 
 // No parser allocation occurs here.
@@ -207,9 +208,12 @@ Grammar grammar = Grammar.create(
     mallocAllocator(),
     64 * 1024,
 );
+scope (exit) grammar.deinit();
 ```
 
-The zero state is safe to destroy. Copying is disabled.
+The zero state is inert. Copying and generated assignment are disabled.
+`Grammar` has no D destructor; call `deinit` explicitly after every parser handle
+into the grammar is no longer used.
 
 ### Primitive parser creation
 
@@ -539,6 +543,7 @@ It produces arena-owned `ArithmeticExpression` nodes. `ArithmeticExpression` is 
 
 ```d
 Grammar grammar = Grammar.create(mallocAllocator());
+scope (exit) grammar.deinit();
 Parser!(ArithmeticExpression*) parser = arithmeticExpression(&grammar);
 
 Arena output = Arena.create(mallocAllocator());
@@ -587,6 +592,7 @@ Usage:
 
 ```d
 Grammar grammar = Grammar.create(mallocAllocator());
+scope (exit) grammar.deinit();
 Parser!JsonValue parser = jsonDocument(&grammar);
 
 Arena output = Arena.create(mallocAllocator());

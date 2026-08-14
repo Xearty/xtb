@@ -2,7 +2,9 @@ module xtb.serde.ownership;
 
 nothrow @nogc:
 
+import core.internal.traits : hasElaborateDestructor;
 import core.stdc.string : memcpy;
+import xtb.core.lifetime : needsDeinit;
 import xtb.core.memory : Allocator, tryAllocateInit;
 import xtb.core.numeric : addOverflows;
 
@@ -27,12 +29,16 @@ nothrow @nogc:
     Allocator* backing;
     AllocationHeader* first;
 
-    static AllocationTracker create(Allocator* backing)
+    @disable this(this);
+    @disable ref AllocationTracker opAssign(AllocationTracker source) return;
+
+    void initialize(Allocator* backing)
     {
-        AllocationTracker result;
-        result.allocator_ = &trackingAllocatorProcedure;
-        result.backing = backing;
-        return result;
+        version (XTB_Checked)
+            require(this.backing is null && first is null,
+                "allocation tracker is already initialized");
+        allocator_ = &trackingAllocatorProcedure;
+        this.backing = backing;
     }
 
     Allocator* allocator() return
@@ -58,6 +64,10 @@ nothrow @nogc:
 
 static assert(AllocationTracker.allocator_.offsetof == 0);
 
+/// Explicit owner for one document-owned decoded graph.
+///
+/// Ordinary scope exit does not release tracked allocations. Call `deinit`
+/// after the decoded graph and every borrowed view into it are no longer used.
 struct Deserialized(T)
 {
 nothrow @nogc:
@@ -66,11 +76,7 @@ nothrow @nogc:
     private T* value_;
 
     @disable this(this);
-
-    ~this()
-    {
-        deinit();
-    }
+    @disable ref Deserialized opAssign(Deserialized source) return;
 
     bool empty() const pure @safe
     {
@@ -120,6 +126,18 @@ nothrow @nogc:
     }
 }
 
+static assert(!hasElaborateDestructor!(Deserialized!int));
+static assert(needsDeinit!(Deserialized!int));
+static assert(!__traits(isCopyable, Deserialized!int));
+
+package(xtb.serde) template isDeserialized(T)
+{
+    static if (is(T == Deserialized!Value, Value))
+        enum isDeserialized = true;
+    else
+        enum isDeserialized = false;
+}
+
 package(xtb.serde) bool prepareDeserialized(T)(
     Allocator* allocator,
     Deserialized!T* output,
@@ -134,7 +152,7 @@ package(xtb.serde) bool prepareDeserialized(T)(
         require(value !is null, "deserialized value pointer is null");
     }
     output.deinit();
-    output.tracker_ = AllocationTracker.create(allocator);
+    output.tracker_.initialize(allocator);
     T* created = output.tracker_.allocator.tryAllocateInit!T();
     if (created is null)
     {

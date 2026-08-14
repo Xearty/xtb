@@ -93,7 +93,7 @@ in parallel without replacing one another's helper.
 Its flood mode deliberately exceeds stdin, stdout, and stderr pipe capacities
 at the same time, proving that communication makes progress in every direction.
 Pipeline tests cover both borrowed `Command[]` and `PipelineStage[]`, failure
-rollback, allocator failure, per-stage status/success policy, and RAII reaping.
+rollback, allocator failure, per-stage status/success policy, explicit lifecycle resolution, and reaping.
 
 ```d
 module tests.core_runner;
@@ -302,7 +302,7 @@ Serde tests additionally verify:
   kinds are rejected deterministically;
 - allocation failure at every allocation point leaves `Deserialized!T` empty
   and the instrumented allocator balanced;
-- destroying or resetting a successful `Deserialized!T` recursively releases
+- explicitly deinitializing or resetting a successful `Deserialized!T` releases
   the root, copied strings, slices, and nullable pointer values exactly once;
 - owning decodes populate `StringBuf`, shallow `Array!T` for trivial elements,
   `OwnedArray!T` for cleanup-bearing elements, nested owning structs, and fixed

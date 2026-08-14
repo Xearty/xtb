@@ -2,13 +2,14 @@ module xtb.core.pretty_print;
 
 nothrow @nogc:
 
-import core.lifetime : move;
-
 import xtb.core.ansi : AnsiColor, AnsiStyle, beginAnsi, endAnsi;
 import xtb.core.array;
 import xtb.core.flag_set : FlagSet;
 import xtb.core.hash_map;
-import xtb.core.lifetime : isTaggedPayloadField,
+import xtb.core.lifetime : lifetimeDeinit = deinit,
+    isTaggedPayloadField,
+    move,
+    needsDeinit,
     taggedBy,
     taggedCase,
     taggedPayloadDiscriminatorIndex,
@@ -146,6 +147,17 @@ struct OwnedPrettyValue(T)
     private T value_;
     PrettyPrintOptions options;
 
+    static if (needsDeinit!T)
+    {
+        @disable this(this);
+        @disable ref OwnedPrettyValue opAssign(OwnedPrettyValue source) return;
+
+        ~this()
+        {
+            lifetimeDeinit(value_);
+        }
+    }
+
     void formatTo(ref Writer writer) const nothrow @nogc
     {
         writePrettyImpl(writer, value_, options, PrettyPrintContext.init);
@@ -198,8 +210,8 @@ OwnedPrettyValue!T pretty(T)(
 )
 @trusted
 {
-    // `core.lifetime.move` transfers the value into the returned wrapper and
-    // resets the parameter to `T.init`; no reference is fabricated here.
+    // XTB `move` transfers the value into the returned wrapper and reconstructs
+    // explicit-lifetime owners to `T.init`; no reference is fabricated here.
     return OwnedPrettyValue!T(move(value), options);
 }
 
@@ -3041,6 +3053,28 @@ unittest
         plain,
     );
     assert(prettyPrintTestDestructions == 1);
+
+    {
+        import xtb.core.allocators.instrumented : AllocationRecord,
+            InstrumentedAllocator;
+        import xtb.core.allocators.malloc : mallocAllocator;
+
+        AllocationRecord[4] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(),
+            records[],
+        );
+        {
+            OwnedString owner = OwnedString.fromString(
+                allocator.allocator,
+                "owned pretty",
+            );
+            auto wrapper = pretty(move(owner), plain);
+            assert(!allocator.clean());
+        }
+        assert(allocator.clean());
+        assert(allocator.stats.invalidCalls == 0);
+    }
 
     PrettyPrintTestRecord interpolatedRecord =
         PrettyPrintTestRecord(9, "Lin");

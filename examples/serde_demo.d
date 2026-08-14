@@ -1,9 +1,8 @@
 module examples.serde_demo;
 
-import core.lifetime : move;
 import xtb.core.array;
 import xtb.core.memory : Allocator;
-import xtb.core.lifetime : deinitValue = deinit, moveEmplace;
+import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, some;
 import xtb.core.print : Writer, writeln;
@@ -266,6 +265,8 @@ private bool demonstrateOwningDecode() nothrow @nogc
 private bool demonstrateDocumentOwnedDecode() nothrow @nogc
 {
     Deserialized!BorrowedReport report;
+    scope (exit)
+        report.deinit();
     SerdeError error = readJson(
         "{\"report_name\":\"latency\",\"samples\":[12,9,15,11]}",
         mallocAllocator(),
@@ -283,6 +284,8 @@ private bool demonstrateDocumentOwnedDecode() nothrow @nogc
 private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
 {
     Deserialized!ServiceChange change;
+    scope (exit)
+        change.deinit();
     SerdeError error = readJson(
         "{\"change\":{\"service\":\"gateway\",\"port\":8443}," ~
             "\"change_type\":\"service_started\"}",

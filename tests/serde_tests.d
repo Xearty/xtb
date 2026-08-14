@@ -1,10 +1,9 @@
 module tests.serde_tests;
 
-import core.lifetime : move;
 import tests.serde_backend_contract : runSerdeBackendContracts;
 import xtb.core.array;
 import xtb.core.hash_map;
-import xtb.core.lifetime : deinitValue = deinit, moveEmplace;
+import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
@@ -580,6 +579,8 @@ private void testSharedPolicies() nothrow @nogc
     assert(json == "{\"mode\":\"rolling-update\"}");
 
     Deserialized!PolicyDocument fromJson;
+    scope (exit)
+        fromJson.deinit();
     error = readJson("{\"mode\":\"rolling\"}", mallocAllocator(),
         &fromJson);
     assert(error.ok);
@@ -593,6 +594,8 @@ private void testSharedPolicies() nothrow @nogc
     assert(toml == "mode = \"rolling-update\"");
 
     Deserialized!PolicyDocument fromToml;
+    scope (exit)
+        fromToml.deinit();
     error = readToml("mode = \"blue_green\"", mallocAllocator(),
         &fromToml);
     assert(error.ok);
@@ -643,6 +646,8 @@ private void testSharedPolicies() nothrow @nogc
     assert(adapterAllocator.stats.invalidCalls == 0);
 
     Deserialized!NestedDefaultsDocument jsonDefaults;
+    scope (exit)
+        jsonDefaults.deinit();
     error = readJson("{\"pointer\":{},\"items\":[{}]}",
         mallocAllocator(), &jsonDefaults);
     assert(error.ok);
@@ -650,6 +655,8 @@ private void testSharedPolicies() nothrow @nogc
     assert(jsonDefaults.value.items[0].value == 11);
 
     Deserialized!NestedDefaultsDocument tomlDefaults;
+    scope (exit)
+        tomlDefaults.deinit();
     error = readToml("pointer = {}\nitems = [{}]\n",
         mallocAllocator(), &tomlDefaults);
     assert(error.ok);
@@ -672,6 +679,8 @@ private void testJsonTaggedUnions() nothrow @nogc
             "{\"record_created\":{\"id\":17,\"displayName\":\"new record\"}}");
 
     Deserialized!ExternalEvent decodedExternal;
+    scope (exit)
+        decodedExternal.deinit();
     error = readJson(encoded.view, mallocAllocator(), &decodedExternal);
     assert(error.ok);
     assert(decodedExternal.value.kind == EventKind.recordCreated);
@@ -689,6 +698,8 @@ private void testJsonTaggedUnions() nothrow @nogc
             "{\"event_type\":\"removed\",\"id\":9,\"permanent\":true}");
 
     Deserialized!InternalEvent decodedInternal;
+    scope (exit)
+        decodedInternal.deinit();
     error = readJson(
         "{\"permanent\":true,\"id\":9,\"event_type\":\"record_deleted\"}",
         mallocAllocator(), &decodedInternal);
@@ -709,6 +720,8 @@ private void testJsonTaggedUnions() nothrow @nogc
             "\"id\":23,\"displayName\":\"adjacent\"}}");
 
     Deserialized!AdjacentEvent decodedAdjacent;
+    scope (exit)
+        decodedAdjacent.deinit();
     error = readJson(
         "{\"event_data\":{\"id\":23,\"displayName\":\"adjacent\"}," ~
             "\"event_type\":\"record_created\"}",
@@ -739,6 +752,8 @@ private void testTomlTaggedUnions() nothrow @nogc
             "displayName = \"new record\" } }");
 
     Deserialized!ExternalEnvelope decodedExternal;
+    scope (exit)
+        decodedExternal.deinit();
     error = readToml(encoded.view, mallocAllocator(), &decodedExternal);
     assert(error.ok);
     assert(decodedExternal.value.event.kind == EventKind.recordCreated);
@@ -755,6 +770,8 @@ private void testTomlTaggedUnions() nothrow @nogc
             "event = { event_type = \"removed\", id = 9, permanent = true }");
 
     Deserialized!InternalEnvelope decodedInternal;
+    scope (exit)
+        decodedInternal.deinit();
     error = readToml(
         "event = { permanent = true, id = 9, " ~
             "event_type = \"record_deleted\" }",
@@ -775,6 +792,8 @@ private void testTomlTaggedUnions() nothrow @nogc
             "id = 23, displayName = \"adjacent\" } }");
 
     Deserialized!AdjacentEnvelope decodedAdjacent;
+    scope (exit)
+        decodedAdjacent.deinit();
     error = readToml(
         "event = { event_data = { id = 23, displayName = \"adjacent\" }, " ~
             "event_type = \"record_created\" }",
@@ -797,6 +816,8 @@ private void testTomlTaggedUnions() nothrow @nogc
             "event_type = \"record_created\"\n" ~
             "event_data = { id = 23, displayName = \"adjacent\" }");
     Deserialized!AdjacentEvent rootAdjacent;
+    scope (exit)
+        rootAdjacent.deinit();
     error = readToml(
         "event_data = { id = 23, displayName = \"adjacent\" }\n" ~
             "event_type = \"record_created\"\n",
@@ -809,6 +830,8 @@ private void testTomlTaggedUnions() nothrow @nogc
     error = writeToml(writer, external.event);
     assert(error.ok);
     Deserialized!ExternalEvent rootExternal;
+    scope (exit)
+        rootExternal.deinit();
     error = readToml(encoded.view, mallocAllocator(), &rootExternal);
     assert(error.ok);
     assert(rootExternal.value.data.created.id == 17);
@@ -818,6 +841,8 @@ private void testTomlTaggedUnions() nothrow @nogc
     error = writeToml(writer, internal.event);
     assert(error.ok);
     Deserialized!InternalEvent rootInternal;
+    scope (exit)
+        rootInternal.deinit();
     error = readToml(encoded.view, mallocAllocator(), &rootInternal);
     assert(error.ok);
     assert(rootInternal.value.data.deleted.id == 9);
@@ -861,6 +886,8 @@ private void testJsonRoundTrip() nothrow @nogc
             "}");
 
     Deserialized!Settings decoded;
+    scope (exit)
+        decoded.deinit();
     error = readJson(encoded.view, mallocAllocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.apiVersion == 3);
@@ -877,6 +904,8 @@ private void testJsonRoundTrip() nothrow @nogc
 private void testJsonPolicies() nothrow @nogc
 {
     Deserialized!Settings decoded;
+    scope (exit)
+        decoded.deinit();
     SerdeError error = readJson(
         "{\"api-version\":1,\"enabled\":true,\"display_name\":\"x\"," ~
             "\"user_id\":1,\"mode\":\"quiet\",\"ports\":[],\"pair\":[1,2]}",
@@ -920,6 +949,8 @@ private void testJsonUnicodeAndNumbers() nothrow @nogc
 {
     OptionalDocument document;
     Deserialized!OptionalDocument decoded;
+    scope (exit)
+        decoded.deinit();
     SerdeError error = readJson(
         "{\"child\":{\"label\":\"A\\u00df\\u6771\\ud834\\udd1e\",\"value\":-2147483648}}",
         mallocAllocator(),
@@ -967,6 +998,8 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
     assert(encoded == "{\"http_server_id\":7,\"fixed-key\":9}");
 
     Deserialized!CasingDocument decoded;
+    scope (exit)
+        decoded.deinit();
     JsonReadOptions readOptions;
     readOptions.keyCase = KeyCase.snake;
     error = readJson(encoded.view, mallocAllocator(), &decoded, readOptions);
@@ -1045,6 +1078,8 @@ private void testJsonAllocationFailures() nothrow @nogc
 private void testJsonOptions() nothrow @nogc
 {
     Deserialized!OptionalValues decoded;
+    scope (exit)
+        decoded.deinit();
     SerdeError error = readJson(
         "{\"title\":\"deploy\",\"priority\":null," ~
             "\"child\":{\"label\":\"worker\",\"value\":7}," ~
@@ -1107,6 +1142,8 @@ private void testTomlRoundTrip() nothrow @nogc
             "ratio = 0.125");
 
     Deserialized!TomlDocument decoded;
+    scope (exit)
+        decoded.deinit();
     error = readToml(encoded.view, mallocAllocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.applicationName.equal("demo"));
@@ -1140,6 +1177,8 @@ private void testTomlTablesAndSyntax() nothrow @nogc
         "hostName = \"localhost\\u002einternal\"\n" ~
         "port = 0x1538 # 5432\n";
     Deserialized!TomlDocument decoded;
+    scope (exit)
+        decoded.deinit();
     SerdeError error = readToml(input, mallocAllocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.applicationName.equal("table demo"));
@@ -1161,6 +1200,8 @@ private void testTomlTablesAndSyntax() nothrow @nogc
     assert(error.kind == SerdeErrorKind.unsupportedValue);
 
     Deserialized!OptionalDocument optional;
+    scope (exit)
+        optional.deinit();
     error = readToml("[child]\nlabel = \"nested\"\nvalue = 17\n",
         mallocAllocator(), &optional);
     assert(error.ok);
@@ -1213,6 +1254,8 @@ private void testTomlOptions() nothrow @nogc
         "label = \"worker\"\n" ~
         "value = 7\n";
     Deserialized!OptionalValues decoded;
+    scope (exit)
+        decoded.deinit();
     SerdeError error = readToml(input, mallocAllocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.title.isSome);
@@ -1576,6 +1619,8 @@ private void testJsonTopLevelValues() nothrow @nogc
     JsonReadOptions limitedOptions;
     limitedOptions.limits.maxCollectionLength = 1;
     Deserialized!(int[]) limitedValues;
+    scope (exit)
+        limitedValues.deinit();
     error = readJson("[1,2]", mallocAllocator(), &limitedValues,
         limitedOptions);
     assert(error.kind == SerdeErrorKind.collectionLimit);

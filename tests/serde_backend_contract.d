@@ -108,6 +108,8 @@ private void runBackendContract(Backend)()
     assert(encoded == Backend.expected);
 
     Deserialized!ContractDocument roundTrip;
+    scope (exit)
+        roundTrip.deinit();
     error = Backend.read(encoded.view, mallocAllocator(), &roundTrip);
     assert(error.ok);
     assert(roundTrip.value.serviceName.equal("api"));
@@ -117,6 +119,8 @@ private void runBackendContract(Backend)()
     assert(roundTrip.value.child.enabled);
 
     Deserialized!ContractDocument legacy;
+    scope (exit)
+        legacy.deinit();
     error = Backend.read(Backend.legacy, mallocAllocator(), &legacy);
     assert(error.ok);
     assert(legacy.value.serviceName.equal("legacy"));

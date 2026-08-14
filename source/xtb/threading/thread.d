@@ -3,8 +3,9 @@ module xtb.threading.thread;
 nothrow @nogc:
 
 import core.attribute : mustuse;
-import core.internal.traits : Parameters, ReturnType, Unqual;
+import core.internal.traits : Parameters, ReturnType, Unqual, hasElaborateDestructor;
 import core.lifetime : emplace, forward, move;
+import xtb.core.lifetime : lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
@@ -217,11 +218,17 @@ private void validateTypedWorker(alias function_)()
             !is(Parameters!function_[index] == inout InoutBase, InoutBase),
             "typed Thread start does not yet accept top-level inout parameters",
         );
+        static if (needsDeinit!(Parameters!function_[index]))
+            static assert(
+                is(Parameters!function_[index] ==
+                    Unqual!(Parameters!function_[index])),
+                "explicit-lifetime Thread worker value parameters must be mutable",
+            );
     }
 }
 
 // The union suppresses automatic destruction of `T`; exactly one capture member
-// is manually constructed in explicit start storage and manually destroyed on
+// is manually constructed in explicit start storage and manually finalized on
 // either the native-start failure path or the child-consumption path.
 private union CaptureSlot(T)
 {
@@ -239,12 +246,20 @@ private struct TypedCaptures(alias function_)
         );
 }
 
-private void destroyTypedCaptures(alias function_)(
+private void finalizeTypedValue(T)(ref T value) @system
+{
+    static if (needsDeinit!T)
+        lifetimeDeinit(value);
+    else static if (hasElaborateDestructor!T)
+        destroy(value);
+}
+
+private void finalizeTypedCaptures(alias function_)(
     ref TypedCaptures!function_ captures,
 ) @system
 {
     static foreach_reverse (index; 0 .. Parameters!function_.length)
-        destroy(captures.tupleof[index].value);
+        finalizeTypedValue(captures.tupleof[index].value);
 }
 
 private struct AllocatedTypedStartState(alias function_)
@@ -273,10 +288,10 @@ private template movedWorkerArgumentList(size_t count)
     static if (count == 0)
         enum movedWorkerArgumentList = "";
     else static if (count == 1)
-        enum movedWorkerArgumentList = "move(argument0)";
+        enum movedWorkerArgumentList = "lifetimeMove(argument0)";
     else
         enum movedWorkerArgumentList = movedWorkerArgumentList!(count - 1)
-            ~ ", move(argument" ~ decimalIndex!(count - 1) ~ ")";
+            ~ ", lifetimeMove(argument" ~ decimalIndex!(count - 1) ~ ")";
 }
 
 private int typedAllocatedStartTrampoline(alias function_)(void* opaque) @system
@@ -291,11 +306,11 @@ private int typedAllocatedStartTrampoline(alias function_)(void* opaque) @system
     static foreach (index; 0 .. WorkerParameters.length)
         mixin(
             "Unqual!(WorkerParameters[" ~ decimalIndex!index ~ "]) argument"
-                ~ decimalIndex!index ~ " = move(state.captures.tupleof["
+                ~ decimalIndex!index ~ " = lifetimeMove(state.captures.tupleof["
                 ~ decimalIndex!index ~ "].value);",
         );
 
-    destroyTypedCaptures!function_(state.captures);
+    finalizeTypedCaptures!function_(state.captures);
 
     // Every typed capture now lives in child-local storage. Release the source
     // allocation before entering potentially long-running user code.
@@ -324,11 +339,11 @@ private int typedStackStartTrampoline(alias function_)(void* opaque) @system
     static foreach (index; 0 .. WorkerParameters.length)
         mixin(
             "Unqual!(WorkerParameters[" ~ decimalIndex!index ~ "]) argument"
-                ~ decimalIndex!index ~ " = move(state.captures.tupleof["
+                ~ decimalIndex!index ~ " = lifetimeMove(state.captures.tupleof["
                 ~ decimalIndex!index ~ "].value);",
         );
 
-    destroyTypedCaptures!function_(state.captures);
+    finalizeTypedCaptures!function_(state.captures);
 
     // This is the final access to the parent-stack packet. The caller may let
     // that storage disappear as soon as the signal is observed.
@@ -469,7 +484,10 @@ nothrow @nogc:
     /// Starts a typed worker without allocating startup storage.
     ///
     /// Arguments are captured synchronously in the starting thread using the
-    /// worker's declared parameter types. After native creation, this call waits
+    /// worker's declared parameter types. Explicit-lifetime owner arguments are
+    /// consumed by the call, require an exact parameter type, and become the
+    /// worker's cleanup responsibility after successful start. After native
+    /// creation, this call waits
     /// only until the child has moved those captures to child-local storage; it
     /// does not wait for user worker completion.
     static Result!(Thread, ThreadStartError) start(
@@ -505,16 +523,24 @@ nothrow @nogc:
             "typed Thread start argument count must match worker parameter count",
         );
 
+        static foreach (index; 0 .. WorkerParameters.length)
+            static if (needsDeinit!(Unqual!(Args[index])) ||
+                needsDeinit!(Unqual!(WorkerParameters[index])))
+                static assert(
+                    is(Unqual!(Args[index]) == Unqual!(WorkerParameters[index])),
+                    "explicit-lifetime Thread arguments require an exact worker parameter type",
+                );
+
         State state;
         static foreach (index; 0 .. WorkerParameters.length)
             emplace(
                 &state.captures.tupleof[index].value,
-                move(arguments[index]),
+                lifetimeMove(arguments[index]),
             );
 
         static if (!startLatchSupported)
         {
-            destroyTypedCaptures!function_(state.captures);
+            finalizeTypedCaptures!function_(state.captures);
             return err(
                 ThreadStartError(ThreadStartErrorKind.unsupported, 0),
             );
@@ -528,7 +554,7 @@ nothrow @nogc:
             );
             if (started.isErr)
             {
-                destroyTypedCaptures!function_(state.captures);
+                finalizeTypedCaptures!function_(state.captures);
                 return err(started.unwrapError());
             }
 
@@ -612,7 +638,10 @@ nothrow @nogc:
     /// Starts a typed worker from allocator-backed stable capture storage.
     ///
     /// Argument values are captured in the worker's declared parameter types.
-    /// The child moves them to its own stack, destroys the source captures, and
+    /// Explicit-lifetime owner arguments are consumed by the call, require an
+    /// exact parameter type, and become the worker's cleanup responsibility
+    /// after successful start. The child moves them to its own stack, finalizes
+    /// the source captures, and
     /// releases the allocation before invoking the worker. The allocator must
     /// remain valid until that child-side release and must support deallocation
     /// from the created thread.
@@ -652,12 +681,25 @@ nothrow @nogc:
             "typed Thread start argument count must match worker parameter count",
         );
 
+        static foreach (index; 0 .. WorkerParameters.length)
+            static if (needsDeinit!(Unqual!(Args[index])) ||
+                needsDeinit!(Unqual!(WorkerParameters[index])))
+                static assert(
+                    is(Unqual!(Args[index]) == Unqual!(WorkerParameters[index])),
+                    "explicit-lifetime Thread arguments require an exact worker parameter type",
+                );
+
         if (allocator is null || *allocator is null)
             panic("Thread.startAlloc requires a valid allocator");
 
         State* state = allocator.tryAllocate!State();
         if (state is null)
+        {
+            static foreach_reverse (index; 0 .. Args.length)
+                static if (needsDeinit!(Unqual!(Args[index])))
+                    lifetimeDeinit(arguments[index]);
             return err(allocationStartFailure());
+        }
 
         emplace(state);
         state.allocator = allocator;
@@ -669,13 +711,13 @@ nothrow @nogc:
         static foreach (index; 0 .. WorkerParameters.length)
             emplace(
                 &state.captures.tupleof[index].value,
-                move(arguments[index]),
+                lifetimeMove(arguments[index]),
             );
 
         const started = backend.startStable(options.stackSize, &state.native);
         if (!started.succeeded)
         {
-            destroyTypedCaptures!function_(state.captures);
+            finalizeTypedCaptures!function_(state.captures);
             const error = mapStartError(started.kind, started.nativeCode);
             destroy(*state);
             allocator.deallocate(state);

@@ -3,7 +3,7 @@ module tests.threading_tests;
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move;
 import core.stdc.stdlib : free, malloc;
-import xtb.core.lifetime : lifetimeDeinit = deinit, needsDeinit;
+import xtb.core.lifetime : lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
@@ -586,6 +586,65 @@ nothrow @nogc
     return capture.value;
 }
 
+version (linux) struct ExplicitLifetimeCapture
+{
+    Atomic!uint* deinits;
+    int value;
+    bool active;
+
+    @disable this(this);
+    @disable ref ExplicitLifetimeCapture opAssign(
+        ExplicitLifetimeCapture source,
+    ) return;
+
+    public void deinit() nothrow @nogc
+    {
+        if (active)
+        {
+            if (deinits !is null)
+                deinits.fetchAdd(1, MemoryOrder.relaxed);
+            active = false;
+        }
+    }
+}
+
+version (linux) static assert(needsDeinit!ExplicitLifetimeCapture);
+version (linux) static assert(!hasElaborateDestructor!ExplicitLifetimeCapture);
+
+version (linux) private int explicitLifetimeWorker(
+    ExplicitLifetimeCapture capture,
+) nothrow @nogc
+{
+    const value = capture.value;
+    lifetimeDeinit(capture);
+    return value;
+}
+
+version (linux) private int constExplicitLifetimeWorker(
+    const ExplicitLifetimeCapture capture,
+) nothrow @nogc
+{
+    return capture.value;
+}
+
+version (linux) private ExplicitLifetimeCapture makeExplicitLifetimeResult(
+    Atomic!uint* deinits,
+    int value,
+) nothrow @nogc
+{
+    ExplicitLifetimeCapture result;
+    result.deinits = deinits;
+    result.value = value;
+    result.active = true;
+    return lifetimeMove(result);
+}
+
+version (linux) private const(ExplicitLifetimeCapture)
+makeConstExplicitLifetimeResult() nothrow @nogc
+{
+    return const(ExplicitLifetimeCapture).init;
+}
+
 version (linux) private struct MoveOnlyCapture
 {
     Atomic!uint* destructions;
@@ -718,6 +777,8 @@ version (linux) static assert(!__traits(compiles, Thread.start!constValueWorker(
 version (linux) static assert(!__traits(compiles, Thread.start!constValueWorker(1, 2)));
 version (linux) static assert(__traits(compiles,
         Thread.startWith!constValueWorker(ThreadStartOptions.init, 1)));
+version (linux) static assert(!__traits(compiles,
+        Thread.start!constExplicitLifetimeWorker(ExplicitLifetimeCapture.init)));
 
 version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!refTypedWorker(mallocAllocator(), 1)));
@@ -745,6 +806,11 @@ version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!constValueWorker(mallocAllocator())));
 version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!constValueWorker(mallocAllocator(), 1, 2)));
+version (linux) static assert(!__traits(compiles,
+        Thread.startAlloc!constExplicitLifetimeWorker(
+        mallocAllocator(),
+        ExplicitLifetimeCapture.init,
+    )));
 
 version (linux) static assert(!__traits(compiles,
         spawn!refTypedWorker(mallocAllocator(), 1)));
@@ -772,6 +838,13 @@ version (linux) static assert(!__traits(compiles,
         spawn!constValueWorker(mallocAllocator())));
 version (linux) static assert(!__traits(compiles,
         spawn!constValueWorker(mallocAllocator(), 1, 2)));
+version (linux) static assert(!__traits(compiles,
+        spawn!constExplicitLifetimeWorker(
+        mallocAllocator(),
+        ExplicitLifetimeCapture.init,
+    )));
+version (linux) static assert(!__traits(compiles,
+        spawn!makeConstExplicitLifetimeResult(mallocAllocator())));
 version (linux) static assert(!__traits(hasMember, JoinHandle!int, "detach"));
 
 version (linux) private struct StaticScopedWorker
@@ -805,6 +878,23 @@ version (linux) private int returningThreadScopeBody(
 
 version (linux) private ThreadScope* escapedThreadScope;
 
+version (linux) private void consumeScopedExplicitLifetime(
+    ExplicitLifetimeCapture capture,
+    int* observed,
+) nothrow @nogc
+{
+    *observed = capture.value;
+    lifetimeDeinit(capture);
+}
+
+version (linux) private void consumeScopedConstExplicitLifetime(
+    const ExplicitLifetimeCapture capture,
+    int*,
+) nothrow @nogc
+{
+    cast(void) capture;
+}
+
 version (linux) private void threadScopeCompileChecks() nothrow @nogc @system
 {
     ThreadScope scope_;
@@ -828,6 +918,20 @@ version (linux) private void threadScopeCompileChecks() nothrow @nogc @system
             scope_.spawn!missingNogcTypedWorker(value)));
     static assert(__traits(compiles,
             scope_.spawn!(StaticScopedWorker.run)(value)));
+
+    ExplicitLifetimeCapture explicitOwner;
+    static assert(!__traits(compiles,
+            scope_.spawn!consumeScopedExplicitLifetime(explicitOwner, &value)));
+    static assert(__traits(compiles,
+            scope_.spawn!consumeScopedExplicitLifetime(
+            lifetimeMove(explicitOwner),
+            &value,
+        )));
+    static assert(!__traits(compiles,
+            scope_.spawn!consumeScopedConstExplicitLifetime(
+            lifetimeMove(explicitOwner),
+            &value,
+        )));
     static assert(!__traits(hasMember, ThreadScope, "join"));
     static assert(!__traits(hasMember, ThreadScope, "detach"));
 
@@ -1134,6 +1238,80 @@ version (linux) private bool allocatedTypedMoveLifetimeWorks() nothrow @nogc
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 91 && destructions.load() == 1;
+}
+
+version (linux) private bool explicitTypedOwnerLifecycleWorks() nothrow @nogc
+{
+    Atomic!uint stackDeinits;
+    ExplicitLifetimeCapture stackCapture = ExplicitLifetimeCapture(
+        &stackDeinits,
+        81,
+        true,
+    );
+    auto stackStarted = Thread.start!explicitLifetimeWorker(
+        lifetimeMove(stackCapture),
+    );
+    if (!stackStarted.isOk)
+        return false;
+    Thread stackThread = stackStarted.unwrap();
+    if (stackThread.join() != 81 || stackDeinits.load() != 1)
+        return false;
+
+    Atomic!uint stackFailureDeinits;
+    ExplicitLifetimeCapture stackFailure = ExplicitLifetimeCapture(
+        &stackFailureDeinits,
+        82,
+        true,
+    );
+    auto stackFailed = Thread.startWith!explicitLifetimeWorker(
+        ThreadStartOptions(size_t.max),
+        lifetimeMove(stackFailure),
+    );
+    if (!stackFailed.isErr ||
+        stackFailed.unwrapError()
+            .kind !=
+            ThreadStartErrorKind.invalidConfiguration ||
+            stackFailureDeinits.load() != 1)
+        return false;
+
+    Atomic!uint allocationFailureDeinits;
+    ExplicitLifetimeCapture allocationFailure = ExplicitLifetimeCapture(
+        &allocationFailureDeinits,
+        83,
+        true,
+    );
+    StartTrackingAllocator failing = StartTrackingAllocator.create(true);
+    auto allocationFailed = Thread.startAlloc!explicitLifetimeWorker(
+        failing.allocator,
+        lifetimeMove(allocationFailure),
+    );
+    if (!allocationFailed.isErr ||
+        allocationFailed.unwrapError()
+            .kind !=
+            ThreadStartAllocErrorKind.allocationFailed ||
+            allocationFailureDeinits.load() != 1)
+        return false;
+
+    Atomic!uint nativeFailureDeinits;
+    ExplicitLifetimeCapture nativeFailure = ExplicitLifetimeCapture(
+        &nativeFailureDeinits,
+        84,
+        true,
+    );
+    StartTrackingAllocator invalidStack = StartTrackingAllocator.create();
+    auto nativeFailed = Thread.startAllocWith!explicitLifetimeWorker(
+        ThreadStartOptions(size_t.max),
+        invalidStack.allocator,
+        lifetimeMove(nativeFailure),
+    );
+    return nativeFailed.isErr &&
+        nativeFailed.unwrapError()
+            .kind ==
+            ThreadStartAllocErrorKind.threadStartFailed &&
+            nativeFailed.unwrapError()
+            .threadStartError.kind ==
+            ThreadStartErrorKind.invalidConfiguration &&
+            nativeFailureDeinits.load() == 1;
 }
 
 version (linux) private bool allocatedTypedConversionRunsOnParent() nothrow @nogc
@@ -1492,6 +1670,77 @@ version (linux) private bool spawnFailuresCleanUp() nothrow @nogc
         invalidStack.allocationCalls.load() == 1 &&
         invalidStack.deallocationCalls.load() == 1 &&
         invalidStack.deallocationThread == currentThreadId();
+}
+
+version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
+{
+    Atomic!uint allocationFailureDeinits;
+    ExplicitLifetimeCapture allocationCapture = ExplicitLifetimeCapture(
+        &allocationFailureDeinits,
+        61,
+        true,
+    );
+    StartTrackingAllocator failing = StartTrackingAllocator.create(true);
+    auto allocationFailed = spawn!explicitLifetimeWorker(
+        failing.allocator,
+        lifetimeMove(allocationCapture),
+    );
+    if (!allocationFailed.isErr ||
+        allocationFailed.unwrapError()
+            .kind != SpawnErrorKind.allocationFailed ||
+            allocationFailureDeinits.load() != 1)
+        return false;
+
+    Atomic!uint nativeFailureDeinits;
+    ExplicitLifetimeCapture nativeCapture = ExplicitLifetimeCapture(
+        &nativeFailureDeinits,
+        62,
+        true,
+    );
+    StartTrackingAllocator invalidStack = StartTrackingAllocator.create();
+    auto nativeFailed = spawnWith!explicitLifetimeWorker(
+        ThreadStartOptions(size_t.max),
+        invalidStack.allocator,
+        lifetimeMove(nativeCapture),
+    );
+    if (!nativeFailed.isErr ||
+        nativeFailed.unwrapError().kind != SpawnErrorKind.threadStartFailed ||
+        nativeFailed.unwrapError()
+            .threadStartError.kind !=
+            ThreadStartErrorKind.invalidConfiguration ||
+            nativeFailureDeinits.load() != 1)
+        return false;
+
+    Atomic!uint captureDeinits;
+    ExplicitLifetimeCapture capture = ExplicitLifetimeCapture(
+        &captureDeinits,
+        63,
+        true,
+    );
+    auto started = spawn!explicitLifetimeWorker(
+        mallocAllocator(),
+        lifetimeMove(capture),
+    );
+    if (!started.isOk)
+        return false;
+    JoinHandle!int handle = started.unwrap();
+    if (handle.join() != 63 || captureDeinits.load() != 1)
+        return false;
+
+    Atomic!uint resultDeinits;
+    auto resultStarted = spawn!makeExplicitLifetimeResult(
+        mallocAllocator(),
+        &resultDeinits,
+        64,
+    );
+    if (!resultStarted.isOk)
+        return false;
+    JoinHandle!ExplicitLifetimeCapture resultHandle = resultStarted.unwrap();
+    ExplicitLifetimeCapture result = resultHandle.join();
+    if (result.value != 64 || resultDeinits.load() != 0)
+        return false;
+    lifetimeDeinit(result);
+    return resultDeinits.load() == 1;
 }
 
 version (linux) private bool spawnUsesOneStableAllocation() nothrow @nogc
@@ -1922,6 +2171,98 @@ nothrow @nogc
         successTracker.deallocationCalls.load() == 3 &&
         successTracker.allocationThread == owner &&
         successTracker.deallocationThread == owner;
+}
+
+version (linux) private struct ExplicitThreadScopeContext
+{
+    ExplicitLifetimeCapture capture;
+    int observed;
+    bool sawExpectedFailure;
+}
+
+version (linux) private void explicitThreadScopeSuccessBody(
+    scope ref ThreadScope scope_,
+    scope ExplicitThreadScopeContext* context,
+) nothrow @nogc
+{
+    scope_.spawn!consumeScopedExplicitLifetime(
+        lifetimeMove(context.capture),
+        &context.observed,
+    ).unwrap();
+}
+
+version (linux) private void explicitThreadScopeAllocationFailureBody(
+    scope ref ThreadScope scope_,
+    scope ExplicitThreadScopeContext* context,
+) nothrow @nogc
+{
+    auto started = scope_.spawn!consumeScopedExplicitLifetime(
+        lifetimeMove(context.capture),
+        &context.observed,
+    );
+    if (started.isErr)
+        context.sawExpectedFailure =
+            started.unwrapError().kind == SpawnErrorKind.allocationFailed;
+}
+
+version (linux) private void explicitThreadScopeNativeFailureBody(
+    scope ref ThreadScope scope_,
+    scope ExplicitThreadScopeContext* context,
+) nothrow @nogc
+{
+    auto started = scope_.spawnWith!consumeScopedExplicitLifetime(
+        ThreadStartOptions(size_t.max),
+        lifetimeMove(context.capture),
+        &context.observed,
+    );
+    if (started.isErr)
+        context.sawExpectedFailure =
+            started.unwrapError().kind == SpawnErrorKind.threadStartFailed &&
+            started.unwrapError().threadStartError.kind ==
+            ThreadStartErrorKind.invalidConfiguration;
+}
+
+version (linux) private bool explicitThreadScopeOwnerLifecycleWorks()
+nothrow @nogc
+{
+    Atomic!uint successDeinits;
+    ExplicitThreadScopeContext success = ExplicitThreadScopeContext(
+        ExplicitLifetimeCapture(&successDeinits, 71, true),
+        0,
+        false,
+    );
+    threadScope!explicitThreadScopeSuccessBody(mallocAllocator(), &success);
+    if (success.observed != 71 || successDeinits.load() != 1)
+        return false;
+
+    Atomic!uint allocationDeinits;
+    ExplicitThreadScopeContext allocationFailure = ExplicitThreadScopeContext(
+        ExplicitLifetimeCapture(&allocationDeinits, 72, true),
+        0,
+        false,
+    );
+    StartTrackingAllocator failing = StartTrackingAllocator.create(true);
+    threadScope!explicitThreadScopeAllocationFailureBody(
+        failing.allocator,
+        &allocationFailure,
+    );
+    if (!allocationFailure.sawExpectedFailure ||
+        allocationFailure.observed != 0 || allocationDeinits.load() != 1)
+        return false;
+
+    Atomic!uint nativeDeinits;
+    ExplicitThreadScopeContext nativeFailure = ExplicitThreadScopeContext(
+        ExplicitLifetimeCapture(&nativeDeinits, 73, true),
+        0,
+        false,
+    );
+    StartTrackingAllocator invalidStack = StartTrackingAllocator.create();
+    threadScope!explicitThreadScopeNativeFailureBody(
+        invalidStack.allocator,
+        &nativeFailure,
+    );
+    return nativeFailure.sawExpectedFailure && nativeFailure.observed == 0 &&
+        nativeDeinits.load() == 1;
 }
 
 version (linux) private struct ThreadScopeOptionsContext
@@ -3773,6 +4114,8 @@ extern (C) int main() nothrow @nogc
             return 24;
         if (!allocatedTypedMoveLifetimeWorks())
             return 25;
+        if (!explicitTypedOwnerLifecycleWorks())
+            return 109;
         if (!allocatedTypedConversionRunsOnParent())
             return 26;
         if (!allocatedStartFailuresCleanUp())
@@ -3785,6 +4128,8 @@ extern (C) int main() nothrow @nogc
             return 98;
         if (!spawnFailuresCleanUp())
             return 99;
+        if (!explicitSpawnOwnerLifecycleWorks())
+            return 110;
         if (!spawnUsesOneStableAllocation())
             return 100;
         if (!spawnOptionsWork())
@@ -3799,6 +4144,8 @@ extern (C) int main() nothrow @nogc
             return 105;
         if (!threadScopeFailuresStillJoinEarlierChildren())
             return 106;
+        if (!explicitThreadScopeOwnerLifecycleWorks())
+            return 111;
         if (!threadScopeOptionsWork())
             return 107;
         if (!inlineThreadScopeUsesSharedOwnershipCore())

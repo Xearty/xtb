@@ -6,8 +6,7 @@ public import xtb.core.types : String;
 public import xtb.core.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
     asString;
 
-import core.lifetime : move;
-import xtb.core.lifetime : moveEmplace;
+import xtb.core.lifetime : move, moveEmplace;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
 import xtb.core.array;

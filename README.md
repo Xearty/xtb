@@ -30,9 +30,10 @@ The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
 camera, and projection operations, plus a stable deterministic random generator
 and allocator-owned periodic value noise.
 
-The `xtb.os` package provides borrowed validated paths, RAII files and memory
-maps, binary-safe complete I/O, metadata, streaming directory traversal,
-explicit errors, environment/path queries, monotonic/wall clocks, RAII pipes,
+The `xtb.os` package provides borrowed validated paths, explicit-lifetime files
+and memory maps, binary-safe complete I/O, metadata, streaming directory
+traversal, explicit errors, environment/path queries, monotonic/wall clocks,
+explicit-lifetime pipes,
 and direct child-process creation. The process API keeps argv values separate,
 supports explicit standard-stream routing and environments, and provides
 nonblocking, timed, and blocking waits. Fixed-buffer communication pumps all
@@ -44,7 +45,9 @@ operations.
 The `xtb.serde` package provides compile-time, attribute-driven mapping of
 BetterC structs to structured formats. It has no runtime registry or DOM;
 JSON and TOML backends traverse typed values directly, and decoded object
-graphs are held by explicit non-copyable `Deserialized!T` owners. `Option!T`
+graphs are held by explicit non-copyable `Deserialized!T` owners that must be
+explicitly deinitialized after their borrowed views are no longer used.
+`Option!T`
 provides nullable values in both document-owned and self-owning schemas.
 
 Stack traces include caller-storage-bounded D demangling, allocation-free
@@ -230,8 +233,9 @@ That exhaustive example also covers binary communication, bounded capture,
 resumable and terminating timeouts, borrowed pipeline slices, per-stage stderr,
 status reporting, and success policies.
 
-Import `xtb.parser` for arena-backed parser combinators. Grammars own their
-parser graph in an `Arena`; `Parser!T` handles remain small and reusable, while
+Import `xtb.parser` for arena-backed parser combinators. Grammars explicitly own
+their parser graph in an `Arena` and must be deinitialized; `Parser!T` handles
+remain small and reusable, while
 parse execution allocates only when `.collect()` or a semantic action explicitly
 uses `ParseContext.outputArena`. The package includes `attempt()`/`cut()`
 backtracking control, structural operator-precedence levels, an RFC 8259 JSON
@@ -240,7 +244,9 @@ associativity. See `design_spec/parser.md`.
 
 Import `xtb.serde` for attribute-driven JSON and TOML mapping. Use
 `Deserialized!T` with `String`, slices, and `StringViewHashMap!V` (the readable
-alias for `HashMap!(String, V)`) for one document-owned graph. Direct owning
+alias for `HashMap!(String, V)`) for one document-owned graph, then call
+`deinit` on the `Deserialized!T` after all borrowed views are finished.
+Direct owning
 decodes may use `StringBuf`, `OwnedString`, shallow `Array!T` for elements that
 need no cleanup, `OwnedArray!T` for owned element graphs, and `StringHashMap!V`. JSON accepts every supported value at the document root.
 TOML roots remain tables represented by a serde struct, tagged union, borrowed

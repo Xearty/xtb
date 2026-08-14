@@ -12,6 +12,8 @@ extern (C) int main() nothrow @nogc
         fixed(point.y, 3), fixed(point.z, 3));
 
     ValueNoise1D noise = ValueNoise1D.create(mallocAllocator(), 16, 0xC0FFEE);
+    scope (exit)
+        noise.deinit();
     foreach (index; 0 .. 8)
     {
         const position = cast(float) index * 0.5f;

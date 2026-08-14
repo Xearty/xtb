@@ -3,14 +3,13 @@ module xtb.parser.parser;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
-import core.lifetime : move;
 import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdlib : strtod;
 import core.stdc.string : memcpy;
 import xtb.core.allocators.arena : Arena;
 import xtb.core.memory : Allocator;
-import xtb.core.lifetime : moveEmplace;
+import xtb.core.lifetime : move, moveEmplace, needsDeinit;
 import xtb.core.numeric : addOverflows;
 import xtb.core.option : Option;
 
@@ -1590,11 +1589,6 @@ public:
     @disable this(this);
     @disable ref Grammar opAssign(Grammar source) return;
 
-    ~this()
-    {
-        deinit();
-    }
-
     static Grammar create(
         Allocator* allocator,
         size_t chunkSize = 64 * 1024,
@@ -1603,7 +1597,7 @@ public:
         Grammar result;
         Arena arena = Arena.create(allocator, chunkSize);
         moveEmplace(arena, result.arena_);
-        return result;
+        return move(result);
     }
 
     void deinit()
@@ -1802,6 +1796,10 @@ private template allParserTypes(T, Rest...)
 }
 
 /// Adds trailing trivia consumption to common textual primitives.
+static assert(!hasElaborateDestructor!Grammar);
+static assert(needsDeinit!Grammar);
+static assert(!__traits(isCopyable, Grammar));
+
 struct Tokenizer
 {
 nothrow @nogc:
@@ -1865,6 +1863,8 @@ unittest
     import xtb.core.allocators.malloc : mallocAllocator;
 
     Grammar grammar = Grammar.create(mallocAllocator(), 256);
+    scope (exit)
+        grammar.deinit();
 
     auto abc = grammar.literal("abc");
     auto exact = abc.parse("abc");

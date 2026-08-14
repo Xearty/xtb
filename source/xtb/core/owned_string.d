@@ -2,11 +2,10 @@ module xtb.core.owned_string;
 
 nothrow @nogc:
 
-import core.lifetime : move;
 import core.stdc.string : memmove;
 import xtb.core.array : RawArrayStorage;
 import xtb.core.hash : hashValue;
-import xtb.core.lifetime : moveEmplace;
+import xtb.core.lifetime : move, moveEmplace;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.panic : panic;
 
@@ -160,13 +159,6 @@ package(xtb):
         storage.length = 0;
         storage.capacity = 0;
         return move(result);
-    }
-
-    String releaseExact() @system
-    {
-        String result = value_;
-        value_ = String.init;
-        return result;
     }
 
     const(String)* viewPointer() const return @safe

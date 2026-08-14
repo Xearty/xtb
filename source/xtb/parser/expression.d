@@ -2,7 +2,7 @@ module xtb.parser.expression;
 
 nothrow @nogc:
 
-import core.lifetime : move;
+import xtb.core.lifetime : move;
 import xtb.core.allocators.arena : Arena;
 
 version (XTB_Checked) import xtb.core.panic : require;

@@ -227,7 +227,8 @@ stream fully determine its values. The period is measured in lattice cells,
 must be nonzero, and is capped at the largest integer exactly representable by
 `float`, so `sample(x) == sample(x + period)` remains meaningful. Allocation
 failure is exposed only by `tryCreate`; `create` panics consistently with other
-owning containers.
+owning containers. `ValueNoise1D` has no D destructor: callers explicitly call
+`deinit` when the lattice is no longer needed.
 
 ## Operating-system boundary
 
@@ -1406,17 +1407,18 @@ alias. The library does not compare two compiled schema revisions and claim
 that arbitrary source edits are compatible.
 
 Text decoding offers two lifetime models. A document-owned decode writes a
-`Deserialized!T`, a non-copyable RAII owner holding both `T*` and an internal
+`Deserialized!T`, a non-copyable explicit owner holding both `T*` and an internal
 allocation tracker over its explicit `Allocator*`. The tracker records only
-allocations made by that decode, so destruction and partial-failure cleanup do
-not mistake a static field initializer or other default pointer for owned
-memory. Its destructor releases the exact allocation set made by the backend;
-the output remains empty on failure. A `String` inside the result is still a
-read-only simple view, but newly decoded bytes are owned by the surrounding
-`Deserialized!T`. `HashMap!(String, V)` belongs to this model as well: object or
-table keys are copied into tracked storage, while the map's buckets and nested
-values use the same tracking allocator. A view, pointer, or map obtained from
-the result expires when that owner is reset or destroyed.
+allocations made by that decode, so explicit cleanup and partial-failure cleanup
+do not mistake a static field initializer or other default pointer for owned
+memory. `deinit` releases the exact allocation set made by the backend; ordinary
+scope exit does nothing, and the output remains empty on failure. A `String`
+inside the result is still a read-only simple view, but newly decoded bytes are
+owned by the surrounding `Deserialized!T`. `HashMap!(String, V)` belongs to this
+model as well: object or table keys are copied into tracked storage, while the
+map's buckets and nested values use the same tracking allocator. A view, pointer,
+or map obtained from the result expires when that owner is deinitialized or
+replaced.
 
 A self-owning decode writes an ordinary caller-owned value directly. JSON root
 values may be scalars, `StringBuf`, `OwnedString`, fixed arrays, `Array!T`,

@@ -311,10 +311,11 @@ Unit conversion belongs only to the core helpers such as `milliseconds`;
 
 ## Pipes
 
-`PipeReader` and `PipeWriter` are distinct, non-copyable RAII owners. Their zero
-states are closed; destruction and `deinit` close once and reset the value.
-`Pipe` owns one of each and relies on their normal destruction. Explicit
-`close` reports an error, while destructor cleanup is best effort.
+`PipeReader` and `PipeWriter` are distinct, non-copyable explicit-lifetime
+owners. Their zero states are closed. `deinit` performs mechanical descriptor
+cleanup; ordinary scope exit does nothing. `Pipe` owns one of each and is also
+explicit-lifetime. Explicit `close` reports an error, while `deinit` performs
+best-effort cleanup when the error is intentionally discarded.
 
 ```d
 enum PipeMode : ubyte
@@ -550,7 +551,7 @@ created by its routes. It is non-copyable and movable. `.init` is empty.
 struct ChildProcess
 {
     @disable this(this);
-    ~this();
+    @disable ref ChildProcess opAssign(ChildProcess source) return;
 
     bool ownsProcess() const pure @safe;
     bool empty() const pure @safe;
@@ -562,18 +563,13 @@ struct ChildProcess
 }
 ```
 
-Dropping a live child must not silently leave a zombie. The destructor closes
-its parent pipe ends, sends a forceful termination to the owned process (or its
-owned isolation scope), and waits for the direct child. This is a last-resort
-RAII cleanup path; ordinary code calls `wait`, `communicate`, or
-`terminateAndWait` explicitly so it can observe errors and exit status.
-
-This destructor policy is intentionally stronger than common process wrappers.
-The alternatives are all worse for this project: blocking forever in an
-implicit join, leaking a POSIX zombie, installing a hidden global reaper, or
-silently detaching a process whose ownership cannot actually be discarded.
-Forceful cleanup can still be delayed by an uninterruptible kernel state, so
-applications must not treat scope exit as a real-time operation.
+`ChildProcess` has no destructor-driven lifecycle policy. A caller must resolve
+the semantic process obligation explicitly with `wait`, `communicate`,
+`killAndWait`, `terminateAndWait`, or another operation that reaps the direct
+child. Only after that resolution does `deinit` perform mechanical cleanup of
+remaining parent-side pipes/local state. Checked builds reject `deinit` while
+the child is still owned and unreaped. Generic cleanup must never silently
+decide to kill, wait for, or detach a process.
 
 There is no `releasePid` or `detach(ChildProcess*)`. A caller that wants a
 background process must use a future dedicated detached-spawn operation whose
@@ -1058,8 +1054,11 @@ and slice-borrowing pipelines are complete.
 
 `Pipeline` owns an allocator-backed array of child/process slots and exit
 statuses plus the exposed first-stdin/final-stdout/stage-stderr endpoints. It
-is non-copyable and its destructor forcefully cleans and reaps every remaining
-stage using the same RAII policy as `ChildProcess`. The low-level arbitrary-
+is a non-copyable explicit-lifetime owner. The caller must explicitly resolve
+all stage lifecycle obligations before `deinit`; checked builds reject cleanup
+while any stage remains unreaped. Failed pipeline construction is different: it
+is an internal transactional rollback and explicitly terminates/reaps stages
+that were started before a later construction failure. The low-level arbitrary-
 graph path remains allocation-free; the linear-pipeline owner takes an explicit
 allocator rather than retaining four parallel caller slices.
 
@@ -1257,7 +1256,7 @@ descriptors, but it must never be the default.
 Linux's `close` behavior is backend-specific: issue close once, reset the owner
 before the call, and never retry after `EINTR`, because a retry can close a
 descriptor already reused by another thread. Explicit close may report the
-captured error for diagnostics; destructor cleanup ignores it.
+captured error for diagnostics; generic `deinit` intentionally discards it.
 
 The backend may define one central build version that disables native process
 support and selects the unsupported stub. Do not scatter feature versions
@@ -1402,7 +1401,7 @@ Tests must cover at least:
 4. every stdio route, stderr merge, borrowed-owner preservation on success and
    failure, and no unintended inherited sentinel descriptor;
 5. pipe EOF, would-block, partial I/O, duplicate semantics, peer closure,
-   SIGPIPE protection, repeated close, move, and destructor cleanup;
+   SIGPIPE protection, repeated close, move, and explicit `deinit` cleanup;
 6. exit zero/nonzero, signal exit, immediate/finite/infinite waits, EINTR,
    monotonic-clock failure injection, and a timeout that signals cannot extend;
 7. simultaneous large stdin/stdout/stderr communication without deadlock;
@@ -1417,8 +1416,9 @@ Tests must cover at least:
 12. pipeline one/many stages, stage-order statuses, last/every-stage success,
     per-stage stderr, early/middle/late spawn failure, intermediate EOF, and
     cleanup of every previously started stage;
-13. RAII cleanup of a live child and pipeline in a subprocess, proving the
-    descendant is terminated and the direct child reaped;
+13. checked rejection of `deinit` on unresolved live child/pipeline owners,
+    plus explicit kill/terminate-and-wait paths proving descendants are terminated
+    and direct children reaped;
 14. compile-time rejection of copying each owner and BetterC compilation of
     all public examples; and
 15. a pthread stress test that creates pipes and spawns concurrently while a
@@ -1432,11 +1432,11 @@ exercise deterministic `unsupported` results.
 
 ## Implementation order
 
-1. Extend shared OS error classification and implement RAII pipes with atomic
+1. Extend shared OS error classification and implement explicit-lifetime pipes with atomic
    inheritance safety.
 2. Implement command/environment validation and the Linux spawn backend using
    internal scratch.
-3. Implement child wait/termination/RAII cleanup and pidfd-assisted waiting.
+3. Implement explicit child wait/termination plus mechanical cleanup and pidfd-assisted waiting.
 4. Implement fixed-buffer communicate, then owning `run` on top of it.
 5. Implement owning linear pipelines and their communication pump.
 6. Add native escape hatches only after the portable invariants are tested.

@@ -3,8 +3,12 @@ module xtb.threading.spawn;
 nothrow @nogc:
 
 import core.attribute : mustuse;
-import core.internal.traits : Parameters, ReturnType, Unqual;
-import core.lifetime : emplace, forward, move, moveEmplace;
+import core.internal.traits : Parameters, ReturnType, Unqual, hasElaborateDestructor;
+import core.lifetime : emplace, forward, move;
+import xtb.core.lifetime : lifetimeDeinit = deinit,
+    lifetimeMove = move,
+    lifetimeMoveEmplace = moveEmplace,
+    needsDeinit;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
@@ -51,8 +55,8 @@ private struct SpawnStateBase(T)
 }
 
 // Capture slots begin their manual lifetime only after state allocation. On
-// native-start failure the spawning thread destroys every slot. On success the
-// child moves every slot to its stack and destroys the moved-from values before
+// native-start failure the spawning thread finalizes every slot. On success the
+// child moves every slot to its stack and finalizes the moved-from values before
 // user code runs, leaving only the common base and eventual result live.
 private union SpawnCaptureSlot(T)
 {
@@ -117,6 +121,13 @@ private void validateSpawnWorker(alias function_)()
         "spawn worker must return an owned value, not ref",
     );
 
+    alias WorkerReturn = ReturnType!function_;
+    static if (needsDeinit!WorkerReturn)
+        static assert(
+            is(WorkerReturn == Unqual!WorkerReturn),
+            "explicit-lifetime spawn results must be mutable",
+        );
+
     static foreach (index; 0 .. Parameters!function_.length)
     {
         static assert(
@@ -144,6 +155,12 @@ private void validateSpawnWorker(alias function_)()
             !is(Parameters!function_[index] == inout InoutBase, InoutBase),
             "spawn does not yet accept top-level inout parameters",
         );
+        static if (needsDeinit!(Parameters!function_[index]))
+            static assert(
+                is(Parameters!function_[index] ==
+                    Unqual!(Parameters!function_[index])),
+                "explicit-lifetime spawn worker value parameters must be mutable",
+            );
     }
 }
 
@@ -160,18 +177,26 @@ private template movedWorkerArgumentList(size_t count)
     static if (count == 0)
         enum movedWorkerArgumentList = "";
     else static if (count == 1)
-        enum movedWorkerArgumentList = "move(argument0)";
+        enum movedWorkerArgumentList = "lifetimeMove(argument0)";
     else
         enum movedWorkerArgumentList = movedWorkerArgumentList!(count - 1)
-            ~ ", move(argument" ~ decimalIndex!(count - 1) ~ ")";
+            ~ ", lifetimeMove(argument" ~ decimalIndex!(count - 1) ~ ")";
 }
 
-private void destroySpawnCaptures(alias function_)(
+private void finalizeSpawnValue(T)(ref T value) @system
+{
+    static if (needsDeinit!T)
+        lifetimeDeinit(value);
+    else static if (hasElaborateDestructor!T)
+        destroy(value);
+}
+
+private void finalizeSpawnCaptures(alias function_)(
     ref SpawnCaptures!function_ captures,
 ) @system
 {
     static foreach_reverse (index; 0 .. Parameters!function_.length)
-        destroy(captures.tupleof[index].value);
+        finalizeSpawnValue(captures.tupleof[index].value);
 }
 
 private int spawnTrampoline(alias function_)(void* opaque) @system
@@ -186,11 +211,11 @@ private int spawnTrampoline(alias function_)(void* opaque) @system
     static foreach (index; 0 .. WorkerParameters.length)
         mixin(
             "Unqual!(WorkerParameters[" ~ decimalIndex!index ~ "]) argument"
-                ~ decimalIndex!index ~ " = move(state.captures.tupleof["
+                ~ decimalIndex!index ~ " = lifetimeMove(state.captures.tupleof["
                 ~ decimalIndex!index ~ "].value);",
         );
 
-    destroySpawnCaptures!function_(state.captures);
+    finalizeSpawnCaptures!function_(state.captures);
 
     static if (is(WorkerReturn == void))
     {
@@ -202,7 +227,7 @@ private int spawnTrampoline(alias function_)(void* opaque) @system
             "WorkerReturn result = function_("
                 ~ movedWorkerArgumentList!(WorkerParameters.length) ~ ");",
         );
-        moveEmplace(result, state.base.result.value);
+        lifetimeMoveEmplace(result, state.base.result.value);
         state.base.resultLive = true;
     }
     return 0;
@@ -306,8 +331,8 @@ nothrow @nogc:
                 panic("spawn worker completed without publishing a result");
 
             T result = void;
-            moveEmplace(state_.result.value, result);
-            destroy(state_.result.value);
+            lifetimeMoveEmplace(state_.result.value, result);
+            finalizeSpawnValue(state_.result.value);
             state_.resultLive = false;
 
             SpawnStateBase!T* state = state_;
@@ -321,7 +346,11 @@ nothrow @nogc:
 /// Starts a typed concurrent computation with default native-thread options.
 ///
 /// Arguments are captured by value in the worker's declared parameter types.
-/// The returned handle owns the single state allocation until `join`. The
+/// Explicit-lifetime owner arguments are consumed by the call, require an exact
+/// parameter type, and become the worker's cleanup responsibility after start.
+/// An explicit-lifetime result becomes the caller's cleanup responsibility when
+/// returned from `join`. The returned handle owns the single state allocation
+/// until `join`. The
 /// allocator object must therefore remain valid through `join` and must permit
 /// deallocation on any thread to which the handle is moved. Pointer, slice, and
 /// other reference-bearing argument/result values remain shallow and do not
@@ -365,6 +394,14 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
         Args.length == WorkerParameters.length,
         "spawn argument count must match worker parameter count",
     );
+
+    static foreach (index; 0 .. WorkerParameters.length)
+        static if (needsDeinit!(Unqual!(Args[index])) ||
+            needsDeinit!(Unqual!(WorkerParameters[index])))
+            static assert(
+                is(Unqual!(Args[index]) == Unqual!(WorkerParameters[index])),
+                "explicit-lifetime spawn arguments require an exact worker parameter type",
+            );
     static assert(State.base.offsetof == 0,
         "SpawnStateBase must begin at the allocation address");
 
@@ -373,7 +410,12 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
 
     State* state = allocator.tryAllocate!State();
     if (state is null)
+    {
+        static foreach_reverse (index; 0 .. Args.length)
+            static if (needsDeinit!(Unqual!(Args[index])))
+                lifetimeDeinit(arguments[index]);
         return err(allocationFailure());
+    }
 
     state.base.allocator = allocator;
     state.base.allocation = state;
@@ -389,13 +431,13 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
     static foreach (index; 0 .. WorkerParameters.length)
         emplace(
             &state.captures.tupleof[index].value,
-            move(arguments[index]),
+            lifetimeMove(arguments[index]),
         );
 
     auto started = startStableThread(options, &state.base.native);
     if (started.isErr)
     {
-        destroySpawnCaptures!function_(state.captures);
+        finalizeSpawnCaptures!function_(state.captures);
         const error = started.unwrapError();
         allocator.deallocate(state);
         return err(threadStartFailure(error));

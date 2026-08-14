@@ -303,17 +303,24 @@ Implemented `Thread.start!worker(args...)` and `Thread.startWith!worker(options,
 args...)` as the allocation-free typed start surface. Argument conversion into the
 worker's declared parameter types occurs synchronously in the starting thread.
 Those captures live in a parent-stack packet until the child moves them into
-child-local values, destroys the source captures, and signals `StartLatch` as its
+child-local values, finalizes the source captures, and signals `StartLatch` as its
 final packet access. Only then may the parent return and let the packet disappear;
 the user worker is invoked after the signal, so worker duration does not extend
 the start call.
 
 The stack-backed and allocator-backed typed paths reuse the same generated
-`TypedCaptures` storage and exact-destruction helper. Their trampolines remain
+`TypedCaptures` storage and explicit-lifetime-aware finalization helper. Their
+trampolines remain
 separate because their ownership completions differ deliberately: stack-backed
 start signals the parent latch, while allocator-backed start deallocates stable
 state on the child thread. Callable validation and worker argument rules are
 shared unchanged between both surfaces.
+
+Destructor-free XTB explicit owners are transported with XTB move semantics rather
+than `core.lifetime.move`. Such arguments require an exact mutable worker parameter type; startup failure
+explicitly deinitializes the consumed owner, while successful
+start transfers cleanup responsibility to the worker. True D-destructor captures
+continue to be finalized with D destruction.
 
 Validation includes zero-argument, `int`, and `void` workers; `const`, slice, and
 over-aligned captures; move-only exact destruction; parent-thread conversion
@@ -743,7 +750,7 @@ their result into the stable raw slot and mark it live; `Thread.join` supplies
 the completion synchronization before `JoinHandle.join` moves that result out,
 ends its lifetime, destroys the common header, and deallocates through the
 caller-supplied allocator. `void` omits result storage. Native-start failure
-destroys all constructed captures and releases the block on the starting
+finalizes all constructed captures and releases the block on the starting
 thread. Allocation and native-start failures remain distinct through
 `SpawnError`, while a worker-returned `Result!(T, E)` stays the unflattened
 computation result.
@@ -790,7 +797,7 @@ Successful heterogeneous nodes are linked through one
 header, and deallocates the exact original block. By-value captures move into
 child-local storage before the worker runs, while `ref` captures preserve their
 qualifiers and point at caller-owned lvalues. Allocation and native-start
-failures destroy active captures immediately without losing ownership of any
+failures finalize active captures immediately without losing ownership of any
 earlier successful children.
 
 The inline delegate stays stack-backed under BetterC and may borrow values from

@@ -2,7 +2,7 @@ module xtb.parser.arithmetic;
 
 nothrow @nogc:
 
-import core.lifetime : move;
+import xtb.core.lifetime : move;
 import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdlib : strtod;

@@ -6,7 +6,6 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite, isnan, signbit;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import core.lifetime : move;
 import xtb.core.lifetime : moveEmplace;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array;
@@ -27,7 +26,7 @@ import xtb.serde.attributes : Flatten, Ignore, KeyCase, OmitDefault, Rename,
 import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
-    deserializationAllocator, prepareDeserialized;
+    deserializationAllocator, isDeserialized, prepareDeserialized;
 import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified, fieldHas,
     applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName,
     discriminantIndex, DiscriminantType, fieldMatches, fieldName,
@@ -143,7 +142,7 @@ SerdeError readToml(T)(
     Allocator* allocator,
     T* output,
     TomlReadOptions options = TomlReadOptions.init,
-) if (isSerdeStruct!T || isStringHashMap!T)
+) if ((isSerdeStruct!T || isStringHashMap!T) && !isDeserialized!T)
 {
     static if (isStringHashMap!T)
         validateOwnedValue!T();
@@ -3028,7 +3027,7 @@ private void decodeOwnedString(ref TomlParser parser, OwnedString* output)
         parser.allocator,
         &storage,
     );
-    move(result, *output);
+    moveEmplace(result, *output);
 }
 
 private void decodeStringToken(

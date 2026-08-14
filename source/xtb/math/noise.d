@@ -2,9 +2,10 @@ module xtb.math.noise;
 
 nothrow @nogc:
 
+import core.internal.traits : hasElaborateDestructor;
 import core.stdc.math : floorf, fmodf;
 import xtb.core.array;
-import xtb.core.lifetime : moveEmplace;
+import xtb.core.lifetime : move, moveEmplace, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic;
 
@@ -20,13 +21,14 @@ nothrow @nogc:
     private Array!float values_;
 
     @disable this(this);
+    @disable ref ValueNoise1D opAssign(ValueNoise1D source) return;
 
     static ValueNoise1D create(Allocator* allocator, size_t period, ulong seed, ulong stream = 0)
     {
         ValueNoise1D result;
         if (!tryCreate(allocator, period, seed, &result, stream))
             panic("ValueNoise1D allocation failed");
-        return result;
+        return move(result);
     }
 
     static bool tryCreate(Allocator* allocator, size_t period, ulong seed,
@@ -51,11 +53,6 @@ nothrow @nogc:
         foreach (index; 0 .. period)
             output.values_[index] = random.between(-1, 1);
         return true;
-    }
-
-    ~this()
-    {
-        deinit();
     }
 
     void deinit()
@@ -93,6 +90,10 @@ nothrow @nogc:
     }
 }
 
+static assert(!hasElaborateDestructor!ValueNoise1D);
+static assert(needsDeinit!ValueNoise1D);
+static assert(!__traits(isCopyable, ValueNoise1D));
+
 private extern (C) void* rejectingAllocation(
     void*,
     size_t,
@@ -108,10 +109,30 @@ private Allocator rejectingAllocator = &rejectingAllocation;
 
 unittest
 {
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
 
+    AllocationRecord[4] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+    ValueNoise1D trackedNoise = ValueNoise1D.create(
+        tracked.allocator,
+        8,
+        99,
+    );
+    assert(!tracked.clean());
+    trackedNoise.deinit();
+    assert(tracked.clean());
+    assert(tracked.stats.invalidCalls == 0);
+
     ValueNoise1D a = ValueNoise1D.create(mallocAllocator(), 8, 1234);
+    scope (exit)
+        a.deinit();
     ValueNoise1D b = ValueNoise1D.create(mallocAllocator(), 8, 1234);
+    scope (exit)
+        b.deinit();
     assert(a.period == 8);
     foreach (index; 0 .. a.period)
         assert(a.lattice[index] == b.lattice[index]);

@@ -6,7 +6,6 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import core.lifetime : move;
 import xtb.core.lifetime : moveEmplace;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.core.array;
@@ -27,7 +26,7 @@ import xtb.serde.attributes : AliasName, Flatten, Ignore, KeyCase, OmitDefault,
 import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
-    deserializationAllocator, prepareDeserialized;
+    deserializationAllocator, isDeserialized, prepareDeserialized;
 import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
     applySchemaDefaults, enumCase, enumMemberMatches, enumMemberName, fieldHas,
     fieldMatches, fieldName, fieldOrdinal, fieldShouldOmit, discriminantIndex,
@@ -135,7 +134,7 @@ SerdeError readJson(T)(
     Allocator* allocator,
     T* output,
     JsonReadOptions options = JsonReadOptions.init,
-) if (isOwnedSerdeValue!T)
+) if (isOwnedSerdeValue!T && !isDeserialized!T)
 {
     validateOwnedValue!T();
     version (XTB_Checked)
@@ -2066,7 +2065,7 @@ private void decodeOwnedString(ref JsonParser parser, OwnedString* output)
         parser.allocator,
         &storage,
     );
-    move(result, *output);
+    moveEmplace(result, *output);
 }
 
 private void decodeStringToken(

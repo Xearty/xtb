@@ -739,7 +739,7 @@ worker's declared parameter types occurs in the starting thread before native
 creation. Therefore an allocation failure may leave an explicitly moved caller
 value moved-from, but it does not run worker-parameter conversion side effects.
 A native-start failure occurs only after all typed captures have been
-constructed and must destroy those captures exactly once before deallocation.
+constructed and must finalize those captures exactly once before deallocation.
 
 ### Argument ownership
 
@@ -750,6 +750,12 @@ move-only value is transferred explicitly:
 ```d
 Thread.start!worker(move(config));
 ```
+
+For destructor-free XTB explicit-lifetime owners, the argument type must exactly
+match a mutable by-value worker parameter type so ownership cannot disappear
+through an implicit conversion or become trapped in a `const` value. A failed
+start explicitly deinitializes the consumed owner; after a successful start the
+worker owns that value and must explicitly deinitialize it when finished.
 
 Copying a value that contains pointers, slices, delegates, or other borrowed
 references copies those references; it does not extend the lifetime of the
@@ -824,7 +830,8 @@ to prove that the parent cannot destroy packet storage while the child still
 reads it. Spurious wakeups are handled by rechecking the capture state.
 
 If native thread creation fails, no child can access the packet and the typed
-arguments are destroyed normally in the starting thread.
+captures are finalized in the starting thread. Destructor-free XTB explicit
+owners use explicit `deinit`; true destructor-bearing values use D destruction.
 
 This handshake makes typed `Thread.start` slightly more synchronous than
 `startRaw`, but the cost is dominated by native thread creation and buys
@@ -861,7 +868,7 @@ native create(stable state)
 
 child thread
     | move every typed capture to child-local call storage
-    | destroy/mark source captures inactive
+    | finalize source captures
     | release start-state allocation through supplied allocator
     v
 invoke user worker
@@ -875,7 +882,7 @@ storage.
 
 Successful native creation transfers ownership of the start allocation to the
 child. Native-start failure leaves ownership with the starting thread, which
-destroys all constructed captures and deallocates the state before returning
+finalizes all constructed captures and deallocates the state before returning
 `threadStartFailed`. Allocation failure returns `allocationFailed` and starts no
 native thread.
 
@@ -1103,11 +1110,11 @@ handle implementation to be independent of argument types.
 
 To keep join-time cleanup type-erased **without** a hidden virtual interface,
 the child trampoline must consume/move each typed capture out of the state and
-finish/destroy the source capture storage before invoking the user worker. From
+finish/finalize the source capture storage before invoking the user worker. From
 that point until join, no typed capture object remains live in the allocation;
 only the common header and eventual `T` are live. Native-start failure happens
 before the child can perform this transition, so the templated `spawn`
-implementation that still knows the concrete state type destroys captures on
+implementation that still knows the concrete state type finalizes captures on
 that failure path.
 
 If the existing XTB allocator requires size/alignment or another token to
@@ -1148,7 +1155,7 @@ are live. The semantic state machine is:
 arguments initialized
     |
     | child moves arguments to child-local storage
-    | child destroys/marks inactive every source capture slot
+    | child finalizes every source capture slot
     v
 arguments empty (common header can now be cleaned type-erased)
     |
@@ -1532,7 +1539,7 @@ ScopedChildNodeConcrete!(worker, Captures...)
 
 The concrete scoped trampoline knows the complete node type; `ThreadScope`
 tracks only `ScopedChildHeader*`. As with `spawn`, the child must move/consume
-and finish/destroy the typed source capture storage before invoking user code.
+and finish/finalize the typed source capture storage before invoking user code.
 After `Thread.join()` returns, the owner thread can therefore deallocate the raw
 node using the common header's allocator metadata without needing a destructor
 function pointer for unknown capture types.
@@ -1578,7 +1585,7 @@ node allocated
     -> child moves any owned value captures to child-local storage
     -> child runs and returns void
     -> scope joins Thread
-    -> remaining active capture/tracking fields destroyed
+    -> remaining active capture/tracking fields finalized
     -> node deallocated by scope-owning thread with original allocator
 ```
 
@@ -1617,7 +1624,7 @@ structured-concurrency consequence, not hidden destructor behavior: the caller
 explicitly entered `threadScope`.
 
 On normal body completion, including an early return from the scope body,
-`threadScope` joins every registered child, destroys its capture/tracking state,
+`threadScope` joins every registered child, finalizes its capture/tracking state,
 and deallocates the node through the original allocator before returning to the
 caller.
 

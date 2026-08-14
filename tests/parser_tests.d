@@ -33,6 +33,8 @@ private bool positive(int value) pure @safe
 private void testCoreCombinators()
 {
     Grammar grammar = Grammar.create(mallocAllocator(), 512);
+    scope (exit)
+        grammar.deinit();
 
     auto abc = grammar.literal("abc");
     auto exact = abc.parse("abc");
@@ -245,6 +247,8 @@ private int expressionUnary(
 private void testExpressionTable()
 {
     Grammar grammar = Grammar.create(mallocAllocator(), 1024);
+    scope (exit)
+        grammar.deinit();
     auto trivia = grammar.asciiWhitespace0().skip();
     Tokenizer token = grammar.tokenizer(trivia);
     auto atom = grammar.takeWhile1!decimalDigit("integer")
@@ -293,6 +297,8 @@ private void assertNumber(const ArithmeticExpression* node, double expected)
 private void testArithmeticParser()
 {
     Grammar grammar = Grammar.create(mallocAllocator(), 1024);
+    scope (exit)
+        grammar.deinit();
     Parser!(ArithmeticExpression*) parser = arithmeticExpression(&grammar);
     Arena output = Arena.create(mallocAllocator(), 1024);
     ParseContext context = ParseContext.create(&output);
@@ -358,6 +364,8 @@ private void testArithmeticParser()
 private void testJsonParser()
 {
     Grammar grammar = Grammar.create(mallocAllocator(), 2048);
+    scope (exit)
+        grammar.deinit();
     Parser!JsonValue parser = jsonDocument(&grammar);
     Arena output = Arena.create(mallocAllocator(), 2048);
     ParseContext context = ParseContext.create(&output);

@@ -2,9 +2,10 @@ module xtb.threading.thread_scope;
 
 nothrow @nogc:
 
-import core.internal.traits : Parameters, ReturnType, Unqual;
+import core.internal.traits : Parameters, ReturnType, Unqual, hasElaborateDestructor;
 import core.lifetime : emplace, forward, move;
 import xtb.core.intrusive_list : ForwardListHook, IntrusiveForwardList;
+import xtb.core.lifetime : lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
@@ -126,6 +127,12 @@ private void validateScopedWorker(alias function_)()
                 !is(Parameters!function_[index] == inout InoutBase, InoutBase),
                 "ThreadScope worker does not yet accept top-level inout value parameters",
             );
+            static if (needsDeinit!(Parameters!function_[index]))
+                static assert(
+                    is(Parameters!function_[index] ==
+                        Unqual!(Parameters!function_[index])),
+                    "explicit-lifetime ThreadScope value parameters must be mutable",
+                );
         }
     }
 }
@@ -143,7 +150,7 @@ private template scopedWorkerArgument(alias function_, size_t index)
     static if (parameterIsRef!(function_, index))
         enum scopedWorkerArgument = "*argument" ~ decimalIndex!index;
     else
-        enum scopedWorkerArgument = "move(argument" ~ decimalIndex!index ~ ")";
+        enum scopedWorkerArgument = "lifetimeMove(argument" ~ decimalIndex!index ~ ")";
 }
 
 private template scopedWorkerArgumentList(alias function_, size_t count)
@@ -159,13 +166,21 @@ private template scopedWorkerArgumentList(alias function_, size_t count)
             ) ~ ", " ~ scopedWorkerArgument!(function_, count - 1);
 }
 
-private void destroyOwnedScopedCaptures(alias function_)(
+private void finalizeScopedValue(T)(ref T value) @system
+{
+    static if (needsDeinit!T)
+        lifetimeDeinit(value);
+    else static if (hasElaborateDestructor!T)
+        destroy(value);
+}
+
+private void finalizeOwnedScopedCaptures(alias function_)(
     ref ScopedCaptures!function_ captures,
 ) @system
 {
     static foreach_reverse (index; 0 .. Parameters!function_.length)
         static if (!parameterIsRef!(function_, index))
-            destroy(captures.tupleof[index].owned.value);
+            finalizeScopedValue(captures.tupleof[index].owned.value);
 }
 
 private int scopedChildTrampoline(alias function_)(void* opaque) @system
@@ -188,12 +203,12 @@ private int scopedChildTrampoline(alias function_)(void* opaque) @system
             mixin(
                 "Unqual!(WorkerParameters[" ~ decimalIndex!index
                     ~ "]) argument" ~ decimalIndex!index
-                    ~ " = move(node.captures.tupleof[" ~ decimalIndex!index
+                    ~ " = lifetimeMove(node.captures.tupleof[" ~ decimalIndex!index
                     ~ "].owned.value);",
             );
     }
 
-    destroyOwnedScopedCaptures!function_(node.captures);
+    finalizeOwnedScopedCaptures!function_(node.captures);
     mixin(
         "function_(" ~ scopedWorkerArgumentList!(
             function_,
@@ -246,7 +261,9 @@ nothrow @nogc:
     ///
     /// `ref` worker arguments borrow addressable caller-owned values whose
     /// lifetimes must enclose the complete outer `threadScope` call. Other
-    /// arguments are captured by value in the allocated child node.
+    /// arguments are captured by value in the allocated child node. Explicit-
+    /// lifetime owner values must be moved into the scope, require an exact
+    /// worker parameter type, and become the worker's cleanup responsibility.
     Result!(void, SpawnError) spawn(alias function_, Args...)(
         auto ref Args arguments,
     ) @system
@@ -273,6 +290,21 @@ nothrow @nogc:
             Args.length == WorkerParameters.length,
             "ThreadScope.spawn argument count must match worker parameter count",
         );
+
+        static foreach (index; 0 .. WorkerParameters.length)
+            static if (!parameterIsRef!(function_, index) &&
+                (needsDeinit!(Unqual!(Args[index])) ||
+                    needsDeinit!(Unqual!(WorkerParameters[index]))))
+                {
+                static assert(
+                    is(Unqual!(Args[index]) == Unqual!(WorkerParameters[index])),
+                    "explicit-lifetime ThreadScope arguments require an exact worker parameter type",
+                );
+                static assert(
+                    !__traits(isRef, arguments[index]),
+                    "explicit-lifetime ThreadScope value arguments must be moved into the scope",
+                );
+            }
         static assert(Node.header.offsetof == 0,
             "ScopedChildHeader must begin at the allocation address");
 
@@ -283,7 +315,14 @@ nothrow @nogc:
 
         Node* node = allocator_.tryAllocate!Node();
         if (node is null)
+        {
+            static foreach_reverse (index; 0 .. Args.length)
+                static if (!parameterIsRef!(function_, index) &&
+                    !__traits(isRef, arguments[index]) &&
+                    needsDeinit!(Unqual!(Args[index])))
+                    lifetimeDeinit(arguments[index]);
             return err(scopeAllocationFailure());
+        }
 
         emplace(node);
         node.header.allocation = node;
@@ -304,6 +343,11 @@ nothrow @nogc:
                 );
                 node.captures.tupleof[index].reference = &arguments[index];
             }
+            else static if (needsDeinit!(Unqual!(WorkerParameters[index])))
+                emplace(
+                    &node.captures.tupleof[index].owned.value,
+                    lifetimeMove(arguments[index]),
+                );
             else
                 emplace(
                     &node.captures.tupleof[index].owned.value,
@@ -314,7 +358,7 @@ nothrow @nogc:
         auto started = startStableThread(options, &node.header.native);
         if (started.isErr)
         {
-            destroyOwnedScopedCaptures!function_(node.captures);
+            finalizeOwnedScopedCaptures!function_(node.captures);
             const error = started.unwrapError();
             destroy(*node);
             allocator_.deallocate(node);
