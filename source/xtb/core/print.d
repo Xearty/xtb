@@ -1036,4 +1036,12 @@ unittest
     ));
     assert(failedInterpolated.empty);
     assert(failing.clean);
+
+    failedInterpolated.deinit();
+    fallibleInterpolated.deinit();
+    interpolated.deinit();
+    stateful.deinit();
+    allocated.deinit();
+    fallibleSplitScalar.deinit();
+    buffer.deinit();
 }

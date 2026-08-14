@@ -22,6 +22,8 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
     const root = Path.fromString(input);
 
     StringBuf canonical = StringBuf.create(mallocAllocator());
+    scope (exit)
+        canonical.deinit();
     OsError error = canonicalPath(root, canonical);
     if (error.failed)
     {

@@ -68,6 +68,14 @@ configuration "test-option-result" {
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
 }
 
+configuration "test-string-owner" {
+    targetType "executable"
+    targetName "string_owner_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "string_owner_tests.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+}
+
 configuration "test-array" {
     targetType "executable"
     targetName "array_tests"

@@ -50,13 +50,8 @@ private struct ServiceConfig
 
     void deinit() nothrow @nogc
     {
-        // Option gets native explicit-deinit payload handling in its dedicated
-        // lifetime step. For now release the nested array before reset uses
-        // Option's current D destruction path.
-        if (fallbackEndpoint.isSome)
-            fallbackEndpoint.value.labels.deinit();
-        fallbackEndpoint.reset();
-        deploymentNote.reset();
+        deinitValue(fallbackEndpoint);
+        deinitValue(deploymentNote);
         deinitValue(featureFlags);
         deinitValue(replicaEndpoints);
         deinitValue(primaryEndpoint);
@@ -149,12 +144,16 @@ private size_t appendSink(void* context, scope const(u8)[] bytes) nothrow @nogc
 private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
 {
     StringBuf json = StringBuf.create(mallocAllocator());
+    scope (exit)
+        json.deinit();
     Writer jsonWriter = Writer.fromSink(&appendSink, &json);
     SerdeError error = writeJson(jsonWriter, config);
     if (!error.ok)
         return false;
 
     StringBuf toml = StringBuf.create(mallocAllocator());
+    scope (exit)
+        toml.deinit();
     Writer tomlWriter = Writer.fromSink(&appendSink, &toml);
     error = writeToml(tomlWriter, config);
     if (!error.ok)
@@ -164,6 +163,8 @@ private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
     writeln("mutated TOML:\n", toml.view);
 
     ServiceConfig fromToml;
+    scope (exit)
+        fromToml.deinit();
     error = readToml(toml.view, mallocAllocator(), &fromToml);
     if (!error.ok)
         return false;
@@ -295,6 +296,8 @@ private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
     stopped.kind = ChangeKind.serviceStopped;
     stopped.data.stopped = StoppedChange("worker", 17);
     StringBuf toml = StringBuf.create(mallocAllocator());
+    scope (exit)
+        toml.deinit();
     Writer tomlWriter = Writer.fromSink(&appendSink, &toml);
     error = writeToml(tomlWriter, stopped);
     if (!error.ok)

@@ -141,4 +141,7 @@ unittest
 
     Path rejected;
     assert(!Path.tryFromString("bad\0path", &rejected));
+
+    selfJoined.deinit();
+    joined.deinit();
 }

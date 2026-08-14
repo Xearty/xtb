@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import core.lifetime : move;
 import xtb.core.memory : Allocator;
+import xtb.core.lifetime : deinitValue = deinit;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, OptionReturns, andThen, map, none, orElse, some;
 import xtb.core.print : Writer, writeln;
@@ -203,6 +204,8 @@ private bool demonstrateSerde(Allocator* allocator)
     config.retryCount = some(3u);
 
     StringBuf json = StringBuf.create(allocator);
+    scope (exit)
+        json.deinit();
     Writer jsonWriter = Writer.fromSink(&appendSink, &json);
     SerdeError error = writeJson(jsonWriter, config);
     if (!error.ok)
@@ -214,6 +217,8 @@ private bool demonstrateSerde(Allocator* allocator)
     writeln("JSON options: ", json.view);
 
     StringBuf toml = StringBuf.create(allocator);
+    scope (exit)
+        toml.deinit();
     Writer tomlWriter = Writer.fromSink(&appendSink, &toml);
     error = writeToml(tomlWriter, config);
     if (!error.ok)
@@ -224,6 +229,8 @@ private bool demonstrateSerde(Allocator* allocator)
     writeln("TOML options:\n", toml.view);
 
     OptionalConfig fromJson;
+    scope (exit)
+        deinitValue(fromJson);
     error = readJson(
         "{\"enabled\":null,\"channel_name\":\"nightly\"}",
         allocator,
@@ -236,6 +243,8 @@ private bool demonstrateSerde(Allocator* allocator)
     assert(fromJson.retryCount.isNone);
 
     OptionalConfig fromToml;
+    scope (exit)
+        deinitValue(fromToml);
     error = readToml(
         "enabled = false\nchannel_name = \"stable\"\n",
         allocator,

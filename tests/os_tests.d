@@ -118,6 +118,7 @@ version (linux) private void runProcessIntegration(
         expected.append(helperDirectory);
         expected.append('\0');
         assert(output.slice.asStringUnchecked.equal(expected.view));
+        expected.deinit();
     }
 
     {
@@ -235,6 +236,7 @@ version (linux) private void runProcessIntegration(
         ExitStatus status;
         assert(wait(&child, &status).succeeded);
         assert(status.signaled && status.terminationSignal == SIGTERM);
+        signalText.deinit();
     }
 
     {
@@ -822,6 +824,14 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(removeFile(firstPath).succeeded);
     assert(removeFile(renamedPath).succeeded);
     assert(removeEmptyDirectory(rootPath).succeeded);
+
+    helperExecutable.deinit();
+    executable.deinit();
+    canonical.deinit();
+    cwd.deinit();
+    renamed.deinit();
+    second.deinit();
+    first.deinit();
 }
 
 extern (C) int main()
