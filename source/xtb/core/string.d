@@ -655,6 +655,11 @@ Array!String splitLines(String value, Allocator* allocator)
     return value.split('\n', allocator);
 }
 
+/// Growable UTF-8 backing storage without embedded allocator context.
+///
+/// The value owns its allocation but every allocating or releasing operation
+/// requires the originating allocator explicitly. Copying and generated
+/// assignment are disabled.
 struct StringBufUnmanaged
 {
 nothrow @nogc:
@@ -778,14 +783,13 @@ package(xtb):
     }
 
     /// Detaches storage whose allocation size is exactly the logical length.
-    /// The returned descriptor owns its bytes but carries no allocator.
-    String releaseExactStorage() @system
+    /// The returned token owns the allocation but carries no allocator.
+    RawArrayStorage!char releaseExactStorage() @system
     {
         version (XTB_Checked)
             require(byteCapacity == byteLength,
                 "StringBuf storage is not exact-sized");
-        RawArrayStorage!char raw = bytes_.releaseRaw();
-        return raw.data[0 .. raw.length];
+        return bytes_.releaseRaw();
     }
 
 public:

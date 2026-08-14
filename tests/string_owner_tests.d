@@ -8,6 +8,7 @@ import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.array : OwnedArray;
 import xtb.core.hash_map : AddStatus, OwnedHashMap;
 import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
+import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
 import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
 import xtb.core.result : Result;
@@ -19,18 +20,24 @@ static assert(!hasElaborateDestructor!StringBufUnmanaged);
 static assert(!hasElaborateDestructor!OwnedStringUnmanaged);
 static assert(needsDeinit!StringBuf);
 static assert(needsDeinit!OwnedString);
+static assert(needsDeinit!StringBufUnmanaged);
+static assert(needsDeinit!OwnedStringUnmanaged);
+static assert(!__traits(compiles,
+        (ref StringBufUnmanaged value) { deinit(value); }));
+static assert(!__traits(compiles,
+        (ref OwnedStringUnmanaged value) { deinit(value); }));
+static assert(__traits(compiles,
+        (ref StringBufUnmanaged value, Allocator* allocator) { deinit(value, allocator); }));
+static assert(__traits(compiles,
+        (ref OwnedStringUnmanaged value, Allocator* allocator) { deinit(value, allocator); }));
 static assert(!__traits(compiles,
         (ref StringBuf left, ref StringBuf right) { left = move(right); }));
 static assert(!__traits(compiles,
         (ref OwnedString left, ref OwnedString right) { left = move(right); }));
 static assert(!__traits(compiles,
-        (ref StringBufUnmanaged left, ref StringBufUnmanaged right) {
-        left = move(right);
-    }));
+        (ref StringBufUnmanaged left, ref StringBufUnmanaged right) { left = move(right); }));
 static assert(!__traits(compiles,
-        (ref OwnedStringUnmanaged left, ref OwnedStringUnmanaged right) {
-        left = move(right);
-    }));
+        (ref OwnedStringUnmanaged left, ref OwnedStringUnmanaged right) { left = move(right); }));
 
 private void testStringBufMoveReplacement(InstrumentedAllocator* tracked)
 {
@@ -88,7 +95,6 @@ private void testReleasedStorage(InstrumentedAllocator* tracked)
     deinit(exactString);
     assert(tracked.clean);
 }
-
 
 private void testConstructionFailure(InstrumentedAllocator* tracked)
 {

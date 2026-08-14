@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import core.lifetime : move;
 import core.stdc.string : memmove;
+import xtb.core.array : RawArrayStorage;
 import xtb.core.hash : hashValue;
 import xtb.core.lifetime : moveEmplace;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
@@ -140,13 +141,24 @@ public:
     }
 
 package(xtb):
-    static OwnedStringUnmanaged adoptExact(String value) @system
+    static OwnedStringUnmanaged adoptExact(
+        scope RawArrayStorage!char* storage,
+    ) @system
     {
         version (XTB_Checked)
-            require((value.length == 0) == (value.ptr is null),
+        {
+            require(storage !is null,
+                "raw OwnedString storage pointer is null");
+            require(storage.length == storage.capacity,
+                "adopted OwnedString storage is not exact-sized");
+            require((storage.length == 0) == (storage.data is null),
                 "adopted OwnedString storage is not canonical");
+        }
         OwnedStringUnmanaged result;
-        result.value_ = value;
+        result.value_ = storage.data[0 .. storage.length];
+        storage.data = null;
+        storage.length = 0;
+        storage.capacity = 0;
         return move(result);
     }
 
@@ -292,8 +304,8 @@ public:
                 version (XTB_Checked)
                     require(releasedAllocator is destination,
                         "StringBuf allocator changed during release");
-                String exact = raw.releaseExactStorage();
-                Storage storage = Storage.adoptExact(exact);
+                RawArrayStorage!char exact = raw.releaseExactStorage();
+                Storage storage = Storage.adoptExact(&exact);
                 Self result = adoptUnmanaged(destination, &storage);
                 moveEmplace(result, *output);
                 return true;
@@ -469,6 +481,8 @@ unittest
             ref OwnedString right) { left = move(right); }));
     static assert(!__traits(compiles, (ref OwnedStringUnmanaged left,
             ref OwnedStringUnmanaged right) { left = move(right); }));
+    static assert(!__traits(compiles,
+            OwnedStringUnmanaged.adoptExact(cast(String) "borrowed")));
 
     OwnedString copy = text.clone(mallocAllocator());
     assert(copy == text);
@@ -491,6 +505,18 @@ unittest
         assert(exact.allocator is null && exact.empty);
     }
     assert(adopted.view.ptr is exactPointer);
+
+    StringBufUnmanaged unmanaged = StringBufUnmanaged.fromString(
+        mallocAllocator(),
+        "unmanaged exact",
+    );
+    unmanaged.shrinkToFit(mallocAllocator());
+    RawArrayStorage!char raw = unmanaged.releaseExactStorage();
+    OwnedStringUnmanaged exactUnmanaged =
+        OwnedStringUnmanaged.adoptExact(&raw);
+    assert(raw.data is null && raw.length == 0 && raw.capacity == 0);
+    assert(exactUnmanaged.view == "unmanaged exact");
+    exactUnmanaged.deinit(mallocAllocator());
 
     import xtb.core.allocators.instrumented : AllocationRecord;
 

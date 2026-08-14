@@ -3017,8 +3017,13 @@ private void decodeOwnedString(ref TomlParser parser, OwnedString* output)
         return;
     version (XTB_Checked)
         require(owned, "owned TOML string was not allocated");
+    auto raw = RawArrayStorage!char.adopt(
+        cast(char*) value.ptr,
+        value.length,
+        value.length,
+    );
     OwnedStringUnmanaged storage =
-        OwnedStringUnmanaged.adoptExact(value);
+        OwnedStringUnmanaged.adoptExact(&raw);
     OwnedString result = OwnedString.adoptUnmanaged(
         parser.allocator,
         &storage,

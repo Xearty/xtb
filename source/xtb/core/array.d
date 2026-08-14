@@ -18,16 +18,57 @@ private template supportsDefaultInitialization(T)
     enum supportsDefaultInitialization = __traits(compiles, () { T value; });
 }
 
-/// Raw allocation detached from an unmanaged array.
+/// Raw backing allocation detached from an unmanaged array.
 ///
-/// This package-only token has no destructor. The caller assumes ownership of
-/// every live element and must eventually adopt or explicitly destroy and
-/// deallocate the storage with the originating allocator.
+/// This package-only token owns only the allocation, not logical element
+/// cleanup. It is move-only and requires the originating allocator for
+/// explicit deinitialization. Callers that transfer the storage onward must
+/// consume the token exactly once.
 package(xtb) struct RawArrayStorage(T)
 {
+nothrow @nogc:
+
+    alias Self = RawArrayStorage!T;
+
+package(xtb):
     T* data;
     size_t length;
     size_t capacity;
+
+public:
+    @disable this(this);
+    @disable ref Self opAssign(Self source) return;
+
+package(xtb):
+    static Self adopt(
+        T* data,
+        size_t length,
+        size_t capacity,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(length <= capacity,
+                "adopted raw array length exceeds capacity");
+            require((capacity == 0) == (data is null),
+                "adopted raw array storage does not match capacity");
+        }
+        Self result;
+        result.data = data;
+        result.length = length;
+        result.capacity = capacity;
+        return result;
+    }
+
+public:
+    /// Releases only the backing allocation; logical elements are not finalized.
+    void deinit(Allocator* allocator)
+    {
+        if (capacity != 0)
+            requireValidAllocator(allocator);
+        if (capacity != 0)
+            allocator.deallocateArray(data[0 .. capacity]);
+    }
 }
 
 version (unittest)
@@ -100,6 +141,12 @@ version (unittest)
     }
 }
 
+/// Growable backing-allocation owner without embedded allocator context.
+///
+/// Every operation that may allocate or release storage requires the allocator
+/// explicitly. Copying and generated assignment are disabled; use XTB move
+/// construction for transfer and explicitly deinitialize a live value with the
+/// same allocator context that owns its backing allocation.
 struct ArrayUnmanaged(T)
 {
 nothrow @nogc:
@@ -196,7 +243,7 @@ package(xtb):
 
     RawArrayStorage!T releaseRaw() @system
     {
-        RawArrayStorage!T result = RawArrayStorage!T(
+        RawArrayStorage!T result = RawArrayStorage!T.adopt(
             data_,
             length_,
             capacity_,
@@ -1367,7 +1414,16 @@ unittest
     static assert(Array!int.sizeof ==
             ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
     static assert(OwnedArray!int.sizeof == Array!int.sizeof);
+    static assert(needsDeinit!(RawArrayStorage!int));
+    static assert(!__traits(isCopyable, RawArrayStorage!int));
+    static assert(!__traits(compiles, (ref RawArrayStorage!int value) { deinitValue(value); }));
+    static assert(__traits(compiles, (ref RawArrayStorage!int value,
+            Allocator* allocator) { deinitValue(value, allocator); }));
     static assert(!__traits(isCopyable, ArrayUnmanaged!int));
+    static assert(needsDeinit!(ArrayUnmanaged!int));
+    static assert(!__traits(compiles, (ref ArrayUnmanaged!int value) { deinitValue(value); }));
+    static assert(__traits(compiles, (ref ArrayUnmanaged!int value,
+            Allocator* allocator) { deinitValue(value, allocator); }));
     static assert(!__traits(compiles, () {
             ArrayUnmanaged!int left;
             ArrayUnmanaged!int right;
@@ -1397,6 +1453,23 @@ unittest
     static assert(!__traits(compiles, () { OwnedArray!(ArrayUnmanaged!int) value; }));
     static assert(!__traits(hasMember, OwnedArray!int, "release"));
     static assert(!__traits(hasMember, OwnedArray!int, "adopt"));
+
+    AllocationRecord[8] rawRecords;
+    InstrumentedAllocator rawAllocator = InstrumentedAllocator.create(
+        mallocAllocator(),
+        rawRecords[],
+    );
+    ArrayUnmanaged!int rawSource = ArrayUnmanaged!int.fromSlice(
+        rawAllocator.allocator,
+        [1, 2, 3],
+    );
+    RawArrayStorage!int raw = rawSource.releaseRaw();
+    assert(rawSource.empty && rawSource.capacity == 0);
+    RawArrayStorage!int movedRaw = move(raw);
+    assert(raw.data is null && raw.length == 0 && raw.capacity == 0);
+    assert(movedRaw.length == 3 && movedRaw.capacity >= 3);
+    deinitValue(movedRaw, rawAllocator.allocator);
+    assert(rawAllocator.clean);
 
     Array!int zero;
     zero.deinit();

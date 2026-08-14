@@ -669,7 +669,8 @@ private:
             version (XTB_Checked)
                 require(sourceAllocator is destination,
                     "StringBuf allocator changed during release");
-            auto adopted = OwnedStringUnmanaged.adoptExact(raw.releaseExactStorage());
+            auto exact = raw.releaseExactStorage();
+            auto adopted = OwnedStringUnmanaged.adoptExact(&exact);
             moveEmplace(adopted, owned);
         }
         else

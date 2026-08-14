@@ -147,6 +147,11 @@ storage.tryReserve(allocator, requested);
 storage.clear(allocator);
 ```
 
+Allocator-free raw handoff between internal unmanaged owners uses a move-only
+raw-storage token rather than a borrowed slice. That token still requires the
+originating allocator for explicit cleanup, so it cannot silently become a
+standalone owner or lose allocator provenance during a cross-type transfer.
+
 `ReleasedStorage` requires its payload to expose the lifecycle hooks needed to
 release detached storage. The token itself is an explicit owner: if it is not
 adopted or extracted, call free `deinit(released)`; scope exit does not free it.
