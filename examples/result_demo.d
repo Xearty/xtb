@@ -46,7 +46,7 @@ extern (C) int main()
     assert(!failure && failure.error == DemoError.unavailable);
 
     auto unwrapped = loadAndScale(false);
-    assert(unwrapped.unwrap() == 40 && unwrapped.isEmpty);
+    assert(unwrapped.unwrap() == 40 && unwrapped.isOk);
     auto unwrappedError = loadAndScale(true);
     assert(unwrappedError.unwrapError() == DemoError.unavailable);
 

@@ -512,17 +512,6 @@ private void writeResult(T)(
         writePunctuation(writer, '.', options);
     }
 
-    if (value.isEmpty)
-    {
-        writeStyledText(
-            writer,
-            options.showTypeNames ? "init" : "empty",
-            options.colorScheme.nullValue,
-            options,
-        );
-        return;
-    }
-
     if (value.isErr)
     {
         writeStyledText(
@@ -1834,12 +1823,6 @@ private WidthEstimate estimateWidth(T)(
     {
         alias Value = ResultValue!U;
         size_t total = options.showTypeNames ? U.stringof.length + 1 : 0;
-        if (value.isEmpty)
-            return addWidth(
-                &total,
-                options.showTypeNames ? 4 : 5,
-                budget,
-            ) ? knownWidth(total) : unknownWidth();
         if (value.isErr)
         {
             if (!addWidth(&total, 4, budget))
@@ -2818,10 +2801,6 @@ unittest
     Result!(int, int) resultErr = Result!(int, int).err(9);
     resultErr.expectPretty("err(9)", noTypes);
     resultErr.expectPretty("Result!(int, int).err(9)", plain);
-
-    Result!(int, int) resultEmpty;
-    resultEmpty.expectPretty("empty", noTypes);
-    resultEmpty.expectPretty("Result!(int, int).init", plain);
 
     Result!(void, int) resultVoid = Result!(void, int).ok();
     resultVoid.expectPretty("ok()", noTypes);

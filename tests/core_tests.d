@@ -187,11 +187,6 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         auto result = Result!(int, int).err(1);
         result.unwrap();
     }
-    if (cStringEqual(name, "result-unwrap-empty"))
-    {
-        Result!(int, int) result;
-        result.unwrap();
-    }
     if (cStringEqual(name, "result-expect-err"))
     {
         auto result = Result!(int, int).err(1);
@@ -576,7 +571,6 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "option-unwrap-none");
         expectDeath(arguments[0], "option-expect-none");
         expectDeath(arguments[0], "result-unwrap-err");
-        expectDeath(arguments[0], "result-unwrap-empty");
         expectDeath(arguments[0], "result-expect-err");
         expectDeath(arguments[0], "result-unwrap-error-ok");
         expectDeath(arguments[0], "result-expect-error-ok");

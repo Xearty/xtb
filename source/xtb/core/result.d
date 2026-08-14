@@ -3,7 +3,9 @@ module xtb.core.result;
 nothrow @nogc:
 
 import core.attribute : mustuse;
-import core.lifetime : forward, move, moveEmplace;
+import core.internal.traits : hasElaborateDestructor;
+import core.lifetime : forward;
+import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
@@ -11,7 +13,6 @@ version (XTB_Checked) import xtb.core.panic : require;
 
 private enum ResultState : ubyte
 {
-    empty,
     ok,
     err,
 }
@@ -21,7 +22,15 @@ private template isCopyableResultValue(T)
     static if (is(T == void))
         enum bool isCopyableResultValue = true;
     else
-        enum bool isCopyableResultValue = __traits(isCopyable, T);
+        enum bool isCopyableResultValue = __traits(isCopyable, T) && !needsDeinit!T;
+}
+
+private template isMonadicValue(T)
+{
+    static if (is(T == void))
+        enum bool isMonadicValue = true;
+    else
+        enum bool isMonadicValue = !needsDeinit!T && !hasElaborateDestructor!T;
 }
 
 private enum bool isResultType(T) = is(T == Result!(Value, Error), Value, Error);
@@ -39,10 +48,14 @@ private template ResultError(T)
 
 /// An explicit success-or-error value for BetterC code.
 ///
-/// `Result.init` is an empty, valid value. `take` and `takeError` leave the
-/// result empty after transferring the active payload out. Use `ok`/`err` to
-/// construct a populated result and `ResultReturns` inside Result-returning
-/// functions for concise `return ok(...)` / `return err(...)` syntax.
+/// A Result has exactly two logical states: `Ok(T)` and `Err(E)`. There is no
+/// empty state. Default construction is disabled; construct through `ok` or
+/// `err`.
+///
+/// `take`/`unwrap` and `takeError`/`unwrapError` transfer the active payload
+/// without cleaning it. The Result remains in the same logical branch with a
+/// safely moved-from payload. Checked builds diagnose repeated semantic use of
+/// a consumed Result; that diagnostic bit is not a third Result state.
 @mustuse struct Result(T, E)
 {
 nothrow @nogc:
@@ -53,16 +66,51 @@ nothrow @nogc:
     static if (!is(T == void))
         private T value_;
     private E error_;
+    version (XTB_Checked) private bool consumed_;
 
-    static if (!isCopyableResultValue!T || !__traits(isCopyable, E))
+    @disable this();
+
+    static if (!isCopyableResultValue!T || !__traits(isCopyable, E) || needsDeinit!E)
         @disable this(this);
+
+    /// Replaces this Result by consuming `source`.
+    ///
+    /// Cleanup-bearing Results require an rvalue/moved source because implicit
+    /// owner copying is disabled.
+    ref Result opAssign(Result source) return
+    {
+        version (XTB_Checked)
+            require(!source.consumed_, "cannot assign from a consumed Result");
+
+        deinit();
+        state_ = source.state_;
+        static if (!is(T == void))
+        {
+            if (source.state_ == ResultState.ok)
+                moveEmplace(source.value_, value_);
+            else
+                moveEmplace(source.error_, error_);
+        }
+        else
+        {
+            if (source.state_ == ResultState.err)
+                moveEmplace(source.error_, error_);
+        }
+        version (XTB_Checked)
+        {
+            consumed_ = false;
+            source.consumed_ = true;
+        }
+        return this;
+    }
 
     static if (is(T == void))
     {
         static Result ok()
         {
-            Result result;
+            Result result = void;
             result.state_ = ResultState.ok;
+            version (XTB_Checked) result.consumed_ = false;
             return result;
         }
     }
@@ -70,25 +118,27 @@ nothrow @nogc:
     {
         static Result ok(T value)
         {
-            Result result;
-            move(value, result.value_);
+            Result result = void;
+            moveEmplace(value, result.value_);
             result.state_ = ResultState.ok;
+            version (XTB_Checked) result.consumed_ = false;
             return result;
         }
     }
 
     static Result err(E error)
     {
-        Result result;
-        move(error, result.error_);
+        Result result = void;
+        moveEmplace(error, result.error_);
         result.state_ = ResultState.err;
+        version (XTB_Checked) result.consumed_ = false;
         return result;
     }
 
-    /// Rebind an error from another Result with the same error type.
+    /// Rebinds an error from another Result with the same error type.
     ///
-    /// The source must currently be an error and is left empty. This overload
-    /// exists primarily for `return err(otherResult)` through ResultReturns.
+    /// The source must currently be an error. Its error payload is transferred
+    /// and the source remains `Err` with a moved-from payload.
     static Result err(U)(ref Result!(U, E) source)
     {
         return err(source.takeError());
@@ -104,16 +154,26 @@ nothrow @nogc:
         return state_ == ResultState.err;
     }
 
-    /// True for Result.init and after its active payload has been taken.
-    bool isEmpty() const pure @safe
-    {
-        return state_ == ResultState.empty;
-    }
-
     /// Converts to true exactly when this Result is successful.
     bool opCast(U : bool)() const pure @safe
     {
         return isOk;
+    }
+
+    /// Explicitly ends this Result's lifetime by cleaning only its active
+    /// branch. A moved-from active payload is safe to deinitialize.
+    void deinit()
+    {
+        if (state_ == ResultState.ok)
+        {
+            static if (!is(T == void) && needsDeinit!T)
+                deinitValue(value_);
+        }
+        else
+        {
+            static if (needsDeinit!E)
+                deinitValue(error_);
+        }
     }
 
     static if (!is(T == void))
@@ -121,39 +181,45 @@ nothrow @nogc:
         ref inout(T) value() inout return @system
         {
             version (XTB_Checked)
+            {
+                require(!consumed_, "consumed Result has no usable value");
                 require(isOk, "Result does not contain a value");
+            }
             return value_;
         }
 
-        /// Transfers the success value out and leaves this Result empty.
+        /// Transfers the success value out. The Result stays logically `Ok`
+        /// with a moved-from payload.
         T take()
         {
             version (XTB_Checked)
+            {
+                require(!consumed_, "cannot take from a consumed Result");
                 require(isOk, "cannot take the value of a non-ok Result");
+            }
             T result = void;
             moveEmplace(value_, result);
-            static if (__traits(isPOD, T))
-                value_ = T.init;
-            state_ = ResultState.empty;
+            version (XTB_Checked) consumed_ = true;
             return result;
         }
 
         /// Transfers the success value out or panics unless this Result is ok.
-        ///
-        /// Unlike checked contracts, this state check is always enabled.
         T unwrap()
         {
+            version (XTB_Checked)
+                if (consumed_)
+                    panic("called Result.unwrap() on a consumed Result");
             if (!isOk)
-                panic(isErr
-                        ? "called Result.unwrap() on err" : "called Result.unwrap() on empty Result");
+                panic("called Result.unwrap() on err");
             return take();
         }
 
         /// Transfers the success value out or panics with `message` unless ok.
-        ///
-        /// Unlike checked contracts, this state check is always enabled.
         T expect(String message)
         {
+            version (XTB_Checked)
+                if (consumed_)
+                    panic(message);
             if (!isOk)
                 panic(message);
             return take();
@@ -161,30 +227,35 @@ nothrow @nogc:
     }
     else
     {
-        /// Consumes a successful void Result and leaves it empty.
+        /// Consumes the successful void branch while preserving the logical
+        /// `Ok` state.
         void take()
         {
             version (XTB_Checked)
+            {
+                require(!consumed_, "cannot take from a consumed Result");
                 require(isOk, "cannot take the value of a non-ok Result");
-            state_ = ResultState.empty;
+                consumed_ = true;
+            }
         }
 
         /// Consumes this Result or panics unless it is ok.
-        ///
-        /// Unlike checked contracts, this state check is always enabled.
         void unwrap()
         {
+            version (XTB_Checked)
+                if (consumed_)
+                    panic("called Result.unwrap() on a consumed Result");
             if (!isOk)
-                panic(isErr
-                        ? "called Result.unwrap() on err" : "called Result.unwrap() on empty Result");
+                panic("called Result.unwrap() on err");
             take();
         }
 
         /// Consumes this Result or panics with `message` unless it is ok.
-        ///
-        /// Unlike checked contracts, this state check is always enabled.
         void expect(String message)
         {
+            version (XTB_Checked)
+                if (consumed_)
+                    panic(message);
             if (!isOk)
                 panic(message);
             take();
@@ -194,39 +265,45 @@ nothrow @nogc:
     ref inout(E) error() inout return @system
     {
         version (XTB_Checked)
+        {
+            require(!consumed_, "consumed Result has no usable error");
             require(isErr, "Result does not contain an error");
+        }
         return error_;
     }
 
-    /// Transfers the error out and leaves this Result empty.
+    /// Transfers the error out. The Result stays logically `Err` with a
+    /// moved-from payload.
     E takeError()
     {
         version (XTB_Checked)
+        {
+            require(!consumed_, "cannot take from a consumed Result");
             require(isErr, "cannot take the error of a non-error Result");
+        }
         E result = void;
         moveEmplace(error_, result);
-        static if (__traits(isPOD, E))
-            error_ = E.init;
-        state_ = ResultState.empty;
+        version (XTB_Checked) consumed_ = true;
         return result;
     }
 
     /// Transfers the error out or panics unless this Result is an error.
-    ///
-    /// Unlike checked contracts, this state check is always enabled.
     E unwrapError()
     {
+        version (XTB_Checked)
+            if (consumed_)
+                panic("called Result.unwrapError() on a consumed Result");
         if (!isErr)
-            panic(isOk
-                    ? "called Result.unwrapError() on ok" : "called Result.unwrapError() on empty Result");
+            panic("called Result.unwrapError() on ok");
         return takeError();
     }
 
     /// Transfers the error out or panics with `message` unless this Result is an error.
-    ///
-    /// Unlike checked contracts, this state check is always enabled.
     E expectError(String message)
     {
+        version (XTB_Checked)
+            if (consumed_)
+                panic(message);
         if (!isErr)
             panic(message);
         return takeError();
@@ -234,40 +311,31 @@ nothrow @nogc:
 }
 
 /// Introduces `ok` and `err` aliases for the enclosing function's Result type.
-///
-/// Example:
-/// ---
-/// Result!(Config, Error) loadConfig()
-/// {
-///     mixin ResultReturns;
-///     if (failed)
-///         return err(Error.invalid);
-///     return ok(config);
-/// }
-/// ---
 mixin template ResultReturns()
 {
     alias ok = typeof(return).ok;
     alias err = typeof(return).err;
 }
 
-/// Transforms the success value while preserving the error type.
+/// Transforms a simple success value while preserving a simple error type.
 auto map(alias transform, T, E, Args...)(
     Result!(T, E) result,
     auto ref Args args,
 )
 {
+    static assert(isMonadicValue!T && isMonadicValue!E,
+        "Result.map currently supports only payloads without deinit or D destructor semantics");
+
     static if (is(T == void))
         alias U = typeof(transform(forward!args));
     else
         alias U = typeof(transform(result.take(), forward!args));
+    static assert(isMonadicValue!U,
+        "Result.map currently supports only result payloads without deinit or D destructor semantics");
 
     alias Mapped = Result!(U, E);
     if (result.isErr)
         return Mapped.err(result.takeError());
-
-    version (XTB_Checked)
-        require(result.isOk, "cannot map an empty Result");
 
     static if (is(T == void))
     {
@@ -298,14 +366,18 @@ auto map(alias transform, T, E, Args...)(
     }
 }
 
-/// Transforms the error while preserving the success type.
+/// Transforms a simple error while preserving a simple success type.
 auto mapError(alias transform, T, E, Args...)(
     Result!(T, E) result,
     auto ref Args args,
 )
 {
+    static assert(isMonadicValue!T && isMonadicValue!E,
+        "Result.mapError currently supports only payloads without deinit or D destructor semantics");
     alias F = typeof(transform(result.takeError(), forward!args));
     static assert(!is(F == void), "Result.mapError transform must return an error value");
+    static assert(isMonadicValue!F,
+        "Result.mapError currently supports only result payloads without deinit or D destructor semantics");
     alias Mapped = Result!(T, F);
 
     if (result.isErr)
@@ -313,9 +385,6 @@ auto mapError(alias transform, T, E, Args...)(
         F error = transform(result.takeError(), forward!args);
         return Mapped.err(move(error));
     }
-
-    version (XTB_Checked)
-        require(result.isOk, "cannot map an empty Result");
 
     static if (is(T == void))
     {
@@ -328,31 +397,28 @@ auto mapError(alias transform, T, E, Args...)(
     }
 }
 
-/// Chains a Result-producing operation after a successful Result.
+/// Chains a Result-producing operation after a successful simple Result.
 auto andThen(alias transform, T, E, Args...)(
     Result!(T, E) result,
     auto ref Args args,
 )
 {
+    static assert(isMonadicValue!T && isMonadicValue!E,
+        "Result.andThen currently supports only payloads without deinit or D destructor semantics");
+
     static if (is(T == void))
         alias Next = typeof(transform(forward!args));
     else
         alias Next = typeof(transform(result.take(), forward!args));
 
-    static assert(
-        isResultType!Next,
-        "Result.andThen transform must return Result",
-    );
-    static assert(
-        is(ResultError!Next == E),
-        "Result.andThen transform must preserve the error type; use mapError to convert errors",
-    );
+    static assert(isResultType!Next, "Result.andThen transform must return Result");
+    static assert(is(ResultError!Next == E),
+        "Result.andThen transform must preserve the error type; use mapError to convert errors");
+    static assert(isMonadicValue!(ResultValue!Next) && isMonadicValue!(ResultError!Next),
+        "Result.andThen currently supports only result payloads without deinit or D destructor semantics");
 
     if (result.isErr)
         return Next.err(result.takeError());
-
-    version (XTB_Checked)
-        require(result.isOk, "cannot chain an empty Result");
 
     static if (is(T == void))
     {
@@ -365,27 +431,23 @@ auto andThen(alias transform, T, E, Args...)(
     }
 }
 
-/// Recovers from an error with another Result-producing operation.
+/// Recovers from a simple error with another simple Result-producing operation.
 auto orElse(alias transform, T, E, Args...)(
     Result!(T, E) result,
     auto ref Args args,
 )
 {
+    static assert(isMonadicValue!T && isMonadicValue!E,
+        "Result.orElse currently supports only payloads without deinit or D destructor semantics");
     alias Next = typeof(transform(result.takeError(), forward!args));
-    static assert(
-        isResultType!Next,
-        "Result.orElse transform must return Result",
-    );
-    static assert(
-        is(ResultValue!Next == T),
-        "Result.orElse transform must preserve the success type; use map to convert values",
-    );
+    static assert(isResultType!Next, "Result.orElse transform must return Result");
+    static assert(is(ResultValue!Next == T),
+        "Result.orElse transform must preserve the success type; use map to convert values");
+    static assert(isMonadicValue!(ResultValue!Next) && isMonadicValue!(ResultError!Next),
+        "Result.orElse currently supports only result payloads without deinit or D destructor semantics");
 
     if (result.isErr)
         return transform(result.takeError(), forward!args);
-
-    version (XTB_Checked)
-        require(result.isOk, "cannot recover an empty Result");
 
     static if (is(T == void))
     {
@@ -402,16 +464,19 @@ version (unittest) private struct TrackedResultValue
 {
 nothrow @nogc:
 
-    int* destructions;
+    int* deinits;
     int value;
     bool armed;
 
     @disable this(this);
 
-    ~this()
+    void deinit()
     {
         if (armed)
-            ++*destructions;
+        {
+            ++*deinits;
+            armed = false;
+        }
     }
 }
 
@@ -440,32 +505,29 @@ version (unittest) private Result!(long, ResultTestError) resultTestPropagate(bo
 
 unittest
 {
-    Result!(int, ResultTestError) empty;
-    assert(empty.isEmpty);
-    assert(!empty.isOk && !empty.isErr);
-    assert(!cast(bool) empty);
+    static assert(!__traits(compiles, () { Result!(int, ResultTestError) value; }));
 
     auto success = Result!(int, ResultTestError).ok(42);
-    assert(success.isOk && !success.isErr && !success.isEmpty);
+    assert(success.isOk && !success.isErr);
     assert(success);
     assert(success.value == 42);
     success.value += 1;
     assert(success.unwrap() == 43);
-    assert(success.isEmpty);
+    assert(success.isOk);
 
     auto expectedSuccess = Result!(int, ResultTestError).ok(44);
     assert(expectedSuccess.expect("expected success") == 44);
-    assert(expectedSuccess.isEmpty);
+    assert(expectedSuccess.isOk);
 
     auto failure = Result!(int, ResultTestError).err(ResultTestError.second);
     assert(!failure);
     assert(failure.isErr && failure.error == ResultTestError.second);
     assert(failure.unwrapError() == ResultTestError.second);
-    assert(failure.isEmpty);
+    assert(failure.isErr);
 
     auto expectedFailure = Result!(int, ResultTestError).err(ResultTestError.first);
     assert(expectedFailure.expectError("expected error") == ResultTestError.first);
-    assert(expectedFailure.isEmpty);
+    assert(expectedFailure.isErr);
 
     auto propagatedSuccess = resultTestPropagate(false);
     assert(propagatedSuccess && propagatedSuccess.value == 22);
@@ -502,8 +564,7 @@ unittest
     assert(captured && captured.value == 23);
 
     auto recovered = resultTestSource(true).orElse!(error =>
-            Result!(int, int)
-                .ok(error == ResultTestError.first ? 99 : 0));
+            Result!(int, int).ok(error == ResultTestError.first ? 99 : 0));
     static assert(is(typeof(recovered) == Result!(int, int)));
     assert(recovered && recovered.value == 99);
 }
@@ -514,11 +575,11 @@ unittest
     auto success = VoidResult.ok();
     assert(success);
     success.unwrap();
-    assert(success.isEmpty);
+    assert(success.isOk);
 
     auto expectedSuccess = VoidResult.ok();
     expectedSuccess.expect("expected void success");
-    assert(expectedSuccess.isEmpty);
+    assert(expectedSuccess.isOk);
 
     int calls;
     success = VoidResult.ok();
@@ -537,19 +598,34 @@ unittest
 
 unittest
 {
-    int destructions;
-    {
-        TrackedResultValue source = TrackedResultValue(&destructions, 7, true);
-        auto result = Result!(TrackedResultValue, ResultTestError).ok(move(source));
-        assert(result.value.value == 7);
-        TrackedResultValue extracted = result.take();
-        assert(result.isEmpty);
-        assert(destructions == 0);
-    }
-    assert(destructions == 1);
+    int deinits;
+    TrackedResultValue source = TrackedResultValue(&deinits, 7, true);
+    auto result = Result!(TrackedResultValue, ResultTestError).ok(move(source));
+    assert(result.value.value == 7);
+    TrackedResultValue extracted = result.take();
+    assert(result.isOk);
+    assert(deinits == 0);
+    deinitValue(result);
+    assert(deinits == 0);
+    deinitValue(extracted);
+    assert(deinits == 1);
+
+    TrackedResultValue replacementValue = TrackedResultValue(&deinits, 8, true);
+    auto replacement = Result!(TrackedResultValue, ResultTestError).ok(move(replacementValue));
+    TrackedResultValue oldValue = TrackedResultValue(&deinits, 9, true);
+    auto target = Result!(TrackedResultValue, ResultTestError).ok(move(oldValue));
+    target = move(replacement);
+    assert(deinits == 2);
+    assert(target.value.value == 8);
+    deinitValue(target);
+    assert(deinits == 3);
 
     static assert(!__traits(compiles,
             (ref Result!(TrackedResultValue, ResultTestError) value) {
             Result!(TrackedResultValue, ResultTestError) copy = value;
+        }));
+    static assert(!__traits(compiles,
+            (Result!(TrackedResultValue, ResultTestError) value) {
+            return value.map!(item => item.value);
         }));
 }

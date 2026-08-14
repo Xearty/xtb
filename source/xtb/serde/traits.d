@@ -981,11 +981,22 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
     }
     else static if (isSerdeStruct!U)
     {
-        static if (needsDeinit!U)
-            deinitValue(*value);
-        else
+        enum bool hasDirectOptionField = () {
+            static foreach (index; 0 .. U.tupleof.length)
+                static if (isOption!(typeof(U.tupleof[index])))
+                    return true;
+            return false;
+        }();
+
+        // Serde may have initialized an Option payload before the Option's
+        // logical tag becomes Some. Generic structural deinit intentionally
+        // follows only logical ownership, so structs containing Options need
+        // serde's field-aware partial-construction cleanup here.
+        static if (hasDirectOptionField || !needsDeinit!U)
             static foreach_reverse (index; 0 .. U.tupleof.length)
             deinitOwnedValue(&value.tupleof[index]);
+        else
+            deinitValue(*value);
         static if (hasElaborateDestructor!U)
         {
             U empty;

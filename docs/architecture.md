@@ -1212,47 +1212,55 @@ overlapping member names and aliases are compile-time schema errors.
 `isNone` are the state queries used by ordinary option code. Boolean conversion
 tests presence. `empty` is an alias for `isNone` provided only for compatibility
 with range-oriented generic code; do not use it when directly inspecting an
-option. Construction and replacement are explicit: use `some(value)` for presence and
-`none()` for absence. Raw `T` values do not implicitly construct or assign an
-Option. `reset` is the equivalent direct mutating operation for returning an
-existing Option to absence, and `take` transfers the current value out.
-`unwrap` is the always-checked consuming form of `take`: absence panics even in
-release-fast builds. `expect(message)` has the same behavior with a
-caller-provided panic message. Access through `value` checks that it is present,
-and `value`/`pointer` propagate mutable, const, and
-immutable qualifiers with `inout`. The option always contains valid `T.init`
-storage, which lets compiler-generated destruction handle owning `T` without a
-manually managed union. It is copyable exactly when `T` is copyable and is
-`@mustuse`. `OptionReturns` introduces return-type-specific `some` and `none`
-aliases. Every non-constructor function with an explicit `Option!T` return type
-uses that mixin and constructs its returns through those aliases. The free UFCS
-`map`, `andThen`, and `orElse` algorithms infer their transformed return types
-and therefore construct through their computed type aliases instead. This
-keeps alias lambdas out of BetterC-incompatible dual-context member closures.
-JSON encodes an absent option as `null` and accepts `null`; TOML has no null
-value, so it omits absent option fields and makes an option present whenever its
-key is decoded. A missing field remains absent. `@required Option!T` requires
-the key to occur; in JSON, an explicitly present `null` still satisfies that
-key-presence rule while leaving the option absent.
+option. Construction and replacement are explicit: use `some(value)` for presence
+and `none()` for absence. Raw `T` values do not implicitly construct or assign an
+Option. `reset` explicitly discards the active payload and returns the Option to
+absence. `take`, `unwrap`, and `expect` transfer the active payload out without
+cleaning it and leave the Option absent.
 
-`Result!(T, E)` is the corresponding BetterC error-flow value. It has explicit
-`ok` and `err` variants plus a valid empty state used by `Result.init` and by a
-result after `take`/`takeError`. Boolean conversion means `isOk`; callers use
-`isErr` or `isEmpty` when those states matter explicitly. Both payload slots
-remain valid initialized D values, avoiding a manually managed union and making
-normal destruction reliable for owning payloads. Copyability follows both
-payload types, and Result is `@mustuse`. `unwrap`/`expect` consume a success
-payload and panic unless the result is ok; `unwrapError`/`expectError` do the
-symmetric operation for errors. Those checks are unconditional and remain
-enabled in release-fast builds. `Result!(void, E)` represents success without
-a success payload; its `unwrap`/`expect` consume the successful state.
+Option is authoritative for the lifetime of its payload. Its backing bytes are
+manual storage so `Option!T` also works when `T` has a disabled default
+constructor. `deinit(option)` cleans only a present payload; absence owns nothing.
+Cleanup-bearing payloads disable implicit Option copying even if their raw
+representation would otherwise be copyable, so ownership cannot silently become
+bit-copyable. Replacement consumes its source and cleans the old active payload
+first.
+
+`OptionReturns` introduces return-type-specific `some` and `none` aliases. The
+free UFCS `map`, `andThen`, and `orElse` algorithms remain intentionally limited
+to payloads that require neither explicit `deinit` nor D destructor semantics.
+This keeps monadic chaining a simple value operation for now; owner-aware hidden
+cleanup/transfer contracts are deliberately deferred. JSON encodes an absent
+option as `null` and accepts `null`; TOML has no null value, so it omits absent
+option fields and makes an option present whenever its key is decoded. A missing
+field remains absent. `@required Option!T` requires the key to occur; in JSON, an
+explicitly present `null` still satisfies that key-presence rule while leaving the
+option absent.
+
+`Result!(T, E)` is the corresponding BetterC error-flow value. It has exactly two
+logical states: `Ok(T)` and `Err(E)`. There is no empty state and ordinary default
+construction is disabled; construct a Result through `ok` or `err`. Boolean
+conversion means `isOk`; `isErr` queries the other branch. Result is `@mustuse`.
+
+Result is authoritative for active-branch cleanup. `deinit(result)` cleans only
+the active branch. `take`/`unwrap` transfer a success payload and leave the Result
+logically `Ok` with a safely moved-from payload; `takeError`/`unwrapError` do the
+symmetric operation for `Err`. Checked builds carry a diagnostic consumed bit so
+repeated payload access after such a transfer is rejected, but that diagnostic is
+not a third Result state and disappears from the logical API. `Result!(void, E)`
+uses the same two-state rule, with `Ok` carrying no success payload.
+
+Implicit Result copying is disabled whenever either branch has an explicit
+cleanup obligation, even when its representation is otherwise copyable. Result
+replacement consumes its source, cleans exactly the old active branch, then moves
+the new active branch into place. Branch changes therefore have the same explicit
+discard-versus-transfer semantics as the owning containers.
 
 Every non-constructor function with an explicit `Result!(T, E)` return type uses
 `mixin ResultReturns;`, which aliases `ok` and `err` to that function's exact
-return type. The generic transformation algorithms infer a computed Result type
-and construct through that type alias instead. In addition to constructing an
-error from `E`, `err(otherResult)` consumes the error of a `Result!(U, E)` and
-rebinds it to the enclosing success type. Thus ordinary propagation is:
+return type. In addition to constructing an error from `E`, `err(otherResult)`
+transfers the error of a `Result!(U, E)` and rebinds it to the enclosing success
+type. Ordinary propagation remains:
 
 ```d
 auto value = operation();
@@ -1262,15 +1270,13 @@ return ok(value.take());
 ```
 
 `map`, `mapError`, `andThen`, and `orElse` are free UFCS algorithms rather than
-member templates. This is deliberate: LDC requires a dual context when an alias
-lambda and a member-template receiver both carry context, which can require a
-GC closure under `-betterC`. Free UFCS functions preserve fluent call syntax
-without that restriction. They consume their wrapper argument by value: a
-temporary flows naturally, copyable lvalues follow normal D value semantics,
-and non-copyable lvalues require an explicit `move`. Result is not mandated as
-the representation for every fallible API. Explicit status-plus-out-parameter
-interfaces remain appropriate where they make ownership, partial output, ABI,
-or hot-path behavior clearer.
+member templates. They are currently available only when every participating
+payload is a simple value with neither explicit `deinit` nor D destructor
+semantics. Temporaries therefore chain naturally, while owner-bearing Result
+payloads are rejected at compile time until an owner-aware chaining contract is
+adopted deliberately. Result is not mandated as the representation for every
+fallible API. Explicit status-plus-out-parameter interfaces remain appropriate
+where they make ownership, partial output, ABI, or hot-path behavior clearer.
 
 Fields use narrowly scoped UDAs from `xtb.serde.attributes`:
 

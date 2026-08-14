@@ -375,7 +375,6 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
     if (state is null)
         return err(allocationFailure());
 
-    emplace(state);
     state.base.allocator = allocator;
     state.base.allocation = state;
     state.base.allocationSize = State.sizeof;
@@ -384,6 +383,8 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
         &spawnTrampoline!function_,
         state,
     );
+    static if (!is(WorkerReturn == void))
+        state.base.resultLive = false;
 
     static foreach (index; 0 .. WorkerParameters.length)
         emplace(
@@ -396,7 +397,6 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
     {
         destroySpawnCaptures!function_(state.captures);
         const error = started.unwrapError();
-        destroy(*state);
         allocator.deallocate(state);
         return err(threadStartFailure(error));
     }

@@ -810,6 +810,11 @@ private void decodeOption(T)(
 {
     if (matchLiteral(parser, "null"))
     {
+        // Serde pre-initializes owning Option payload storage before decoding.
+        // A JSON null keeps the Option absent, so that hidden storage must be
+        // cleaned explicitly even though Option.reset() correctly sees no
+        // active logical payload.
+        deinitOwnedValue(&(*output).storage());
         (*output).reset();
         return;
     }

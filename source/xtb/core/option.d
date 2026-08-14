@@ -3,13 +3,23 @@ module xtb.core.option;
 nothrow @nogc:
 
 import core.attribute : mustuse;
-import core.lifetime : forward, move, moveEmplace;
+import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
+import core.lifetime : forward;
+import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
 version (XTB_Checked) import xtb.core.panic : require;
 
 private enum bool isOptionType(T) = is(T == Option!Value, Value);
+
+private template OptionValue(T)
+{
+    static if (is(T == Option!Value, Value))
+        alias OptionValue = Value;
+}
+
+private enum bool isMonadicValue(T) = !needsDeinit!T && !hasElaborateDestructor!T;
 
 /// Explicit absence token accepted by Option construction and assignment.
 struct None
@@ -20,19 +30,26 @@ version (unittest) private struct TrackedOptionValue
 {
 nothrow @nogc:
 
-    int* destructions;
+    int* deinits;
     bool armed;
 
     @disable this(this);
 
-    ~this()
+    void deinit()
     {
         if (armed)
-            ++*destructions;
+        {
+            ++*deinits;
+            armed = false;
+        }
     }
 }
 
 /// An optional BetterC value. Option.init is absent.
+///
+/// Option owns cleanup of its active payload. `deinit`, `reset`, assignment to
+/// `none`, and replacement all deinitialize a present value. `take`, `unwrap`,
+/// and `expect` transfer the value out without cleaning it.
 @mustuse struct Option(T)
 {
 nothrow @nogc:
@@ -40,14 +57,39 @@ nothrow @nogc:
     static assert(!is(T == void), "Option value type cannot be void");
 
     private bool present_;
-    private T value_;
+    align(T.alignof) private ubyte[T.sizeof] storage_;
 
-    static if (!__traits(isCopyable, T))
+    // A cleanup-bearing payload must never acquire implicit owner copying just
+    // because its representation happens to be copyable.
+    static if (!__traits(isCopyable, T) || needsDeinit!T ||
+        hasElaborateCopyConstructor!T)
         @disable this(this);
 
     /// Explicitly constructs an absent Option from `none()`.
     this(None)
     {
+    }
+
+    private ref inout(T) payload() inout return @system
+    {
+        return *cast(inout(T)*) storage_.ptr;
+    }
+
+    /// Replaces this Option by consuming `source`.
+    ///
+    /// Copyable, cleanup-free Options may also pass an lvalue here through the
+    /// normal value copy into `source`. Cleanup-bearing Options require an
+    /// rvalue/moved source because their copy constructor is disabled.
+    ref Option opAssign(Option source) return
+    {
+        reset();
+        if (source.present_)
+        {
+            moveEmplace(source.payload(), payload());
+            source.present_ = false;
+            present_ = true;
+        }
+        return this;
     }
 
     /// Explicitly clears this Option through `option = none()`.
@@ -65,7 +107,7 @@ nothrow @nogc:
     static Option some(T value)
     {
         Option result;
-        move(value, result.value_);
+        moveEmplace(value, result.payload());
         result.present_ = true;
         return result;
     }
@@ -97,20 +139,32 @@ nothrow @nogc:
     {
         version (XTB_Checked)
             require(present_, "empty Option has no value");
-        return value_;
+        return payload();
     }
 
     inout(T)* pointer() inout return @system
     {
-        return present_ ? &value_ : null;
+        return present_ ? &payload() : null;
     }
 
-    /// Destroys the current value, if any, and makes this Option absent.
+    /// Explicitly ends this Option's lifetime.
+    ///
+    /// Only the active payload is cleaned. Absence owns nothing.
+    void deinit()
+    {
+        if (!present_)
+            return;
+
+        static if (needsDeinit!T)
+            deinitValue(payload());
+        present_ = false;
+    }
+
+    /// Discards the current value, if any, and makes this Option absent and
+    /// reusable.
     void reset()
     {
-        T emptyValue;
-        move(emptyValue, value_);
-        present_ = false;
+        deinit();
     }
 
     /// Transfers the current value out and leaves this Option absent.
@@ -119,9 +173,7 @@ nothrow @nogc:
         version (XTB_Checked)
             require(present_, "cannot take an empty Option");
         T result = void;
-        moveEmplace(value_, result);
-        static if (__traits(isPOD, T))
-            value_ = T.init;
+        moveEmplace(payload(), result);
         present_ = false;
         return result;
     }
@@ -148,7 +200,7 @@ nothrow @nogc:
 
     package(xtb) ref T storage() return @system
     {
-        return value_;
+        return payload();
     }
 
     package(xtb) void markPresent()
@@ -174,14 +226,21 @@ mixin template OptionReturns()
     alias none = typeof(return).none;
 }
 
-/// Transforms a present value and preserves absence.
+/// Transforms a present simple value and preserves absence.
+///
+/// Owner-bearing payloads are deliberately rejected for now. This keeps the
+/// chaining contract allocation-free and free of hidden ownership transfer.
 auto map(alias transform, T, Args...)(
     Option!T option,
     auto ref Args args,
 )
 {
+    static assert(isMonadicValue!T,
+        "Option.map currently supports only payloads without deinit or D destructor semantics");
     alias U = typeof(transform(option.take(), forward!args));
     static assert(!is(U == void), "Option.map transform must return a value");
+    static assert(isMonadicValue!U,
+        "Option.map currently supports only result payloads without deinit or D destructor semantics");
 
     if (option.isNone)
         return Option!U.none();
@@ -190,29 +249,35 @@ auto map(alias transform, T, Args...)(
     return Option!U.some(move(value));
 }
 
-/// Chains an Option-producing operation after a present Option.
+/// Chains an Option-producing operation after a present simple Option.
 auto andThen(alias transform, T, Args...)(
     Option!T option,
     auto ref Args args,
 )
 {
+    static assert(isMonadicValue!T,
+        "Option.andThen currently supports only payloads without deinit or D destructor semantics");
     alias Next = typeof(transform(option.take(), forward!args));
     static assert(
         isOptionType!Next,
         "Option.andThen transform must return Option",
     );
+    static assert(isMonadicValue!(OptionValue!Next),
+        "Option.andThen currently supports only result payloads without deinit or D destructor semantics");
 
     if (option.isNone)
         return Next.none();
     return transform(option.take(), forward!args);
 }
 
-/// Produces an alternate Option when this Option is absent.
+/// Produces an alternate Option when this simple Option is absent.
 auto orElse(alias transform, T, Args...)(
     Option!T option,
     auto ref Args args,
 )
 {
+    static assert(isMonadicValue!T,
+        "Option.orElse currently supports only payloads without deinit or D destructor semantics");
     alias Next = typeof(transform(forward!args));
     static assert(
         is(Next == Option!T),
@@ -237,7 +302,6 @@ unittest
     import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.string;
 
-    // Option construction is explicit: raw values do not implicitly become Some.
     static assert(!__traits(compiles, Option!int(13)));
     static assert(!__traits(compiles, () { Option!int value = 13; }));
     static assert(!__traits(compiles, () { Option!int value; value = 13; }));
@@ -300,23 +364,24 @@ unittest
     text.reset();
     assert(text.isNone);
 
-    int destructions;
-    {
-        TrackedOptionValue first = TrackedOptionValue(&destructions, true);
-        Option!TrackedOptionValue tracked = some(move(first));
-        tracked.reset();
-        assert(destructions == 1);
+    int deinits;
+    TrackedOptionValue first = TrackedOptionValue(&deinits, true);
+    Option!TrackedOptionValue tracked = some(move(first));
+    tracked.reset();
+    assert(deinits == 1);
 
-        TrackedOptionValue second = TrackedOptionValue(&destructions, true);
-        tracked = some(move(second));
-        TrackedOptionValue taken = tracked.take();
-        assert(tracked.isNone);
-        assert(destructions == 1);
-    }
-    assert(destructions == 2);
+    TrackedOptionValue second = TrackedOptionValue(&deinits, true);
+    tracked = some(move(second));
+    TrackedOptionValue taken = tracked.take();
+    assert(tracked.isNone);
+    assert(deinits == 1);
+    deinitValue(taken);
+    assert(deinits == 2);
 
     static assert(!__traits(compiles,
             (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
+    static assert(!__traits(compiles,
+            (ref Option!TrackedOptionValue value) { Option!TrackedOptionValue copy = value; }));
 
     Option!(int*) presentNull = some(cast(int*) null);
     assert(presentNull.isSome && presentNull.value is null);
@@ -342,4 +407,8 @@ unittest
     int offset = 10;
     auto captured = some(2).map!(value => value + offset);
     assert(captured.value == 12);
+
+    static assert(!__traits(compiles, (Option!TrackedOptionValue value) {
+        return value.map!(item => item);
+    }));
 }
