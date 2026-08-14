@@ -3,7 +3,7 @@ module xtb.core.result;
 nothrow @nogc:
 
 import core.attribute : mustuse;
-import core.internal.traits : hasElaborateDestructor;
+import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
 import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
 import xtb.core.panic : panic;
@@ -22,7 +22,8 @@ private template isCopyableResultValue(T)
     static if (is(T == void))
         enum bool isCopyableResultValue = true;
     else
-        enum bool isCopyableResultValue = __traits(isCopyable, T) && !needsDeinit!T;
+        enum bool isCopyableResultValue = __traits(isCopyable, T) &&
+            !needsDeinit!T && !hasElaborateCopyConstructor!T;
 }
 
 private template isMonadicValue(T)
@@ -30,7 +31,8 @@ private template isMonadicValue(T)
     static if (is(T == void))
         enum bool isMonadicValue = true;
     else
-        enum bool isMonadicValue = !needsDeinit!T && !hasElaborateDestructor!T;
+        enum bool isMonadicValue = !needsDeinit!T &&
+            !hasElaborateDestructor!T && !hasElaborateCopyConstructor!T;
 }
 
 private enum bool isResultType(T) = is(T == Result!(Value, Error), Value, Error);
@@ -64,14 +66,27 @@ nothrow @nogc:
 
     private ResultState state_;
     static if (!is(T == void))
-        private T value_;
-    private E error_;
+        align(T.alignof) private ubyte[T.sizeof] valueStorage_;
+    align(E.alignof) private ubyte[E.sizeof] errorStorage_;
     version (XTB_Checked) private bool consumed_;
 
     @disable this();
 
-    static if (!isCopyableResultValue!T || !__traits(isCopyable, E) || needsDeinit!E)
+    static if (!isCopyableResultValue!T || !isCopyableResultValue!E)
         @disable this(this);
+
+    static if (!is(T == void))
+    {
+        private ref inout(T) valuePayload() inout return @system
+        {
+            return *cast(inout(T)*) valueStorage_.ptr;
+        }
+    }
+
+    private ref inout(E) errorPayload() inout return @system
+    {
+        return *cast(inout(E)*) errorStorage_.ptr;
+    }
 
     /// Replaces this Result by consuming `source`.
     ///
@@ -87,14 +102,14 @@ nothrow @nogc:
         static if (!is(T == void))
         {
             if (source.state_ == ResultState.ok)
-                moveEmplace(source.value_, value_);
+                moveEmplace(source.valuePayload(), valuePayload());
             else
-                moveEmplace(source.error_, error_);
+                moveEmplace(source.errorPayload(), errorPayload());
         }
         else
         {
             if (source.state_ == ResultState.err)
-                moveEmplace(source.error_, error_);
+                moveEmplace(source.errorPayload(), errorPayload());
         }
         version (XTB_Checked)
         {
@@ -119,7 +134,7 @@ nothrow @nogc:
         static Result ok(T value)
         {
             Result result = void;
-            moveEmplace(value, result.value_);
+            moveEmplace(value, result.valuePayload());
             result.state_ = ResultState.ok;
             version (XTB_Checked) result.consumed_ = false;
             return result;
@@ -129,7 +144,7 @@ nothrow @nogc:
     static Result err(E error)
     {
         Result result = void;
-        moveEmplace(error, result.error_);
+        moveEmplace(error, result.errorPayload());
         result.state_ = ResultState.err;
         version (XTB_Checked) result.consumed_ = false;
         return result;
@@ -166,13 +181,20 @@ nothrow @nogc:
     {
         if (state_ == ResultState.ok)
         {
-            static if (!is(T == void) && needsDeinit!T)
-                deinitValue(value_);
+            static if (!is(T == void))
+            {
+                static if (needsDeinit!T)
+                    deinitValue(valuePayload());
+                else static if (hasElaborateDestructor!T)
+                    destroy(valuePayload());
+            }
         }
         else
         {
             static if (needsDeinit!E)
-                deinitValue(error_);
+                deinitValue(errorPayload());
+            else static if (hasElaborateDestructor!E)
+                destroy(errorPayload());
         }
     }
 
@@ -185,7 +207,7 @@ nothrow @nogc:
                 require(!consumed_, "consumed Result has no usable value");
                 require(isOk, "Result does not contain a value");
             }
-            return value_;
+            return valuePayload();
         }
 
         /// Transfers the success value out. The Result stays logically `Ok`
@@ -198,7 +220,7 @@ nothrow @nogc:
                 require(isOk, "cannot take the value of a non-ok Result");
             }
             T result = void;
-            moveEmplace(value_, result);
+            moveEmplace(valuePayload(), result);
             version (XTB_Checked) consumed_ = true;
             return result;
         }
@@ -269,7 +291,7 @@ nothrow @nogc:
             require(!consumed_, "consumed Result has no usable error");
             require(isErr, "Result does not contain an error");
         }
-        return error_;
+        return errorPayload();
     }
 
     /// Transfers the error out. The Result stays logically `Err` with a
@@ -282,7 +304,7 @@ nothrow @nogc:
             require(isErr, "cannot take the error of a non-error Result");
         }
         E result = void;
-        moveEmplace(error_, result);
+        moveEmplace(errorPayload(), result);
         version (XTB_Checked) consumed_ = true;
         return result;
     }
@@ -480,6 +502,25 @@ nothrow @nogc:
     }
 }
 
+version (unittest) private struct DestructorResultValue
+{
+nothrow @nogc:
+
+    int* destructions;
+    bool armed;
+
+    @disable this(this);
+
+    ~this()
+    {
+        if (armed)
+        {
+            ++*destructions;
+            armed = false;
+        }
+    }
+}
+
 version (unittest) private enum ResultTestError
 {
     first,
@@ -628,4 +669,36 @@ unittest
             (Result!(TrackedResultValue, ResultTestError) value) {
             return value.map!(item => item.value);
         }));
+}
+
+unittest
+{
+    static assert(!hasElaborateDestructor!(
+            Result!(DestructorResultValue, ResultTestError)));
+    static assert(!hasElaborateDestructor!(
+            Result!(int, DestructorResultValue)));
+
+    int destructions;
+    DestructorResultValue successValue =
+        DestructorResultValue(&destructions, true);
+    auto success = Result!(DestructorResultValue, ResultTestError)
+        .ok(move(successValue));
+    deinitValue(success);
+    assert(destructions == 1);
+
+    DestructorResultValue errorValue =
+        DestructorResultValue(&destructions, true);
+    auto failure = Result!(int, DestructorResultValue).err(move(errorValue));
+    deinitValue(failure);
+    assert(destructions == 2);
+
+    DestructorResultValue transferredValue =
+        DestructorResultValue(&destructions, true);
+    auto transferred = Result!(DestructorResultValue, ResultTestError)
+        .ok(move(transferredValue));
+    DestructorResultValue extracted = transferred.take();
+    deinitValue(transferred);
+    assert(destructions == 2);
+    destroy(extracted);
+    assert(destructions == 3);
 }

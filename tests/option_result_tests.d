@@ -2,6 +2,8 @@ module tests.option_result_tests;
 
 nothrow @nogc:
 
+import core.internal.traits : hasElaborateDestructor;
+
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.lifetime : deinit, move, needsDeinit;
@@ -39,6 +41,25 @@ nothrow @nogc:
         bytes = null;
         if (deinits !is null)
             ++*deinits;
+    }
+}
+
+private struct DestructorValue
+{
+nothrow @nogc:
+
+    size_t* destructions;
+    bool active;
+
+    @disable this(this);
+
+    ~this()
+    {
+        if (active)
+        {
+            ++*destructions;
+            active = false;
+        }
     }
 }
 
@@ -183,6 +204,45 @@ private void testDisabledDefaultPayload()
     assert(deinits == 2);
 }
 
+private void testDestructorPayloads()
+{
+    static assert(!hasElaborateDestructor!(Option!DestructorValue));
+    static assert(!hasElaborateDestructor!(
+            Result!(DestructorValue, DestructorValue)));
+
+    size_t optionDestructions;
+    DestructorValue optionalValue = DestructorValue(&optionDestructions, true);
+    Option!DestructorValue option = some(move(optionalValue));
+    option.reset();
+    assert(option.isNone && optionDestructions == 1);
+
+    size_t successDestructions;
+    DestructorValue successValue = DestructorValue(&successDestructions, true);
+    auto success = Result!(DestructorValue, DestructorValue).ok(
+        move(successValue),
+    );
+    deinit(success);
+    assert(successDestructions == 1);
+
+    size_t errorDestructions;
+    DestructorValue errorValue = DestructorValue(&errorDestructions, true);
+    auto failure = Result!(DestructorValue, DestructorValue).err(
+        move(errorValue),
+    );
+    deinit(failure);
+    assert(errorDestructions == 1);
+
+    size_t transferredDestructions;
+    DestructorValue transferredValue =
+        DestructorValue(&transferredDestructions, true);
+    auto transferred = Result!(DestructorValue, int).ok(move(transferredValue));
+    DestructorValue extracted = transferred.take();
+    deinit(transferred);
+    assert(transferredDestructions == 0);
+    destroy(extracted);
+    assert(transferredDestructions == 1);
+}
+
 private void testSimpleMonads()
 {
     auto option = some(4).map!(value => value * 3).andThen!(value => some(value + 1));
@@ -210,6 +270,7 @@ extern (C) int main()
     testOptionOwners(instrumented.allocator);
     testResultTransitions(instrumented.allocator);
     testDisabledDefaultPayload();
+    testDestructorPayloads();
     testSimpleMonads();
 
     assert(instrumented.clean);

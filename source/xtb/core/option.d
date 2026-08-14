@@ -19,7 +19,8 @@ private template OptionValue(T)
         alias OptionValue = Value;
 }
 
-private enum bool isMonadicValue(T) = !needsDeinit!T && !hasElaborateDestructor!T;
+private enum bool isMonadicValue(T) = !needsDeinit!T &&
+    !hasElaborateDestructor!T && !hasElaborateCopyConstructor!T;
 
 /// Explicit absence token accepted by Option construction and assignment.
 struct None
@@ -40,6 +41,25 @@ nothrow @nogc:
         if (armed)
         {
             ++*deinits;
+            armed = false;
+        }
+    }
+}
+
+version (unittest) private struct DestructorOptionValue
+{
+nothrow @nogc:
+
+    int* destructions;
+    bool armed;
+
+    @disable this(this);
+
+    ~this()
+    {
+        if (armed)
+        {
+            ++*destructions;
             armed = false;
         }
     }
@@ -157,6 +177,8 @@ nothrow @nogc:
 
         static if (needsDeinit!T)
             deinitValue(payload());
+        else static if (hasElaborateDestructor!T)
+            destroy(payload());
         present_ = false;
     }
 
@@ -377,6 +399,18 @@ unittest
     assert(deinits == 1);
     deinitValue(taken);
     assert(deinits == 2);
+
+    int destructions;
+    {
+        DestructorOptionValue destructorValue =
+            DestructorOptionValue(&destructions, true);
+        Option!DestructorOptionValue destructorOption =
+            some(move(destructorValue));
+        destructorOption.reset();
+        assert(destructions == 1);
+    }
+    assert(destructions == 1);
+    static assert(!hasElaborateDestructor!(Option!DestructorOptionValue));
 
     static assert(!__traits(compiles,
             (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
