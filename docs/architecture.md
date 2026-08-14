@@ -132,11 +132,12 @@ deserialization policy remain serde concerns.
 `xtb.core.allocators.arena.Arena` is an ordinary explicit owner, not an RAII
 object. Call `deinit(arena)` (or its member customization internally) to release
 its chunks. `clear` and `deinit` reclaim arena storage without walking allocated
-objects or invoking their explicit `deinit` functions. Typed construction helpers
-(`allocateInit*` and `create`) reject types with D destructors because lexical
-RAII values cannot be safely abandoned by bulk arena reclamation; raw allocation
-remains unrestricted. Arena assignment is disabled, so ownership transfer uses
-the lifetime move primitives.
+objects, invoking their explicit `deinit` functions, or running D destructors.
+Typed initialization/construction (`allocateInit*` and `create`) is nevertheless
+allowed for destructor-bearing values: the caller is responsible for explicitly
+running any required destruction before the allocation is abandoned (for example
+with `destroy`, or with generic `dispose` through the arena's `Allocator*`). Arena
+assignment is disabled, so ownership transfer uses the lifetime move primitives.
 
 `xtb.core.memory` owns the type-erased `Allocator` callback contract and generic
 allocation/reallocation/disposal helpers, delegating typed finalization to the
@@ -675,11 +676,15 @@ when the allocation came from a general allocator.
 
 `Arena` mirrors the single/array, zeroed, initialized, and `create` allocation
 vocabulary because those operations are useful for arena-backed graphs and
-ASTs. It intentionally has no per-allocation `deallocate`, `dispose`, or
-reallocation member. `Arena.clear()` and `Arena.deinit()` reclaim storage in
-bulk and **do not run destructors for values constructed in the arena**. Code
-that places resource-owning objects in an arena must arrange any required
-cleanup separately before rewind or destruction.
+ASTs. These typed helpers may construct values with D destructors. Arena still
+intentionally has no per-allocation `deallocate`, `dispose`, or reallocation
+member: `Arena.clear()` and `Arena.deinit()` reclaim storage in bulk and **do not
+run destructors for values constructed in the arena**. Code that places such
+values in an arena must explicitly run any required destructor before rewind or
+destruction, using `destroy` directly or generic `dispose`/`disposeArray` through
+`arena.allocator` when that is convenient. Arena deallocation is a no-op, so
+generic disposal finalizes the value without individually reclaiming arena
+storage.
 
 Use these representations consistently:
 

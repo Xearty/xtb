@@ -219,8 +219,10 @@ nothrow @nogc:
         return result;
     }
 
+    /// Attempts to allocate one `T` and establish its `T.init` lifetime.
+    /// Arena reclamation does not run `T`'s destructor; callers that require
+    /// destruction must perform it explicitly before abandoning the allocation.
     T* tryAllocateInit(T)()
-        if (!hasElaborateDestructor!T)
     {
         T* result = tryAllocate!T();
         if (result !is null)
@@ -228,16 +230,18 @@ nothrow @nogc:
         return result;
     }
 
+    /// Allocates one `T` and establishes its `T.init` lifetime.
+    /// Arena reclamation does not run `T`'s destructor.
     T* allocateInit(T)()
-        if (!hasElaborateDestructor!T)
     {
         T* result = allocate!T();
         emplace(result);
         return result;
     }
 
+    /// Attempts to allocate and initialize `length` contiguous `T`s.
+    /// Any required element destruction remains the caller's responsibility.
     T[] tryAllocateInitArray(T)(size_t length)
-        if (!hasElaborateDestructor!T)
     {
         T[] result = tryAllocateArray!T(length);
         foreach (index; 0 .. result.length)
@@ -245,8 +249,9 @@ nothrow @nogc:
         return result;
     }
 
+    /// Allocates and initializes `length` contiguous `T`s.
+    /// Any required element destruction remains the caller's responsibility.
     T[] allocateInitArray(T)(size_t length)
-        if (!hasElaborateDestructor!T)
     {
         T[] result = allocateArray!T(length);
         foreach (index; 0 .. result.length)
@@ -254,8 +259,9 @@ nothrow @nogc:
         return result;
     }
 
+    /// Attempts to allocate and construct one `T`. Destruction, when required,
+    /// must be performed explicitly before arena rewind/reclamation.
     T* tryCreate(T, Args...)(auto ref Args arguments)
-        if (!hasElaborateDestructor!T)
     {
         T* result = tryAllocate!T();
         if (result !is null)
@@ -263,8 +269,9 @@ nothrow @nogc:
         return result;
     }
 
+    /// Allocates and constructs one `T`. Destruction, when required, must be
+    /// performed explicitly before arena rewind/reclamation.
     T* create(T, Args...)(auto ref Args arguments)
-        if (!hasElaborateDestructor!T)
     {
         T* result = allocate!T();
         emplace(result, forward!arguments);
@@ -706,16 +713,75 @@ unittest
     {
     nothrow @nogc:
 
+        int* destroyed;
+
+        this(int* destroyed)
+        {
+            this.destroyed = destroyed;
+        }
+
         ~this()
         {
+            if (destroyed !is null)
+                ++*destroyed;
         }
     }
 
-    static assert(!__traits(compiles, (ref Arena value) {
-            value.create!ArenaConstructed();
+    import xtb.core.memory : dispose, disposeArray;
+
+    int destructorCalls;
+    Arena destructorArena = Arena.create(mallocAllocator(), 64);
+
+    ArenaConstructed* initializedDestructor =
+        destructorArena.allocateInit!ArenaConstructed();
+    initializedDestructor.destroyed = &destructorCalls;
+    destroy(*initializedDestructor);
+    assert(destructorCalls == 1);
+
+    ArenaConstructed* tryInitializedDestructor =
+        destructorArena.tryAllocateInit!ArenaConstructed();
+    assert(tryInitializedDestructor !is null);
+    tryInitializedDestructor.destroyed = &destructorCalls;
+    destructorArena.allocator.dispose(tryInitializedDestructor);
+    assert(destructorCalls == 2);
+
+    ArenaConstructed[] initializedDestructors =
+        destructorArena.allocateInitArray!ArenaConstructed(2);
+    foreach (ref value; initializedDestructors)
+        value.destroyed = &destructorCalls;
+    destructorArena.allocator.disposeArray(initializedDestructors);
+    assert(destructorCalls == 4);
+
+    ArenaConstructed[] tryInitializedDestructors =
+        destructorArena.tryAllocateInitArray!ArenaConstructed(2);
+    assert(tryInitializedDestructors.length == 2);
+    foreach (ref value; tryInitializedDestructors)
+        value.destroyed = &destructorCalls;
+    foreach_reverse (ref value; tryInitializedDestructors)
+        destroy(value);
+    assert(destructorCalls == 6);
+
+    ArenaConstructed* constructedDestructor =
+        destructorArena.create!ArenaConstructed(&destructorCalls);
+    destructorArena.allocator.dispose(constructedDestructor);
+    assert(destructorCalls == 7);
+
+    ArenaConstructed* tryConstructedDestructor =
+        destructorArena.tryCreate!ArenaConstructed(&destructorCalls);
+    assert(tryConstructedDestructor !is null);
+    destroy(*tryConstructedDestructor);
+    assert(destructorCalls == 8);
+    destructorArena.deinit();
+
+    static assert(hasElaborateDestructor!ArenaConstructed);
+    static assert(__traits(compiles, (ref Arena value) {
+            value.create!ArenaConstructed(cast(int*) null);
         }));
-    static assert(!__traits(compiles, (ref Arena value) {
+    static assert(__traits(compiles, (ref Arena value) {
             value.allocateInit!ArenaConstructed();
+        }));
+    static assert(__traits(compiles, (ref Arena value) {
+            value.allocateInitArray!ArenaConstructed(2);
         }));
 
     static assert(!hasElaborateDestructor!Arena);
@@ -740,12 +806,17 @@ unittest
     Arena abandonment = Arena.create(mallocAllocator(), 64);
     ExplicitOwner* abandoned = abandonment.create!ExplicitOwner();
     abandoned.deinits = &explicitDeinits;
+    ArenaConstructed* abandonedDestructor =
+        abandonment.create!ArenaConstructed(&destructorCalls);
     abandonment.clear();
     assert(explicitDeinits == 0);
+    assert(destructorCalls == 8);
     abandoned = abandonment.create!ExplicitOwner();
     abandoned.deinits = &explicitDeinits;
+    abandonedDestructor = abandonment.create!ArenaConstructed(&destructorCalls);
     abandonment.deinit();
     assert(explicitDeinits == 0);
+    assert(destructorCalls == 8);
 
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 
@@ -759,7 +830,11 @@ unittest
     assert(fallible.tryAllocate!int() is null);
     assert(fallible.tryAllocateArray!int(2).length == 0);
     assert(fallible.tryAllocateInit!int() is null);
+    assert(fallible.tryAllocateInit!ArenaConstructed() is null);
+    assert(fallible.tryAllocateInitArray!ArenaConstructed(2).length == 0);
     assert(fallible.tryCreate!Constructed(4) is null);
+    assert(fallible.tryCreate!ArenaConstructed(&destructorCalls) is null);
+    assert(destructorCalls == 8);
     assert(fallible.stats.chunkCount == 0);
     fallible.deinit();
 }
