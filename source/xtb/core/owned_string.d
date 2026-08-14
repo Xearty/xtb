@@ -5,6 +5,7 @@ nothrow @nogc:
 import core.lifetime : move;
 import core.stdc.string : memmove;
 import xtb.core.hash : hashValue;
+import xtb.core.lifetime : moveEmplace;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.panic : panic;
 
@@ -27,6 +28,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref OwnedStringUnmanaged opAssign(OwnedStringUnmanaged source) return;
 
     static bool tryFromString(
         Allocator* allocator,
@@ -184,6 +186,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @trusted
     {
@@ -209,7 +212,7 @@ public:
         if (!Storage.tryFromString(allocator, value, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -237,7 +240,7 @@ public:
         if (!Storage.tryFromBytesUnchecked(allocator, bytes, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -272,7 +275,7 @@ public:
             source.resetAndRelease();
             source.deinit();
             Self result = Self.create(destination);
-            *output = move(result);
+            moveEmplace(result, *output);
             return true;
         }
 
@@ -292,7 +295,7 @@ public:
                 String exact = raw.releaseExactStorage();
                 Storage storage = Storage.adoptExact(exact);
                 Self result = adoptUnmanaged(destination, &storage);
-                *output = move(result);
+                moveEmplace(result, *output);
                 return true;
             }
         }
@@ -302,7 +305,7 @@ public:
             return false;
         source.resetAndRelease();
         source.deinit();
-        *output = move(copied);
+        moveEmplace(copied, *output);
         return true;
     }
 
@@ -326,7 +329,7 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(storage);
+        moveEmplace(storage, result.storage_);
         return move(result);
     }
 
@@ -425,7 +428,7 @@ package(xtb):
                 "OwnedStringUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(*storage);
+        moveEmplace(*storage, result.storage_);
         return move(result);
     }
 }

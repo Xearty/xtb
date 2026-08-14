@@ -927,7 +927,10 @@ package(xtb.serde) void initializeOwnedValue(T)(
 {
     alias U = Unqualified!T;
     static if (isStringBuf!U)
-        *cast(StringBuf*) output = StringBuf.create(allocator);
+    {
+        StringBuf created = StringBuf.create(allocator);
+        moveEmplace(created, *cast(StringBuf*) output);
+    }
     else static if (isStringHashMap!U)
     {
         U created = U.create(allocator);

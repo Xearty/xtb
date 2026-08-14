@@ -226,7 +226,8 @@ private bool demonstrateOwningDecode() nothrow @nogc
     config.featureFlags.append(move(feature));
 
     Endpoint replica;
-    replica.hostName = StringBuf.fromString(allocator, "api-2.internal");
+    StringBuf replicaHostName = StringBuf.fromString(allocator, "api-2.internal");
+    moveEmplace(replicaHostName, replica.hostName);
     replica.port = 9443;
     replica.protocol = Protocol.https;
     OwnedArray!StringBuf replicaLabels = OwnedArray!StringBuf.create(allocator);
@@ -236,7 +237,8 @@ private bool demonstrateOwningDecode() nothrow @nogc
     config.replicaEndpoints.append(move(replica));
 
     Endpoint fallback;
-    fallback.hostName = StringBuf.fromString(allocator, "fallback.internal");
+    StringBuf fallbackHostName = StringBuf.fromString(allocator, "fallback.internal");
+    moveEmplace(fallbackHostName, fallback.hostName);
     fallback.port = 443;
     fallback.protocol = Protocol.https;
     OwnedArray!StringBuf fallbackLabels = OwnedArray!StringBuf.create(allocator);

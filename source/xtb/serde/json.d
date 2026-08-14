@@ -2037,12 +2037,13 @@ private void decodeStringBuf(ref JsonParser parser, StringBuf* output)
         return;
     version (XTB_Checked)
         require(owned, "owned JSON string was not allocated");
-    *output = StringBuf.adoptRaw(
+    StringBuf result = StringBuf.adoptRaw(
         parser.allocator,
         cast(char*) value.ptr,
         value.length,
         value.length + 1,
     );
+    moveEmplace(result, *output);
 }
 
 private void decodeOwnedString(ref JsonParser parser, OwnedString* output)

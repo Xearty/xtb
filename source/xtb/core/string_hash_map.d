@@ -599,7 +599,8 @@ private:
         {
             auto released = key.release();
             Allocator* sourceAllocator;
-            owned = released.extract(&sourceAllocator);
+            auto extracted = released.extract(&sourceAllocator);
+            moveEmplace(extracted, owned);
             version (XTB_Checked)
                 require(sourceAllocator is allocator,
                     "OwnedString allocator changed during release");
@@ -668,7 +669,8 @@ private:
             version (XTB_Checked)
                 require(sourceAllocator is destination,
                     "StringBuf allocator changed during release");
-            owned = OwnedStringUnmanaged.adoptExact(raw.releaseExactStorage());
+            auto adopted = OwnedStringUnmanaged.adoptExact(raw.releaseExactStorage());
+            moveEmplace(adopted, owned);
         }
         else
         {

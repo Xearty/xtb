@@ -113,6 +113,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref Self opAssign(Self source) return;
 
     static bool tryWithCapacity(
         Allocator* allocator,
@@ -1367,6 +1368,11 @@ unittest
             ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
     static assert(OwnedArray!int.sizeof == Array!int.sizeof);
     static assert(!__traits(isCopyable, ArrayUnmanaged!int));
+    static assert(!__traits(compiles, () {
+            ArrayUnmanaged!int left;
+            ArrayUnmanaged!int right;
+            left = move(right);
+        }));
     static assert(!__traits(isCopyable, Array!int));
     static assert(!__traits(isCopyable, OwnedArray!int));
     static assert(!__traits(isCopyable, Array!int.Released));

@@ -7,6 +7,7 @@ import core.stdc.string : memcpy;
 import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
     InterpolationFooter, InterpolationHeader;
 import xtb.core.string;
+import xtb.core.lifetime : moveEmplace;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic;
 
@@ -378,7 +379,8 @@ bool tryFormatString(string pattern, Args...)(
     version (XTB_Checked)
         require(output !is null, "StringBuf output pointer is null");
     output.deinit();
-    *output = StringBuf.create(allocator);
+    StringBuf fresh = StringBuf.create(allocator);
+    moveEmplace(fresh, *output);
     Writer writer = Writer.fromSink(&fallibleStringBufSink, output);
     writeFormat!(pattern, 0, 0)(writer, args);
     if (!writer.finish().ok)
@@ -400,7 +402,8 @@ bool tryFormatString(Sequence...)(
     version (XTB_Checked)
         require(output !is null, "StringBuf output pointer is null");
     output.deinit();
-    *output = StringBuf.create(allocator);
+    StringBuf fresh = StringBuf.create(allocator);
+    moveEmplace(fresh, *output);
     Writer writer = Writer.fromSink(&fallibleStringBufSink, output);
     writeArguments(writer, sequence);
     if (!writer.finish().ok)

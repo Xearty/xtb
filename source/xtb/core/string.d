@@ -664,6 +664,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref StringBufUnmanaged opAssign(StringBufUnmanaged source) return;
 
     static bool tryWithCapacity(
         Allocator* allocator,
@@ -681,7 +682,7 @@ public:
         StringBufUnmanaged temporary;
         if (!temporary.bytes_.tryReserve(allocator, byteCapacity))
             return false;
-        *output = move(temporary);
+        moveEmplace(temporary, *output);
         return true;
     }
 
@@ -712,7 +713,7 @@ public:
         StringBufUnmanaged temporary;
         if (!temporary.tryAppend(allocator, value))
             return false;
-        *output = move(temporary);
+        moveEmplace(temporary, *output);
         return true;
     }
 
@@ -759,7 +760,7 @@ public:
                 bytes.asStringUnchecked,
             ))
             return false;
-        *output = move(temporary);
+        moveEmplace(temporary, *output);
         return true;
     }
 
@@ -771,7 +772,8 @@ package(xtb):
     ) @system
     {
         StringBufUnmanaged result;
-        result.bytes_ = ArrayUnmanaged!char.adopt(data, length, capacity);
+        auto bytes = ArrayUnmanaged!char.adopt(data, length, capacity);
+        moveEmplace(bytes, result.bytes_);
         return result;
     }
 
@@ -1202,6 +1204,7 @@ private:
 
 public:
     @disable this(this);
+    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @trusted
     {
@@ -1227,7 +1230,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, byteCapacity, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -1258,7 +1261,7 @@ public:
         if (!Storage.tryFromString(allocator, value, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -1286,7 +1289,7 @@ public:
         if (!Storage.tryFromBytesUnchecked(allocator, bytes, &storage))
             return false;
         output.allocator_ = allocator;
-        output.storage_ = move(storage);
+        moveEmplace(storage, output.storage_);
         return true;
     }
 
@@ -1310,7 +1313,7 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(storage);
+        moveEmplace(storage, result.storage_);
         return move(result);
     }
 
@@ -1765,7 +1768,7 @@ package(xtb):
                 "StringBufUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        result.storage_ = move(*storage);
+        moveEmplace(*storage, result.storage_);
         return move(result);
     }
 

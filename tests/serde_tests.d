@@ -1415,7 +1415,8 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
         mallocAllocator(), records[]);
     OwnedDocument document;
-    document.applicationName = StringBuf.fromString(allocator.allocator, "preserved");
+    StringBuf preserved = StringBuf.fromString(allocator.allocator, "preserved");
+    moveEmplace(preserved, document.applicationName);
 
     SerdeError error = readJson(
         "{\"application_name\":\"replacement\"," ~
