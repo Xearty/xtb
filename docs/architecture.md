@@ -309,11 +309,13 @@ process descriptions. Spawn validates them, builds native argv/environment
 storage in an internal `ScratchScope`, and returns a non-copyable
 `ChildProcess`. A child owns both its direct-child reap obligation and any
 parent pipe endpoints created by `piped` routes. Successful waits consume only
-the reap obligation so remaining output can still be drained. Dropping a live
-child is a last-resort force-kill-and-reap operation; ordinary code explicitly
-waits or terminates so errors and exit status remain observable. Process output
-is bytes, never implicitly a `String`, because arbitrary programs may emit NUL
-or invalid UTF-8.
+the reap obligation so remaining output can still be drained. Process lifecycle
+is explicit: live children must be waited, terminated-and-waited, or
+killed-and-waited before `deinit`. There is no destructor-driven fallback and
+generic `deinit` never chooses to terminate or wait for a live child; it only
+releases remaining local pipe state after the reap obligation is resolved.
+Process output is bytes, never implicitly a `String`, because arbitrary programs
+may emit NUL or invalid UTF-8.
 
 `communicate` drives nonblocking child stdin, stdout, stderr, and process
 readiness together. Its `CaptureBuffer` values borrow fixed caller storage;
@@ -325,8 +327,13 @@ states distinguish resumable ownership from policies that terminate and reap.
 `Command[]` or `PipelineStage[]` only during `spawnPipeline`. Intermediate
 parent pipe ends close as soon as the adjacent child has inherited its mapping.
 The owner records statuses in stage order and applies either last-stage or
-every-stage success policy. Its blocking wait has the same output-drain warning
-as `ChildProcess.wait`; managed multi-stream pipeline communication remains a
+every-stage success policy. As with `ChildProcess`, all live stages must be
+reaped explicitly before `deinit`; generic cleanup releases only remaining pipe
+and allocator-backed state. Failed pipeline construction is different: its
+internal transactional rollback force-kills and reaps stages that were spawned
+before a later stage failed, because no successful owner is returned to the
+caller. The blocking wait has the same output-drain warning as
+`ChildProcess.wait`; managed multi-stream pipeline communication remains a
 separate later layer.
 
 ## BetterC design rules

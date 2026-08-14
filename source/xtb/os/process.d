@@ -427,6 +427,12 @@ struct WaitResult
     ExitStatus status;
 }
 
+/// Owning handle for a spawned child and any parent-side standard-I/O pipes.
+///
+/// Process lifecycle is explicit: a live child must be reaped with `wait`,
+/// `terminateAndWait`, `killAndWait`, or an equivalent operation before
+/// `deinit`. Generic deinitialization only releases remaining local pipe state;
+/// it never chooses to terminate or wait for a live child.
 struct ChildProcess
 {
 nothrow @nogc:
@@ -438,11 +444,7 @@ nothrow @nogc:
     private PipeReader stderrPipe_;
 
     @disable this(this);
-
-    ~this()
-    {
-        deinit();
-    }
+    @disable ref ChildProcess opAssign(ChildProcess source) return;
 
     bool ownsProcess() const pure @safe
     {
@@ -492,15 +494,18 @@ nothrow @nogc:
         return stderrPipe_.valid ? &stderrPipe_ : null;
     }
 
+    /// Releases local pipe resources after the child lifecycle is resolved.
+    /// A live child must be explicitly waited, terminated-and-waited, or
+    /// killed-and-waited before generic deinitialization.
     void deinit() @system
     {
+        version (XTB_Checked)
+            require(!ownsProcess,
+                "live ChildProcess must be resolved before deinit");
         stdinPipe_.deinit();
         stdoutPipe_.deinit();
         stderrPipe_.deinit();
-        if (!ownsProcess)
-            return;
-        forceSignal(&this);
-        reapIgnoringErrors(&this);
+        isolation_ = ProcessIsolation.init;
     }
 }
 
@@ -1498,6 +1503,14 @@ version (linux) private ProcessError signalLinux(
         ? -child.processId_ : child.processId_;
     return nativeKill(target, signal) == 0
         ? ProcessError.init : ProcessError(lastError(), operation);
+}
+
+package(xtb.os) void rollbackSpawnedProcess(ChildProcess* child) @system
+{
+    if (child is null || !child.ownsProcess)
+        return;
+    forceSignal(child);
+    reapIgnoringErrors(child);
 }
 
 private void forceSignal(ChildProcess* child) @system

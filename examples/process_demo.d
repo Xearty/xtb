@@ -21,6 +21,25 @@ version (linux)
         return false;
     }
 
+    private void cleanupExampleChild(ChildProcess* child) nothrow @system @nogc
+    {
+        if (child.ownsProcess)
+        {
+            ExitStatus ignored;
+            cast(void) killAndWait(child, &ignored);
+        }
+        if (!child.ownsProcess)
+            child.deinit();
+    }
+
+    private void cleanupExamplePipeline(Pipeline* pipeline) nothrow @system @nogc
+    {
+        if (!pipeline.empty && !pipeline.completed)
+            cast(void) killPipelineAndWait(pipeline);
+        if (pipeline.empty || pipeline.completed)
+            pipeline.deinit();
+    }
+
     private bool printPipe(PipeReader* reader) nothrow @system @nogc
     {
         u8[256] storage;
@@ -58,6 +77,8 @@ version (linux)
             .withStderr(ErrorRoute.mergeWithStdout());
 
         ChildProcess child;
+        scope (exit)
+            cleanupExampleChild(&child);
         if (!report(spawn(command, options, &child), "spawn"))
             return false;
         formatln!"spawned pid={}, stdout pipe={}"(
@@ -85,6 +106,8 @@ version (linux)
             .withStdout(OutputRoute.piped())
             .withStderr(ErrorRoute.piped());
         ChildProcess child;
+        scope (exit)
+            cleanupExampleChild(&child);
         if (!report(spawn(command, routes, &child), "spawn cat"))
             return false;
 
@@ -123,6 +146,8 @@ version (linux)
             .withStdout(OutputRoute.piped())
             .withStderr(ErrorRoute.nullDevice());
         ChildProcess child;
+        scope (exit)
+            cleanupExampleChild(&child);
         if (!report(spawn(Command.search("printf", arguments[]), routes, &child),
                 "spawn truncation producer"))
             return false;
@@ -154,6 +179,8 @@ version (linux)
         writeln("\n-- resumable timeout leaves ownership with the caller --");
         String[1] arguments = ["0.03"];
         ChildProcess child;
+        scope (exit)
+            cleanupExampleChild(&child);
         if (!report(spawn(Command.search("sleep", arguments[]), SpawnOptions.init,
                 &child), "spawn resumable child"))
             return false;
@@ -193,6 +220,8 @@ version (linux)
         writeln("\n-- timeout policy can force cleanup and reap --");
         String[1] arguments = ["5"];
         ChildProcess child;
+        scope (exit)
+            cleanupExampleChild(&child);
         if (!report(spawn(Command.search("sleep", arguments[]), SpawnOptions.init,
                 &child), "spawn timed child"))
             return false;
@@ -239,6 +268,8 @@ version (linux)
             .withIsolation(ProcessIsolation.isolatedTree);
 
         Pipeline pipeline;
+        scope (exit)
+            cleanupExamplePipeline(&pipeline);
         if (!report(spawnPipeline(
                 stages[], options, mallocAllocator(), &pipeline), "spawn pipeline"))
             return false;

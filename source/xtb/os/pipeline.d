@@ -2,7 +2,6 @@ module xtb.os.pipeline;
 
 nothrow @nogc:
 
-import core.lifetime : coreMove = move;
 import xtb.core.lifetime : moveAssign, moveEmplace;
 import xtb.core.array;
 import xtb.core.memory : Allocator;
@@ -17,7 +16,7 @@ import xtb.os.pipe : Pipe, PipeOptions, PipeReader, PipeWriter, close,
 import xtb.os.process : ChildProcess, Command, ErrorRoute, ExitStatus,
     InputRoute, OutputRoute, ProcessError, ProcessIsolation, ProcessOperation,
     ProcessId, SignalMaskPolicy, SpawnOptions, WaitState, childKill = kill,
-    childRequestTermination = requestTermination, spawn,
+    childRequestTermination = requestTermination, rollbackSpawnedProcess, spawn,
     childTryWait = tryWait, validate, childWait = wait;
 
 struct PipelineStage
@@ -112,6 +111,12 @@ struct PipelineWaitResult
     size_t runningStages;
 }
 
+/// Owns the child handles, statuses, and parent-side pipes for a pipeline.
+///
+/// Stage lifecycle is explicit: all live children must be reaped with
+/// `waitPipeline`, `terminatePipelineAndWait`, `killPipelineAndWait`, or an
+/// equivalent operation before `deinit`. Generic deinitialization only releases
+/// remaining local pipe and storage state.
 struct Pipeline
 {
 nothrow @nogc:
@@ -121,11 +126,7 @@ nothrow @nogc:
     private PipelineSuccess success_;
 
     @disable this(this);
-
-    ~this()
-    {
-        deinit();
-    }
+    @disable ref Pipeline opAssign(Pipeline source) return;
 
     bool empty() const pure @safe
     {
@@ -211,12 +212,19 @@ nothrow @nogc:
         return true;
     }
 
+    /// Releases local stage resources after every child lifecycle is resolved.
+    /// Live stages must be explicitly waited or terminated-and-waited before
+    /// generic deinitialization.
     void deinit() @system
     {
-        // Array is intentionally shallow. Pipeline owns the semantic process
-        // lifecycle, so resolve each child explicitly before releasing backing
-        // storage rather than making Array guess whether discard means kill,
-        // wait, or detach.
+        version (XTB_Checked)
+        {
+            foreach (ref child; children_.slice)
+                require(!child.ownsProcess,
+                    "live Pipeline stage must be resolved before deinit");
+        }
+        // Array is intentionally shallow, so finalize each child's remaining
+        // pipe resources before releasing the backing allocation.
         foreach_reverse (ref child; children_.slice)
             child.deinit();
         children_.clear();
@@ -343,6 +351,8 @@ private ProcessError spawnPipelineSlice(Stage)(
         return error;
 
     Pipeline created;
+    scope (exit)
+        rollbackPipelineSpawn(&created);
     Array!ChildProcess children = Array!ChildProcess.create(allocator);
     Array!ExitStatus statuses = Array!ExitStatus.create(allocator);
     moveEmplace(children, created.children_);
@@ -417,8 +427,15 @@ private ProcessError spawnPipelineSlice(Stage)(
             moveAssign(connection.reader, pendingInput);
     }
 
-    coreMove(created, *output);
+    moveAssign(created, *output);
     return ProcessError.init;
+}
+
+private void rollbackPipelineSpawn(Pipeline* pipeline) @system
+{
+    foreach_reverse (ref child; pipeline.children_.slice)
+        rollbackSpawnedProcess(&child);
+    pipeline.deinit();
 }
 
 private ProcessError validatePipeline(Stage)(
