@@ -351,11 +351,10 @@ code should prefer `tryReplaceInPlace`.
 
 `escapeInPlace` escapes the buffer's current contents. It is different from
 `appendEscaped(value)`, which appends an escaped representation of another
-string; `tryAppendEscaped(value)` is that operation's fallible form. The legacy
-`tryEscape(value)` spelling remains as a compatibility forwarder, but new code
-should use `tryAppendEscaped` to make the append semantics obvious.
-Concatenation remains `append`; there is no redundant `concatInPlace`
-operation.
+string; `tryAppendEscaped(value)` is that operation's fallible form. There is no
+`tryEscape(value)` alias because it would be ambiguous next to
+`tryEscapeInPlace()`. Concatenation remains `append`; there is no redundant
+`concatInPlace` operation.
 
 `appendByte` is removed. Package-private printer/serde code may append raw
 chunks only while maintaining a documented transaction invariant: no invalid

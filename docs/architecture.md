@@ -919,8 +919,9 @@ implementation snapshots only aliased operands before any reserve/reallocation.
 Concatenation remains `append`; do not introduce a redundant `concatInPlace`.
 `appendEscaped(value)` remains distinct from `escapeInPlace()` because the
 former appends escaped external input while the latter escapes the buffer's
-existing contents. Its fallible spelling is `tryAppendEscaped(value)`; the old
-`tryEscape(value)` remains only as a compatibility forwarder.
+existing contents. Its fallible spelling is `tryAppendEscaped(value)`. Do not
+add a `tryEscape(value)` alias: next to `tryEscapeInPlace()` that name would be
+ambiguous about whether it appends escaped input or mutates the current buffer.
 
 `formatString` returns a `StringBuf`, not an owning-looking `String` view. It
 formats directly into that builder in one pass, so a custom `formatTo` function

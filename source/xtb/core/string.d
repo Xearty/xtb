@@ -800,12 +800,6 @@ public:
         return true;
     }
 
-    /// Compatibility spelling for `tryAppendEscaped`.
-    bool tryEscape(Allocator* allocator, String value)
-    {
-        return tryAppendEscaped(allocator, value);
-    }
-
     void appendEscaped(Allocator* allocator, String value)
     {
         if (!tryAppendEscaped(allocator, value))
@@ -1327,12 +1321,6 @@ public:
     bool tryAppendEscaped(String value) @trusted
     {
         return storage_.tryAppendEscaped(allocator_, value);
-    }
-
-    /// Compatibility spelling for `tryAppendEscaped`.
-    bool tryEscape(String value) @trusted
-    {
-        return tryAppendEscaped(value);
     }
 
     void appendEscaped(String value) @trusted
@@ -1872,6 +1860,13 @@ unittest
     static assert(!__traits(compiles, () @safe {
             StringBuf.Released released;
             ref StringBufUnmanaged storage = released.storage;
+        }));
+    static assert(!__traits(compiles, (scope StringBuf* value) {
+            value.tryEscape("x");
+        }));
+    static assert(!__traits(compiles, (scope StringBufUnmanaged* value,
+            Allocator* allocator) {
+            value.tryEscape(allocator, "x");
         }));
 
     StringBufUnmanaged zero;
