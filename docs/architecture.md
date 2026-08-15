@@ -1210,15 +1210,17 @@ enums, nested structs, fixed arrays, `Option!T`, borrowed
 two deliberate ownership families. Document-owned schemas use `String`,
 dynamic slices, legacy nullable pointers, and borrowed string-view maps whose
 values recursively follow the same document-owned model. Self-owning schemas
-use `StringBuf`, `OwnedString`, `Array!T`, `OwnedArray!T`, `StringHashMap!V`,
-and `OwnedStringHashMap!V`; they do not contain raw owning pointers, borrowed
+use `StringBuf`, `OwnedString`, `Array!T`, `OwnedArray!T`,
+`OwnedHashMap!(OwnedString, V)`, `StringHashMap!V`, and
+`OwnedStringHashMap!V`; they do not contain raw owning pointers, borrowed
 slices, or borrowed-key maps. `StringHashMap!V` remains shallow in its values
 and is therefore a direct self-owning shape only when `V` itself requires no
 cleanup. `OwnedStringHashMap!V` owns cleanup-bearing values.
 `Option!T` is the preferred nullable representation in either family and
 recursively adopts the ownership model of `T`. JSON accepts any supported value
 at the document root. TOML remains a table document, so its root is a serde
-struct, tagged union, `HashMap!(String, V)`, `StringHashMap!V`, or
+struct, tagged union, `HashMap!(String, V)`,
+`OwnedHashMap!(OwnedString, V)`, `StringHashMap!V`, or
 `OwnedStringHashMap!V`; standalone arrays and scalars are rejected at compile
 time. Unsupported or mixed
 ownership shapes fail at compile time with the field and type in the diagnostic.
@@ -1422,8 +1424,9 @@ replaced.
 
 A self-owning decode writes an ordinary caller-owned value directly. JSON root
 values may be scalars, `StringBuf`, `OwnedString`, fixed arrays, `Array!T`,
-`OwnedArray!T`, `StringHashMap!V`, `OwnedStringHashMap!V`, or structs composed
-from those shapes. TOML direct roots remain serde structs, tagged unions,
+`OwnedArray!T`, `OwnedHashMap!(OwnedString, V)`, `StringHashMap!V`,
+`OwnedStringHashMap!V`, or structs composed from those shapes. TOML direct roots
+remain serde structs, tagged unions, `OwnedHashMap!(OwnedString, V)`,
 `StringHashMap!V`, or `OwnedStringHashMap!V` table documents.
 Each container uses the allocator passed to `readJson` or `readToml`; no
 tracking allocator or result wrapper is involved. Decoding is transactional:
@@ -1438,17 +1441,20 @@ successful result is initialized with the decode
 allocator even when its field was absent, including containers inside nested
 records and fixed or dynamic owning arrays. `StringViewHashMap`/
 `HashMap!(String, V)` is intentionally absent from direct decoding because its
-stored `String` keys are borrowed views. `StringHashMap!V` qualifies only when
+stored `String` keys are borrowed views. `OwnedHashMap!(OwnedString, V)` is the
+general owning-key counterpart when both key and value ownership should be
+explicit. `StringHashMap!V` qualifies only when
 `V` is recursively self-owning and requires no cleanup, because the map is
 shallow in its values. `OwnedStringHashMap!V` is the direct-decoding container
 for recursively self-owning values that do require cleanup.
 An absent `Option!T` is made present by assigning a value before its value is
 accessed.
 
-Serde permits compiler-generated destruction arising from supported owning
-fields. A user-defined destructor remains unsupported because the decoder
-cannot infer its construction invariants or whether partially initialized
-state is valid; such types require a future explicit adapter.
+Serde supports destructor-free explicit-lifetime fields and aggregates whose
+cleanup can be derived from the supported ownership model. A D destructor
+remains unsupported because the decoder cannot infer its construction
+invariants or whether partially initialized state is valid; such types require
+a future explicit adapter.
 
 Serialization writes to `Writer` and performs no allocation. Deserialization
 accepts a `String` input, explicit allocator, explicit output pointer, and

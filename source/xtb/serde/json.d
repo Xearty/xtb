@@ -32,7 +32,7 @@ import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified,
     fieldMatches, fieldName, fieldOrdinal, fieldShouldOmit, discriminantIndex,
     DiscriminantType, fieldAdapterCount, fieldDefaultValueCount, FieldAdapter,
     HashMapKey, HashMapValue, isArray, isDefaultValueAttribute, isDynamicArray,
-    isFixedArray, isHashMap, isOption, isOwnedSerdeValue, isOwnedString,
+    isFixedArray, isHashMap, isOwnedHashMap, isOption, isOwnedSerdeValue, isOwnedString,
     isSerdeStruct, isString, isStringBuf, isStringHashMap, isTaggedUnion,
     deinitOwnedValue, initializeOwnedValue, OptionElement, StringHashMapValue,
     payloadIndex, PayloadType, schemaCase,
@@ -244,7 +244,7 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
-    else static if (isHashMap!U || isStringHashMap!U)
+    else static if (isHashMap!U || isOwnedHashMap!U || isStringHashMap!U)
     {
         if (value.length != expected.length)
             return false;
@@ -342,7 +342,7 @@ private void encodeValue(T)(ref JsonEncoder encoder, scope const ref T value, si
         encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
-    else static if (isHashMap!U || isStringHashMap!U)
+    else static if (isHashMap!U || isOwnedHashMap!U || isStringHashMap!U)
         encodeHashMap(encoder, value, depth);
     else static if (isTaggedUnion!U)
         encodeTaggedUnion(encoder, value, depth);
@@ -555,6 +555,17 @@ private void encodeArray(Element)(
     encoder.writer.put(']');
 }
 
+private String serdeMapKey(K)(scope const ref K key)
+{
+    alias U = Unqualified!K;
+    static if (isString!U)
+        return cast(String) key;
+    else static if (isOwnedString!U)
+        return key.view;
+    else
+        static assert(false, "unsupported serde map key type: " ~ U.stringof);
+}
+
 private void encodeHashMap(T)(
     ref JsonEncoder encoder,
     scope const ref T value,
@@ -575,7 +586,7 @@ private void encodeHashMap(T)(
             encoder.writer.put(',');
         if (encoder.options.pretty)
             encoder.newline(depth + 1);
-        encodeString(encoder, *items.front.key);
+        encodeString(encoder, serdeMapKey(*items.front.key));
         encoder.writer.put(encoder.options.pretty ? ": " : ":");
         encodeValue(encoder, *items.front.value, depth + 1);
         items.popFront();
@@ -789,6 +800,8 @@ private void decodeValue(T)(ref JsonParser parser, T* output, size_t depth)
         decodeFixedArray(parser, output, depth);
     else static if (isHashMap!U)
         decodeHashMap(parser, cast(U*) output, depth);
+    else static if (isOwnedHashMap!U)
+        decodeOwnedHashMap(parser, cast(U*) output, depth);
     else static if (isStringHashMap!U)
         decodeStringHashMap!U(
             parser,
@@ -1744,6 +1757,96 @@ private void decodeHashMap(K, V, Hasher, Equal)(
         parser.skipWhitespace();
 
         V value;
+        decodeValue(parser, &value, depth + 1);
+        if (!parser.error.ok)
+            return;
+        final switch (values.tryAdd(&key, &value))
+        {
+            case AddStatus.inserted:
+                break;
+            case AddStatus.alreadyPresent:
+                parser.fail(SerdeErrorKind.duplicateField, rawKey);
+                return;
+            case AddStatus.outOfMemory:
+                parser.fail(SerdeErrorKind.allocationFailure);
+                return;
+        }
+
+        parser.skipWhitespace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    moveEmplace(values, *output);
+}
+
+private void decodeOwnedHashMap(K, V, Hasher, Equal)(
+    ref JsonParser parser,
+    OwnedHashMap!(K, V, Hasher, Equal)* output,
+    size_t depth,
+)
+{
+    alias Map = OwnedHashMap!(K, V, Hasher, Equal);
+    static assert(is(Unqualified!K == OwnedString));
+    if (depth >= parser.options.limits.maxDepth)
+    {
+        parser.fail(SerdeErrorKind.depthLimit);
+        return;
+    }
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+
+    Map values = Map.create(parser.allocator);
+    scope (exit)
+        values.deinit();
+    parser.skipWhitespace();
+    if (parser.consume('}'))
+    {
+        moveEmplace(values, *output);
+        return;
+    }
+
+    size_t count;
+    for (;;)
+    {
+        if (count++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        const keyStart = parser.position;
+        OwnedString key;
+        scope (exit)
+            key.deinit();
+        decodeOwnedString(parser, &key);
+        if (!parser.error.ok)
+            return;
+        const rawKey = parser.input[keyStart + 1 .. parser.position - 1];
+        parser.skipWhitespace();
+        if (!parser.consume(':'))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.skipWhitespace();
+
+        V value;
+        initializeOwnedValue(parser.allocator, &value);
+        scope (exit)
+            deinitOwnedValue(&value);
         decodeValue(parser, &value, depth + 1);
         if (!parser.error.ok)
             return;

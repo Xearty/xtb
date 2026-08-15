@@ -2279,6 +2279,526 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     text.deinit();
 }
 
+private alias DeepOwnedSerde = OwnedArray!(
+    OwnedStringHashMap!(Option!(OwnedArray!OwnedString)),
+);
+private alias PartialOptionArray = OwnedArray!(Option!(OwnedArray!OwnedString));
+private alias OwnedStringArrayHashMap = OwnedHashMap!(OwnedString, OwnedArray!int);
+
+private struct PartialOwnedConfig
+{
+    OwnedString name;
+    OwnedArray!OwnedString paths;
+    Option!OwnedString description;
+}
+
+private struct TomlDeepOwnedDocument
+{
+    DeepOwnedSerde values;
+}
+
+private struct TomlOwnedStringOptionDocument
+{
+    Option!OwnedString value;
+}
+
+private struct OwnedHashMapDocument
+{
+    OwnedStringArrayHashMap values;
+}
+
+static assert(__traits(compiles, validateOwnedSchema!PartialOwnedConfig()));
+static assert(__traits(compiles, validateOwnedSchema!TomlDeepOwnedDocument()));
+static assert(__traits(compiles, validateOwnedSchema!OwnedHashMapDocument()));
+static assert(!__traits(compiles, validateOwnedValue!(OwnedHashMap!(String, int))()));
+static assert(!__traits(compiles, validateBorrowedValue!(HashMap!(OwnedString, int))()));
+static assert(__traits(compiles,
+        (Allocator* allocator, OwnedStringArrayHashMap* output) {
+        readJson("{}", allocator, output);
+        readToml("", allocator, output);
+    }));
+static assert(__traits(compiles,
+        (ref Writer writer, ref OwnedStringArrayHashMap value) {
+        writeJson(writer, value);
+        writeToml(writer, value);
+    }));
+
+private void testSerdePartialOwnedConstruction() nothrow @nogc
+{
+    enum jsonInput =
+        "{\"name\":\"config\",\"paths\":[\"one\",\"two\"]," ~
+        "\"description\":\"details\"}";
+    enum tomlInput =
+        "name = \"config\"\n" ~
+        "paths = [\"one\", \"two\"]\n" ~
+        "description = \"details\"\n";
+
+    bool jsonReachedSuccess;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        PartialOwnedConfig value;
+        SerdeError error = readJson(jsonInput, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.name.view == "config");
+            assert(value.paths.length == 2);
+            assert(value.description.isSome);
+            assert(value.description.value.view == "details");
+            deinitValue(value);
+            jsonReachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (jsonReachedSuccess)
+            break;
+    }
+    assert(jsonReachedSuccess);
+
+    bool tomlReachedSuccess;
+    foreach (allowed; 0 .. 32)
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        PartialOwnedConfig value;
+        SerdeError error = readToml(tomlInput, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.name.view == "config");
+            assert(value.paths.length == 2);
+            assert(value.description.isSome);
+            assert(value.description.value.view == "details");
+            deinitValue(value);
+            tomlReachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (tomlReachedSuccess)
+            break;
+    }
+    assert(tomlReachedSuccess);
+}
+
+private void testSerdeOwnedStringOptionFailures() nothrow @nogc
+{
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 16)
+    {
+        AllocationRecord[64] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        Option!OwnedString value;
+        SerdeError error = readJson("\"payload\"", allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.isSome);
+            assert(value.value.view == "payload");
+            value.deinit();
+            reachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+
+    foreach (input; ["null", "\"payload\""])
+    {
+        AllocationRecord[32] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        Option!OwnedString value;
+        SerdeError error = readJson(input, allocator.allocator, &value);
+        assert(error.ok);
+        if (input[0] == 'n')
+            assert(value.isNone);
+        else
+        {
+            assert(value.isSome);
+            assert(value.value.view == "payload");
+        }
+        value.deinit();
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+    }
+
+    bool tomlReachedSuccess;
+    foreach (allowed; 0 .. 16)
+    {
+        AllocationRecord[64] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        TomlOwnedStringOptionDocument value;
+        SerdeError error = readToml(
+            "value = \"payload\"\n",
+            allocator.allocator,
+            &value,
+        );
+        if (error.ok)
+        {
+            assert(value.value.isSome);
+            assert(value.value.value.view == "payload");
+            deinitValue(value);
+            tomlReachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (tomlReachedSuccess)
+            break;
+    }
+    assert(tomlReachedSuccess);
+}
+
+private void testSerdeOwnedMapFailureInjection() nothrow @nogc
+{
+    enum stringMapJson =
+        "{\"one\":\"1\",\"two\":\"2\",\"three\":\"3\"," ~
+        "\"four\":\"4\",\"five\":\"5\",\"six\":\"6\"," ~
+        "\"seven\":\"7\",\"eight\":\"8\",\"nine\":\"9\"," ~
+        "\"ten\":\"10\",\"eleven\":\"11\",\"twelve\":\"12\"}";
+    enum stringMapToml =
+        "one = \"1\"\ntwo = \"2\"\nthree = \"3\"\nfour = \"4\"\n" ~
+        "five = \"5\"\nsix = \"6\"\nseven = \"7\"\neight = \"8\"\n" ~
+        "nine = \"9\"\nten = \"10\"\neleven = \"11\"\ntwelve = \"12\"\n";
+
+    bool jsonReachedSuccess;
+    foreach (allowed; 0 .. 96)
+    {
+        AllocationRecord[512] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        OwnedStringHashMap!OwnedString value;
+        SerdeError error = readJson(stringMapJson, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.length == 12);
+            value.deinit();
+            jsonReachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (jsonReachedSuccess)
+            break;
+    }
+    assert(jsonReachedSuccess);
+
+    bool tomlReachedSuccess;
+    foreach (allowed; 0 .. 96)
+    {
+        AllocationRecord[512] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        OwnedStringHashMap!OwnedString value;
+        SerdeError error = readToml(stringMapToml, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.length == 12);
+            value.deinit();
+            tomlReachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (tomlReachedSuccess)
+            break;
+    }
+    assert(tomlReachedSuccess);
+
+    foreach (json; [true, false])
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        OwnedStringHashMap!OwnedString value;
+        SerdeError error = json
+            ? readJson(
+                "{\"same\":\"first\",\"same\":\"second\"}",
+                allocator.allocator,
+                &value,
+            ) : readToml(
+                "same = \"first\"\nsame = \"second\"\n",
+                allocator.allocator,
+                &value,
+            );
+        assert(error.kind == SerdeErrorKind.duplicateField);
+        assert(value.empty);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+    }
+}
+
+private void testSerdeOwnedHashMap() nothrow @nogc
+{
+    enum jsonInput =
+        "{\"one\":[1,2,3],\"two\":[4,5],\"three\":[6]," ~
+        "\"four\":[7,8],\"five\":[9],\"six\":[10,11]," ~
+        "\"seven\":[12],\"eight\":[13],\"nine\":[14],\"ten\":[15]}";
+    enum tomlInput =
+        "one = [1, 2, 3]\ntwo = [4, 5]\nthree = [6]\n" ~
+        "four = [7, 8]\nfive = [9]\nsix = [10, 11]\n" ~
+        "seven = [12]\neight = [13]\nnine = [14]\nten = [15]\n";
+
+    bool jsonReachedSuccess;
+    foreach (allowed; 0 .. 96)
+    {
+        AllocationRecord[512] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        OwnedStringArrayHashMap value;
+        SerdeError error = readJson(jsonInput, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.length == 10);
+            auto items = value.pointerItems();
+            while (!items.empty)
+            {
+                assert(!items.front.key.empty);
+                assert(!items.front.value.empty);
+                items.popFront();
+            }
+            value.deinit();
+            jsonReachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(value.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (jsonReachedSuccess)
+            break;
+    }
+    assert(jsonReachedSuccess);
+
+    bool tomlReachedSuccess;
+    foreach (allowed; 0 .. 96)
+    {
+        AllocationRecord[512] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        OwnedStringArrayHashMap value;
+        SerdeError error = readToml(tomlInput, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.length == 10);
+            value.deinit();
+            tomlReachedSuccess = true;
+        }
+        else
+        {
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+            assert(value.empty);
+        }
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (tomlReachedSuccess)
+            break;
+    }
+    assert(tomlReachedSuccess);
+
+    foreach (json; [true, false])
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        OwnedStringArrayHashMap value;
+        SerdeError error = json
+            ? readJson(
+                "{\"same\":[1],\"same\":[2]}",
+                allocator.allocator,
+                &value,
+            ) : readToml(
+                "same = [1]\nsame = [2]\n",
+                allocator.allocator,
+                &value,
+            );
+        assert(error.kind == SerdeErrorKind.duplicateField);
+        assert(value.empty);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+    }
+
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        OwnedStringArrayHashMap preserved = OwnedStringArrayHashMap.create(
+            allocator.allocator);
+        OwnedString key = OwnedString.fromString(allocator.allocator, "preserved");
+        OwnedArray!int value = OwnedArray!int.fromSlice(
+            allocator.allocator,
+            [42],
+        );
+        assert(preserved.tryAdd(&key, &value) == AddStatus.inserted);
+        allocator.failAfter(0);
+        SerdeError error = readJson(
+            "{\"replacement\":[1,2,3]}",
+            allocator.allocator,
+            &preserved,
+        );
+        assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(preserved.length == 1);
+        preserved.deinit();
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+    }
+
+    {
+        AllocationRecord[128] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        OwnedHashMapDocument document;
+        SerdeError error = readToml(
+            "values = { alpha = [1, 2], beta = [3] }\n",
+            allocator.allocator,
+            &document,
+        );
+        assert(error.ok);
+        assert(document.values.length == 2);
+        StringBuf encoded = StringBuf.create(allocator.allocator);
+        Writer writer = Writer.fromSink(&bufferSink, &encoded);
+        error = writeToml(writer, document);
+        assert(error.ok);
+        encoded.deinit();
+        deinitValue(document);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+    }
+
+    AllocationRecord[128] records;
+    InstrumentedAllocator allocator = InstrumentedAllocator.create(
+        mallocAllocator(), records[]);
+    OwnedStringArrayHashMap roundTrip;
+    SerdeError error = readJson(
+        "{\"alpha\":[1,2],\"beta\":[3]}",
+        allocator.allocator,
+        &roundTrip,
+    );
+    assert(error.ok);
+    StringBuf encoded = StringBuf.create(allocator.allocator);
+    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeJson(writer, roundTrip);
+    assert(error.ok);
+    encoded.clear();
+    writer = Writer.fromSink(&bufferSink, &encoded);
+    error = writeToml(writer, roundTrip);
+    assert(error.ok);
+    encoded.deinit();
+    roundTrip.deinit();
+    assert(allocator.clean);
+    assert(allocator.stats.invalidCalls == 0);
+}
+
+private void testSerdeDeepOwnedFailureInjection() nothrow @nogc
+{
+    enum jsonInput =
+        "[{\"first\":[\"a\",\"b\"],\"none\":null}," ~
+        "{\"second\":[\"c\",\"d\"]}]";
+    bool reachedSuccess;
+    foreach (allowed; 0 .. 128)
+    {
+        AllocationRecord[512] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        DeepOwnedSerde value;
+        SerdeError error = readJson(jsonInput, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.length == 2);
+            value.deinit();
+            reachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+
+    // This shape puts an owner-bearing Option directly inside an OwnedArray,
+    // rather than behind a map insertion temporary.
+    reachedSuccess = false;
+    foreach (allowed; 0 .. 64)
+    {
+        AllocationRecord[256] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        PartialOptionArray value;
+        SerdeError error = readJson(
+            "[[\"a\",\"b\"],[\"c\",\"d\"]]",
+            allocator.allocator,
+            &value,
+        );
+        if (error.ok)
+        {
+            value.deinit();
+            reachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+
+    enum tomlInput =
+        "values = [{ first = [\"a\", \"b\"] }, " ~
+        "{ second = [\"c\", \"d\"] }]\n";
+    reachedSuccess = false;
+    foreach (allowed; 0 .. 128)
+    {
+        AllocationRecord[512] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(), records[]);
+        allocator.failAfter(allowed);
+        TomlDeepOwnedDocument value;
+        SerdeError error = readToml(tomlInput, allocator.allocator, &value);
+        if (error.ok)
+        {
+            assert(value.values.length == 2);
+            deinitValue(value);
+            reachedSuccess = true;
+        }
+        else
+            assert(error.kind == SerdeErrorKind.allocationFailure);
+        assert(allocator.clean);
+        assert(allocator.stats.invalidCalls == 0);
+        if (reachedSuccess)
+            break;
+    }
+    assert(reachedSuccess);
+}
+
 extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
@@ -2306,5 +2826,10 @@ extern (C) int main()
     testOwnedAllocationFailures();
     testOwnedOptionsAndFailures();
     testOwnedStringsAndStringHashMaps();
+    testSerdePartialOwnedConstruction();
+    testSerdeOwnedStringOptionFailures();
+    testSerdeOwnedMapFailureInjection();
+    testSerdeOwnedHashMap();
+    testSerdeDeepOwnedFailureInjection();
     return 0;
 }

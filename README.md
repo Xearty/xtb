@@ -248,11 +248,15 @@ alias for `HashMap!(String, V)`) for one document-owned graph, then call
 `deinit` on the `Deserialized!T` after all borrowed views are finished.
 Direct owning
 decodes may use `StringBuf`, `OwnedString`, shallow `Array!T` for elements that
-need no cleanup, `OwnedArray!T` for owned element graphs, and `StringHashMap!V`. JSON accepts every supported value at the document root.
+need no cleanup, `OwnedArray!T` for owned element graphs,
+`OwnedHashMap!(OwnedString, V)` for general owning string-key/value maps, and
+`StringHashMap!V`. JSON accepts every supported value at the document root.
 TOML roots remain tables represented by a serde struct, tagged union, borrowed
 string-view map, or owning string map; nested maps use inline tables. Borrowed
-map keys live under `Deserialized!T`, while `StringHashMap` stores exact owned
-key allocations and is valid only when its values are recursively owning. Use
+map keys live under `Deserialized!T`; `OwnedHashMap!(OwnedString, V)` owns both
+keys and cleanup-bearing values, while `StringHashMap` stores exact owned key
+allocations and is valid only when its values are recursively owning and need no
+cleanup; use `OwnedStringHashMap` for cleanup-bearing values. Use
 `Option!T` for nullable fields; JSON maps absence to
 `null`, while TOML omits absent struct fields. See `examples/serde_demo.d`. The
 dedicated `examples/option_demo.d` covers every `Option!T` state transition,

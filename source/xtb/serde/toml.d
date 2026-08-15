@@ -32,7 +32,7 @@ import xtb.serde.traits : ArrayElement, FieldSymbol, FieldType, Unqualified, fie
     discriminantIndex, DiscriminantType, fieldMatches, fieldName,
     fieldShouldOmit, fieldAdapterCount, fieldDefaultValueCount, FieldAdapter,
     HashMapKey, HashMapValue, isArray, isDefaultValueAttribute, isDynamicArray,
-    isFixedArray, isHashMap, isOption, isOwnedString, isSerdeStruct, isString,
+    isFixedArray, isHashMap, isOwnedHashMap, isOption, isOwnedString, isSerdeStruct, isString,
     isStringBuf, isStringHashMap, isTaggedUnion, deinitOwnedValue, initializeOwnedValue,
     OptionElement, payloadIndex, PayloadType, StringHashMapValue,
     schemaCase, serializedFieldCount, taggedUnionLayout, unionCaseIsActive,
@@ -71,9 +71,9 @@ SerdeError writeToml(T)(
     ref Writer writer,
     scope const ref T value,
     TomlWriteOptions options = TomlWriteOptions.init,
-) if (isSerdeStruct!T || isHashMap!T || isStringHashMap!T)
+) if (isSerdeStruct!T || isHashMap!T || isOwnedHashMap!T || isStringHashMap!T)
 {
-    static if (isHashMap!T || isStringHashMap!T)
+    static if (isHashMap!T || isOwnedHashMap!T || isStringHashMap!T)
         validateValueSchema!T();
     else
         validateSchema!T();
@@ -142,9 +142,9 @@ SerdeError readToml(T)(
     Allocator* allocator,
     T* output,
     TomlReadOptions options = TomlReadOptions.init,
-) if ((isSerdeStruct!T || isStringHashMap!T) && !isDeserialized!T)
+) if ((isSerdeStruct!T || isOwnedHashMap!T || isStringHashMap!T) && !isDeserialized!T)
 {
-    static if (isStringHashMap!T)
+    static if (isOwnedHashMap!T || isStringHashMap!T)
         validateOwnedValue!T();
     else
         validateOwnedSchema!T();
@@ -168,7 +168,9 @@ SerdeError readToml(T)(
     parser.options = options;
     parser.line = 1;
     parser.column = 1;
-    static if (isStringHashMap!T)
+    static if (isOwnedHashMap!T)
+        parseOwnedHashMapDocument(parser, &decoded);
+    else static if (isStringHashMap!T)
         parseStringHashMapDocument!T(parser, &decoded);
     else
     {
@@ -250,7 +252,7 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
                 return false;
         return true;
     }
-    else static if (isHashMap!U || isStringHashMap!U)
+    else static if (isHashMap!U || isOwnedHashMap!U || isStringHashMap!U)
     {
         if (value.length != expected.length)
             return false;
@@ -315,7 +317,7 @@ private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
 
 private void encodeRoot(T)(ref TomlEncoder encoder, scope const ref T value)
 {
-    static if (isHashMap!T || isStringHashMap!T)
+    static if (isHashMap!T || isOwnedHashMap!T || isStringHashMap!T)
         encodeHashMapRoot(encoder, value);
     else static if (isTaggedUnion!T)
         encodeTaggedRoot(encoder, value);
@@ -335,6 +337,17 @@ private void encodeRoot(T)(ref TomlEncoder encoder, scope const ref T value)
     }
 }
 
+private String serdeMapKey(K)(scope const ref K key)
+{
+    alias U = Unqualified!K;
+    static if (isString!U)
+        return cast(String) key;
+    else static if (isOwnedString!U)
+        return key.view;
+    else
+        static assert(false, "unsupported serde map key type: " ~ U.stringof);
+}
+
 private void encodeHashMapRoot(T)(
     ref TomlEncoder encoder,
     scope const ref T value,
@@ -346,7 +359,7 @@ private void encodeHashMapRoot(T)(
     {
         if (wrote)
             encoder.writer.put('\n');
-        encodeKeyText(encoder, *items.front.key, KeyCase.preserve);
+        encodeKeyText(encoder, serdeMapKey(*items.front.key), KeyCase.preserve);
         encoder.writer.put(" = ");
         encodeValue(encoder, *items.front.value, 0);
         wrote = true;
@@ -529,7 +542,7 @@ private void encodeValue(T)(ref TomlEncoder encoder, scope const ref T value, si
         encodeArray(encoder, value.slice, depth);
     else static if (isDynamicArray!U || isFixedArray!U)
         encodeArray(encoder, value, depth);
-    else static if (isHashMap!U || isStringHashMap!U)
+    else static if (isHashMap!U || isOwnedHashMap!U || isStringHashMap!U)
         encodeHashMapInline(encoder, value, depth);
     else static if (isTaggedUnion!U)
         encodeTaggedInline(encoder, value, depth);
@@ -550,7 +563,7 @@ private void encodeHashMapInline(T)(
     {
         if (wrote)
             encoder.writer.put(", ");
-        encodeKeyText(encoder, *items.front.key, KeyCase.preserve);
+        encodeKeyText(encoder, serdeMapKey(*items.front.key), KeyCase.preserve);
         encoder.writer.put(" = ");
         encodeValue(encoder, *items.front.value, depth + 1);
         wrote = true;
@@ -1371,6 +1384,81 @@ private void parseHashMapDocument(K, V, Hasher, Equal)(
         moveEmplace(values, *output);
 }
 
+private void parseOwnedHashMapDocument(K, V, Hasher, Equal)(
+    ref TomlParser parser,
+    OwnedHashMap!(K, V, Hasher, Equal)* output,
+)
+{
+    alias Map = OwnedHashMap!(K, V, Hasher, Equal);
+    static assert(is(Unqualified!K == OwnedString));
+    Map values = Map.create(parser.allocator);
+    scope (exit)
+        values.deinit();
+    parser.spaceAndComments();
+    size_t assignments;
+    while (!parser.atEnd && parser.error.ok)
+    {
+        if (parser.peek == '[')
+        {
+            parser.fail(SerdeErrorKind.unsupportedValue);
+            break;
+        }
+        if (assignments++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            break;
+        }
+
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        if (parser.error.ok && keyLength != 1)
+            parser.fail(SerdeErrorKind.unsupportedValue);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+
+        OwnedString ownedKey;
+        scope (exit)
+            ownedKey.deinit();
+        if (parser.error.ok &&
+            !OwnedString.tryFromString(
+                parser.allocator,
+                key[0].value,
+                &ownedKey,
+            ))
+            parser.fail(SerdeErrorKind.allocationFailure);
+
+        V value;
+        initializeOwnedValue(parser.allocator, &value);
+        scope (exit)
+            deinitOwnedValue(&value);
+        if (parser.error.ok)
+            decodeValue(parser, &value, 0);
+        if (parser.error.ok)
+        {
+            final switch (values.tryAdd(&ownedKey, &value))
+            {
+                case AddStatus.inserted:
+                    break;
+                case AddStatus.alreadyPresent:
+                    parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+                    break;
+                case AddStatus.outOfMemory:
+                    parser.fail(SerdeErrorKind.allocationFailure);
+                    break;
+            }
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (parser.error.ok)
+            finishDocumentEntry(parser);
+    }
+    if (parser.error.ok)
+        moveEmplace(values, *output);
+}
+
 private void parseStringHashMapDocument(Map)(
     ref TomlParser parser,
     Map* output,
@@ -1882,6 +1970,8 @@ private void decodeValue(T)(ref TomlParser parser, T* output, size_t depth)
         decodeFixedArray(parser, output, depth);
     else static if (isHashMap!U)
         decodeHashMapInline(parser, cast(U*) output, depth);
+    else static if (isOwnedHashMap!U)
+        decodeOwnedHashMapInline(parser, cast(U*) output, depth);
     else static if (isStringHashMap!U)
         decodeStringHashMapInline!U(parser, cast(U*) output, depth);
     else static if (isTaggedUnion!U)
@@ -2334,6 +2424,99 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
             {
                 case AddStatus.inserted:
                     key[0].owned = false;
+                    break;
+                case AddStatus.alreadyPresent:
+                    parser.fail(SerdeErrorKind.duplicateField, key[0].value);
+                    break;
+                case AddStatus.outOfMemory:
+                    parser.fail(SerdeErrorKind.allocationFailure);
+                    break;
+            }
+        }
+        preserveDiagnostic(parser, key[], keyLength);
+        clearKeys(parser, key[], keyLength);
+        if (!parser.error.ok)
+            return;
+        parser.horizontalSpace();
+        if (parser.consume('}'))
+            break;
+        if (!parser.consume(','))
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+        parser.horizontalSpace();
+        if (parser.peek == '}')
+        {
+            parser.fail(SerdeErrorKind.invalidSyntax);
+            return;
+        }
+    }
+    moveEmplace(values, *output);
+}
+
+private void decodeOwnedHashMapInline(K, V, Hasher, Equal)(
+    ref TomlParser parser,
+    OwnedHashMap!(K, V, Hasher, Equal)* output,
+    size_t depth,
+)
+{
+    alias Map = OwnedHashMap!(K, V, Hasher, Equal);
+    static assert(is(Unqualified!K == OwnedString));
+    if (!parser.consume('{'))
+    {
+        parser.fail(SerdeErrorKind.typeMismatch);
+        return;
+    }
+    Map values = Map.create(parser.allocator);
+    scope (exit)
+        values.deinit();
+    parser.horizontalSpace();
+    if (parser.consume('}'))
+    {
+        moveEmplace(values, *output);
+        return;
+    }
+    size_t count;
+    for (;;)
+    {
+        if (count++ == parser.options.limits.maxCollectionLength)
+        {
+            parser.fail(SerdeErrorKind.collectionLimit);
+            return;
+        }
+        ParsedKey[64] key;
+        size_t keyLength;
+        parseKeyPath(parser, key[], &keyLength);
+        if (parser.error.ok && keyLength != 1)
+            parser.fail(SerdeErrorKind.unsupportedValue);
+        parser.horizontalSpace();
+        if (parser.error.ok && !parser.consume('='))
+            parser.fail(SerdeErrorKind.invalidSyntax);
+        parser.horizontalSpace();
+
+        OwnedString ownedKey;
+        scope (exit)
+            ownedKey.deinit();
+        if (parser.error.ok &&
+            !OwnedString.tryFromString(
+                parser.allocator,
+                key[0].value,
+                &ownedKey,
+            ))
+            parser.fail(SerdeErrorKind.allocationFailure);
+
+        V value;
+        initializeOwnedValue(parser.allocator, &value);
+        scope (exit)
+            deinitOwnedValue(&value);
+        if (parser.error.ok)
+            decodeValue(parser, &value, depth + 1);
+        if (parser.error.ok)
+        {
+            final switch (values.tryAdd(&ownedKey, &value))
+            {
+                case AddStatus.inserted:
                     break;
                 case AddStatus.alreadyPresent:
                     parser.fail(SerdeErrorKind.duplicateField, key[0].value);

@@ -66,8 +66,11 @@ template HashMapKey(T)
     static if (is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
             Key, Value, Hasher, Equal))
         alias HashMapKey = Key;
+    else static if (is(Unqualified!T == OwnedHashMap!(Key, Value, Hasher, Equal),
+            Key, Value, Hasher, Equal))
+        alias HashMapKey = Key;
     else
-        static assert(false, T.stringof ~ " is not a HashMap");
+        static assert(false, T.stringof ~ " is not a HashMap/OwnedHashMap");
 }
 
 template HashMapValue(T)
@@ -75,8 +78,11 @@ template HashMapValue(T)
     static if (is(Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
             Key, Value, Hasher, Equal))
         alias HashMapValue = Value;
+    else static if (is(Unqualified!T == OwnedHashMap!(Key, Value, Hasher, Equal),
+            Key, Value, Hasher, Equal))
+        alias HashMapValue = Value;
     else
-        static assert(false, T.stringof ~ " is not a HashMap");
+        static assert(false, T.stringof ~ " is not a HashMap/OwnedHashMap");
 }
 
 enum isHashSet(T) = is(
@@ -150,7 +156,8 @@ enum isUnmanagedContainer(T) = isArrayUnmanaged!T ||
     is(Unqualified!T == OwnedStringUnmanaged) ||
     is(Unqualified!T == StringHashMapUnmanaged!(Value, ValueOps), Value, ValueOps);
 
-private enum isSerdeHashMapKey(T) = is(Unqualified!T == String);
+private enum isBorrowedSerdeHashMapKey(T) = is(Unqualified!T == String);
+private enum isOwnedSerdeHashMapKey(T) = is(Unqualified!T == OwnedString);
 
 enum isDynamicArray(T) = is(Unqualified!T == Element[], Element) &&
     !is(Element == char) && !is(Element == const(char)) &&
@@ -584,7 +591,10 @@ private bool supportedValue(T)() pure @safe
     else static if (isArray!U)
         return supportedValue!(ArrayElement!U);
     else static if (isHashMap!U)
-        return isSerdeHashMapKey!(HashMapKey!U) &&
+        return isBorrowedSerdeHashMapKey!(HashMapKey!U) &&
+            supportedValue!(HashMapValue!U);
+    else static if (isOwnedHashMap!U)
+        return isOwnedSerdeHashMapKey!(HashMapKey!U) &&
             supportedValue!(HashMapValue!U);
     else static if (isStringHashMap!U)
         return supportedValue!(StringHashMapValue!U);
@@ -618,8 +628,14 @@ package(xtb.serde) void validateValueSchema(T)()
     alias U = Unqualified!T;
     static if (isHashMap!U)
     {
-        static assert(isSerdeHashMapKey!(HashMapKey!U),
+        static assert(isBorrowedSerdeHashMapKey!(HashMapKey!U),
             "serde HashMap keys must have type String");
+        validateValueSchema!(HashMapValue!U)();
+    }
+    else static if (isOwnedHashMap!U)
+    {
+        static assert(isOwnedSerdeHashMapKey!(HashMapKey!U),
+            "serde OwnedHashMap keys must have type OwnedString");
         validateValueSchema!(HashMapValue!U)();
     }
     else static if (isStringHashMap!U)
@@ -821,7 +837,7 @@ private bool borrowedValue(T)() pure @safe
     else static if (isDynamicArray!U)
         return borrowedValue!(typeof(U.init[0]));
     else static if (isHashMap!U)
-        return isSerdeHashMapKey!(HashMapKey!U) &&
+        return isBorrowedSerdeHashMapKey!(HashMapKey!U) &&
             borrowedValue!(HashMapValue!U);
     else static if (isFixedArray!U)
         return borrowedValue!(typeof(U.init[0]));
@@ -861,6 +877,9 @@ private bool ownedValue(T)() pure @safe
         return ownedValue!(ArrayElement!U) &&
             !needsDeinit!(ArrayElement!U) &&
             !hasElaborateDestructor!(ArrayElement!U);
+    else static if (isOwnedHashMap!U)
+        return isOwnedSerdeHashMapKey!(HashMapKey!U) &&
+            ownedValue!(HashMapValue!U);
     else static if (isOwnedStringHashMap!U)
         return ownedValue!(StringHashMapValue!U);
     else static if (isStringHashMap!U)
@@ -898,8 +917,9 @@ package(xtb.serde) void validateOwnedValue(T)()
 {
     validateValueSchema!T();
     static assert(ownedValue!T,
-        "directly decoded values use StringBuf, OwnedString, Array, OwnedArray, and " ~
-            "StringHashMap; String, slices, raw pointers, and HashMap " ~
+        "directly decoded values use StringBuf, OwnedString, Array, OwnedArray, " ~
+            "OwnedHashMap!(OwnedString, V), and StringHashMap; String, slices, " ~
+            "raw pointers, and HashMap " ~
             "require Deserialized");
 }
 
@@ -915,8 +935,9 @@ void validateOwnedSchema(T)()
 {
     validateSchema!T();
     static assert(ownedValue!T,
-        "directly decoded schemas use StringBuf, OwnedString, Array, OwnedArray, and " ~
-            "StringHashMap; String, slices, raw pointers, and HashMap " ~
+        "directly decoded schemas use StringBuf, OwnedString, Array, OwnedArray, " ~
+            "OwnedHashMap!(OwnedString, V), and StringHashMap; String, slices, " ~
+            "raw pointers, and HashMap " ~
             "require Deserialized");
 }
 
@@ -931,7 +952,7 @@ package(xtb.serde) void initializeOwnedValue(T)(
         StringBuf created = StringBuf.create(allocator);
         moveEmplace(created, *cast(StringBuf*) output);
     }
-    else static if (isStringHashMap!U)
+    else static if (isStringHashMap!U || isOwnedHashMap!U)
     {
         U created = U.create(allocator);
         moveEmplace(created, *cast(U*) output);
@@ -964,7 +985,7 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
         deinitOwnedValue(&(*value).storage());
     }
     else static if (isStringBuf!U || isOwnedString!U ||
-        isStringHashMap!U || isArray!U)
+        isStringHashMap!U || isOwnedHashMap!U || isArray!U)
     {
         static if (needsDeinit!U)
         {
@@ -996,8 +1017,10 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
         // follows only logical ownership, so structs containing Options need
         // serde's field-aware partial-construction cleanup here.
         static if (hasDirectOptionField || !needsDeinit!U)
+        {
             static foreach_reverse (index; 0 .. U.tupleof.length)
-            deinitOwnedValue(&value.tupleof[index]);
+                deinitOwnedValue(&value.tupleof[index]);
+        }
         else
             deinitValue(*value);
         static if (hasElaborateDestructor!U)
