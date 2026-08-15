@@ -20,6 +20,14 @@ configuration "core-demo" {
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
 }
 
+configuration "string-demo" {
+    targetType "executable"
+    targetName "string_demo"
+    targetPath "../build/examples"
+    mainSourceFile "string_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+}
+
 configuration "print-demo" {
     targetType "executable"
     targetName "print_demo"
