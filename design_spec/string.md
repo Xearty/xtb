@@ -219,6 +219,57 @@ or converted to a NUL-terminated C string. Repeated `StringBuf` growth on an
 arena can abandon intermediate buffers until rewind, so mutable arena builders
 are a separate policy problem rather than an implicit part of this API.
 
+### Direct `OwnedString` transformations
+
+`OwnedString` exposes the immutable transformation family directly so routine
+owned-string code does not need to spell `.view` merely to transform bytes.
+When no allocation context is supplied, the result uses the source owner's
+stored allocator:
+
+```d
+OwnedString source = "hello".copy(heap);
+scope (exit) source.deinit();
+
+OwnedString concatenated = source.concat(" world");
+scope (exit) concatenated.deinit();
+
+OwnedString replaced = concatenated.replace("world", "XTB");
+scope (exit) replaced.deinit();
+
+OwnedString escaped = replaced.escape();
+scope (exit) escaped.deinit();
+```
+
+The explicit-context overloads remain available:
+
+```d
+OwnedString otherHeap = source.concat("!", otherAllocator);
+scope (exit) otherHeap.deinit();
+
+String temporary = source.concat("!", &arena);
+```
+
+The complete ownership matrix is therefore:
+
+```text
+String + Allocator*       -> OwnedString
+String + Arena*           -> String
+OwnedString + default     -> OwnedString using the source allocator
+OwnedString + Allocator*  -> OwnedString using the explicit allocator
+OwnedString + Arena*      -> String owned by the arena
+```
+
+`OwnedString.clone()` creates another independent owner with the source
+allocator; `clone(Allocator*)` selects a different independent allocator.
+`OwnedString.copy(Arena*)` copies into arena-owned storage. `copy(Allocator*)`
+is intentionally not duplicated on `OwnedString`: `clone` is the ownership
+spelling for creating another independent owner.
+
+The direct `tryConcat`, `tryReplace`, and `tryEscape` overloads follow the same
+context-selection rules and preserve the existing empty-output failure
+contract. Direct methods are callable through `const OwnedString`; allocating
+through the stored allocator does not mutate the source string.
+
 ## Scalar traversal
 
 The scalar API is defined by [`utf8.md`](utf8.md):
@@ -265,6 +316,12 @@ struct StringBuf
     void append(dchar codePoint);
     bool tryAssign(String value);
     void trimAsciiInPlace();
+    bool tryReplaceInPlace(String from, String to);
+    void replaceInPlace(String from, String to);
+    bool tryAppendEscaped(String value);
+    void appendEscaped(String value);
+    bool tryEscapeInPlace();
+    void escapeInPlace();
     bool removePrefix(String prefix);
     Array!String split(String separator, Allocator* allocator) const;
     bool tryCString(const(char)** output) @system;
@@ -283,6 +340,22 @@ The `char` overload accepts ASCII only. Non-ASCII scalars use `dchar`; complete
 text uses `String`. Insert and truncation offsets must be scalar boundaries.
 Appending or inserting a `String` does not rescan it because it is already
 inside the text contract.
+
+`replaceInPlace` and `escapeInPlace` make mutation explicit in the operation
+name. `tryReplaceInPlace` and `tryEscapeInPlace` reserve every required byte
+before changing logical contents, so allocation failure leaves the buffer
+unchanged. Replacement arguments that alias the current buffer are supported:
+aliased `from`/`to` views are snapshotted before reserve/reallocation so growth
+cannot invalidate them. The compatibility spelling `tryReplace` remains but new
+code should prefer `tryReplaceInPlace`.
+
+`escapeInPlace` escapes the buffer's current contents. It is different from
+`appendEscaped(value)`, which appends an escaped representation of another
+string; `tryAppendEscaped(value)` is that operation's fallible form. The legacy
+`tryEscape(value)` spelling remains as a compatibility forwarder, but new code
+should use `tryAppendEscaped` to make the append semantics obvious.
+Concatenation remains `append`; there is no redundant `concatInPlace`
+operation.
 
 `appendByte` is removed. Package-private printer/serde code may append raw
 chunks only while maintaining a documented transaction invariant: no invalid

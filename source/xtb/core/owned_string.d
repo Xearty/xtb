@@ -182,6 +182,15 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
+    /// D's transitive const turns `Allocator*` into `const(Allocator)*` in a
+    /// const method even though invoking the allocator does not mutate this
+    /// `OwnedString`. Constructors only accept mutable allocator slots, so the
+    /// original allocator remains mutable when the string is viewed as const.
+    Allocator* allocatorForAllocation() const @trusted
+    {
+        return cast(Allocator*) allocator_;
+    }
+
     version (XTB_Checked)
     {
         invariant
@@ -384,6 +393,25 @@ public:
         return storage_ == other.storage_;
     }
 
+    /// Copies this value into storage owned by `arena`.
+    bool tryCopy(Arena* arena, scope String* output) const @trusted
+    {
+        return storage_.view.tryCopy(arena, output);
+    }
+
+    /// Panicking arena-owned counterpart to `tryCopy`.
+    String copy(Arena* arena) const @trusted
+    {
+        return storage_.view.copy(arena);
+    }
+
+    /// Clones this value with its current allocator.
+    bool tryClone(scope Self* output) const @trusted
+    {
+        return Self.tryFromString(allocatorForAllocation, storage_.view, output);
+    }
+
+    /// Clones this value with an explicit allocator.
     bool tryClone(
         Allocator* allocator,
         scope Self* output,
@@ -392,9 +420,153 @@ public:
         return Self.tryFromString(allocator, storage_.view, output);
     }
 
+    /// Panicking clone using this value's current allocator.
+    Self clone() const @trusted
+    {
+        return Self.fromString(allocatorForAllocation, storage_.view);
+    }
+
+    /// Panicking clone using an explicit allocator.
     Self clone(Allocator* allocator) const @trusted
     {
         return Self.fromString(allocator, storage_.view);
+    }
+
+    /// Concatenates into a new owner using this value's allocator.
+    bool tryConcat(String right, scope Self* output) const @trusted
+    {
+        return storage_.view.tryConcat(right, allocatorForAllocation, output);
+    }
+
+    /// Concatenates into a new owner using an explicit allocator.
+    bool tryConcat(
+        String right,
+        Allocator* allocator,
+        scope Self* output,
+    ) const @trusted
+    {
+        return storage_.view.tryConcat(right, allocator, output);
+    }
+
+    /// Concatenates into storage owned by `arena`.
+    bool tryConcat(
+        String right,
+        Arena* arena,
+        scope String* output,
+    ) const @trusted
+    {
+        return storage_.view.tryConcat(right, arena, output);
+    }
+
+    /// Panicking concatenation using this value's allocator.
+    Self concat(String right) const @trusted
+    {
+        return storage_.view.concat(right, allocatorForAllocation);
+    }
+
+    /// Panicking concatenation using an explicit allocator.
+    Self concat(String right, Allocator* allocator) const @trusted
+    {
+        return storage_.view.concat(right, allocator);
+    }
+
+    /// Panicking concatenation into storage owned by `arena`.
+    String concat(String right, Arena* arena) const @trusted
+    {
+        return storage_.view.concat(right, arena);
+    }
+
+    /// Replaces matches into a new owner using this value's allocator.
+    bool tryReplace(
+        String from,
+        String to,
+        scope Self* output,
+    ) const @trusted
+    {
+        return storage_.view.tryReplace(from, to, allocatorForAllocation, output);
+    }
+
+    /// Replaces matches into a new owner using an explicit allocator.
+    bool tryReplace(
+        String from,
+        String to,
+        Allocator* allocator,
+        scope Self* output,
+    ) const @trusted
+    {
+        return storage_.view.tryReplace(from, to, allocator, output);
+    }
+
+    /// Replaces matches into storage owned by `arena`.
+    bool tryReplace(
+        String from,
+        String to,
+        Arena* arena,
+        scope String* output,
+    ) const @trusted
+    {
+        return storage_.view.tryReplace(from, to, arena, output);
+    }
+
+    /// Panicking replacement using this value's allocator.
+    Self replace(String from, String to) const @trusted
+    {
+        return storage_.view.replace(from, to, allocatorForAllocation);
+    }
+
+    /// Panicking replacement using an explicit allocator.
+    Self replace(
+        String from,
+        String to,
+        Allocator* allocator,
+    ) const @trusted
+    {
+        return storage_.view.replace(from, to, allocator);
+    }
+
+    /// Panicking replacement into storage owned by `arena`.
+    String replace(String from, String to, Arena* arena) const @trusted
+    {
+        return storage_.view.replace(from, to, arena);
+    }
+
+    /// Escapes into a new owner using this value's allocator.
+    bool tryEscape(scope Self* output) const @trusted
+    {
+        return storage_.view.tryEscape(allocatorForAllocation, output);
+    }
+
+    /// Escapes into a new owner using an explicit allocator.
+    bool tryEscape(
+        Allocator* allocator,
+        scope Self* output,
+    ) const @trusted
+    {
+        return storage_.view.tryEscape(allocator, output);
+    }
+
+    /// Escapes into storage owned by `arena`.
+    bool tryEscape(Arena* arena, scope String* output) const @trusted
+    {
+        return storage_.view.tryEscape(arena, output);
+    }
+
+    /// Panicking escape using this value's allocator.
+    Self escape() const @trusted
+    {
+        return storage_.view.escape(allocatorForAllocation);
+    }
+
+    /// Panicking escape using an explicit allocator.
+    Self escape(Allocator* allocator) const @trusted
+    {
+        return storage_.view.escape(allocator);
+    }
+
+    /// Panicking escape into storage owned by `arena`.
+    String escape(Arena* arena) const @trusted
+    {
+        return storage_.view.escape(arena);
     }
 
     bool opEquals(scope String other) const pure @trusted

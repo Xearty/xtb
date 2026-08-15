@@ -425,6 +425,18 @@ Array!String splitLines(String value, Allocator* allocator)
     return value.split('\n', allocator);
 }
 
+private bool stringsOverlap(scope String left, scope String right) pure @trusted
+{
+    if (left.length == 0 || right.length == 0)
+        return false;
+
+    const leftBegin = cast(size_t) left.ptr;
+    const leftEnd = leftBegin + left.length;
+    const rightBegin = cast(size_t) right.ptr;
+    const rightEnd = rightBegin + right.length;
+    return leftBegin < rightEnd && rightBegin < leftEnd;
+}
+
 /// Growable UTF-8 backing storage without embedded allocator context.
 ///
 /// The value owns its allocation but every allocating or releasing operation
@@ -743,7 +755,7 @@ public:
         bytes_.clear();
     }
 
-    bool tryEscape(Allocator* allocator, String value)
+    bool tryAppendEscaped(Allocator* allocator, String value)
     {
         bool aliasesBuffer;
         size_t sourceOffset;
@@ -788,38 +800,58 @@ public:
         return true;
     }
 
+    /// Compatibility spelling for `tryAppendEscaped`.
+    bool tryEscape(Allocator* allocator, String value)
+    {
+        return tryAppendEscaped(allocator, value);
+    }
+
     void appendEscaped(Allocator* allocator, String value)
     {
-        if (!tryEscape(allocator, value))
+        if (!tryAppendEscaped(allocator, value))
             panic("StringBuf allocation failed");
     }
 
-    bool tryReplace(
+    /// Replaces every non-overlapping match in this buffer.
+    ///
+    /// Aliased `from` and `to` views are snapshotted before any mutation. On
+    /// allocation failure the buffer remains unchanged.
+    bool tryReplaceInPlace(
         Allocator* allocator,
         String from,
         String to,
     )
     {
-        version (XTB_Checked)
-            require(from.length != 0,
-                "replacement source must not be empty");
-        String original = view;
-        if (original.length != 0)
+        if (from.length == 0)
+            return true;
+
+        StringBufUnmanaged fromSnapshot;
+        scope (exit) fromSnapshot.deinit(allocator);
+        if (stringsOverlap(view, from))
         {
-            const begin = cast(size_t) original.ptr;
-            const end = begin + original.length;
-            const fromAddress = cast(size_t) from.ptr;
-            const toAddress = cast(size_t) to.ptr;
-            version (XTB_Checked)
-            {
-                require(from.length == 0 || fromAddress < begin ||
-                        fromAddress >= end,
-                    "replacement source aliases StringBuf");
-                require(to.length == 0 || toAddress < begin ||
-                        toAddress >= end,
-                    "replacement value aliases StringBuf");
-            }
+            if (!StringBufUnmanaged.tryFromString(
+                    allocator,
+                    from,
+                    &fromSnapshot,
+                ))
+                return false;
+            from = fromSnapshot.view;
         }
+
+        StringBufUnmanaged toSnapshot;
+        scope (exit) toSnapshot.deinit(allocator);
+        if (stringsOverlap(view, to))
+        {
+            if (!StringBufUnmanaged.tryFromString(
+                    allocator,
+                    to,
+                    &toSnapshot,
+                ))
+                return false;
+            to = toSnapshot.view;
+        }
+
+        String original = view;
         size_t count;
         size_t position;
         while (position <= original.length)
@@ -904,13 +936,66 @@ public:
         return true;
     }
 
+    /// Compatibility spelling for `tryReplaceInPlace`.
+    bool tryReplace(
+        Allocator* allocator,
+        String from,
+        String to,
+    )
+    {
+        return tryReplaceInPlace(allocator, from, to);
+    }
+
     void replaceInPlace(
         Allocator* allocator,
         String from,
         String to,
     )
     {
-        if (!tryReplace(allocator, from, to))
+        if (!tryReplaceInPlace(allocator, from, to))
+            panic("StringBuf allocation failed");
+    }
+
+    /// Escapes this buffer in place.
+    ///
+    /// The operation reserves all required capacity before changing the
+    /// logical contents, so allocation failure leaves the buffer unchanged.
+    bool tryEscapeInPlace(Allocator* allocator)
+    {
+        const oldLength = byteLength;
+        size_t escapedCount;
+        foreach (character; view)
+            if (escapedCharacter(character) != '\0')
+                ++escapedCount;
+        if (escapedCount == 0)
+            return true;
+        if (escapedCount > size_t.max - oldLength)
+            return false;
+        const newLength = oldLength + escapedCount;
+        if (!tryReserve(allocator, newLength))
+            return false;
+
+        bytes_.resize(allocator, newLength);
+        size_t readOffset = oldLength;
+        size_t writeOffset = newLength;
+        while (readOffset != 0)
+        {
+            const character = bytes_[--readOffset];
+            const escaped = escapedCharacter(character);
+            if (escaped != '\0')
+            {
+                bytes_[--writeOffset] = escaped;
+                bytes_[--writeOffset] = '\\';
+            }
+            else
+                bytes_[--writeOffset] = character;
+        }
+        return true;
+    }
+
+    void escapeInPlace(Allocator* allocator)
+    {
+        if (!tryEscapeInPlace(allocator))
             panic("StringBuf allocation failed");
     }
 
@@ -1239,9 +1324,15 @@ public:
         storage_.clear();
     }
 
+    bool tryAppendEscaped(String value) @trusted
+    {
+        return storage_.tryAppendEscaped(allocator_, value);
+    }
+
+    /// Compatibility spelling for `tryAppendEscaped`.
     bool tryEscape(String value) @trusted
     {
-        return storage_.tryEscape(allocator_, value);
+        return tryAppendEscaped(value);
     }
 
     void appendEscaped(String value) @trusted
@@ -1249,14 +1340,30 @@ public:
         storage_.appendEscaped(allocator_, value);
     }
 
+    bool tryReplaceInPlace(String from, String to) @trusted
+    {
+        return storage_.tryReplaceInPlace(allocator_, from, to);
+    }
+
+    /// Compatibility spelling for `tryReplaceInPlace`.
     bool tryReplace(String from, String to) @trusted
     {
-        return storage_.tryReplace(allocator_, from, to);
+        return tryReplaceInPlace(from, to);
     }
 
     void replaceInPlace(String from, String to) @trusted
     {
         storage_.replaceInPlace(allocator_, from, to);
+    }
+
+    bool tryEscapeInPlace() @trusted
+    {
+        return storage_.tryEscapeInPlace(allocator_);
+    }
+
+    void escapeInPlace() @trusted
+    {
+        storage_.escapeInPlace(allocator_);
     }
 
     bool tryCString(scope const(char)** output) @system

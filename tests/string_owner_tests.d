@@ -198,6 +198,217 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
     tracked.allowAllocations();
 }
 
+private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
+{
+    static assert(__traits(compiles,
+            (scope const OwnedString* value, Allocator* allocator, Arena* arena) {
+                OwnedString clone = value.clone();
+                OwnedString concatDefault = value.concat("!");
+                OwnedString concatExplicit = value.concat("!", allocator);
+                String concatArena = value.concat("!", arena);
+                OwnedString replaceDefault = value.replace("a", "b");
+                OwnedString replaceExplicit = value.replace("a", "b", allocator);
+                String replaceArena = value.replace("a", "b", arena);
+                OwnedString escapeDefault = value.escape();
+                OwnedString escapeExplicit = value.escape(allocator);
+                String escapeArena = value.escape(arena);
+                String arenaCopy = value.copy(arena);
+            }));
+
+    AllocationRecord[32] otherRecords;
+    InstrumentedAllocator other = InstrumentedAllocator.create(
+        mallocAllocator(),
+        otherRecords[],
+    );
+
+    {
+        OwnedString source = "hello\nworld".copy(tracked.allocator);
+        scope (exit) source.deinit();
+
+        OwnedString cloned = source.clone();
+        scope (exit) cloned.deinit();
+        assert(cloned.view == source.view);
+        assert(cloned.view.ptr !is source.view.ptr);
+        assert(cloned.allocator is source.allocator);
+
+        OwnedString concatenated = source.concat("!");
+        scope (exit) concatenated.deinit();
+        assert(concatenated.view == "hello\nworld!");
+        assert(concatenated.allocator is source.allocator);
+
+        OwnedString replaced = concatenated.replace("world", "XTB");
+        scope (exit) replaced.deinit();
+        assert(replaced.view == "hello\nXTB!");
+        assert(replaced.allocator is source.allocator);
+
+        OwnedString escaped = replaced.escape();
+        scope (exit) escaped.deinit();
+        assert(escaped.view == "hello\\nXTB!");
+        assert(escaped.allocator is source.allocator);
+
+        OwnedString explicitAllocator = source.concat(" other", other.allocator);
+        scope (exit) explicitAllocator.deinit();
+        assert(explicitAllocator.view == "hello\nworld other");
+        assert(explicitAllocator.allocator is other.allocator);
+
+        Arena arena = Arena.create(tracked.allocator, 128);
+        scope (exit) arena.deinit();
+        size_t usedBytes;
+
+        String arenaCopy = source.copy(&arena);
+        usedBytes += arenaCopy.length;
+        assert(arenaCopy == source.view);
+        assert(arena.stats.usedBytes == usedBytes);
+
+        String arenaConcat = source.concat(" arena", &arena);
+        usedBytes += arenaConcat.length;
+        assert(arenaConcat == "hello\nworld arena");
+        assert(arena.stats.usedBytes == usedBytes);
+
+        String arenaReplace = source.replace("world", "arena", &arena);
+        usedBytes += arenaReplace.length;
+        assert(arenaReplace == "hello\narena");
+        assert(arena.stats.usedBytes == usedBytes);
+
+        String arenaEscape = source.escape(&arena);
+        usedBytes += arenaEscape.length;
+        assert(arenaEscape == "hello\\nworld");
+        assert(arena.stats.usedBytes == usedBytes);
+
+        tracked.failAfter(0);
+        OwnedString failed;
+        scope (exit) failed.deinit();
+        assert(!source.tryConcat(" failure", &failed));
+        assert(failed.allocator is null && failed.empty);
+        tracked.allowAllocations();
+    }
+
+    assert(tracked.clean);
+    assert(other.clean);
+}
+
+private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
+{
+    {
+        StringBuf buffer = StringBuf.fromString(
+            tracked.allocator,
+            "cat cat cat",
+        );
+        scope (exit) buffer.deinit();
+
+        assert(buffer.tryReplaceInPlace("cat", "dog"));
+        assert(buffer.view == "dog dog dog");
+        assert(buffer.tryReplaceInPlace("dog", "x"));
+        assert(buffer.view == "x x x");
+        assert(buffer.tryReplaceInPlace("x", "something"));
+        assert(buffer.view == "something something something");
+        assert(buffer.tryReplaceInPlace("", "ignored"));
+        assert(buffer.view == "something something something");
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf aliasedFrom = StringBuf.fromString(
+            tracked.allocator,
+            "abcabc",
+        );
+        scope (exit) aliasedFrom.deinit();
+        String from = aliasedFrom.view[0 .. 3];
+        assert(aliasedFrom.tryReplaceInPlace(from, "x"));
+        assert(aliasedFrom.view == "xx");
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf aliasedTo = StringBuf.fromString(
+            tracked.allocator,
+            "abXYab",
+        );
+        scope (exit) aliasedTo.deinit();
+        String to = aliasedTo.view[2 .. 4];
+        assert(aliasedTo.tryReplaceInPlace("ab", to));
+        assert(aliasedTo.view == "XYXYXY");
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf growingAliasedFrom = StringBuf.fromString(
+            tracked.allocator,
+            "aaaaaaaa",
+        );
+        scope (exit) growingAliasedFrom.deinit();
+        String from = growingAliasedFrom.view[0 .. 1];
+        assert(growingAliasedFrom.tryReplaceInPlace(from, "replacement"));
+        assert(growingAliasedFrom.view ==
+            "replacementreplacementreplacementreplacement" ~
+            "replacementreplacementreplacementreplacement");
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf growingAliasedTo = StringBuf.fromString(
+            tracked.allocator,
+            "xLONGx",
+        );
+        scope (exit) growingAliasedTo.deinit();
+        String to = growingAliasedTo.view[1 .. 5];
+        assert(growingAliasedTo.tryReplaceInPlace("x", to));
+        assert(growingAliasedTo.view == "LONGLONGLONG");
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf escaped = StringBuf.withCapacity(tracked.allocator, 64);
+        scope (exit) escaped.deinit();
+        escaped.append("first\nsecond\t\"quoted\" café🙂");
+        const allocationCalls = tracked.stats.allocationCalls;
+        assert(escaped.tryEscapeInPlace());
+        assert(escaped.view == "first\\nsecond\\t\\\"quoted\\\" café🙂");
+        assert(tracked.stats.allocationCalls == allocationCalls);
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf replaceFailure = StringBuf.fromString(
+            tracked.allocator,
+            "xxxxxxxx",
+        );
+        scope (exit) replaceFailure.deinit();
+        tracked.failAfter(0);
+        assert(!replaceFailure.tryReplaceInPlace("x", "replacement"));
+        assert(replaceFailure.view == "xxxxxxxx");
+        tracked.allowAllocations();
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf aliasFailure = StringBuf.fromString(
+            tracked.allocator,
+            "alias-alias",
+        );
+        scope (exit) aliasFailure.deinit();
+        String aliasedNeedle = aliasFailure.view[0 .. 5];
+        tracked.failAfter(0);
+        assert(!aliasFailure.tryReplaceInPlace(aliasedNeedle, "x"));
+        assert(aliasFailure.view == "alias-alias");
+        tracked.allowAllocations();
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf escapeFailure = StringBuf.fromString(
+            tracked.allocator,
+            "\n\n\n\n\n\n\n\n",
+        );
+        scope (exit) escapeFailure.deinit();
+        tracked.failAfter(0);
+        assert(!escapeFailure.tryEscapeInPlace());
+        assert(escapeFailure.view == "\n\n\n\n\n\n\n\n");
+        tracked.allowAllocations();
+    }
+    assert(tracked.clean);
+}
+
 private void testArenaStringTransforms(InstrumentedAllocator* tracked)
 {
     static assert(is(typeof("copy".copy(cast(Arena*) null)) == String));
@@ -597,6 +808,8 @@ extern (C) int main()
     testReleasedStorage(&tracked);
     testConstructionFailure(&tracked);
     testOwnedStringTransforms(&tracked);
+    testDirectOwnedStringTransforms(&tracked);
+    testStringBufInPlaceTransforms(&tracked);
     testArenaStringTransforms(&tracked);
     testOptionResultComposition(&tracked);
     testOwnedContainers(&tracked);

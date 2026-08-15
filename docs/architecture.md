@@ -911,6 +911,17 @@ owns those bytes and the view must not outlive arena rewind, `clear`, or
 `deinit`. Prefer the direct `Arena*` overload for region-lifetime text instead
 of storing an allocator pointer in every arena-backed string.
 
+`StringBuf` mutation uses visibly mutating names. `replaceInPlace` and
+`escapeInPlace` transform the current contents; their `try...InPlace` forms
+reserve everything needed before changing logical bytes, so OOM leaves the
+buffer unchanged. Replacement arguments may borrow from the same buffer: the
+implementation snapshots only aliased operands before any reserve/reallocation.
+Concatenation remains `append`; do not introduce a redundant `concatInPlace`.
+`appendEscaped(value)` remains distinct from `escapeInPlace()` because the
+former appends escaped external input while the latter escapes the buffer's
+existing contents. Its fallible spelling is `tryAppendEscaped(value)`; the old
+`tryEscape(value)` remains only as a compatibility forwarder.
+
 `formatString` returns a `StringBuf`, not an owning-looking `String` view. It
 formats directly into that builder in one pass, so a custom `formatTo` function
 is invoked exactly once. `tryFormatString` leaves a zero `StringBuf` on
@@ -939,10 +950,19 @@ shrunk when possible. A foreign-allocator buffer is copied into the destination
 allocator and released only after the copy succeeds. On recoverable failure the
 source and output remain unchanged.
 
-`OwnedString.view` returns a borrowed `String`. Embedded NUL participates in
-length, equality, and hashing. Callers needing a conventional C string copy the
-view into `StringBuf` and call `checkedCString`; immutable exact storage does
-not reserve terminator capacity.
+`OwnedString.view` returns a borrowed `String`. Routine immutable
+transformations do not require manually spelling that view: `concat`,
+`replace`, and `escape` are direct `OwnedString` methods. With no explicit
+context they allocate another `OwnedString` using the source allocator; an
+explicit `Allocator*` selects another independent allocator, while an `Arena*`
+returns an arena-owned `String`. `clone()` likewise reuses the source allocator,
+`clone(Allocator*)` selects another allocator, and `copy(Arena*)` projects the
+bytes into arena lifetime. Independent duplication keeps the ownership-specific
+`clone` spelling rather than adding a redundant `copy(Allocator*)` member.
+
+Embedded NUL participates in length, equality, and hashing. Callers needing a
+conventional C string copy the view into `StringBuf` and call `checkedCString`;
+immutable exact storage does not reserve terminator capacity.
 
 #### Formatting and interpolation
 

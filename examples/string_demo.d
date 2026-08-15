@@ -144,13 +144,20 @@ extern (C) int main() nothrow @nogc
         OwnedString ownedCopy = "hello".copy(heap);
         scope (exit) ownedCopy.deinit();
 
-        OwnedString ownedConcat = ownedCopy.view.concat(" world", heap);
+        // OwnedString forwards immutable transforms directly. Omitting the
+        // allocator reuses the source owner's allocator.
+        OwnedString ownedConcat = ownedCopy.concat(" world");
         scope (exit) ownedConcat.deinit();
 
-        OwnedString ownedReplace = ownedConcat.view.replace("world", "XTB", heap);
+        OwnedString ownedReplace = ownedConcat.replace("world", "XTB");
         scope (exit) ownedReplace.deinit();
 
-        OwnedString ownedEscape = "first\nsecond\t\"quoted\"".escape(heap);
+        OwnedString ownedWithControls = ownedReplace.concat(
+            "\nsecond\t\"quoted\"",
+        );
+        scope (exit) ownedWithControls.deinit();
+
+        OwnedString ownedEscape = ownedWithControls.escape();
         scope (exit) ownedEscape.deinit();
 
         String[3] ownedParts = [
@@ -173,7 +180,7 @@ extern (C) int main() nothrow @nogc
         formatln!"borrowed from owner: {}"(borrowedFromOwner);
 
         // clone() is the explicit way to create another independent owner.
-        OwnedString independentClone = ownedJoin.clone(heap);
+        OwnedString independentClone = ownedJoin.clone();
         scope (exit) independentClone.deinit();
         assert(independentClone.view.equal(ownedJoin.view));
 
@@ -182,7 +189,7 @@ extern (C) int main() nothrow @nogc
         // acquires storage because the zero state is deinitializable.
         OwnedString fallibleOwned;
         scope (exit) fallibleOwned.deinit();
-        if (!"fallible".tryConcat(" owner", heap, &fallibleOwned))
+        if (!ownedCopy.tryConcat(" owner", &fallibleOwned))
             return 1;
         formatln!"fallible owned result: {}"(fallibleOwned.view);
     }
@@ -218,7 +225,8 @@ extern (C) int main() nothrow @nogc
         builder.append("  ");
         builder.trimAsciiEndInPlace();
         builder.replaceInPlace("GET", "PATCH");
-        builder.appendEscaped("\nrequest-id=42");
+        builder.append("\nrequest-id=42");
+        builder.escapeInPlace();
         formatln!"mutable buffer: {}"(builder.view);
 
         // OwnedString.fromStringBuf consumes the mutable owner and freezes it
