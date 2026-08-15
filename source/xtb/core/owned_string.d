@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import core.stdc.string : memmove;
 import xtb.core.array : RawArrayStorage;
+import xtb.core.allocators.arena : Arena;
 import xtb.core.hash : hashValue;
 import xtb.core.lifetime : move, moveEmplace;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
@@ -433,17 +434,27 @@ package(xtb):
     }
 }
 
-/// Copies a borrowed string into exact-sized immutable owned storage.
+/// Copies borrowed text into exact-sized independently owned storage.
 bool tryCopy(
     String value,
     Allocator* allocator,
     scope OwnedString* output,
 ) @trusted
 {
-    return OwnedString.tryFromString(allocator, value, output);
+    return tryCopyImpl(value, allocator, output);
 }
 
-/// Panicking counterpart to `tryCopy`.
+/// Copies borrowed text into storage owned by `arena`.
+bool tryCopy(
+    String value,
+    Arena* arena,
+    scope String* output,
+) @trusted
+{
+    return tryCopyImpl(value, arena, output);
+}
+
+/// Panicking independently owned counterpart to `tryCopy`.
 OwnedString copy(String value, Allocator* allocator) @trusted
 {
     OwnedString result;
@@ -452,7 +463,16 @@ OwnedString copy(String value, Allocator* allocator) @trusted
     return move(result);
 }
 
-/// Concatenates two borrowed strings into exact-sized immutable owned storage.
+/// Panicking arena-owned counterpart to `tryCopy`.
+String copy(String value, Arena* arena) @trusted
+{
+    String result;
+    if (!value.tryCopy(arena, &result))
+        panic("arena string allocation failed");
+    return result;
+}
+
+/// Concatenates into exact-sized independently owned storage.
 bool tryConcat(
     String left,
     String right,
@@ -460,29 +480,21 @@ bool tryConcat(
     scope OwnedString* output,
 ) @trusted
 {
-    requireEmptyOwnedStringOutput(allocator, output);
-    if (right.length > size_t.max - left.length)
-        return false;
-    const length = left.length + right.length;
-    if (length == 0)
-    {
-        OwnedString result = OwnedString.create(allocator);
-        moveEmplace(result, *output);
-        return true;
-    }
-
-    char[] allocation = allocator.tryAllocateArray!char(length);
-    if (allocation.ptr is null)
-        return false;
-    if (left.length != 0)
-        memmove(allocation.ptr, left.ptr, left.length);
-    if (right.length != 0)
-        memmove(allocation.ptr + left.length, right.ptr, right.length);
-    adoptExactOwnedString(allocator, allocation, output);
-    return true;
+    return tryConcatImpl(left, right, allocator, output);
 }
 
-/// Panicking counterpart to `tryConcat`.
+/// Concatenates into storage owned by `arena`.
+bool tryConcat(
+    String left,
+    String right,
+    Arena* arena,
+    scope String* output,
+) @trusted
+{
+    return tryConcatImpl(left, right, arena, output);
+}
+
+/// Panicking independently owned counterpart to `tryConcat`.
 OwnedString concat(String left, String right, Allocator* allocator) @trusted
 {
     OwnedString result;
@@ -491,7 +503,16 @@ OwnedString concat(String left, String right, Allocator* allocator) @trusted
     return move(result);
 }
 
-/// Replaces every non-overlapping `from` occurrence with `to` in owned output.
+/// Panicking arena-owned counterpart to `tryConcat`.
+String concat(String left, String right, Arena* arena) @trusted
+{
+    String result;
+    if (!left.tryConcat(right, arena, &result))
+        panic("arena string allocation failed");
+    return result;
+}
+
+/// Replaces every non-overlapping `from` occurrence in independently owned output.
 bool tryReplace(
     String value,
     String from,
@@ -500,9 +521,185 @@ bool tryReplace(
     scope OwnedString* output,
 ) @trusted
 {
-    requireEmptyOwnedStringOutput(allocator, output);
+    return tryReplaceImpl(value, from, to, allocator, output);
+}
+
+/// Replaces every non-overlapping `from` occurrence in arena-owned output.
+bool tryReplace(
+    String value,
+    String from,
+    String to,
+    Arena* arena,
+    scope String* output,
+) @trusted
+{
+    return tryReplaceImpl(value, from, to, arena, output);
+}
+
+/// Panicking independently owned counterpart to `tryReplace`.
+OwnedString replace(
+    String value,
+    String from,
+    String to,
+    Allocator* allocator,
+) @trusted
+{
+    OwnedString result;
+    if (!value.tryReplace(from, to, allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+/// Panicking arena-owned counterpart to `tryReplace`.
+String replace(
+    String value,
+    String from,
+    String to,
+    Arena* arena,
+) @trusted
+{
+    String result;
+    if (!value.tryReplace(from, to, arena, &result))
+        panic("arena string allocation failed");
+    return result;
+}
+
+/// Joins borrowed strings into exact-sized independently owned storage.
+bool tryJoin(
+    scope const(String)[] values,
+    String separator,
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    return tryJoinImpl(values, separator, allocator, output);
+}
+
+/// Joins borrowed strings into storage owned by `arena`.
+bool tryJoin(
+    scope const(String)[] values,
+    String separator,
+    Arena* arena,
+    scope String* output,
+) @trusted
+{
+    return tryJoinImpl(values, separator, arena, output);
+}
+
+/// Panicking independently owned counterpart to `tryJoin`.
+OwnedString join(
+    scope const(String)[] values,
+    String separator,
+    Allocator* allocator,
+) @trusted
+{
+    OwnedString result;
+    if (!tryJoin(values, separator, allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+/// Panicking arena-owned counterpart to `tryJoin`.
+String join(
+    scope const(String)[] values,
+    String separator,
+    Arena* arena,
+) @trusted
+{
+    String result;
+    if (!tryJoin(values, separator, arena, &result))
+        panic("arena string allocation failed");
+    return result;
+}
+
+/// Escapes conventional C-style special characters into independently owned text.
+bool tryEscape(
+    String value,
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    return tryEscapeImpl(value, allocator, output);
+}
+
+/// Escapes conventional C-style special characters into arena-owned text.
+bool tryEscape(
+    String value,
+    Arena* arena,
+    scope String* output,
+) @trusted
+{
+    return tryEscapeImpl(value, arena, output);
+}
+
+/// Panicking independently owned counterpart to `tryEscape`.
+OwnedString escape(String value, Allocator* allocator) @trusted
+{
+    OwnedString result;
+    if (!value.tryEscape(allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+/// Panicking arena-owned counterpart to `tryEscape`.
+String escape(String value, Arena* arena) @trusted
+{
+    String result;
+    if (!value.tryEscape(arena, &result))
+        panic("arena string allocation failed");
+    return result;
+}
+
+private bool tryCopyImpl(Context, Output)(
+    String value,
+    Context context,
+    scope Output* output,
+) @trusted
+{
+    requireStringTransformOutput(context, output);
+    char[] allocation;
+    if (!tryPrepareStringTransform(context, value.length, &allocation))
+        return false;
+    if (value.length != 0)
+        memmove(allocation.ptr, value.ptr, value.length);
+    commitStringTransform(context, allocation, output);
+    return true;
+}
+
+private bool tryConcatImpl(Context, Output)(
+    String left,
+    String right,
+    Context context,
+    scope Output* output,
+) @trusted
+{
+    requireStringTransformOutput(context, output);
+    if (right.length > size_t.max - left.length)
+        return false;
+    const length = left.length + right.length;
+
+    char[] allocation;
+    if (!tryPrepareStringTransform(context, length, &allocation))
+        return false;
+    if (left.length != 0)
+        memmove(allocation.ptr, left.ptr, left.length);
+    if (right.length != 0)
+        memmove(allocation.ptr + left.length, right.ptr, right.length);
+    commitStringTransform(context, allocation, output);
+    return true;
+}
+
+private bool tryReplaceImpl(Context, Output)(
+    String value,
+    String from,
+    String to,
+    Context context,
+    scope Output* output,
+) @trusted
+{
+    requireStringTransformOutput(context, output);
     if (from.length == 0)
-        return value.tryCopy(allocator, output);
+        return tryCopyImpl(value, context, output);
 
     size_t count;
     size_t position;
@@ -526,15 +723,8 @@ bool tryReplace(
     else
         length -= count * (from.length - to.length);
 
-    if (length == 0)
-    {
-        OwnedString result = OwnedString.create(allocator);
-        moveEmplace(result, *output);
-        return true;
-    }
-
-    char[] allocation = allocator.tryAllocateArray!char(length);
-    if (allocation.ptr is null)
+    char[] allocation;
+    if (!tryPrepareStringTransform(context, length, &allocation))
         return false;
     size_t sourceOffset;
     size_t destinationOffset;
@@ -569,33 +759,18 @@ bool tryReplace(
         destinationOffset += to.length;
         sourceOffset += found + from.length;
     }
-    adoptExactOwnedString(allocator, allocation, output);
+    commitStringTransform(context, allocation, output);
     return true;
 }
 
-/// Panicking counterpart to `tryReplace`.
-OwnedString replace(
-    String value,
-    String from,
-    String to,
-    Allocator* allocator,
-) @trusted
-{
-    OwnedString result;
-    if (!value.tryReplace(from, to, allocator, &result))
-        panic("OwnedString allocation failed");
-    return move(result);
-}
-
-/// Joins borrowed strings into exact-sized immutable owned storage.
-bool tryJoin(
+private bool tryJoinImpl(Context, Output)(
     scope const(String)[] values,
     String separator,
-    Allocator* allocator,
-    scope OwnedString* output,
+    Context context,
+    scope Output* output,
 ) @trusted
 {
-    requireEmptyOwnedStringOutput(allocator, output);
+    requireStringTransformOutput(context, output);
     size_t length;
     foreach (value; values)
     {
@@ -612,15 +787,8 @@ bool tryJoin(
         length += count * separator.length;
     }
 
-    if (length == 0)
-    {
-        OwnedString result = OwnedString.create(allocator);
-        moveEmplace(result, *output);
-        return true;
-    }
-
-    char[] allocation = allocator.tryAllocateArray!char(length);
-    if (allocation.ptr is null)
+    char[] allocation;
+    if (!tryPrepareStringTransform(context, length, &allocation))
         return false;
     size_t offset;
     foreach (index, value; values)
@@ -636,31 +804,17 @@ bool tryJoin(
             offset += value.length;
         }
     }
-    adoptExactOwnedString(allocator, allocation, output);
+    commitStringTransform(context, allocation, output);
     return true;
 }
 
-/// Panicking counterpart to `tryJoin`.
-OwnedString join(
-    scope const(String)[] values,
-    String separator,
-    Allocator* allocator,
-) @trusted
-{
-    OwnedString result;
-    if (!tryJoin(values, separator, allocator, &result))
-        panic("OwnedString allocation failed");
-    return move(result);
-}
-
-/// Escapes conventional C-style special characters into immutable owned text.
-bool tryEscape(
+private bool tryEscapeImpl(Context, Output)(
     String value,
-    Allocator* allocator,
-    scope OwnedString* output,
+    Context context,
+    scope Output* output,
 ) @trusted
 {
-    requireEmptyOwnedStringOutput(allocator, output);
+    requireStringTransformOutput(context, output);
     size_t escapedCount;
     foreach (character; value)
         if (escapedCharacter(character) != '\0')
@@ -668,15 +822,9 @@ bool tryEscape(
     if (escapedCount > size_t.max - value.length)
         return false;
     const length = value.length + escapedCount;
-    if (length == 0)
-    {
-        OwnedString result = OwnedString.create(allocator);
-        moveEmplace(result, *output);
-        return true;
-    }
 
-    char[] allocation = allocator.tryAllocateArray!char(length);
-    if (allocation.ptr is null)
+    char[] allocation;
+    if (!tryPrepareStringTransform(context, length, &allocation))
         return false;
     size_t offset;
     foreach (character; value)
@@ -690,17 +838,76 @@ bool tryEscape(
         else
             allocation[offset++] = character;
     }
-    adoptExactOwnedString(allocator, allocation, output);
+    commitStringTransform(context, allocation, output);
     return true;
 }
 
-/// Panicking counterpart to `tryEscape`.
-OwnedString escape(String value, Allocator* allocator) @trusted
+private void requireStringTransformOutput(
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
 {
-    OwnedString result;
-    if (!value.tryEscape(allocator, &result))
-        panic("OwnedString allocation failed");
-    return move(result);
+    requireEmptyOwnedStringOutput(allocator, output);
+}
+
+private void requireStringTransformOutput(
+    Arena* arena,
+    scope String* output,
+) @trusted
+{
+    version (XTB_Checked)
+    {
+        require(arena !is null, "string transform requires a valid arena");
+        require(output !is null, "String output pointer is null");
+    }
+}
+
+private bool tryPrepareStringTransform(
+    Allocator* allocator,
+    size_t length,
+    scope char[]* allocation,
+) @trusted
+{
+    if (length == 0)
+        return true;
+    *allocation = allocator.tryAllocateArray!char(length);
+    return allocation.ptr !is null;
+}
+
+private bool tryPrepareStringTransform(
+    Arena* arena,
+    size_t length,
+    scope char[]* allocation,
+) @trusted
+{
+    if (length == 0)
+        return true;
+    *allocation = arena.tryAllocateArray!char(length);
+    return allocation.ptr !is null;
+}
+
+private void commitStringTransform(
+    Allocator* allocator,
+    char[] allocation,
+    scope OwnedString* output,
+) @system
+{
+    if (allocation.length == 0)
+    {
+        OwnedString result = OwnedString.create(allocator);
+        moveEmplace(result, *output);
+        return;
+    }
+    adoptExactOwnedString(allocator, allocation, output);
+}
+
+private void commitStringTransform(
+    Arena*,
+    char[] allocation,
+    scope String* output,
+) @trusted
+{
+    *output = allocation;
 }
 
 private void requireEmptyOwnedStringOutput(

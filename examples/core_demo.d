@@ -65,5 +65,18 @@ extern (C) int main() nothrow @nogc
     if (checkedText.failed)
         return 1;
     formatln!"validated external text: {}"(checkedText.value);
+
+    // Arena-backed transforms return cheap String views because the scratch
+    // arena owns their bytes. No per-string allocator pointer or deinit is
+    // needed while the values stay inside this scratch scope.
+    String normalizedPath = "//api//users".replace("//", "/", scratch.arena);
+    String[2] routeParts = ["GET", normalizedPath];
+    String routeKey = routeParts[].join(" ", scratch.arena);
+    formatln!"scratch route key: {}"(routeKey);
+
+    // Copy only when the value needs an independent lifetime.
+    OwnedString persistentRoute = routeKey.copy(mallocAllocator());
+    formatln!"persistent route key: {}"(persistentRoute.view);
+    persistentRoute.deinit();
     return 0;
 }

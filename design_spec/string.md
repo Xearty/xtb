@@ -116,21 +116,26 @@ Process output, file contents, network packets, and general binary storage stay
 
 ## Allocating immutable transformations
 
-`String` remains borrowed even when a transformation needs to create different
-bytes. General allocator-backed transformations therefore return
-`OwnedString`, never a plain `String` whose cleanup obligation would be hidden:
+`String` remains a borrowed view even when a transformation creates different
+bytes. The allocation context selects which object owns those new bytes:
+
+- `Allocator*` returns `OwnedString`, so the result itself carries the explicit
+  cleanup obligation; and
+- `Arena*` returns `String`, because the arena owns the backing storage and
+  individual string cleanup would be redundant.
+
+The two families deliberately use the same UFCS-friendly operation names:
 
 ```d
 bool tryCopy(String value, Allocator* allocator, OwnedString* output);
 OwnedString copy(String value, Allocator* allocator);
+bool tryCopy(String value, Arena* arena, String* output);
+String copy(String value, Arena* arena);
 
-bool tryConcat(
-    String left,
-    String right,
-    Allocator* allocator,
-    OwnedString* output,
-);
+bool tryConcat(String left, String right, Allocator* allocator, OwnedString* output);
 OwnedString concat(String left, String right, Allocator* allocator);
+bool tryConcat(String left, String right, Arena* arena, String* output);
+String concat(String left, String right, Arena* arena);
 
 bool tryReplace(
     String value,
@@ -140,6 +145,14 @@ bool tryReplace(
     OwnedString* output,
 );
 OwnedString replace(String value, String from, String to, Allocator* allocator);
+bool tryReplace(
+    String value,
+    String from,
+    String to,
+    Arena* arena,
+    String* output,
+);
+String replace(String value, String from, String to, Arena* arena);
 
 bool tryJoin(
     scope const(String)[] values,
@@ -152,23 +165,59 @@ OwnedString join(
     String separator,
     Allocator* allocator,
 );
+bool tryJoin(
+    scope const(String)[] values,
+    String separator,
+    Arena* arena,
+    String* output,
+);
+String join(scope const(String)[] values, String separator, Arena* arena);
 
 bool tryEscape(String value, Allocator* allocator, OwnedString* output);
 OwnedString escape(String value, Allocator* allocator);
+bool tryEscape(String value, Arena* arena, String* output);
+String escape(String value, Arena* arena);
 ```
 
-The functions remain UFCS-friendly when `xtb.core.owned_string` (or the
-aggregate `xtb.core`) is imported. Successful nonempty results use exact-sized
+For the `Allocator*` family, successful nonempty results use exact-sized
 immutable storage with no trailing C terminator. Empty results remain valid
-managed `OwnedString` values bound to the supplied allocator without requiring
-an allocation. A fallible function requires an empty output and leaves it empty
-when allocation fails. The caller ends the successful result's owning lifetime
-with `deinit()`.
+`OwnedString` values bound to the supplied allocator without allocating. A
+fallible function requires an empty `OwnedString` output and leaves it empty on
+failure. End a successful result with `deinit()`.
+
+For the `Arena*` family, each successful nonempty operation requests exactly the
+logical output byte length from the arena and returns only the resulting
+pointer-and-length `String` view. Empty results allocate nothing. Fallible
+operations leave the caller's `String` output unchanged on failure. The returned
+view is valid only until its arena storage is rewound, cleared, or deinitialized;
+when called inside a `TempArena`/`ScratchScope`, that includes the corresponding
+pop/scope exit. Never call `deinit()` on the returned `String`.
+
+Typical arena code therefore stays lightweight:
+
+```d
+String normalized = rawPath.replace("//", "/", scratch.arena);
+String[2] parts = [method, normalized];
+String key = parts[].join(" ", scratch.arena);
+```
+
+Promotion to an independent lifetime is explicit:
+
+```d
+OwnedString persistent = key.copy(mallocAllocator());
+// ... use persistent after the scratch scope ...
+persistent.deinit();
+```
+
+Passing `arena.allocator` still selects the `Allocator*` overload and therefore
+produces `OwnedString`; prefer passing `Arena*` directly when region lifetime is
+the intended ownership model. `OwnedStringUnmanaged` remains for contextual
+individual ownership, not ordinary arena-backed immutable strings.
 
 Use `StringBuf` instead when the new text will be mutated, incrementally built,
-or converted to a NUL-terminated C string. Arena/scratch-specific algorithms
-may still return a borrowed `String` when another explicit object or lexical
-scope owns the backing bytes and therefore defines the view's lifetime.
+or converted to a NUL-terminated C string. Repeated `StringBuf` growth on an
+arena can abandon intermediate buffers until rewind, so mutable arena builders
+are a separate policy problem rather than an implicit part of this API.
 
 ## Scalar traversal
 

@@ -762,12 +762,12 @@ what makes ownership and mutation obvious across the library.
 
 Operations that create different bytes--concatenation, replacement, escaping,
 case conversion, formatting, and joining--must make the new ownership visible.
-Exact immutable results use `OwnedString`; mutable/reusable results use
-`StringBuf`. An arena- or scratch-specific API may return a borrowed `String`
-only when another explicit object or lexical context owns the backing bytes.
-A generic allocator-taking helper must not allocate and return only a plain
-`String`, because the view cannot carry the cleanup obligation or allocation
-extent.
+An `Allocator*` transformation returns `OwnedString`, while an `Arena*`
+transformation returns `String` because the arena itself owns the backing bytes.
+Mutable/reusable results use `StringBuf`. Arena-backed views are invalidated by
+rewind, `clear`, or `deinit`; a generic allocator-taking helper must never
+allocate and return only a plain `String`, because that view cannot carry an
+independent cleanup obligation or allocation extent.
 
 String literals and immutable static storage can be viewed for the entire
 program. A `String` made from a `StringBuf`, scratch allocation, mapped
@@ -884,10 +884,14 @@ StringBuf owned = StringBuf.fromString(allocator, input);
 Builder-style utilities that are genuinely external algorithms may still take
 `ref StringBuf output` when composition or allocation reuse matters. Ordinary
 buffer operations themselves are members. Convenience functions may return
-`StringBuf` by move. Immutable allocator-backed transformations such as
-`copy`, `concat`, `replace`, `join`, and `escape` return `OwnedString` (or write
-to `OwnedString*` in their fallible forms), so the result itself carries the
-cleanup obligation.
+`StringBuf` by move. Immutable transformations such as `copy`, `concat`,
+`replace`, `join`, and `escape` use parallel allocation-context overloads.
+Passing `Allocator*`
+returns `OwnedString` (or writes `OwnedString*`) so the result carries its
+cleanup obligation. Passing `Arena*` returns/writes a plain `String`; the arena
+owns those bytes and the view must not outlive arena rewind, `clear`, or
+`deinit`. Prefer the direct `Arena*` overload for region-lifetime text instead
+of storing an allocator pointer in every arena-backed string.
 
 `formatString` returns a `StringBuf`, not an owning-looking `String` view. It
 formats directly into that builder in one pass, so a custom `formatTo` function
@@ -979,10 +983,11 @@ conversion.
 - Put ordinary `StringBuf` container mutation on member methods. Independent
   builder-style utilities may accept `ref StringBuf output`; use pointers for
   additional mutable outputs.
-- Return `String` for borrowed views or read-only results whose storage is
-  owned by an explicit allocator; return `StringBuf` for individually owned
-  mutable text.
-- Require an explicit allocator for every operation that may create storage.
+- Return `String` for borrowed views and explicit `Arena*` region-lifetime
+  results; return `OwnedString` for immutable `Allocator*` results and
+  `StringBuf` for individually owned mutable text.
+- Require an explicit allocation context (`Allocator*` or `Arena*`) for every
+  operation that may create storage.
 - Document the owner/lifetime of every returned view.
 - Keep byte length and capacity in `size_t`; check all additions and growth.
 - Define equality and hashing over exactly `length` bytes, including embedded

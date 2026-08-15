@@ -190,8 +190,10 @@ String tests enforce the type boundary as well as textual behavior:
   the source bytes;
 - copying and slicing a `String` allocate nothing and preserve the correct
   borrowed range;
-- operations that create bytes either return an explicitly allocator-backed
-  `String` or return/write `StringBuf`; the view itself never owns storage;
+- operations that create immutable bytes return `OwnedString` for `Allocator*`
+  contexts or a borrowed arena-backed `String` for explicit `Arena*` contexts;
+  mutable construction returns/writes `StringBuf`, and a `String` view itself
+  never owns storage;
 - `StringBuf` growth preserves content, honors alignment, checks overflow, and
   leaves valid state after injected allocation failure;
 - `view()` reflects current bytes and tests never use it after a mutation that

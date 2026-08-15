@@ -3,6 +3,7 @@ module tests.string_owner_tests;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
+import xtb.core.allocators.arena : Arena;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.array : OwnedArray;
@@ -195,6 +196,78 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
     assert(failedEscape.allocator is null && failedEscape.empty);
     assert(tracked.clean);
     tracked.allowAllocations();
+}
+
+private void testArenaStringTransforms(InstrumentedAllocator* tracked)
+{
+    static assert(is(typeof("copy".copy(cast(Arena*) null)) == String));
+    static assert(is(typeof("a".concat("b", cast(Arena*) null)) == String));
+    static assert(is(typeof("a".replace("a", "b", cast(Arena*) null)) == String));
+    static assert(is(typeof((cast(String[])["a", "b"]).join(
+            "/",
+            cast(Arena*) null,
+            )) == String));
+    static assert(is(typeof("a".escape(cast(Arena*) null)) == String));
+    static assert(String.sizeof == 2 * (void*).sizeof);
+    static assert(OwnedString.sizeof == String.sizeof + (Allocator*).sizeof);
+
+    Arena arena = Arena.create(tracked.allocator, 128);
+    size_t expectedUsedBytes;
+
+    String copied = "copy".copy(&arena);
+    expectedUsedBytes += copied.length;
+    assert(copied == "copy");
+    assert(arena.stats.usedBytes == expectedUsedBytes);
+
+    String concatenated = "left".concat("right", &arena);
+    expectedUsedBytes += concatenated.length;
+    assert(concatenated == "leftright");
+    assert(arena.stats.usedBytes == expectedUsedBytes);
+
+    String replaced = "one two one".replace("one", "1", &arena);
+    expectedUsedBytes += replaced.length;
+    assert(replaced == "1 two 1");
+    assert(arena.stats.usedBytes == expectedUsedBytes);
+
+    String[3] parts = ["a", "b", "c"];
+    String joined = parts[].join("/", &arena);
+    expectedUsedBytes += joined.length;
+    assert(joined == "a/b/c");
+    assert(arena.stats.usedBytes == expectedUsedBytes);
+
+    String escaped = "a\n\t\\b".escape(&arena);
+    expectedUsedBytes += escaped.length;
+    assert(escaped == "a\\n\\t\\\\b");
+    assert(arena.stats.usedBytes == expectedUsedBytes);
+
+    String empty = "".concat("", &arena);
+    assert(empty.length == 0);
+    assert(arena.stats.usedBytes == expectedUsedBytes);
+
+    arena.deinit();
+    assert(tracked.clean);
+
+    Arena failing = Arena.create(tracked.allocator, 128);
+    tracked.failAfter(0);
+    String failedCopy = "unchanged-copy";
+    String failedConcat = "unchanged-concat";
+    String failedReplace = "unchanged-replace";
+    String failedJoin = "unchanged-join";
+    String failedEscape = "unchanged-escape";
+    assert(!"copy".tryCopy(&failing, &failedCopy));
+    assert(!"a".tryConcat("b", &failing, &failedConcat));
+    assert(!"a".tryReplace("a", "b", &failing, &failedReplace));
+    assert(!parts[].tryJoin("/", &failing, &failedJoin));
+    assert(!"\n".tryEscape(&failing, &failedEscape));
+    assert(failedCopy == "unchanged-copy");
+    assert(failedConcat == "unchanged-concat");
+    assert(failedReplace == "unchanged-replace");
+    assert(failedJoin == "unchanged-join");
+    assert(failedEscape == "unchanged-escape");
+    assert(failing.stats.usedBytes == 0);
+    assert(tracked.clean);
+    tracked.allowAllocations();
+    failing.deinit();
 }
 
 private void testOptionResultComposition(InstrumentedAllocator* tracked)
@@ -524,6 +597,7 @@ extern (C) int main()
     testReleasedStorage(&tracked);
     testConstructionFailure(&tracked);
     testOwnedStringTransforms(&tracked);
+    testArenaStringTransforms(&tracked);
     testOptionResultComposition(&tracked);
     testOwnedContainers(&tracked);
     testOwnedArrayIntegration(&tracked);
