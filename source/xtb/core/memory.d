@@ -2,10 +2,9 @@ module xtb.core.memory;
 
 nothrow @nogc:
 
-import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, forward;
 import core.stdc.string : memset;
-import xtb.core.lifetime : deinit, needsDeinit;
+import xtb.core.lifetime : deinit, hasDDestructor, needsDeinit;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -298,7 +297,7 @@ void dispose(T)(Allocator* allocator, T* pointer)
         return;
     static if (needsDeinit!T)
         deinit(*pointer);
-    else static if (hasElaborateDestructor!T)
+    else static if (hasDDestructor!T)
         destroy(*pointer);
     allocator.deallocate(pointer);
 }
@@ -311,7 +310,7 @@ void disposeArray(T)(Allocator* allocator, T[] values)
         foreach_reverse (ref value; values)
             deinit(value);
     }
-    else static if (hasElaborateDestructor!T)
+    else static if (hasDDestructor!T)
     {
         foreach_reverse (ref value; values)
             destroy(value);

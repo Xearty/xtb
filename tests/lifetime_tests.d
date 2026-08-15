@@ -243,6 +243,49 @@ private void testAllocationFailureDoesNotLeak() @system
     tracked.allowAllocations();
 }
 
+private void testMovementStress() @system
+{
+    AllocationRecord[8] records;
+    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+    Allocator* allocator = tracked.allocator();
+
+    foreach (iteration; 0 .. 4_096)
+    {
+        AllocationOwner first = AllocationOwner.create(
+            allocator,
+            17 + iteration % 13,
+        );
+        AllocationOwner second = AllocationOwner.create(
+            allocator,
+            31 + iteration % 11,
+        );
+        AllocationOwner third = AllocationOwner.create(
+            allocator,
+            47 + iteration % 7,
+        );
+
+        AllocationOwner moved = move(first);
+        assert(first.storage.ptr is null);
+        moveAssign(second, moved);
+        assert(second.storage.ptr is null);
+
+        AllocationOwner taken = move(moved);
+        assert(moved.storage.ptr is null);
+        moveAssign(third, taken);
+        assert(third.storage.ptr is null);
+
+        deinit(first);
+        deinit(second);
+        deinit(moved);
+        deinit(third);
+        deinit(taken);
+        assertAllocatorClean(tracked);
+    }
+}
+
 private void testRepeatedCleanup() @system
 {
     AllocationRecord[8] records;
@@ -275,6 +318,7 @@ extern (C) int main()
     testMoveReplacementCleanup();
     testAllocatorDisposalCleanup();
     testAllocationFailureDoesNotLeak();
+    testMovementStress();
     testRepeatedCleanup();
     return 0;
 }

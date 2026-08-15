@@ -483,6 +483,27 @@ private void deinitTaggedPayload(T, size_t payloadIndex)(ref T value)
     assert(false, "invalid tagged union discriminator");
 }
 
+/// True when `T` has D destructor semantics.
+///
+/// `core.internal.traits.hasElaborateDestructor` can miss destructor hooks for
+/// some structs (notably semantic obligation types such as `Thread`). Include
+/// the compiler-visible destructor hooks directly and recurse through static
+/// arrays so lifetime-sensitive generic code never treats such a value as
+/// plain POD.
+template hasDDestructor(T)
+{
+    alias U = Unqual!T;
+
+    static if (is(U == struct))
+        enum hasDDestructor = hasElaborateDestructor!U ||
+            __traits(hasMember, U, "__dtor") ||
+            __traits(hasMember, U, "__xdtor");
+    else static if (is(U == Element[Length], Element, size_t Length))
+        enum hasDDestructor = Length != 0 && hasDDestructor!Element;
+    else
+        enum hasDDestructor = false;
+}
+
 private template NeedsDeinitImpl(T)
 {
     alias U = Unqual!T;
@@ -502,7 +523,7 @@ private template NeedsDeinitImpl(T)
         // structurally reinterpret an aggregate whose D destruction semantics
         // are still elaborate. Once ordinary owner destructors are removed,
         // their containing aggregates naturally become structurally eligible.
-        static if (hasElaborateDestructor!U)
+        static if (hasDDestructor!U)
             enum NeedsDeinitImpl = false;
         else
         {
@@ -585,7 +606,7 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
             "structural deinit does not accept cleanup context arguments",
         );
         static assert(
-            !hasElaborateDestructor!U,
+            !hasDDestructor!U,
             U.stringof ~
                 " still has D destructor semantics and cannot use structural deinit",
         );
@@ -646,8 +667,8 @@ void moveEmplace(T)(ref T source, ref T target) @system
     // duplicated representation would still carry the same cleanup obligation.
     // Reconstruct those sources to `.init` so every successful XTB move leaves
     // a live, safely deinitializable moved-from value.
-    static if (needsDeinit!T && !hasElaborateDestructor!T &&
-        !hasElaborateCopyConstructor!T)
+    static if ((needsDeinit!T || hasDDestructor!T) &&
+        !hasElaborateDestructor!T && !hasElaborateCopyConstructor!T)
         emplaceInitializer(source);
 }
 
@@ -658,7 +679,7 @@ void moveEmplace(T)(ref T source, ref T target) @system
 /// such as a live Thread, cannot accidentally acquire generic replacement
 /// semantics merely because their representation is structurally simple.
 void moveAssign(T)(ref T source, ref T target) @system
-        if (is(T == Unqual!T) && needsDeinit!T && !hasElaborateDestructor!T)
+        if (is(T == Unqual!T) && needsDeinit!T && !hasDDestructor!T)
 {
     if (&source == &target)
         return;
@@ -993,6 +1014,9 @@ unittest
         DestructorOnly value;
     }
 
+    static assert(hasDDestructor!DestructorOnly);
+    static assert(hasDDestructor!ContainsDestructorOnly);
+    static assert(hasDDestructor!(DestructorOnly[2]));
     static assert(!needsDeinit!DestructorOnly);
     static assert(!needsDeinit!ContainsDestructorOnly);
 }

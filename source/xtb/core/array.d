@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace;
 import core.stdc.string : memmove;
-import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryReallocateArray;
 import xtb.core.panic : panic;
 
@@ -1115,7 +1115,7 @@ private:
     }
 
 public:
-    static assert(!hasElaborateDestructor!T || needsDeinit!T,
+    static assert(!hasDDestructor!T || needsDeinit!T,
         "OwnedArray cannot own lexical destructor-only element types");
     static assert(supportsOwnedElementDeinit!T,
         "OwnedArray element cleanup must support free deinit(value) without context");

@@ -777,18 +777,14 @@ unittest
     static assert(__traits(compiles, (ref Arena value) {
             value.create!ArenaConstructed(cast(int*) null);
         }));
-    static assert(__traits(compiles, (ref Arena value) {
-            value.allocateInit!ArenaConstructed();
-        }));
+    static assert(__traits(compiles, (ref Arena value) { value.allocateInit!ArenaConstructed(); }));
     static assert(__traits(compiles, (ref Arena value) {
             value.allocateInitArray!ArenaConstructed(2);
         }));
 
     static assert(!hasElaborateDestructor!Arena);
     static assert(needsDeinit!Arena);
-    static assert(!__traits(compiles, (ref Arena left, ref Arena right) {
-            left = right;
-        }));
+    static assert(!__traits(compiles, (ref Arena left, ref Arena right) { left = right; }));
 
     int explicitDeinits;
     struct ExplicitOwner

@@ -44,6 +44,28 @@ nothrow @nogc:
     }
 }
 
+private struct CopyableDestructorValue
+{
+nothrow @nogc:
+
+    size_t* destructions;
+    bool active;
+
+    ~this()
+    {
+        if (active)
+        {
+            ++*destructions;
+            active = false;
+        }
+    }
+}
+
+static assert(__traits(isCopyable, CopyableDestructorValue));
+static assert(!__traits(isCopyable, Option!CopyableDestructorValue));
+static assert(!__traits(isCopyable, Result!(CopyableDestructorValue, int)));
+static assert(!__traits(isCopyable, Result!(int, CopyableDestructorValue)));
+
 private struct DestructorValue
 {
 nothrow @nogc:
@@ -177,9 +199,7 @@ private void testResultTransitions(Allocator* allocator)
 
     static assert(needsDeinit!(Result!(HeapOwner, HeapOwner)));
     static assert(!__traits(compiles,
-            (ref Result!(HeapOwner, HeapOwner) value) {
-            Result!(HeapOwner, HeapOwner) copy = value;
-        }));
+            (ref Result!(HeapOwner, HeapOwner) value) { Result!(HeapOwner, HeapOwner) copy = value; }));
     static assert(!__traits(compiles,
             (Result!(HeapOwner, int) value) { return value.map!(item => item.id); }));
     static assert(!__traits(compiles,
@@ -206,6 +226,24 @@ private void testDisabledDefaultPayload()
 
 private void testDestructorPayloads()
 {
+    size_t copyableOptionDestructions;
+    CopyableDestructorValue copyableOptionValue =
+        CopyableDestructorValue(&copyableOptionDestructions, true);
+    Option!CopyableDestructorValue copyableOption = some(
+        move(copyableOptionValue),
+    );
+    deinit(copyableOption);
+    assert(copyableOptionDestructions == 1);
+
+    size_t copyableResultDestructions;
+    CopyableDestructorValue copyableResultValue =
+        CopyableDestructorValue(&copyableResultDestructions, true);
+    auto copyableResult = Result!(CopyableDestructorValue, int).ok(
+        move(copyableResultValue),
+    );
+    deinit(copyableResult);
+    assert(copyableResultDestructions == 1);
+
     static assert(!hasElaborateDestructor!(Option!DestructorValue));
     static assert(!hasElaborateDestructor!(
             Result!(DestructorValue, DestructorValue)));

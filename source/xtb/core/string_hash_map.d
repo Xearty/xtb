@@ -2,8 +2,7 @@ module xtb.core.string_hash_map;
 
 nothrow @nogc:
 
-import core.internal.traits : hasElaborateDestructor;
-import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
 import xtb.core.hash : HashSeed, hashValue;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
@@ -85,7 +84,7 @@ private struct OwnedStringHashMapValueOps(T)
 {
 nothrow @nogc:
 
-    static assert(!hasElaborateDestructor!T || needsDeinit!T,
+    static assert(!hasDDestructor!T || needsDeinit!T,
         "OwnedStringHashMap cannot own lexical destructor-only values");
     static assert(supportsOwnedStringHashValueDeinit!T,
         "OwnedStringHashMap value cleanup must support deinit(value) without context");
@@ -100,7 +99,7 @@ nothrow @nogc:
 private template isSimpleStringHashValue(T)
 {
     enum isSimpleStringHashValue = __traits(isCopyable, T) &&
-        !needsDeinit!T && !hasElaborateDestructor!T;
+        !needsDeinit!T && !hasDDestructor!T;
 }
 
 private template OwnedStringMapStorage(V, ValueOps)

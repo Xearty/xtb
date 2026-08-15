@@ -2,8 +2,7 @@ module xtb.serde.traits;
 
 nothrow @nogc:
 
-import core.internal.traits : hasElaborateDestructor;
-import xtb.core.lifetime : deinitValue = deinit, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, moveEmplace, needsDeinit;
 import xtb.core.array;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
@@ -876,7 +875,7 @@ private bool ownedValue(T)() pure @safe
     else static if (isShallowArray!U)
         return ownedValue!(ArrayElement!U) &&
             !needsDeinit!(ArrayElement!U) &&
-            !hasElaborateDestructor!(ArrayElement!U);
+            !hasDDestructor!(ArrayElement!U);
     else static if (isOwnedHashMap!U)
         return isOwnedSerdeHashMapKey!(HashMapKey!U) &&
             ownedValue!(HashMapValue!U);
@@ -885,7 +884,7 @@ private bool ownedValue(T)() pure @safe
     else static if (isStringHashMap!U)
         return ownedValue!(StringHashMapValue!U) &&
             !needsDeinit!(StringHashMapValue!U) &&
-            !hasElaborateDestructor!(StringHashMapValue!U);
+            !hasDDestructor!(StringHashMapValue!U);
     else static if (isFixedArray!U)
         return ownedValue!(typeof(U.init[0]));
     else static if (isTaggedUnion!U)
@@ -990,7 +989,7 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
         static if (needsDeinit!U)
         {
             deinitValue(*value);
-            static if (hasElaborateDestructor!U)
+            static if (hasDDestructor!U)
             {
                 U empty;
                 moveEmplace(empty, *value);
@@ -1023,7 +1022,7 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
         }
         else
             deinitValue(*value);
-        static if (hasElaborateDestructor!U)
+        static if (hasDDestructor!U)
         {
             U empty;
             moveEmplace(empty, *value);
@@ -1136,7 +1135,7 @@ private void validateFieldSchema(T, size_t index)()
     static assert(fieldAdapterCount!(T, index) <= 1,
         "a serde field may have at most one @withSerde");
     static assert(fieldDefaultValueCount!(T, index) == 0 ||
-            !hasElaborateDestructor!(
+            !hasDDestructor!(
                 Unqualified!F),
         "@defaultValue currently requires a field without an elaborate destructor");
     static assert(fieldDefaultValueCount!(T, index) == 0 || !flattened,

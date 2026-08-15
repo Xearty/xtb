@@ -115,13 +115,18 @@ and are not treated as general-purpose core modules.
 
 Within core, `xtb.core.types` is a dependency-free leaf containing only the
 primitive aliases, including `String`. `xtb.core.lifetime` owns the explicit
-`deinit` protocol, `needsDeinit`, and XTB move/replacement primitives. Its
-one-argument `move` preserves normal D behavior for trivial values but
-reconstructs explicit-deinit owners to `.init`, so `move(owner)` has transfer
-semantics even when the owner is otherwise POD/copyable. `moveEmplace` uses the
-same source rule for fresh storage, while `moveAssign` first deinitializes a live
-destination. It also
-owns raw tagged-union lifetime metadata because active-member cleanup must be
+`deinit` protocol, `needsDeinit`, D-destructor classification, and XTB
+move/replacement primitives. `hasDDestructor!T` is the authoritative generic
+check for D destructor semantics: it combines druntime's elaborate-destructor
+trait with the compiler-visible destructor hook because the druntime trait can
+miss an explicit destructor on semantic-obligation structs. Its one-argument
+`move` preserves normal D behavior for trivial values but reconstructs any
+explicit-deinit owner, or destructor-bearing value missed by druntime's move
+machinery, to `.init`, so ownership/obligations remain unique after transfer.
+`moveEmplace` uses the same source rule for fresh storage, while `moveAssign`
+remains restricted to destructor-free explicit owners and first deinitializes a
+live destination. It also owns raw tagged-union lifetime metadata because
+active-member cleanup must be
 available below serde. Annotate a raw union field with
 `@taggedBy("discriminator", Tag.inactive)`; union members map to same-named enum
 members by default, and `@taggedCase(Tag.value)` overrides only irregular
@@ -1275,8 +1280,9 @@ not a third Result state and disappears from the logical API. `Result!(void, E)`
 uses the same two-state rule, with `Ok` carrying no success payload.
 
 Implicit Result copying is disabled whenever either branch has an explicit
-cleanup obligation, even when its representation is otherwise copyable. Result
-replacement consumes its source, cleans exactly the old active branch, then moves
+cleanup obligation or D destructor semantics, even when its representation is
+otherwise copyable. Result replacement consumes its source, cleans exactly the
+old active branch, then moves
 the new active branch into place. Branch changes therefore have the same explicit
 discard-versus-transfer semantics as the owning containers.
 

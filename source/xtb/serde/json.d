@@ -6,8 +6,7 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import xtb.core.lifetime : moveEmplace;
-import core.internal.traits : hasElaborateDestructor;
+import xtb.core.lifetime : hasDDestructor, moveEmplace;
 import xtb.core.array;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateInit, tryAllocateInitArray;
@@ -294,7 +293,7 @@ private bool fieldIsDefault(T, size_t index, F)(scope const ref F value)
             }
         return result;
     }
-    else static if (hasElaborateDestructor!(Unqualified!F) ||
+    else static if (hasDDestructor!(Unqualified!F) ||
         !__traits(isCopyable, Unqualified!F))
     {
         Unqualified!F defaults;

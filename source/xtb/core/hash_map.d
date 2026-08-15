@@ -2,8 +2,7 @@ module xtb.core.hash_map;
 
 nothrow @nogc:
 
-import core.internal.traits : hasElaborateDestructor;
-import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
 import core.stdc.string : memset;
 import xtb.core.hash : HashSeed, hashValue;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
@@ -102,7 +101,7 @@ private struct OwnedHashMapElementOps(T)
 {
 nothrow @nogc:
 
-    static assert(!hasElaborateDestructor!T || needsDeinit!T,
+    static assert(!hasDDestructor!T || needsDeinit!T,
         "owned hash containers cannot own lexical destructor-only element types");
     static assert(supportsOwnedHashElementDeinit!T,
         "owned hash element cleanup must support free deinit(value) without context");
@@ -117,7 +116,7 @@ nothrow @nogc:
 private template isSimpleHashValue(T)
 {
     enum isSimpleHashValue = __traits(isCopyable, T) &&
-        !needsDeinit!T && !hasElaborateDestructor!T;
+        !needsDeinit!T && !hasDDestructor!T;
 }
 
 private template IsDefaultHashPolicy(Hasher, K)
@@ -284,10 +283,10 @@ struct HashMapUnmanaged(
 nothrow @nogc:
 
     static assert(__traits(isCopyable, Hasher) &&
-            !hasElaborateDestructor!Hasher && !needsDeinit!Hasher,
+            !hasDDestructor!Hasher && !needsDeinit!Hasher,
         "HashMap hash policies must be copyable and require no cleanup");
     static assert(__traits(isCopyable, Equal) &&
-            !hasElaborateDestructor!Equal && !needsDeinit!Equal,
+            !hasDDestructor!Equal && !needsDeinit!Equal,
         "HashMap equality policies must be copyable and require no cleanup");
     static assert(__traits(compiles,
             KeyOps.destroy(cast(Allocator*) null, cast(K*) null)),
@@ -1437,8 +1436,8 @@ struct OwnedHashMap(K, V, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
 
-    static assert((!hasElaborateDestructor!K || needsDeinit!K) &&
-            (!hasElaborateDestructor!V || needsDeinit!V),
+    static assert((!hasDDestructor!K || needsDeinit!K) &&
+            (!hasDDestructor!V || needsDeinit!V),
         "OwnedHashMap cannot own lexical destructor-only key/value types");
     static assert(supportsOwnedHashElementDeinit!K &&
             supportsOwnedHashElementDeinit!V,
@@ -2468,7 +2467,7 @@ package(xtb):
 struct OwnedHashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
-    static assert(!hasElaborateDestructor!K || needsDeinit!K,
+    static assert(!hasDDestructor!K || needsDeinit!K,
         "OwnedHashSet cannot own lexical destructor-only element types");
     static assert(supportsOwnedHashElementDeinit!K,
         "OwnedHashSet element cleanup must support free deinit(value) without context");

@@ -9,7 +9,7 @@ import core.stdc.stdlib : strtod;
 import core.stdc.string : memcpy;
 import xtb.core.allocators.arena : Arena;
 import xtb.core.memory : Allocator;
-import xtb.core.lifetime : move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : hasDDestructor, move, moveEmplace, needsDeinit;
 import xtb.core.numeric : addOverflows;
 import xtb.core.option : Option;
 
@@ -842,7 +842,7 @@ nothrow @nogc:
     }
 }
 
-package(xtb.parser) struct ArenaList(T) if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+package(xtb.parser) struct ArenaList(T) if (__traits(isCopyable, T) && !hasDDestructor!T)
 {
 nothrow @nogc:
     Arena* arena;
@@ -904,7 +904,7 @@ public:
         return parserFromNode!Unit(parser_.arena_, node);
     }
 
-    static if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+    static if (__traits(isCopyable, T) && !hasDDestructor!T)
     {
         Parser!(T[]) collect() @trusted
         {
@@ -963,7 +963,7 @@ nothrow @nogc:
     }
 }
 
-private struct RepeatCollectNode(T) if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+private struct RepeatCollectNode(T) if (__traits(isCopyable, T) && !hasDDestructor!T)
 {
 nothrow @nogc:
     Parser!T parser;
@@ -1061,7 +1061,7 @@ public:
         return parserFromNode!Unit(parser_.arena_, node);
     }
 
-    static if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+    static if (__traits(isCopyable, T) && !hasDDestructor!T)
     {
         Parser!(T[]) collect() @trusted
         {
@@ -1109,7 +1109,7 @@ nothrow @nogc:
     }
 }
 
-private struct SepCollectNode(T, S) if (__traits(isCopyable, T) && !hasElaborateDestructor!T)
+private struct SepCollectNode(T, S) if (__traits(isCopyable, T) && !hasDDestructor!T)
 {
 nothrow @nogc:
     Parser!T parser;

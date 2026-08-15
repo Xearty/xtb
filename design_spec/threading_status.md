@@ -85,7 +85,11 @@ backend and an explicit unsupported backend. The public surface now includes
 `startRawAllocWith`, typed allocator-backed `startAlloc`/`startAllocWith`,
 `ThreadStartOptions`, `ThreadStartError`, `ThreadStartAllocError`, move-only
 `Thread` ownership, `ThreadId`, join/detach, thread naming, `currentThreadId`,
-`yieldThread`, `hardwareConcurrency`, and `cpuRelax`.
+`yieldThread`, `hardwareConcurrency`, and `cpuRelax`. `Thread` implements D's
+post-move hook so ordinary language/druntime moves clear the source join
+obligation; XTB's lifetime layer independently classifies its explicit
+semantic destructor even on toolchains whose elaborate-destructor trait misses
+it.
 
 The Linux backend now has two deliberate native-entry adapters. The
 allocation-free raw callback bridge preserves the portable `int function(void*)`
@@ -757,7 +761,10 @@ computation result.
 
 `JoinHandle` has no detach surface. Default, moved-from, and joined handles are
 empty; move construction and assignment transfer the thread and state
-obligation. Empty/double join, self-join, destruction while live, and assignment
+obligation. Its post-move hook clears the source result obligation, and package
+`Result` construction consumes live `Thread`/`JoinHandle` values by reference so
+no destructor-bearing by-value temporary can duplicate an obligation during
+transport. Empty/double join, self-join, destruction while live, and assignment
 over a live destination panic in every build. Spawned callables follow typed
 `Thread.start`'s module/static, `nothrow @nogc`, by-value parameter policy and
 reject borrowed `ref` returns. The aggregate threading package re-exports the

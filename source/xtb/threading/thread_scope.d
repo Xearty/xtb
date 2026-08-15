@@ -2,10 +2,10 @@ module xtb.threading.thread_scope;
 
 nothrow @nogc:
 
-import core.internal.traits : Parameters, ReturnType, Unqual, hasElaborateDestructor;
+import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
 import xtb.core.intrusive_list : ForwardListHook, IntrusiveForwardList;
-import xtb.core.lifetime : lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
+import xtb.core.lifetime : hasDDestructor, lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
@@ -170,7 +170,7 @@ private void finalizeScopedValue(T)(ref T value) @system
 {
     static if (needsDeinit!T)
         lifetimeDeinit(value);
-    else static if (hasElaborateDestructor!T)
+    else static if (hasDDestructor!T)
         destroy(value);
 }
 

@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
@@ -20,7 +20,7 @@ private template OptionValue(T)
 }
 
 private enum bool isMonadicValue(T) = !needsDeinit!T &&
-    !hasElaborateDestructor!T && !hasElaborateCopyConstructor!T;
+    !hasDDestructor!T && !hasElaborateCopyConstructor!T;
 
 /// Explicit absence token accepted by Option construction and assignment.
 struct None
@@ -82,7 +82,7 @@ nothrow @nogc:
     // A cleanup-bearing payload must never acquire implicit owner copying just
     // because its representation happens to be copyable.
     static if (!__traits(isCopyable, T) || needsDeinit!T ||
-        hasElaborateCopyConstructor!T)
+        hasDDestructor!T || hasElaborateCopyConstructor!T)
         @disable this(this);
 
     /// Explicitly constructs an absent Option from `none()`.
@@ -177,7 +177,7 @@ nothrow @nogc:
 
         static if (needsDeinit!T)
             deinitValue(payload());
-        else static if (hasElaborateDestructor!T)
+        else static if (hasDDestructor!T)
             destroy(payload());
         present_ = false;
     }
@@ -443,6 +443,6 @@ unittest
     assert(captured.value == 12);
 
     static assert(!__traits(compiles, (Option!TrackedOptionValue value) {
-        return value.map!(item => item);
-    }));
+            return value.map!(item => item);
+        }));
 }

@@ -56,7 +56,7 @@ private void testThreadContextReleasesArenas()
     assert(tracked.clean);
 }
 
-extern(C) int main()
+extern (C) int main()
 {
     static foreach (testFunction; __traits(getUnitTests, xtb.core.allocators.arena))
         testFunction();

@@ -2,8 +2,7 @@ module xtb.core.released_storage;
 
 nothrow @nogc:
 
-import core.internal.traits : hasElaborateDestructor;
-import xtb.core.lifetime : move, moveEmplace;
+import xtb.core.lifetime : hasDDestructor, move, moveEmplace;
 import xtb.core.memory : Allocator;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -61,7 +60,7 @@ private:
 public:
     static assert(!__traits(isCopyable, Storage),
         "ReleasedStorage requires non-copyable unmanaged storage");
-    static assert(!hasElaborateDestructor!Storage,
+    static assert(!hasDDestructor!Storage,
         "ReleasedStorage storage must not have an elaborate destructor");
     static if (__traits(hasMember, Storage, "deinit"))
     {

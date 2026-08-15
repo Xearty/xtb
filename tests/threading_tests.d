@@ -3,7 +3,10 @@ module tests.threading_tests;
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move;
 import core.stdc.stdlib : free, malloc;
-import xtb.core.lifetime : lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
+import xtb.core.lifetime : hasDDestructor,
+    lifetimeDeinit = deinit,
+    lifetimeMove = move,
+    needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
@@ -83,6 +86,24 @@ static assert(hasElaborateDestructor!(LockGuard!Mutex));
 static assert(hasElaborateDestructor!(ReadLockGuard!RwLock));
 static assert(hasElaborateDestructor!(WriteLockGuard!RwLock));
 static assert(hasElaborateDestructor!ThreadScope);
+
+// The druntime elaborate-destructor trait can miss Thread's explicit semantic
+// destructor. Lifetime-sensitive generic code must use XTB's corrected trait
+// so Thread/JoinHandle are never mistaken for plain movable POD.
+version (linux)
+{
+    struct ThreadEnvelope
+    {
+        Thread thread;
+    }
+
+    static assert(hasDDestructor!Thread);
+    static assert(hasDDestructor!(Thread[2]));
+    static assert(hasDDestructor!ThreadEnvelope);
+    static assert(hasDDestructor!(JoinHandle!int));
+    static assert(!needsDeinit!Thread);
+    static assert(!needsDeinit!(JoinHandle!int));
+}
 
 version (Posix) private struct IncrementContext
 {
@@ -1304,14 +1325,13 @@ version (linux) private bool explicitTypedOwnerLifecycleWorks() nothrow @nogc
         invalidStack.allocator,
         lifetimeMove(nativeFailure),
     );
-    return nativeFailed.isErr &&
-        nativeFailed.unwrapError()
-            .kind ==
-            ThreadStartAllocErrorKind.threadStartFailed &&
-            nativeFailed.unwrapError()
-            .threadStartError.kind ==
-            ThreadStartErrorKind.invalidConfiguration &&
-            nativeFailureDeinits.load() == 1;
+    if (!nativeFailed.isErr)
+        return false;
+    const nativeError = nativeFailed.error();
+    return nativeError.kind == ThreadStartAllocErrorKind.threadStartFailed &&
+        nativeError.threadStartError.kind ==
+        ThreadStartErrorKind.invalidConfiguration &&
+        nativeFailureDeinits.load() == 1;
 }
 
 version (linux) private bool allocatedTypedConversionRunsOnParent() nothrow @nogc
@@ -1703,12 +1723,13 @@ version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
         invalidStack.allocator,
         lifetimeMove(nativeCapture),
     );
-    if (!nativeFailed.isErr ||
-        nativeFailed.unwrapError().kind != SpawnErrorKind.threadStartFailed ||
-        nativeFailed.unwrapError()
-            .threadStartError.kind !=
-            ThreadStartErrorKind.invalidConfiguration ||
-            nativeFailureDeinits.load() != 1)
+    if (!nativeFailed.isErr)
+        return false;
+    const nativeError = nativeFailed.error();
+    if (nativeError.kind != SpawnErrorKind.threadStartFailed ||
+        nativeError.threadStartError.kind !=
+        ThreadStartErrorKind.invalidConfiguration ||
+        nativeFailureDeinits.load() != 1)
         return false;
 
     Atomic!uint captureDeinits;
@@ -2216,10 +2237,13 @@ version (linux) private void explicitThreadScopeNativeFailureBody(
         &context.observed,
     );
     if (started.isErr)
+    {
+        const error = started.error();
         context.sawExpectedFailure =
-            started.unwrapError().kind == SpawnErrorKind.threadStartFailed &&
-            started.unwrapError().threadStartError.kind ==
+            error.kind == SpawnErrorKind.threadStartFailed &&
+            error.threadStartError.kind ==
             ThreadStartErrorKind.invalidConfiguration;
+    }
 }
 
 version (linux) private bool explicitThreadScopeOwnerLifecycleWorks()

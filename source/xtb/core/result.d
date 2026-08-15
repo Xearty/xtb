@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
@@ -23,7 +23,8 @@ private template isCopyableResultValue(T)
         enum bool isCopyableResultValue = true;
     else
         enum bool isCopyableResultValue = __traits(isCopyable, T) &&
-            !needsDeinit!T && !hasElaborateCopyConstructor!T;
+            !needsDeinit!T && !hasDDestructor!T &&
+            !hasElaborateCopyConstructor!T;
 }
 
 private template isMonadicValue(T)
@@ -32,7 +33,7 @@ private template isMonadicValue(T)
         enum bool isMonadicValue = true;
     else
         enum bool isMonadicValue = !needsDeinit!T &&
-            !hasElaborateDestructor!T && !hasElaborateCopyConstructor!T;
+            !hasDDestructor!T && !hasElaborateCopyConstructor!T;
 }
 
 private enum bool isResultType(T) = is(T == Result!(Value, Error), Value, Error);
@@ -125,7 +126,8 @@ nothrow @nogc:
         {
             Result result = void;
             result.state_ = ResultState.ok;
-            version (XTB_Checked) result.consumed_ = false;
+            version (XTB_Checked)
+                result.consumed_ = false;
             return result;
         }
     }
@@ -136,7 +138,22 @@ nothrow @nogc:
             Result result = void;
             moveEmplace(value, result.valuePayload());
             result.state_ = ResultState.ok;
-            version (XTB_Checked) result.consumed_ = false;
+            version (XTB_Checked)
+                result.consumed_ = false;
+            return result;
+        }
+
+        /// Constructs an ok Result by consuming an existing live payload.
+        ///
+        /// Package code uses this for semantic owners whose D destructor
+        /// enforces an unresolved obligation, avoiding a by-value temporary.
+        package(xtb) static Result okMove(ref T value)
+        {
+            Result result = void;
+            moveEmplace(value, result.valuePayload());
+            result.state_ = ResultState.ok;
+            version (XTB_Checked)
+                result.consumed_ = false;
             return result;
         }
     }
@@ -146,7 +163,8 @@ nothrow @nogc:
         Result result = void;
         moveEmplace(error, result.errorPayload());
         result.state_ = ResultState.err;
-        version (XTB_Checked) result.consumed_ = false;
+        version (XTB_Checked)
+            result.consumed_ = false;
         return result;
     }
 
@@ -185,7 +203,7 @@ nothrow @nogc:
             {
                 static if (needsDeinit!T)
                     deinitValue(valuePayload());
-                else static if (hasElaborateDestructor!T)
+                else static if (hasDDestructor!T)
                     destroy(valuePayload());
             }
         }
@@ -193,7 +211,7 @@ nothrow @nogc:
         {
             static if (needsDeinit!E)
                 deinitValue(errorPayload());
-            else static if (hasElaborateDestructor!E)
+            else static if (hasDDestructor!E)
                 destroy(errorPayload());
         }
     }
@@ -221,7 +239,8 @@ nothrow @nogc:
             }
             T result = void;
             moveEmplace(valuePayload(), result);
-            version (XTB_Checked) consumed_ = true;
+            version (XTB_Checked)
+                consumed_ = true;
             return result;
         }
 
@@ -305,7 +324,8 @@ nothrow @nogc:
         }
         E result = void;
         moveEmplace(errorPayload(), result);
-        version (XTB_Checked) consumed_ = true;
+        version (XTB_Checked)
+            consumed_ = true;
         return result;
     }
 
@@ -605,7 +625,8 @@ unittest
     assert(captured && captured.value == 23);
 
     auto recovered = resultTestSource(true).orElse!(error =>
-            Result!(int, int).ok(error == ResultTestError.first ? 99 : 0));
+            Result!(int, int)
+                .ok(error == ResultTestError.first ? 99 : 0));
     static assert(is(typeof(recovered) == Result!(int, int)));
     assert(recovered && recovered.value == 99);
 }

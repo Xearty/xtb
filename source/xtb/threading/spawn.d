@@ -3,9 +3,9 @@ module xtb.threading.spawn;
 nothrow @nogc:
 
 import core.attribute : mustuse;
-import core.internal.traits : Parameters, ReturnType, Unqual, hasElaborateDestructor;
+import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
-import xtb.core.lifetime : lifetimeDeinit = deinit,
+import xtb.core.lifetime : hasDDestructor, lifetimeDeinit = deinit,
     lifetimeMove = move,
     lifetimeMoveEmplace = moveEmplace,
     needsDeinit;
@@ -187,7 +187,7 @@ private void finalizeSpawnValue(T)(ref T value) @system
 {
     static if (needsDeinit!T)
         lifetimeDeinit(value);
-    else static if (hasElaborateDestructor!T)
+    else static if (hasDDestructor!T)
         destroy(value);
 }
 
@@ -269,9 +269,9 @@ nothrow @nogc:
     private Thread thread_;
     private SpawnStateBase!T* state_;
 
-    private this(Thread thread, SpawnStateBase!T* state) @trusted
+    private this(ref Thread thread, SpawnStateBase!T* state) @trusted
     {
-        thread_ = move(thread);
+        thread_ = lifetimeMove(thread);
         state_ = state;
     }
 
@@ -281,13 +281,20 @@ nothrow @nogc:
             panic("destroyed a joinable JoinHandle without join");
     }
 
+    /// Clears the source after a language/druntime move so the join/result
+    /// obligation has exactly one owner.
+    void opPostMove(ref JoinHandle source) pure @safe
+    {
+        source.state_ = null;
+    }
+
     /// Move-assigns a computation obligation into an empty destination.
     ref JoinHandle opAssign(JoinHandle source) return @trusted
     {
         if (state_ !is null)
             panic("cannot move-assign over a joinable JoinHandle");
 
-        thread_ = move(source.thread_);
+        thread_ = lifetimeMove(source.thread_);
         state_ = source.state_;
         source.state_ = null;
         return this;
@@ -445,10 +452,10 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
 
     Thread thread = started.unwrap();
     JoinHandle!WorkerReturn handle = JoinHandle!WorkerReturn(
-        move(thread),
+        thread,
         &state.base,
     );
-    return ok(move(handle));
+    return Result!(JoinHandle!WorkerReturn, SpawnError).okMove(handle);
 }
 
 static assert(!__traits(isCopyable, JoinHandle!int));

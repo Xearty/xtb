@@ -3,9 +3,9 @@ module xtb.threading.thread;
 nothrow @nogc:
 
 import core.attribute : mustuse;
-import core.internal.traits : Parameters, ReturnType, Unqual, hasElaborateDestructor;
+import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
-import xtb.core.lifetime : lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
+import xtb.core.lifetime : hasDDestructor, lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
@@ -250,7 +250,7 @@ private void finalizeTypedValue(T)(ref T value) @system
 {
     static if (needsDeinit!T)
         lifetimeDeinit(value);
-    else static if (hasElaborateDestructor!T)
+    else static if (hasDDestructor!T)
         destroy(value);
 }
 
@@ -426,6 +426,13 @@ nothrow @nogc:
             panic("destroyed a joinable Thread without join or detach");
     }
 
+    /// Clears the source after a language/druntime move so the join
+    /// obligation has exactly one owner.
+    void opPostMove(ref Thread source) pure @safe
+    {
+        source.clear();
+    }
+
     /// Move-assigns a thread obligation into an empty destination.
     ref Thread opAssign(Thread source) return @trusted
     {
@@ -478,7 +485,7 @@ nothrow @nogc:
             );
 
         Thread thread = fromNativeStart(started);
-        return ok(move(thread));
+        return Result!(Thread, ThreadStartError).okMove(thread);
     }
 
     /// Starts a typed worker without allocating startup storage.
@@ -559,8 +566,7 @@ nothrow @nogc:
             }
 
             state.captured.wait();
-            Thread thread = started.unwrap();
-            return ok(move(thread));
+            return lifetimeMove(started);
         }
     }
 
@@ -632,7 +638,7 @@ nothrow @nogc:
         }
 
         Thread thread = fromNativeStart(started);
-        return ok(move(thread));
+        return Result!(Thread, ThreadStartAllocError).okMove(thread);
     }
 
     /// Starts a typed worker from allocator-backed stable capture storage.
@@ -725,7 +731,7 @@ nothrow @nogc:
         }
 
         Thread thread = fromNativeStart(started);
-        return ok(move(thread));
+        return Result!(Thread, ThreadStartAllocError).okMove(thread);
     }
 
     /// Whether this handle still owns a join/detach obligation.
@@ -815,7 +821,7 @@ package(xtb.threading) Result!(Thread, ThreadStartError) startStableThread(
         );
 
     Thread thread = Thread.fromNativeStart(started);
-    return ok(move(thread));
+    return Result!(Thread, ThreadStartError).okMove(thread);
 }
 
 /// Returns the calling thread's opaque identity, or `.init` on an unsupported
