@@ -716,8 +716,26 @@ Use these representations consistently:
 Prefer a useful zero state, and require XTB moves to leave the source safely
 deinitializable. `deinit` should tolerate the zero state; code must not assume
 the value remains generally usable after its owning lifetime has ended unless
-the API explicitly documents reuse. Do not rely on postblits, hidden heap
-allocation, array concatenation/appending,
+the API explicitly documents reuse.
+
+As a rule of thumb, when an explicit-lifetime local is intentionally kept alive
+until the end of the current lexical scope, register its cleanup immediately
+after the declaration or successful acquisition:
+
+```d
+OwnedString value = input.copy(allocator);
+scope (exit) value.deinit();
+```
+
+Keep the guard next to the resource it protects so acquisition and cleanup are
+reviewed together. For a one-statement cleanup, keep the `scope (exit)` body on
+the same line. Do not add such a guard when ownership is deliberately moved,
+released, or otherwise ended earlier in the scope; the cleanup obligation moves
+with the owner or is performed at that earlier lifetime boundary. Likewise, do
+not add a parallel `scope (exit)` around genuine RAII guards such as
+`ScratchScope`, whose destructor already defines the scope-exit action.
+
+Do not rely on postblits, hidden heap allocation, array concatenation/appending,
 closures that allocate, or Phobos templates without confirming their BetterC
 link behavior.
 

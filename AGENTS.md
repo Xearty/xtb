@@ -37,7 +37,13 @@ Before changing public APIs, inspect their existing call sites.
 - Model fallible operations with explicit result/status values. Do not encode
   expected failures as assertions.
 - Give every owning struct explicit `create`/`deinit` behavior, make zero state
-  valid when practical, and document whether copying is allowed.
+  valid when practical, and document whether copying is allowed. When an
+  explicit-lifetime local is intentionally kept until the end of the current
+  lexical scope, put its `scope (exit)` cleanup immediately after the
+  declaration/acquisition it protects. Keep a one-statement cleanup on the same
+  line, for example `scope (exit) value.deinit();`. Do not add such a guard when
+  ownership is moved/released or otherwise ended earlier, and do not duplicate
+  cleanup already owned by a genuine RAII guard.
 - Do not declare a member named `init`; preserve D's built-in `Type.init`
   property. Use `create`, `withCapacity`, `fromX`, or `acquire` according to
   whether the operation constructs, preallocates, converts, or acquires a
