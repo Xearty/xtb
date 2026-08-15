@@ -930,16 +930,6 @@ public:
         return true;
     }
 
-    /// Compatibility spelling for `tryReplaceInPlace`.
-    bool tryReplace(
-        Allocator* allocator,
-        String from,
-        String to,
-    )
-    {
-        return tryReplaceInPlace(allocator, from, to);
-    }
-
     void replaceInPlace(
         Allocator* allocator,
         String from,
@@ -1331,12 +1321,6 @@ public:
     bool tryReplaceInPlace(String from, String to) @trusted
     {
         return storage_.tryReplaceInPlace(allocator_, from, to);
-    }
-
-    /// Compatibility spelling for `tryReplaceInPlace`.
-    bool tryReplace(String from, String to) @trusted
-    {
-        return tryReplaceInPlace(from, to);
     }
 
     void replaceInPlace(String from, String to) @trusted
@@ -1861,13 +1845,12 @@ unittest
             StringBuf.Released released;
             ref StringBufUnmanaged storage = released.storage;
         }));
-    static assert(!__traits(compiles, (scope StringBuf* value) {
-            value.tryEscape("x");
-        }));
+    static assert(!__traits(compiles, (scope StringBuf* value) { value.tryReplace("a", "b"); }));
     static assert(!__traits(compiles, (scope StringBufUnmanaged* value,
-            Allocator* allocator) {
-            value.tryEscape(allocator, "x");
-        }));
+            Allocator* allocator) { value.tryReplace(allocator, "a", "b"); }));
+    static assert(!__traits(compiles, (scope StringBuf* value) { value.tryEscape("x"); }));
+    static assert(!__traits(compiles, (scope StringBufUnmanaged* value,
+            Allocator* allocator) { value.tryEscape(allocator, "x"); }));
 
     StringBufUnmanaged zero;
     zero.deinit(null);
@@ -1953,8 +1936,8 @@ unittest
             5,
             " beta",
     ));
-    assert(managed.tryReplace("alpha", "A"));
-    assert(unmanaged.tryReplace(
+    assert(managed.tryReplaceInPlace("alpha", "A"));
+    assert(unmanaged.tryReplaceInPlace(
             unmanagedAllocator.allocator,
             "alpha",
             "A",

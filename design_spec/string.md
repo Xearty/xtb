@@ -346,8 +346,9 @@ name. `tryReplaceInPlace` and `tryEscapeInPlace` reserve every required byte
 before changing logical contents, so allocation failure leaves the buffer
 unchanged. Replacement arguments that alias the current buffer are supported:
 aliased `from`/`to` views are snapshotted before reserve/reallocation so growth
-cannot invalidate them. The compatibility spelling `tryReplace` remains but new
-code should prefer `tryReplaceInPlace`.
+cannot invalidate them. There is no `tryReplace` alias: the `InPlace` suffix
+is part of the public mutation contract and keeps this operation distinct from
+immutable `replace`.
 
 `escapeInPlace` escapes the buffer's current contents. It is different from
 `appendEscaped(value)`, which appends an escaped representation of another
@@ -363,6 +364,56 @@ UTF-8.
 
 `StringBuf.fromBytesUnchecked` and its fallible counterpart remain `@system`
 for audited, already validated bytes. They are not binary constructors.
+
+### Consuming `StringBuf` into `OwnedString`
+
+Free UFCS helpers provide the consuming mutable-to-immutable boundary without
+introducing a `xtb.core.string` -> `xtb.core.owned_string` import cycle:
+
+```d
+OwnedString intoOwnedString(scope ref StringBuf source);
+OwnedString intoOwnedString(scope ref StringBuf source, Allocator* destination);
+bool tryIntoOwnedString(
+    scope ref StringBuf source,
+    OwnedString* output,
+);
+bool tryIntoOwnedString(
+    scope ref StringBuf source,
+    Allocator* destination,
+    OwnedString* output,
+);
+```
+
+The intended spelling is member-like through UFCS:
+
+```d
+StringBuf buffer = StringBuf.withCapacity(heap, 64);
+buffer.append("hello");
+
+OwnedString frozen = buffer.intoOwnedString();
+scope (exit) frozen.deinit();
+```
+
+`intoOwnedString()` is explicitly consuming. On success the source buffer is
+inert and ownership belongs only to the returned `OwnedString`. With no
+destination argument, the source buffer's allocator is retained. If the
+buffer already has exact-sized storage, or can shrink to exact size, the
+allocation may be adopted without copying.
+
+Passing an explicit destination allocator performs a cross-allocator promotion
+when necessary:
+
+```d
+OwnedString frozen = buffer.intoOwnedString(longLivedAllocator);
+scope (exit) frozen.deinit();
+```
+
+The `try` forms are transactional: allocation failure leaves the `StringBuf`
+unchanged and leaves the required-empty `OwnedString` output unchanged.
+
+The older factory spelling `OwnedString.fromStringBuf(...)` is intentionally
+not retained. A `from...` factory looks like a copy, while `intoOwnedString`
+makes consumption visible at the call site.
 
 `StringBuf` does not maintain a terminator after every mutation. `tryCString`
 reserves one extra byte when necessary, writes a trailing NUL outside

@@ -12,7 +12,8 @@ import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
 import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged, concat, copy,
-    escape, join, replace, tryConcat, tryCopy, tryEscape, tryJoin, tryReplace;
+    escape, intoOwnedString, join, replace, tryConcat, tryCopy, tryEscape,
+    tryIntoOwnedString, tryJoin, tryReplace;
 import xtb.core.result : Result;
 import xtb.core.string : StringBuf, StringBufUnmanaged;
 import xtb.core.string_hash_map : OwnedStringHashMap;
@@ -38,6 +39,21 @@ static assert(!__traits(compiles,
         (ref StringBuf left, ref StringBuf right) { left = move(right); }));
 static assert(!__traits(compiles,
         (ref OwnedString left, ref OwnedString right) { left = move(right); }));
+static assert(!__traits(compiles,
+        (ref StringBuf value) { value.tryReplace("a", "b"); }));
+static assert(!__traits(compiles,
+        (ref StringBufUnmanaged value, Allocator* allocator) {
+            value.tryReplace(allocator, "a", "b");
+        }));
+static assert(!__traits(compiles,
+        (Allocator* allocator, ref StringBuf value) {
+            auto result = OwnedString.fromStringBuf(allocator, &value);
+        }));
+static assert(__traits(compiles,
+        (ref StringBuf value) {
+            OwnedString result = value.intoOwnedString();
+            deinit(result);
+        }));
 static assert(!__traits(compiles,
         (ref StringBufUnmanaged left, ref StringBufUnmanaged right) { left = move(right); }));
 static assert(!__traits(compiles,
@@ -481,6 +497,64 @@ private void testArenaStringTransforms(InstrumentedAllocator* tracked)
     failing.deinit();
 }
 
+private void testStringBufIntoOwnedString(InstrumentedAllocator* tracked)
+{
+    {
+        StringBuf exact = StringBuf.fromString(tracked.allocator, "exact");
+        exact.shrinkToFit();
+        const(char)* original = exact.view.ptr;
+
+        OwnedString frozen = exact.intoOwnedString();
+        scope (exit) frozen.deinit();
+
+        assert(frozen.view == "exact");
+        assert(frozen.view.ptr is original);
+        assert(frozen.allocator is tracked.allocator);
+        assert(exact.allocator is null && exact.empty);
+    }
+    assert(tracked.clean);
+
+    AllocationRecord[16] foreignRecords;
+    InstrumentedAllocator foreign = InstrumentedAllocator.create(
+        mallocAllocator(),
+        foreignRecords[],
+    );
+    {
+        StringBuf source = StringBuf.fromString(foreign.allocator, "promote");
+        const(char)* original = source.view.ptr;
+
+        OwnedString promoted = source.intoOwnedString(tracked.allocator);
+        scope (exit) promoted.deinit();
+
+        assert(promoted.view == "promote");
+        assert(promoted.view.ptr !is original);
+        assert(promoted.allocator is tracked.allocator);
+        assert(source.allocator is null && source.empty);
+        assert(foreign.clean);
+    }
+    assert(tracked.clean);
+
+    AllocationRecord[8] failingRecords;
+    InstrumentedAllocator failing = InstrumentedAllocator.create(
+        mallocAllocator(),
+        failingRecords[],
+    );
+    {
+        StringBuf retained = StringBuf.fromString(tracked.allocator, "retained");
+        scope (exit) retained.deinit();
+        OwnedString output;
+        scope (exit) output.deinit();
+
+        failing.failAfter(0);
+        assert(!retained.tryIntoOwnedString(failing.allocator, &output));
+        assert(retained.view == "retained");
+        assert(retained.allocator is tracked.allocator);
+        assert(output.allocator is null && output.empty);
+        assert(failing.clean);
+    }
+    assert(tracked.clean);
+}
+
 private void testOptionResultComposition(InstrumentedAllocator* tracked)
 {
     StringBuf optionalValue = StringBuf.fromString(tracked.allocator, "option");
@@ -811,6 +885,7 @@ extern (C) int main()
     testDirectOwnedStringTransforms(&tracked);
     testStringBufInPlaceTransforms(&tracked);
     testArenaStringTransforms(&tracked);
+    testStringBufIntoOwnedString(&tracked);
     testOptionResultComposition(&tracked);
     testOwnedContainers(&tracked);
     testOwnedArrayIntegration(&tracked);

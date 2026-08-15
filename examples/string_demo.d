@@ -216,7 +216,7 @@ extern (C) int main() nothrow @nogc
     writeln("\n== mutable StringBuf ==");
 
     {
-        // builder is consumed by fromStringBuf before the end of the block, so
+        // builder is consumed by intoOwnedString before the end of the block, so
         // the final owner is frozen, not builder.
         StringBuf builder = StringBuf.withCapacity(heap, 64);
         builder.append("GET ");
@@ -229,10 +229,10 @@ extern (C) int main() nothrow @nogc
         builder.escapeInPlace();
         formatln!"mutable buffer: {}"(builder.view);
 
-        // OwnedString.fromStringBuf consumes the mutable owner and freezes it
-        // into exact-sized immutable storage. With the same allocator it can
-        // reuse the allocation when StringBuf can shrink it to the exact size.
-        OwnedString frozen = OwnedString.fromStringBuf(heap, &builder);
+        // intoOwnedString consumes the mutable owner and freezes it into
+        // exact-sized immutable storage. With no explicit allocator it reuses
+        // the StringBuf allocator and can adopt the allocation after shrinking.
+        OwnedString frozen = builder.intoOwnedString();
         scope (exit) frozen.deinit();
         formatln!"frozen buffer: {}"(frozen.view);
     }

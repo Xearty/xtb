@@ -270,71 +270,6 @@ public:
         return move(result);
     }
 
-    static bool tryFromStringBuf(
-        Allocator* destination,
-        scope StringBuf* source,
-        scope Self* output,
-    ) @trusted
-    {
-        requireValidOwnedStringAllocator(destination);
-        version (XTB_Checked)
-        {
-            require(source !is null, "StringBuf source pointer is null");
-            require(output !is null, "OwnedString output pointer is null");
-            require(output.allocator_ is null && output.storage_.empty,
-                "OwnedString output is not empty");
-        }
-
-        if (source.empty)
-        {
-            source.resetAndRelease();
-            source.deinit();
-            Self result = Self.create(destination);
-            moveEmplace(result, *output);
-            return true;
-        }
-
-        if (source.allocator is destination)
-        {
-            if (source.byteCapacity == source.byteLength ||
-                source.tryShrinkToFit())
-            {
-                auto released = source.release();
-                Allocator* releasedAllocator;
-                StringBufUnmanaged raw = released.extract(
-                    &releasedAllocator,
-                );
-                version (XTB_Checked)
-                    require(releasedAllocator is destination,
-                        "StringBuf allocator changed during release");
-                RawArrayStorage!char exact = raw.releaseExactStorage();
-                Storage storage = Storage.adoptExact(&exact);
-                Self result = adoptUnmanaged(destination, &storage);
-                moveEmplace(result, *output);
-                return true;
-            }
-        }
-
-        Self copied;
-        if (!Self.tryFromString(destination, source.view, &copied))
-            return false;
-        source.resetAndRelease();
-        source.deinit();
-        moveEmplace(copied, *output);
-        return true;
-    }
-
-    static Self fromStringBuf(
-        Allocator* destination,
-        scope StringBuf* source,
-    ) @trusted
-    {
-        Self result;
-        if (!tryFromStringBuf(destination, source, &result))
-            panic("OwnedString allocation failed");
-        return move(result);
-    }
-
     static Self adopt(scope Released* released) @trusted
     {
         version (XTB_Checked)
@@ -604,6 +539,101 @@ package(xtb):
         moveEmplace(*storage, result.storage_);
         return move(result);
     }
+}
+
+/// Consumes `source` into an immutable exact-sized owner using the buffer's
+/// current allocator. On allocation failure `source` is unchanged.
+bool tryIntoOwnedString(
+    scope ref StringBuf source,
+    scope OwnedString* output,
+) @trusted
+{
+    return tryIntoOwnedString(source, source.allocator, output);
+}
+
+/// Consumes `source` into an immutable exact-sized owner using `destination`.
+/// On allocation failure `source` is unchanged.
+bool tryIntoOwnedString(
+    scope ref StringBuf source,
+    Allocator* destination,
+    scope OwnedString* output,
+) @trusted
+{
+    return tryConsumeStringBuf(destination, &source, output);
+}
+
+/// Panicking counterpart to `tryIntoOwnedString` using the buffer's allocator.
+OwnedString intoOwnedString(scope ref StringBuf source) @trusted
+{
+    return intoOwnedString(source, source.allocator);
+}
+
+/// Panicking counterpart to `tryIntoOwnedString` using `destination`.
+OwnedString intoOwnedString(
+    scope ref StringBuf source,
+    Allocator* destination,
+) @trusted
+{
+    OwnedString result;
+    if (!tryConsumeStringBuf(destination, &source, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+private bool tryConsumeStringBuf(
+    Allocator* destination,
+    scope StringBuf* source,
+    scope OwnedString* output,
+) @trusted
+{
+    requireValidOwnedStringAllocator(destination);
+    version (XTB_Checked)
+    {
+        require(source !is null, "StringBuf source pointer is null");
+        require(output !is null, "OwnedString output pointer is null");
+        require(output.allocator_ is null && output.storage_.empty,
+            "OwnedString output is not empty");
+    }
+
+    if (source.empty)
+    {
+        source.resetAndRelease();
+        source.deinit();
+        OwnedString result = OwnedString.create(destination);
+        moveEmplace(result, *output);
+        return true;
+    }
+
+    if (source.allocator is destination)
+    {
+        if (source.byteCapacity == source.byteLength ||
+            source.tryShrinkToFit())
+        {
+            auto released = source.release();
+            Allocator* releasedAllocator;
+            StringBufUnmanaged raw = released.extract(
+                &releasedAllocator,
+            );
+            version (XTB_Checked)
+                require(releasedAllocator is destination,
+                    "StringBuf allocator changed during release");
+            RawArrayStorage!char exact = raw.releaseExactStorage();
+            OwnedStringUnmanaged storage =
+                OwnedStringUnmanaged.adoptExact(&exact);
+            OwnedString result =
+                OwnedString.adoptUnmanaged(destination, &storage);
+            moveEmplace(result, *output);
+            return true;
+        }
+    }
+
+    OwnedString copied;
+    if (!OwnedString.tryFromString(destination, source.view, &copied))
+        return false;
+    source.resetAndRelease();
+    source.deinit();
+    moveEmplace(copied, *output);
+    return true;
 }
 
 /// Copies borrowed text into exact-sized independently owned storage.
@@ -1167,10 +1197,7 @@ unittest
         exact.shrinkToFit();
         exactPointer = exact.view.ptr;
     }
-    OwnedString adopted = OwnedString.fromStringBuf(
-        mallocAllocator(),
-        &exact,
-    );
+    OwnedString adopted = exact.intoOwnedString();
     {
         import xtb.core.string : empty;
 
@@ -1200,7 +1227,7 @@ unittest
     StringBuf source = StringBuf.fromString(mallocAllocator(), "retained");
     failing.failAfter(0);
     OwnedString failed;
-    assert(!OwnedString.tryFromStringBuf(failing.allocator, &source, &failed));
+    assert(!source.tryIntoOwnedString(failing.allocator, &failed));
     {
         assert(source.view == "retained");
         source.deinit();
@@ -1248,10 +1275,7 @@ unittest
     {
         spare.append("small");
     }
-    OwnedString compact = OwnedString.fromStringBuf(
-        allocator.allocator,
-        &spare,
-    );
+    OwnedString compact = spare.intoOwnedString();
     assert(compact.view == "small");
     assert(compact.byteLength == 5);
     {
@@ -1273,10 +1297,8 @@ unittest
     {
         foreignPointer = foreignBuffer.view.ptr;
     }
-    OwnedString normalized = OwnedString.fromStringBuf(
-        allocator.allocator,
-        &foreignBuffer,
-    );
+    OwnedString normalized =
+        foreignBuffer.intoOwnedString(allocator.allocator);
     assert(normalized.view == "foreign");
     assert(normalized.view.ptr !is foreignPointer);
     {

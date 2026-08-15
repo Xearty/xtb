@@ -945,11 +945,16 @@ just like other managed containers. `OwnedString` has no D destructor; callers
 end its owning lifetime explicitly with `deinit`, while `release` transfers that
 cleanup obligation into a `ReleasedStorage` token.
 
-Conversion from `StringBuf` is transactional. A same-allocator buffer with
-exact capacity transfers its allocation directly; spare capacity is first
-shrunk when possible. A foreign-allocator buffer is copied into the destination
-allocator and released only after the copy succeeds. On recoverable failure the
-source and output remain unchanged.
+Conversion from `StringBuf` is explicitly consuming and transactional. The
+preferred spelling is `buffer.intoOwnedString()`, which keeps the buffer's
+allocator, or `buffer.intoOwnedString(destination)` for an explicit ownership
+domain. The matching `tryIntoOwnedString` forms leave both source and output
+unchanged on recoverable failure. On success the source buffer is inert. A
+same-allocator buffer with exact capacity transfers its allocation directly;
+spare capacity is first shrunk when possible. A foreign-allocator buffer is
+copied into the destination allocator and released only after the copy
+succeeds. The older `OwnedString.fromStringBuf(...)` factory spelling is not
+kept because it obscures the fact that the source is consumed.
 
 `OwnedString.view` returns a borrowed `String`. Routine immutable
 transformations do not require manually spelling that view: `concat`,
@@ -1183,10 +1188,9 @@ OwnedString makePath(
     temporary.append('/');
     temporary.append(right);
 
-    // The returned owner allocates exact storage from outputAllocator. It
-    // therefore remains valid after scratch rewinds its temporary arena.
-    OwnedString result = temporary.view().copy(outputAllocator);
-    return move(result);
+    // The conversion consumes the builder and copies exact storage into
+    // outputAllocator. The result therefore survives the scratch rewind.
+    return temporary.intoOwnedString(outputAllocator);
 }
 ```
 
