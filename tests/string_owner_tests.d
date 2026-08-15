@@ -10,10 +10,12 @@ import xtb.core.hash_map : AddStatus, OwnedHashMap, OwnedHashSet, SetStatus;
 import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
-import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
+import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged, concat, copy,
+    escape, join, replace, tryConcat, tryCopy, tryEscape, tryJoin, tryReplace;
 import xtb.core.result : Result;
 import xtb.core.string : StringBuf, StringBufUnmanaged;
 import xtb.core.string_hash_map : OwnedStringHashMap;
+import xtb.core.types : String;
 
 static assert(!hasElaborateDestructor!StringBuf);
 static assert(!hasElaborateDestructor!OwnedString);
@@ -136,6 +138,63 @@ private void testConstructionFailure(InstrumentedAllocator* tracked)
     deinit(buffer);
     deinit(text);
     assert(tracked.clean);
+}
+
+private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
+{
+    OwnedString copied = "copy".copy(tracked.allocator);
+    assert(copied.view == "copy");
+    assert(tracked.stats.outstandingBytes == copied.byteLength);
+    deinit(copied);
+    assert(tracked.clean);
+
+    OwnedString concatenated = "left".concat("right", tracked.allocator);
+    assert(concatenated.view == "leftright");
+    assert(tracked.stats.outstandingBytes == concatenated.byteLength);
+    deinit(concatenated);
+    assert(tracked.clean);
+
+    OwnedString replaced = "one two one".replace(
+        "one",
+        "1",
+        tracked.allocator,
+    );
+    assert(replaced.view == "1 two 1");
+    assert(tracked.stats.outstandingBytes == replaced.byteLength);
+    deinit(replaced);
+    assert(tracked.clean);
+
+    String[3] parts = ["a", "b", "c"];
+    OwnedString joined = parts[].join("/", tracked.allocator);
+    assert(joined.view == "a/b/c");
+    assert(tracked.stats.outstandingBytes == joined.byteLength);
+    deinit(joined);
+    assert(tracked.clean);
+
+    OwnedString escaped = "a\n\t\\b".escape(tracked.allocator);
+    assert(escaped.view == "a\\n\\t\\\\b");
+    assert(tracked.stats.outstandingBytes == escaped.byteLength);
+    deinit(escaped);
+    assert(tracked.clean);
+
+    tracked.failAfter(0);
+    OwnedString failedCopy;
+    OwnedString failedConcat;
+    OwnedString failedReplace;
+    OwnedString failedJoin;
+    OwnedString failedEscape;
+    assert(!"copy".tryCopy(tracked.allocator, &failedCopy));
+    assert(!"a".tryConcat("b", tracked.allocator, &failedConcat));
+    assert(!"a".tryReplace("a", "b", tracked.allocator, &failedReplace));
+    assert(!parts[].tryJoin("/", tracked.allocator, &failedJoin));
+    assert(!"\n".tryEscape(tracked.allocator, &failedEscape));
+    assert(failedCopy.allocator is null && failedCopy.empty);
+    assert(failedConcat.allocator is null && failedConcat.empty);
+    assert(failedReplace.allocator is null && failedReplace.empty);
+    assert(failedJoin.allocator is null && failedJoin.empty);
+    assert(failedEscape.allocator is null && failedEscape.empty);
+    assert(tracked.clean);
+    tracked.allowAllocations();
 }
 
 private void testOptionResultComposition(InstrumentedAllocator* tracked)
@@ -464,6 +523,7 @@ extern (C) int main()
     testOwnedStringMoveReplacement(&tracked);
     testReleasedStorage(&tracked);
     testConstructionFailure(&tracked);
+    testOwnedStringTransforms(&tracked);
     testOptionResultComposition(&tracked);
     testOwnedContainers(&tracked);
     testOwnedArrayIntegration(&tracked);

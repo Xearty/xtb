@@ -3236,6 +3236,8 @@ struct OnceCell(T)
     Option!(const(T)*) tryGet() const return;
 
     ref T getOrInit(alias initializer, Args...)(Args args) return;
+
+    void deinit();
 }
 ```
 
@@ -3275,7 +3277,7 @@ This synchronization only protects **initialization/publication**. Returning
 Concurrent mutation after initialization requires atomics, a mutex, immutable
 usage, or another caller-supplied synchronization protocol.
 
-The initializer and every construction/move/destruction step required by the
+The initializer and every construction/move/cleanup step required by the
 cell must satisfy `nothrow @nogc`. A panic during initialization remains
 process-fatal. Recursive `getOrInit` on the
 same cell from its winning initializer would otherwise self-deadlock; checked
@@ -3284,12 +3286,20 @@ builds should diagnose that case using the same initializing-owner strategy as
 deliberately not overloaded onto this v1 type; a future `OnceCellResult` or other
 explicit API can be designed if needed.
 
-The cell destroys `T` exactly once when an initialized cell is destroyed. The
-caller must not destroy or relocate a cell while another thread may be accessing
-it. Moving an unpublished/unobserved cell may be permitted by the concrete D
-implementation, but once the cell's address or contained reference is shared
-across threads its storage is treated as stable for the rest of that concurrent
-lifetime.
+`OnceCell` has no D destructor. An initialized cell owns its stored `T` until
+the caller explicitly invokes `deinit()`, which finalizes that payload exactly
+once according to XTB's explicit-lifetime rules. Ordinary lexical scope exit
+does nothing. Before `deinit()`, the caller must ensure no thread can still be
+initializing the cell or using a reference returned by `getOrInit`/`tryGet`;
+checked builds diagnose deinitialization while initialization is active. Treat
+`deinit()` as the end of the cell's owning lifetime rather than as a reset for
+reuse.
+
+The caller must likewise not relocate a cell while another thread may be
+accessing it. Moving an unpublished/unobserved cell may be permitted by the
+concrete D implementation, but once the cell's address or contained reference
+is shared across threads its storage is treated as stable for the rest of that
+concurrent lifetime.
 
 ## Guards
 
@@ -3661,8 +3671,8 @@ At minimum, test:
 - `Once` under high contention;
 - `OnceCell!T` exactly-once initialization under contention, acquire publication,
   `tryGet` before/after initialization, move-only stored values, and exactly-once
-  destruction;
-- destruction/relocation misuse of a concurrently published `OnceCell` where the
+  explicit payload cleanup;
+- deinitialization/relocation misuse of a concurrently published `OnceCell` where the
   contract can be diagnosed;
 - `RwLock` reader/writer exclusion and progress properties;
 - `spawn` allocation failure;

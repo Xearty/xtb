@@ -11,7 +11,8 @@ import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.released_storage : ReleasedStorage;
-import xtb.core.string : StringBuf, StringBufUnmanaged, asStringUnchecked;
+import xtb.core.string : StringBuf, StringBufUnmanaged, asStringUnchecked,
+    escapedCharacter, find, notFound;
 import xtb.core.types : String, u8;
 
 /// Immutable exact-sized UTF-8 allocation without an embedded allocator.
@@ -432,6 +433,306 @@ package(xtb):
     }
 }
 
+/// Copies a borrowed string into exact-sized immutable owned storage.
+bool tryCopy(
+    String value,
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    return OwnedString.tryFromString(allocator, value, output);
+}
+
+/// Panicking counterpart to `tryCopy`.
+OwnedString copy(String value, Allocator* allocator) @trusted
+{
+    OwnedString result;
+    if (!value.tryCopy(allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+/// Concatenates two borrowed strings into exact-sized immutable owned storage.
+bool tryConcat(
+    String left,
+    String right,
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    requireEmptyOwnedStringOutput(allocator, output);
+    if (right.length > size_t.max - left.length)
+        return false;
+    const length = left.length + right.length;
+    if (length == 0)
+    {
+        OwnedString result = OwnedString.create(allocator);
+        moveEmplace(result, *output);
+        return true;
+    }
+
+    char[] allocation = allocator.tryAllocateArray!char(length);
+    if (allocation.ptr is null)
+        return false;
+    if (left.length != 0)
+        memmove(allocation.ptr, left.ptr, left.length);
+    if (right.length != 0)
+        memmove(allocation.ptr + left.length, right.ptr, right.length);
+    adoptExactOwnedString(allocator, allocation, output);
+    return true;
+}
+
+/// Panicking counterpart to `tryConcat`.
+OwnedString concat(String left, String right, Allocator* allocator) @trusted
+{
+    OwnedString result;
+    if (!left.tryConcat(right, allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+/// Replaces every non-overlapping `from` occurrence with `to` in owned output.
+bool tryReplace(
+    String value,
+    String from,
+    String to,
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    requireEmptyOwnedStringOutput(allocator, output);
+    if (from.length == 0)
+        return value.tryCopy(allocator, output);
+
+    size_t count;
+    size_t position;
+    while (position <= value.length)
+    {
+        const found = value[position .. $].find(from);
+        if (found == notFound)
+            break;
+        ++count;
+        position += found + from.length;
+    }
+
+    size_t length = value.length;
+    if (to.length >= from.length)
+    {
+        const growth = to.length - from.length;
+        if (growth != 0 && count > (size_t.max - length) / growth)
+            return false;
+        length += count * growth;
+    }
+    else
+        length -= count * (from.length - to.length);
+
+    if (length == 0)
+    {
+        OwnedString result = OwnedString.create(allocator);
+        moveEmplace(result, *output);
+        return true;
+    }
+
+    char[] allocation = allocator.tryAllocateArray!char(length);
+    if (allocation.ptr is null)
+        return false;
+    size_t sourceOffset;
+    size_t destinationOffset;
+    while (sourceOffset < value.length)
+    {
+        const found = value[sourceOffset .. $].find(from);
+        if (found == notFound)
+        {
+            const remainder = value.length - sourceOffset;
+            if (remainder != 0)
+                memmove(
+                    allocation.ptr + destinationOffset,
+                    value.ptr + sourceOffset,
+                    remainder,
+                );
+            destinationOffset += remainder;
+            break;
+        }
+        if (found != 0)
+            memmove(
+                allocation.ptr + destinationOffset,
+                value.ptr + sourceOffset,
+                found,
+            );
+        destinationOffset += found;
+        if (to.length != 0)
+            memmove(
+                allocation.ptr + destinationOffset,
+                to.ptr,
+                to.length,
+            );
+        destinationOffset += to.length;
+        sourceOffset += found + from.length;
+    }
+    adoptExactOwnedString(allocator, allocation, output);
+    return true;
+}
+
+/// Panicking counterpart to `tryReplace`.
+OwnedString replace(
+    String value,
+    String from,
+    String to,
+    Allocator* allocator,
+) @trusted
+{
+    OwnedString result;
+    if (!value.tryReplace(from, to, allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+/// Joins borrowed strings into exact-sized immutable owned storage.
+bool tryJoin(
+    scope const(String)[] values,
+    String separator,
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    requireEmptyOwnedStringOutput(allocator, output);
+    size_t length;
+    foreach (value; values)
+    {
+        if (value.length > size_t.max - length)
+            return false;
+        length += value.length;
+    }
+    if (values.length > 1)
+    {
+        const count = values.length - 1;
+        if (separator.length != 0 &&
+            count > (size_t.max - length) / separator.length)
+            return false;
+        length += count * separator.length;
+    }
+
+    if (length == 0)
+    {
+        OwnedString result = OwnedString.create(allocator);
+        moveEmplace(result, *output);
+        return true;
+    }
+
+    char[] allocation = allocator.tryAllocateArray!char(length);
+    if (allocation.ptr is null)
+        return false;
+    size_t offset;
+    foreach (index, value; values)
+    {
+        if (index != 0 && separator.length != 0)
+        {
+            memmove(allocation.ptr + offset, separator.ptr, separator.length);
+            offset += separator.length;
+        }
+        if (value.length != 0)
+        {
+            memmove(allocation.ptr + offset, value.ptr, value.length);
+            offset += value.length;
+        }
+    }
+    adoptExactOwnedString(allocator, allocation, output);
+    return true;
+}
+
+/// Panicking counterpart to `tryJoin`.
+OwnedString join(
+    scope const(String)[] values,
+    String separator,
+    Allocator* allocator,
+) @trusted
+{
+    OwnedString result;
+    if (!tryJoin(values, separator, allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+/// Escapes conventional C-style special characters into immutable owned text.
+bool tryEscape(
+    String value,
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    requireEmptyOwnedStringOutput(allocator, output);
+    size_t escapedCount;
+    foreach (character; value)
+        if (escapedCharacter(character) != '\0')
+            ++escapedCount;
+    if (escapedCount > size_t.max - value.length)
+        return false;
+    const length = value.length + escapedCount;
+    if (length == 0)
+    {
+        OwnedString result = OwnedString.create(allocator);
+        moveEmplace(result, *output);
+        return true;
+    }
+
+    char[] allocation = allocator.tryAllocateArray!char(length);
+    if (allocation.ptr is null)
+        return false;
+    size_t offset;
+    foreach (character; value)
+    {
+        const escaped = escapedCharacter(character);
+        if (escaped != '\0')
+        {
+            allocation[offset++] = '\\';
+            allocation[offset++] = escaped;
+        }
+        else
+            allocation[offset++] = character;
+    }
+    adoptExactOwnedString(allocator, allocation, output);
+    return true;
+}
+
+/// Panicking counterpart to `tryEscape`.
+OwnedString escape(String value, Allocator* allocator) @trusted
+{
+    OwnedString result;
+    if (!value.tryEscape(allocator, &result))
+        panic("OwnedString allocation failed");
+    return move(result);
+}
+
+private void requireEmptyOwnedStringOutput(
+    Allocator* allocator,
+    scope OwnedString* output,
+) @trusted
+{
+    requireValidOwnedStringAllocator(allocator);
+    version (XTB_Checked)
+    {
+        require(output !is null, "OwnedString output pointer is null");
+        require(output.allocator_ is null && output.storage_.empty,
+            "OwnedString output is not empty");
+    }
+}
+
+private void adoptExactOwnedString(
+    Allocator* allocator,
+    char[] allocation,
+    scope OwnedString* output,
+) @system
+{
+    RawArrayStorage!char raw = RawArrayStorage!char.adopt(
+        allocation.ptr,
+        allocation.length,
+        allocation.length,
+    );
+    OwnedStringUnmanaged storage = OwnedStringUnmanaged.adoptExact(&raw);
+    OwnedString result = OwnedString.adoptUnmanaged(allocator, &storage);
+    moveEmplace(result, *output);
+}
+
 private void requireValidOwnedStringAllocator(Allocator* allocator) @trusted
 {
     version (XTB_Checked)
@@ -612,4 +913,85 @@ unittest
     assert(allocator.clean);
     assert(allocator.stats.invalidCalls == 0);
     assert(foreign.stats.invalidCalls == 0);
+}
+
+unittest
+{
+    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.core.allocators.malloc : mallocAllocator;
+
+    static assert(is(typeof("copy".copy(mallocAllocator())) == OwnedString));
+    static assert(is(typeof("a".concat("b", mallocAllocator())) == OwnedString));
+    static assert(is(typeof("a".replace("a", "b", mallocAllocator())) == OwnedString));
+    static assert(is(typeof("a".escape(mallocAllocator())) == OwnedString));
+    static assert(!is(typeof("copy".tryCopy(
+            mallocAllocator(),
+            cast(String*) null,
+            ))));
+
+    AllocationRecord[32] records;
+    InstrumentedAllocator allocator = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    OwnedString copied = "copy".copy(allocator.allocator);
+    assert(copied == "copy");
+    assert(allocator.stats.outstandingBytes == copied.byteLength);
+    copied.deinit();
+    assert(allocator.clean);
+
+    OwnedString concatenated = "left".concat("right", allocator.allocator);
+    assert(concatenated == "leftright");
+    assert(allocator.stats.outstandingBytes == concatenated.byteLength);
+    concatenated.deinit();
+    assert(allocator.clean);
+
+    OwnedString replaced = "one two one".replace(
+        "one",
+        "1",
+        allocator.allocator,
+    );
+    assert(replaced == "1 two 1");
+    assert(allocator.stats.outstandingBytes == replaced.byteLength);
+    replaced.deinit();
+    assert(allocator.clean);
+
+    String[3] parts = ["a", "b", "c"];
+    OwnedString joined = parts[].join("/", allocator.allocator);
+    assert(joined == "a/b/c");
+    assert(allocator.stats.outstandingBytes == joined.byteLength);
+    joined.deinit();
+    assert(allocator.clean);
+
+    OwnedString escaped = "a\n\t\\b".escape(allocator.allocator);
+    assert(escaped == "a\\n\\t\\\\b");
+    assert(allocator.stats.outstandingBytes == escaped.byteLength);
+    escaped.deinit();
+    assert(allocator.clean);
+
+    const allocationCalls = allocator.stats.allocationCalls;
+    OwnedString empty = "".concat("", allocator.allocator);
+    assert(empty.empty && empty.allocator is allocator.allocator);
+    assert(allocator.stats.allocationCalls == allocationCalls);
+    empty.deinit();
+
+    allocator.failAfter(0);
+    OwnedString failedCopy;
+    OwnedString failedConcat;
+    OwnedString failedReplace;
+    OwnedString failedJoin;
+    OwnedString failedEscape;
+    assert(!"copy".tryCopy(allocator.allocator, &failedCopy));
+    assert(!"a".tryConcat("b", allocator.allocator, &failedConcat));
+    assert(!"a".tryReplace("a", "b", allocator.allocator, &failedReplace));
+    assert(!parts[].tryJoin("/", allocator.allocator, &failedJoin));
+    assert(!"\n".tryEscape(allocator.allocator, &failedEscape));
+    assert(failedCopy.allocator is null && failedCopy.empty);
+    assert(failedConcat.allocator is null && failedConcat.empty);
+    assert(failedReplace.allocator is null && failedReplace.empty);
+    assert(failedJoin.allocator is null && failedJoin.empty);
+    assert(failedEscape.allocator is null && failedEscape.empty);
+    assert(allocator.clean);
+    assert(allocator.stats.invalidCalls == 0);
 }

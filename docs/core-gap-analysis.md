@@ -97,9 +97,9 @@ Future general-purpose additions are ranked separately in
 - comparison, equality, search/last-search, containment, prefix/suffix,
   head/tail/truncation, ASCII trimming, basename, and extension removal;
 - checked C-string borrowing and embedded-NUL detection;
-- allocator-owned copy, concatenation, replacement, escaping, joining, and
-  compile-time formatting;
-- fallible variants of allocator-owned transformations;
+- `OwnedString`-producing copy, concatenation, replacement, escaping, and
+  joining, plus `StringBuf`-producing compile-time formatting;
+- fallible variants of those explicit-owner transformations;
 - predicate splitting, token splitting, string/character splitting,
   whitespace splitting, and line splitting into allocator-owned
   `Array!String` results whose elements borrow the source;

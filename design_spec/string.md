@@ -1,6 +1,7 @@
 # String API design specification
 
-This specification is implemented by `xtb.core.string` and `xtb.core.utf8`.
+This specification is implemented by `xtb.core.string`,
+`xtb.core.owned_string`, and `xtb.core.utf8`.
 
 ## Representation and invariant
 
@@ -112,6 +113,62 @@ an encoding proof; malformed input violates the `String` contract.
 
 Process output, file contents, network packets, and general binary storage stay
 `u8[]` until checked conversion. Arbitrary binary ownership uses `Array!u8`.
+
+## Allocating immutable transformations
+
+`String` remains borrowed even when a transformation needs to create different
+bytes. General allocator-backed transformations therefore return
+`OwnedString`, never a plain `String` whose cleanup obligation would be hidden:
+
+```d
+bool tryCopy(String value, Allocator* allocator, OwnedString* output);
+OwnedString copy(String value, Allocator* allocator);
+
+bool tryConcat(
+    String left,
+    String right,
+    Allocator* allocator,
+    OwnedString* output,
+);
+OwnedString concat(String left, String right, Allocator* allocator);
+
+bool tryReplace(
+    String value,
+    String from,
+    String to,
+    Allocator* allocator,
+    OwnedString* output,
+);
+OwnedString replace(String value, String from, String to, Allocator* allocator);
+
+bool tryJoin(
+    scope const(String)[] values,
+    String separator,
+    Allocator* allocator,
+    OwnedString* output,
+);
+OwnedString join(
+    scope const(String)[] values,
+    String separator,
+    Allocator* allocator,
+);
+
+bool tryEscape(String value, Allocator* allocator, OwnedString* output);
+OwnedString escape(String value, Allocator* allocator);
+```
+
+The functions remain UFCS-friendly when `xtb.core.owned_string` (or the
+aggregate `xtb.core`) is imported. Successful nonempty results use exact-sized
+immutable storage with no trailing C terminator. Empty results remain valid
+managed `OwnedString` values bound to the supplied allocator without requiring
+an allocation. A fallible function requires an empty output and leaves it empty
+when allocation fails. The caller ends the successful result's owning lifetime
+with `deinit()`.
+
+Use `StringBuf` instead when the new text will be mutated, incrementally built,
+or converted to a NUL-terminated C string. Arena/scratch-specific algorithms
+may still return a borrowed `String` when another explicit object or lexical
+scope owns the backing bytes and therefore defines the view's lifetime.
 
 ## Scalar traversal
 

@@ -761,11 +761,13 @@ and mutable slices are confined to `StringBuf` internals. This consistency is
 what makes ownership and mutation obvious across the library.
 
 Operations that create different bytes--concatenation, replacement, escaping,
-case conversion, formatting, and joining--must either receive an explicit
-allocator and return a `String` into storage owned by that allocator, or
-write into/return a `StringBuf`. They must never make `String` itself
-appear to own the allocation. The caller chooses the form based on whether
-allocator-scoped lifetime or individually managed ownership is required.
+case conversion, formatting, and joining--must make the new ownership visible.
+Exact immutable results use `OwnedString`; mutable/reusable results use
+`StringBuf`. An arena- or scratch-specific API may return a borrowed `String`
+only when another explicit object or lexical context owns the backing bytes.
+A generic allocator-taking helper must not allocate and return only a plain
+`String`, because the view cannot carry the cleanup obligation or allocation
+extent.
 
 String literals and immutable static storage can be viewed for the entire
 program. A `String` made from a `StringBuf`, scratch allocation, mapped
@@ -873,7 +875,7 @@ not create a borrowed view merely to compare an owned buffer. `StringBuf.toHash`
 consistent with equality. Since mutation changes the hash, never mutate a
 buffer while an external hash table is using its contents as a key.
 
-Copying a `String` into owned storage is explicit:
+Copying a `String` into mutable owned storage is explicit:
 
 ```d
 StringBuf owned = StringBuf.fromString(allocator, input);
@@ -882,9 +884,10 @@ StringBuf owned = StringBuf.fromString(allocator, input);
 Builder-style utilities that are genuinely external algorithms may still take
 `ref StringBuf output` when composition or allocation reuse matters. Ordinary
 buffer operations themselves are members. Convenience functions may return
-`StringBuf` by move. Utilities returning an allocator-backed `String` document
-that the allocator, not the view, owns its bytes and when those bytes become
-invalid.
+`StringBuf` by move. Immutable allocator-backed transformations such as
+`copy`, `concat`, `replace`, `join`, and `escape` return `OwnedString` (or write
+to `OwnedString*` in their fallible forms), so the result itself carries the
+cleanup obligation.
 
 `formatString` returns a `StringBuf`, not an owning-looking `String` view. It
 formats directly into that builder in one pass, so a custom `formatTo` function
@@ -1123,7 +1126,7 @@ owned results. Conflicts compare allocator-handle identity (`Allocator*`), not
 callback-function equality: several arenas may use the same callback.
 
 ```d
-String makePath(
+OwnedString makePath(
     Allocator* outputAllocator,
     scope String left,
     scope String right,
@@ -1136,16 +1139,18 @@ String makePath(
     temporary.append('/');
     temporary.append(right);
 
-    // copy allocates the returned bytes from outputAllocator. They therefore
-    // remain valid after scratch's destructor rewinds its temporary arena.
-    return temporary.view().copy(outputAllocator);
+    // The returned owner allocates exact storage from outputAllocator. It
+    // therefore remains valid after scratch rewinds its temporary arena.
+    OwnedString result = temporary.view().copy(outputAllocator);
+    return move(result);
 }
 ```
 
 `outputAllocator` is passed as the single conflict because the returned
-`String` is backed by it. If the scratch scope selected that same arena, its
-destructor would rewind and invalidate the result before the caller could use
-it.
+`OwnedString` is backed by it. If the scratch scope selected that same arena,
+its destructor would rewind and invalidate the result before the caller could
+use it. The caller ultimately ends the returned owner's lifetime with
+`deinit()`.
 
 The many-conflict list construction must itself remain allocation-free; a
 small static array or caller-provided slice is sufficient. Conflicts are

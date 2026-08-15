@@ -10,7 +10,7 @@ import xtb.core.lifetime : move, moveEmplace;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
 import xtb.core.array;
-import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.core.memory : Allocator;
 import xtb.core.hash : hashValue;
 import xtb.core.panic : panic;
 
@@ -275,195 +275,7 @@ String trimAscii(return scope String value) pure @safe
     return value.trimAsciiStart().trimAsciiEnd();
 }
 
-bool tryCopy(String value, Allocator* allocator, String* output)
-{
-    version (XTB_Checked)
-        require(output !is null, "String output pointer is null");
-    if (value.length == size_t.max)
-        return false;
-    char* destination = allocator.tryAllocateArray!char(value.length + 1).ptr;
-    if (destination is null)
-        return false;
-    if (value.length != 0)
-        memmove(destination, value.ptr, value.length);
-    destination[value.length] = '\0';
-    *output = destination[0 .. value.length];
-    return true;
-}
-
-String copy(String value, Allocator* allocator)
-{
-    String result;
-    if (!value.tryCopy(allocator, &result))
-        panic("String allocation failed");
-    return result;
-}
-
-bool tryConcat(
-    String left,
-    String right,
-    Allocator* allocator,
-    String* output,
-)
-{
-    version (XTB_Checked)
-        require(output !is null, "String output pointer is null");
-    if (right.length > size_t.max - left.length)
-        return false;
-    const length = left.length + right.length;
-    if (length == size_t.max)
-        return false;
-    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
-    if (destination is null)
-        return false;
-    if (left.length != 0)
-        memmove(destination, left.ptr, left.length);
-    if (right.length != 0)
-        memmove(destination + left.length, right.ptr, right.length);
-    destination[length] = '\0';
-    *output = destination[0 .. length];
-    return true;
-}
-
-String concat(String left, String right, Allocator* allocator)
-{
-    String result;
-    if (!left.tryConcat(right, allocator, &result))
-        panic("String allocation failed");
-    return result;
-}
-
-bool tryReplace(
-    String value,
-    String from,
-    String to,
-    Allocator* allocator,
-    String* output,
-)
-{
-    version (XTB_Checked)
-        require(output !is null, "String output pointer is null");
-    if (from.length == 0)
-        return value.tryCopy(allocator, output);
-
-    size_t count;
-    size_t position;
-    while (position <= value.length)
-    {
-        const found = value[position .. $].find(from);
-        if (found == notFound)
-            break;
-        ++count;
-        position += found + from.length;
-    }
-
-    size_t length = value.length;
-    if (to.length >= from.length)
-    {
-        const growth = to.length - from.length;
-        if (growth != 0 && count > (size_t.max - length) / growth)
-            return false;
-        length += count * growth;
-    }
-    else
-        length -= count * (from.length - to.length);
-
-    if (length == size_t.max)
-        return false;
-    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
-    if (destination is null)
-        return false;
-    size_t sourceOffset;
-    size_t destinationOffset;
-    while (sourceOffset < value.length)
-    {
-        const found = value[sourceOffset .. $].find(from);
-        if (found == notFound)
-        {
-            const remainder = value.length - sourceOffset;
-            if (remainder != 0)
-                memmove(destination + destinationOffset, value.ptr + sourceOffset, remainder);
-            destinationOffset += remainder;
-            break;
-        }
-        if (found != 0)
-            memmove(destination + destinationOffset, value.ptr + sourceOffset, found);
-        destinationOffset += found;
-        if (to.length != 0)
-            memmove(destination + destinationOffset, to.ptr, to.length);
-        destinationOffset += to.length;
-        sourceOffset += found + from.length;
-    }
-    destination[length] = '\0';
-    *output = destination[0 .. length];
-    return true;
-}
-
-String replace(String value, String from, String to, Allocator* allocator)
-{
-    String result;
-    if (!value.tryReplace(from, to, allocator, &result))
-        panic("String allocation failed");
-    return result;
-}
-
-bool tryJoin(
-    scope const(String)[] values,
-    String separator,
-    Allocator* allocator,
-    String* output,
-)
-{
-    version (XTB_Checked)
-        require(output !is null, "String output pointer is null");
-    size_t length;
-    foreach (value; values)
-    {
-        if (value.length > size_t.max - length)
-            return false;
-        length += value.length;
-    }
-    if (values.length > 1)
-    {
-        const count = values.length - 1;
-        if (separator.length != 0 && count > (size_t.max - length) / separator.length)
-            return false;
-        length += count * separator.length;
-    }
-    if (length == size_t.max)
-        return false;
-
-    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
-    if (destination is null)
-        return false;
-    size_t offset;
-    foreach (index, value; values)
-    {
-        if (index != 0 && separator.length != 0)
-        {
-            memmove(destination + offset, separator.ptr, separator.length);
-            offset += separator.length;
-        }
-        if (value.length != 0)
-        {
-            memmove(destination + offset, value.ptr, value.length);
-            offset += value.length;
-        }
-    }
-    destination[length] = '\0';
-    *output = destination[0 .. length];
-    return true;
-}
-
-String join(scope const(String)[] values, String separator, Allocator* allocator)
-{
-    String result;
-    if (!tryJoin(values, separator, allocator, &result))
-        panic("String allocation failed");
-    return result;
-}
-
-private char escapedCharacter(char value) pure @safe
+package(xtb) char escapedCharacter(char value) pure @safe
 {
     switch (value)
     {
@@ -494,47 +306,6 @@ private char escapedCharacter(char value) pure @safe
         default:
             return '\0';
     }
-}
-
-bool tryEscape(String value, Allocator* allocator, String* output)
-{
-    version (XTB_Checked)
-        require(output !is null, "String output pointer is null");
-    size_t escapedCount;
-    foreach (character; value)
-        if (escapedCharacter(character) != '\0')
-            ++escapedCount;
-    if (escapedCount > size_t.max - value.length)
-        return false;
-    const length = value.length + escapedCount;
-    if (length == size_t.max)
-        return false;
-    char* destination = allocator.tryAllocateArray!char(length + 1).ptr;
-    if (destination is null)
-        return false;
-    size_t offset;
-    foreach (character; value)
-    {
-        const escaped = escapedCharacter(character);
-        if (escaped != '\0')
-        {
-            destination[offset++] = '\\';
-            destination[offset++] = escaped;
-        }
-        else
-            destination[offset++] = character;
-    }
-    destination[length] = '\0';
-    *output = destination[0 .. length];
-    return true;
-}
-
-String escape(String value, Allocator* allocator)
-{
-    String result;
-    if (!value.tryEscape(allocator, &result))
-        panic("String allocation failed");
-    return result;
 }
 
 bool trySplitWhen(
@@ -1791,7 +1562,6 @@ private void requireValidStringBufAllocator(Allocator* allocator) @trusted
 
 unittest
 {
-    import xtb.core.memory : deallocate;
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
 
@@ -1832,19 +1602,6 @@ unittest
         null,
     );
     assert(emptyBytes.empty);
-
-    String escaped = "a\n\t\\b".escape(mallocAllocator());
-    assert(escaped.equal("a\\n\\t\\\\b"));
-    mallocAllocator().deallocateArray(escaped.ptr[0 .. escaped.length + 1]);
-
-    String replaced = "one two one".replace("one", "1", mallocAllocator());
-    assert(replaced.equal("1 two 1"));
-    mallocAllocator().deallocateArray(replaced.ptr[0 .. replaced.length + 1]);
-
-    String[3] parts = ["a", "b", "c"];
-    String joined = parts[].join("/", mallocAllocator());
-    assert(joined.equal("a/b/c"));
-    mallocAllocator().deallocateArray(joined.ptr[0 .. joined.length + 1]);
 
     Array!String tokens = "a::b::".split("::", mallocAllocator());
     assert(tokens.length == 3);
@@ -1939,10 +1696,6 @@ unittest
         mallocAllocator(), records[],
     );
     failing.failAfter(0);
-    String failedOutput = "unchanged";
-    assert(!"copy".tryCopy(failing.allocator, &failedOutput));
-    assert(failedOutput.equal("unchanged"));
-
     StringBuf failedBytes;
     assert(!StringBuf.tryFromBytesUnchecked(
             failing.allocator,
