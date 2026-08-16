@@ -223,18 +223,17 @@ OwnedPrettyValue!T pretty(T)(
 
 /// Writes a value directly without constructing a wrapper.
 ///
-/// A user-defined type can override structural output with exactly this
-/// const-compatible member hook:
+/// Prefer a const-compatible `prettyDescribe(Pretty)(scope ref Pretty)` member
+/// that describes the value through `pretty.value`, `atom`, `constructor`,
+/// `sequence`, `map`, `set`, or `flags`. The description is interpreted both
+/// for rendering and width measurement, so it must be deterministic,
+/// observational, and safe to invoke more than once.
 ///
-/// ---
-/// void prettyFormatTo(
-///     ref Writer writer,
-///     scope const ref PrettyPrintOptions options,
-/// ) const nothrow @nogc;
-/// ---
-///
-/// Ordinary `formatTo` remains the type's normal display representation and is
-/// deliberately not used by structural pretty printing.
+/// `prettyFormatTo(ref Writer, scope const ref PrettyPrintOptions)` remains the
+/// low-level escape hatch for syntax that cannot use those semantic forms. Its
+/// automatic width is unknown. A type must not define both pretty hooks.
+/// Ordinary `formatRepresentation` and `formatTo` are separate normal-display
+/// customization points and are deliberately ignored here.
 void writePretty(T)(
     ref Writer writer,
     auto ref T value,

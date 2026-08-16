@@ -225,11 +225,15 @@ Printer sinks consume `const(u8)[]` stream fragments because flushes and short
 writes may split a scalar; a sink callback must not treat each fragment as an
 independently valid `String`. Printer tests cover interpolated expression sequences through direct output,
 `StringBuf`, fixed-buffer, and allocator-owned sinks. Include empty and nested
-sequences, expressions with side effects, custom `formatTo` values, numeric
-format wrappers, mixed ordinary/interpolated arguments, exact fixed-buffer
-accounting, truncation, and injected allocation failure. Assert that every
-expression and custom formatter runs exactly once and that expression-source
-metadata is never emitted or evaluated by the printer. Fixed-buffer tests also
+sequences, expressions with side effects, custom `formatRepresentation` and
+`formatTo` values, numeric format wrappers, mixed ordinary/interpolated
+arguments, exact fixed-buffer accounting, truncation, and injected allocation
+failure. Assert that every expression and raw custom formatter runs exactly
+once and that expression-source metadata is never emitted or evaluated by the
+printer. Pretty-print tests additionally cover semantic `prettyDescribe`
+delegation for scalar wrappers, constructors, managed/unmanaged sequences,
+maps, sets, string-specialized hash containers, and flags; rendering and width
+measurement must agree on those descriptions. Fixed-buffer tests also
 prove that truncation backs up to a complete scalar while `required` retains
 the exact untruncated byte count.
 

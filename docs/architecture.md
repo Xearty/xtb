@@ -1000,11 +1000,41 @@ uses interpolation or ordinary arguments. An owned result always requires an
 explicit allocator.
 
 Formatting policy stays explicit in expressions. Use wrappers such as
-`hexadecimal(value)`, `.digits(width)`, `fixed(value, precision)`, and custom
-values implementing `formatTo(ref Writer)`; do not add a second formatting
-mini-language inside the interpolation text. Keep the compile-time
-`formatln!"...{}..."` family for call sites where positional placeholders are
-clearer or an existing format string is already the natural representation.
+`hexadecimal(value)`, `.digits(width)`, and `fixed(value, precision)`. A type
+whose ordinary display is already represented by another value should define
+`formatRepresentation()` and return that value; the printer recursively applies
+normal formatting to the result. This is the preferred path for semantic
+wrappers such as `OwnedString` and `StringBuf`, because those types can delegate
+to their `String` view without learning about writers or shadowing the existing
+UFCS `buffer.formatTo(...)` formatting API. A type needing genuinely custom
+normal syntax may instead define `formatTo(ref Writer)`. These two hooks are
+mutually exclusive, and a direct self-returning `formatRepresentation()` is
+rejected. Do not add a second formatting mini-language inside interpolation
+text. Keep the compile-time `formatln!"...{}..."` family for call sites where
+positional placeholders are clearer or an existing format string is already
+the natural representation.
+
+Structural pretty printing has an independent customization protocol. Prefer a
+const `prettyDescribe(Pretty)(scope ref Pretty pretty)` member that describes
+semantics with the small vocabulary `pretty.value`, `pretty.atom`,
+`pretty.constructor`, `pretty.sequence`, `pretty.map`, `pretty.set`, and
+`pretty.flags`. The concrete type does not import `pretty_print`; `Pretty` is a
+template parameter, and the pretty engine interprets the same description for
+both rendering and compact-width measurement. Syntax, punctuation, ANSI
+styles, truncation, recursion limits, and compact/expanded layout therefore
+remain centralized. `pretty.value` is transparent and does not consume an
+extra semantic depth level. Container descriptions use fresh indexing or cursor
+state on each interpretation, so measurement never consumes rendering state.
+
+`prettyDescribe` is observational: it must not mutate the value, perform I/O,
+consume persistent state, depend on invocation count, or allocate persistent
+state. Automatic layout may call it during measurement and again during
+rendering. `prettyFormatTo(ref Writer, scope const ref PrettyPrintOptions)` is
+the low-level escape hatch for truly custom pretty syntax; its automatic width
+is conservatively unknown. A type must not define both pretty hooks. Generic D
+fundamentals, aggregates, and tagged-union metadata remain handled by the pretty
+engine; XTB containers declare their own sequence/map/set/flag semantics instead
+of being registered centrally in `pretty_print.d`.
 
 #### C strings and termination
 
