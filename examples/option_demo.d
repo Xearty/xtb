@@ -153,7 +153,7 @@ private void demonstrateOwningValues(Allocator* allocator)
     // Moving transfers ownership and leaves the source at StringBuf.init.
     assert(source.allocator is null);
     text.value.append("-beta");
-    writeln("owned option: ", text.value.view);
+    writeln("owned option: ", text.value);
 
     // An Option is non-copyable when T is non-copyable.
     static assert(!__traits(compiles,
@@ -213,7 +213,7 @@ private bool demonstrateSerde(Allocator* allocator)
     // JSON writes every absent Option as null.
     assert(json ==
             "{\"enabled\":true,\"channel_name\":null,\"retry_count\":3}");
-    writeln("JSON options: ", json.view);
+    writeln("JSON options: ", json);
 
     StringBuf toml = StringBuf.create(allocator);
     scope (exit)
@@ -225,7 +225,7 @@ private bool demonstrateSerde(Allocator* allocator)
 
     // TOML has no null, so absent option fields are omitted.
     assert(toml == "enabled = true\nretry_count = 3");
-    writeln("TOML options:\n", toml.view);
+    writeln("TOML options:\n", toml);
 
     OptionalConfig fromJson;
     scope (exit)
@@ -256,7 +256,7 @@ private bool demonstrateSerde(Allocator* allocator)
     assert(fromToml.retryCount.isNone);
 
     writeln("required JSON null -> none: ", fromJson.enabled.isNone);
-    writeln("decoded TOML channel: ", fromToml.channelName.value.view);
+    writeln("decoded TOML channel: ", fromToml.channelName.value);
     return true;
 }
 

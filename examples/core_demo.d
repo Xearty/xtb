@@ -76,7 +76,7 @@ extern (C) int main() nothrow @nogc
 
     // Copy only when the value needs an independent lifetime.
     OwnedString persistentRoute = routeKey.copy(mallocAllocator());
-    formatln!"persistent route key: {}"(persistentRoute.view);
+    formatln!"persistent route key: {}"(persistentRoute);
     persistentRoute.deinit();
     return 0;
 }

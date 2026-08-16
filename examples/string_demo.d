@@ -132,7 +132,7 @@ extern (C) int main() nothrow @nogc
             "//v1//sessions",
         );
         scope (exit) persistentKey.deinit();
-        formatln!"promoted key: {}"(persistentKey.view);
+        formatln!"promoted key: {}"(persistentKey);
     }
 
     writeln("\n== independently owned immutable strings ==");
@@ -168,11 +168,11 @@ extern (C) int main() nothrow @nogc
         OwnedString ownedJoin = ownedParts[].join("", heap);
         scope (exit) ownedJoin.deinit();
 
-        formatln!"owned copy:    {}"(ownedCopy.view);
-        formatln!"owned concat:  {}"(ownedConcat.view);
-        formatln!"owned replace: {}"(ownedReplace.view);
-        formatln!"owned escape:  {}"(ownedEscape.view);
-        formatln!"owned join:    {}"(ownedJoin.view);
+        formatln!"owned copy:    {}"(ownedCopy);
+        formatln!"owned concat:  {}"(ownedConcat);
+        formatln!"owned replace: {}"(ownedReplace);
+        formatln!"owned escape:  {}"(ownedEscape);
+        formatln!"owned join:    {}"(ownedJoin);
 
         // Operations consume String views, not ownership. Borrowing an
         // OwnedString with .view never transfers or duplicates ownership.
@@ -182,7 +182,7 @@ extern (C) int main() nothrow @nogc
         // clone() is the explicit way to create another independent owner.
         OwnedString independentClone = ownedJoin.clone();
         scope (exit) independentClone.deinit();
-        assert(independentClone.view.equal(ownedJoin.view));
+        assert(independentClone == ownedJoin);
 
         // Fallible independently owned transforms write into an empty owner.
         // The scope guard is safe even if the operation fails before the owner
@@ -191,7 +191,7 @@ extern (C) int main() nothrow @nogc
         scope (exit) fallibleOwned.deinit();
         if (!ownedCopy.tryConcat(" owner", &fallibleOwned))
             return 1;
-        formatln!"fallible owned result: {}"(fallibleOwned.view);
+        formatln!"fallible owned result: {}"(fallibleOwned);
     }
 
     writeln("\n== explicit ownership transfer ==");
@@ -203,14 +203,14 @@ extern (C) int main() nothrow @nogc
         OwnedString.Released released = transferable.release();
         OwnedString adopted = OwnedString.adopt(&released);
         scope (exit) adopted.deinit();
-        formatln!"adopted without copying: {}"(adopted.view);
+        formatln!"adopted without copying: {}"(adopted);
 
         // moveSource is likewise consumed immediately. The destination owns
         // the allocation for the rest of the block and gets the scope guard.
         OwnedString moveSource = "move me".copy(heap);
         OwnedString moveDestination = move(moveSource);
         scope (exit) moveDestination.deinit();
-        formatln!"moved owner: {}"(moveDestination.view);
+        formatln!"moved owner: {}"(moveDestination);
     }
 
     writeln("\n== mutable StringBuf ==");
@@ -227,14 +227,14 @@ extern (C) int main() nothrow @nogc
         builder.replaceInPlace("GET", "PATCH");
         builder.append("\nrequest-id=42");
         builder.escapeInPlace();
-        formatln!"mutable buffer: {}"(builder.view);
+        formatln!"mutable buffer: {}"(builder);
 
         // intoOwnedString consumes the mutable owner and freezes it into
         // exact-sized immutable storage. With no explicit allocator it reuses
         // the StringBuf allocator and can adopt the allocation after shrinking.
         OwnedString frozen = builder.intoOwnedString();
         scope (exit) frozen.deinit();
-        formatln!"frozen buffer: {}"(frozen.view);
+        formatln!"frozen buffer: {}"(frozen);
     }
 
     writeln("\n== temporary mutable builder in an arena ==");
@@ -255,7 +255,7 @@ extern (C) int main() nothrow @nogc
         temporaryBuilder.append("users/42");
         temporaryBuilder.append('|');
         temporaryBuilder.append("generation=7");
-        formatln!"arena StringBuf: {}"(temporaryBuilder.view);
+        formatln!"arena StringBuf: {}"(temporaryBuilder);
 
         // StringBuf still follows its own explicit-lifetime protocol even when
         // its allocator is arena-backed. Individual deallocation is a no-op;
@@ -273,7 +273,7 @@ extern (C) int main() nothrow @nogc
             "allocator stored externally",
         );
         scope (exit) compact.deinit(heap);
-        formatln!"unmanaged owner: {}"(compact.view);
+        formatln!"unmanaged owner: {}"(compact);
         formatln!"sizeof String={}, OwnedStringUnmanaged={}, OwnedString={}"(
             String.sizeof,
             OwnedStringUnmanaged.sizeof,

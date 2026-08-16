@@ -158,8 +158,8 @@ private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
     if (!error.ok)
         return false;
 
-    writeln("mutated JSON:\n", json.view);
-    writeln("mutated TOML:\n", toml.view);
+    writeln("mutated JSON:\n", json);
+    writeln("mutated TOML:\n", toml);
 
     ServiceConfig fromToml;
     scope (exit)
@@ -167,7 +167,7 @@ private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
     error = readToml(toml.view, mallocAllocator(), &fromToml);
     if (!error.ok)
         return false;
-    writeln("TOML round trip: ", fromToml.serviceName.view,
+    writeln("TOML round trip: ", fromToml.serviceName,
         ", replicas=", fromToml.replicaEndpoints.length,
         ", flags=", fromToml.featureFlags.length);
     return true;
@@ -205,8 +205,8 @@ private bool demonstrateOwningDecode() nothrow @nogc
     scope (exit)
         config.deinit();
 
-    writeln("parsed service: ", config.serviceName.view);
-    writeln("primary: ", config.primaryEndpoint.hostName.view,
+    writeln("parsed service: ", config.serviceName);
+    writeln("primary: ", config.primaryEndpoint.hostName,
         ":", config.primaryEndpoint.port);
 
     config.serviceName.clear();
@@ -305,7 +305,7 @@ private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
     error = writeToml(tomlWriter, stopped);
     if (!error.ok)
         return false;
-    writeln("tagged TOML:\n", toml.view);
+    writeln("tagged TOML:\n", toml);
 
     Health health;
     error = readJson("{\"readiness\":98}", mallocAllocator(), &health);

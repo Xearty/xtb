@@ -30,7 +30,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
         formatln!"cannot resolve path: error={} native={}"(cast(uint) error.kind, error.nativeCode);
         return 1;
     }
-    writeln("directory: ", canonical.view);
+    writeln("directory: ", canonical);
 
     DirectoryIterator iterator;
     error = openDirectory(root, &iterator);
