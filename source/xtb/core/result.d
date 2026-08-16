@@ -65,6 +65,13 @@ nothrow @nogc:
 
     static assert(!is(E == void), "Result error type cannot be void");
 
+    static if (is(T == void))
+        private enum bool valueNeedsCleanup = false;
+    else
+        private enum bool valueNeedsCleanup = needsDeinit!T || hasDDestructor!T;
+    private enum bool errorNeedsCleanup = needsDeinit!E || hasDDestructor!E;
+    private enum bool payloadNeedsCleanup = valueNeedsCleanup || errorNeedsCleanup;
+
     private ResultState state_;
     static if (!is(T == void))
         align(T.alignof) private ubyte[T.sizeof] valueStorage_;
@@ -98,7 +105,8 @@ nothrow @nogc:
         version (XTB_Checked)
             require(!source.consumed_, "cannot assign from a consumed Result");
 
-        deinit();
+        static if (payloadNeedsCleanup)
+            discardActive();
         state_ = source.state_;
         static if (!is(T == void))
         {
@@ -207,9 +215,7 @@ nothrow @nogc:
         return isOk;
     }
 
-    /// Explicitly ends this Result's lifetime by cleaning only its active
-    /// branch. A moved-from active payload is safe to deinitialize.
-    void deinit()
+    private void discardActive()
     {
         if (state_ == ResultState.ok)
         {
@@ -227,6 +233,16 @@ nothrow @nogc:
                 deinitValue(errorPayload());
             else static if (hasDDestructor!E)
                 destroy(errorPayload());
+        }
+    }
+
+    static if (payloadNeedsCleanup)
+    {
+        /// Explicitly ends this Result's lifetime by cleaning only its active
+        /// branch. A moved-from active payload is safe to deinitialize.
+        void deinit()
+        {
+            discardActive();
         }
     }
 

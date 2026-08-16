@@ -67,14 +67,17 @@ nothrow @nogc:
 
 /// An optional BetterC value. Option.init is absent.
 ///
-/// Option owns cleanup of its active payload. `deinit`, `reset`, assignment to
-/// `none`, and replacement all deinitialize a present value. `take`, `unwrap`,
-/// and `expect` transfer the value out without cleaning it.
+/// Option owns cleanup of its active payload. Cleanup-bearing instantiations
+/// expose `deinit`; `reset`, assignment to `none`, and replacement are always
+/// available and discard a present value. `take`, `unwrap`, and `expect`
+/// transfer the value out without cleaning it.
 @mustuse struct Option(T)
 {
 nothrow @nogc:
 
     static assert(!is(T == void), "Option value type cannot be void");
+
+    private enum bool payloadNeedsCleanup = needsDeinit!T || hasDDestructor!T;
 
     private bool present_;
     align(T.alignof) private ubyte[T.sizeof] storage_;
@@ -177,10 +180,7 @@ nothrow @nogc:
         return present_ ? &payload() : null;
     }
 
-    /// Explicitly ends this Option's lifetime.
-    ///
-    /// Only the active payload is cleaned. Absence owns nothing.
-    void deinit()
+    private void discardActive()
     {
         if (!present_)
             return;
@@ -192,11 +192,22 @@ nothrow @nogc:
         present_ = false;
     }
 
+    static if (payloadNeedsCleanup)
+    {
+        /// Explicitly ends this cleanup-bearing Option's lifetime.
+        ///
+        /// Only the active payload is cleaned. Absence owns nothing.
+        void deinit()
+        {
+            discardActive();
+        }
+    }
+
     /// Discards the current value, if any, and makes this Option absent and
     /// reusable.
     void reset()
     {
-        deinit();
+        discardActive();
     }
 
     /// Transfers the current value out and leaves this Option absent.

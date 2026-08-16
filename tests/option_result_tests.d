@@ -11,6 +11,30 @@ import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.option;
 import xtb.core.result;
 
+static assert(!needsDeinit!(Option!int));
+static assert(!needsDeinit!(Result!(int, int)));
+static assert(!__traits(hasMember, Option!int, "deinit"));
+static assert(!__traits(hasMember, Result!(int, int), "deinit"));
+static assert(__traits(isCopyable, Option!(Option!int)));
+static assert(__traits(isCopyable,
+        Result!(Result!(int, int), int)));
+static assert(!__traits(compiles,
+        (ref Option!int value) { deinit(value); }));
+static assert(!__traits(compiles,
+        (ref Result!(int, int) value) { deinit(value); }));
+
+static assert(__traits(compiles, {
+        auto inner = some(1);
+        auto outer = some(inner);
+        auto mapped = move(outer).map!(value => value.unwrap());
+    }));
+
+static assert(__traits(compiles, {
+        auto inner = Result!(int, int).ok(1);
+        auto outer = Result!(Result!(int, int), int).ok(inner);
+        auto mapped = move(outer).map!(value => value.unwrap());
+    }));
+
 private struct HeapOwner
 {
 nothrow @nogc:
@@ -43,6 +67,13 @@ nothrow @nogc:
             ++*deinits;
     }
 }
+
+static assert(needsDeinit!(Option!HeapOwner));
+static assert(needsDeinit!(Result!(HeapOwner, int)));
+static assert(needsDeinit!(Result!(int, HeapOwner)));
+static assert(__traits(hasMember, Option!HeapOwner, "deinit"));
+static assert(__traits(hasMember, Result!(HeapOwner, int), "deinit"));
+static assert(__traits(hasMember, Result!(int, HeapOwner), "deinit"));
 
 private struct CopyableDestructorValue
 {

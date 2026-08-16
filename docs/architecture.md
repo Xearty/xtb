@@ -1332,11 +1332,14 @@ cleaning it and leave the Option absent.
 
 Option is authoritative for the lifetime of its payload. Its backing bytes are
 manual storage so `Option!T` also works when `T` has a disabled default
-constructor. `deinit(option)` cleans only a present payload; absence owns nothing.
-Cleanup-bearing payloads disable implicit Option copying even if their raw
-representation would otherwise be copyable, so ownership cannot silently become
-bit-copyable. Replacement consumes its source and cleans the old active payload
-first.
+constructor. An Option whose payload can require explicit cleanup or D
+destruction exposes `deinit`; `deinit(option)` then cleans only a present payload,
+while absence owns nothing. A cleanup-free Option has no `deinit`; use `reset`
+when the logical state must become absent. Cleanup-bearing payloads disable
+implicit Option copying even if their raw representation would otherwise be
+copyable, so ownership cannot silently become bit-copyable. Nested cleanup-free
+Options remain ordinary copyable values. Replacement consumes its source and
+cleans the old active payload first.
 
 `OptionReturns` introduces return-type-specific `some` and `none` aliases. The
 free UFCS `map`, `andThen`, and `orElse` algorithms remain intentionally limited
@@ -1354,13 +1357,16 @@ logical states: `Ok(T)` and `Err(E)`. There is no empty state and ordinary defau
 construction is disabled; construct a Result through `ok` or `err`. Boolean
 conversion means `isOk`; `isErr` queries the other branch. Result is `@mustuse`.
 
-Result is authoritative for active-branch cleanup. `deinit(result)` cleans only
-the active branch. `take`/`unwrap` transfer a success payload and leave the Result
-logically `Ok` with a safely moved-from payload; `takeError`/`unwrapError` do the
-symmetric operation for `Err`. Checked builds carry a diagnostic consumed bit so
-repeated payload access after such a transfer is rejected, but that diagnostic is
-not a third Result state and disappears from the logical API. `Result!(void, E)`
-uses the same two-state rule, with `Ok` carrying no success payload.
+Result is authoritative for active-branch cleanup. A Result exposes `deinit`
+only when at least one branch can require explicit cleanup or D destruction;
+`deinit(result)` then cleans only the active branch. A Result with cleanup-free
+branches needs no deinitialization and remains copyable when nested.
+`take`/`unwrap` transfer a success payload and leave the Result logically `Ok`
+with a safely moved-from payload; `takeError`/`unwrapError` do the symmetric
+operation for `Err`. Checked builds carry a diagnostic consumed bit so repeated
+payload access after such a transfer is rejected, but that diagnostic is not a
+third Result state and disappears from the logical API. `Result!(void, E)` uses
+the same two-state rule, with `Ok` carrying no success payload.
 
 Implicit Result copying is disabled whenever either branch has an explicit
 cleanup obligation or D destructor semantics, even when its representation is
