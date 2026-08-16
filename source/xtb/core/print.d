@@ -453,6 +453,12 @@ private template Unqualified(T)
     alias Unqualified = typeof(cast() T.init);
 }
 
+private enum hasFormatRepresentation(T) =
+    __traits(hasMember, Unqualified!T, "formatRepresentation");
+
+private enum hasFormatToMember(T) =
+    __traits(hasMember, Unqualified!T, "formatTo");
+
 private void writeArguments(Args...)(ref Writer writer, auto ref Args args)
 {
     static foreach (i; 0 .. Args.length)
@@ -474,9 +480,14 @@ private void writeValue(T)(ref Writer writer, auto ref T value)
         // Source text is metadata only. The compiler passes its evaluated
         // value or values as the following sequence elements.
     }
-    else static if (is(U == StringBuf))
+    else static if (hasFormatRepresentation!U)
     {
-        writer.put(value.view);
+        static assert(!hasFormatToMember!U, U.stringof ~
+                " defines both formatRepresentation and formatTo");
+        alias Representation = typeof(value.formatRepresentation());
+        static assert(!is(Unqualified!Representation == U), U.stringof ~
+                ".formatRepresentation() must not return the same type");
+        writeValue(writer, value.formatRepresentation());
     }
     else static if (__traits(compiles, value.formatTo(writer)))
     {
@@ -526,7 +537,8 @@ private void writeValue(T)(ref Writer writer, auto ref T value)
     else
     {
         static assert(false, "unsupported printable type: " ~ U.stringof ~
-                "; define `void formatTo(ref Writer) nothrow @nogc`");
+                "; define `formatRepresentation()` or " ~
+                "`void formatTo(ref Writer) nothrow @nogc`");
     }
 }
 

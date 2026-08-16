@@ -111,6 +111,11 @@ public:
         return value_;
     }
 
+    String formatRepresentation() const return pure @safe
+    {
+        return view;
+    }
+
     size_t byteLength() const pure @safe
     {
         return value_.length;
@@ -306,6 +311,11 @@ public:
     String view() const return pure @trusted
     {
         return storage_.view;
+    }
+
+    String formatRepresentation() const return pure @trusted
+    {
+        return view;
     }
 
     size_t byteLength() const pure @trusted

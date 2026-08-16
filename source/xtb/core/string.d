@@ -605,6 +605,11 @@ public:
         return bytes_.slice;
     }
 
+    String formatRepresentation() const return pure @trusted
+    {
+        return view;
+    }
+
     bool opEquals(scope String other) const pure @trusted
     {
         return view.equal(other);
@@ -1201,6 +1206,11 @@ public:
     String view() const return pure @trusted
     {
         return storage_.view;
+    }
+
+    String formatRepresentation() const return pure @trusted
+    {
+        return view;
     }
 
     bool equal(scope String other) const pure @trusted
