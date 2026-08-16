@@ -116,6 +116,11 @@ public:
         return view;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.value(view);
+    }
+
     size_t byteLength() const pure @safe
     {
         return value_.length;
@@ -316,6 +321,11 @@ public:
     String formatRepresentation() const return pure @trusted
     {
         return view;
+    }
+
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.value(view);
     }
 
     size_t byteLength() const pure @trusted

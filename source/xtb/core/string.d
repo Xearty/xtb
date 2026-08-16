@@ -610,6 +610,11 @@ public:
         return view;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.value(view);
+    }
+
     bool opEquals(scope String other) const pure @trusted
     {
         return view.equal(other);
@@ -1211,6 +1216,11 @@ public:
     String formatRepresentation() const return pure @trusted
     {
         return view;
+    }
+
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.value(view);
     }
 
     bool equal(scope String other) const pure @trusted

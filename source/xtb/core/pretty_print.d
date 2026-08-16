@@ -15,9 +15,12 @@ import xtb.core.lifetime : lifetimeDeinit = deinit,
     taggedPayloadDiscriminatorIndex,
     taggedPayloadMemberTag,
     taggedPayloadMetadata;
-import xtb.core.owned_string;
-import xtb.core.option : Option;
-import xtb.core.result : Result;
+
+version (unittest) import xtb.core.owned_string;
+
+version (unittest) import xtb.core.option : Option;
+
+version (unittest) import xtb.core.result : Result;
 import xtb.core.print : Writer;
 import xtb.core.string;
 import xtb.core.string_hash_map;
@@ -264,18 +267,6 @@ private enum isPointerType(T) = is(Unqualified!T == Pointee*, Pointee);
 private enum isArrayType(T) =
     is(Unqualified!T == Array!Element, Element) ||
     is(Unqualified!T == OwnedArray!Element, Element);
-private enum isOptionType(T) = is(Unqualified!T == Option!Element, Element);
-private enum isResultType(T) = is(
-        Unqualified!T == Result!(Value, Error),
-        Value,
-        Error,
-    );
-private template ResultValue(T)
-{
-    static if (is(Unqualified!T == Result!(Value, Error), Value, Error))
-        alias ResultValue = Value;
-}
-
 private enum isFlagSetType(T) = is(
         Unqualified!T == FlagSet!(Flag, Storage),
         Flag,
@@ -305,8 +296,6 @@ private enum isHashSetType(T) = is(
         Hasher,
         Equal,
     );
-private enum isOwnedStringType(T) = is(Unqualified!T == OwnedString) ||
-    is(Unqualified!T == OwnedStringUnmanaged);
 private enum isStringHashMapType(T) = is(
         Unqualified!T == BasicStringHashMap!(Value, ValueOps, OwnsValues),
         Value, ValueOps, bool OwnsValues,
@@ -322,6 +311,351 @@ private struct PrettyPrintContext
 {
     ushort recursionDepth;
     ushort indentationDepth;
+}
+
+private enum PrettyRole : ubyte
+{
+    nullValue,
+}
+
+private struct PrettyRender(Described)
+{
+    Writer* writer_;
+    const(PrettyPrintOptions)* options_;
+    PrettyPrintContext context_;
+
+    enum nullRole = PrettyRole.nullValue;
+
+    void value(Value)(auto ref Value semanticValue)
+    {
+        writePrettyImpl(*writer_, semanticValue, *options_, context_);
+    }
+
+    void atom(scope String name, PrettyRole role)
+    {
+        writeSemanticTypePrefix!Described(*writer_, *options_, '.');
+        writeStyledText(
+            *writer_,
+            name,
+            prettyRoleStyle(role, *options_),
+            *options_,
+        );
+    }
+
+    void constructor(scope String name)
+    {
+        writeSemanticTypePrefix!Described(*writer_, *options_, '.');
+        writeStyledText(
+            *writer_,
+            name,
+            options_.colorScheme.booleanValue,
+            *options_,
+        );
+        writePunctuation(*writer_, "()", *options_);
+    }
+
+    void constructor(Value)(scope String name, auto ref Value payload)
+    {
+        writeSemanticTypePrefix!Described(*writer_, *options_, '.');
+        writeStyledText(
+            *writer_,
+            name,
+            options_.colorScheme.booleanValue,
+            *options_,
+        );
+        writePunctuation(*writer_, '(', *options_);
+        if (depthLimitReached(context_.recursionDepth, *options_))
+            writeDepthLimit(*writer_, *options_);
+        else
+        {
+            PrettyPrintContext childContext = descendWrapper(context_);
+            writePrettyImpl(*writer_, payload, *options_, childContext);
+        }
+        writePunctuation(*writer_, ')', *options_);
+    }
+
+    void sequence(Source)(auto ref Source source)
+    {
+        validatePrettySequenceSource(source);
+        writeSemanticSequence!Described(
+            *writer_,
+            source,
+            *options_,
+            context_,
+        );
+    }
+
+    void map(Source)(auto ref Source source)
+    {
+        validatePrettyMapSource(source);
+        writeHashMap!Described(*writer_, source, *options_, context_);
+    }
+
+    void set(Source)(auto ref Source source)
+    {
+        validatePrettySetSource(source);
+        writeHashSet!Described(*writer_, source, *options_, context_);
+    }
+
+    void flags(Source)(auto ref Source source)
+    {
+        validatePrettyFlagsSource(source);
+        writeFlagSet!Described(*writer_, source, *options_, context_);
+    }
+}
+
+private struct PrettyMeasure(Described)
+{
+    const(PrettyPrintOptions)* options_;
+    PrettyPrintContext context_;
+    size_t budget_;
+    WidthEstimate result_ = WidthEstimate(true, 0);
+
+    enum nullRole = PrettyRole.nullValue;
+
+    WidthEstimate result() const pure @safe
+    {
+        return result_;
+    }
+
+    void value(Value)(auto ref Value semanticValue)
+    {
+        append(estimateWidth(
+                semanticValue,
+                *options_,
+                context_.recursionDepth,
+                remainingBudget,
+        ));
+    }
+
+    void atom(scope String name, PrettyRole)
+    {
+        size_t width = semanticTypePrefixWidth!Described(*options_);
+        if (name.length > size_t.max - width)
+        {
+            result_ = unknownWidth();
+            return;
+        }
+        width += name.length;
+        append(knownWidth(width));
+    }
+
+    void constructor(scope String name)
+    {
+        size_t width = semanticTypePrefixWidth!Described(*options_);
+        if (name.length > size_t.max - width ||
+            2 > size_t.max - width - name.length)
+        {
+            result_ = unknownWidth();
+            return;
+        }
+        width += name.length + 2;
+        append(knownWidth(width));
+    }
+
+    void constructor(Value)(scope String name, auto ref Value payload)
+    {
+        size_t width = semanticTypePrefixWidth!Described(*options_);
+        if (name.length > size_t.max - width ||
+            1 > size_t.max - width - name.length)
+        {
+            result_ = unknownWidth();
+            return;
+        }
+        width += name.length + 1;
+
+        if (depthLimitReached(context_.recursionDepth, *options_))
+        {
+            if (4 > size_t.max - width)
+            {
+                result_ = unknownWidth();
+                return;
+            }
+            width += 4;
+            append(knownWidth(width));
+            return;
+        }
+
+        const available = remainingBudget;
+        const child = estimateWidth(
+            payload,
+            *options_,
+            nextDepth(context_.recursionDepth),
+            available > width ? available - width : 0,
+        );
+        if (!child.known || child.width > size_t.max - width)
+        {
+            result_ = unknownWidth();
+            return;
+        }
+        width += child.width;
+        if (width == size_t.max)
+        {
+            result_ = unknownWidth();
+            return;
+        }
+        ++width;
+        append(knownWidth(width));
+    }
+
+    void sequence(Source)(auto ref Source source)
+    {
+        validatePrettySequenceSource(source);
+        append(estimateSemanticSequence!Described(
+                source,
+                *options_,
+                context_.recursionDepth,
+                remainingBudget,
+        ));
+    }
+
+    void map(Source)(auto ref Source source)
+    {
+        validatePrettyMapSource(source);
+        append(estimateHashMap!Described(
+                source,
+                *options_,
+                context_.recursionDepth,
+                remainingBudget,
+        ));
+    }
+
+    void set(Source)(auto ref Source source)
+    {
+        validatePrettySetSource(source);
+        append(estimateHashSet!Described(
+                source,
+                *options_,
+                context_.recursionDepth,
+                remainingBudget,
+        ));
+    }
+
+    void flags(Source)(auto ref Source source)
+    {
+        validatePrettyFlagsSource(source);
+        append(estimateFlagSet!Described(
+                source,
+                *options_,
+                remainingBudget,
+        ));
+    }
+
+private:
+    size_t remainingBudget() const pure @safe
+    {
+        if (!result_.known || result_.width >= budget_)
+            return 0;
+        return budget_ - result_.width;
+    }
+
+    void append(WidthEstimate part) pure @safe
+    {
+        if (!result_.known || !part.known ||
+            part.width > size_t.max - result_.width)
+        {
+            result_ = unknownWidth();
+            return;
+        }
+        const total = result_.width + part.width;
+        if (total > budget_)
+        {
+            result_ = unknownWidth();
+            return;
+        }
+        result_ = knownWidth(total);
+    }
+}
+
+private enum hasPrettyDescribe(T) =
+    __traits(hasMember, Unqualified!T, "prettyDescribe");
+
+private enum hasPrettyFormatToMember(T) =
+    __traits(hasMember, Unqualified!T, "prettyFormatTo");
+
+private void validatePrettySequenceSource(Source)(scope const ref Source source)
+{
+    static assert(__traits(compiles, source.length) &&
+            __traits(compiles, source[0]),
+        "pretty.sequence source must provide length and indexed access");
+}
+
+private void validatePrettyMapSource(Source)(scope const ref Source source)
+{
+    static assert(__traits(compiles, source.length) &&
+            __traits(compiles, source.cursor()),
+        "pretty.map source must provide length and cursor()");
+    alias Cursor = typeof(source.cursor());
+    static assert(__traits(compiles, Cursor.init.valid) &&
+            __traits(compiles, *Cursor.init.key) &&
+            __traits(compiles, *Cursor.init.value) &&
+            __traits(compiles, { Cursor cursor; cursor.advance(); }),
+        "pretty.map cursor must provide valid, key, value, and advance()");
+}
+
+private void validatePrettySetSource(Source)(scope const ref Source source)
+{
+    static assert(__traits(compiles, source.length) &&
+            __traits(compiles, source.cursor()),
+        "pretty.set source must provide length and cursor()");
+    alias Cursor = typeof(source.cursor());
+    static assert(__traits(compiles, Cursor.init.valid) &&
+            __traits(compiles, *Cursor.init.value) &&
+            __traits(compiles, { Cursor cursor; cursor.advance(); }),
+        "pretty.set cursor must provide valid, value, and advance()");
+}
+
+private void validatePrettyFlagsSource(Source)(scope const ref Source source)
+{
+    alias U = Unqualified!Source;
+    static assert(__traits(hasMember, U, "FlagType") &&
+            __traits(compiles, source.enabledCount),
+        "pretty.flags source must provide FlagType and enabledCount");
+    static if (__traits(hasMember, U, "FlagType"))
+    {
+        alias Flag = U.FlagType;
+        static foreach (name; __traits(allMembers, Flag))
+        {
+            {
+                enum flag = __traits(getMember, Flag, name);
+                static assert(__traits(compiles, source.contains(flag)),
+                    "pretty.flags source must provide contains(FlagType)");
+            }
+        }
+    }
+}
+
+private size_t semanticTypePrefixWidth(Described)(
+    scope const ref PrettyPrintOptions options,
+)
+pure @safe
+{
+    return options.showTypeNames ? Described.stringof.length + 1 : 0;
+}
+
+private void writeSemanticTypePrefix(Described)(
+    ref Writer writer,
+    scope const ref PrettyPrintOptions options,
+    char separator,
+)
+{
+    if (!options.showTypeNames)
+        return;
+    writeTypeName!Described(writer, options);
+    writePunctuation(writer, separator, options);
+}
+
+private AnsiStyle prettyRoleStyle(
+    PrettyRole role,
+    scope const ref PrettyPrintOptions options,
+)
+pure @safe
+{
+    final switch (role)
+    {
+        case PrettyRole.nullValue:
+            return options.colorScheme.nullValue;
+    }
 }
 
 private void writePrettyImpl(T)(
@@ -347,7 +681,15 @@ private void writePrettyImpl(T)(
         }
     }
 
-    static if (hasPrettyFormatTo!T)
+    static assert(!(hasPrettyDescribe!T && hasPrettyFormatToMember!T),
+        U.stringof ~ " defines both prettyDescribe and prettyFormatTo");
+
+    static if (hasPrettyDescribe!T)
+    {
+        PrettyRender!U pretty = PrettyRender!U(&writer, &options, context);
+        value.prettyDescribe(pretty);
+    }
+    else static if (hasPrettyFormatTo!T)
     {
         value.prettyFormatTo(writer, options);
     }
@@ -359,10 +701,6 @@ private void writePrettyImpl(T)(
             options.colorScheme.nullValue,
             options,
         );
-    }
-    else static if (is(U == StringBuf) || isOwnedStringType!U)
-    {
-        writeString(writer, value.view, options);
     }
     else static if (isStringType!U)
     {
@@ -395,29 +733,21 @@ private void writePrettyImpl(T)(
             options,
         );
     }
-    else static if (isOptionType!U)
-    {
-        writeOption(writer, value, options, context);
-    }
-    else static if (isResultType!U)
-    {
-        writeResult(writer, value, options, context);
-    }
     else static if (isArrayType!U)
     {
         writeXtbArray(writer, value, options, context);
     }
     else static if (isFlagSetType!U)
     {
-        writeFlagSet(writer, value, options, context);
+        writeFlagSet!U(writer, value, options, context);
     }
     else static if (isHashMapType!U || isStringHashMapType!U)
     {
-        writeHashMap(writer, value, options, context);
+        writeHashMap!U(writer, value, options, context);
     }
     else static if (isHashSetType!U)
     {
-        writeHashSet(writer, value, options, context);
+        writeHashSet!U(writer, value, options, context);
     }
     else static if (is(U == Element[], Element))
     {
@@ -465,103 +795,19 @@ private void writeDefaultAggregateOrUnsupported(T)(
         writeUnsupported!U(writer, options);
 }
 
-private void writeOption(T)(
+private void writeSemanticSequence(Display, T)(
     ref Writer writer,
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
     PrettyPrintContext context,
 )
 {
-    alias U = Unqualified!T;
     if (options.showTypeNames)
     {
-        writeTypeName!U(writer, options);
-        writePunctuation(writer, '.', options);
+        writeTypeName!Display(writer, options);
+        writer.put(' ');
     }
-
-    if (value.isNone)
-    {
-        writeStyledText(
-            writer,
-            "none",
-            options.colorScheme.nullValue,
-            options,
-        );
-        return;
-    }
-
-    writeStyledText(
-        writer,
-        "some",
-        options.colorScheme.booleanValue,
-        options,
-    );
-    writePunctuation(writer, '(', options);
-    if (depthLimitReached(context.recursionDepth, options))
-        writeDepthLimit(writer, options);
-    else
-    {
-        // `some(` remains on the same line as its payload. It consumes one
-        // recursion level, but not one visual indentation level.
-        PrettyPrintContext childContext = descendWrapper(context);
-        writePrettyImpl(writer, value.value, options, childContext);
-    }
-    writePunctuation(writer, ')', options);
-}
-
-private void writeResult(T)(
-    ref Writer writer,
-    scope const ref T value,
-    scope const ref PrettyPrintOptions options,
-    PrettyPrintContext context,
-)
-{
-    alias U = Unqualified!T;
-    alias Value = ResultValue!U;
-    if (options.showTypeNames)
-    {
-        writeTypeName!U(writer, options);
-        writePunctuation(writer, '.', options);
-    }
-
-    if (value.isErr)
-    {
-        writeStyledText(
-            writer,
-            "err",
-            options.colorScheme.booleanValue,
-            options,
-        );
-        writePunctuation(writer, '(', options);
-        if (depthLimitReached(context.recursionDepth, options))
-            writeDepthLimit(writer, options);
-        else
-        {
-            PrettyPrintContext childContext = descendWrapper(context);
-            writePrettyImpl(writer, value.error, options, childContext);
-        }
-        writePunctuation(writer, ')', options);
-        return;
-    }
-
-    writeStyledText(
-        writer,
-        "ok",
-        options.colorScheme.booleanValue,
-        options,
-    );
-    writePunctuation(writer, '(', options);
-    static if (!is(Value == void))
-    {
-        if (depthLimitReached(context.recursionDepth, options))
-            writeDepthLimit(writer, options);
-        else
-        {
-            PrettyPrintContext childContext = descendWrapper(context);
-            writePrettyImpl(writer, value.value, options, childContext);
-        }
-    }
-    writePunctuation(writer, ')', options);
+    writeIndexableSequence(writer, value, value.length, options, context);
 }
 
 private void writeXtbArray(T)(
@@ -571,13 +817,7 @@ private void writeXtbArray(T)(
     PrettyPrintContext context,
 )
 {
-    alias U = Unqualified!T;
-    if (options.showTypeNames)
-    {
-        writeTypeName!U(writer, options);
-        writer.put(' ');
-    }
-    writeIndexableSequence(writer, value, value.length, options, context);
+    writeSemanticSequence!(Unqualified!T)(writer, value, options, context);
 }
 
 private void writeSlice(T)(
@@ -657,7 +897,7 @@ private void writeIndexableSequence(T)(
     writePunctuation(writer, ']', options);
 }
 
-private void writeFlagSet(T)(
+private void writeFlagSet(Display, T)(
     ref Writer writer,
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
@@ -669,7 +909,7 @@ private void writeFlagSet(T)(
 
     if (options.showTypeNames)
     {
-        writeTypeName!U(writer, options);
+        writeTypeName!Display(writer, options);
         writer.put(' ');
     }
 
@@ -741,21 +981,20 @@ private void writeFlagSet(T)(
     writePunctuation(writer, '}', options);
 }
 
-private void writeHashMap(T)(
+private void writeHashMap(Display, T)(
     ref Writer writer,
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
     PrettyPrintContext context,
 )
 {
-    alias U = Unqualified!T;
     if (options.showTypeNames)
     {
-        writeTypeName!U(writer, options);
+        writeTypeName!Display(writer, options);
         writer.put(' ');
     }
 
-    if (value.empty)
+    if (value.length == 0)
     {
         writePunctuation(writer, "{}", options);
         return;
@@ -820,21 +1059,20 @@ private void writeHashMap(T)(
     writePunctuation(writer, '}', options);
 }
 
-private void writeHashSet(T)(
+private void writeHashSet(Display, T)(
     ref Writer writer,
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
     PrettyPrintContext context,
 )
 {
-    alias U = Unqualified!T;
     if (options.showTypeNames)
     {
-        writeTypeName!U(writer, options);
+        writeTypeName!Display(writer, options);
         writer.put(' ');
     }
 
-    if (value.empty)
+    if (value.length == 0)
     {
         writePunctuation(writer, "{}", options);
         return;
@@ -1792,14 +2030,25 @@ private WidthEstimate estimateWidth(T)(
 {
     alias U = Unqualified!T;
 
-    static if (hasPrettyFormatTo!T)
+    static assert(!(hasPrettyDescribe!T && hasPrettyFormatToMember!T),
+        U.stringof ~ " defines both prettyDescribe and prettyFormatTo");
+
+    static if (hasPrettyDescribe!T)
+    {
+        PrettyMeasure!U pretty = PrettyMeasure!U(
+            &options,
+            PrettyPrintContext(depth, 0),
+            budget,
+        );
+        value.prettyDescribe(pretty);
+        return pretty.result;
+    }
+    else static if (hasPrettyFormatTo!T)
     {
         return unknownWidth();
     }
     else static if (is(U == typeof(null)))
         return knownWidth(4);
-    else static if (is(U == StringBuf) || isOwnedStringType!U)
-        return estimateEscapedString(value.view, budget);
     else static if (isStringType!U)
         return estimateEscapedString(cast(String) value, budget);
     else static if (is(U == bool))
@@ -1812,65 +2061,6 @@ private WidthEstimate estimateWidth(T)(
         return knownWidth(integerWidth(value));
     else static if (__traits(isFloating, U))
         return knownWidth(U.sizeof * 8 + 16);
-    else static if (isOptionType!U)
-    {
-        size_t total = options.showTypeNames ? U.stringof.length + 1 : 0;
-        if (value.isNone)
-            return addWidth(&total, 4, budget) ? knownWidth(total) : unknownWidth();
-        if (!addWidth(&total, 5, budget))
-            return unknownWidth();
-        if (depthLimitReached(depth, options))
-            return addWidth(&total, 4, budget) ? knownWidth(total) : unknownWidth();
-        const child = estimateWidth(
-            value.value,
-            options,
-            nextDepth(depth),
-            budget > total ? budget - total : 0,
-        );
-        if (!child.known || !addWidth(&total, child.width + 1, budget))
-            return unknownWidth();
-        return knownWidth(total);
-    }
-    else static if (isResultType!U)
-    {
-        alias Value = ResultValue!U;
-        size_t total = options.showTypeNames ? U.stringof.length + 1 : 0;
-        if (value.isErr)
-        {
-            if (!addWidth(&total, 4, budget))
-                return unknownWidth();
-            if (depthLimitReached(depth, options))
-                return addWidth(&total, 4, budget) ? knownWidth(total) : unknownWidth();
-            const child = estimateWidth(
-                value.error,
-                options,
-                nextDepth(depth),
-                budget > total ? budget - total : 0,
-            );
-            if (!child.known || !addWidth(&total, child.width + 1, budget))
-                return unknownWidth();
-            return knownWidth(total);
-        }
-
-        if (!addWidth(&total, 3, budget))
-            return unknownWidth();
-        static if (is(Value == void))
-            return addWidth(&total, 1, budget) ? knownWidth(total) : unknownWidth();
-        else
-        {
-            if (depthLimitReached(depth, options))
-                return addWidth(&total, 4, budget) ? knownWidth(total) : unknownWidth();
-            const child = estimateWidth(
-                value.value,
-                options,
-                nextDepth(depth),
-                budget > total ? budget - total : 0,
-            );
-            if (!child.known || !addWidth(&total, child.width + 1, budget))
-                return unknownWidth();
-            return knownWidth(total);
-        }
-    }
     else static if (isArrayType!U)
     {
         size_t prefix = options.showTypeNames ? U.stringof.length + 1 : 0;
@@ -1881,11 +2071,11 @@ private WidthEstimate estimateWidth(T)(
         return knownWidth(prefix);
     }
     else static if (isFlagSetType!U)
-        return estimateFlagSet(value, options, budget);
+        return estimateFlagSet!U(value, options, budget);
     else static if (isHashMapType!U || isStringHashMapType!U)
-        return estimateHashMap(value, options, depth, budget);
+        return estimateHashMap!U(value, options, depth, budget);
     else static if (isHashSetType!U)
-        return estimateHashSet(value, options, depth, budget);
+        return estimateHashSet!U(value, options, depth, budget);
     else static if (is(U == Element[], Element))
         return estimateIndexable(value, value.length, options, depth, budget);
     else static if (is(U == Element[N], Element, size_t N))
@@ -2074,7 +2264,27 @@ private WidthEstimate estimateIndexable(T)(
     return knownWidth(total);
 }
 
-private WidthEstimate estimateFlagSet(T)(
+private WidthEstimate estimateSemanticSequence(Display, T)(
+    scope const ref T value,
+    scope const ref PrettyPrintOptions options,
+    ushort depth,
+    size_t budget,
+)
+{
+    size_t prefix = options.showTypeNames ? Display.stringof.length + 1 : 0;
+    const child = estimateIndexable(
+        value,
+        value.length,
+        options,
+        depth,
+        budget >= prefix ? budget - prefix : 0,
+    );
+    if (!child.known || !addWidth(&prefix, child.width, budget))
+        return unknownWidth();
+    return knownWidth(prefix);
+}
+
+private WidthEstimate estimateFlagSet(Display, T)(
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
     size_t budget,
@@ -2083,7 +2293,7 @@ private WidthEstimate estimateFlagSet(T)(
     alias U = Unqualified!T;
     alias Flag = U.FlagType;
 
-    size_t total = options.showTypeNames ? U.stringof.length + 1 : 0;
+    size_t total = options.showTypeNames ? Display.stringof.length + 1 : 0;
     if (!addWidth(&total, 2, budget))
         return unknownWidth();
 
@@ -2115,16 +2325,15 @@ private WidthEstimate estimateFlagSet(T)(
     return knownWidth(total);
 }
 
-private WidthEstimate estimateHashMap(T)(
+private WidthEstimate estimateHashMap(Display, T)(
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
     ushort depth,
     size_t budget,
 )
 {
-    alias U = Unqualified!T;
-    size_t total = options.showTypeNames ? U.stringof.length + 1 : 0;
-    if (value.empty)
+    size_t total = options.showTypeNames ? Display.stringof.length + 1 : 0;
+    if (value.length == 0)
         return addWidth(&total, 2, budget) ? knownWidth(total) : unknownWidth();
     if (depthLimitReached(depth, options))
         return addWidth(&total, 3, budget) ? knownWidth(total) : unknownWidth();
@@ -2168,16 +2377,15 @@ private WidthEstimate estimateHashMap(T)(
     return knownWidth(total);
 }
 
-private WidthEstimate estimateHashSet(T)(
+private WidthEstimate estimateHashSet(Display, T)(
     scope const ref T value,
     scope const ref PrettyPrintOptions options,
     ushort depth,
     size_t budget,
 )
 {
-    alias U = Unqualified!T;
-    size_t total = options.showTypeNames ? U.stringof.length + 1 : 0;
-    if (value.empty)
+    size_t total = options.showTypeNames ? Display.stringof.length + 1 : 0;
+    if (value.length == 0)
         return addWidth(&total, 2, budget) ? knownWidth(total) : unknownWidth();
     if (depthLimitReached(depth, options))
         return addWidth(&total, 3, budget) ? knownWidth(total) : unknownWidth();
@@ -2482,6 +2690,27 @@ version (unittest)
                 int[1] local = [1];
                 return PrettyPrintTestBorrowedSlice(local[]).pretty;
             }
+        }));
+
+    private struct PrettyPrintTestConflictingSemanticOverride
+    {
+        void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+        {
+            pretty.atom("semantic", pretty.nullRole);
+        }
+
+        void prettyFormatTo(
+            ref Writer writer,
+            scope const ref PrettyPrintOptions,
+        ) const nothrow @nogc
+        {
+            writer.put("raw");
+        }
+    }
+
+    static assert(!__traits(compiles,
+            (ref Writer writer, ref PrettyPrintTestConflictingSemanticOverride value) {
+            writePretty(writer, value);
         }));
 
     private struct PrettyPrintTestOverride

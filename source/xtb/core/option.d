@@ -162,6 +162,16 @@ nothrow @nogc:
         return payload();
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        if (isNone)
+        {
+            pretty.atom("none", pretty.nullRole);
+            return;
+        }
+        pretty.constructor("some", value);
+    }
+
     inout(T)* pointer() inout return @system
     {
         return present_ ? &payload() : null;

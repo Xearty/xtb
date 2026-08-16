@@ -187,6 +187,20 @@ nothrow @nogc:
         return state_ == ResultState.err;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        if (isErr)
+        {
+            pretty.constructor("err", error);
+            return;
+        }
+
+        static if (is(T == void))
+            pretty.constructor("ok");
+        else
+            pretty.constructor("ok", value);
+    }
+
     /// Converts to true exactly when this Result is successful.
     bool opCast(U : bool)() const pure @safe
     {
