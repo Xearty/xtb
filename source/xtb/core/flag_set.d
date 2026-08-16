@@ -298,6 +298,11 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
         return result;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.flags(this);
+    }
+
     /// Set union (`|`), intersection (`&`), difference (`-`), or symmetric difference (`^`).
     FlagSet opBinary(string operation)(FlagSet other) const pure @safe
     {

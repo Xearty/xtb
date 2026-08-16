@@ -418,6 +418,11 @@ public:
         return length_ == 0;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.map(this);
+    }
+
     HashMapCursor!(K, V) cursor() return
     {
         return HashMapCursor!(K, V).create(states_, entries_, capacity_);
@@ -1253,6 +1258,11 @@ public:
         return storage_.empty;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.map(this);
+    }
+
     HashMapCursor!(K, V) cursor() return @trusted
     {
         return storage_.cursor();
@@ -1572,6 +1582,11 @@ public:
     bool empty() const pure @trusted
     {
         return storage_.empty;
+    }
+
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.map(this);
     }
 
     HashMapCursor!(K, V) cursor() return @trusted
@@ -2081,6 +2096,11 @@ public:
         return map_.empty;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.set(this);
+    }
+
     HashSetCursor!K cursor() return
     {
         return HashSetCursor!K(map_.cursor());
@@ -2336,6 +2356,11 @@ public:
         return storage_.empty;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.set(this);
+    }
+
     HashSetCursor!K cursor() return @trusted
     {
         return storage_.cursor();
@@ -2568,6 +2593,11 @@ public:
     bool empty() const pure @trusted
     {
         return storage_.empty;
+    }
+
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.set(this);
     }
 
     HashSetCursor!K cursor() return @trusted

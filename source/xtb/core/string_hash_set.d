@@ -123,6 +123,11 @@ public:
         return map_.empty;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.set(this);
+    }
+
     StringHashSetCursor cursor() return @trusted
     {
         return StringHashSetCursor.create(map_.cursor);
@@ -392,6 +397,11 @@ public:
     bool empty() const pure @trusted
     {
         return storage_.empty;
+    }
+
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.set(this);
     }
 
     StringHashSetCursor cursor() return @trusted

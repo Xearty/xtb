@@ -3,9 +3,6 @@ module xtb.core.pretty_print;
 nothrow @nogc:
 
 import xtb.core.ansi : AnsiColor, AnsiStyle, beginAnsi, endAnsi;
-import xtb.core.array;
-import xtb.core.flag_set : FlagSet;
-import xtb.core.hash_map;
 import xtb.core.lifetime : lifetimeDeinit = deinit,
     isTaggedPayloadField,
     move,
@@ -16,14 +13,20 @@ import xtb.core.lifetime : lifetimeDeinit = deinit,
     taggedPayloadMemberTag,
     taggedPayloadMetadata;
 
-version (unittest) import xtb.core.owned_string;
-
-version (unittest) import xtb.core.option : Option;
-
-version (unittest) import xtb.core.result : Result;
+version (unittest)
+{
+    import xtb.core.array;
+    import xtb.core.flag_set : FlagSet;
+    import xtb.core.hash_map;
+    import xtb.core.owned_string;
+    import xtb.core.option : Option;
+    import xtb.core.result : Result;
+    import xtb.core.string;
+    import xtb.core.string_hash_map;
+    import xtb.core.string_hash_set;
+}
 import xtb.core.print : Writer;
-import xtb.core.string;
-import xtb.core.string_hash_map;
+import xtb.core.types : String;
 
 /// Controls how aggregate values are laid out.
 enum PrettyPrintLayout : ubyte
@@ -263,46 +266,6 @@ private enum isVoidPointee(T) = is(T == void) || is(T == const(void)) ||
 // directly in more than one `static if` condition inside the same function
 // redeclares that alias for pointer instantiations.
 private enum isPointerType(T) = is(Unqualified!T == Pointee*, Pointee);
-
-private enum isArrayType(T) =
-    is(Unqualified!T == Array!Element, Element) ||
-    is(Unqualified!T == OwnedArray!Element, Element);
-private enum isFlagSetType(T) = is(
-        Unqualified!T == FlagSet!(Flag, Storage),
-        Flag,
-        Storage,
-    );
-private enum isHashMapType(T) = is(
-        Unqualified!T == HashMap!(Key, Value, Hasher, Equal),
-        Key,
-        Value,
-        Hasher,
-        Equal,
-    ) || is(
-        Unqualified!T == OwnedHashMap!(Key, Value, Hasher, Equal),
-        Key,
-        Value,
-        Hasher,
-        Equal,
-    );
-private enum isHashSetType(T) = is(
-        Unqualified!T == HashSet!(Key, Hasher, Equal),
-        Key,
-        Hasher,
-        Equal,
-    ) || is(
-        Unqualified!T == OwnedHashSet!(Key, Hasher, Equal),
-        Key,
-        Hasher,
-        Equal,
-    );
-private enum isStringHashMapType(T) = is(
-        Unqualified!T == BasicStringHashMap!(Value, ValueOps, OwnsValues),
-        Value, ValueOps, bool OwnsValues,
-    ) || is(
-        Unqualified!T == StringHashMapUnmanaged!(Value, ValueOps),
-        Value, ValueOps,
-    );
 
 /// Tracks semantic recursion separately from visual indentation. Constructor-
 /// like wrappers such as `some(...)` and `&...` increase recursion depth but
@@ -733,22 +696,6 @@ private void writePrettyImpl(T)(
             options,
         );
     }
-    else static if (isArrayType!U)
-    {
-        writeXtbArray(writer, value, options, context);
-    }
-    else static if (isFlagSetType!U)
-    {
-        writeFlagSet!U(writer, value, options, context);
-    }
-    else static if (isHashMapType!U || isStringHashMapType!U)
-    {
-        writeHashMap!U(writer, value, options, context);
-    }
-    else static if (isHashSetType!U)
-    {
-        writeHashSet!U(writer, value, options, context);
-    }
     else static if (is(U == Element[], Element))
     {
         writeSlice(writer, value, options, context);
@@ -808,16 +755,6 @@ private void writeSemanticSequence(Display, T)(
         writer.put(' ');
     }
     writeIndexableSequence(writer, value, value.length, options, context);
-}
-
-private void writeXtbArray(T)(
-    ref Writer writer,
-    scope const ref T value,
-    scope const ref PrettyPrintOptions options,
-    PrettyPrintContext context,
-)
-{
-    writeSemanticSequence!(Unqualified!T)(writer, value, options, context);
 }
 
 private void writeSlice(T)(
@@ -2061,21 +1998,6 @@ private WidthEstimate estimateWidth(T)(
         return knownWidth(integerWidth(value));
     else static if (__traits(isFloating, U))
         return knownWidth(U.sizeof * 8 + 16);
-    else static if (isArrayType!U)
-    {
-        size_t prefix = options.showTypeNames ? U.stringof.length + 1 : 0;
-        const child = estimateIndexable(value, value.length, options, depth,
-            budget >= prefix ? budget - prefix : 0);
-        if (!child.known || !addWidth(&prefix, child.width, budget))
-            return unknownWidth();
-        return knownWidth(prefix);
-    }
-    else static if (isFlagSetType!U)
-        return estimateFlagSet!U(value, options, budget);
-    else static if (isHashMapType!U || isStringHashMapType!U)
-        return estimateHashMap!U(value, options, depth, budget);
-    else static if (isHashSetType!U)
-        return estimateHashSet!U(value, options, depth, budget);
     else static if (is(U == Element[], Element))
         return estimateIndexable(value, value.length, options, depth, budget);
     else static if (is(U == Element[N], Element, size_t N))
@@ -2979,7 +2901,30 @@ unittest
 
     StringBuf buffer = StringBuf.fromString(mallocAllocator(), "owned\ntext");
     buffer.expectPretty("\"owned\\ntext\"", plain);
+    buffer.expectWidthEstimateCovers(plain);
     buffer.deinit();
+
+    StringBufUnmanaged unmanagedBuffer = StringBufUnmanaged.fromString(
+        mallocAllocator(),
+        "owned\ntext",
+    );
+    unmanagedBuffer.expectPretty("\"owned\\ntext\"", plain);
+    unmanagedBuffer.expectWidthEstimateCovers(plain);
+    unmanagedBuffer.deinit(mallocAllocator());
+
+    OwnedString ownedString = OwnedString.fromString(
+        mallocAllocator(),
+        "owned\ntext",
+    );
+    ownedString.expectPretty("\"owned\\ntext\"", plain);
+    ownedString.expectWidthEstimateCovers(plain);
+    ownedString.deinit();
+
+    OwnedStringUnmanaged unmanagedOwnedString =
+        OwnedStringUnmanaged.fromString(mallocAllocator(), "owned\ntext");
+    unmanagedOwnedString.expectPretty("\"owned\\ntext\"", plain);
+    unmanagedOwnedString.expectWidthEstimateCovers(plain);
+    unmanagedOwnedString.deinit(mallocAllocator());
 
     char quote = '\'';
     quote.expectPretty("'\\''", plain);
@@ -3616,6 +3561,56 @@ unittest
     ownedSet.expectPretty("{11}", noTypes);
     ownedSet.expectWidthEstimateCovers(noTypes);
     ownedSet.deinit();
+
+    ArrayUnmanaged!int unmanagedValues;
+    unmanagedValues.append(mallocAllocator(), 5);
+    unmanagedValues.append(mallocAllocator(), 6);
+    unmanagedValues.expectPretty("[5, 6]", noTypes);
+    unmanagedValues.expectWidthEstimateCovers(noTypes);
+    unmanagedValues.deinit(mallocAllocator());
+
+    HashMapUnmanaged!(String, int) unmanagedMap;
+    assert(unmanagedMap.set(mallocAllocator(), "unmanaged", 13));
+    unmanagedMap.expectPretty("{\"unmanaged\": 13}", noTypes);
+    unmanagedMap.expectWidthEstimateCovers(noTypes);
+    unmanagedMap.deinit(mallocAllocator());
+
+    HashSetUnmanaged!int unmanagedSet;
+    assert(unmanagedSet.add(mallocAllocator(), 17));
+    unmanagedSet.expectPretty("{17}", noTypes);
+    unmanagedSet.expectWidthEstimateCovers(noTypes);
+    unmanagedSet.deinit(mallocAllocator());
+
+    StringHashMapUnmanaged!int unmanagedStringMap;
+    assert(unmanagedStringMap.set(mallocAllocator(), "string", 19));
+    unmanagedStringMap.expectPretty("{\"string\": 19}", noTypes);
+    unmanagedStringMap.expectWidthEstimateCovers(noTypes);
+    unmanagedStringMap.deinit(mallocAllocator());
+
+    StringHashMap!int stringMap = StringHashMap!int.create(mallocAllocator());
+    assert(stringMap.set("managed-string", 23));
+    stringMap.expectPretty("{\"managed-string\": 23}", noTypes);
+    stringMap.expectWidthEstimateCovers(noTypes);
+    stringMap.deinit();
+
+    OwnedStringHashMap!int ownedStringMap =
+        OwnedStringHashMap!int.create(mallocAllocator());
+    assert(ownedStringMap.set("owned-string", 29));
+    ownedStringMap.expectPretty("{\"owned-string\": 29}", noTypes);
+    ownedStringMap.expectWidthEstimateCovers(noTypes);
+    ownedStringMap.deinit();
+
+    StringHashSetUnmanaged unmanagedStringSet;
+    assert(unmanagedStringSet.add(mallocAllocator(), "unmanaged-set"));
+    unmanagedStringSet.expectPretty("{\"unmanaged-set\"}", noTypes);
+    unmanagedStringSet.expectWidthEstimateCovers(noTypes);
+    unmanagedStringSet.deinit(mallocAllocator());
+
+    StringHashSet stringSet = StringHashSet.create(mallocAllocator());
+    assert(stringSet.add("managed-set"));
+    stringSet.expectPretty("{\"managed-set\"}", noTypes);
+    stringSet.expectWidthEstimateCovers(noTypes);
+    stringSet.deinit();
 }
 
 unittest

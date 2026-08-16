@@ -223,6 +223,11 @@ public:
         return map_.empty;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.map(this);
+    }
+
     StringHashMapCursor!V cursor() return @trusted
     {
         return StringHashMapCursor!V.create(map_.cursor());
@@ -833,6 +838,11 @@ public:
     bool empty() const pure @trusted
     {
         return storage_.empty;
+    }
+
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.map(this);
     }
 
     StringHashMapCursor!V cursor() return @trusted

@@ -291,6 +291,11 @@ public:
         return length_ == 0;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.sequence(this);
+    }
+
     T[] slice() return pure @system
     {
         return data_[0 .. length_];
@@ -909,6 +914,11 @@ public:
         return storage_.empty;
     }
 
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.sequence(this);
+    }
+
     T[] slice() return @system
     {
         return storage_.slice;
@@ -1216,6 +1226,11 @@ public:
     bool empty() const pure @safe
     {
         return storage_.empty;
+    }
+
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    {
+        pretty.sequence(this);
     }
 
     T[] slice() return @system
