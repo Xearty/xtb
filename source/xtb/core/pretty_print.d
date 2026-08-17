@@ -549,11 +549,14 @@ private void validatePrettyMapSource(Source)(scope const ref Source source)
     static assert(__traits(compiles, source.length) &&
             __traits(compiles, source.cursor()),
         "pretty.map source must provide length and cursor()");
-    alias Cursor = typeof(source.cursor());
-    static assert(__traits(compiles, Cursor.init.valid) &&
-            __traits(compiles, *Cursor.init.key) &&
-            __traits(compiles, *Cursor.init.value) &&
-            __traits(compiles, { Cursor cursor; cursor.advance(); }),
+    static assert(__traits(compiles,
+    {
+            auto cursor = source.cursor();
+            const valid = cursor.valid;
+            const key = *cursor.key;
+            const value = *cursor.value;
+            cursor.advance();
+        }),
         "pretty.map cursor must provide valid, key, value, and advance()");
 }
 
@@ -562,10 +565,13 @@ private void validatePrettySetSource(Source)(scope const ref Source source)
     static assert(__traits(compiles, source.length) &&
             __traits(compiles, source.cursor()),
         "pretty.set source must provide length and cursor()");
-    alias Cursor = typeof(source.cursor());
-    static assert(__traits(compiles, Cursor.init.valid) &&
-            __traits(compiles, *Cursor.init.value) &&
-            __traits(compiles, { Cursor cursor; cursor.advance(); }),
+    static assert(__traits(compiles,
+    {
+            auto cursor = source.cursor();
+            const valid = cursor.valid;
+            const value = *cursor.value;
+            cursor.advance();
+        }),
         "pretty.set cursor must provide valid, value, and advance()");
 }
 
@@ -2518,6 +2524,112 @@ version (unittest)
         String name;
     }
 
+    private struct PrettyPrintTestMapCursor
+    {
+        private int key_;
+        private int value_;
+        private bool valid_;
+
+        @disable this();
+
+        this(int key, int value) pure nothrow @nogc @safe
+        {
+            key_ = key;
+            value_ = value;
+            valid_ = true;
+        }
+
+        bool valid() const pure nothrow @nogc @safe
+        {
+            return valid_;
+        }
+
+        const(int)* key() const return pure nothrow @nogc @safe
+        {
+            return &key_;
+        }
+
+        const(int)* value() const return pure nothrow @nogc @safe
+        {
+            return &value_;
+        }
+
+        void advance() nothrow @nogc
+        {
+            valid_ = false;
+        }
+    }
+
+    private struct PrettyPrintTestMapSource
+    {
+        int key;
+        int value;
+
+        size_t length() const pure nothrow @nogc @safe
+        {
+            return 1;
+        }
+
+        PrettyPrintTestMapCursor cursor() const return nothrow @nogc @safe
+        {
+            return PrettyPrintTestMapCursor(key, value);
+        }
+
+        void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+        {
+            pretty.map(this);
+        }
+    }
+
+    private struct PrettyPrintTestSetCursor
+    {
+        private int value_;
+        private bool valid_;
+
+        @disable this();
+
+        this(int value) pure nothrow @nogc @safe
+        {
+            value_ = value;
+            valid_ = true;
+        }
+
+        bool valid() const pure nothrow @nogc @safe
+        {
+            return valid_;
+        }
+
+        const(int)* value() const return pure nothrow @nogc @safe
+        {
+            return &value_;
+        }
+
+        void advance() nothrow @nogc
+        {
+            valid_ = false;
+        }
+    }
+
+    private struct PrettyPrintTestSetSource
+    {
+        int value;
+
+        size_t length() const pure nothrow @nogc @safe
+        {
+            return 1;
+        }
+
+        PrettyPrintTestSetCursor cursor() const return nothrow @nogc @safe
+        {
+            return PrettyPrintTestSetCursor(value);
+        }
+
+        void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+        {
+            pretty.set(this);
+        }
+    }
+
     private struct PrettyPrintTestOuter
     {
         PrettyPrintTestRecord inner;
@@ -3552,6 +3664,14 @@ unittest
 
     PrettyPrintOptions noTypes = plainOptions();
     noTypes.showTypeNames = false;
+
+    PrettyPrintTestMapSource customMap = PrettyPrintTestMapSource(1, 2);
+    customMap.expectPretty("{1: 2}", noTypes);
+    customMap.expectWidthEstimateCovers(noTypes);
+
+    PrettyPrintTestSetSource customSet = PrettyPrintTestSetSource(3);
+    customSet.expectPretty("{3}", noTypes);
+    customSet.expectWidthEstimateCovers(noTypes);
 
     Array!int values = Array!int.create(mallocAllocator());
     values.expectPretty("[]", noTypes);
