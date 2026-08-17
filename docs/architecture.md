@@ -1014,10 +1014,10 @@ normal formatting to the result. This is the preferred path for semantic
 wrappers such as `OwnedString` and `StringBuf`, because those types can delegate
 to their `String` view without learning about writers or shadowing the existing
 UFCS `buffer.formatTo(...)` formatting API. A type needing genuinely custom
-normal syntax may instead define `formatTo(ref Writer)`. A representation is
-observational and never transfers ownership to the printer: a by-value result
-must be cleanup-free, while a `ref` result is a borrow that must remain valid
-for the recursive formatting call. Pointer and slice results are likewise
+normal syntax may instead define `void formatTo(ref Writer)`. A representation
+is observational and never transfers ownership to the printer: a by-value
+result must be cleanup-free, while a `ref` result is a borrow that must remain
+valid for the recursive formatting call. Pointer and slice results are likewise
 borrowed views whose pointees or elements must remain valid for that call.
 These two hooks are mutually exclusive, and a direct self-returning
 `formatRepresentation()` is rejected. Do not add a second formatting
@@ -1026,8 +1026,8 @@ mini-language inside interpolation text. Keep the compile-time
 clearer or an existing format string is already the natural representation.
 
 Structural pretty printing has an independent customization protocol. Prefer a
-const `prettyDescribe(Pretty)(scope ref Pretty pretty)` member that describes
-semantics with the small vocabulary `pretty.value`, `pretty.atom`,
+`void prettyDescribe(Pretty)(scope ref Pretty pretty) const` member that
+describes semantics with the small vocabulary `pretty.value`, `pretty.atom`,
 `pretty.constructor`, `pretty.sequence`, `pretty.map`, `pretty.set`, and
 `pretty.flags`. The concrete type does not import `pretty_print`; `Pretty` is a
 template parameter, and the pretty engine interprets the same description for
@@ -1040,12 +1040,12 @@ state on each interpretation, so measurement never consumes rendering state.
 `prettyDescribe` is observational: it must not mutate the value, perform I/O,
 consume persistent state, depend on invocation count, or allocate persistent
 state. Automatic layout may call it during measurement and again during
-rendering. `prettyFormatTo(ref Writer, scope const ref PrettyPrintOptions)` is
-the low-level escape hatch for truly custom pretty syntax; its automatic width
-is conservatively unknown. A type must not define both pretty hooks. Generic D
-fundamentals, aggregates, and tagged-union metadata remain handled by the pretty
-engine; XTB containers declare their own sequence/map/set/flag semantics instead
-of being registered centrally in `pretty_print.d`.
+rendering. `void prettyFormatTo(ref Writer, scope const ref PrettyPrintOptions)`
+is the low-level escape hatch for truly custom pretty syntax; its automatic
+width is conservatively unknown. A type must not define both pretty hooks.
+Generic D fundamentals, aggregates, and tagged-union metadata remain handled by
+the pretty engine; XTB containers declare their own sequence/map/set/flag
+semantics instead of being registered centrally in `pretty_print.d`.
 
 #### C strings and termination
 

@@ -223,15 +223,17 @@ OwnedPrettyValue!T pretty(T)(
 
 /// Writes a value directly without constructing a wrapper.
 ///
-/// Prefer a const-compatible `prettyDescribe(Pretty)(scope ref Pretty)` member
+/// Prefer a const-compatible
+/// `void prettyDescribe(Pretty)(scope ref Pretty)` member
 /// that describes the value through `pretty.value`, `atom`, `constructor`,
 /// `sequence`, `map`, `set`, or `flags`. The description is interpreted both
 /// for rendering and width measurement, so it must be deterministic,
 /// observational, and safe to invoke more than once.
 ///
-/// `prettyFormatTo(ref Writer, scope const ref PrettyPrintOptions)` remains the
-/// low-level escape hatch for syntax that cannot use those semantic forms. Its
-/// automatic width is unknown. A type must not define both pretty hooks.
+/// `void prettyFormatTo(ref Writer, scope const ref PrettyPrintOptions)`
+/// remains the low-level escape hatch for syntax that cannot use those
+/// semantic forms. Its automatic width is unknown. A type must not define both
+/// pretty hooks.
 /// Ordinary `formatRepresentation` and `formatTo` are separate normal-display
 /// customization points and are deliberately ignored here.
 void writePretty(T)(
@@ -649,10 +651,16 @@ private void writePrettyImpl(T)(
     static if (hasPrettyDescribe!T)
     {
         PrettyRender!U pretty = PrettyRender!U(&writer, &options, context);
+        alias DescribeReturn = typeof(value.prettyDescribe(pretty));
+        static assert(is(DescribeReturn == void), U.stringof ~
+                ".prettyDescribe(...) must return void");
         value.prettyDescribe(pretty);
     }
     else static if (hasPrettyFormatTo!T)
     {
+        alias FormatReturn = typeof(value.prettyFormatTo(writer, options));
+        static assert(is(FormatReturn == void), U.stringof ~
+                ".prettyFormatTo(...) must return void");
         value.prettyFormatTo(writer, options);
     }
     else static if (is(U == typeof(null)))
@@ -1976,6 +1984,9 @@ private WidthEstimate estimateWidth(T)(
             PrettyPrintContext(depth, 0),
             budget,
         );
+        alias DescribeReturn = typeof(value.prettyDescribe(pretty));
+        static assert(is(DescribeReturn == void), U.stringof ~
+                ".prettyDescribe(...) must return void");
         value.prettyDescribe(pretty);
         return pretty.result;
     }
@@ -2631,6 +2642,37 @@ version (unittest)
 
     static assert(!__traits(compiles,
             (ref Writer writer, ref PrettyPrintTestConflictingSemanticOverride value) {
+            writePretty(writer, value);
+        }));
+
+    private struct PrettyPrintTestNonVoidDescribe
+    {
+        int prettyDescribe(Pretty)(scope ref Pretty pretty) const
+        {
+            pretty.atom("invalid", pretty.nullRole);
+            return 1;
+        }
+    }
+
+    static assert(!__traits(compiles,
+            (ref Writer writer, ref PrettyPrintTestNonVoidDescribe value) {
+            writePretty(writer, value);
+        }));
+
+    private struct PrettyPrintTestNonVoidOverride
+    {
+        int prettyFormatTo(
+            ref Writer writer,
+            scope const ref PrettyPrintOptions,
+        ) const nothrow @nogc
+        {
+            writer.put("invalid");
+            return 1;
+        }
+    }
+
+    static assert(!__traits(compiles,
+            (ref Writer writer, ref PrettyPrintTestNonVoidOverride value) {
             writePretty(writer, value);
         }));
 

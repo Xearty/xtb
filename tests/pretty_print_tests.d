@@ -38,6 +38,15 @@ private struct RecursiveFormatTestValue
     }
 }
 
+private struct NonVoidFormatToTestValue
+{
+    int formatTo(ref Writer writer) const nothrow @nogc
+    {
+        writer.put("invalid");
+        return 1;
+    }
+}
+
 private struct OwningFormatRepresentationTestValue
 {
     Allocator* allocator;
@@ -62,6 +71,8 @@ static assert(!__traits(compiles,
         (ref ConflictingFormatTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
 static assert(!__traits(compiles,
         (ref RecursiveFormatTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
+static assert(!__traits(compiles,
+        (ref NonVoidFormatToTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
 static assert(!__traits(compiles,
         (ref OwningFormatRepresentationTestValue value) {
         char[32] storage;

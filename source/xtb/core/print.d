@@ -505,6 +505,9 @@ private void writeValue(T)(ref Writer writer, auto ref T value)
     }
     else static if (__traits(compiles, value.formatTo(writer)))
     {
+        alias FormatReturn = typeof(value.formatTo(writer));
+        static assert(is(FormatReturn == void), U.stringof ~
+                ".formatTo(ref Writer) must return void");
         value.formatTo(writer);
     }
     else static if (is(U == typeof(null)))
