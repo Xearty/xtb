@@ -7,7 +7,7 @@ import core.stdc.string : memcpy;
 import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
     InterpolationFooter, InterpolationHeader;
 import xtb.core.string;
-import xtb.core.lifetime : moveEmplace;
+import xtb.core.lifetime : moveEmplace, needsFinalization;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic;
 
@@ -459,6 +459,14 @@ private enum hasFormatRepresentation(T) =
 private enum hasFormatToMember(T) =
     __traits(hasMember, Unqualified!T, "formatTo");
 
+private bool hasFunctionAttribute(alias function_, string expected)()
+{
+    static foreach (attribute; __traits(getFunctionAttributes, function_))
+        if (attribute == expected)
+            return true;
+    return false;
+}
+
 private void writeArguments(Args...)(ref Writer writer, auto ref Args args)
 {
     static foreach (i; 0 .. Args.length)
@@ -487,6 +495,12 @@ private void writeValue(T)(ref Writer writer, auto ref T value)
         alias Representation = typeof(value.formatRepresentation());
         static assert(!is(Unqualified!Representation == U), U.stringof ~
                 ".formatRepresentation() must not return the same type");
+        enum representationIsBorrowed =
+            hasFunctionAttribute!(value.formatRepresentation, "ref")();
+        static assert(representationIsBorrowed ||
+                !needsFinalization!Representation, U.stringof ~
+                ".formatRepresentation() must return a borrowed reference " ~
+                "or a cleanup-free value");
         writeValue(writer, value.formatRepresentation());
     }
     else static if (__traits(compiles, value.formatTo(writer)))

@@ -1,6 +1,7 @@
 module tests.pretty_print_tests;
 
 import xtb.core.allocators.malloc : mallocAllocator;
+import xtb.core.memory : Allocator;
 import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
 import xtb.core.pretty_print;
 import xtb.core.print : Writer, writeBuffer;
@@ -37,10 +38,40 @@ private struct RecursiveFormatTestValue
     }
 }
 
+private struct OwningFormatRepresentationTestValue
+{
+    Allocator* allocator;
+
+    OwnedString formatRepresentation() nothrow @nogc
+    {
+        return OwnedString.fromString(allocator, "owned representation");
+    }
+}
+
+private struct BorrowedOwningFormatRepresentationTestValue
+{
+    OwnedString* representation;
+
+    ref const(OwnedString) formatRepresentation() const return pure nothrow @nogc @trusted
+    {
+        return *representation;
+    }
+}
+
 static assert(!__traits(compiles,
         (ref ConflictingFormatTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
 static assert(!__traits(compiles,
         (ref RecursiveFormatTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
+static assert(!__traits(compiles,
+        (ref OwningFormatRepresentationTestValue value) {
+        char[32] storage;
+        writeBuffer(storage[], value);
+    }));
+static assert(__traits(compiles,
+        (ref BorrowedOwningFormatRepresentationTestValue value) {
+        char[32] storage;
+        writeBuffer(storage[], value);
+    }));
 
 private void testFormatRepresentation()
 {
@@ -63,6 +94,12 @@ private void testFormatRepresentation()
     result = writeBuffer(storage[], owned);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "owned");
+
+    auto borrowedRepresentation = BorrowedOwningFormatRepresentationTestValue(&owned);
+    result = writeBuffer(storage[], borrowedRepresentation);
+    assert(result.ok && !result.truncated);
+    assert(storage[0 .. result.written] == "owned");
+
     owned.deinit();
 
     StringBufUnmanaged unmanagedBuffer =

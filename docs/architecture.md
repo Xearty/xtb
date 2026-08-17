@@ -1014,12 +1014,16 @@ normal formatting to the result. This is the preferred path for semantic
 wrappers such as `OwnedString` and `StringBuf`, because those types can delegate
 to their `String` view without learning about writers or shadowing the existing
 UFCS `buffer.formatTo(...)` formatting API. A type needing genuinely custom
-normal syntax may instead define `formatTo(ref Writer)`. These two hooks are
-mutually exclusive, and a direct self-returning `formatRepresentation()` is
-rejected. Do not add a second formatting mini-language inside interpolation
-text. Keep the compile-time `formatln!"...{}..."` family for call sites where
-positional placeholders are clearer or an existing format string is already
-the natural representation.
+normal syntax may instead define `formatTo(ref Writer)`. A representation is
+observational and never transfers ownership to the printer: a by-value result
+must be cleanup-free, while a `ref` result is a borrow that must remain valid
+for the recursive formatting call. Pointer and slice results are likewise
+borrowed views whose pointees or elements must remain valid for that call.
+These two hooks are mutually exclusive, and a direct self-returning
+`formatRepresentation()` is rejected. Do not add a second formatting
+mini-language inside interpolation text. Keep the compile-time
+`formatln!"...{}..."` family for call sites where positional placeholders are
+clearer or an existing format string is already the natural representation.
 
 Structural pretty printing has an independent customization protocol. Prefer a
 const `prettyDescribe(Pretty)(scope ref Pretty pretty)` member that describes
