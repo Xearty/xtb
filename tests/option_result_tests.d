@@ -11,6 +11,18 @@ import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.option;
 import xtb.core.result;
 
+private struct ContextOwner
+{
+    void deinit(Allocator*)
+    {
+    }
+}
+
+static assert(!__traits(compiles, () { Option!ContextOwner value; }));
+static assert(!__traits(compiles, () { Result!(ContextOwner, int) value; }));
+static assert(!__traits(compiles, () { Result!(int, ContextOwner) value; }));
+static assert(!__traits(compiles, () { Result!(void, ContextOwner) value; }));
+
 static assert(!needsDeinit!(Option!int));
 static assert(!needsDeinit!(Result!(int, int)));
 static assert(!__traits(hasMember, Option!int, "deinit"));

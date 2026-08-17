@@ -5,8 +5,9 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.core.lifetime : deinitValue = deinit, finalize, hasDDestructor,
-    move, moveEmplace, needsDeinit, needsFinalization;
+import xtb.core.lifetime : canFinalizeWithoutContext,
+    deinitValue = deinit, finalize, hasDDestructor, move, moveEmplace,
+    needsDeinit, needsFinalization;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
@@ -59,12 +60,19 @@ private template ResultError(T)
 /// `take`/`unwrap` and `takeError`/`unwrapError` transfer the active payload
 /// without cleaning it. The Result remains in the same logical branch with a
 /// safely moved-from payload. Checked builds diagnose repeated semantic use of
-/// a consumed Result; that diagnostic bit is not a third Result state.
+/// a consumed Result; that diagnostic bit is not a third Result state. Both
+/// branches must support context-free finalization because Result stores no
+/// cleanup context.
 @mustuse struct Result(T, E)
 {
 nothrow @nogc:
 
     static assert(!is(E == void), "Result error type cannot be void");
+    static if (!is(T == void))
+        static assert(canFinalizeWithoutContext!T,
+            "Result value type must support context-free finalization");
+    static assert(canFinalizeWithoutContext!E,
+        "Result error type must support context-free finalization");
 
     static if (is(T == void))
         private enum bool valueNeedsCleanup = false;

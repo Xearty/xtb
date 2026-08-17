@@ -5,8 +5,9 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.core.lifetime : deinitValue = deinit, finalize, hasDDestructor,
-    move, moveEmplace, needsDeinit, needsFinalization;
+import xtb.core.lifetime : canFinalizeWithoutContext,
+    deinitValue = deinit, finalize, hasDDestructor, move, moveEmplace,
+    needsDeinit, needsFinalization;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
@@ -71,12 +72,15 @@ nothrow @nogc:
 /// Option owns cleanup of its active payload. Cleanup-bearing instantiations
 /// expose `deinit`; `reset`, assignment to `none`, and replacement are always
 /// available and discard a present value. `take`, `unwrap`, and `expect`
-/// transfer the value out without cleaning it.
+/// transfer the value out without cleaning it. Payloads must support
+/// context-free finalization because Option stores no cleanup context.
 @mustuse struct Option(T)
 {
 nothrow @nogc:
 
     static assert(!is(T == void), "Option value type cannot be void");
+    static assert(canFinalizeWithoutContext!T,
+        "Option payload must support context-free finalization");
 
     private enum bool payloadNeedsCleanup = needsFinalization!T;
 

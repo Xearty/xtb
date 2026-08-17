@@ -1342,7 +1342,10 @@ manual storage so `Option!T` also works when `T` has a disabled default
 constructor. An Option whose payload can require explicit cleanup or D
 destruction exposes `deinit`; `deinit(option)` then cleans only a present payload,
 while absence owns nothing. A cleanup-free Option has no `deinit`; use `reset`
-when the logical state must become absent. Cleanup-bearing payloads disable
+when the logical state must become absent. Because Option stores no allocator or
+other cleanup context, its payload must satisfy
+`canFinalizeWithoutContext!T`; contextual explicit owners are rejected at
+template instantiation. Cleanup-bearing payloads disable
 implicit Option copying even if their raw representation would otherwise be
 copyable, so ownership cannot silently become bit-copyable. Nested cleanup-free
 Options remain ordinary copyable values. Replacement consumes its source and
@@ -1367,7 +1370,10 @@ conversion means `isOk`; `isErr` queries the other branch. Result is `@mustuse`.
 Result is authoritative for active-branch cleanup. A Result exposes `deinit`
 only when at least one branch can require explicit cleanup or D destruction;
 `deinit(result)` then cleans only the active branch. A Result with cleanup-free
-branches needs no deinitialization and remains copyable when nested.
+branches needs no deinitialization and remains copyable when nested. Every
+non-void branch must satisfy `canFinalizeWithoutContext`; Result stores no
+cleanup context and rejects contextual explicit owners at template
+instantiation.
 `take`/`unwrap` transfer a success payload and leave the Result logically `Ok`
 with a safely moved-from payload; `takeError`/`unwrapError` do the symmetric
 operation for `Err`. Checked builds carry a diagnostic consumed bit so repeated
