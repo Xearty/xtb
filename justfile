@@ -273,21 +273,26 @@ _test mode:
     case "$mode" in
         debug)
             build_type=test-debug
+            unit_build_type=unit-debug
             ;;
         optimized)
             build_type=test-optimized
+            unit_build_type=unit-optimized
             ;;
         release-safe)
             build_type=test-release-safe
+            unit_build_type=unit-release-safe
             ;;
         release-fast)
             build_type=test-release-fast
+            unit_build_type=unit-release-fast
             execute=false
             checked=false
             bounds=off
             ;;
         asan)
             build_type=test-asan
+            unit_build_type=unit-asan
             ;;
         *)
             echo "unknown test mode: $mode" >&2
@@ -298,11 +303,22 @@ _test mode:
 
     echo "Testing $mode"
     export XTB_TEST_MODE="$mode"
+    export XTB_LIBRARY_OUTPUT_DIR="$(mkdir -p "build/test/$mode/libraries" && cd "build/test/$mode/libraries" && pwd -P)"
     export DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=$bounds"
     dub_args=({{ dub_options }} --parallel --build="$build_type")
     if [[ "$checked" == true ]]; then
         dub_args+=(--d-version=XTB_Checked)
     fi
+
+    for package in {{ library_subpackages }}; do
+        unit_args=({{ dub_options }} --parallel --build="$unit_build_type")
+        if [[ "$checked" == true ]]; then
+            unit_args+=(--d-version=XTB_Checked)
+        else
+            unit_args+=(--main-file=tests/support/compile_unittests.d)
+        fi
+        dub test ":$package" "${unit_args[@]}"
+    done
 
     for config in {{ test_configurations }}; do
         if [[ "$config" == test-helper-* ]]; then

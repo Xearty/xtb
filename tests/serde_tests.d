@@ -2801,8 +2801,6 @@ private void testSerdeDeepOwnedFailureInjection() nothrow @nogc
 
 extern (C) int main()
 {
-    static foreach (testFunction; __traits(getUnitTests, xtb.serde.casing))
-        testFunction();
     runSerdeBackendContracts();
     testSharedPolicies();
     testJsonTaggedUnions();

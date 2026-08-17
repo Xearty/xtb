@@ -5,8 +5,6 @@ nothrow @nogc:
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.hash_map;
-static import stringHashMapModule = xtb.core.string_hash_map;
-static import stringHashSetModule = xtb.core.string_hash_set;
 import xtb.core.lifetime : deinit, move;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.owned_string : OwnedString;
@@ -885,13 +883,6 @@ private void testStringSetExplicitCleanup() @system
 
 extern (C) int main() nothrow @nogc
 {
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.hash_map))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, stringHashMapModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, stringHashSetModule))
-        testFunction();
-
     testSafeSelfValueReplacement();
     testOwnedMapRelocationAndDiscard();
     testOwnedMapFailurePreservesInputs();

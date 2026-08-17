@@ -58,10 +58,6 @@ private void testThreadContextReleasesArenas()
 
 extern (C) int main()
 {
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.allocators.arena))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.thread_context))
-        testFunction();
     testArenaExplicitCleanup();
     testThreadContextReleasesArenas();
     return 0;

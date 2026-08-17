@@ -311,9 +311,6 @@ private void testRepeatedCleanup() @system
 
 extern (C) int main()
 {
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.lifetime))
-        testFunction();
-
     testStructuralAndTaggedCleanup();
     testMoveReplacementCleanup();
     testAllocatorDisposalCleanup();

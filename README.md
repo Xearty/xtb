@@ -70,9 +70,9 @@ by default. Set `StackTraceStyle.signatureColumns` to another limit, or select
 The archived C++ implementation remains under `archive/cpp` for historical
 reference only. The D project at the repository root is independent from it;
 public modules live under `source/xtb`, and focused unit tests are colocated
-there. `tests/core_tests.d`, `tests/utf8_tests.d`, `tests/math_tests.d`,
-`tests/os_tests.d`, `tests/serde_tests.d`, and `tests/parser_tests.d` are the
-explicit BetterC test runners.
+there. DUB generates one BetterC unit-test runner per component; executables
+under `tests/` provide integration, regression, exhaustive, death-test, and
+alternate-backend coverage without rerunning ordinary module tests.
 
 ## Build and test
 

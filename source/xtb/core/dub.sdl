@@ -13,4 +13,28 @@ dflags "-preview=dip1000" platform="ldc"
 // Optimized checked build: keep language assertions and contracts enabled.
 buildType "release-safe" {
     buildOptions "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-debug" {
+    buildOptions "unittests" "debugMode" "debugInfo"
+}
+
+buildType "unit-optimized" {
+    buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-release-safe" {
+    buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-release-fast" {
+    buildOptions "unittests" "releaseMode" "optimize" "inline"
+}
+
+buildType "unit-asan" {
+    buildOptions "unittests" "debugMode" "debugInfo"
+    dflags "-fsanitize=address" platform="ldc"
 }

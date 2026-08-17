@@ -65,8 +65,10 @@ declare `xtb:core` as a package dependency when needed. Do not partition the
 tree by starting with every source and subtracting unrelated directories with
 `excludedSourceFiles`; adding a new component must not change an existing
 component's source set. The root recipe builds the aggregate `xtb` library.
-`examples/dub.sdl` and `tests/dub.sdl` separately select the sources needed by
-each runnable example and explicit BetterC runner.
+`examples/dub.sdl` selects the sources needed by each runnable example.
+Ordinary runners in `tests/dub.sdl` depend on component libraries; only a
+runner for a mutually exclusive backend may compile the affected component
+sources directly.
 
 ## Dependency direction
 

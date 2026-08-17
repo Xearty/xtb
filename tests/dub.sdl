@@ -13,10 +13,12 @@ buildType "test-debug" {
 
 buildType "test-optimized" {
     buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
 }
 
 buildType "test-release-safe" {
     buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
 }
 
 buildType "test-release-fast" {
@@ -40,7 +42,7 @@ configuration "test-utf8" {
     targetName "utf8_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "utf8_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-core" {
@@ -48,8 +50,8 @@ configuration "test-core" {
     targetName "core_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "core_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/diagnostics/*.d"
-    libs "backtrace" platform="linux"
+    dependency "xtb:core" version="*"
+    dependency "xtb:diagnostics" version="*"
 }
 
 configuration "test-lifetime" {
@@ -57,7 +59,7 @@ configuration "test-lifetime" {
     targetName "lifetime_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "lifetime_tests.d"
-    sourceFiles "../source/xtb/core/lifetime.d" "../source/xtb/core/types.d" "../source/xtb/core/memory.d" "../source/xtb/core/numeric.d" "../source/xtb/core/panic.d" "../source/xtb/core/allocators/instrumented.d" "../source/xtb/core/allocators/malloc.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-option-result" {
@@ -65,7 +67,7 @@ configuration "test-option-result" {
     targetName "option_result_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "option_result_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-string-owner" {
@@ -73,7 +75,7 @@ configuration "test-string-owner" {
     targetName "string_owner_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "string_owner_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-array" {
@@ -81,7 +83,7 @@ configuration "test-array" {
     targetName "array_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "array_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-arena" {
@@ -89,7 +91,7 @@ configuration "test-arena" {
     targetName "arena_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "arena_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-hash" {
@@ -97,7 +99,7 @@ configuration "test-hash" {
     targetName "hash_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "hash_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-pretty-print" {
@@ -108,7 +110,7 @@ configuration "test-pretty-print" {
     // `XTB_TEST_MODE` environment variable normally supplied by `just`.
     targetPath "../build/test/pretty_print"
     mainSourceFile "pretty_print_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }
 
 configuration "test-math" {
@@ -116,7 +118,8 @@ configuration "test-math" {
     targetName "math_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "math_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/math/*.d"
+    dependency "xtb:core" version="*"
+    dependency "xtb:math" version="*"
 }
 
 configuration "test-os" {
@@ -124,7 +127,8 @@ configuration "test-os" {
     targetName "os_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "os_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/os/*.d"
+    dependency "xtb:core" version="*"
+    dependency "xtb:os" version="*"
 }
 
 configuration "test-serde" {
@@ -132,16 +136,9 @@ configuration "test-serde" {
     targetName "serde_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "serde_tests.d"
-    sourceFiles "serde_backend_contract.d" "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/serde/*.d"
-}
-
-configuration "test-pretty-print-serde" {
-    targetType "executable"
-    targetName "pretty_print_serde_tests"
-    // Keep the direct serde runner independent of `XTB_TEST_MODE` too.
-    targetPath "../build/test/pretty_print_serde"
-    mainSourceFile "pretty_print_serde_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/serde/*.d"
+    sourceFiles "serde_backend_contract.d"
+    dependency "xtb:core" version="*"
+    dependency "xtb:serde" version="*"
 }
 
 configuration "test-parser" {
@@ -149,7 +146,8 @@ configuration "test-parser" {
     targetName "parser_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "parser_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/parser/*.d"
+    dependency "xtb:core" version="*"
+    dependency "xtb:parser" version="*"
 }
 
 configuration "test-threading" {
@@ -157,8 +155,8 @@ configuration "test-threading" {
     targetName "threading_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "threading_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/threading/*.d" "../source/xtb/threading/internal/*.d"
-    libs "pthread" platform="linux"
+    dependency "xtb:core" version="*"
+    dependency "xtb:threading" version="*"
 }
 
 configuration "test-threading-unsupported" {
@@ -166,7 +164,8 @@ configuration "test-threading-unsupported" {
     targetName "threading_unsupported_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "threading_unsupported_tests.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/threading/*.d" "../source/xtb/threading/internal/*.d"
+    sourceFiles "../source/xtb/threading/*.d" "../source/xtb/threading/internal/*.d"
     excludedSourceFiles "../source/xtb/threading/internal/thread_linux.d"
+    dependency "xtb:core" version="*"
     versions "XTB_TestUnsupportedThreadBackend"
 }

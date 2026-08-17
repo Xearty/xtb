@@ -12,26 +12,6 @@ import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
 import xtb.threading;
-import atomicModule = xtb.threading.atomic;
-import barrierModule = xtb.threading.barrier;
-import condVarModule = xtb.threading.cond_var;
-import countdownModule = xtb.threading.internal.countdown;
-import generationWaitModule = xtb.threading.internal.generation_wait;
-import latchModule = xtb.threading.latch;
-import lockGuardModule = xtb.threading.lock_guard;
-import mutexModule = xtb.threading.mutex;
-import onceModule = xtb.threading.once;
-import onceCellModule = xtb.threading.once_cell;
-import parkingModule = xtb.threading.internal.parking;
-import rwLockModule = xtb.threading.rw_lock;
-import semaphoreModule = xtb.threading.semaphore;
-import spawnModule = xtb.threading.spawn;
-import startLatchModule = xtb.threading.internal.start_latch;
-import spinWaitModule = xtb.threading.spin_wait;
-import threadScopeModule = xtb.threading.thread_scope;
-import waitGroupModule = xtb.threading.wait_group;
-
-version (linux) import linuxBackendModule = xtb.threading.internal.thread_linux;
 
 version (linux) import core.sys.linux.sched : cpu_set_t, sched_getaffinity;
 
@@ -4058,44 +4038,6 @@ version (linux) private bool moveOwnershipWorks() nothrow @nogc
 
 extern (C) int main() nothrow @nogc
 {
-    static foreach (testFunction; __traits(getUnitTests, atomicModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, barrierModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, lockGuardModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, mutexModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, condVarModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, semaphoreModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, spawnModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, latchModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, onceModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, onceCellModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, parkingModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, rwLockModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, generationWaitModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, startLatchModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, spinWaitModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, threadScopeModule))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, waitGroupModule))
-        testFunction();
-    version (linux)
-        static foreach (testFunction; __traits(getUnitTests, linuxBackendModule))
-            testFunction();
-
     version (Posix)
     {
         if (!stressFetchAdd())

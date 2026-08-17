@@ -130,7 +130,5 @@ private void testFormatRepresentation()
 extern (C) int main()
 {
     testFormatRepresentation();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.pretty_print))
-        testFunction();
     return 0;
 }

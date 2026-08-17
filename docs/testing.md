@@ -10,9 +10,9 @@ more clearly as an external consumer.
 
 All tests run with `-betterC`. A test suite that runs only with the full D
 runtime can hide forbidden dependencies and is not an acceptable substitute.
-BetterC does not emit `ModuleInfo`, so the ordinary runtime test discovery used
-by `dub test` must not be assumed. Test executables explicitly enumerate their
-modules and invoke unit tests with `__traits(getUnitTests, module_)`.
+BetterC does not emit `ModuleInfo`, so test discovery must be compile-time.
+DUB's generated BetterC runner statically imports the modules owned by a
+component and invokes their tests through `__traits(getUnitTests, module_)`.
 
 The pinned D-Scanner 0.15 parser does not understand interpolated expression
 sequence literals yet. `just lint` therefore uses DUB/LDC semantic builds for
@@ -66,21 +66,33 @@ literals, concatenation, exceptions, and test helpers that accidentally
 require Druntime. Fixed-size stack arrays, slices, caller-provided buffers, and
 libc facilities are appropriate.
 
-## BetterC test runner
+## BetterC test runners
 
-Maintain one small runner per coherent package or test shard. It imports the
-modules in that shard and lists them explicitly. Explicit enumeration is
-intentional: it replaces unavailable `ModuleInfo` discovery and makes omissions
-visible in review.
+Run colocated module tests once per component with `dub test :component`. Each
+component's positively listed `sourceFiles` are the authoritative module
+inventory; DUB generates a BetterC-compatible compile-time runner from that
+inventory. Adding a production module to a component therefore also adds its
+colocated tests without a second handwritten list. Component unit-test build
+types preserve the debug, optimized, release-safe, release-fast, and
+AddressSanitizer policies used by `just test`.
 
-The explicit runners are `core_tests.d`, `utf8_tests.d`, `math_tests.d`,
-`os_tests.d`, and `serde_tests.d`. The UTF-8 runner expands the colocated test
-body from `xtb.core.utf8`; keeping it separate makes the exhaustive 1.1-million
-scalar round trip visible in every build mode without relying on ModuleInfo.
-The OS runner creates a process-unique directory below `/tmp`, touches only
-paths inside it, and removes every created file and directory before returning.
-Platform runtime assertions are backend-versioned; the same runner remains a
-compile check where no native backend exists.
+Release-fast remains a compile-only check for unittest bodies. The test recipe
+passes `tests/support/compile_unittests.d` as DUB's custom main, which compiles
+the component with unittests and release checks stripped but deliberately does
+not execute those bodies.
+
+Executables in `tests/` cover integration, regression, death-test, exhaustive,
+and alternate-backend behavior. They depend on the ordinary component static
+libraries and must not invoke colocated module tests again. The unsupported
+threading-backend runner is the deliberate exception: it compiles threading
+sources with a mutually exclusive test version and explicitly invokes those
+backend-versioned module tests.
+
+The UTF-8 runner expands the exhaustive 1.1-million-scalar test body exported
+by `xtb.core.utf8`. The OS runner creates a process-unique directory below
+`/tmp`, touches only paths inside it, and removes every created file and
+directory before returning. Platform runtime assertions are backend-versioned;
+the same runner remains a compile check where no native backend exists.
 
 Process integration tests compile `tests/support/process_helper.d` as a
 dedicated BetterC executable. Use its length-unambiguous argv/environment
@@ -95,35 +107,14 @@ at the same time, proving that communication makes progress in every direction.
 Pipeline tests cover both borrowed `Command[]` and `PipelineStage[]`, failure
 rollback, allocator failure, per-stage status/success policy, explicit lifecycle resolution, and reaping.
 
-```d
-module tests.core_runner;
-
-import xtb.core.memory;
-import xtb.core.result;
-
-alias testedModules = AliasSeq!(xtb.core.memory, xtb.core.result);
-
-template AliasSeq(T...)
-{
-    alias AliasSeq = T;
-}
-
-extern(C) int main()
-{
-    static foreach (testedModule; testedModules)
-        static foreach (testFunction;
-            __traits(getUnitTests, testedModule))
-            testFunction();
-    return 0;
-}
-```
-
-If compiler parsing makes module aliases awkward, keep the same mechanism in a
-tiny generated runner. Generation must be deterministic, inspectable, and
-based only on `source/xtb/**/*.d`; check the generator into `tools/`, not its
-build output. Whenever a production module is added, verify that a runner
-imports it. The standard command should build each runner with both
-`-unittest` and `-betterC` and then execute it.
+The generated DUB main is an implementation detail, not a permanent test API.
+A future custom BetterC runner may replace it with a compile-time registry that
+stores package, module, and stable test-name literals beside homogeneous test
+function pointers. That runner must support listing and command-line filtering
+without runtime reflection or allocation. Keep test ownership independent of
+DUB's main so adopting that runner does not require moving tests or restoring
+manual module lists. Running subsequent tests after an assertion aborts will
+require subprocess isolation or a separate nonfatal assertion protocol.
 
 ## Test layers
 

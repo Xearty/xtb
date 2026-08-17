@@ -476,61 +476,6 @@ extern (C) int main(int argumentCount, char** arguments)
     if (argumentCount == 3 && cStringEqual(arguments[1], "--death-case"))
         runDeathCase(arguments[2]);
 
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.types))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.numeric))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.duration))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.metadata))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.slice))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.memory))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.lifetime))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.allocators.arena))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.thread_context))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.array))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.option))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.result))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.flag_set))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.intrusive_list))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.hash))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.hash_map))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.logger))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.thread_logger))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.string))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.owned_string))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.string_hash_map))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.string_hash_set))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.print))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.ansi))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.diagnostics.demangle))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.diagnostics.stacktrace_style))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.diagnostics.stacktrace))
-        testFunction();
-
     version (Posix)
     {
         Allocator* workerAllocator;

@@ -1123,24 +1123,6 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
 
 extern (C) int main()
 {
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.path))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.error))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.environment))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.file))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.pipe))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.pipeline))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.process))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.process_io))
-        testFunction();
-    static foreach (testFunction; __traits(getUnitTests, xtb.os.terminal))
-        testFunction();
     version (linux)
         runLinuxIntegration();
     return 0;

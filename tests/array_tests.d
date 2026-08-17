@@ -307,9 +307,6 @@ private void testReleasedStorageNeedsExplicitCleanup() @system
 
 extern (C) int main()
 {
-    static foreach (testFunction; __traits(getUnitTests, xtb.core.array))
-        testFunction();
-
     testPointerMoveConsumesExplicitPodOwner();
     testDisabledDefaultOwnerMoves();
     testRepeatedOwnedArrayCleanup();

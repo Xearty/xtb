@@ -33,6 +33,13 @@ inlining but deliberately does not pass `-release`, so native D assertions and
 contracts remain enabled. Final libraries are written below
 `build/release-safe`.
 
+LDC also receives `-fno-delete-null-pointer-checks` in optimized checked
+builds. Managed-struct invariants deliberately inspect `&this` to diagnose a
+null pointer receiver; without this flag LLVM may treat the implicit
+dereference as undefined behavior and remove that diagnostic branch during
+separate compilation. Release-fast does not receive the flag or contain the
+invariant.
+
 Use this mode when testing optimized code while retaining programmer-contract
 and language-runtime diagnostics.
 
