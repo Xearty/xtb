@@ -82,7 +82,8 @@ extern (C) int main() nothrow @nogc
 
     {
         Arena routeArena = Arena.create(heap, 256);
-        scope (exit) routeArena.deinit();
+        scope (exit)
+            routeArena.deinit();
 
         // Passing Arena* selects region ownership and returns plain String.
         String copied = "api".copy(&routeArena);
@@ -131,7 +132,8 @@ extern (C) int main() nothrow @nogc
             "POST",
             "//v1//sessions",
         );
-        scope (exit) persistentKey.deinit();
+        scope (exit)
+            persistentKey.deinit();
         formatln!"promoted key: {}"(persistentKey);
     }
 
@@ -142,23 +144,28 @@ extern (C) int main() nothrow @nogc
         // OwnedString. Each owner lives until the end of this block, so its
         // cleanup is registered immediately next to its declaration.
         OwnedString ownedCopy = "hello".copy(heap);
-        scope (exit) ownedCopy.deinit();
+        scope (exit)
+            ownedCopy.deinit();
 
         // OwnedString forwards immutable transforms directly. Omitting the
         // allocator reuses the source owner's allocator.
         OwnedString ownedConcat = ownedCopy.concat(" world");
-        scope (exit) ownedConcat.deinit();
+        scope (exit)
+            ownedConcat.deinit();
 
         OwnedString ownedReplace = ownedConcat.replace("world", "XTB");
-        scope (exit) ownedReplace.deinit();
+        scope (exit)
+            ownedReplace.deinit();
 
         OwnedString ownedWithControls = ownedReplace.concat(
             "\nsecond\t\"quoted\"",
         );
-        scope (exit) ownedWithControls.deinit();
+        scope (exit)
+            ownedWithControls.deinit();
 
         OwnedString ownedEscape = ownedWithControls.escape();
-        scope (exit) ownedEscape.deinit();
+        scope (exit)
+            ownedEscape.deinit();
 
         String[3] ownedParts = [
             ownedReplace.view,
@@ -166,7 +173,8 @@ extern (C) int main() nothrow @nogc
             ownedEscape.view,
         ];
         OwnedString ownedJoin = ownedParts[].join("", heap);
-        scope (exit) ownedJoin.deinit();
+        scope (exit)
+            ownedJoin.deinit();
 
         formatln!"owned copy:    {}"(ownedCopy);
         formatln!"owned concat:  {}"(ownedConcat);
@@ -181,14 +189,16 @@ extern (C) int main() nothrow @nogc
 
         // clone() is the explicit way to create another independent owner.
         OwnedString independentClone = ownedJoin.clone();
-        scope (exit) independentClone.deinit();
+        scope (exit)
+            independentClone.deinit();
         assert(independentClone == ownedJoin);
 
         // Fallible independently owned transforms write into an empty owner.
         // The scope guard is safe even if the operation fails before the owner
         // acquires storage because the zero state is deinitializable.
         OwnedString fallibleOwned;
-        scope (exit) fallibleOwned.deinit();
+        scope (exit)
+            fallibleOwned.deinit();
         if (!ownedCopy.tryConcat(" owner", &fallibleOwned))
             return 1;
         formatln!"fallible owned result: {}"(fallibleOwned);
@@ -202,14 +212,16 @@ extern (C) int main() nothrow @nogc
         OwnedString transferable = "transfer me".copy(heap);
         OwnedString.Released released = transferable.release();
         OwnedString adopted = OwnedString.adopt(&released);
-        scope (exit) adopted.deinit();
+        scope (exit)
+            adopted.deinit();
         formatln!"adopted without copying: {}"(adopted);
 
         // moveSource is likewise consumed immediately. The destination owns
         // the allocation for the rest of the block and gets the scope guard.
         OwnedString moveSource = "move me".copy(heap);
         OwnedString moveDestination = move(moveSource);
-        scope (exit) moveDestination.deinit();
+        scope (exit)
+            moveDestination.deinit();
         formatln!"moved owner: {}"(moveDestination);
     }
 
@@ -233,7 +245,8 @@ extern (C) int main() nothrow @nogc
         // exact-sized immutable storage. With no explicit allocator it reuses
         // the StringBuf allocator and can adopt the allocation after shrinking.
         OwnedString frozen = builder.intoOwnedString();
-        scope (exit) frozen.deinit();
+        scope (exit)
+            frozen.deinit();
         formatln!"frozen buffer: {}"(frozen);
     }
 
@@ -250,7 +263,8 @@ extern (C) int main() nothrow @nogc
             scratch.allocator,
             96,
         );
-        scope (exit) temporaryBuilder.deinit();
+        scope (exit)
+            temporaryBuilder.deinit();
         temporaryBuilder.append("cache-key:");
         temporaryBuilder.append("users/42");
         temporaryBuilder.append('|');
@@ -272,7 +286,8 @@ extern (C) int main() nothrow @nogc
             heap,
             "allocator stored externally",
         );
-        scope (exit) compact.deinit(heap);
+        scope (exit)
+            compact.deinit(heap);
         formatln!"unmanaged owner: {}"(compact);
         formatln!"sizeof String={}, OwnedStringUnmanaged={}, OwnedString={}"(
             String.sizeof,
@@ -288,7 +303,8 @@ extern (C) int main() nothrow @nogc
         // trailing NUL. StringBuf can provide a checked C string when an API
         // requires one.
         StringBuf cBuffer = StringBuf.fromString(heap, "api.example.com");
-        scope (exit) cBuffer.deinit();
+        scope (exit)
+            cBuffer.deinit();
         const(char)* cName = cBuffer.checkedCString();
         formatln!"C string bytes: {}"(strlen(cName));
     }

@@ -830,7 +830,8 @@ public:
             return true;
 
         StringBufUnmanaged fromSnapshot;
-        scope (exit) fromSnapshot.deinit(allocator);
+        scope (exit)
+            fromSnapshot.deinit(allocator);
         if (stringsOverlap(view, from))
         {
             if (!StringBufUnmanaged.tryFromString(
@@ -843,7 +844,8 @@ public:
         }
 
         StringBufUnmanaged toSnapshot;
-        scope (exit) toSnapshot.deinit(allocator);
+        scope (exit)
+            toSnapshot.deinit(allocator);
         if (stringsOverlap(view, to))
         {
             if (!StringBufUnmanaged.tryFromString(

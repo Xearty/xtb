@@ -43,17 +43,14 @@ static assert(!__traits(compiles,
         (ref StringBuf value) { value.tryReplace("a", "b"); }));
 static assert(!__traits(compiles,
         (ref StringBufUnmanaged value, Allocator* allocator) {
-            value.tryReplace(allocator, "a", "b");
-        }));
+        value.tryReplace(allocator, "a", "b");
+    }));
 static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBuf value) {
-            auto result = OwnedString.fromStringBuf(allocator, &value);
-        }));
+        auto result = OwnedString.fromStringBuf(allocator, &value);
+    }));
 static assert(__traits(compiles,
-        (ref StringBuf value) {
-            OwnedString result = value.intoOwnedString();
-            deinit(result);
-        }));
+        (ref StringBuf value) { OwnedString result = value.intoOwnedString(); deinit(result); }));
 static assert(!__traits(compiles,
         (ref StringBufUnmanaged left, ref StringBufUnmanaged right) { left = move(right); }));
 static assert(!__traits(compiles,
@@ -218,18 +215,18 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
 {
     static assert(__traits(compiles,
             (scope const OwnedString* value, Allocator* allocator, Arena* arena) {
-                OwnedString clone = value.clone();
-                OwnedString concatDefault = value.concat("!");
-                OwnedString concatExplicit = value.concat("!", allocator);
-                String concatArena = value.concat("!", arena);
-                OwnedString replaceDefault = value.replace("a", "b");
-                OwnedString replaceExplicit = value.replace("a", "b", allocator);
-                String replaceArena = value.replace("a", "b", arena);
-                OwnedString escapeDefault = value.escape();
-                OwnedString escapeExplicit = value.escape(allocator);
-                String escapeArena = value.escape(arena);
-                String arenaCopy = value.copy(arena);
-            }));
+            OwnedString clone = value.clone();
+            OwnedString concatDefault = value.concat("!");
+            OwnedString concatExplicit = value.concat("!", allocator);
+            String concatArena = value.concat("!", arena);
+            OwnedString replaceDefault = value.replace("a", "b");
+            OwnedString replaceExplicit = value.replace("a", "b", allocator);
+            String replaceArena = value.replace("a", "b", arena);
+            OwnedString escapeDefault = value.escape();
+            OwnedString escapeExplicit = value.escape(allocator);
+            String escapeArena = value.escape(arena);
+            String arenaCopy = value.copy(arena);
+        }));
 
     AllocationRecord[32] otherRecords;
     InstrumentedAllocator other = InstrumentedAllocator.create(
@@ -239,36 +236,43 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
 
     {
         OwnedString source = "hello\nworld".copy(tracked.allocator);
-        scope (exit) source.deinit();
+        scope (exit)
+            source.deinit();
 
         OwnedString cloned = source.clone();
-        scope (exit) cloned.deinit();
+        scope (exit)
+            cloned.deinit();
         assert(cloned.view == source.view);
         assert(cloned.view.ptr !is source.view.ptr);
         assert(cloned.allocator is source.allocator);
 
         OwnedString concatenated = source.concat("!");
-        scope (exit) concatenated.deinit();
+        scope (exit)
+            concatenated.deinit();
         assert(concatenated.view == "hello\nworld!");
         assert(concatenated.allocator is source.allocator);
 
         OwnedString replaced = concatenated.replace("world", "XTB");
-        scope (exit) replaced.deinit();
+        scope (exit)
+            replaced.deinit();
         assert(replaced.view == "hello\nXTB!");
         assert(replaced.allocator is source.allocator);
 
         OwnedString escaped = replaced.escape();
-        scope (exit) escaped.deinit();
+        scope (exit)
+            escaped.deinit();
         assert(escaped.view == "hello\\nXTB!");
         assert(escaped.allocator is source.allocator);
 
         OwnedString explicitAllocator = source.concat(" other", other.allocator);
-        scope (exit) explicitAllocator.deinit();
+        scope (exit)
+            explicitAllocator.deinit();
         assert(explicitAllocator.view == "hello\nworld other");
         assert(explicitAllocator.allocator is other.allocator);
 
         Arena arena = Arena.create(tracked.allocator, 128);
-        scope (exit) arena.deinit();
+        scope (exit)
+            arena.deinit();
         size_t usedBytes;
 
         String arenaCopy = source.copy(&arena);
@@ -293,7 +297,8 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
 
         tracked.failAfter(0);
         OwnedString failed;
-        scope (exit) failed.deinit();
+        scope (exit)
+            failed.deinit();
         assert(!source.tryConcat(" failure", &failed));
         assert(failed.allocator is null && failed.empty);
         tracked.allowAllocations();
@@ -310,7 +315,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "cat cat cat",
         );
-        scope (exit) buffer.deinit();
+        scope (exit)
+            buffer.deinit();
 
         assert(buffer.tryReplaceInPlace("cat", "dog"));
         assert(buffer.view == "dog dog dog");
@@ -328,7 +334,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "abcabc",
         );
-        scope (exit) aliasedFrom.deinit();
+        scope (exit)
+            aliasedFrom.deinit();
         String from = aliasedFrom.view[0 .. 3];
         assert(aliasedFrom.tryReplaceInPlace(from, "x"));
         assert(aliasedFrom.view == "xx");
@@ -340,7 +347,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "abXYab",
         );
-        scope (exit) aliasedTo.deinit();
+        scope (exit)
+            aliasedTo.deinit();
         String to = aliasedTo.view[2 .. 4];
         assert(aliasedTo.tryReplaceInPlace("ab", to));
         assert(aliasedTo.view == "XYXYXY");
@@ -352,12 +360,13 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "aaaaaaaa",
         );
-        scope (exit) growingAliasedFrom.deinit();
+        scope (exit)
+            growingAliasedFrom.deinit();
         String from = growingAliasedFrom.view[0 .. 1];
         assert(growingAliasedFrom.tryReplaceInPlace(from, "replacement"));
         assert(growingAliasedFrom.view ==
-            "replacementreplacementreplacementreplacement" ~
-            "replacementreplacementreplacementreplacement");
+                "replacementreplacementreplacementreplacement" ~
+                "replacementreplacementreplacementreplacement");
     }
     assert(tracked.clean);
 
@@ -366,7 +375,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "xLONGx",
         );
-        scope (exit) growingAliasedTo.deinit();
+        scope (exit)
+            growingAliasedTo.deinit();
         String to = growingAliasedTo.view[1 .. 5];
         assert(growingAliasedTo.tryReplaceInPlace("x", to));
         assert(growingAliasedTo.view == "LONGLONGLONG");
@@ -375,7 +385,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
 
     {
         StringBuf escaped = StringBuf.withCapacity(tracked.allocator, 64);
-        scope (exit) escaped.deinit();
+        scope (exit)
+            escaped.deinit();
         escaped.append("first\nsecond\t\"quoted\" café🙂");
         const allocationCalls = tracked.stats.allocationCalls;
         assert(escaped.tryEscapeInPlace());
@@ -389,7 +400,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "xxxxxxxx",
         );
-        scope (exit) replaceFailure.deinit();
+        scope (exit)
+            replaceFailure.deinit();
         tracked.failAfter(0);
         assert(!replaceFailure.tryReplaceInPlace("x", "replacement"));
         assert(replaceFailure.view == "xxxxxxxx");
@@ -402,7 +414,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "alias-alias",
         );
-        scope (exit) aliasFailure.deinit();
+        scope (exit)
+            aliasFailure.deinit();
         String aliasedNeedle = aliasFailure.view[0 .. 5];
         tracked.failAfter(0);
         assert(!aliasFailure.tryReplaceInPlace(aliasedNeedle, "x"));
@@ -416,7 +429,8 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             tracked.allocator,
             "\n\n\n\n\n\n\n\n",
         );
-        scope (exit) escapeFailure.deinit();
+        scope (exit)
+            escapeFailure.deinit();
         tracked.failAfter(0);
         assert(!escapeFailure.tryEscapeInPlace());
         assert(escapeFailure.view == "\n\n\n\n\n\n\n\n");
@@ -505,7 +519,8 @@ private void testStringBufIntoOwnedString(InstrumentedAllocator* tracked)
         const(char)* original = exact.view.ptr;
 
         OwnedString frozen = exact.intoOwnedString();
-        scope (exit) frozen.deinit();
+        scope (exit)
+            frozen.deinit();
 
         assert(frozen.view == "exact");
         assert(frozen.view.ptr is original);
@@ -524,7 +539,8 @@ private void testStringBufIntoOwnedString(InstrumentedAllocator* tracked)
         const(char)* original = source.view.ptr;
 
         OwnedString promoted = source.intoOwnedString(tracked.allocator);
-        scope (exit) promoted.deinit();
+        scope (exit)
+            promoted.deinit();
 
         assert(promoted.view == "promote");
         assert(promoted.view.ptr !is original);
@@ -541,9 +557,11 @@ private void testStringBufIntoOwnedString(InstrumentedAllocator* tracked)
     );
     {
         StringBuf retained = StringBuf.fromString(tracked.allocator, "retained");
-        scope (exit) retained.deinit();
+        scope (exit)
+            retained.deinit();
         OwnedString output;
-        scope (exit) output.deinit();
+        scope (exit)
+            output.deinit();
 
         failing.failAfter(0);
         assert(!retained.tryIntoOwnedString(failing.allocator, &output));
