@@ -82,8 +82,8 @@ boundaries. Searches for one raw `char` say `CodeUnit`; searches for a scalar
 accept `dchar`, encode it, and also return a byte offset.
 
 `sliceBytes`, `prefixBytes`, and `suffixBytes` require in-range scalar
-boundaries and panic on contract violation. They never round. Callers enforcing
-a byte budget explicitly use `floorCodePointBoundary` or
+boundaries. They never round. Callers enforcing a byte budget explicitly use
+`floorCodePointBoundary` or
 `ceilCodePointBoundary` first.
 
 The ambiguous `front`, `back`, `slice`, `head`, `tail`, `truncateLeft`,
@@ -418,9 +418,9 @@ makes consumption visible at the call site.
 `StringBuf` does not maintain a terminator after every mutation. `tryCString`
 reserves one extra byte when necessary, writes a trailing NUL outside
 `byteLength`, and leaves the logical contents unchanged. `cString` is its
-panicking counterpart. `checkedCString` additionally rejects embedded NUL
-bytes. Every returned pointer is invalidated by the next mutation or by
-buffer destruction.
+panicking allocation counterpart. `checkedCString` additionally requires that
+the logical bytes contain no embedded NUL. Every returned pointer is invalidated
+by the next mutation or by buffer destruction.
 
 ## Equality, ordering, and hashing
 

@@ -320,10 +320,10 @@ caller must explicitly finish or wait for submitted work before destroying the
 context. A debug contract may diagnose known live library-owned work, but it
 cannot prove that arbitrary user submissions are complete.
 
-Context creation is transactional. Required output pointers panic when null,
-and a nonempty output owner is a programmer error. Expected setup failures are
-returned. Every failure path destroys partially created objects and leaves the
-output in its empty state.
+Context creation is transactional. Output pointers are required non-null, and
+an output owner must be empty on entry. Expected setup failures are returned.
+Every failure path destroys partially created objects and leaves the output in
+its empty state.
 
 ## Options are values, not a stateful builder
 

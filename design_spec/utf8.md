@@ -343,8 +343,8 @@ pointers. Each function clears its output before examining input and leaves it
 zeroed on recoverable failure. This follows the project's explicit mutation
 convention.
 
-`encodeUtf8` and `encodedUtf8Length` require a valid Unicode scalar and panic on
-contract violation. `tryEncodeUtf8` returns `false` for a surrogate or value
+`encodeUtf8` and `encodedUtf8Length` require a valid Unicode scalar.
+`tryEncodeUtf8` returns `false` for a surrogate or value
 above U+10FFFF. Encoding never substitutes U+FFFD implicitly.
 
 ## Checked byte-to-text conversion
@@ -464,11 +464,10 @@ borrowing relationship, but DIP1000 cannot prevent a borrowed slice stored in
 a returned range aggregate from escaping. Callers must not return or retain a
 range beyond its source.
 
-Traversal assumes the ordinary `String` contract. If unchecked invalid bytes
-reach the range, `front`, `back`, or a pop operation panics instead of returning
-a replacement character or reading invalid memory. Recoverable traversal of
-untrusted bytes uses `decodeCodePoint` or validates once before constructing the
-range.
+Traversal assumes the ordinary `String` contract. Passing unchecked invalid
+bytes to the range violates that precondition; traversal never substitutes a
+replacement character. Recoverable traversal of untrusted bytes uses
+`decodeCodePoint` or validates once before constructing the range.
 
 `CodePointOffsetRange` has the same borrowing and traversal contract but yields
 `DecodedCodePoint`. Its offsets remain relative to the original `String`, even
@@ -477,8 +476,8 @@ code-point-named equivalent of Rust's `char_indices`; the index is a byte
 offset, not a scalar ordinal.
 
 `codePointCount` traverses valid UTF-8 and returns the number of Unicode scalar
-values. It is O(bytes), performs no allocation, and panics if the `String`
-contract was violated. It is intentionally distinct from `String.length`.
+values. It is O(bytes), performs no allocation, and requires the ordinary
+`String` validity contract. It is intentionally distinct from `String.length`.
 
 Neither code-point count nor traversal represents user-perceived characters.
 For example, a base character followed by a combining mark has two code points

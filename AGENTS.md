@@ -36,6 +36,10 @@ Before changing public APIs, inspect their existing call sites.
   modules and document its invariants.
 - Model fallible operations with explicit result/status values. Do not encode
   expected failures as assertions.
+- Document caller obligations as requirements or preconditions. Say that an
+  API panics only for an explicit panic path that remains in every supported
+  build; do not describe `XTB_Checked` contract enforcement as an unconditional
+  panic guarantee or repeat the build-mode mechanics on every API.
 - Give every owning struct explicit `create`/`deinit` behavior, make zero state
   valid when practical, and document whether copying is allowed. When an
   explicit-lifetime local is intentionally kept until the end of the current

@@ -228,7 +228,8 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
         return true;
     }
 
-    /// Decodes a raw mask and panics if it contains an undeclared bit.
+    /// Decodes a raw mask.
+    /// The mask must contain only declared bits; use `tryFromBits` otherwise.
     static FlagSet fromBits(Storage raw) @safe
     {
         version (XTB_Checked)
@@ -267,7 +268,7 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
         return tryMaskOf(flag, &mask);
     }
 
-    /// Returns whether `flag` is enabled. Invalid enum values panic.
+    /// Returns whether `flag` is enabled. `flag` must be a declared enum value.
     bool contains(Flag flag) const @safe
     {
         return (bits_ & maskOf(flag)) != 0;
@@ -367,19 +368,19 @@ struct FlagSet(Flag, Storage = DefaultFlagStorage!Flag)
     }
 }
 
-/// Enables `flag`. An invalid enum value is a programmer error and panics.
+/// Enables `flag`. `flag` must be a declared enum value.
 void enable(Flag, Storage)(ref FlagSet!(Flag, Storage) flags, Flag flag) @safe
 {
     flags.bits_ = cast(Storage)(flags.bits_ | flags.maskOf(flag));
 }
 
-/// Disables `flag`. An invalid enum value is a programmer error and panics.
+/// Disables `flag`. `flag` must be a declared enum value.
 void disable(Flag, Storage)(ref FlagSet!(Flag, Storage) flags, Flag flag) @safe
 {
     flags.bits_ = cast(Storage)(flags.bits_ & cast(Storage)(~flags.maskOf(flag)));
 }
 
-/// Toggles `flag`. An invalid enum value is a programmer error and panics.
+/// Toggles `flag`. `flag` must be a declared enum value.
 void toggle(Flag, Storage)(ref FlagSet!(Flag, Storage) flags, Flag flag) @safe
 {
     flags.bits_ = cast(Storage)(flags.bits_ ^ flags.maskOf(flag));

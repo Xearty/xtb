@@ -77,6 +77,15 @@ preconditions. Violating one may cause invalid results, memory corruption, or
 another form of undefined behavior. Do not use release-fast with untrusted
 callers or while diagnosing correctness problems.
 
+## Documentation convention
+
+API documentation states checked-only contracts as requirements or
+preconditions without repeating the build-mode behavior at every call. Unless
+explicitly qualified, “panics” means the implementation has an explicit fatal
+path that remains in every supported build. A `require` diagnostic is not such
+a release-fast guarantee; it enforces a precondition only when `XTB_Checked`
+is present.
+
 ## What remains in release-fast
 
 The mode removes runtime programmer checks; it does not remove necessary

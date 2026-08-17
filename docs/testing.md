@@ -208,8 +208,8 @@ String tests enforce the type boundary as well as textual behavior:
 - every legal Unicode scalar round-trips through the shared encoder/decoder;
 - forward, reverse, offset-producing, copied, and early-break code-point ranges
   work both manually and with language-level `foreach`;
-- byte slicing, insertion, and truncation accept scalar boundaries and panic at
-  split sequences, including in release builds;
+- byte slicing, insertion, and truncation accept scalar boundaries and reject
+  split sequences in checked builds;
 - `StringBuf` equality with literals, mutable and immutable `String` slices,
   and other buffers is tested in both operand orders, including inequality and
   null-string/empty-buffer equivalence;
@@ -272,9 +272,8 @@ Scratch-space tests additionally verify:
 - early return invokes the RAII destructor and restores the checkpoint;
 - copying a `ScratchScope` fails at compile time;
 - copying a `TempArena` fails at compile time;
-- double pop/destruction, non-LIFO pop/destruction, a second thread context,
-  and cross-thread use panic in tests that deliberately violate those
-  contracts.
+- checked death tests diagnose double pop/destruction, non-LIFO
+  pop/destruction, a second thread context, and cross-thread use.
 
 Serde tests additionally verify:
 

@@ -7,7 +7,10 @@ Programmer contracts use `require`, with both the import and call guarded by
 release-fast omits it and also disables native assertions, contracts, and array
 bounds checks. The guard must remain at the call site so contract arguments are
 not evaluated in release-fast. Recoverable validation and explicit panic paths
-are independent of this policy. See `docs/build-modes.md`.
+are independent of this policy. Documentation therefore describes checked-only
+conditions as requirements or preconditions and reserves an unqualified
+“panics” guarantee for explicit fatal paths present in every build. See
+`docs/build-modes.md`.
 
 
 ## Purpose
@@ -164,8 +167,8 @@ builders. `xtb.core` publicly imports the allocator aggregate for convenience,
 while implementation modules import the narrow module that owns the declaration
 they use.
 
-The ordinary byte-unit helpers return their result directly and panic on
-overflow:
+The ordinary byte-unit helpers return their result directly and require the
+scaled value to fit in `size_t`:
 
 ```d
 size_t bytes = mebibytes(4);
@@ -185,8 +188,8 @@ such as `milliseconds(250)` and `seconds(2)`. Floating-point counts are rejected
 at compile time so conversion never hides rounding policy.
 
 Duration addition, subtraction, integral multiplication, and integral division
-return values directly. Negative input, division by zero, underflow, and
-overflow are contract violations and panic. Queries beginning with `whole`,
+return values directly. They require nonnegative operands, nonzero divisors,
+and representable results. Queries beginning with `whole`,
 such as `wholeMilliseconds`, deliberately truncate the smaller remainder;
 `totalNanoseconds` is exact. APIs that need an infinite or immediate wait use a
 separate tagged policy value around `Duration` rather than assigning sentinel
@@ -1149,8 +1152,8 @@ This manual API is required for low-level control flow where an RAII guard
 cannot express the desired lifetime. The caller must execute exactly one
 `pop` on every normal path. Popping an inactive value, popping out of LIFO
 order, using the wrong thread, or popping after its arena/context has been
-released is a contract violation and panics. `TempArena` is non-copyable so a
-checkpoint cannot acquire two apparent owners.
+released violates the checkpoint preconditions. `TempArena` is non-copyable so
+a checkpoint cannot acquire two apparent owners.
 
 The D interface uses RAII for the lifetime, conceptually:
 
@@ -1196,9 +1199,8 @@ manually on a scope-owned `TempArena`. Its destructor is implemented through
 the same lower-level `pop` operation rather than a separate rewind path.
 Scratch acquisition is deliberately infallible at the API level: a
 missing thread context or failure to find a non-conflicting arena is a violated
-runtime precondition. Checked builds immediately call the project's panic
-handler; release-fast assumes the precondition. There is no status result,
-nullable scratch value, or recovery branch in callers.
+runtime precondition with an explicit fatal path in every build. There is no
+status result, nullable scratch value, or recovery branch in callers.
 
 D structs do not provide a user-defined parameterless default constructor, so
 the zero-conflict form uses the named `ScratchScope.acquire()` factory. The
@@ -1246,10 +1248,10 @@ small static array or caller-provided slice is sufficient. Conflicts are
 passed only when live allocations from those allocators must survive the new
 scope.
 
-Constructing a second `ThreadContextScope` on the same thread, destroying it
-out of order, or requesting scratch without an installed context panics. This
-mirrors the useful behavior of the C++ `ThreadContextScope` and `ScratchScope`
-while keeping thread initialization explicit.
+Constructing a second `ThreadContextScope` on the same thread or destroying it
+out of order violates checked scope-lifetime preconditions. Requesting scratch
+without an installed context follows the unconditional scratch-acquisition
+fatal path. This keeps thread initialization explicit.
 
 Arena growth belongs to the thread context and uses its explicitly configured
 backing allocator. Rewind should normally retain chunks for reuse, subject to a

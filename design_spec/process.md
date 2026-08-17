@@ -153,10 +153,11 @@ scope instead of repeating `nothrow @nogc` on every declaration. Foreign calls
 and native handle arithmetic stay in small `@system` functions; validated
 value helpers should be `@safe` and `pure` where possible.
 
-Required mutable pointers panic when null. An output owner that must be empty
-on entry also panics when it is already live. Invalid enum values arriving from
-untrusted data produce an explicit `invalidArgument` error when validation is
-part of the operation. Internal impossible states panic.
+Mutable pointer parameters are required non-null, and output owners documented
+as empty on entry must not already be live. Checked builds diagnose violations.
+Invalid enum values arriving from untrusted data produce an explicit
+`invalidArgument` error when validation is part of the operation. Internal
+impossible states use explicit fatal paths.
 
 Read-only text is always `String`. Commands and environment descriptions are
 borrowed simple values. Their text and outer slices must remain alive until the
