@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.internal.traits : Parameters, ReturnType;
 import core.lifetime : emplace, forward;
-import xtb.core.lifetime : lifetimeDeinit = deinit, move, needsDeinit;
+import xtb.core.lifetime : finalize, move, needsDeinit, needsFinalization;
 import xtb.core.option : Option, OptionReturns;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -58,10 +58,8 @@ nothrow @nogc:
         if (!once_.completed())
             return;
 
-        static if (needsDeinit!T)
-            lifetimeDeinit(storage_.value);
-        else
-            destroy(storage_.value);
+        static if (needsFinalization!T)
+            finalize(storage_.value);
     }
 
     /// Whether initialization has completed.

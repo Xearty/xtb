@@ -5,7 +5,8 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace;
 import core.stdc.string : memmove;
-import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : canFinalizeWithoutContext, deinitValue = deinit,
+    finalize, move, moveEmplace, needsDeinit, needsFinalization;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryReallocateArray;
 import xtb.core.panic : panic;
 
@@ -126,8 +127,18 @@ version (unittest)
 
     private struct DestructorOnly
     {
-        ~this()
+        size_t* destructions;
+        bool armed;
+
+        @disable this(this);
+
+        ~this() nothrow @nogc
         {
+            if (armed)
+            {
+                ++*destructions;
+                armed = false;
+            }
         }
     }
 
@@ -1080,21 +1091,13 @@ package(xtb):
     }
 }
 
-private template supportsOwnedElementDeinit(T)
-{
-    static if (!needsDeinit!T)
-        enum supportsOwnedElementDeinit = true;
-    else
-        enum supportsOwnedElementDeinit = __traits(compiles,
-                deinitValue(*cast(T*) null));
-}
-
 /// Managed contiguous storage with ownership of logical element cleanup.
 ///
 /// `OwnedArray` owns both its backing allocation and every live element. Any
-/// operation that discards an element without returning it calls free `deinit`
-/// when the element participates in the explicit lifetime protocol. Transfers
-/// such as `pop` do not finalize the returned value.
+/// operation that discards an element without returning it finalizes that
+/// element. Explicit-deinit values use free `deinit`; destructor-only values
+/// use D destruction. Transfers such as `pop` do not finalize the returned
+/// value.
 struct OwnedArray(T)
 {
 nothrow @nogc:
@@ -1116,19 +1119,17 @@ private:
 
     void deinitRange(size_t index, size_t count) @trusted
     {
-        static if (needsDeinit!T)
+        static if (needsFinalization!T)
         {
             size_t end = index + count;
             while (end != index)
-                deinitValue(storage_.slice[--end]);
+                finalize(storage_.slice[--end]);
         }
     }
 
 public:
-    static assert(!hasDDestructor!T || needsDeinit!T,
-        "OwnedArray cannot own lexical destructor-only element types");
-    static assert(supportsOwnedElementDeinit!T,
-        "OwnedArray element cleanup must support free deinit(value) without context");
+    static assert(canFinalizeWithoutContext!T,
+        "OwnedArray elements must support context-free finalization");
 
     @disable this(this);
     @disable ref Self opAssign(Self source) return;
@@ -1464,10 +1465,28 @@ unittest
     static assert(needsDeinit!(Array!int));
     static assert(needsDeinit!(OwnedArray!int));
     static assert(needsDeinit!(Array!int.Released));
-    static assert(!__traits(compiles, () { OwnedArray!DestructorOnly value; }));
+    static assert(canFinalizeWithoutContext!DestructorOnly);
+    static assert(__traits(compiles, () { OwnedArray!DestructorOnly value; }));
     static assert(!__traits(compiles, () { OwnedArray!(ArrayUnmanaged!int) value; }));
     static assert(!__traits(hasMember, OwnedArray!int, "release"));
     static assert(!__traits(hasMember, OwnedArray!int, "adopt"));
+
+    size_t destructions;
+    OwnedArray!DestructorOnly destructorValues =
+        OwnedArray!DestructorOnly.create(mallocAllocator());
+    DestructorOnly discarded = DestructorOnly(&destructions, true);
+    assert(destructorValues.tryAppend(&discarded));
+    assert(!discarded.armed);
+    destructorValues.removeAt(0);
+    assert(destructions == 1);
+
+    DestructorOnly transferredSource = DestructorOnly(&destructions, true);
+    assert(destructorValues.tryAppend(&transferredSource));
+    DestructorOnly transferredValue = destructorValues.pop();
+    assert(destructions == 1);
+    finalize(transferredValue);
+    assert(destructions == 2);
+    destructorValues.deinit();
 
     AllocationRecord[8] rawRecords;
     InstrumentedAllocator rawAllocator = InstrumentedAllocator.create(

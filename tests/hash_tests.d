@@ -186,6 +186,75 @@ private struct CountingOwnerEqual
     }
 }
 
+private struct DestructorOwner
+{
+nothrow @nogc:
+
+    int id;
+    size_t* destructions;
+    bool armed;
+
+    @disable this(this);
+
+    ~this()
+    {
+        if (armed)
+        {
+            ++*destructions;
+            armed = false;
+        }
+    }
+}
+
+private struct DestructorOwnerHash
+{
+    size_t opCall(scope const(DestructorOwner)* value) const pure nothrow @safe @nogc
+    {
+        return cast(size_t) value.id;
+    }
+}
+
+private struct DestructorOwnerEqual
+{
+    bool opCall(
+        scope const(DestructorOwner)* left,
+        scope const(DestructorOwner)* right,
+    ) const pure nothrow @safe @nogc
+    {
+        return left.id == right.id;
+    }
+}
+
+private struct ContextOwner
+{
+    int id;
+
+    @disable this(this);
+
+    void deinit(Allocator*) nothrow @nogc
+    {
+    }
+}
+
+private struct ContextOwnerHash
+{
+    size_t opCall(scope const(ContextOwner)* value) const pure nothrow @safe @nogc
+    {
+        return cast(size_t) value.id;
+    }
+}
+
+private struct ContextOwnerEqual
+{
+    bool opCall(
+        scope const(ContextOwner)* left,
+        scope const(ContextOwner)* right,
+    ) const pure nothrow @safe @nogc
+    {
+        return left.id == right.id;
+    }
+}
+
 private alias StringBufOwnerMap = OwnedHashMap!(StringBuf, int);
 private alias StringBufOwnerSet = OwnedHashSet!StringBuf;
 
@@ -218,6 +287,12 @@ private alias ShallowCountingMap = HashMap!(
     CountingOwnerHash,
     CountingOwnerEqual,
 );
+private alias DestructorOwnerMap = OwnedHashMap!(int, DestructorOwner);
+private alias DestructorOwnerSet = OwnedHashSet!(
+    DestructorOwner,
+    DestructorOwnerHash,
+    DestructorOwnerEqual,
+);
 
 static assert(__traits(compiles, StringBufOwnerMap.create(mallocAllocator())));
 static assert(__traits(compiles, StringBufOwnerSet.create(mallocAllocator())));
@@ -246,6 +321,14 @@ static assert(__traits(compiles,
         (ref OwnedStringHashMap!HeapOwner map, HeapOwner* value) { map.tryAdd("key", value); }));
 static assert(!__traits(compiles,
         (ref OwnedStringHashMap!HeapOwner map, HeapOwner value) { map.tryAdd("key", move(value)); }));
+static assert(__traits(compiles, () { DestructorOwnerMap map; }));
+static assert(__traits(compiles, () { DestructorOwnerSet set; }));
+static assert(__traits(compiles, () { OwnedStringHashMap!DestructorOwner map; }));
+static assert(!__traits(compiles, () {
+        OwnedHashSet!(ContextOwner, ContextOwnerHash, ContextOwnerEqual) set;
+    }));
+static assert(!__traits(compiles, () { OwnedHashMap!(int, ContextOwner) map; }));
+static assert(!__traits(compiles, () { OwnedStringHashMap!ContextOwner map; }));
 
 private void assertClean(ref const InstrumentedAllocator allocator)
 {
@@ -750,6 +833,41 @@ private void testShallowStringMapDoesNotCleanValues() @system
     assert(deinits == 0);
 }
 
+private void testDestructorOwnedContainers() @system
+{
+    size_t destructions;
+
+    DestructorOwnerMap map = DestructorOwnerMap.create(mallocAllocator());
+    int firstKey = 1;
+    DestructorOwner firstValue = DestructorOwner(1, &destructions, true);
+    assert(map.add(&firstKey, &firstValue));
+    assert(!firstValue.armed);
+    assert(map.remove(1));
+    assert(destructions == 1);
+
+    int secondKey = 2;
+    DestructorOwner secondValue = DestructorOwner(2, &destructions, true);
+    assert(map.add(&secondKey, &secondValue));
+    deinit(map);
+    assert(destructions == 2);
+
+    DestructorOwnerSet set = DestructorOwnerSet.create(mallocAllocator());
+    DestructorOwner setValue = DestructorOwner(3, &destructions, true);
+    assert(set.add(&setValue));
+    DestructorOwner setProbe = DestructorOwner(3, null, false);
+    assert(set.remove(&setProbe));
+    assert(destructions == 3);
+    deinit(set);
+
+    auto stringMap =
+        OwnedStringHashMap!DestructorOwner.create(mallocAllocator());
+    DestructorOwner stringValue = DestructorOwner(4, &destructions, true);
+    assert(stringMap.add("value", &stringValue));
+    assert(stringMap.remove("value"));
+    assert(destructions == 4);
+    deinit(stringMap);
+}
+
 private void testStringSetExplicitCleanup() @system
 {
     AllocationRecord[64] records;
@@ -788,6 +906,7 @@ extern (C) int main() nothrow @nogc
     testMoveOnlyStringBufKeys();
     testOwnedStringMapValueOwnership();
     testShallowStringMapDoesNotCleanValues();
+    testDestructorOwnedContainers();
     testStringSetExplicitCleanup();
     return 0;
 }

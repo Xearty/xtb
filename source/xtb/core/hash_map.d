@@ -2,7 +2,9 @@ module xtb.core.hash_map;
 
 nothrow @nogc:
 
-import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : canFinalizeWithoutContext, deinitValue = deinit,
+    finalize, hasDDestructor, move, moveEmplace, needsDeinit,
+    needsFinalization;
 import core.stdc.string : memset;
 import xtb.core.hash : HashSeed, hashValue;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
@@ -88,28 +90,17 @@ struct DefaultHashMapElementOps(T)
     }
 }
 
-private template supportsOwnedHashElementDeinit(T)
-{
-    static if (!needsDeinit!T)
-        enum supportsOwnedHashElementDeinit = true;
-    else
-        enum supportsOwnedHashElementDeinit = __traits(compiles,
-                deinitValue(*cast(T*) null));
-}
-
 private struct OwnedHashMapElementOps(T)
 {
 nothrow @nogc:
 
-    static assert(!hasDDestructor!T || needsDeinit!T,
-        "owned hash containers cannot own lexical destructor-only element types");
-    static assert(supportsOwnedHashElementDeinit!T,
-        "owned hash element cleanup must support free deinit(value) without context");
+    static assert(canFinalizeWithoutContext!T,
+        "owned hash elements must support context-free finalization");
 
     static void destroy(Allocator*, T* element)
     {
-        static if (needsDeinit!T)
-            deinitValue(*element);
+        static if (needsFinalization!T)
+            finalize(*element);
     }
 }
 
@@ -1446,12 +1437,9 @@ struct OwnedHashMap(K, V, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
 
-    static assert((!hasDDestructor!K || needsDeinit!K) &&
-            (!hasDDestructor!V || needsDeinit!V),
-        "OwnedHashMap cannot own lexical destructor-only key/value types");
-    static assert(supportsOwnedHashElementDeinit!K &&
-            supportsOwnedHashElementDeinit!V,
-        "OwnedHashMap key/value cleanup must support deinit(value) without context");
+    static assert(canFinalizeWithoutContext!K &&
+            canFinalizeWithoutContext!V,
+        "OwnedHashMap keys and values must support context-free finalization");
 
     alias Self = OwnedHashMap!(K, V, Hasher, Equal);
     alias Storage = HashMapUnmanaged!(
@@ -2492,10 +2480,8 @@ package(xtb):
 struct OwnedHashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
-    static assert(!hasDDestructor!K || needsDeinit!K,
-        "OwnedHashSet cannot own lexical destructor-only element types");
-    static assert(supportsOwnedHashElementDeinit!K,
-        "OwnedHashSet element cleanup must support free deinit(value) without context");
+    static assert(canFinalizeWithoutContext!K,
+        "OwnedHashSet elements must support context-free finalization");
     alias Self = OwnedHashSet!(K, Hasher, Equal);
     alias Storage = HashSetUnmanaged!(K, Hasher, Equal, OwnedHashMapElementOps!K);
 private:

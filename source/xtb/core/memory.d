@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.lifetime : emplace, forward;
 import core.stdc.string : memset;
-import xtb.core.lifetime : deinit, hasDDestructor, needsDeinit;
+import xtb.core.lifetime : finalize, needsFinalization;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -295,25 +295,18 @@ void dispose(T)(Allocator* allocator, T* pointer)
 {
     if (pointer is null)
         return;
-    static if (needsDeinit!T)
-        deinit(*pointer);
-    else static if (hasDDestructor!T)
-        destroy(*pointer);
+    static if (needsFinalization!T)
+        finalize(*pointer);
     allocator.deallocate(pointer);
 }
 
 /// Finalizes initialized array elements in reverse order and releases storage.
 void disposeArray(T)(Allocator* allocator, T[] values)
 {
-    static if (needsDeinit!T)
+    static if (needsFinalization!T)
     {
         foreach_reverse (ref value; values)
-            deinit(value);
-    }
-    else static if (hasDDestructor!T)
-    {
-        foreach_reverse (ref value; values)
-            destroy(value);
+            finalize(value);
     }
     allocator.deallocateArray(values);
 }

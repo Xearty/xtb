@@ -156,6 +156,29 @@ standalone owner or lose allocator provenance during a cross-type transfer.
 release detached storage. The token itself is an explicit owner: if it is not
 adopted or extracted, call free `deinit(released)`; scope exit does not free it.
 
+### Element cleanup policy
+
+Allocator ownership and element ownership are separate promises. A shallow
+container (`Array`, `HashMap`, `HashSet`, or the value side of `StringHashMap`)
+owns its backing allocation but never finalizes stored values. It may therefore
+store an explicit owner for workflows that clean every element separately, but
+discarding an entry, clearing the container, or deinitializing it abandons that
+value without calling either `deinit` or a D destructor.
+
+An owning container (`OwnedArray`, `OwnedHashMap`, `OwnedHashSet`, or
+`OwnedStringHashMap`) finalizes every value that it discards. Its element type
+must satisfy `canFinalizeWithoutContext!T`: cleanup-free values qualify,
+explicit owners must support `deinit(value)` without an allocator or other
+context argument, and destructor-only values must have destruction compatible
+with `nothrow @nogc`. `finalize(value)` gives all owning containers the same
+dispatch rule: explicit `deinit` wins when present; otherwise a D destructor is
+run. A value transferred by `pop`, `take`, or extraction is not finalized.
+
+Reserve, rehash, and storage relocation move live values and are not discard
+operations. Removal, replacement, shrinking that drops logical elements,
+`clear`, and container `deinit` do finalize owned values. Failed insertion
+preserves caller ownership.
+
 ## Member versus free-function rule
 
 Use a member when the operation conceptually belongs to one owning receiver:

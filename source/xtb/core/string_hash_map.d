@@ -2,7 +2,8 @@ module xtb.core.string_hash_map;
 
 nothrow @nogc:
 
-import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : canFinalizeWithoutContext, finalize,
+    hasDDestructor, move, moveEmplace, needsDeinit, needsFinalization;
 import xtb.core.hash : HashSeed, hashValue;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
@@ -71,28 +72,17 @@ nothrow @nogc:
     }
 }
 
-private template supportsOwnedStringHashValueDeinit(T)
-{
-    static if (!needsDeinit!T)
-        enum supportsOwnedStringHashValueDeinit = true;
-    else
-        enum supportsOwnedStringHashValueDeinit = __traits(compiles,
-                deinitValue(*cast(T*) null));
-}
-
 private struct OwnedStringHashMapValueOps(T)
 {
 nothrow @nogc:
 
-    static assert(!hasDDestructor!T || needsDeinit!T,
-        "OwnedStringHashMap cannot own lexical destructor-only values");
-    static assert(supportsOwnedStringHashValueDeinit!T,
-        "OwnedStringHashMap value cleanup must support deinit(value) without context");
+    static assert(canFinalizeWithoutContext!T,
+        "OwnedStringHashMap values must support context-free finalization");
 
     static void destroy(Allocator*, T* value)
     {
-        static if (needsDeinit!T)
-            deinitValue(*value);
+        static if (needsFinalization!T)
+            finalize(*value);
     }
 }
 

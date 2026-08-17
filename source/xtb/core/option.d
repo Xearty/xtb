@@ -5,7 +5,8 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, finalize, hasDDestructor,
+    move, moveEmplace, needsDeinit, needsFinalization;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
@@ -77,7 +78,7 @@ nothrow @nogc:
 
     static assert(!is(T == void), "Option value type cannot be void");
 
-    private enum bool payloadNeedsCleanup = needsDeinit!T || hasDDestructor!T;
+    private enum bool payloadNeedsCleanup = needsFinalization!T;
 
     private bool present_;
     align(T.alignof) private ubyte[T.sizeof] storage_;
@@ -185,10 +186,8 @@ nothrow @nogc:
         if (!present_)
             return;
 
-        static if (needsDeinit!T)
-            deinitValue(payload());
-        else static if (hasDDestructor!T)
-            destroy(payload());
+        static if (payloadNeedsCleanup)
+            finalize(payload());
         present_ = false;
     }
 

@@ -5,10 +5,11 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
-import xtb.core.lifetime : hasDDestructor, lifetimeDeinit = deinit,
+import xtb.core.lifetime : finalize, hasDDestructor, lifetimeDeinit = deinit,
     lifetimeMove = move,
     lifetimeMoveEmplace = moveEmplace,
-    needsDeinit;
+    needsDeinit,
+    needsFinalization;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
@@ -185,10 +186,8 @@ private template movedWorkerArgumentList(size_t count)
 
 private void finalizeSpawnValue(T)(ref T value) @system
 {
-    static if (needsDeinit!T)
-        lifetimeDeinit(value);
-    else static if (hasDDestructor!T)
-        destroy(value);
+    static if (needsFinalization!T)
+        finalize(value);
 }
 
 private void finalizeSpawnCaptures(alias function_)(

@@ -5,7 +5,9 @@ nothrow @nogc:
 import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
 import xtb.core.intrusive_list : ForwardListHook, IntrusiveForwardList;
-import xtb.core.lifetime : hasDDestructor, lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit;
+import xtb.core.lifetime : finalize, hasDDestructor,
+    lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit,
+    needsFinalization;
 import xtb.core.memory : Allocator, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
@@ -168,10 +170,8 @@ private template scopedWorkerArgumentList(alias function_, size_t count)
 
 private void finalizeScopedValue(T)(ref T value) @system
 {
-    static if (needsDeinit!T)
-        lifetimeDeinit(value);
-    else static if (hasDDestructor!T)
-        destroy(value);
+    static if (needsFinalization!T)
+        finalize(value);
 }
 
 private void finalizeOwnedScopedCaptures(alias function_)(

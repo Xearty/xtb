@@ -115,12 +115,19 @@ and are not treated as general-purpose core modules.
 
 Within core, `xtb.core.types` is a dependency-free leaf containing only the
 primitive aliases, including `String`. `xtb.core.lifetime` owns the explicit
-`deinit` protocol, `needsDeinit`, D-destructor classification, and XTB
-move/replacement primitives. `hasDDestructor!T` is the authoritative generic
+`deinit` protocol, cleanup classification, context-free finalization, and XTB
+move/replacement primitives. `needsDeinit!T` describes only the explicit XTB
+protocol; `hasDDestructor!T` is the authoritative generic
 check for D destructor semantics: it combines druntime's elaborate-destructor
 trait with the compiler-visible destructor hook because the druntime trait can
-miss an explicit destructor on semantic-obligation structs. Its one-argument
-`move` preserves normal D behavior for trivial values but reconstructs any
+miss an explicit destructor on semantic-obligation structs.
+`needsFinalization!T` is their union. `canFinalizeWithoutContext!T` additionally
+proves that cleanup-free values need no work, explicit owners accept
+`deinit(value)` with no extra arguments, or destructor-only values can be
+destroyed under BetterC's `nothrow @nogc` contract. Free `finalize(value)` exists
+only when meaningful cleanup is required and that proof succeeds: explicit
+`deinit` is authoritative when present, otherwise D destruction is used. The
+one-argument `move` preserves normal D behavior for trivial values but reconstructs any
 explicit-deinit owner, or destructor-bearing value missed by druntime's move
 machinery, to `.init`, so ownership/obligations remain unique after transfer.
 `moveEmplace` uses the same source rule for fresh storage, while `moveAssign`
@@ -1586,9 +1593,14 @@ no filesystem access. File convenience functions, if added later, must compose
   semantics; native D slices remain borrowed views. Both are non-copyable and
   share private `ArrayUnmanaged!T` storage machinery. `Array!T` owns only its
   backing allocation: removal, shrinking, clearing, and `deinit` abandon logical
-  elements without calling their cleanup protocol. `OwnedArray!T` additionally
-  owns every logical element and calls free `deinit` in reverse order whenever a
-  value is discarded without transfer. `pop` transfers ownership in both types,
+  elements without calling either explicit `deinit` or D destructors. This is
+  intentional: shallow arrays may hold owner-shaped values only when the caller
+  separately finalizes them before their storage is abandoned.
+  `OwnedArray!T` additionally owns every logical element and calls free
+  `finalize` in reverse order whenever a value is discarded without transfer.
+  It accepts cleanup-free values, context-free explicit owners, and
+  `nothrow @nogc` destructor-only values; an explicit owner that needs cleanup
+  context is rejected. `pop` transfers ownership in both types,
   and growth/reallocation is relocation rather than discard. Fallible singular
   insertion uses `T*`: success moves from `*value`, while allocation failure
   leaves it unchanged, including when the pointer aliases an existing element.
@@ -1601,13 +1613,14 @@ no filesystem access. File convenience functions, if added later, must compose
   containers. They own open-addressed table storage but do not call element
   cleanup when keys/values are removed, cleared, or deinitialized.
   `OwnedHashMap!(K, V)` and `OwnedHashSet!K` use the same probing/storage engine
-  while additionally owning free-`deinit` responsibility for discarded keys
-  and values. Rehashing, reserve growth, and shrinking are relocation rather
-  than discard and therefore never clean entries. `take` transfers an entry or
-  element without cleanup. Managed hash owners are non-copyable and generated
-  assignment is disabled; use explicit move construction or `moveAssign` for a
-  live-owner replacement. Owned variants intentionally expose no shallow
-  release/adopt or conversion surface.
+  while additionally owning context-free `finalize` responsibility for
+  discarded keys and values. The same element eligibility rules as
+  `OwnedArray` apply. Rehashing, reserve growth, and shrinking are relocation
+  rather than discard and therefore never clean entries. `take` transfers an
+  entry or element without cleanup. Managed hash owners are non-copyable and
+  generated assignment is disabled; use explicit move construction or
+  `moveAssign` for a live-owner replacement. Owned variants intentionally expose
+  no shallow release/adopt or conversion surface.
 
   Fallible insertion of potentially owning or move-only values is pointer based:
   `tryAdd(&key, &value)` consumes both only after insertion is guaranteed, while
@@ -1622,10 +1635,12 @@ no filesystem access. File convenience functions, if added later, must compose
   borrows every key's bytes, which must outlive the entry. `StringHashMap!V`
   instead owns one exact `OwnedStringUnmanaged` allocation per nonempty key but
   remains shallow with respect to values. `OwnedStringHashMap!V` has the same
-  key representation and additionally deinitializes discarded values. The two
-  managed spellings share private implementation machinery; cleanup policy is
-  not a public template parameter. Move-key insertion consumes an `OwnedString`
-  or `StringBuf` only when that key is actually inserted. On `trySetMove`
+  key representation and additionally finalizes discarded values.
+  Destructor-only values are supported when their destructor is
+  `nothrow @nogc`; values whose explicit `deinit` requires context are rejected.
+  The two managed spellings share private implementation machinery; cleanup
+  policy is not a public template parameter. Move-key insertion consumes an
+  `OwnedString` or `StringBuf` only when that key is actually inserted. On `trySetMove`
   replacement, the existing stored key is retained, the incoming value is
   consumed, and the unused incoming key remains owned by the caller. Duplicate
   `tryAddMove` and allocation failure likewise preserve caller ownership.

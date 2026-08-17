@@ -5,7 +5,8 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.core.lifetime : deinitValue = deinit, hasDDestructor, move, moveEmplace, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, finalize, hasDDestructor,
+    move, moveEmplace, needsDeinit, needsFinalization;
 import xtb.core.panic : panic;
 import xtb.core.types : String;
 
@@ -68,8 +69,8 @@ nothrow @nogc:
     static if (is(T == void))
         private enum bool valueNeedsCleanup = false;
     else
-        private enum bool valueNeedsCleanup = needsDeinit!T || hasDDestructor!T;
-    private enum bool errorNeedsCleanup = needsDeinit!E || hasDDestructor!E;
+        private enum bool valueNeedsCleanup = needsFinalization!T;
+    private enum bool errorNeedsCleanup = needsFinalization!E;
     private enum bool payloadNeedsCleanup = valueNeedsCleanup || errorNeedsCleanup;
 
     private ResultState state_;
@@ -221,18 +222,14 @@ nothrow @nogc:
         {
             static if (!is(T == void))
             {
-                static if (needsDeinit!T)
-                    deinitValue(valuePayload());
-                else static if (hasDDestructor!T)
-                    destroy(valuePayload());
+                static if (valueNeedsCleanup)
+                    finalize(valuePayload());
             }
         }
         else
         {
-            static if (needsDeinit!E)
-                deinitValue(errorPayload());
-            else static if (hasDDestructor!E)
-                destroy(errorPayload());
+            static if (errorNeedsCleanup)
+                finalize(errorPayload());
         }
     }
 

@@ -567,6 +567,42 @@ template needsDeinit(T)
     enum needsDeinit = NeedsDeinitImpl!T;
 }
 
+/// True when a live `T` has either explicit or D destructor cleanup work.
+template needsFinalization(T)
+{
+    enum needsFinalization = needsDeinit!T || hasDDestructor!T;
+}
+
+private template SupportsContextFreeDeinit(T)
+{
+    alias U = Unqual!T;
+    enum SupportsContextFreeDeinit = __traits(compiles,
+            (ref U value) nothrow @nogc { deinit(value); });
+}
+
+private template SupportsContextFreeDestroy(T)
+{
+    alias U = Unqual!T;
+    enum SupportsContextFreeDestroy = __traits(compiles,
+            (ref U value) nothrow @nogc { destroy(value); });
+}
+
+/// True when a container can discard a live `T` without extra cleanup context.
+///
+/// Cleanup-free values always qualify. Explicit-deinit values qualify only
+/// when free `deinit(value)` is valid without additional arguments under
+/// `nothrow @nogc`. Values using only D destructor semantics qualify when
+/// `destroy(value)` satisfies the same attributes.
+template canFinalizeWithoutContext(T)
+{
+    static if (needsDeinit!T)
+        enum canFinalizeWithoutContext = SupportsContextFreeDeinit!T;
+    else static if (hasDDestructor!T)
+        enum canFinalizeWithoutContext = SupportsContextFreeDestroy!T;
+    else
+        enum canFinalizeWithoutContext = true;
+}
+
 /// Explicitly deinitializes a mutable live value.
 ///
 /// A real member `deinit` customization is authoritative. Structural cleanup
@@ -643,6 +679,19 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
             static assert(false, U.stringof ~ " has no structural deinit rule");
         }
     }
+}
+
+/// Finalizes a mutable live value without external cleanup context.
+///
+/// Explicit `deinit` is authoritative when present. Destructor-only values use
+/// D's `destroy`. Cleanup-free values intentionally have no `finalize`
+/// overload, so generic code cannot pretend that finalization work exists.
+void finalize(T)(ref T value) if (needsFinalization!T && canFinalizeWithoutContext!T)
+{
+    static if (needsDeinit!T)
+        deinit(value);
+    else
+        destroy(value);
 }
 
 /// Moves `source` into a returned value.
@@ -949,11 +998,15 @@ unittest
     }
 
     static assert(needsDeinit!ContextOwner);
+    static assert(needsFinalization!ContextOwner);
+    static assert(!canFinalizeWithoutContext!ContextOwner);
     static assert(needsDeinit!Untagged);
     static assert(__traits(compiles,
             (ref ContextOwner value, int* context) { deinit(value, context); }));
     static assert(!__traits(compiles,
             (ref ContextOwner value) { deinit(value); }));
+    static assert(!__traits(compiles,
+            (ref ContextOwner value) { finalize(value); }));
     static assert(!__traits(compiles,
             (ref const(ContextOwner) value, int* context) { deinit(value, context); }));
     static assert(!__traits(compiles,
@@ -1002,10 +1055,15 @@ unittest
     nothrow @nogc:
 
         int* destructions;
+        bool armed;
 
         ~this()
         {
-            ++*destructions;
+            if (armed)
+            {
+                ++*destructions;
+                armed = false;
+            }
         }
     }
 
@@ -1019,6 +1077,19 @@ unittest
     static assert(hasDDestructor!(DestructorOnly[2]));
     static assert(!needsDeinit!DestructorOnly);
     static assert(!needsDeinit!ContainsDestructorOnly);
+    static assert(needsFinalization!DestructorOnly);
+    static assert(canFinalizeWithoutContext!DestructorOnly);
+    static assert(!needsFinalization!int);
+    static assert(canFinalizeWithoutContext!int);
+    static assert(__traits(compiles,
+            (ref DestructorOnly value) { finalize(value); }));
+    static assert(!__traits(compiles,
+            (ref int value) { finalize(value); }));
+
+    int destructions;
+    DestructorOnly value = DestructorOnly(&destructions, true);
+    finalize(value);
+    assert(destructions == 1);
 }
 
 unittest
