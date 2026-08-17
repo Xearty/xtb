@@ -187,7 +187,8 @@ private PrettyPrintColorScheme vividColorScheme()
     scheme.stringValue = AnsiStyle.foreground(AnsiColor.brightGreen);
     scheme.characterValue = AnsiStyle.foreground(AnsiColor.green);
     scheme.numberValue = AnsiStyle.foreground(AnsiColor.brightBlue);
-    scheme.booleanValue = AnsiStyle.foreground(AnsiColor.brightYellow);
+    scheme.booleanValue = AnsiStyle.foreground(AnsiColor.yellow);
+    scheme.constructorName = AnsiStyle.foreground(AnsiColor.brightYellow);
     scheme.enumValue = AnsiStyle.foreground(AnsiColor.brightGreen);
     scheme.nullValue = AnsiStyle.foreground(AnsiColor.brightBlack).italic;
     scheme.pointerValue = AnsiStyle.foreground(AnsiColor.brightMagenta);

@@ -54,6 +54,7 @@ struct PrettyPrintColorScheme
     AnsiStyle characterValue = AnsiStyle.foreground(AnsiColor.green);
     AnsiStyle numberValue = AnsiStyle.foreground(AnsiColor.blue);
     AnsiStyle booleanValue = AnsiStyle.foreground(AnsiColor.yellow);
+    AnsiStyle constructorName = AnsiStyle.foreground(AnsiColor.brightYellow);
     AnsiStyle enumValue = AnsiStyle.foreground(AnsiColor.brightGreen);
     AnsiStyle nullValue = AnsiStyle.foreground(AnsiColor.brightBlack);
     AnsiStyle pointerValue = AnsiStyle.foreground(AnsiColor.magenta);
@@ -312,7 +313,7 @@ private struct PrettyRender(Described)
         writeStyledText(
             *writer_,
             name,
-            options_.colorScheme.booleanValue,
+            options_.colorScheme.constructorName,
             *options_,
         );
         writePunctuation(*writer_, "()", *options_);
@@ -324,7 +325,7 @@ private struct PrettyRender(Described)
         writeStyledText(
             *writer_,
             name,
-            options_.colorScheme.booleanValue,
+            options_.colorScheme.constructorName,
             *options_,
         );
         writePunctuation(*writer_, '(', *options_);
@@ -2917,6 +2918,7 @@ version (unittest)
         result.characterValue = AnsiStyle.init;
         result.numberValue = AnsiStyle.init;
         result.booleanValue = AnsiStyle.init;
+        result.constructorName = AnsiStyle.init;
         result.enumValue = AnsiStyle.init;
         result.nullValue = AnsiStyle.init;
         result.pointerValue = AnsiStyle.init;
@@ -3005,6 +3007,10 @@ unittest
     assert(defaultScheme.characterValue.enabled);
     assert(defaultScheme.numberValue.enabled);
     assert(defaultScheme.booleanValue.enabled);
+    assert(defaultScheme.constructorName.enabled);
+    assert(defaultScheme.booleanValue.foregroundColor == AnsiColor.yellow);
+    assert(defaultScheme.constructorName.foregroundColor ==
+            AnsiColor.brightYellow);
     assert(defaultScheme.enumValue.enabled);
     assert(defaultScheme.nullValue.enabled);
     assert(defaultScheme.pointerValue.enabled);
@@ -3845,6 +3851,14 @@ unittest
     PrettyPrintOptions booleanOptions = base;
     booleanOptions.colorScheme.booleanValue = red;
     boolean.expectPretty("\x1b[91mtrue\x1b[0m", booleanOptions);
+
+    Option!int present = Option!int.some(7);
+    present.expectPretty("some(7)", booleanOptions);
+
+    PrettyPrintOptions constructorOptions = base;
+    constructorOptions.colorScheme.constructorName = red;
+    present.expectPretty("\x1b[91msome\x1b[0m(7)", constructorOptions);
+    boolean.expectPretty("true", constructorOptions);
 
     String text = "value";
     PrettyPrintOptions stringOptions = base;
