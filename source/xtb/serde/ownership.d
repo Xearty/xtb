@@ -9,8 +9,6 @@ import xtb.core.memory : Allocator, tryAllocateInit;
 import xtb.core.numeric : addOverflows;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.pretty_print : PrettyPrintOptions, writePretty;
-import xtb.core.print : Writer;
 
 private struct AllocationHeader
 {
@@ -102,21 +100,17 @@ nothrow @nogc:
         return value_;
     }
 
-    /// Pretty printing treats the owning wrapper as a transparent view of its
-    /// decoded value. This prevents allocator bookkeeping from leaking into
-    /// normal diagnostic output while remaining overridable by the decoded
-    /// type's own const-compatible `prettyFormatTo` implementation.
-    void prettyFormatTo(
-        ref Writer writer,
-        scope const ref PrettyPrintOptions options,
-    ) const
+    /// Describes the owning wrapper as a transparent view of its decoded value.
+    /// This prevents allocator bookkeeping from affecting diagnostic output or
+    /// layout while preserving the decoded type's own pretty customization.
+    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
     {
         if (value_ is null)
         {
-            writePretty(writer, null, options);
+            pretty.value(null);
             return;
         }
-        writePretty(writer, *value_, options);
+        pretty.value(*value_);
     }
 
     void deinit()
@@ -295,6 +289,25 @@ version (unittest)
     {
         int id;
     }
+
+    private struct PrettyPrintDirectHolder
+    {
+        PrettyPrintOwnershipRecord item;
+        int tail;
+    }
+
+    private struct PrettyPrintDecodedHolder
+    {
+        Deserialized!PrettyPrintOwnershipRecord item;
+        int tail;
+
+        @disable this(this);
+
+        void deinit() nothrow @nogc
+        {
+            item.deinit();
+        }
+    }
 }
 
 unittest
@@ -325,6 +338,45 @@ unittest
     assert(valueStorage[0 .. valueResult.written].equal(
             "PrettyPrintOwnershipRecord {id: 17}",
     ));
+
+    PrettyPrintOptions automatic = plain;
+    automatic.showTypeNames = false;
+
+    PrettyPrintDirectHolder directHolder = PrettyPrintDirectHolder(
+        PrettyPrintOwnershipRecord(17),
+        9,
+    );
+    char[128] directStorage;
+    const directResult = writeBuffer(
+        directStorage[],
+        directHolder.pretty(automatic),
+    );
+    assert(directResult.ok);
+    assert(!directResult.truncated);
+    assert(directStorage[0 .. directResult.written].equal(
+            "{item: {id: 17}, tail: 9}",
+    ));
+
+    PrettyPrintDecodedHolder decodedHolder;
+    PrettyPrintOwnershipRecord* nestedValue;
+    assert(prepareDeserialized(
+            mallocAllocator(),
+            &decodedHolder.item,
+            &nestedValue,
+    ));
+    nestedValue.id = 17;
+    decodedHolder.tail = 9;
+    char[128] decodedStorage;
+    const decodedResult = writeBuffer(
+        decodedStorage[],
+        decodedHolder.pretty(automatic),
+    );
+    assert(decodedResult.ok);
+    assert(!decodedResult.truncated);
+    assert(decodedStorage[0 .. decodedResult.written].equal(
+            directStorage[0 .. directResult.written],
+    ));
+    decodedHolder.deinit();
 
     decoded.deinit();
     char[16] releasedStorage;
