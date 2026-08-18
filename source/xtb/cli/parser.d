@@ -326,22 +326,24 @@ CliParseResult!T parseArgs(T)(scope String[] argv, Allocator* allocator) @truste
 }
 
 pragma(inline, true)
+private String normalizeProgramName(String programPath) @safe
+{
+    if (!isValidUtf8(programPath))
+        return "program";
+
+    String programName = programPath.baseName;
+    return programName.length == 0 ? "program" : programName;
+}
+
+pragma(inline, true)
 private CliParseResult!T parseSource(T)(ArgumentSource source, Allocator* allocator)
 @system
 {
     static assert(ValidateCliSchema!T);
 
     CliParseResult!T result;
-    String programName = source.length == 0 ? "program" : source.at(0);
-    if (!isValidUtf8(programName))
-        programName = "program";
-    else
-    {
-        programName = programName.baseName;
-        if (programName.length == 0)
-            programName = "program";
-    }
-    result.programName = programName;
+    String programName = source.length == 0 ? String.init : source.at(0);
+    result.programName = normalizeProgramName(programName);
 
     ParseState state;
     state.source = source;
@@ -1040,6 +1042,25 @@ private bool parseScalar(T)(String text, T* output) @system
         static assert(false, U.stringof ~ " has no CLI scalar parser");
 }
 
+/// Writes generated help for the root command or a statically selected command path.
+/// `Path` must list direct descendants starting at `Root`.
+void writeHelp(Root, Path...)(ref Writer writer, String programPath) @system
+{
+    static assert(ValidateCliSchema!Root);
+    alias Target = HelpPathTarget!(Root, Path);
+    String programName = normalizeProgramName(programPath);
+
+    writeHelpAbout!Target(writer);
+    writeStaticUsage!(Root, Path)(writer, programName);
+    writeHelpSections!(Root, Target)(writer);
+
+    static if (hasVisibleGlobalsOnStaticPath!(Root, Path))
+    {
+        writer.put("\nGlobal options:\n");
+        writeGlobalsOnStaticPath!(Root, Path)(writer);
+    }
+}
+
 /// Writes the library-owned non-invocation response to caller-provided writers.
 /// Returns the process exit code associated with the response.
 int writeCliResult(T)(
@@ -1114,15 +1135,29 @@ private void writeSelectedHelpAt(Root, T)(
     if (descended)
         return;
 
+    writeHelpAbout!T(writer);
+    writeSelectedUsage!Root(writer, programName, tree);
+    writeHelpSections!(Root, T)(writer);
+
+    if (hasGlobalsAlongActivePath!Root(tree))
+    {
+        writer.put("\nGlobal options:\n");
+        writeGlobalsAlongActivePath!Root(writer, tree);
+    }
+}
+
+private void writeHelpAbout(T)(ref Writer writer) @system
+{
     enum aboutText = typeAbout!T;
     static if (aboutText.length != 0)
     {
         writer.put(aboutText);
         writer.put("\n\n");
     }
+}
 
-    writeSelectedUsage!Root(writer, programName, tree);
-
+private void writeHelpSections(Root, T)(ref Writer writer) @system
+{
     static if (hasSubcommands!T)
     {
         writer.put("\nCommands:\n");
@@ -1147,12 +1182,6 @@ private void writeSelectedHelpAt(Root, T)(
             builtinVersionEnabled!Root)
             writer.put("      --version\tShow the application version\n");
     }
-
-    if (hasGlobalsAlongActivePath!Root(tree))
-    {
-        writer.put("\nGlobal options:\n");
-        writeGlobalsAlongActivePath!Root(writer, tree);
-    }
 }
 
 private void writeCommandHelpLine(T)(ref Writer writer) @system
@@ -1166,6 +1195,62 @@ private void writeCommandHelpLine(T)(ref Writer writer) @system
         writer.put(aboutText);
     }
     writer.put('\n');
+}
+
+private template HelpPathTarget(Parent, Path...)
+{
+    static if (Path.length == 0)
+        alias HelpPathTarget = Parent;
+    else
+    {
+        alias Child = Path[0];
+        static assert(isDirectCommand!(Parent, Child),
+            Child.stringof ~ " is not a direct CLI subcommand of " ~ Parent.stringof);
+        alias HelpPathTarget = HelpPathTarget!(Child, Path[1 .. $]);
+    }
+}
+
+private void writeStaticUsage(Root, Path...)(
+    ref Writer writer,
+    String programName,
+) @system
+{
+    alias Target = HelpPathTarget!(Root, Path);
+
+    writer.put("Usage: ");
+    writer.put(programName);
+    static foreach (CommandType; Path)
+    {
+        writer.put(' ');
+        writer.put(commandName!CommandType);
+    }
+    writeUsageSuffixForType!(Target, hasInheritedGlobalsOnStaticPath!(Root, Path))(writer);
+    writer.put('\n');
+}
+
+private template hasInheritedGlobalsOnStaticPath(Parent, Path...)
+{
+    static if (Path.length == 0)
+        enum bool hasInheritedGlobalsOnStaticPath = false;
+    else
+        enum bool hasInheritedGlobalsOnStaticPath = hasAnyGlobalOptions!Parent ||
+            hasInheritedGlobalsOnStaticPath!(Path[0], Path[1 .. $]);
+}
+
+private template hasVisibleGlobalsOnStaticPath(Parent, Path...)
+{
+    static if (Path.length == 0)
+        enum bool hasVisibleGlobalsOnStaticPath = hasVisibleGlobalOptions!Parent;
+    else
+        enum bool hasVisibleGlobalsOnStaticPath = hasVisibleGlobalOptions!Parent ||
+            hasVisibleGlobalsOnStaticPath!(Path[0], Path[1 .. $]);
+}
+
+private void writeGlobalsOnStaticPath(Parent, Path...)(ref Writer writer) @system
+{
+    writeVisibleGlobals!Parent(writer);
+    static if (Path.length != 0)
+        writeGlobalsOnStaticPath!(Path[0], Path[1 .. $])(writer);
 }
 
 private void writeSelectedUsage(T)(
@@ -1222,6 +1307,11 @@ private void writeUsageSuffixForActive(T, bool inheritedGlobals)(
         }
     }
 
+    writeUsageSuffixForType!(T, inheritedGlobals)(writer);
+}
+
+private void writeUsageSuffixForType(T, bool inheritedGlobals)(ref Writer writer) @system
+{
     static if (hasAnyNamedOptions!T || inheritedGlobals)
         writer.put(" [OPTIONS]");
     static if (hasSubcommands!T)
@@ -1381,13 +1471,29 @@ private void writeOptionLine(T, size_t index)(ref Writer writer) @system
     writer.put('\n');
 }
 
-private bool hasGlobalsAlongActivePath(T)(ref ParsedCommand!T node) @system
+private enum hasVisibleGlobalOptions(T) = () {
+    bool result;
+    static foreach (index; 0 .. T.tupleof.length)
+        static if (!fieldHas!(T, index, Positional) &&
+            fieldHas!(T, index, Global) &&
+            !fieldHas!(T, index, Hidden))
+            result = true;
+    return result;
+}();
+
+private void writeVisibleGlobals(T)(ref Writer writer) @system
 {
     static foreach (index; 0 .. T.tupleof.length)
         static if (!fieldHas!(T, index, Positional) &&
             fieldHas!(T, index, Global) &&
             !fieldHas!(T, index, Hidden))
-            return true;
+            writeOptionLine!(T, index)(writer);
+}
+
+private bool hasGlobalsAlongActivePath(T)(ref ParsedCommand!T node) @system
+{
+    static if (hasVisibleGlobalOptions!T)
+        return true;
     static foreach (Child; CommandTypes!T)
         if (auto child = node.command!Child)
             return hasGlobalsAlongActivePath!Child(*child);
@@ -1399,11 +1505,7 @@ private void writeGlobalsAlongActivePath(T)(
     ref ParsedCommand!T node,
 ) @system
 {
-    static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, Positional) &&
-            fieldHas!(T, index, Global) &&
-            !fieldHas!(T, index, Hidden))
-            writeOptionLine!(T, index)(writer);
+    writeVisibleGlobals!T(writer);
     static foreach (Child; CommandTypes!T)
     {
         if (auto child = node.command!Child)

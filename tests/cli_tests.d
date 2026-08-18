@@ -372,6 +372,52 @@ private void testUnknownAndInvalidValues()
     }
 }
 
+private void testPublicGeneratedHelp()
+{
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(RootArgs, DependencyArgs, DependencyAddArgs)(
+            writer,
+            "/usr/local/bin/tool",
+        );
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "Add a dependency"));
+        assert(contains(output.text, "Usage: tool dependency add [OPTIONS] <PACKAGE>"));
+        assert(!contains(output.text, "/usr/local/bin/tool"));
+        assert(contains(output.text, "--version <VERSION>"));
+        assert(contains(output.text, "Global options:"));
+        assert(contains(output.text, "--verbose"));
+        assert(!contains(output.text, "Show the application version"));
+
+        String[4] argv = ["tool", "dependency", "add", "--help"];
+        auto result = parseArgs!RootArgs(argv);
+        scope (exit)
+            result.deinit();
+        TextSink builtinOutput;
+        TextSink errors;
+        Writer builtinWriter = Writer.fromSink(&textSink, &builtinOutput);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(builtinWriter, errorWriter, result) == 0);
+        assert(builtinWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(errors.text.length == 0);
+        assert(output.text == builtinOutput.text);
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(CustomHelpRootArgs, CustomHelpChildArgs)(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "Usage: tool child [OPTIONS]"));
+        assert(contains(output.text, "-h, --help"));
+        assert(!contains(output.text, "Show this help"));
+    }
+}
+
 private void testGeneratedHelpAndVersion()
 {
     {
@@ -623,6 +669,7 @@ extern (C) int main()
     testRequiredAndDuplicateErrors();
     testRequiredCommand();
     testUnknownAndInvalidValues();
+    testPublicGeneratedHelp();
     testGeneratedHelpAndVersion();
     testGeneratedErrorResponse();
     testDisabledBuiltinHelp();
