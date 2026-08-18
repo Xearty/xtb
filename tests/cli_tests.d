@@ -6,6 +6,8 @@ import xtb.cli;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.array : Array;
+import xtb.core.lifetime : moveAssign;
+import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
 import xtb.core.print : Writer;
 import xtb.core.types : String;
@@ -237,6 +239,296 @@ struct InvalidDuplicateTerminalArgs
     bool quit;
 }
 
+struct Port
+{
+    ushort value;
+}
+
+CliValueError parsePort(scope String input, Port* output) nothrow @nogc
+{
+    if (input == "80")
+    {
+        output.value = 80;
+        return CliValueError.init;
+    }
+    if (input == "443")
+    {
+        output.value = 443;
+        return CliValueError.init;
+    }
+    if (input == "70000")
+        return CliValueError.outOfRange("port must be between 0 and 65535");
+    if (input == "silent")
+        return CliValueError.invalid();
+    return CliValueError.invalid("expected a numeric port");
+}
+
+CliValueError parseAutomaticJobs(scope String input, uint* output) nothrow @nogc
+{
+    if (input != "auto")
+        return CliValueError.invalid("expected 'auto'");
+    *output = 8;
+    return CliValueError.init;
+}
+
+struct CustomValueArgs
+{
+    @(parseWith!parsePort)
+    Port port;
+
+    @(parseWith!parsePort)
+    Option!Port optionalPort;
+
+    @(parseWith!parsePort)
+    Array!Port repeatedPort;
+}
+
+struct CustomValueNoAllocArgs
+{
+    @(parseWith!parsePort)
+    Port port;
+}
+
+private int hexNibble(char codeUnit) pure @safe
+{
+    if (codeUnit >= '0' && codeUnit <= '9')
+        return codeUnit - '0';
+    if (codeUnit >= 'a' && codeUnit <= 'f')
+        return codeUnit - 'a' + 10;
+    if (codeUnit >= 'A' && codeUnit <= 'F')
+        return codeUnit - 'A' + 10;
+    return -1;
+}
+
+CliValueError parseHexBytes(
+    scope String input,
+    Allocator* allocator,
+    Array!ubyte* output,
+) nothrow @nogc
+{
+    if (input.length % 2 != 0)
+        return CliValueError.invalid("expected an even number of hexadecimal digits");
+
+    Array!ubyte decoded = Array!ubyte.create(allocator);
+    scope (exit)
+        decoded.deinit();
+    foreach (offset; 0 .. input.length / 2)
+    {
+        const high = hexNibble(input[offset * 2]);
+        const low = hexNibble(input[offset * 2 + 1]);
+        if (high < 0 || low < 0)
+            return CliValueError.invalid("expected hexadecimal digits");
+        ubyte value = cast(ubyte)((high << 4) | low);
+        if (!decoded.tryAppend(&value))
+            return CliValueError.allocationFailed("could not store decoded bytes");
+    }
+
+    moveAssign(decoded, *output);
+    return CliValueError.init;
+}
+
+CliValueError parseEmptyBytes(
+    scope String input,
+    Array!ubyte* output,
+) nothrow @nogc
+{
+    cast(void) output;
+    if (input != "empty")
+        return CliValueError.invalid("expected 'empty'");
+    return CliValueError.init;
+}
+
+struct WholeArrayCustomValueArgs
+{
+    @(parseWith!parseHexBytes)
+    Array!ubyte bytes;
+}
+
+struct WholeArrayNoAllocArgs
+{
+    @(parseWith!parseEmptyBytes)
+    Array!ubyte bytes;
+}
+
+CliValueError parseOptionalPort(
+    scope String input,
+    Option!Port* output,
+) nothrow @nogc
+{
+    if (input == "none")
+    {
+        *output = Option!Port.none;
+        return CliValueError.init;
+    }
+
+    Port port;
+    const error = parsePort(input, &port);
+    if (error.failed)
+        return error;
+    *output = Option!Port.some(port);
+    return CliValueError.init;
+}
+
+struct WholeOptionCustomValueArgs
+{
+    @(parseWith!parseOptionalPort)
+    Option!Port port;
+}
+
+struct WholeArrayPositionalArgs
+{
+    @(positional, parseWith!parseHexBytes)
+    Array!ubyte bytes;
+}
+
+struct InvalidWholeArrayRestArgs
+{
+    @(positional, rest, parseWith!parseHexBytes)
+    Array!ubyte bytes;
+}
+
+CliValueError parseAmbiguousBytes(
+    scope String input,
+    ubyte* output,
+) nothrow @nogc
+{
+    cast(void) input;
+    cast(void) output;
+    return CliValueError.init;
+}
+
+CliValueError parseAmbiguousBytes(
+    scope String input,
+    Allocator* allocator,
+    Array!ubyte* output,
+) nothrow @nogc
+{
+    cast(void) input;
+    cast(void) allocator;
+    cast(void) output;
+    return CliValueError.init;
+}
+
+struct InvalidAmbiguousCustomParserArgs
+{
+    @(parseWith!parseAmbiguousBytes)
+    Array!ubyte bytes;
+}
+
+struct CustomPositionalValueArgs
+{
+    @(positional, parseWith!parsePort)
+    Port port;
+}
+
+struct OverrideBuiltInValueArgs
+{
+    @(parseWith!parseAutomaticJobs)
+    uint jobs;
+}
+
+struct OwnedParsedValue
+{
+    Array!String values;
+}
+
+CliValueError parseOwnedValue(
+    scope String input,
+    Allocator* allocator,
+    OwnedParsedValue* output,
+) nothrow @nogc
+{
+    Array!String values = Array!String.create(allocator);
+    moveAssign(values, output.values);
+    String value = input;
+    if (!output.values.tryAppend(&value))
+        return CliValueError.allocationFailed("could not store parsed value");
+    return CliValueError.init;
+}
+
+struct AllocatorCustomValueArgs
+{
+    @(parseWith!parseOwnedValue)
+    Option!OwnedParsedValue value;
+}
+
+struct InvalidOwningArrayCustomValueArgs
+{
+    @(parseWith!parseOwnedValue)
+    Array!OwnedParsedValue value;
+}
+
+CliValueError parseBool(scope String input, bool* output) nothrow @nogc
+{
+    *output = input == "yes";
+    return CliValueError.init;
+}
+
+CliValueError parsePortWithoutScope(String input, Port* output) nothrow @nogc
+{
+    return parsePort(input, output);
+}
+
+bool parsePortWrongReturn(scope String input, Port* output) nothrow @nogc
+{
+    cast(void) input;
+    cast(void) output;
+    return false;
+}
+
+struct DestructorParsedValue
+{
+    ~this()
+    {
+    }
+}
+
+CliValueError parseDestructorValue(
+    scope String input,
+    DestructorParsedValue* output,
+) nothrow @nogc
+{
+    cast(void) input;
+    cast(void) output;
+    return CliValueError.init;
+}
+
+struct InvalidCustomDestructorArgs
+{
+    @(parseWith!parseDestructorValue)
+    DestructorParsedValue value;
+}
+
+struct InvalidCustomBoolArgs
+{
+    @(parseWith!parseBool)
+    bool flag;
+}
+
+struct InvalidCustomParserScopeArgs
+{
+    @(parseWith!parsePortWithoutScope)
+    Port port;
+}
+
+struct InvalidCustomParserReturnArgs
+{
+    @(parseWith!parsePortWrongReturn)
+    Port port;
+}
+
+struct InvalidDuplicateParseWithArgs
+{
+    @(parseWith!parsePort, parseWith!parsePort)
+    Port port;
+}
+
+struct InvalidCountParseWithArgs
+{
+    @(count, parseWith!parseAutomaticJobs)
+    uint jobs;
+}
+
 struct InvalidChildVersionRootArgs
 {
     alias Commands = CliCommands!(InvalidChildVersionArgs);
@@ -291,6 +583,34 @@ static assert(!__traits(compiles,
 static assert(!__traits(compiles,
         parseArgs!InvalidDuplicateTerminalArgs(cast(String[]) null)));
 static assert(cliNeedsAllocator!TerminalAllocArgs);
+static assert(!cliNeedsAllocator!CustomValueNoAllocArgs);
+static assert(cliNeedsAllocator!CustomValueArgs);
+static assert(cliNeedsAllocator!AllocatorCustomValueArgs);
+static assert(cliNeedsAllocator!WholeArrayCustomValueArgs);
+static assert(!cliNeedsAllocator!WholeArrayNoAllocArgs);
+static assert(!cliNeedsAllocator!WholeOptionCustomValueArgs);
+static assert(!__traits(compiles,
+        parseArgs!WholeArrayCustomValueArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidWholeArrayRestArgs(cast(String[]) null, mallocAllocator())));
+static assert(!__traits(compiles,
+        parseArgs!InvalidAmbiguousCustomParserArgs(cast(String[]) null, mallocAllocator())));
+static assert(!__traits(compiles,
+        parseArgs!InvalidOwningArrayCustomValueArgs(cast(String[]) null, mallocAllocator())));
+static assert(!__traits(compiles,
+        parseArgs!AllocatorCustomValueArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidCustomBoolArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidCustomDestructorArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidCustomParserScopeArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidCustomParserReturnArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicateParseWithArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidCountParseWithArgs(cast(String[]) null)));
 
 private struct TextSink
 {
@@ -772,6 +1092,240 @@ private void testDisabledBuiltinVersion()
     }
 }
 
+private void testCustomValueParsers()
+{
+    AllocationRecord[32] records;
+    InstrumentedAllocator allocator = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    {
+        String[7] argv = [
+            "tool",
+            "--port",
+            "80",
+            "--optional-port=443",
+            "--repeated-port",
+            "80",
+            "--repeated-port=443",
+        ];
+        auto result = parseArgs!CustomValueArgs(argv, allocator.allocator);
+        assert(result.hasInvocation);
+        assert(result.invocation.args.port.value == 80);
+        assert(result.invocation.args.optionalPort.isSome);
+        assert(result.invocation.args.optionalPort.value.value == 443);
+        assert(result.invocation.args.repeatedPort.length == 2);
+        assert(result.invocation.args.repeatedPort[0].value == 80);
+        assert(result.invocation.args.repeatedPort[1].value == 443);
+        result.deinit();
+        assert(allocator.clean);
+    }
+
+    {
+        String[3] argv = ["tool", "--bytes", "deadBEEF"];
+        auto result = parseArgs!WholeArrayCustomValueArgs(argv, allocator.allocator);
+        assert(result.hasInvocation);
+        assert(result.invocation.args.bytes.length == 4);
+        assert(result.invocation.args.bytes[0] == 0xde);
+        assert(result.invocation.args.bytes[1] == 0xad);
+        assert(result.invocation.args.bytes[2] == 0xbe);
+        assert(result.invocation.args.bytes[3] == 0xef);
+        result.deinit();
+        assert(allocator.clean);
+    }
+
+    {
+        String[3] argv = ["tool", "--port", "none"];
+        auto result = parseArgs!WholeOptionCustomValueArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.port.isNone);
+    }
+
+    {
+        String[3] argv = ["tool", "--port", "443"];
+        auto result = parseArgs!WholeOptionCustomValueArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.port.isSome);
+        assert(result.invocation.args.port.value.value == 443);
+    }
+
+    {
+        String[2] argv = ["tool", "c001"];
+        auto result = parseArgs!WholeArrayPositionalArgs(argv, allocator.allocator);
+        assert(result.hasInvocation);
+        assert(result.invocation.args.bytes.length == 2);
+        assert(result.invocation.args.bytes[0] == 0xc0);
+        assert(result.invocation.args.bytes[1] == 0x01);
+        result.deinit();
+        assert(allocator.clean);
+    }
+
+    {
+        String[3] argv = ["tool", "--bytes", "empty"];
+        auto result = parseArgs!WholeArrayNoAllocArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.bytes.length == 0);
+    }
+
+    {
+        String[5] argv = ["tool", "--bytes", "deadbeef", "--bytes", "00"];
+        auto result = parseArgs!WholeArrayCustomValueArgs(argv, allocator.allocator);
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.duplicateOption);
+        result.deinit();
+        assert(allocator.clean);
+    }
+
+    {
+        String[3] argv = ["tool", "--jobs", "auto"];
+        auto result = parseArgs!OverrideBuiltInValueArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.jobs == 8);
+    }
+
+    {
+        String[2] argv = ["tool", "443"];
+        auto result = parseArgs!CustomPositionalValueArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.port.value == 443);
+    }
+}
+
+private void testCustomValueParserErrors()
+{
+    {
+        String[3] argv = ["tool", "--port", "wat"];
+        auto result = parseArgs!CustomValueNoAllocArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.invalidValue);
+        assert(result.error.valueError.kind == CliValueErrorKind.invalid);
+        assert(result.error.valueError.message == "expected a numeric port");
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 2);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(contains(errors.text,
+                "invalid value 'wat' for --port: expected a numeric port"));
+    }
+
+    {
+        String[3] argv = ["tool", "--port", "70000"];
+        auto result = parseArgs!CustomValueNoAllocArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.valueError.kind == CliValueErrorKind.outOfRange);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 2);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(contains(errors.text,
+                "value '70000' for --port is out of range: port must be between 0 and 65535"));
+    }
+
+    {
+        String[3] argv = ["tool", "--port", "silent"];
+        auto result = parseArgs!CustomValueNoAllocArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 2);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(contains(errors.text, "invalid value 'silent' for --port"));
+        assert(!contains(errors.text, "--port:"));
+    }
+
+    {
+        AllocationRecord[16] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(),
+            records[],
+        );
+        String[3] argv = ["tool", "--bytes", "00gg"];
+        auto result = parseArgs!WholeArrayCustomValueArgs(argv, allocator.allocator);
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.invalidValue);
+        assert(result.error.valueError.message == "expected hexadecimal digits");
+        result.deinit();
+        assert(allocator.clean);
+    }
+
+    {
+        AllocationRecord[16] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(),
+            records[],
+        );
+        allocator.failAfter(0);
+        String[3] argv = ["tool", "--bytes", "00"];
+        auto result = parseArgs!WholeArrayCustomValueArgs(argv, allocator.allocator);
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.allocationFailed);
+        assert(result.error.valueError.kind == CliValueErrorKind.allocationFailed);
+        result.deinit();
+        assert(allocator.clean);
+    }
+}
+
+private void testAllocatorCustomValueParserCleanup()
+{
+    AllocationRecord[32] records;
+    InstrumentedAllocator allocator = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    {
+        String[3] argv = ["tool", "--value", "owned"];
+        auto result = parseArgs!AllocatorCustomValueArgs(argv, allocator.allocator);
+        assert(result.hasInvocation);
+        assert(result.invocation.args.value.isSome);
+        assert(result.invocation.args.value.value.values.length == 1);
+        assert(result.invocation.args.value.value.values[0] == "owned");
+        result.deinit();
+        assert(allocator.clean);
+    }
+
+    allocator.failAfter(0);
+    {
+        String[3] argv = ["tool", "--value", "owned"];
+        auto result = parseArgs!AllocatorCustomValueArgs(argv, allocator.allocator);
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.allocationFailed);
+        assert(result.error.valueError.kind == CliValueErrorKind.allocationFailed);
+        assert(result.error.valueError.message == "could not store parsed value");
+        result.deinit();
+        assert(allocator.clean);
+    }
+}
+
 private void testTerminalArguments()
 {
     {
@@ -953,6 +1507,9 @@ extern (C) int main()
     testGeneratedErrorResponse();
     testDisabledBuiltinHelp();
     testDisabledBuiltinVersion();
+    testCustomValueParsers();
+    testCustomValueParserErrors();
+    testAllocatorCustomValueParserCleanup();
     testTerminalArguments();
     testTerminalCleanup();
     testRepeatedAndRestArgumentsCleanUp();

@@ -83,6 +83,25 @@ struct Terminal
 {
 }
 
+/// Selects an application-defined parser for this field.
+///
+/// The parser must return `CliValueError` and accept either `(scope String, T*)`
+/// or `(scope String, Allocator*, T*)`. For `Option!T` and `Array!T`, a parser
+/// targeting `T*` parses the contained/repeated element. A parser targeting the
+/// full field type parses the whole field from one command-line value. Exactly
+/// one compatible parser target/signature must exist.
+struct ParseWith(alias Parser)
+{
+    enum isCliParseWith = true;
+    alias parser = Parser;
+}
+
+/// Creates a `ParseWith` attribute for `Parser`.
+template parseWith(alias Parser)
+{
+    enum parseWith = ParseWith!Parser();
+}
+
 /// Allows a command with child commands to execute without selecting one.
 struct SubcommandOptional
 {

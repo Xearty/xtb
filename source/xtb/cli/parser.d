@@ -7,8 +7,9 @@ import core.stdc.stdio : stderr, stdout;
 import core.stdc.string : strlen;
 import xtb.cli.attributes;
 import xtb.cli.traits;
+import xtb.cli.value : CliValueError, CliValueErrorKind;
 import xtb.core.array : Array;
-import xtb.core.lifetime : deinitValue = deinit, moveAssign, needsDeinit;
+import xtb.core.lifetime : deinitValue = deinit, move, moveAssign, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
 import xtb.core.print : Writer;
@@ -38,6 +39,7 @@ struct CliError
     size_t argumentIndex;
     String token;
     String detail;
+    CliValueError valueError;
     size_t commandDepth = size_t.max;
     size_t fieldIndex = size_t.max;
 }
@@ -290,6 +292,7 @@ nothrow @nogc:
         String detail = null,
         size_t commandDepth = size_t.max,
         size_t fieldIndex = size_t.max,
+        CliValueError valueError = CliValueError.init,
     ) @safe
     {
         if (outcome == CliOutcomeKind.error)
@@ -299,6 +302,7 @@ nothrow @nogc:
         error.argumentIndex = index;
         error.token = token;
         error.detail = detail;
+        error.valueError = valueError;
         error.commandDepth = commandDepth;
         error.fieldIndex = fieldIndex;
     }
@@ -819,7 +823,7 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
     }
     else
     {
-        static if (!isArray!Field)
+        static if (!cliFieldIsRepeated!(T, index))
         {
             if (wasSeen)
             {
@@ -847,7 +851,7 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
             }
         }
 
-        if (!assignFieldValue!Field(state, field, value, optionToken))
+        if (!assignFieldValue!(T, index)(state, field, value, optionToken))
             return OptionMatch.failed;
     }
 
@@ -902,7 +906,7 @@ private bool tryParsePositionalAt(T, size_t index)(
         {
             alias Field = FieldType!(T, index);
             ref field = frame.node.args.tupleof[index];
-            if (!assignFieldValue!Field(
+            if (!assignFieldValue!(T, index)(
                     state,
                     field,
                     state.current,
@@ -921,36 +925,116 @@ private bool tryParsePositionalAt(T, size_t index)(
     return true;
 }
 
-private bool assignFieldValue(Field)(
+private bool parseFieldValue(T, size_t index, Value)(
     ref ParseState state,
-    ref Field field,
+    String text,
+    Value* output,
+    String detail,
+    size_t commandDepth,
+    size_t fieldIndex,
+) @system
+{
+    CliValueError valueError;
+    static if (fieldHasParseWith!(T, index))
+    {
+        alias Parser = FieldValueParser!(T, index);
+        static if (cliParserNeedsAllocator!(Parser, Value))
+        {
+            if (state.allocator is null)
+            {
+                state.fail(
+                    CliErrorKind.allocationFailed,
+                    text,
+                    detail,
+                    commandDepth,
+                    fieldIndex,
+                );
+                return false;
+            }
+            valueError = Parser(text, state.allocator, output);
+        }
+        else
+            valueError = Parser(text, output);
+    }
+    else
+    {
+        if (!parseScalar!Value(text, output))
+            valueError = CliValueError.invalid();
+    }
+
+    if (valueError.failed)
+    {
+        const errorKind = valueError.kind == CliValueErrorKind.allocationFailed
+            ? CliErrorKind.allocationFailed : CliErrorKind.invalidValue;
+        state.fail(
+            errorKind,
+            text,
+            detail,
+            commandDepth,
+            fieldIndex,
+            valueError,
+        );
+        return false;
+    }
+    return true;
+}
+
+private bool assignFieldValue(T, size_t index)(
+    ref ParseState state,
+    ref FieldType!(T, index) field,
     String text,
     String detail,
     size_t commandDepth = size_t.max,
     size_t fieldIndex = size_t.max,
 ) @system
 {
-    static if (isOption!Field)
+    alias Field = FieldType!(T, index);
+    static if (fieldHasParseWith!(T, index) && cliFieldParserParsesWholeField!(T, index))
+    {
+        return parseFieldValue!(T, index, Field)(
+            state,
+            text,
+            &field,
+            detail,
+            commandDepth,
+            fieldIndex,
+        );
+    }
+    else static if (isOption!Field)
     {
         alias Value = OptionElement!Field;
         Value value;
-        if (!parseScalar!Value(text, &value))
-        {
-            state.fail(CliErrorKind.invalidValue, text, detail, commandDepth, fieldIndex);
+        static if (needsDeinit!Value)
+            scope (exit)
+                deinitValue(value);
+        if (!parseFieldValue!(T, index, Value)(
+                state,
+                text,
+                &value,
+                detail,
+                commandDepth,
+                fieldIndex,
+            ))
             return false;
-        }
-        field = Option!Value.some(value);
+        field = Option!Value.some(move(value));
         return true;
     }
     else static if (isArray!Field)
     {
         alias Value = ArrayElement!Field;
         Value value;
-        if (!parseScalar!Value(text, &value))
-        {
-            state.fail(CliErrorKind.invalidValue, text, detail, commandDepth, fieldIndex);
+        static if (needsDeinit!Value)
+            scope (exit)
+                deinitValue(value);
+        if (!parseFieldValue!(T, index, Value)(
+                state,
+                text,
+                &value,
+                detail,
+                commandDepth,
+                fieldIndex,
+            ))
             return false;
-        }
         if (field.allocator is null)
         {
             if (state.allocator is null)
@@ -970,12 +1054,14 @@ private bool assignFieldValue(Field)(
     }
     else
     {
-        if (!parseScalar!Field(text, &field))
-        {
-            state.fail(CliErrorKind.invalidValue, text, detail, commandDepth, fieldIndex);
-            return false;
-        }
-        return true;
+        return parseFieldValue!(T, index, Field)(
+            state,
+            text,
+            &field,
+            detail,
+            commandDepth,
+            fieldIndex,
+        );
     }
 }
 
@@ -1629,7 +1715,10 @@ private void writeError(T)(
             writer.put(error.detail);
             break;
         case CliErrorKind.invalidValue:
-            writer.put("invalid value '");
+            if (error.valueError.kind == CliValueErrorKind.outOfRange)
+                writer.put("value '");
+            else
+                writer.put("invalid value '");
             writer.put(error.token);
             writer.put("' for ");
             if (error.fieldIndex != size_t.max)
@@ -1643,6 +1732,13 @@ private void writeError(T)(
                 );
             else
                 writer.put(error.detail);
+            if (error.valueError.kind == CliValueErrorKind.outOfRange)
+                writer.put(" is out of range");
+            if (error.valueError.message.length != 0)
+            {
+                writer.put(": ");
+                writer.put(error.valueError.message);
+            }
             break;
         case CliErrorKind.missingRequiredOption:
             writer.put("required option '--");
@@ -1694,6 +1790,11 @@ private void writeError(T)(
                 );
             else
                 writer.put(error.detail);
+            if (error.valueError.message.length != 0)
+            {
+                writer.put(": ");
+                writer.put(error.valueError.message);
+            }
             break;
     }
 }
