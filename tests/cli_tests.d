@@ -239,6 +239,176 @@ struct InvalidDuplicateTerminalArgs
     bool quit;
 }
 
+@aliasName("tool")
+struct InvalidRootAliasArgs
+{
+}
+
+struct AliasRootArgs
+{
+    @(shortName('v'), shortAlias('V'), shortAlias('Q'), aliasName("verbosity"),
+        aliasName("chatty"), count, global)
+    uint verbose;
+
+    @aliasName("colour")
+    bool color;
+
+    alias Commands = CliCommands!(AliasRemoveArgs, AliasListArgs);
+}
+
+@(command("remove"), aliasName("rm"), aliasName("del"), about("Remove an item"))
+struct AliasRemoveArgs
+{
+    @(shortName('f'), shortAlias('F'), shortAlias('E'), aliasName("delete"),
+        aliasName("erase"))
+    bool force;
+
+    @(aliasName("destination"), required)
+    Option!String target;
+}
+
+@(command("list"), aliasName("ls"))
+struct AliasListArgs
+{
+}
+
+struct InvalidDuplicateLongAliasArgs
+{
+    @(aliasName("same"), aliasName("same"))
+    bool value;
+}
+
+struct InvalidDuplicateShortAliasArgs
+{
+    @(shortAlias('x'), shortAlias('x'))
+    bool value;
+}
+
+struct InvalidLongNameDelimiterArgs
+{
+    @longName("foo=bar")
+    bool value;
+}
+
+struct InvalidLongAliasDelimiterArgs
+{
+    @aliasName("foo=bar")
+    bool value;
+}
+
+struct InvalidLongAliasCollisionArgs
+{
+    @(aliasName("same"))
+    bool first;
+
+    @(aliasName("same"))
+    bool second;
+}
+
+struct InvalidShortAliasCollisionArgs
+{
+    @(shortAlias('x'))
+    bool first;
+
+    @(shortAlias('x'))
+    bool second;
+}
+
+struct InvalidAliasGlobalCollisionRootArgs
+{
+    @(global, aliasName("config"))
+    bool verbose;
+
+    alias Commands = CliCommands!(InvalidAliasGlobalCollisionChildArgs);
+}
+
+@command("child")
+struct InvalidAliasGlobalCollisionChildArgs
+{
+    bool config;
+}
+
+struct InvalidPositionalAliasArgs
+{
+    @(positional, aliasName("value"))
+    String value;
+}
+
+struct InvalidPositionalShortAliasArgs
+{
+    @(positional, shortAlias('v'))
+    String value;
+}
+
+struct InvalidBuiltinHelpAliasArgs
+{
+    @aliasName("help")
+    bool other;
+}
+
+struct InvalidBuiltinHelpShortAliasArgs
+{
+    @shortAlias('h')
+    bool other;
+}
+
+@(cliVersion("1.0"))
+struct InvalidBuiltinVersionAliasArgs
+{
+    @aliasName("version")
+    bool other;
+}
+
+struct InvalidCommandAliasCollisionRootArgs
+{
+    alias Commands = CliCommands!(InvalidCommandAliasFirstArgs,
+        InvalidCommandAliasSecondArgs);
+}
+
+@(command("remove"), aliasName("rm"))
+struct InvalidCommandAliasFirstArgs
+{
+}
+
+@(command("rename"), aliasName("rm"))
+struct InvalidCommandAliasSecondArgs
+{
+}
+
+struct InvalidDuplicateCommandAliasRootArgs
+{
+    alias Commands = CliCommands!(InvalidDuplicateCommandAliasArgs);
+}
+
+@(command("child"), aliasName("c"), aliasName("c"))
+struct InvalidDuplicateCommandAliasArgs
+{
+}
+
+struct InvalidCommandShortAliasRootArgs
+{
+    alias Commands = CliCommands!(InvalidCommandShortAliasArgs);
+}
+
+@(command("child"), shortAlias('c'))
+struct InvalidCommandShortAliasArgs
+{
+}
+
+@noBuiltinHelp
+struct DisabledBuiltinHelpAliasArgs
+{
+    @(aliasName("help"), shortAlias('h'))
+    bool custom;
+}
+
+@(noBuiltinVersion, cliVersion("1.0"))
+struct DisabledBuiltinVersionAliasArgs
+{
+    @aliasName("version")
+    bool custom;
+}
+
 struct Port
 {
     ushort value;
@@ -582,6 +752,37 @@ static assert(!__traits(compiles,
         parseArgs!InvalidTerminalArrayArgs(cast(String[]) null, mallocAllocator())));
 static assert(!__traits(compiles,
         parseArgs!InvalidDuplicateTerminalArgs(cast(String[]) null)));
+static assert(!__traits(compiles, parseArgs!InvalidRootAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicateLongAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicateShortAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidLongNameDelimiterArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidLongAliasDelimiterArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidLongAliasCollisionArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidShortAliasCollisionArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidAliasGlobalCollisionRootArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidPositionalAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidPositionalShortAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidBuiltinHelpAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidBuiltinHelpShortAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidBuiltinVersionAliasArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidCommandAliasCollisionRootArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicateCommandAliasRootArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidCommandShortAliasRootArgs(cast(String[]) null)));
 static assert(cliNeedsAllocator!TerminalAllocArgs);
 static assert(!cliNeedsAllocator!CustomValueNoAllocArgs);
 static assert(cliNeedsAllocator!CustomValueArgs);
@@ -864,6 +1065,109 @@ private void testUnknownAndInvalidValues()
     }
 }
 
+private void testAliases()
+{
+    {
+        String[6] argv = [
+            "tool",
+            "--verbosity",
+            "--colour",
+            "rm",
+            "-F",
+            "--destination=item",
+        ];
+        auto result = parseArgs!AliasRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        ref root = result.invocation;
+        assert(root.args.verbose == 1);
+        assert(root.args.color);
+
+        auto remove = root.command!AliasRemoveArgs;
+        assert(remove !is null);
+        assert(remove.args.force);
+        assert(remove.args.target.isSome);
+        assert(remove.args.target.value == "item");
+    }
+
+    {
+        String[3] argv = ["tool", "-Q", "ls"];
+        auto result = parseArgs!AliasRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.verbose == 1);
+        assert(result.invocation.command!AliasListArgs !is null);
+    }
+
+    {
+        String[4] argv = ["tool", "del", "--erase", "--target=item"];
+        auto result = parseArgs!AliasRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        auto remove = result.invocation.command!AliasRemoveArgs;
+        assert(remove !is null);
+        assert(remove.args.force);
+        assert(remove.args.target.isSome);
+        assert(remove.args.target.value == "item");
+    }
+
+    {
+        String[4] argv = ["tool", "--colour", "--color", "ls"];
+        auto result = parseArgs!AliasRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.duplicateOption);
+    }
+
+    {
+        String[3] argv = ["tool", "--chatty", "ls"];
+        auto result = parseArgs!AliasRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.verbose == 1);
+    }
+
+    {
+        String[2] argv = ["tool", "--help"];
+        auto result = parseArgs!DisabledBuiltinHelpAliasArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.custom);
+    }
+
+    {
+        String[2] argv = ["tool", "-h"];
+        auto result = parseArgs!DisabledBuiltinHelpAliasArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.custom);
+    }
+
+    {
+        String[2] argv = ["tool", "--version"];
+        auto result = parseArgs!DisabledBuiltinVersionAliasArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.custom);
+    }
+}
+
 private void testPublicGeneratedHelp()
 {
     {
@@ -907,6 +1211,30 @@ private void testPublicGeneratedHelp()
         assert(contains(output.text, "Usage: tool child [OPTIONS]"));
         assert(contains(output.text, "-h, --help"));
         assert(!contains(output.text, "Show this help"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(AliasRootArgs)(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "remove, rm, del"));
+        assert(contains(output.text, "list, ls"));
+        assert(contains(output.text,
+                "-v, -V, -Q, --verbose, --verbosity, --chatty"));
+        assert(contains(output.text, "--color, --colour"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(AliasRootArgs, AliasRemoveArgs)(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "Usage: tool remove [OPTIONS]"));
+        assert(contains(output.text, "-f, -F, -E, --force, --delete, --erase"));
+        assert(contains(output.text, "--target, --destination <TARGET>"));
     }
 }
 
@@ -1502,6 +1830,7 @@ extern (C) int main()
     testRequiredCommand();
     testHelpOnMissingSubcommand();
     testUnknownAndInvalidValues();
+    testAliases();
     testPublicGeneratedHelp();
     testGeneratedHelpAndVersion();
     testGeneratedErrorResponse();

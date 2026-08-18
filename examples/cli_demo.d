@@ -10,29 +10,33 @@ import xtb.core.types : String;
 @(cliVersion("1.0.0"), about("Small typed command-line parser example"), subcommandOptional)
 struct RootArgs
 {
-    @(shortName('v'), count, global, help("Increase verbosity"))
+    @(shortName('v'), shortAlias('V'), aliasName("verbosity"), count, global,
+        help("Increase verbosity"))
     uint verbose;
 
-    @(global, valueName("DIR"), help("Change the working directory"))
+    @(global, aliasName("cwd"), valueName("DIR"),
+        help("Change the working directory"))
     Option!String directory;
 
     alias Commands = CliCommands!(BuildArgs, TestArgs);
 }
 
-@(command("build"), about("Build the project"))
+@(command("build"), aliasName("b"), about("Build the project"))
 struct BuildArgs
 {
-    @(shortName('r'), help("Build with optimizations"))
+    @(shortName('r'), aliasName("optimized"), help("Build with optimizations"))
     bool release;
 
-    @(shortName('j'), valueName("N"), help("Number of parallel jobs"))
+    @(shortName('j'), aliasName("parallelism"), valueName("N"),
+        help("Number of parallel jobs"))
     uint jobs = 1;
 }
 
-@(command("test"), about("Run the test suite"))
+@(command("test"), aliasName("t"), about("Run the test suite"))
 struct TestArgs
 {
-    @(shortName('f'), valueName("FILTER"), help("Only run matching tests"))
+    @(shortName('f'), shortAlias('F'), valueName("FILTER"),
+        help("Only run matching tests"))
     Option!String filter;
 }
 

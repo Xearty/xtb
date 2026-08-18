@@ -42,8 +42,20 @@ struct LongName
     string value;
 }
 
+/// Adds an alternate long option name or subcommand name.
+struct AliasName
+{
+    string value;
+}
+
 /// Adds an explicit one-code-unit short option name.
 struct ShortName
+{
+    char value;
+}
+
+/// Adds an alternate one-code-unit short option name.
+struct ShortAlias
 {
     char value;
 }
@@ -137,9 +149,19 @@ LongName longName(string value) pure @safe
     return LongName(value);
 }
 
+AliasName aliasName(string value) pure @safe
+{
+    return AliasName(value);
+}
+
 ShortName shortName(char value) pure @safe
 {
     return ShortName(value);
+}
+
+ShortAlias shortAlias(char value) pure @safe
+{
+    return ShortAlias(value);
 }
 
 ValueName valueName(string value) pure @safe

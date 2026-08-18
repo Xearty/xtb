@@ -104,6 +104,40 @@ private A fieldAttribute(T, size_t index, A)() pure @safe
     assert(false);
 }
 
+private auto fieldAliasNamesStorage(T, size_t fieldIndex)() pure @safe
+{
+    String[fieldAttributeCount!(T, fieldIndex, AliasName)] result;
+    size_t aliasIndex;
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, fieldIndex)))
+        static if (__traits(compiles, typeof(attribute)))
+            static if (is(typeof(attribute) == AliasName))
+                result[aliasIndex++] = attribute.value;
+    return result;
+}
+
+private auto fieldShortAliasesStorage(T, size_t fieldIndex)() pure @safe
+{
+    char[fieldAttributeCount!(T, fieldIndex, ShortAlias)] result;
+    size_t aliasIndex;
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, fieldIndex)))
+        static if (__traits(compiles, typeof(attribute)))
+            static if (is(typeof(attribute) == ShortAlias))
+                result[aliasIndex++] = attribute.value;
+    return result;
+}
+
+private auto commandAliasNamesStorage(T)() pure @safe
+{
+    alias U = Unqualified!T;
+    String[symbolAttributeCount!(U, AliasName)()] result;
+    size_t aliasIndex;
+    static foreach (attribute; __traits(getAttributes, U))
+        static if (__traits(compiles, typeof(attribute)))
+            static if (is(typeof(attribute) == AliasName))
+                result[aliasIndex++] = attribute.value;
+    return result;
+}
+
 private template isParseWithAttribute(alias attribute)
 {
     static if (__traits(compiles, typeof(attribute).isCliParseWith))
@@ -450,6 +484,25 @@ template fieldLongName(T, size_t index)
                 __traits(identifier, FieldSymbol!(T, index)));
 }
 
+template fieldLongAliases(T, size_t index)
+{
+    enum String[] fieldLongAliases = fieldAliasNamesStorage!(T, index)();
+}
+
+private auto fieldAllLongNamesStorage(T, size_t index)() pure @safe
+{
+    String[1 + fieldLongAliases!(T, index).length] result;
+    result[0] = fieldLongName!(T, index);
+    static foreach (aliasIndex, aliasName; fieldLongAliases!(T, index))
+        result[1 + aliasIndex] = aliasName;
+    return result;
+}
+
+template fieldAllLongNames(T, size_t index)
+{
+    enum String[] fieldAllLongNames = fieldAllLongNamesStorage!(T, index)();
+}
+
 template fieldShortName(T, size_t index)
 {
     static assert(fieldAttributeCount!(T, index, ShortName) <= 1,
@@ -458,6 +511,27 @@ template fieldShortName(T, size_t index)
         enum char fieldShortName = fieldAttribute!(T, index, ShortName)().value;
     else
         enum char fieldShortName = '\0';
+}
+
+template fieldShortAliases(T, size_t index)
+{
+    enum char[] fieldShortAliases = fieldShortAliasesStorage!(T, index)();
+}
+
+private auto fieldAllShortNamesStorage(T, size_t index)() pure @safe
+{
+    enum hasCanonical = fieldShortName!(T, index) != '\0';
+    char[(hasCanonical ? 1 : 0) + fieldShortAliases!(T, index).length] result;
+    static if (hasCanonical)
+        result[0] = fieldShortName!(T, index);
+    static foreach (aliasIndex, aliasName; fieldShortAliases!(T, index))
+        result[(hasCanonical ? 1 : 0) + aliasIndex] = aliasName;
+    return result;
+}
+
+template fieldAllShortNames(T, size_t index)
+{
+    enum char[] fieldAllShortNames = fieldAllShortNamesStorage!(T, index)();
 }
 
 template fieldHelp(T, size_t index)
@@ -486,6 +560,25 @@ template commandName(T)
     static assert(symbolAttributeCount!(U, Command)() == 1,
         U.stringof ~ " used as a subcommand must have exactly one @command(...) attribute");
     enum String commandName = symbolAttribute!(U, Command)().name;
+}
+
+template commandAliases(T)
+{
+    enum String[] commandAliases = commandAliasNamesStorage!T();
+}
+
+private auto commandAllNamesStorage(T)() pure @safe
+{
+    String[1 + commandAliases!T.length] result;
+    result[0] = commandName!T;
+    static foreach (aliasIndex, aliasName; commandAliases!T)
+        result[1 + aliasIndex] = aliasName;
+    return result;
+}
+
+template commandAllNames(T)
+{
+    enum String[] commandAllNames = commandAllNamesStorage!(T)();
 }
 
 template typeAbout(T)
@@ -581,6 +674,56 @@ private bool fieldTakesValue(T, size_t index)() pure @safe
 
 enum cliFieldTakesValue(T, size_t index) = fieldTakesValue!(T, index)();
 
+private String firstDuplicateString(scope const(String)[] values) pure @safe
+{
+    foreach (leftIndex, left; values)
+        foreach (rightIndex; leftIndex + 1 .. values.length)
+            if (left == values[rightIndex])
+                return left;
+    return null;
+}
+
+private char firstDuplicateChar(scope const(char)[] values) pure @safe
+{
+    foreach (leftIndex, left; values)
+        foreach (rightIndex; leftIndex + 1 .. values.length)
+            if (left == values[rightIndex])
+                return left;
+    return '\0';
+}
+
+private String firstOverlap(
+    scope const(String)[] left,
+    scope const(String)[] right,
+) pure @safe
+{
+    foreach (leftValue; left)
+        foreach (rightValue; right)
+            if (leftValue == rightValue)
+                return leftValue;
+    return null;
+}
+
+private char firstOverlap(
+    scope const(char)[] left,
+    scope const(char)[] right,
+) pure @safe
+{
+    foreach (leftValue; left)
+        foreach (rightValue; right)
+            if (leftValue == rightValue)
+                return leftValue;
+    return '\0';
+}
+
+private bool hasLongOptionDelimiter(scope String name) pure @safe
+{
+    foreach (codeUnit; name)
+        if (codeUnit == '=')
+            return true;
+    return false;
+}
+
 private bool validateField(Root, T, size_t index)() pure @safe
 {
     alias Field = FieldType!(T, index);
@@ -642,6 +785,14 @@ private bool validateField(Root, T, size_t index)() pure @safe
         T.stringof ~ "." ~ sourceName ~ " has duplicate @hidden attributes");
     static assert(fieldAttributeCount!(T, index, Terminal) <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @terminal attributes");
+    enum duplicateLongAlias = firstDuplicateString(fieldLongAliases!(T, index));
+    static assert(duplicateLongAlias.length == 0,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate long option alias '--" ~
+            duplicateLongAlias ~ "'");
+    enum duplicateShortAlias = firstDuplicateChar(fieldShortAliases!(T, index));
+    static assert(duplicateShortAlias == '\0',
+        T.stringof ~ "." ~ sourceName ~ " has duplicate short option alias '-" ~
+            duplicateShortAlias ~ "'");
 
     static if (fieldHas!(T, index, Terminal))
     {
@@ -673,9 +824,13 @@ private bool validateField(Root, T, size_t index)() pure @safe
     }
     static if (fieldHas!(T, index, Positional))
     {
-        static assert(fieldShortName!(T, index) == '\0' &&
-                !fieldHas!(T, index, LongName),
-            T.stringof ~ "." ~ sourceName ~ " positional fields cannot have option names");
+        static assert(fieldAttributeCount!(T, index, LongName) == 0 &&
+                fieldLongAliases!(T, index)
+                    .length == 0 &&
+                    fieldShortName!(T, index) == '\0' &&
+                fieldShortAliases!(T, index)
+                    .length == 0,
+                T.stringof ~ "." ~ sourceName ~ " positional fields cannot have option names");
         static if (cliFieldIsRepeated!(T, index))
             static assert(fieldHas!(T, index, Rest),
                 T.stringof ~ "." ~ sourceName ~
@@ -683,21 +838,33 @@ private bool validateField(Root, T, size_t index)() pure @safe
     }
     else
     {
-        enum longName = fieldLongName!(T, index);
-        static assert(longName.length != 0,
-            T.stringof ~ "." ~ sourceName ~ " has an empty long option name");
+        static foreach (name; fieldAllLongNames!(T, index))
+        {
+            static assert(name.length != 0,
+                T.stringof ~ "." ~ sourceName ~ " has an empty long option name");
+            static assert(!hasLongOptionDelimiter(name),
+                T.stringof ~ "." ~ sourceName ~ " has invalid long option name '--" ~ name ~
+                    "': '=' is reserved for attached option values");
+        }
         static if (builtinHelpEnabled!Root)
-            static assert(longName != "help",
-                T.stringof ~ "." ~ sourceName ~ " conflicts with built-in --help");
-        enum shortName = fieldShortName!(T, index);
+            static foreach (name; fieldAllLongNames!(T, index))
+                static assert(name != "help",
+                    T.stringof ~ "." ~ sourceName ~ " conflicts with built-in --help");
+        enum duplicateLongName = firstDuplicateString(fieldAllLongNames!(T, index));
+        static assert(duplicateLongName.length == 0,
+            T.stringof ~ " has duplicate long option '--" ~ duplicateLongName ~ "'");
         static if (builtinHelpEnabled!Root)
-            static assert(shortName != 'h',
-                T.stringof ~ "." ~ sourceName ~ " conflicts with built-in -h");
-        static assert(shortName == '\0' ||
-                ((shortName >= 'a' && shortName <= 'z') ||
+            static foreach (shortName; fieldAllShortNames!(T, index))
+                static assert(shortName != 'h',
+                    T.stringof ~ "." ~ sourceName ~ " conflicts with built-in -h");
+        enum duplicateShortName = firstDuplicateChar(fieldAllShortNames!(T, index));
+        static assert(duplicateShortName == '\0',
+            T.stringof ~ " has duplicate short option '-" ~ duplicateShortName ~ "'");
+        static foreach (shortName; fieldAllShortNames!(T, index))
+            static assert((shortName >= 'a' && shortName <= 'z') ||
                     (shortName >= 'A' && shortName <= 'Z') ||
-                    (shortName >= '0' && shortName <= '9')),
-            T.stringof ~ "." ~ sourceName ~ " has an invalid short option name");
+                    (shortName >= '0' && shortName <= '9'),
+                T.stringof ~ "." ~ sourceName ~ " has an invalid short option name");
     }
     static if (isArray!Field)
     {
@@ -717,15 +884,18 @@ pure @safe
     static if (!fieldHas!(T, leftIndex, Positional) &&
         !fieldHas!(T, rightIndex, Positional))
     {
-        enum leftLong = fieldLongName!(T, leftIndex);
-        enum rightLong = fieldLongName!(T, rightIndex);
-        enum leftShort = fieldShortName!(T, leftIndex);
-        enum rightShort = fieldShortName!(T, rightIndex);
-        static assert(leftLong != rightLong,
-            T.stringof ~ " has duplicate long option '--" ~ leftLong ~ "'");
-        static if (leftShort != '\0' && rightShort != '\0')
-            static assert(leftShort != rightShort,
-                T.stringof ~ " has duplicate short option names");
+        enum duplicateLongName = firstOverlap(
+                fieldAllLongNames!(T, leftIndex),
+                fieldAllLongNames!(T, rightIndex),
+            );
+        static assert(duplicateLongName.length == 0,
+            T.stringof ~ " has duplicate long option '--" ~ duplicateLongName ~ "'");
+        enum duplicateShortName = firstOverlap(
+                fieldAllShortNames!(T, leftIndex),
+                fieldAllShortNames!(T, rightIndex),
+            );
+        static assert(duplicateShortName == '\0',
+            T.stringof ~ " has duplicate short option '-" ~ duplicateShortName ~ "'");
     }
     return true;
 }
@@ -762,6 +932,17 @@ private bool hasRestBefore(T, size_t index)() pure @safe
     return result;
 }
 
+private bool validateChildPair(T, size_t leftIndex, size_t rightIndex)() pure @safe
+{
+    alias Children = CommandTypes!T;
+    alias Left = Unqualified!(Children[leftIndex]);
+    alias Right = Unqualified!(Children[rightIndex]);
+    enum duplicateName = firstOverlap(commandAllNames!Left, commandAllNames!Right);
+    static assert(duplicateName.length == 0,
+        T.stringof ~ " has duplicate subcommand name '" ~ duplicateName ~ "'");
+    return true;
+}
+
 private bool validateChildAt(T, size_t leftIndex)() pure @safe
 {
     alias Children = CommandTypes!T;
@@ -769,12 +950,14 @@ private bool validateChildAt(T, size_t leftIndex)() pure @safe
     alias LeftU = Unqualified!Left;
     static assert(is(LeftU == struct),
         T.stringof ~ " child command " ~ LeftU.stringof ~ " must be a struct");
-    enum leftName = commandName!LeftU;
-    static assert(leftName.length != 0,
-        LeftU.stringof ~ " has an empty command name");
+    static foreach (name; commandAllNames!LeftU)
+        static assert(name.length != 0,
+            LeftU.stringof ~ " has an empty command name");
+    enum duplicateCommandName = firstDuplicateString(commandAllNames!LeftU);
+    static assert(duplicateCommandName.length == 0,
+        LeftU.stringof ~ " has duplicate command name '" ~ duplicateCommandName ~ "'");
     static foreach (rightIndex; leftIndex + 1 .. Children.length)
-        static assert(leftName != commandName!(Unqualified!(Children[rightIndex])),
-            T.stringof ~ " has duplicate subcommand name '" ~ leftName ~ "'");
+        static assert(validateChildPair!(T, leftIndex, rightIndex)());
     return true;
 }
 
@@ -801,18 +984,20 @@ private bool validateGlobalAgainstField(
 {
     static if (!fieldHas!(Unqualified!Child, childIndex, Positional))
     {
-        enum parentLong = fieldLongName!(Parent, globalIndex);
-        enum parentShort = fieldShortName!(Parent, globalIndex);
-        enum childLong = fieldLongName!(Unqualified!Child, childIndex);
-        enum childShort = fieldShortName!(Unqualified!Child, childIndex);
-
-        static assert(parentLong != childLong,
-            Unqualified!Child.stringof ~ " option '--" ~ childLong ~
-                "' conflicts with inherited global option '--" ~ parentLong ~ "'");
-        static if (parentShort != '\0' && childShort != '\0')
-            static assert(parentShort != childShort,
-                Unqualified!Child.stringof ~
-                    " has a short option that conflicts with an inherited global option");
+        enum duplicateLongName = firstOverlap(
+                fieldAllLongNames!(Parent, globalIndex),
+                fieldAllLongNames!(Unqualified!Child, childIndex),
+            );
+        static assert(duplicateLongName.length == 0,
+            Unqualified!Child.stringof ~ " option '--" ~ duplicateLongName ~
+                "' conflicts with inherited global option '--" ~ duplicateLongName ~ "'");
+        enum duplicateShortName = firstOverlap(
+                fieldAllShortNames!(Parent, globalIndex),
+                fieldAllShortNames!(Unqualified!Child, childIndex),
+            );
+        static assert(duplicateShortName == '\0',
+            Unqualified!Child.stringof ~ " option '-" ~ duplicateShortName ~
+                "' conflicts with inherited global option '-" ~ duplicateShortName ~ "'");
     }
     return true;
 }
@@ -848,8 +1033,12 @@ private bool validateGlobalCollisionsAt(T, size_t index)() pure @safe
 private bool validateRootVersionAt(T, size_t index)() pure @safe
 {
     static if (builtinVersionEnabled!T && !fieldHas!(T, index, Positional))
-        static assert(fieldLongName!(T, index) != "version",
-            T.stringof ~ " declares both built-in --version and a --version option");
+    {
+        enum versionCollision = firstOverlap(fieldAllLongNames!(T, index), ["version"]);
+        static assert(versionCollision.length == 0,
+            T.stringof ~ " declares both built-in --version and option '--" ~
+                versionCollision ~ "'");
+    }
     return true;
 }
 
@@ -862,6 +1051,10 @@ private bool validateCommand(Root, T)() pure @safe
 
     static if (is(U == Unqualified!Root))
     {
+        static assert(symbolAttributeCount!(U, AliasName)() == 0,
+            U.stringof ~ " root CLI command cannot declare @aliasName");
+        static assert(symbolAttributeCount!(U, ShortAlias)() == 0,
+            U.stringof ~ " root CLI command cannot declare @shortAlias");
         static assert(symbolAttributeCount!(U, CliVersion)() <= 1,
             U.stringof ~ " has multiple @cliVersion attributes");
         static assert(symbolAttributeCount!(U, NoBuiltinHelp)() <= 1,
@@ -871,6 +1064,10 @@ private bool validateCommand(Root, T)() pure @safe
     }
     else
     {
+        static assert(symbolAttributeCount!(U, Command)() == 1,
+            U.stringof ~ " used as a subcommand must have exactly one @command(...) attribute");
+        static assert(symbolAttributeCount!(U, ShortAlias)() == 0,
+            U.stringof ~ " @shortAlias is only valid on named option fields");
         static assert(symbolAttributeCount!(U, CliVersion)() == 0,
             U.stringof ~ " @cliVersion is only valid on the root CLI argument type");
         static assert(symbolAttributeCount!(U, NoBuiltinHelp)() == 0,

@@ -450,17 +450,20 @@ private void parseCommand(Root, T, Ancestors...)(
             bool matched;
             static foreach (Child; CommandTypes!T)
             {
-                if (!matched && token == commandName!Child)
+                static foreach (childName; commandAllNames!Child)
                 {
-                    matched = true;
-                    ++state.index;
-                    auto child = node.activateCommand!Child();
-                    parseCommand!(Root, Child)(
-                        state,
-                        *child,
-                        ancestors,
-                        currentFrame,
-                    );
+                    if (!matched && token == childName)
+                    {
+                        matched = true;
+                        ++state.index;
+                        auto child = node.activateCommand!Child();
+                        parseCommand!(Root, Child)(
+                            state,
+                            *child,
+                            ancestors,
+                            currentFrame,
+                        );
+                    }
                 }
             }
             if (!matched)
@@ -633,8 +636,8 @@ private OptionMatch tryLongOnFrame(T)(
     {
         static if (!fieldHas!(T, index, Positional))
         {
+            static foreach (longName; fieldAllLongNames!(T, index))
             {
-                enum String longName = fieldLongName!(T, index);
                 if ((!globalsOnly || fieldHas!(T, index, Global)) &&
                     name == longName)
                     return consumeNamedField!(T, index, false)(
@@ -738,40 +741,43 @@ private OptionMatch tryShortOnFrame(T)(
     static foreach (index; 0 .. T.tupleof.length)
     {
         static if (!fieldHas!(T, index, Positional) &&
-            fieldShortName!(T, index) != '\0')
+            fieldAllShortNames!(T, index).length != 0)
         {
-            if ((!globalsOnly || fieldHas!(T, index, Global)) &&
-                shortName == fieldShortName!(T, index))
+            static foreach (candidateShortName; fieldAllShortNames!(T, index))
             {
-                ++offset;
-                static if (cliFieldTakesValue!(T, index))
+                if ((!globalsOnly || fieldHas!(T, index, Global)) &&
+                    shortName == candidateShortName)
                 {
-                    String attached;
-                    bool hasAttached;
-                    if (offset < token.length)
+                    ++offset;
+                    static if (cliFieldTakesValue!(T, index))
                     {
-                        hasAttached = true;
-                        if (token[offset] == '=')
-                            ++offset;
-                        attached = token[offset .. $];
-                        offset = token.length;
+                        String attached;
+                        bool hasAttached;
+                        if (offset < token.length)
+                        {
+                            hasAttached = true;
+                            if (token[offset] == '=')
+                                ++offset;
+                            attached = token[offset .. $];
+                            offset = token.length;
+                        }
+                        auto result = consumeNamedField!(T, index, true)(
+                            state,
+                            frame,
+                            attached,
+                            hasAttached,
+                        );
+                        return result;
                     }
-                    auto result = consumeNamedField!(T, index, true)(
-                        state,
-                        frame,
-                        attached,
-                        hasAttached,
-                    );
-                    return result;
-                }
-                else
-                {
-                    return consumeNamedField!(T, index, true)(
-                        state,
-                        frame,
-                        null,
-                        false,
-                    );
+                    else
+                    {
+                        return consumeNamedField!(T, index, true)(
+                            state,
+                            frame,
+                            null,
+                            false,
+                        );
+                    }
                 }
             }
         }
@@ -1306,7 +1312,14 @@ private void writeHelpSections(Root, T)(ref Writer writer) @system
 private void writeCommandHelpLine(T)(ref Writer writer) @system
 {
     writer.put("  ");
-    writer.put(commandName!T);
+    bool first = true;
+    static foreach (name; commandAllNames!T)
+    {
+        if (!first)
+            writer.put(", ");
+        writer.put(name);
+        first = false;
+    }
     enum aboutText = typeAbout!T;
     static if (aboutText.length != 0)
     {
@@ -1562,17 +1575,25 @@ pragma(inline, true)
 private void writeOptionLine(T, size_t index)(ref Writer writer) @system
 {
     writer.put("  ");
-    enum shortName = fieldShortName!(T, index);
-    static if (shortName != '\0')
+    bool first = true;
+    static foreach (shortName; fieldAllShortNames!(T, index))
     {
+        if (!first)
+            writer.put(", ");
         writer.put('-');
         writer.put(shortName);
-        writer.put(", ");
+        first = false;
     }
-    else
-        writer.put("    ");
-    writer.put("--");
-    writer.put(fieldLongName!(T, index));
+    static foreach (longName; fieldAllLongNames!(T, index))
+    {
+        if (!first)
+            writer.put(", ");
+        else if (fieldAllShortNames!(T, index).length == 0)
+            writer.put("    ");
+        writer.put("--");
+        writer.put(longName);
+        first = false;
+    }
     static if (cliFieldTakesValue!(T, index))
     {
         writer.put(" <");
