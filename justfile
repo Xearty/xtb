@@ -24,13 +24,37 @@ default: build
 #   just build example all debug
 build kind="static" name="xtb" mode="debug": (_dispatch "build" kind name mode)
 
-# Run a named example, optionally selecting the build mode.
+# Run a named example, optionally selecting the build mode and forwarding
+# arguments after `--` to the executable.
 #
 # Examples:
 #   just run example core
 #   just run example serde release-safe
-#   just run example all debug
-run kind name mode="debug": (_dispatch "run" kind name mode)
+#   just run example cli -- --help
+#   just run example cli release-safe -- build -r
+[script]
+[positional-arguments]
+run kind name *tail:
+    kind="$1"
+    name="$2"
+    shift 2
+
+    mode=debug
+    case "${1-}" in
+        debug|release-safe|release-fast)
+            mode="$1"
+            shift
+            ;;
+    esac
+
+    # `just` preserves the public `--` with positional arguments. Consume the
+    # wrapper separator; a second `--` remains an executable argument.
+    if [[ "${1-}" == -- ]]; then
+        shift
+    fi
+
+    just --justfile "{{ justfile() }}" --working-directory "{{ consumer_project_dir }}" \
+        _dispatch run "$kind" "$name" "$mode" -- "$@"
 
 # Run or compile the complete test suite in one supported mode.
 # Release-fast compiles the test runners but does not execute stripped tests.
@@ -106,7 +130,36 @@ release-fast: (_dispatch "build" "static" "all" "release-fast")
 
 # Convenience example aliases.
 build-example name mode="debug": (_dispatch "build" "example" name mode)
-run-example name mode="debug": (_dispatch "run" "example" name mode)
+
+# `mode` is recognized as the first argument when it is one of the supported
+# build modes. Everything else is forwarded verbatim to the example.
+#
+# Examples:
+#   just run-example cli -- --help
+#   just run-example cli release-safe -- build -r
+[script]
+[positional-arguments]
+run-example name *tail:
+    name="$1"
+    shift
+
+    mode=debug
+    case "${1-}" in
+        debug|release-safe|release-fast)
+            mode="$1"
+            shift
+            ;;
+    esac
+
+    # Consume the recipe-level separator while preserving a deliberate second
+    # `--` for the executable.
+    if [[ "${1-}" == -- ]]; then
+        shift
+    fi
+
+    just --justfile "{{ justfile() }}" --working-directory "{{ consumer_project_dir }}" \
+        _dispatch run example "$name" "$mode" -- "$@"
+
 build-examples mode="debug": (_dispatch "build" "example" "all" mode)
 run-examples mode="debug": (_dispatch "run" "example" "all" mode)
 
@@ -126,11 +179,21 @@ _check-build-release-fast: (_dispatch "build" "static" "all" "release-fast")
 
 # Shared build/run dispatcher.
 [script]
-_dispatch action kind name mode:
-    action="{{ action }}"
-    kind="{{ kind }}"
-    name="{{ name }}"
-    mode="{{ mode }}"
+[positional-arguments]
+_dispatch action kind name mode *program_args:
+    action="$1"
+    kind="$2"
+    name="$3"
+    mode="$4"
+    shift 4
+
+    # The nested `just` call uses its own `--` boundary. With
+    # `[positional-arguments]` that separator reaches this script, so consume
+    # exactly one copy before forwarding the executable arguments to DUB.
+    if [[ "${1-}" == -- ]]; then
+        shift
+    fi
+    program_args=("$@")
 
     case "$mode" in
         debug)
@@ -224,9 +287,13 @@ _dispatch action kind name mode:
 
         echo "${operation^} example ${config%-demo} ($mode)"
         if [[ "$operation" == build ]]; then
+            if (( ${#program_args[@]} != 0 )); then
+                echo "example arguments are only valid when running an example" >&2
+                exit 2
+            fi
             dub build :examples "${dub_args[@]}" --config="$config"
         else
-            dub run :examples "${dub_args[@]}" --config="$config"
+            dub run :examples "${dub_args[@]}" --config="$config" -- "${program_args[@]}"
         fi
     }
 
@@ -248,6 +315,10 @@ _dispatch action kind name mode:
             ;;
         example)
             if [[ "$name" == all ]]; then
+                if (( ${#program_args[@]} != 0 )); then
+                    echo "cannot pass program arguments when running all examples" >&2
+                    exit 2
+                fi
                 for config in {{ example_configurations }}; do
                     build_or_run_example "$action" "${config%-demo}"
                 done

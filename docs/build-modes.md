@@ -9,10 +9,14 @@ just build static core release-safe
 just build static xtb release-fast
 just build example serde release-safe
 just run example serde release-safe
+just run example cli -- --help
+just run-example cli release-fast -- build -r
 ```
 
-The `build` recipe defaults to `static xtb debug`. `xtb` is one monolithic
-static library; component names build independent libraries. `all` builds both
+For a single running example, put executable arguments after `--`; the optional
+build mode remains before the separator and defaults to `debug`. The `build`
+recipe defaults to `static xtb debug`. `xtb` is one monolithic static library;
+component names build independent libraries. `all` builds both
 the monolithic library and every discovered component library. The legacy
 `just debug`, `just release-safe`, and `just release-fast` aliases remain and
 build `static all` in the selected mode.

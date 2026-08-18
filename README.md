@@ -95,6 +95,8 @@ just build static core release-safe
 just build static xtb release-fast
 just build example serde release-safe
 just run example serde release-safe
+just run example cli -- --help
+just run-example cli release-safe -- build -r
 ```
 
 Use `just targets` to list static libraries, examples, and modes. The shorter
@@ -105,8 +107,11 @@ monolithic library and every component library in the selected mode. See
 `just clean`. A reproducible package and test derivation are also available
 through `nix build` and `nix flake check`.
 
-DUB owns the build manifests and Just only coordinates workflows. Component
-libraries are independent subpackages colocated under `source/xtb`;
+When running one example, arguments after `--` are forwarded to the example
+executable. The optional build mode still comes before `--`; if omitted, it
+defaults to `debug`. DUB owns the build manifests and Just only coordinates
+workflows. Component libraries are independent subpackages colocated under
+`source/xtb`;
 `examples/dub.sdl` owns `*-demo` configurations and `tests/dub.sdl` owns
 `test-*` and `test-helper-*`. Just discovers all three groups automatically, so
 adding one never requires editing the Justfile.

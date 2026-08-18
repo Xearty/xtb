@@ -395,7 +395,14 @@ just build example logging
 just run example logging release-safe
 just run example core-demo
 just run example all debug
+just run example cli -- --help
+just run-example cli release-safe -- build -r
 ```
+
+For a single example, arguments after `--` are forwarded verbatim to the
+executable. The optional build mode remains before `--` and defaults to `debug`.
+Program arguments are intentionally rejected with `all`, since there is no
+single executable to receive them.
 
 The older `build-example`, `run-example`, `build-examples`, and `run-examples`
 recipes remain as convenience aliases.
