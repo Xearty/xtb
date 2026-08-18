@@ -47,6 +47,7 @@ private enum CliOutcomeKind : ubyte
     invocation,
     help,
     version_,
+    terminal,
     error,
 }
 
@@ -152,8 +153,8 @@ private:
     }
 }
 
-/// Result of CLI parsing. Normal applications only need `hasInvocation`,
-/// `invocation`, `handleCliResult`, and `deinit`.
+/// Result of CLI parsing. Built-in responses are library-owned, while custom
+/// terminal outcomes expose the partially parsed tree through `parsed`.
 struct CliParseResult(T)
 {
 nothrow @nogc:
@@ -175,9 +176,30 @@ public:
         return outcome_ == CliOutcomeKind.invocation;
     }
 
+    bool hasBuiltinResponse() const pure @safe
+    {
+        return outcome_ == CliOutcomeKind.help || outcome_ == CliOutcomeKind.version_;
+    }
+
+    bool hasTerminal() const pure @safe
+    {
+        return outcome_ == CliOutcomeKind.terminal;
+    }
+
     bool failed() const pure @safe
     {
         return outcome_ == CliOutcomeKind.error;
+    }
+
+    /// Returns the parsed tree for a custom terminal outcome. It may be partial.
+    ref ParsedCommand!T parsed() return @system
+    {
+        return invocation_;
+    }
+
+    ref const(ParsedCommand!T) parsed() const return @system
+    {
+        return invocation_;
     }
 
     ref ParsedCommand!T invocation() return @system
@@ -779,8 +801,6 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
             return OptionMatch.failed;
         }
         ++field;
-        wasSeen = true;
-        return OptionMatch.matched;
     }
     else static if (!isOption!Field && !isArray!Field &&
         is(Unqualified!Field == bool))
@@ -796,8 +816,6 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
             return OptionMatch.failed;
         }
         field = true;
-        wasSeen = true;
-        return OptionMatch.matched;
     }
     else
     {
@@ -831,9 +849,12 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
 
         if (!assignFieldValue!Field(state, field, value, optionToken))
             return OptionMatch.failed;
-        wasSeen = true;
-        return OptionMatch.matched;
     }
+
+    wasSeen = true;
+    static if (fieldHas!(T, index, Terminal))
+        state.outcome = CliOutcomeKind.terminal;
+    return OptionMatch.matched;
 }
 
 private bool parseNextPositional(T)(
@@ -1088,6 +1109,8 @@ int writeCliResult(T)(
             return 0;
         case CliOutcomeKind.version_:
             writeVersion!T(output, result.programName);
+            return 0;
+        case CliOutcomeKind.terminal:
             return 0;
         case CliOutcomeKind.error:
             writeError!T(errorOutput, result.error_, result.invocation_);

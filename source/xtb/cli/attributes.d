@@ -78,6 +78,11 @@ struct Hidden
 {
 }
 
+/// Stops normal parsing after this named, non-repeating argument is successfully consumed.
+struct Terminal
+{
+}
+
 /// Allows a command with child commands to execute without selecting one.
 struct SubcommandOptional
 {
@@ -129,6 +134,7 @@ enum count = Count();
 enum global = Global();
 enum rest = Rest();
 enum hidden = Hidden();
+enum terminal = Terminal();
 enum subcommandOptional = SubcommandOptional();
 enum helpOnNoSubcommand = HelpOnNoSubcommand();
 enum noBuiltinHelp = NoBuiltinHelp();

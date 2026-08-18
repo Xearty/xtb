@@ -379,6 +379,18 @@ private bool validateField(Root, T, size_t index)() pure @safe
         T.stringof ~ "." ~ sourceName ~ " has duplicate @rest attributes");
     static assert(fieldAttributeCount!(T, index, Hidden) <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @hidden attributes");
+    static assert(fieldAttributeCount!(T, index, Terminal) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @terminal attributes");
+
+    static if (fieldHas!(T, index, Terminal))
+    {
+        static assert(!fieldHas!(T, index, Positional),
+            T.stringof ~ "." ~ sourceName ~ " @terminal cannot be positional");
+        static assert(!fieldHas!(T, index, Count),
+            T.stringof ~ "." ~ sourceName ~ " @terminal cannot be combined with @count");
+        static assert(!isArray!Field,
+            T.stringof ~ "." ~ sourceName ~ " @terminal cannot be used with Array fields");
+    }
 
     static if (fieldHas!(T, index, Count))
     {

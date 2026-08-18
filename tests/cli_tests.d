@@ -177,6 +177,66 @@ struct NoVersionMetadataRootArgs
 {
 }
 
+enum CompletionShell
+{
+    bash,
+    fish,
+}
+
+@noBuiltinHelp
+struct TerminalRootArgs
+{
+    @(shortName('v'), count, global)
+    uint verbose;
+
+    @(shortName('h'), global, terminal)
+    bool help;
+
+    alias Commands = CliCommands!(TerminalBuildArgs);
+}
+
+@command("build")
+struct TerminalBuildArgs
+{
+    @required
+    Option!String output;
+
+    @(terminal, valueName("SHELL"))
+    CompletionShell completions;
+}
+
+struct TerminalAllocArgs
+{
+    Array!String item;
+
+    @terminal
+    bool done;
+}
+
+struct InvalidTerminalPositionalArgs
+{
+    @(positional, terminal)
+    String value;
+}
+
+struct InvalidTerminalCountArgs
+{
+    @(count, terminal)
+    uint verbose;
+}
+
+struct InvalidTerminalArrayArgs
+{
+    @terminal
+    Array!String values;
+}
+
+struct InvalidDuplicateTerminalArgs
+{
+    @(terminal, terminal)
+    bool quit;
+}
+
 struct InvalidChildVersionRootArgs
 {
     alias Commands = CliCommands!(InvalidChildVersionArgs);
@@ -222,6 +282,15 @@ static assert(!__traits(compiles,
 static assert(!__traits(compiles, parseArgs!InvalidOptionalLeafArgs(cast(String[]) null)));
 static assert(!__traits(compiles, parseArgs!InvalidHelpLeafArgs(cast(String[]) null)));
 static assert(!__traits(compiles, parseArgs!InvalidCombinedPolicyArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidTerminalPositionalArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidTerminalCountArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidTerminalArrayArgs(cast(String[]) null, mallocAllocator())));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicateTerminalArgs(cast(String[]) null)));
+static assert(cliNeedsAllocator!TerminalAllocArgs);
 
 private struct TextSink
 {
@@ -703,6 +772,112 @@ private void testDisabledBuiltinVersion()
     }
 }
 
+private void testTerminalArguments()
+{
+    {
+        String[5] argv = ["tool", "build", "--help", "--wat", "ignored"];
+        auto result = parseArgs!TerminalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasTerminal);
+        assert(!result.hasInvocation);
+        assert(!result.hasBuiltinResponse);
+        assert(!result.failed);
+        ref root = result.parsed;
+        assert(root.args.help);
+        auto build = root.command!TerminalBuildArgs;
+        assert(build !is null);
+        assert(build.args.output.isNone);
+    }
+
+    {
+        String[5] argv = ["tool", "build", "--completions", "fish", "--wat"];
+        auto result = parseArgs!TerminalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasTerminal);
+        auto build = result.parsed.command!TerminalBuildArgs;
+        assert(build !is null);
+        assert(build.args.completions == CompletionShell.fish);
+        assert(build.args.output.isNone);
+    }
+
+    {
+        String[4] argv = ["tool", "build", "--completions", "wat"];
+        auto result = parseArgs!TerminalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(!result.hasTerminal);
+        assert(result.error.kind == CliErrorKind.invalidValue);
+        assert(result.error.token == "wat");
+    }
+
+    {
+        String[3] argv = ["tool", "--wat", "--help"];
+        auto result = parseArgs!TerminalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(!result.hasTerminal);
+        assert(result.error.kind == CliErrorKind.unknownOption);
+    }
+
+    {
+        String[3] argv = ["tool", "-vhv", "build"];
+        auto result = parseArgs!TerminalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasTerminal);
+        assert(result.parsed.args.verbose == 1);
+        assert(result.parsed.args.help);
+        assert(!result.parsed.hasCommand);
+    }
+
+    {
+        String[2] argv = ["tool", "--help"];
+        auto result = parseArgs!RootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasBuiltinResponse);
+        assert(!result.hasTerminal);
+        assert(!result.hasInvocation);
+        assert(!result.failed);
+    }
+}
+
+private void testTerminalCleanup()
+{
+    AllocationRecord[16] records;
+    InstrumentedAllocator allocator = InstrumentedAllocator.create(
+        mallocAllocator(),
+        records[],
+    );
+
+    String[7] argv = [
+        "tool",
+        "--item",
+        "first",
+        "--done",
+        "--item",
+        "second",
+        "ignored",
+    ];
+    auto result = parseArgs!TerminalAllocArgs(argv, allocator.allocator);
+    assert(result.hasTerminal);
+    assert(result.parsed.args.done);
+    assert(result.parsed.args.item.length == 1);
+    assert(result.parsed.args.item[0] == "first");
+    result.deinit();
+    assert(allocator.clean);
+}
+
 private void testRepeatedAndRestArgumentsCleanUp()
 {
     AllocationRecord[16] records;
@@ -778,6 +953,8 @@ extern (C) int main()
     testGeneratedErrorResponse();
     testDisabledBuiltinHelp();
     testDisabledBuiltinVersion();
+    testTerminalArguments();
+    testTerminalCleanup();
     testRepeatedAndRestArgumentsCleanUp();
     testAllocationFailureCleansUp();
     return 0;
