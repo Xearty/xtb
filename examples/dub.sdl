@@ -117,3 +117,19 @@ configuration "hash-demo" {
     mainSourceFile "hash_demo.d"
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
 }
+
+configuration "cli-demo" {
+    targetType "executable"
+    targetName "cli_demo"
+    targetPath "../build/examples"
+    mainSourceFile "cli_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/cli/*.d"
+}
+
+configuration "cli-nested-demo" {
+    targetType "executable"
+    targetName "cli_nested_demo"
+    targetPath "../build/examples"
+    mainSourceFile "cli_nested_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/cli/*.d"
+}

@@ -169,3 +169,12 @@ configuration "test-threading-unsupported" {
     dependency "xtb:core" version="*"
     versions "XTB_TestUnsupportedThreadBackend"
 }
+
+configuration "test-cli" {
+    targetType "executable"
+    targetName "cli_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "cli_tests.d"
+    dependency "xtb:core" version="*"
+    dependency "xtb:cli" version="*"
+}

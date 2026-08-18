@@ -18,6 +18,7 @@ libs "backtrace" platform="linux"
 libs "pthread" platform="linux"
 
 subPackage "source/xtb/core"
+subPackage "source/xtb/cli"
 subPackage "source/xtb/diagnostics"
 subPackage "source/xtb/math"
 subPackage "source/xtb/os"
