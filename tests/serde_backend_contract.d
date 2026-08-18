@@ -10,8 +10,8 @@ import xtb.core.print : Writer;
 import xtb.core.string;
 import xtb.core.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind,
-    aliasName, defaultValue, fieldCase, omitDefault, readJson, readToml,
-    required, writeJson, writeToml;
+    serdeAliasName, serdeDefaultValue, serdeFieldCase, serdeOmitDefault, readJson, readToml,
+    serdeRequired, writeJson, writeToml;
 
 private size_t bufferSink(void* context, scope const(u8)[] bytes)
 {
@@ -25,12 +25,12 @@ private struct ContractChild
     bool enabled;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct ContractDocument
 {
-    @required String serviceName;
-    @aliasName("attempts") int retryCount;
-    @defaultValue(3) @omitDefault int retryWindow;
+    @serdeRequired String serviceName;
+    @serdeAliasName("attempts") int retryCount;
+    @serdeDefaultValue(3) @serdeOmitDefault int retryWindow;
     Option!int priority;
     ContractChild child;
 }

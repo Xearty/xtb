@@ -272,7 +272,7 @@ Serde tests additionally verify:
   dynamic-slice shape round-trips through each applicable backend;
 - `Option!T` covers trivial, borrowed, and move-only owning values; JSON null
   and missing fields remain absent, TOML omits absent values, nested optional
-  tables decode correctly, and `@required` checks key presence independently
+  tables decode correctly, and `@serdeRequired` checks key presence independently
   of JSON nullness;
 - rename, legacy alias, ignore, required, explicit-default, omit-default,
   omission-predicate, adapter, and flatten attributes compose correctly, with

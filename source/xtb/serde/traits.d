@@ -219,7 +219,7 @@ private template symbolAttributeCount(alias Symbol, A)
 }
 
 enum isTaggedUnion(T) = is(Unqualified!T == struct) &&
-    symbolAttributeCount!(Unqualified!T, TaggedUnion) == 1;
+    symbolAttributeCount!(Unqualified!T, SerdeTaggedUnion) == 1;
 
 template FieldSymbol(T, size_t index)
 {
@@ -253,7 +253,7 @@ enum fieldAttributeCount(T, size_t index, A) = countAttribute!A(
 
 template isDefaultValueAttribute(A)
 {
-    static if (is(A == DefaultValue!Value, Value))
+    static if (is(A == SerdeDefaultValue!Value, Value))
         enum isDefaultValueAttribute = true;
     else
         enum isDefaultValueAttribute = false;
@@ -261,7 +261,7 @@ template isDefaultValueAttribute(A)
 
 template isOmitIfAttribute(A)
 {
-    static if (is(A == OmitIf!predicate, alias predicate))
+    static if (is(A == SerdeOmitIf!predicate, alias predicate))
         enum isOmitIfAttribute = true;
     else
         enum isOmitIfAttribute = false;
@@ -339,7 +339,7 @@ enum isAdapterRepresentation(T) = isString!T || is(Unqualified!T == bool) ||
 
 template isCaseOfAttribute(A)
 {
-    static if (is(A == CaseOf!Tag, Tag))
+    static if (is(A == SerdeCaseOf!Tag, Tag))
         enum isCaseOfAttribute = true;
     else
         enum isCaseOfAttribute = false;
@@ -377,8 +377,8 @@ private size_t countMarkedFields(T, A, size_t index = 0)() pure @safe
             countMarkedFields!(T, A, index + 1);
 }
 
-enum discriminantIndex(T) = findMarkedField!(T, Discriminant);
-enum payloadIndex(T) = findMarkedField!(T, Payload);
+enum discriminantIndex(T) = findMarkedField!(T, SerdeDiscriminant);
+enum payloadIndex(T) = findMarkedField!(T, SerdePayload);
 
 template DiscriminantType(T)
 {
@@ -394,7 +394,7 @@ TagLayout taggedUnionLayout(T)() pure @safe
 {
     TagLayout result;
     static foreach (attribute; __traits(getAttributes, Unqualified!T))
-        static if (is(typeof(attribute) == TaggedUnion))
+        static if (is(typeof(attribute) == SerdeTaggedUnion))
             result = attribute.layout;
     return result;
 }
@@ -421,7 +421,7 @@ string fieldName(T, size_t index)() pure @safe
 {
     string result = __traits(identifier, Unqualified!T.tupleof[index]);
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
-        static if (is(typeof(attribute) == Rename))
+        static if (is(typeof(attribute) == SerdeRename))
             result = attribute.value;
     return result;
 }
@@ -434,12 +434,12 @@ bool fieldMatches(T, size_t index)(scope String candidate) pure @safe
 bool fieldMatches(T, size_t index)(scope String candidate, KeyCase overrideCase)
 pure @safe
 {
-    enum renamed = fieldHas!(T, index, Rename);
+    enum renamed = fieldHas!(T, index, SerdeRename);
     const casing = overrideCase == KeyCase.schema ? schemaCase!T : overrideCase;
     if (renamed ? stringEqual(candidate, fieldName!(T, index)) : matchesCased(candidate, fieldName!(T, index), casing))
         return true;
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
-        static if (is(typeof(attribute) == AliasName))
+        static if (is(typeof(attribute) == SerdeAliasName))
             if (stringEqual(candidate, attribute.value))
                 return true;
     return false;
@@ -449,7 +449,7 @@ KeyCase schemaCase(T)() pure @safe
 {
     KeyCase result = KeyCase.preserve;
     static foreach (attribute; __traits(getAttributes, Unqualified!T))
-        static if (is(typeof(attribute) == FieldCase))
+        static if (is(typeof(attribute) == SerdeFieldCase))
             result = attribute.value;
     return result;
 }
@@ -458,7 +458,7 @@ KeyCase enumCase(T)() pure @safe
 {
     KeyCase result = KeyCase.preserve;
     static foreach (attribute; __traits(getAttributes, Unqualified!T))
-        static if (is(typeof(attribute) == VariantCase))
+        static if (is(typeof(attribute) == SerdeVariantCase))
             result = attribute.value;
     return result;
 }
@@ -473,7 +473,7 @@ string enumMemberName(T, string member)() pure @safe
     string result = member;
     static foreach (attribute; __traits(getAttributes,
             EnumMemberSymbol!(T, member)))
-        static if (is(typeof(attribute) == Rename))
+        static if (is(typeof(attribute) == SerdeRename))
             result = attribute.value;
     return result;
 }
@@ -483,7 +483,7 @@ bool enumMemberMatches(T, string member)(
     KeyCase overrideCase = KeyCase.schema,
 ) pure @safe
 {
-    enum renamed = containsAttribute!Rename(__traits(getAttributes,
+    enum renamed = containsAttribute!SerdeRename(__traits(getAttributes,
                 EnumMemberSymbol!(T, member)));
     const casing = overrideCase == KeyCase.schema ? enumCase!T : overrideCase;
     if (renamed
@@ -492,7 +492,7 @@ bool enumMemberMatches(T, string member)(
         return true;
     static foreach (attribute; __traits(getAttributes,
             EnumMemberSymbol!(T, member)))
-        static if (is(typeof(attribute) == AliasName))
+        static if (is(typeof(attribute) == SerdeAliasName))
             if (stringEqual(candidate, attribute.value))
                 return true;
     return false;
@@ -505,7 +505,7 @@ package(xtb.serde) void applySchemaDefaults(T)(T* output)
     {
         static foreach (index; 0 .. U.tupleof.length)
         {
-            static if (!fieldHas!(U, index, Ignore))
+            static if (!fieldHas!(U, index, SerdeIgnore))
             {
                 static foreach (attribute; __traits(getAttributes, FieldSymbol!(U, index)))
                     static if (isDefaultValueAttribute!(typeof(attribute)))
@@ -545,9 +545,9 @@ private bool stringEqual(scope String left, scope String right) pure @safe
 
 private size_t fieldWidth(T, size_t index)() pure @safe
 {
-    static if (fieldHas!(T, index, Ignore))
+    static if (fieldHas!(T, index, SerdeIgnore))
         return 0;
-    else static if (fieldHas!(T, index, Flatten))
+    else static if (fieldHas!(T, index, SerdeFlatten))
         return serializedFieldCount!(FieldType!(T, index));
     else
         return 1;
@@ -611,7 +611,7 @@ private bool supportedValue(T)() pure @safe
     {
         bool result = true;
         static foreach (index; 0 .. U.tupleof.length)
-            static if (!fieldHas!(U, index, Ignore))
+            static if (!fieldHas!(U, index, SerdeIgnore))
                 static if (fieldAdapterCount!(U, index) == 0)
                     result = result && supportedValue!(FieldType!(U, index));
         return result;
@@ -665,16 +665,16 @@ void validateSchema(T)()
     alias U = Unqualified!T;
     static assert(isSerdeStruct!U,
         "serde document root must be a struct without a user-defined destructor");
-    static assert(countAttribute!TaggedUnion(__traits(getAttributes, U)) <= 1,
-        "a serde struct may have at most one @taggedUnion");
+    static assert(countAttribute!SerdeTaggedUnion(__traits(getAttributes, U)) <= 1,
+        "a serde struct may have at most one @serdeTaggedUnion");
     static if (isTaggedUnion!U)
         validateTaggedUnionSchema!U();
     else
     {
-        static assert(countAttribute!FieldCase(__traits(getAttributes, U)) <= 1,
-            "a serde struct may have at most one @fieldCase");
+        static assert(countAttribute!SerdeFieldCase(__traits(getAttributes, U)) <= 1,
+            "a serde struct may have at most one @serdeFieldCase");
         static assert(schemaCase!U != KeyCase.schema,
-            "@fieldCase(KeyCase.schema) is not a concrete casing policy");
+            "@serdeFieldCase(KeyCase.schema) is not a concrete casing policy");
         static foreach (index; 0 .. U.tupleof.length)
             validateFieldSchema!(U, index)();
         static foreach (left; 0 .. serializedFieldCount!U)
@@ -688,23 +688,23 @@ void validateEnumSchema(T)()
 {
     alias U = Unqualified!T;
     static assert(is(U == enum), "enum schema validation requires an enum");
-    static assert(countAttribute!VariantCase(__traits(getAttributes, U)) <= 1,
-        "a serde enum may have at most one @variantCase");
+    static assert(countAttribute!SerdeVariantCase(__traits(getAttributes, U)) <= 1,
+        "a serde enum may have at most one @serdeVariantCase");
     static assert(enumCase!U != KeyCase.schema,
-        "@variantCase(KeyCase.schema) is not a concrete casing policy");
+        "@serdeVariantCase(KeyCase.schema) is not a concrete casing policy");
     alias members = __traits(allMembers, U);
     static foreach (leftIndex, left; members)
     {
         static if (__traits(compiles, __traits(getMember, U, left)))
         {
-            static assert(countAttribute!Rename(__traits(getAttributes,
+            static assert(countAttribute!SerdeRename(__traits(getAttributes,
                     EnumMemberSymbol!(U, left))) <= 1,
-                "a serde enum member may have at most one @rename");
+                "a serde enum member may have at most one @serdeRename");
             static assert(enumMemberName!(U, left).length != 0,
                 "serialized enum member names must not be empty");
             static foreach (attribute; __traits(getAttributes,
                     EnumMemberSymbol!(U, left)))
-                static if (is(typeof(attribute) == AliasName))
+                static if (is(typeof(attribute) == SerdeAliasName))
                     static assert(attribute.value.length != 0,
                         "serialized enum aliases must not be empty");
             static foreach (rightIndex, right; members)
@@ -724,7 +724,7 @@ private bool enumMembersOverlap(T, string left, string right)() pure @safe
         return true;
     static foreach (attribute; __traits(getAttributes,
             EnumMemberSymbol!(T, left)))
-        static if (is(typeof(attribute) == AliasName))
+        static if (is(typeof(attribute) == SerdeAliasName))
             if (enumMemberMatches!(T, right)(attribute.value, KeyCase.preserve))
                 return true;
     return false;
@@ -733,12 +733,12 @@ private bool enumMembersOverlap(T, string left, string right)() pure @safe
 private void validateTaggedUnionSchema(T)()
 {
     alias U = Unqualified!T;
-    static assert(countAttribute!TaggedUnion(__traits(getAttributes, U)) == 1,
-        "a tagged union must have exactly one @taggedUnion");
-    static assert(countMarkedFields!(U, Discriminant) == 1,
-        "a tagged union must have exactly one @discriminant field");
-    static assert(countMarkedFields!(U, Payload) == 1,
-        "a tagged union must have exactly one @payload field");
+    static assert(countAttribute!SerdeTaggedUnion(__traits(getAttributes, U)) == 1,
+        "a tagged union must have exactly one @serdeTaggedUnion");
+    static assert(countMarkedFields!(U, SerdeDiscriminant) == 1,
+        "a tagged union must have exactly one @serdeDiscriminant field");
+    static assert(countMarkedFields!(U, SerdePayload) == 1,
+        "a tagged union must have exactly one @serdePayload field");
     static assert(U.tupleof.length == 2,
         "a tagged union contains only its discriminant and payload fields");
     alias Tag = DiscriminantType!U;
@@ -770,12 +770,12 @@ private void validateTaggedUnionSchema(T)()
         {
             alias C = UnionMemberType!(P, index);
             static assert(unionCaseCount!(P, index) == 1,
-                "every tagged union payload member needs exactly one @caseOf");
+                "every tagged union payload member needs exactly one @serdeCaseOf");
             static foreach (attribute; __traits(getAttributes,
                     UnionMemberSymbol!(P, index)))
                 static if (isCaseOfAttribute!(typeof(attribute)))
                     static assert(is(typeof(attribute.value) == Unqualified!Tag),
-                        "@caseOf value must have the discriminant enum type");
+                        "@serdeCaseOf value must have the discriminant enum type");
             static assert(borrowedValue!C,
                 "raw tagged unions currently require borrowed payload cases");
             validateValueSchema!C();
@@ -852,7 +852,7 @@ private bool borrowedValue(T)() pure @safe
     {
         bool result = true;
         static foreach (index; 0 .. U.tupleof.length)
-            static if (!fieldHas!(U, index, Ignore))
+            static if (!fieldHas!(U, index, SerdeIgnore))
                 static if (fieldAdapterCount!(U, index) == 0)
                     result = result && borrowedValue!(FieldType!(U, index));
         return result;
@@ -893,7 +893,7 @@ private bool ownedValue(T)() pure @safe
     {
         bool result = true;
         static foreach (index; 0 .. U.tupleof.length)
-            static if (!fieldHas!(U, index, Ignore))
+            static if (!fieldHas!(U, index, SerdeIgnore))
                 static if (fieldAdapterCount!(U, index) == 0)
                     result = result && ownedValue!(FieldType!(U, index));
         return result;
@@ -1032,17 +1032,17 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
 
 private bool fieldsOverlap(A, size_t left, B, size_t right)() pure @safe
 {
-    enum leftCase = fieldHas!(A, left, Rename) ? KeyCase.preserve : schemaCase!A;
-    enum rightCase = fieldHas!(B, right, Rename) ? KeyCase.preserve : schemaCase!B;
+    enum leftCase = fieldHas!(A, left, SerdeRename) ? KeyCase.preserve : schemaCase!A;
+    enum rightCase = fieldHas!(B, right, SerdeRename) ? KeyCase.preserve : schemaCase!B;
     if (casedNamesEqual(fieldName!(A, left), leftCase,
             fieldName!(B, right), rightCase))
         return true;
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(A, left)))
-        static if (is(typeof(attribute) == AliasName))
+        static if (is(typeof(attribute) == SerdeAliasName))
             if (fieldMatches!(B, right)(attribute.value, KeyCase.schema))
                 return true;
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(B, right)))
-        static if (is(typeof(attribute) == AliasName))
+        static if (is(typeof(attribute) == SerdeAliasName))
             if (fieldMatches!(A, left)(attribute.value, KeyCase.schema))
                 return true;
     return false;
@@ -1054,9 +1054,9 @@ pure @safe
     size_t base;
     static foreach (index; 0 .. Unqualified!B.tupleof.length)
     {
-        static if (!fieldHas!(B, index, Ignore))
+        static if (!fieldHas!(B, index, SerdeIgnore))
         {
-            static if (fieldHas!(B, index, Flatten))
+            static if (fieldHas!(B, index, SerdeFlatten))
             {
                 if (ordinal >= base && ordinal < base +
                     serializedFieldCount!(FieldType!(B, index)))
@@ -1080,9 +1080,9 @@ private bool leafOverlapAcross(A, B)(size_t left, size_t right) pure @safe
     size_t base;
     static foreach (index; 0 .. Unqualified!A.tupleof.length)
     {
-        static if (!fieldHas!(A, index, Ignore))
+        static if (!fieldHas!(A, index, SerdeIgnore))
         {
-            static if (fieldHas!(A, index, Flatten))
+            static if (fieldHas!(A, index, SerdeFlatten))
             {
                 if (left >= base && left < base +
                     serializedFieldCount!(FieldType!(A, index)))
@@ -1109,42 +1109,42 @@ private bool leafNamesOverlap(T)(size_t left, size_t right) pure @safe
 private void validateFieldSchema(T, size_t index)()
 {
     alias F = FieldType!(T, index);
-    enum ignored = fieldHas!(T, index, Ignore);
-    enum flattened = fieldHas!(T, index, Flatten);
+    enum ignored = fieldHas!(T, index, SerdeIgnore);
+    enum flattened = fieldHas!(T, index, SerdeFlatten);
     enum serdeAttributeCount =
-        fieldAttributeCount!(T, index, Rename) +
-        fieldAttributeCount!(T, index, AliasName) +
-        fieldAttributeCount!(T, index, Ignore) +
-        fieldAttributeCount!(T, index, Required) +
-        fieldAttributeCount!(T, index, OmitDefault) +
-        fieldAttributeCount!(T, index, Flatten) +
+        fieldAttributeCount!(T, index, SerdeRename) +
+        fieldAttributeCount!(T, index, SerdeAliasName) +
+        fieldAttributeCount!(T, index, SerdeIgnore) +
+        fieldAttributeCount!(T, index, SerdeRequired) +
+        fieldAttributeCount!(T, index, SerdeOmitDefault) +
+        fieldAttributeCount!(T, index, SerdeFlatten) +
         fieldDefaultValueCount!(T, index) +
         fieldOmitPredicateCount!(T, index) +
         fieldAdapterCount!(T, index);
 
-    static assert(fieldAttributeCount!(T, index, Rename) <= 1,
-        "a serde field may have at most one @rename");
+    static assert(fieldAttributeCount!(T, index, SerdeRename) <= 1,
+        "a serde field may have at most one @serdeRename");
     static assert(!ignored || serdeAttributeCount == 1,
-        "@ignore cannot be combined with another serde attribute");
+        "@serdeIgnore cannot be combined with another serde attribute");
     static assert(!flattened || isSerdeStruct!F,
-        "@flatten requires a struct field without a destructor");
+        "@serdeFlatten requires a struct field without a destructor");
     static assert(fieldDefaultValueCount!(T, index) <= 1,
-        "a serde field may have at most one @defaultValue");
+        "a serde field may have at most one @serdeDefaultValue");
     static assert(fieldOmitPredicateCount!(T, index) <= 1,
-        "a serde field may have at most one @omitIf");
+        "a serde field may have at most one @serdeOmitIf");
     static assert(fieldAdapterCount!(T, index) <= 1,
-        "a serde field may have at most one @withSerde");
+        "a serde field may have at most one @serdeWith");
     static assert(fieldDefaultValueCount!(T, index) == 0 ||
             !hasDDestructor!(
                 Unqualified!F),
-        "@defaultValue currently requires a field without an elaborate destructor");
+        "@serdeDefaultValue currently requires a field without an elaborate destructor");
     static assert(fieldDefaultValueCount!(T, index) == 0 || !flattened,
-        "@defaultValue cannot be combined with @flatten");
+        "@serdeDefaultValue cannot be combined with @serdeFlatten");
     static assert(fieldOmitPredicateCount!(T, index) == 0 ||
-            fieldAttributeCount!(T, index, OmitDefault) == 0,
-        "@omitIf cannot be combined with @omitDefault");
+            fieldAttributeCount!(T, index, SerdeOmitDefault) == 0,
+        "@serdeOmitIf cannot be combined with @serdeOmitDefault");
     static assert(fieldAdapterCount!(T, index) == 0 || !flattened,
-        "@withSerde cannot be combined with @flatten");
+        "@serdeWith cannot be combined with @serdeFlatten");
     static assert(ignored || fieldAdapterCount!(T, index) != 0 ||
             isSupportedValue!F,
         "unsupported serde field type: " ~ F.stringof);
@@ -1189,17 +1189,17 @@ private void validateFieldSchema(T, size_t index)()
             "serialized field names must not be empty");
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
     {
-        static if (is(typeof(attribute) == AliasName))
+        static if (is(typeof(attribute) == SerdeAliasName))
             static assert(attribute.value.length != 0,
                 "serialized field aliases must not be empty");
         else static if (isDefaultValueAttribute!(typeof(attribute)))
             static assert(is(typeof(attribute.value) : Unqualified!F),
-                "@defaultValue must be assignable to its field type");
+                "@serdeDefaultValue must be assignable to its field type");
         else static if (isOmitIfAttribute!(typeof(attribute)))
             static assert(__traits(compiles,
                     invokeOmitPredicate!(typeof(attribute).test, F)(
                     *cast(const(F)*) null)),
-                "@omitIf predicate must accept the field by const reference");
+                "@serdeOmitIf predicate must accept the field by const reference");
     }
     static if (flattened)
         validateSchema!F();

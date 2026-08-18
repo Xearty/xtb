@@ -9,58 +9,58 @@ import xtb.core.option : Option;
 import xtb.core.print : writeln;
 import xtb.core.types : String;
 
-@(cliVersion("1.0.0"), about("Nested subcommand and repeated-argument example"), subcommandOptional)
+@(cliVersion("1.0.0"), cliAbout("Nested subcommand and repeated-argument example"), cliSubcommandOptional)
 struct RootArgs
 {
-    @(shortName('v'), count, global, help("Increase verbosity"))
+    @(cliShortName('v'), cliCount, cliGlobal, cliHelp("Increase verbosity"))
     uint verbose;
 
     alias Commands = CliCommands!(RunArgs, DependencyArgs);
 }
 
-@(command("run"), about("Run a program"))
+@(cliCommand("run"), cliAbout("Run a program"))
 struct RunArgs
 {
-    @(shortName('D'), valueName("NAME=VALUE"), help("Define a value; may be repeated"))
+    @(cliShortName('D'), cliValueName("NAME=VALUE"), cliHelp("Define a value; may be repeated"))
     Array!String defines;
 
-    @(positional, valueName("PROGRAM"))
+    @(cliPositional, cliValueName("PROGRAM"))
     String program;
 
-    @(positional, rest, valueName("ARG"))
+    @(cliPositional, cliRest, cliValueName("ARG"))
     Array!String arguments;
 }
 
-@(command("dependency"), about("Manage dependencies"))
+@(cliCommand("dependency"), cliAbout("Manage dependencies"))
 struct DependencyArgs
 {
-    @(valueName("URL"), help("Registry used by dependency commands"))
+    @(cliValueName("URL"), cliHelp("Registry used by dependency commands"))
     Option!String registry;
 
     alias Commands = CliCommands!(DependencyAddArgs, DependencyRemoveArgs, DependencyListArgs);
 }
 
-@(command("add"), about("Add a dependency"))
+@(cliCommand("add"), cliAbout("Add a dependency"))
 struct DependencyAddArgs
 {
-    @(positional, valueName("PACKAGE"))
+    @(cliPositional, cliValueName("PACKAGE"))
     String package_;
 
-    @(valueName("VERSION"), help("Requested package version"))
+    @(cliValueName("VERSION"), cliHelp("Requested package version"))
     Option!String version_;
 }
 
-@(command("remove"), about("Remove a dependency"))
+@(cliCommand("remove"), cliAbout("Remove a dependency"))
 struct DependencyRemoveArgs
 {
-    @(positional, valueName("PACKAGE"))
+    @(cliPositional, cliValueName("PACKAGE"))
     String package_;
 }
 
-@(command("list"), about("List dependencies"))
+@(cliCommand("list"), cliAbout("List dependencies"))
 struct DependencyListArgs
 {
-    @(shortName('a'), help("Include transitive dependencies"))
+    @(cliShortName('a'), cliHelp("Include transitive dependencies"))
     bool all;
 }
 

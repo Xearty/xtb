@@ -40,11 +40,11 @@ private enum Mode
     verbose,
 }
 
-@variantCase(KeyCase.snake)
+@serdeVariantCase(KeyCase.snake)
 private enum DeploymentMode
 {
     blueGreen,
-    @rename("rolling-update") @aliasName("rolling") rollingUpdate,
+    @serdeRename("rolling-update") @serdeAliasName("rolling") rollingUpdate,
 }
 
 bool omitSeven(scope const ref int value) nothrow @nogc pure @safe
@@ -55,7 +55,7 @@ bool omitSeven(scope const ref int value) nothrow @nogc pure @safe
 private struct PolicyDocument
 {
     DeploymentMode mode;
-    @defaultValue(7) @omitIf!omitSeven int retryLimit;
+    @serdeDefaultValue(7) @serdeOmitIf!omitSeven int retryLimit;
 }
 
 private struct Percentage
@@ -91,7 +91,7 @@ struct PercentageSerde
 
 private struct AdapterDocument
 {
-    @withSerde!PercentageSerde Percentage percentage;
+    @serdeWith!PercentageSerde Percentage percentage;
 }
 
 static assert(fieldAdapterCount!(AdapterDocument, 0) == 1);
@@ -132,12 +132,12 @@ struct SwitchStateSerde
 
 private struct StringAdapterDocument
 {
-    @withSerde!SwitchStateSerde SwitchState state;
+    @serdeWith!SwitchStateSerde SwitchState state;
 }
 
 private struct ExplicitNestedDefault
 {
-    @defaultValue(11) int value;
+    @serdeDefaultValue(11) int value;
 }
 
 private struct NestedDefaultsDocument
@@ -146,11 +146,11 @@ private struct NestedDefaultsDocument
     ExplicitNestedDefault[] items;
 }
 
-@variantCase(KeyCase.snake)
+@serdeVariantCase(KeyCase.snake)
 private enum EventKind
 {
     recordCreated,
-    @rename("removed") @aliasName("record_deleted") recordDeleted,
+    @serdeRename("removed") @serdeAliasName("record_deleted") recordDeleted,
 }
 
 private struct CreatedEvent
@@ -167,29 +167,29 @@ private struct DeletedEvent
 
 private union EventPayload
 {
-    @caseOf(EventKind.recordCreated) CreatedEvent created;
-    @caseOf(EventKind.recordDeleted) DeletedEvent deleted;
+    @serdeCaseOf(EventKind.recordCreated) CreatedEvent created;
+    @serdeCaseOf(EventKind.recordDeleted) DeletedEvent deleted;
 }
 
-@taggedUnion(TagLayout.external)
+@serdeTaggedUnion(TagLayout.external)
 private struct ExternalEvent
 {
-    @discriminant EventKind kind;
-    @payload EventPayload data;
+    @serdeDiscriminant EventKind kind;
+    @serdePayload EventPayload data;
 }
 
-@taggedUnion(TagLayout.internal)
+@serdeTaggedUnion(TagLayout.internal)
 private struct InternalEvent
 {
-    @discriminant @rename("event_type") EventKind kind;
-    @payload EventPayload data;
+    @serdeDiscriminant @serdeRename("event_type") EventKind kind;
+    @serdePayload EventPayload data;
 }
 
-@taggedUnion(TagLayout.adjacent)
+@serdeTaggedUnion(TagLayout.adjacent)
 private struct AdjacentEvent
 {
-    @discriminant @rename("event_type") EventKind kind;
-    @payload @rename("event_data") EventPayload data;
+    @serdeDiscriminant @serdeRename("event_type") EventKind kind;
+    @serdePayload @serdeRename("event_data") EventPayload data;
 }
 
 private struct ExternalEnvelope
@@ -214,26 +214,26 @@ private enum ScalarKind
 
 private union ScalarPayload
 {
-    @caseOf(ScalarKind.integer) int integer;
+    @serdeCaseOf(ScalarKind.integer) int integer;
 }
 
-@taggedUnion(TagLayout.internal)
+@serdeTaggedUnion(TagLayout.internal)
 private struct InvalidInternalUnion
 {
-    @discriminant ScalarKind kind;
-    @payload ScalarPayload data;
+    @serdeDiscriminant ScalarKind kind;
+    @serdePayload ScalarPayload data;
 }
 
 private union IncompletePayload
 {
-    @caseOf(EventKind.recordCreated) CreatedEvent created;
+    @serdeCaseOf(EventKind.recordCreated) CreatedEvent created;
 }
 
-@taggedUnion(TagLayout.adjacent)
+@serdeTaggedUnion(TagLayout.adjacent)
 private struct IncompleteUnion
 {
-    @discriminant EventKind kind;
-    @payload IncompletePayload data;
+    @serdeDiscriminant EventKind kind;
+    @serdePayload IncompletePayload data;
 }
 
 struct InvalidSerdeAdapter
@@ -253,23 +253,23 @@ struct InvalidSerdeAdapter
 
 private struct InvalidAdapterDocument
 {
-    @withSerde!InvalidSerdeAdapter Percentage percentage;
+    @serdeWith!InvalidSerdeAdapter Percentage percentage;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct Identity
 {
-    @required String displayName;
+    @serdeRequired String displayName;
     uint userID;
 }
 
 private struct Settings
 {
-    @rename("api-version") int apiVersion;
-    @aliasName("enabled") bool active;
-    @ignore int transientValue;
-    @omitDefault uint retries;
-    @flatten Identity identity;
+    @serdeRename("api-version") int apiVersion;
+    @serdeAliasName("enabled") bool active;
+    @serdeIgnore int transientValue;
+    @serdeOmitDefault uint retries;
+    @serdeFlatten Identity identity;
     Mode mode;
     int[] ports;
     int[2] pair;
@@ -286,24 +286,24 @@ private struct OptionalDocument
     OptionalChild* child;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct OptionalValues
 {
     Option!String title;
     Option!int priority;
     Option!OptionalChild child;
-    @required Option!bool explicitToggle;
+    @serdeRequired Option!bool explicitToggle;
 }
 
 private struct CasingDocument
 {
     uint httpServerID;
-    @rename("fixed-key") uint explicitName;
+    @serdeRename("fixed-key") uint explicitName;
 }
 
 private struct Database
 {
-    @required String hostName;
+    @serdeRequired String hostName;
     ushort port;
 }
 
@@ -313,10 +313,10 @@ private struct Server
     bool enabled;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct TomlDocument
 {
-    @required String applicationName;
+    @serdeRequired String applicationName;
     Database database;
     Server[] servers;
     double ratio;
@@ -324,11 +324,11 @@ private struct TomlDocument
 
 private struct DefaultsDocument
 {
-    @omitDefault int retryCount = 3;
+    @serdeOmitDefault int retryCount = 3;
     bool enabled;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct ConflictingNames
 {
     int fieldName;
@@ -350,17 +350,17 @@ private struct NestedConflictingNamesMap
     HashMap!(String, ConflictingNames) nested;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct TopLevelBorrowedItem
 {
-    @required String displayName;
+    @serdeRequired String displayName;
     int value;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct TopLevelOwnedItem
 {
-    @required StringBuf displayName;
+    @serdeRequired StringBuf displayName;
     int value;
 
     void deinit() nothrow @nogc
@@ -371,8 +371,8 @@ private struct TopLevelOwnedItem
 
 private enum ConflictingAdapterRepresentation
 {
-    @rename("same") first,
-    @rename("same") second,
+    @serdeRename("same") first,
+    @serdeRename("same") second,
 }
 
 private struct ConflictingRepresentationAdapter
@@ -401,7 +401,7 @@ private struct ConflictingRepresentationAdapter
 
 private struct InvalidAdapterRepresentationDocument
 {
-    @withSerde!ConflictingRepresentationAdapter int value;
+    @serdeWith!ConflictingRepresentationAdapter int value;
 }
 
 private struct HashMapDocument
@@ -436,10 +436,10 @@ align(64) private struct AlignedDocument
     int value;
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct OwnedEndpoint
 {
-    @required StringBuf hostName;
+    @serdeRequired StringBuf hostName;
     ushort port;
     OwnedArray!StringBuf labels;
 
@@ -450,17 +450,17 @@ private struct OwnedEndpoint
     }
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct OwnedDocument
 {
-    @required StringBuf applicationName;
+    @serdeRequired StringBuf applicationName;
     OwnedEndpoint primaryEndpoint;
     OwnedArray!OwnedEndpoint replicaEndpoints;
     OwnedArray!StringBuf featureFlags;
-    @omitDefault StringBuf description;
-    @omitDefault OwnedArray!StringBuf experiments;
+    @serdeOmitDefault StringBuf description;
+    @serdeOmitDefault OwnedArray!StringBuf experiments;
     int[3] retryDelays;
-    @omitDefault bool tracingEnabled;
+    @serdeOmitDefault bool tracingEnabled;
 
     void deinit() nothrow @nogc
     {
@@ -473,13 +473,13 @@ private struct OwnedDocument
     }
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct OwnedOptionalValues
 {
     Option!StringBuf title;
     Option!OwnedEndpoint endpoint;
     Option!uint revision;
-    @required Option!bool explicitToggle;
+    @serdeRequired Option!bool explicitToggle;
 }
 
 private void deinitOwnedOptionalValues(ref OwnedOptionalValues value) nothrow @nogc

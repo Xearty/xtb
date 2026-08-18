@@ -9,8 +9,8 @@ import xtb.core.option : Option, OptionReturns, andThen, map, none, orElse, some
 import xtb.core.print : Writer, writeln;
 import xtb.core.string;
 import xtb.core.types : u8;
-import xtb.serde : KeyCase, SerdeError, fieldCase, readJson, readToml,
-    required, writeJson, writeToml;
+import xtb.serde : KeyCase, SerdeError, serdeFieldCase, readJson, readToml,
+    serdeRequired, writeJson, writeToml;
 
 private struct LifetimeProbe
 {
@@ -28,12 +28,12 @@ nothrow @nogc:
     }
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct OptionalConfig
 {
-    // Required means that the input key must exist. For JSON, its value may
+    // serdeRequired means that the input key must exist. For JSON, its value may
     // still be null, in which case the Option remains empty.
-    @required Option!bool enabled;
+    @serdeRequired Option!bool enabled;
     Option!StringBuf channelName;
     Option!uint retryCount;
 }

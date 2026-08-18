@@ -1328,9 +1328,9 @@ struct, tagged union, `HashMap!(String, V)`,
 time. Unsupported or mixed
 ownership shapes fail at compile time with the field and type in the diagnostic.
 
-Enums use their D member names in text formats by default. `@variantCase`
-sets an enum's external casing independently of field-key casing. `@rename`
-on an enum member replaces its encoded spelling, and repeated `@aliasName`
+Enums use their D member names in text formats by default. `@serdeVariantCase`
+sets an enum's external casing independently of field-key casing. `@serdeRename`
+on an enum member replaces its encoded spelling, and repeated `@serdeAliasName`
 attributes preserve decode compatibility with former spellings. Explicit
 renames and aliases are exact and are never case-transformed. Empty or
 overlapping member names and aliases are compile-time schema errors.
@@ -1366,7 +1366,7 @@ This keeps monadic chaining a simple value operation for now; owner-aware hidden
 cleanup/transfer contracts are deliberately deferred. JSON encodes an absent
 option as `null` and accepts `null`; TOML has no null value, so it omits absent
 option fields and makes an option present whenever its key is decoded. A missing
-field remains absent. `@required Option!T` requires the key to occur; in JSON, an
+field remains absent. `@serdeRequired Option!T` requires the key to occur; in JSON, an
 explicitly present `null` still satisfies that key-presence rule while leaving the
 option absent.
 
@@ -1420,35 +1420,35 @@ where they make ownership, partial output, ABI, or hot-path behavior clearer.
 
 Fields use narrowly scoped UDAs from `xtb.serde.attributes`:
 
-- `@rename("wire_name")` changes the serialized key;
-- repeated `@aliasName("old_name")` values add decode-only legacy keys;
-- `@ignore` excludes a field in both directions;
-- `@required` rejects input that omits the field;
-- `@defaultValue(value)` supplies a missing field's explicit decode default;
-- `@omitDefault` suppresses the field initializer or explicit
-  `@defaultValue` while encoding;
-- `@omitIf!predicate` suppresses a field when its accessible, allocation-free
+- `@serdeRename("wire_name")` changes the serialized key;
+- repeated `@serdeAliasName("old_name")` values add decode-only legacy keys;
+- `@serdeIgnore` excludes a field in both directions;
+- `@serdeRequired` rejects input that omits the field;
+- `@serdeDefaultValue(value)` supplies a missing field's explicit decode default;
+- `@serdeOmitDefault` suppresses the field initializer or explicit
+  `@serdeDefaultValue` while encoding;
+- `@serdeOmitIf!predicate` suppresses a field when its accessible, allocation-free
   predicate returns true;
-- `@withSerde!Adapter` maps one field through a user-defined scalar
+- `@serdeWith!Adapter` maps one field through a user-defined scalar
   representation; and
-- `@flatten` merges a nested struct's fields into its parent map.
+- `@serdeFlatten` merges a nested struct's fields into its parent map.
 
 Key spelling is controlled independently of field selection. `KeyCase`
 supports preserve, camel, Pascal, snake, screaming-snake, and kebab casing. A
-struct-level `@fieldCase(...)` declares its normal external convention, while
+struct-level `@serdeFieldCase(...)` declares its normal external convention, while
 a backend option can override casing for a whole document. Word splitting
 handles ordinary camel case, existing separators, and acronym boundaries such
-as `HTTPServerID` -> `http_server_id`. An explicit `@rename` and every
+as `HTTPServerID` -> `http_server_id`. An explicit `@serdeRename` and every
 decode-only alias are exact wire spellings and are never transformed again.
 
-Names and aliases must be nonempty and unique after flattening. `@ignore`
-cannot be combined with another serde UDA, and `@flatten` is valid only for a
+Names and aliases must be nonempty and unique after flattening. `@serdeIgnore`
+cannot be combined with another serde UDA, and `@serdeFlatten` is valid only for a
 non-pointer struct field. These are compile-time schema errors. Unknown input
 keys and duplicate assignments are rejected by default; options may ignore
 unknown keys for forward compatibility, but never silently accept duplicate
-keys. Missing fields retain the D field initializer unless `@defaultValue`
-overrides it or `@required` rejects the omission. `@omitIf` and
-`@omitDefault` are mutually exclusive.
+keys. Missing fields retain the D field initializer unless `@serdeDefaultValue`
+overrides it or `@serdeRequired` rejects the omission. `@serdeOmitIf` and
+`@serdeOmitDefault` are mutually exclusive.
 
 A serde adapter is an explicit exception to structural reflection. It must
 declare `Representation` as `String`, a boolean, a number, or an enum and
@@ -1478,10 +1478,10 @@ streaming value interface is justified.
 
 ### Tagged unions
 
-A tagged union is a struct annotated with `@taggedUnion(layout)`. It contains
-exactly one enum field marked `@discriminant` and one D union field marked
-`@payload`. Every payload member uses `@caseOf(Enum.member)`. The markers bind
-the actual D fields: `@rename` and casing can change their external names
+A tagged union is a struct annotated with `@serdeTaggedUnion(layout)`. It contains
+exactly one enum field marked `@serdeDiscriminant` and one D union field marked
+`@serdePayload`. Every payload member uses `@serdeCaseOf(Enum.member)`. The markers bind
+the actual D fields: `@serdeRename` and casing can change their external names
 without changing which fields control the union.
 
 Three layouts are supported:

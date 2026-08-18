@@ -19,57 +19,57 @@ enum BuildMode
     releaseFast,
 }
 
-@(cliVersion("2.4.1"), about("CLI test application"), subcommandOptional)
+@(cliVersion("2.4.1"), cliAbout("CLI test application"), cliSubcommandOptional)
 struct RootArgs
 {
-    @(shortName('v'), count, global, help("Increase verbosity"))
+    @(cliShortName('v'), cliCount, cliGlobal, cliHelp("Increase verbosity"))
     uint verbose;
 
-    @(shortName('C'), global, valueName("DIR"), help("Change directory"))
+    @(cliShortName('C'), cliGlobal, cliValueName("DIR"), cliHelp("Change directory"))
     Option!String directory;
 
     alias Commands = CliCommands!(BuildArgs, DependencyArgs);
 }
 
-@(command("build"), about("Build the project"))
+@(cliCommand("build"), cliAbout("Build the project"))
 struct BuildArgs
 {
-    @(shortName('r'), help("Build with optimizations"))
+    @(cliShortName('r'), cliHelp("Build with optimizations"))
     bool release;
 
-    @(shortName('j'), valueName("N"), help("Parallel jobs"))
+    @(cliShortName('j'), cliValueName("N"), cliHelp("Parallel jobs"))
     uint jobs = 1;
 
-    @(help("Build mode"))
+    @(cliHelp("Build mode"))
     BuildMode mode = BuildMode.debug_;
 
-    @(required, valueName("PATH"), help("Output path"))
+    @(cliRequired, cliValueName("PATH"), cliHelp("Output path"))
     Option!String output;
 }
 
-@(command("dependency"), about("Manage dependencies"), subcommandOptional)
+@(cliCommand("dependency"), cliAbout("Manage dependencies"), cliSubcommandOptional)
 struct DependencyArgs
 {
-    @(valueName("URL"), help("Registry URL"))
+    @(cliValueName("URL"), cliHelp("Registry URL"))
     Option!String registry;
 
     alias Commands = CliCommands!(DependencyAddArgs, DependencyListArgs);
 }
 
-@(command("add"), about("Add a dependency"))
+@(cliCommand("add"), cliAbout("Add a dependency"))
 struct DependencyAddArgs
 {
-    @(positional, valueName("PACKAGE"))
+    @(cliPositional, cliValueName("PACKAGE"))
     String package_;
 
-    @(valueName("VERSION"), help("Dependency version"))
+    @(cliValueName("VERSION"), cliHelp("Dependency version"))
     Option!String version_;
 }
 
-@(command("list"), about("List dependencies"))
+@(cliCommand("list"), cliAbout("List dependencies"))
 struct DependencyListArgs
 {
-    @(shortName('a'))
+    @(cliShortName('a'))
     bool all;
 }
 
@@ -78,103 +78,103 @@ struct RequiredCommandRoot
     alias Commands = CliCommands!(RequiredCommandChild);
 }
 
-@command("child")
+@cliCommand("child")
 struct RequiredCommandChild
 {
 }
 
-@(noBuiltinHelp, helpOnNoSubcommand, about("Choose a command"))
+@(cliNoBuiltinHelp, cliHelpOnNoSubcommand, cliAbout("Choose a command"))
 struct HelpOnMissingRootArgs
 {
-    @required
+    @cliRequired
     Option!String config;
 
     alias Commands = CliCommands!(HelpOnMissingGroupArgs);
 }
 
-@(command("group"), helpOnNoSubcommand, about("Choose a group command"))
+@(cliCommand("group"), cliHelpOnNoSubcommand, cliAbout("Choose a group command"))
 struct HelpOnMissingGroupArgs
 {
     alias Commands = CliCommands!(HelpOnMissingLeafArgs);
 }
 
-@command("run")
+@cliCommand("run")
 struct HelpOnMissingLeafArgs
 {
 }
 
-@subcommandOptional
+@cliSubcommandOptional
 struct InvalidOptionalLeafArgs
 {
 }
 
-@helpOnNoSubcommand
+@cliHelpOnNoSubcommand
 struct InvalidHelpLeafArgs
 {
 }
 
-@(subcommandOptional, helpOnNoSubcommand)
+@(cliSubcommandOptional, cliHelpOnNoSubcommand)
 struct InvalidCombinedPolicyArgs
 {
     alias Commands = CliCommands!(InvalidCombinedPolicyChildArgs);
 }
 
-@command("child")
+@cliCommand("child")
 struct InvalidCombinedPolicyChildArgs
 {
 }
 
-@(subcommandOptional, cliVersion("1.0"))
+@(cliSubcommandOptional, cliVersion("1.0"))
 struct AllocRootArgs
 {
-    @(shortName('v'), count, global)
+    @(cliShortName('v'), cliCount, cliGlobal)
     uint verbose;
 
     alias Commands = CliCommands!(RunArgs);
 }
 
-@command("run")
+@cliCommand("run")
 struct RunArgs
 {
-    @(shortName('D'), valueName("VALUE"))
+    @(cliShortName('D'), cliValueName("VALUE"))
     Array!String defines;
 
-    @(positional, valueName("PROGRAM"))
+    @(cliPositional, cliValueName("PROGRAM"))
     String program;
 
-    @(positional, rest, valueName("ARG"))
+    @(cliPositional, cliRest, cliValueName("ARG"))
     Array!String arguments;
 }
 
-@(noBuiltinHelp, subcommandOptional)
+@(cliNoBuiltinHelp, cliSubcommandOptional)
 struct CustomHelpRootArgs
 {
-    @(shortName('h'))
+    @(cliShortName('h'))
     bool help;
 
     alias Commands = CliCommands!(CustomHelpChildArgs);
 }
 
-@command("child")
+@cliCommand("child")
 struct CustomHelpChildArgs
 {
-    @(shortName('h'))
+    @(cliShortName('h'))
     bool help;
 }
 
-@noBuiltinHelp
+@cliNoBuiltinHelp
 struct NoBuiltinHelpRootArgs
 {
 }
 
-@(noBuiltinVersion, cliVersion("9.3.0"))
+@(cliNoBuiltinVersion, cliVersion("9.3.0"))
 struct CustomVersionRootArgs
 {
-    @longName("version")
+    @cliLongName("version")
     Option!String version_;
 }
 
-@noBuiltinVersion
+@cliNoBuiltinVersion
 struct NoVersionMetadataRootArgs
 {
 }
@@ -185,25 +185,25 @@ enum CompletionShell
     fish,
 }
 
-@noBuiltinHelp
+@cliNoBuiltinHelp
 struct TerminalRootArgs
 {
-    @(shortName('v'), count, global)
+    @(cliShortName('v'), cliCount, cliGlobal)
     uint verbose;
 
-    @(shortName('h'), global, terminal)
+    @(cliShortName('h'), cliGlobal, cliTerminal)
     bool help;
 
     alias Commands = CliCommands!(TerminalBuildArgs);
 }
 
-@command("build")
+@cliCommand("build")
 struct TerminalBuildArgs
 {
-    @required
+    @cliRequired
     Option!String output;
 
-    @(terminal, valueName("SHELL"))
+    @(cliTerminal, cliValueName("SHELL"))
     CompletionShell completions;
 }
 
@@ -211,118 +211,118 @@ struct TerminalAllocArgs
 {
     Array!String item;
 
-    @terminal
+    @cliTerminal
     bool done;
 }
 
 struct InvalidTerminalPositionalArgs
 {
-    @(positional, terminal)
+    @(cliPositional, cliTerminal)
     String value;
 }
 
 struct InvalidTerminalCountArgs
 {
-    @(count, terminal)
+    @(cliCount, cliTerminal)
     uint verbose;
 }
 
 struct InvalidTerminalArrayArgs
 {
-    @terminal
+    @cliTerminal
     Array!String values;
 }
 
 struct InvalidDuplicateTerminalArgs
 {
-    @(terminal, terminal)
+    @(cliTerminal, cliTerminal)
     bool quit;
 }
 
-@aliasName("tool")
+@cliAliasName("tool")
 struct InvalidRootAliasArgs
 {
 }
 
 struct AliasRootArgs
 {
-    @(shortName('v'), shortAlias('V'), shortAlias('Q'), aliasName("verbosity"),
-        aliasName("chatty"), count, global)
+    @(cliShortName('v'), cliShortAlias('V'), cliShortAlias('Q'), cliAliasName("verbosity"),
+        cliAliasName("chatty"), cliCount, cliGlobal)
     uint verbose;
 
-    @aliasName("colour")
+    @cliAliasName("colour")
     bool color;
 
     alias Commands = CliCommands!(AliasRemoveArgs, AliasListArgs);
 }
 
-@(command("remove"), aliasName("rm"), aliasName("del"), about("Remove an item"))
+@(cliCommand("remove"), cliAliasName("rm"), cliAliasName("del"), cliAbout("Remove an item"))
 struct AliasRemoveArgs
 {
-    @(shortName('f'), shortAlias('F'), shortAlias('E'), aliasName("delete"),
-        aliasName("erase"))
+    @(cliShortName('f'), cliShortAlias('F'), cliShortAlias('E'), cliAliasName("delete"),
+        cliAliasName("erase"))
     bool force;
 
-    @(aliasName("destination"), required)
+    @(cliAliasName("destination"), cliRequired)
     Option!String target;
 }
 
-@(command("list"), aliasName("ls"))
+@(cliCommand("list"), cliAliasName("ls"))
 struct AliasListArgs
 {
 }
 
 struct InvalidDuplicateLongAliasArgs
 {
-    @(aliasName("same"), aliasName("same"))
+    @(cliAliasName("same"), cliAliasName("same"))
     bool value;
 }
 
 struct InvalidDuplicateShortAliasArgs
 {
-    @(shortAlias('x'), shortAlias('x'))
+    @(cliShortAlias('x'), cliShortAlias('x'))
     bool value;
 }
 
 struct InvalidLongNameDelimiterArgs
 {
-    @longName("foo=bar")
+    @cliLongName("foo=bar")
     bool value;
 }
 
 struct InvalidLongAliasDelimiterArgs
 {
-    @aliasName("foo=bar")
+    @cliAliasName("foo=bar")
     bool value;
 }
 
 struct InvalidLongAliasCollisionArgs
 {
-    @(aliasName("same"))
+    @(cliAliasName("same"))
     bool first;
 
-    @(aliasName("same"))
+    @(cliAliasName("same"))
     bool second;
 }
 
 struct InvalidShortAliasCollisionArgs
 {
-    @(shortAlias('x'))
+    @(cliShortAlias('x'))
     bool first;
 
-    @(shortAlias('x'))
+    @(cliShortAlias('x'))
     bool second;
 }
 
 struct InvalidAliasGlobalCollisionRootArgs
 {
-    @(global, aliasName("config"))
+    @(cliGlobal, cliAliasName("config"))
     bool verbose;
 
     alias Commands = CliCommands!(InvalidAliasGlobalCollisionChildArgs);
 }
 
-@command("child")
+@cliCommand("child")
 struct InvalidAliasGlobalCollisionChildArgs
 {
     bool config;
@@ -330,32 +330,32 @@ struct InvalidAliasGlobalCollisionChildArgs
 
 struct InvalidPositionalAliasArgs
 {
-    @(positional, aliasName("value"))
+    @(cliPositional, cliAliasName("value"))
     String value;
 }
 
 struct InvalidPositionalShortAliasArgs
 {
-    @(positional, shortAlias('v'))
+    @(cliPositional, cliShortAlias('v'))
     String value;
 }
 
 struct InvalidBuiltinHelpAliasArgs
 {
-    @aliasName("help")
+    @cliAliasName("help")
     bool other;
 }
 
 struct InvalidBuiltinHelpShortAliasArgs
 {
-    @shortAlias('h')
+    @cliShortAlias('h')
     bool other;
 }
 
 @(cliVersion("1.0"))
 struct InvalidBuiltinVersionAliasArgs
 {
-    @aliasName("version")
+    @cliAliasName("version")
     bool other;
 }
 
@@ -365,12 +365,12 @@ struct InvalidCommandAliasCollisionRootArgs
         InvalidCommandAliasSecondArgs);
 }
 
-@(command("remove"), aliasName("rm"))
+@(cliCommand("remove"), cliAliasName("rm"))
 struct InvalidCommandAliasFirstArgs
 {
 }
 
-@(command("rename"), aliasName("rm"))
+@(cliCommand("rename"), cliAliasName("rm"))
 struct InvalidCommandAliasSecondArgs
 {
 }
@@ -380,7 +380,7 @@ struct InvalidDuplicateCommandAliasRootArgs
     alias Commands = CliCommands!(InvalidDuplicateCommandAliasArgs);
 }
 
-@(command("child"), aliasName("c"), aliasName("c"))
+@(cliCommand("child"), cliAliasName("c"), cliAliasName("c"))
 struct InvalidDuplicateCommandAliasArgs
 {
 }
@@ -390,22 +390,22 @@ struct InvalidCommandShortAliasRootArgs
     alias Commands = CliCommands!(InvalidCommandShortAliasArgs);
 }
 
-@(command("child"), shortAlias('c'))
+@(cliCommand("child"), cliShortAlias('c'))
 struct InvalidCommandShortAliasArgs
 {
 }
 
-@noBuiltinHelp
+@cliNoBuiltinHelp
 struct DisabledBuiltinHelpAliasArgs
 {
-    @(aliasName("help"), shortAlias('h'))
+    @(cliAliasName("help"), cliShortAlias('h'))
     bool custom;
 }
 
-@(noBuiltinVersion, cliVersion("1.0"))
+@(cliNoBuiltinVersion, cliVersion("1.0"))
 struct DisabledBuiltinVersionAliasArgs
 {
-    @aliasName("version")
+    @cliAliasName("version")
     bool custom;
 }
 
@@ -443,19 +443,19 @@ CliValueError parseAutomaticJobs(scope String input, uint* output) nothrow @nogc
 
 struct CustomValueArgs
 {
-    @(parseWith!parsePort)
+    @(cliParseWith!parsePort)
     Port port;
 
-    @(parseWith!parsePort)
+    @(cliParseWith!parsePort)
     Option!Port optionalPort;
 
-    @(parseWith!parsePort)
+    @(cliParseWith!parsePort)
     Array!Port repeatedPort;
 }
 
 struct CustomValueNoAllocArgs
 {
-    @(parseWith!parsePort)
+    @(cliParseWith!parsePort)
     Port port;
 }
 
@@ -510,13 +510,13 @@ CliValueError parseEmptyBytes(
 
 struct WholeArrayCustomValueArgs
 {
-    @(parseWith!parseHexBytes)
+    @(cliParseWith!parseHexBytes)
     Array!ubyte bytes;
 }
 
 struct WholeArrayNoAllocArgs
 {
-    @(parseWith!parseEmptyBytes)
+    @(cliParseWith!parseEmptyBytes)
     Array!ubyte bytes;
 }
 
@@ -541,19 +541,19 @@ CliValueError parseOptionalPort(
 
 struct WholeOptionCustomValueArgs
 {
-    @(parseWith!parseOptionalPort)
+    @(cliParseWith!parseOptionalPort)
     Option!Port port;
 }
 
 struct WholeArrayPositionalArgs
 {
-    @(positional, parseWith!parseHexBytes)
+    @(cliPositional, cliParseWith!parseHexBytes)
     Array!ubyte bytes;
 }
 
 struct InvalidWholeArrayRestArgs
 {
-    @(positional, rest, parseWith!parseHexBytes)
+    @(cliPositional, cliRest, cliParseWith!parseHexBytes)
     Array!ubyte bytes;
 }
 
@@ -581,19 +581,19 @@ CliValueError parseAmbiguousBytes(
 
 struct InvalidAmbiguousCustomParserArgs
 {
-    @(parseWith!parseAmbiguousBytes)
+    @(cliParseWith!parseAmbiguousBytes)
     Array!ubyte bytes;
 }
 
 struct CustomPositionalValueArgs
 {
-    @(positional, parseWith!parsePort)
+    @(cliPositional, cliParseWith!parsePort)
     Port port;
 }
 
 struct OverrideBuiltInValueArgs
 {
-    @(parseWith!parseAutomaticJobs)
+    @(cliParseWith!parseAutomaticJobs)
     uint jobs;
 }
 
@@ -618,13 +618,13 @@ CliValueError parseOwnedValue(
 
 struct AllocatorCustomValueArgs
 {
-    @(parseWith!parseOwnedValue)
+    @(cliParseWith!parseOwnedValue)
     Option!OwnedParsedValue value;
 }
 
 struct InvalidOwningArrayCustomValueArgs
 {
-    @(parseWith!parseOwnedValue)
+    @(cliParseWith!parseOwnedValue)
     Array!OwnedParsedValue value;
 }
 
@@ -665,37 +665,37 @@ CliValueError parseDestructorValue(
 
 struct InvalidCustomDestructorArgs
 {
-    @(parseWith!parseDestructorValue)
+    @(cliParseWith!parseDestructorValue)
     DestructorParsedValue value;
 }
 
 struct InvalidCustomBoolArgs
 {
-    @(parseWith!parseBool)
+    @(cliParseWith!parseBool)
     bool flag;
 }
 
 struct InvalidCustomParserScopeArgs
 {
-    @(parseWith!parsePortWithoutScope)
+    @(cliParseWith!parsePortWithoutScope)
     Port port;
 }
 
 struct InvalidCustomParserReturnArgs
 {
-    @(parseWith!parsePortWrongReturn)
+    @(cliParseWith!parsePortWrongReturn)
     Port port;
 }
 
 struct InvalidDuplicateParseWithArgs
 {
-    @(parseWith!parsePort, parseWith!parsePort)
+    @(cliParseWith!parsePort, cliParseWith!parsePort)
     Port port;
 }
 
 struct InvalidCountParseWithArgs
 {
-    @(count, parseWith!parseAutomaticJobs)
+    @(cliCount, cliParseWith!parseAutomaticJobs)
     uint jobs;
 }
 
@@ -704,7 +704,7 @@ struct InvalidChildVersionRootArgs
     alias Commands = CliCommands!(InvalidChildVersionArgs);
 }
 
-@(command("child"), cliVersion("1.0"))
+@(cliCommand("child"), cliVersion("1.0"))
 struct InvalidChildVersionArgs
 {
 }
@@ -714,7 +714,7 @@ struct InvalidChildHelpPolicyRootArgs
     alias Commands = CliCommands!(InvalidChildHelpPolicyArgs);
 }
 
-@(command("child"), noBuiltinHelp)
+@(cliCommand("child"), cliNoBuiltinHelp)
 struct InvalidChildHelpPolicyArgs
 {
 }
@@ -724,7 +724,7 @@ struct InvalidChildVersionPolicyRootArgs
     alias Commands = CliCommands!(InvalidChildVersionPolicyArgs);
 }
 
-@(command("child"), noBuiltinVersion)
+@(cliCommand("child"), cliNoBuiltinVersion)
 struct InvalidChildVersionPolicyArgs
 {
 }

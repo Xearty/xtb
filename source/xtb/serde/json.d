@@ -20,8 +20,8 @@ import xtb.core.string_hash_map;
 import xtb.core.types : String;
 import xtb.core.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
     isValidUtf8;
-import xtb.serde.attributes : AliasName, Flatten, Ignore, KeyCase, OmitDefault,
-    Rename, Required, TagLayout;
+import xtb.serde.attributes : SerdeAliasName, SerdeFlatten, SerdeIgnore, KeyCase, SerdeOmitDefault,
+    SerdeRename, SerdeRequired, TagLayout;
 import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
@@ -270,7 +270,7 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     else static if (isSerdeStruct!U)
     {
         static foreach (index; 0 .. U.tupleof.length)
-            static if (!fieldHas!(U, index, Ignore))
+            static if (!fieldHas!(U, index, SerdeIgnore))
                 if (!valuesEqual(value.tupleof[index], expected.tupleof[index]))
                     return false;
         return true;
@@ -464,9 +464,9 @@ private void encodeFields(T)(
     alias U = Unqualified!T;
     static foreach (index; 0 .. U.tupleof.length)
     {
-        static if (!fieldHas!(U, index, Ignore))
+        static if (!fieldHas!(U, index, SerdeIgnore))
         {
-            static if (fieldHas!(U, index, Flatten))
+            static if (fieldHas!(U, index, SerdeFlatten))
                 encodeFields(encoder, value.tupleof[index], depth, wrote);
             else
                 encodeOneField!(U, index)(encoder, value.tupleof[index], depth, wrote);
@@ -483,7 +483,7 @@ private void encodeOneField(T, size_t index, F)(
 {
     if (fieldShouldOmit!(T, index)(value))
         return;
-    static if (fieldHas!(T, index, OmitDefault))
+    static if (fieldHas!(T, index, SerdeOmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
     static if (fieldAdapterCount!(T, index) != 0)
@@ -518,7 +518,7 @@ private void encodeOneField(T, size_t index, F)(
 private void encodeFieldName(T, size_t index)(ref JsonEncoder encoder)
 {
     encoder.writer.put('"');
-    static if (fieldHas!(T, index, Rename))
+    static if (fieldHas!(T, index, SerdeRename))
         encoder.writer.put(fieldName!(T, index));
     else
     {
@@ -1280,9 +1280,9 @@ private void decodeField(T)(
 {
     static foreach (index; 0 .. T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Ignore))
+        static if (!fieldHas!(T, index, SerdeIgnore))
         {
-            static if (fieldHas!(T, index, Flatten))
+            static if (fieldHas!(T, index, SerdeFlatten))
             {
                 if (!*matched)
                     decodeField(parser, &output.tupleof[index], key, seen,
@@ -1354,12 +1354,12 @@ private void validateRequired(T)(
 {
     static foreach (index; 0 .. T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Ignore))
+        static if (!fieldHas!(T, index, SerdeIgnore))
         {
-            static if (fieldHas!(T, index, Flatten))
+            static if (fieldHas!(T, index, SerdeFlatten))
                 validateRequired(parser, &output.tupleof[index], seen,
                     base + fieldOrdinal!(T, index));
-            else static if (fieldHas!(T, index, Required))
+            else static if (fieldHas!(T, index, SerdeRequired))
                 if (!seen[base + fieldOrdinal!(T, index)])
                     parser.fail(SerdeErrorKind.missingRequiredField,
                         fieldName!(T, index));

@@ -498,11 +498,11 @@ private void parseCommand(Root, T, Ancestors...)(
     static foreach (index; 0 .. T.tupleof.length)
     {
         {
-            static if (fieldHas!(T, index, Positional))
+            static if (fieldHas!(T, index, CliPositional))
             {
                 alias Field = FieldType!(T, index);
-                enum requiredPositional = fieldHas!(T, index, Required) ||
-                    (!isOption!Field && !fieldHas!(T, index, Rest));
+                enum requiredPositional = fieldHas!(T, index, CliRequired) ||
+                    (!isOption!Field && !fieldHas!(T, index, CliRest));
                 static if (requiredPositional)
                 {
                     if (!(*currentFrame.seen)[index])
@@ -518,7 +518,7 @@ private void parseCommand(Root, T, Ancestors...)(
                     }
                 }
             }
-            else static if (fieldHas!(T, index, Required))
+            else static if (fieldHas!(T, index, CliRequired))
             {
                 if (!(*currentFrame.seen)[index])
                 {
@@ -634,11 +634,11 @@ private OptionMatch tryLongOnFrame(T)(
 {
     static foreach (index; 0 .. T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Positional))
+        static if (!fieldHas!(T, index, CliPositional))
         {
             static foreach (longName; fieldAllLongNames!(T, index))
             {
-                if ((!globalsOnly || fieldHas!(T, index, Global)) &&
+                if ((!globalsOnly || fieldHas!(T, index, CliGlobal)) &&
                     name == longName)
                     return consumeNamedField!(T, index, false)(
                         state,
@@ -740,12 +740,12 @@ private OptionMatch tryShortOnFrame(T)(
 {
     static foreach (index; 0 .. T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Positional) &&
+        static if (!fieldHas!(T, index, CliPositional) &&
             fieldAllShortNames!(T, index).length != 0)
         {
             static foreach (candidateShortName; fieldAllShortNames!(T, index))
             {
-                if ((!globalsOnly || fieldHas!(T, index, Global)) &&
+                if ((!globalsOnly || fieldHas!(T, index, CliGlobal)) &&
                     shortName == candidateShortName)
                 {
                     ++offset;
@@ -798,7 +798,7 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
     ref field = frame.node.args.tupleof[index];
     ref bool wasSeen = (*frame.seen)[index];
 
-    static if (fieldHas!(T, index, Count))
+    static if (fieldHas!(T, index, CliCount))
     {
         if (hasAttached)
         {
@@ -862,7 +862,7 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
     }
 
     wasSeen = true;
-    static if (fieldHas!(T, index, Terminal))
+    static if (fieldHas!(T, index, CliTerminal))
         state.outcome = CliOutcomeKind.terminal;
     return OptionMatch.matched;
 }
@@ -906,7 +906,7 @@ private bool tryParsePositionalAt(T, size_t index)(
     size_t commandDepth,
 ) @system
 {
-    static if (fieldHas!(T, index, Positional))
+    static if (fieldHas!(T, index, CliPositional))
     {
         if (!matched && currentOrdinal == ordinal)
         {
@@ -923,7 +923,7 @@ private bool tryParsePositionalAt(T, size_t index)(
                 return false;
             (*frame.seen)[index] = true;
             matched = true;
-            static if (!fieldHas!(T, index, Rest))
+            static if (!fieldHas!(T, index, CliRest))
                 ++ordinal;
         }
         ++currentOrdinal;
@@ -1466,24 +1466,24 @@ private void writePositionalUsage(T)(ref Writer writer) @system
 pragma(inline, true)
 private void writePositionalUsageAt(T, size_t index)(ref Writer writer) @system
 {
-    static if (fieldHas!(T, index, Positional))
+    static if (fieldHas!(T, index, CliPositional))
     {
         alias Field = FieldType!(T, index);
         writer.put(' ');
-        static if (fieldHas!(T, index, Rest))
+        static if (fieldHas!(T, index, CliRest))
         {
-            static if (fieldHas!(T, index, Required))
+            static if (fieldHas!(T, index, CliRequired))
                 writer.put('<');
             else
                 writer.put('[');
             writer.put(fieldValueName!(T, index));
             writer.put("...");
-            static if (fieldHas!(T, index, Required))
+            static if (fieldHas!(T, index, CliRequired))
                 writer.put('>');
             else
                 writer.put(']');
         }
-        else static if (isOption!Field && !fieldHas!(T, index, Required))
+        else static if (isOption!Field && !fieldHas!(T, index, CliRequired))
         {
             writer.put('[');
             writer.put(fieldValueName!(T, index));
@@ -1501,8 +1501,8 @@ private void writePositionalUsageAt(T, size_t index)(ref Writer writer) @system
 private enum hasVisiblePositionals(T) = () {
     bool result;
     static foreach (index; 0 .. T.tupleof.length)
-        static if (fieldHas!(T, index, Positional) &&
-            !fieldHas!(T, index, Hidden))
+        static if (fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliHidden))
             result = true;
     return result;
 }();
@@ -1510,7 +1510,7 @@ private enum hasVisiblePositionals(T) = () {
 private enum hasAnyNamedOptions(T) = () {
     bool result;
     static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, Positional))
+        static if (!fieldHas!(T, index, CliPositional))
             result = true;
     return result;
 }();
@@ -1518,8 +1518,8 @@ private enum hasAnyNamedOptions(T) = () {
 private enum hasAnyGlobalOptions(T) = () {
     bool result;
     static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, Positional) &&
-            fieldHas!(T, index, Global))
+        static if (!fieldHas!(T, index, CliPositional) &&
+            fieldHas!(T, index, CliGlobal))
             result = true;
     return result;
 }();
@@ -1527,9 +1527,9 @@ private enum hasAnyGlobalOptions(T) = () {
 private enum hasVisibleLocalOptions(T) = () {
     bool result;
     static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, Positional) &&
-            !fieldHas!(T, index, Global) &&
-            !fieldHas!(T, index, Hidden))
+        static if (!fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden))
             result = true;
     return result;
 }();
@@ -1543,12 +1543,12 @@ private void writePositionals(T)(ref Writer writer) @system
 pragma(inline, true)
 private void writePositionalLine(T, size_t index)(ref Writer writer) @system
 {
-    static if (fieldHas!(T, index, Positional) &&
-        !fieldHas!(T, index, Hidden))
+    static if (fieldHas!(T, index, CliPositional) &&
+        !fieldHas!(T, index, CliHidden))
     {
         writer.put("  ");
         writer.put(fieldValueName!(T, index));
-        static if (fieldHas!(T, index, Rest))
+        static if (fieldHas!(T, index, CliRest))
             writer.put("...");
         enum helpText = fieldHelp!(T, index);
         static if (helpText.length != 0)
@@ -1564,9 +1564,9 @@ private void writeLocalOptions(T)(ref Writer writer) @system
 {
     static foreach (index; 0 .. T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Positional) &&
-            !fieldHas!(T, index, Global) &&
-            !fieldHas!(T, index, Hidden))
+        static if (!fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden))
             writeOptionLine!(T, index)(writer);
     }
 }
@@ -1600,7 +1600,7 @@ private void writeOptionLine(T, size_t index)(ref Writer writer) @system
         writer.put(fieldValueName!(T, index));
         writer.put('>');
     }
-    static if (fieldHas!(T, index, Count))
+    static if (fieldHas!(T, index, CliCount))
         writer.put("...");
     enum helpText = fieldHelp!(T, index);
     static if (helpText.length != 0)
@@ -1614,9 +1614,9 @@ private void writeOptionLine(T, size_t index)(ref Writer writer) @system
 private enum hasVisibleGlobalOptions(T) = () {
     bool result;
     static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, Positional) &&
-            fieldHas!(T, index, Global) &&
-            !fieldHas!(T, index, Hidden))
+        static if (!fieldHas!(T, index, CliPositional) &&
+            fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden))
             result = true;
     return result;
 }();
@@ -1624,9 +1624,9 @@ private enum hasVisibleGlobalOptions(T) = () {
 private void writeVisibleGlobals(T)(ref Writer writer) @system
 {
     static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, Positional) &&
-            fieldHas!(T, index, Global) &&
-            !fieldHas!(T, index, Hidden))
+        static if (!fieldHas!(T, index, CliPositional) &&
+            fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden))
             writeOptionLine!(T, index)(writer);
 }
 

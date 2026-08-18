@@ -7,36 +7,36 @@ import xtb.core.option : Option;
 import xtb.core.print : writeln;
 import xtb.core.types : String;
 
-@(cliVersion("1.0.0"), about("Small typed command-line parser example"), subcommandOptional)
+@(cliVersion("1.0.0"), cliAbout("Small typed command-line parser example"), cliSubcommandOptional)
 struct RootArgs
 {
-    @(shortName('v'), shortAlias('V'), aliasName("verbosity"), count, global,
-        help("Increase verbosity"))
+    @(cliShortName('v'), cliShortAlias('V'), cliAliasName("verbosity"), cliCount, cliGlobal,
+        cliHelp("Increase verbosity"))
     uint verbose;
 
-    @(global, aliasName("cwd"), valueName("DIR"),
-        help("Change the working directory"))
+    @(cliGlobal, cliAliasName("cwd"), cliValueName("DIR"),
+        cliHelp("Change the working directory"))
     Option!String directory;
 
     alias Commands = CliCommands!(BuildArgs, TestArgs);
 }
 
-@(command("build"), aliasName("b"), about("Build the project"))
+@(cliCommand("build"), cliAliasName("b"), cliAbout("Build the project"))
 struct BuildArgs
 {
-    @(shortName('r'), aliasName("optimized"), help("Build with optimizations"))
+    @(cliShortName('r'), cliAliasName("optimized"), cliHelp("Build with optimizations"))
     bool release;
 
-    @(shortName('j'), aliasName("parallelism"), valueName("N"),
-        help("Number of parallel jobs"))
+    @(cliShortName('j'), cliAliasName("parallelism"), cliValueName("N"),
+        cliHelp("Number of parallel jobs"))
     uint jobs = 1;
 }
 
-@(command("test"), aliasName("t"), about("Run the test suite"))
+@(cliCommand("test"), cliAliasName("t"), cliAbout("Run the test suite"))
 struct TestArgs
 {
-    @(shortName('f'), shortAlias('F'), valueName("FILTER"),
-        help("Only run matching tests"))
+    @(cliShortName('f'), cliShortAlias('F'), cliValueName("FILTER"),
+        cliHelp("Only run matching tests"))
     Option!String filter;
 }
 

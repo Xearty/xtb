@@ -3,13 +3,13 @@ module xtb.cli.attributes;
 nothrow @nogc:
 
 /// Declares the command-line name of a subcommand argument type.
-struct Command
+struct CliCommand
 {
     string name;
 }
 
 /// Short description shown in generated help.
-struct About
+struct CliAbout
 {
     string text;
 }
@@ -21,77 +21,77 @@ struct CliVersion
 }
 
 /// Disables generated -h/--help handling for the entire command tree.
-struct NoBuiltinHelp
+struct CliNoBuiltinHelp
 {
 }
 
 /// Disables generated root --version handling while retaining version metadata.
-struct NoBuiltinVersion
+struct CliNoBuiltinVersion
 {
 }
 
 /// Description shown next to an argument in generated help.
-struct Help
+struct CliHelp
 {
     string text;
 }
 
 /// Overrides the inferred long option name.
-struct LongName
+struct CliLongName
 {
     string value;
 }
 
 /// Adds an alternate long option name or subcommand name.
-struct AliasName
+struct CliAliasName
 {
     string value;
 }
 
 /// Adds an explicit one-code-unit short option name.
-struct ShortName
+struct CliShortName
 {
     char value;
 }
 
 /// Adds an alternate one-code-unit short option name.
-struct ShortAlias
+struct CliShortAlias
 {
     char value;
 }
 
 /// Overrides the generated value placeholder used by help text.
-struct ValueName
+struct CliValueName
 {
     string value;
 }
 
-struct Positional
+struct CliPositional
 {
 }
 
-struct Required
+struct CliRequired
 {
 }
 
-struct Count
+struct CliCount
 {
 }
 
-struct Global
+struct CliGlobal
 {
 }
 
-struct Rest
+struct CliRest
 {
 }
 
-struct Hidden
+struct CliHidden
 {
 }
 
 /// Stops normal parsing after this named, non-repeating argument is successfully consumed.
-struct Terminal
+struct CliTerminal
 {
 }
 
@@ -102,36 +102,36 @@ struct Terminal
 /// targeting `T*` parses the contained/repeated element. A parser targeting the
 /// full field type parses the whole field from one command-line value. Exactly
 /// one compatible parser target/signature must exist.
-struct ParseWith(alias Parser)
+struct CliParseWith(alias Parser)
 {
     enum isCliParseWith = true;
     alias parser = Parser;
 }
 
-/// Creates a `ParseWith` attribute for `Parser`.
-template parseWith(alias Parser)
+/// Creates a `CliParseWith` attribute for `Parser`.
+template cliParseWith(alias Parser)
 {
-    enum parseWith = ParseWith!Parser();
+    enum cliParseWith = CliParseWith!Parser();
 }
 
 /// Allows a command with child commands to execute without selecting one.
-struct SubcommandOptional
+struct CliSubcommandOptional
 {
 }
 
 /// Shows generated help when a command with child commands reaches the end of argv without selecting one.
-struct HelpOnNoSubcommand
+struct CliHelpOnNoSubcommand
 {
 }
 
-Command command(string name) pure @safe
+CliCommand cliCommand(string name) pure @safe
 {
-    return Command(name);
+    return CliCommand(name);
 }
 
-About about(string text) pure @safe
+CliAbout cliAbout(string text) pure @safe
 {
-    return About(text);
+    return CliAbout(text);
 }
 
 CliVersion cliVersion(string value) pure @safe
@@ -139,44 +139,44 @@ CliVersion cliVersion(string value) pure @safe
     return CliVersion(value);
 }
 
-Help help(string text) pure @safe
+CliHelp cliHelp(string text) pure @safe
 {
-    return Help(text);
+    return CliHelp(text);
 }
 
-LongName longName(string value) pure @safe
+CliLongName cliLongName(string value) pure @safe
 {
-    return LongName(value);
+    return CliLongName(value);
 }
 
-AliasName aliasName(string value) pure @safe
+CliAliasName cliAliasName(string value) pure @safe
 {
-    return AliasName(value);
+    return CliAliasName(value);
 }
 
-ShortName shortName(char value) pure @safe
+CliShortName cliShortName(char value) pure @safe
 {
-    return ShortName(value);
+    return CliShortName(value);
 }
 
-ShortAlias shortAlias(char value) pure @safe
+CliShortAlias cliShortAlias(char value) pure @safe
 {
-    return ShortAlias(value);
+    return CliShortAlias(value);
 }
 
-ValueName valueName(string value) pure @safe
+CliValueName cliValueName(string value) pure @safe
 {
-    return ValueName(value);
+    return CliValueName(value);
 }
 
-enum positional = Positional();
-enum required = Required();
-enum count = Count();
-enum global = Global();
-enum rest = Rest();
-enum hidden = Hidden();
-enum terminal = Terminal();
-enum subcommandOptional = SubcommandOptional();
-enum helpOnNoSubcommand = HelpOnNoSubcommand();
-enum noBuiltinHelp = NoBuiltinHelp();
-enum noBuiltinVersion = NoBuiltinVersion();
+enum cliPositional = CliPositional();
+enum cliRequired = CliRequired();
+enum cliCount = CliCount();
+enum cliGlobal = CliGlobal();
+enum cliRest = CliRest();
+enum cliHidden = CliHidden();
+enum cliTerminal = CliTerminal();
+enum cliSubcommandOptional = CliSubcommandOptional();
+enum cliHelpOnNoSubcommand = CliHelpOnNoSubcommand();
+enum cliNoBuiltinHelp = CliNoBuiltinHelp();
+enum cliNoBuiltinVersion = CliNoBuiltinVersion();

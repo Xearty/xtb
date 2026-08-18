@@ -9,8 +9,8 @@ import xtb.core.print : Writer, writeln;
 import xtb.core.string;
 import xtb.core.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind, TagLayout,
-    aliasName, caseOf, discriminant, fieldCase, ignore, omitDefault, payload,
-    readJson, readToml, rename, required, taggedUnion, variantCase, withSerde,
+    serdeAliasName, serdeCaseOf, serdeDiscriminant, serdeFieldCase, serdeIgnore, serdeOmitDefault, serdePayload,
+    readJson, readToml, serdeRename, serdeRequired, serdeTaggedUnion, serdeVariantCase, serdeWith,
     writeJson, writeToml;
 
 private enum Protocol
@@ -19,10 +19,10 @@ private enum Protocol
     https,
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct Endpoint
 {
-    @required StringBuf hostName;
+    @serdeRequired StringBuf hostName;
     ushort port;
     Protocol protocol;
     OwnedArray!StringBuf labels;
@@ -34,18 +34,18 @@ private struct Endpoint
     }
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct ServiceConfig
 {
-    @rename("service") @required StringBuf serviceName;
-    @aliasName("primary") Endpoint primaryEndpoint;
+    @serdeRename("service") @serdeRequired StringBuf serviceName;
+    @serdeAliasName("primary") Endpoint primaryEndpoint;
     OwnedArray!Endpoint replicaEndpoints;
     OwnedArray!StringBuf featureFlags;
     int[3] retryDelays;
     Option!StringBuf deploymentNote;
     Option!Endpoint fallbackEndpoint;
-    @omitDefault bool tracingEnabled;
-    @ignore uint runtimeRequests;
+    @serdeOmitDefault bool tracingEnabled;
+    @serdeIgnore uint runtimeRequests;
 
     void deinit() nothrow @nogc
     {
@@ -58,18 +58,18 @@ private struct ServiceConfig
     }
 }
 
-@fieldCase(KeyCase.snake)
+@serdeFieldCase(KeyCase.snake)
 private struct BorrowedReport
 {
-    @required String reportName;
+    @serdeRequired String reportName;
     int[] samples;
 }
 
-@variantCase(KeyCase.snake)
+@serdeVariantCase(KeyCase.snake)
 private enum ChangeKind
 {
     serviceStarted,
-    @rename("stopped") @aliasName("service_stopped") serviceStopped,
+    @serdeRename("stopped") @serdeAliasName("service_stopped") serviceStopped,
 }
 
 private struct StartedChange
@@ -86,15 +86,15 @@ private struct StoppedChange
 
 private union ChangePayload
 {
-    @caseOf(ChangeKind.serviceStarted) StartedChange started;
-    @caseOf(ChangeKind.serviceStopped) StoppedChange stopped;
+    @serdeCaseOf(ChangeKind.serviceStarted) StartedChange started;
+    @serdeCaseOf(ChangeKind.serviceStopped) StoppedChange stopped;
 }
 
-@taggedUnion(TagLayout.adjacent)
+@serdeTaggedUnion(TagLayout.adjacent)
 private struct ServiceChange
 {
-    @discriminant @rename("change_type") ChangeKind kind;
-    @payload @rename("change") ChangePayload data;
+    @serdeDiscriminant @serdeRename("change_type") ChangeKind kind;
+    @serdePayload @serdeRename("change") ChangePayload data;
 }
 
 private struct Percentage
@@ -130,7 +130,7 @@ struct PercentageSerde
 
 private struct Health
 {
-    @withSerde!PercentageSerde Percentage readiness;
+    @serdeWith!PercentageSerde Percentage readiness;
 }
 
 private size_t appendSink(void* context, scope const(u8)[] bytes) nothrow @nogc

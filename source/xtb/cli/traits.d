@@ -106,22 +106,22 @@ private A fieldAttribute(T, size_t index, A)() pure @safe
 
 private auto fieldAliasNamesStorage(T, size_t fieldIndex)() pure @safe
 {
-    String[fieldAttributeCount!(T, fieldIndex, AliasName)] result;
+    String[fieldAttributeCount!(T, fieldIndex, CliAliasName)] result;
     size_t aliasIndex;
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, fieldIndex)))
         static if (__traits(compiles, typeof(attribute)))
-            static if (is(typeof(attribute) == AliasName))
+            static if (is(typeof(attribute) == CliAliasName))
                 result[aliasIndex++] = attribute.value;
     return result;
 }
 
 private auto fieldShortAliasesStorage(T, size_t fieldIndex)() pure @safe
 {
-    char[fieldAttributeCount!(T, fieldIndex, ShortAlias)] result;
+    char[fieldAttributeCount!(T, fieldIndex, CliShortAlias)] result;
     size_t aliasIndex;
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, fieldIndex)))
         static if (__traits(compiles, typeof(attribute)))
-            static if (is(typeof(attribute) == ShortAlias))
+            static if (is(typeof(attribute) == CliShortAlias))
                 result[aliasIndex++] = attribute.value;
     return result;
 }
@@ -129,11 +129,11 @@ private auto fieldShortAliasesStorage(T, size_t fieldIndex)() pure @safe
 private auto commandAliasNamesStorage(T)() pure @safe
 {
     alias U = Unqualified!T;
-    String[symbolAttributeCount!(U, AliasName)()] result;
+    String[symbolAttributeCount!(U, CliAliasName)()] result;
     size_t aliasIndex;
     static foreach (attribute; __traits(getAttributes, U))
         static if (__traits(compiles, typeof(attribute)))
-            static if (is(typeof(attribute) == AliasName))
+            static if (is(typeof(attribute) == CliAliasName))
                 result[aliasIndex++] = attribute.value;
     return result;
 }
@@ -161,7 +161,7 @@ template FieldValueParser(T, size_t index)
 {
     static assert(fieldParseWithCount!(T, index)() == 1,
         T.stringof ~ "." ~ __traits(identifier, FieldSymbol!(T, index)) ~
-            " must have exactly one @parseWith attribute");
+            " must have exactly one @cliParseWith attribute");
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
         static if (isParseWithAttribute!attribute)
             alias FieldValueParser = typeof(attribute).parser;
@@ -475,10 +475,10 @@ template upperValueName(string input)
 
 template fieldLongName(T, size_t index)
 {
-    static assert(fieldAttributeCount!(T, index, LongName) <= 1,
-        "CLI field has multiple @longName attributes");
-    static if (fieldHas!(T, index, LongName))
-        enum String fieldLongName = fieldAttribute!(T, index, LongName)().value;
+    static assert(fieldAttributeCount!(T, index, CliLongName) <= 1,
+        "CLI field has multiple @cliLongName attributes");
+    static if (fieldHas!(T, index, CliLongName))
+        enum String fieldLongName = fieldAttribute!(T, index, CliLongName)().value;
     else
         enum String fieldLongName = normalizedIdentifier!(
                 __traits(identifier, FieldSymbol!(T, index)));
@@ -505,10 +505,10 @@ template fieldAllLongNames(T, size_t index)
 
 template fieldShortName(T, size_t index)
 {
-    static assert(fieldAttributeCount!(T, index, ShortName) <= 1,
-        "CLI field has multiple @shortName attributes");
-    static if (fieldHas!(T, index, ShortName))
-        enum char fieldShortName = fieldAttribute!(T, index, ShortName)().value;
+    static assert(fieldAttributeCount!(T, index, CliShortName) <= 1,
+        "CLI field has multiple @cliShortName attributes");
+    static if (fieldHas!(T, index, CliShortName))
+        enum char fieldShortName = fieldAttribute!(T, index, CliShortName)().value;
     else
         enum char fieldShortName = '\0';
 }
@@ -536,20 +536,20 @@ template fieldAllShortNames(T, size_t index)
 
 template fieldHelp(T, size_t index)
 {
-    static assert(fieldAttributeCount!(T, index, Help) <= 1,
-        "CLI field has multiple @help attributes");
-    static if (fieldHas!(T, index, Help))
-        enum String fieldHelp = fieldAttribute!(T, index, Help)().text;
+    static assert(fieldAttributeCount!(T, index, CliHelp) <= 1,
+        "CLI field has multiple @cliHelp attributes");
+    static if (fieldHas!(T, index, CliHelp))
+        enum String fieldHelp = fieldAttribute!(T, index, CliHelp)().text;
     else
         enum String fieldHelp = "";
 }
 
 template fieldValueName(T, size_t index)
 {
-    static assert(fieldAttributeCount!(T, index, ValueName) <= 1,
-        "CLI field has multiple @valueName attributes");
-    static if (fieldHas!(T, index, ValueName))
-        enum String fieldValueName = fieldAttribute!(T, index, ValueName)().value;
+    static assert(fieldAttributeCount!(T, index, CliValueName) <= 1,
+        "CLI field has multiple @cliValueName attributes");
+    static if (fieldHas!(T, index, CliValueName))
+        enum String fieldValueName = fieldAttribute!(T, index, CliValueName)().value;
     else
         enum String fieldValueName = upperValueName!(fieldLongName!(T, index));
 }
@@ -557,9 +557,9 @@ template fieldValueName(T, size_t index)
 template commandName(T)
 {
     alias U = Unqualified!T;
-    static assert(symbolAttributeCount!(U, Command)() == 1,
-        U.stringof ~ " used as a subcommand must have exactly one @command(...) attribute");
-    enum String commandName = symbolAttribute!(U, Command)().name;
+    static assert(symbolAttributeCount!(U, CliCommand)() == 1,
+        U.stringof ~ " used as a subcommand must have exactly one @cliCommand(...) attribute");
+    enum String commandName = symbolAttribute!(U, CliCommand)().name;
 }
 
 template commandAliases(T)
@@ -584,10 +584,10 @@ template commandAllNames(T)
 template typeAbout(T)
 {
     alias U = Unqualified!T;
-    static assert(symbolAttributeCount!(U, About)() <= 1,
-        U.stringof ~ " has multiple @about attributes");
-    static if (symbolAttributeCount!(U, About)() == 1)
-        enum String typeAbout = symbolAttribute!(U, About)().text;
+    static assert(symbolAttributeCount!(U, CliAbout)() <= 1,
+        U.stringof ~ " has multiple @cliAbout attributes");
+    static if (symbolAttributeCount!(U, CliAbout)() == 1)
+        enum String typeAbout = symbolAttribute!(U, CliAbout)().text;
     else
         enum String typeAbout = "";
 }
@@ -607,10 +607,10 @@ template typeVersion(T)
 enum String cliVersionOf(T) = typeVersion!T;
 
 enum builtinHelpEnabled(T) = symbolAttributeCount!(Unqualified!T,
-        NoBuiltinHelp)() == 0;
+        CliNoBuiltinHelp)() == 0;
 
 enum builtinVersionEnabled(T) = cliVersionOf!T.length != 0 &&
-    symbolAttributeCount!(Unqualified!T, NoBuiltinVersion)() == 0;
+    symbolAttributeCount!(Unqualified!T, CliNoBuiltinVersion)() == 0;
 
 private enum CliSubcommandPolicy : ubyte
 {
@@ -621,9 +621,9 @@ private enum CliSubcommandPolicy : ubyte
 
 private enum subcommandPolicy(T) = () {
     alias U = Unqualified!T;
-    static if (symbolAttributeCount!(U, SubcommandOptional)() != 0)
+    static if (symbolAttributeCount!(U, CliSubcommandOptional)() != 0)
         return CliSubcommandPolicy.optional;
-    else static if (symbolAttributeCount!(U, HelpOnNoSubcommand)() != 0)
+    else static if (symbolAttributeCount!(U, CliHelpOnNoSubcommand)() != 0)
         return CliSubcommandPolicy.help;
     else
         return CliSubcommandPolicy.required;
@@ -664,7 +664,7 @@ enum cliNeedsAllocator(T) = () {
 private bool fieldTakesValue(T, size_t index)() pure @safe
 {
     alias Field = FieldType!(T, index);
-    static if (fieldHas!(T, index, Count))
+    static if (fieldHas!(T, index, CliCount))
         return false;
     else static if (!isOption!Field && !isArray!Field && is(Unqualified!Field == bool))
         return false;
@@ -731,33 +731,33 @@ private bool validateField(Root, T, size_t index)() pure @safe
     enum sourceName = __traits(identifier, FieldSymbol!(T, index));
 
     static assert(fieldParseWithCount!(T, index)() <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @parseWith attributes");
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliParseWith attributes");
     static if (fieldHasParseWith!(T, index))
     {
         alias Parser = FieldValueParser!(T, index);
         enum parserTarget = cliFieldParserTarget!(T, index);
         static assert(parserTarget != CliFieldParserTarget.ambiguous,
             T.stringof ~ "." ~ sourceName ~
-                " @parseWith parser is ambiguous between the field and element types");
+                " @cliParseWith parser is ambiguous between the field and element types");
         static assert(parserTarget != CliFieldParserTarget.invalid,
             T.stringof ~ "." ~ sourceName ~
-                " @parseWith parser must be nothrow @nogc and parse either " ~
+                " @cliParseWith parser must be nothrow @nogc and parse either " ~
                 Field.stringof ~ " or its Option/Array element type using " ~
                 "CliValueError(scope String, T*) or " ~
                 "CliValueError(scope String, Allocator*, T*)");
-        static assert(!fieldHas!(T, index, Count),
-            T.stringof ~ "." ~ sourceName ~ " @parseWith cannot be combined with @count");
+        static assert(!fieldHas!(T, index, CliCount),
+            T.stringof ~ "." ~ sourceName ~ " @cliParseWith cannot be combined with @cliCount");
         static if (cliFieldParserParsesWholeField!(T, index))
             alias ParsedValue = Unqualified!Field;
         else
             alias ParsedValue = Value;
         static assert(!hasDDestructor!ParsedValue,
             T.stringof ~ "." ~ sourceName ~
-                " @parseWith value types with D destructor semantics are not supported");
-        static if (is(Unqualified!Field == bool) && !fieldHas!(T, index, Positional))
+                " @cliParseWith value types with D destructor semantics are not supported");
+        static if (is(Unqualified!Field == bool) && !fieldHas!(T, index, CliPositional))
             static assert(false,
                 T.stringof ~ "." ~ sourceName ~
-                    " @parseWith cannot be used with a named bool presence flag");
+                    " @cliParseWith cannot be used with a named bool presence flag");
         static if (isOption!Field && is(Unqualified!Value == bool))
             static assert(false,
                 T.stringof ~ "." ~ sourceName ~
@@ -771,20 +771,20 @@ private bool validateField(Root, T, size_t index)() pure @safe
     else
         static assert(isCliFieldType!Field,
             T.stringof ~ "." ~ sourceName ~ " has unsupported CLI field type " ~ Field.stringof);
-    static assert(fieldAttributeCount!(T, index, Positional) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @positional attributes");
-    static assert(fieldAttributeCount!(T, index, Required) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @required attributes");
-    static assert(fieldAttributeCount!(T, index, Count) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @count attributes");
-    static assert(fieldAttributeCount!(T, index, Global) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @global attributes");
-    static assert(fieldAttributeCount!(T, index, Rest) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @rest attributes");
-    static assert(fieldAttributeCount!(T, index, Hidden) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @hidden attributes");
-    static assert(fieldAttributeCount!(T, index, Terminal) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @terminal attributes");
+    static assert(fieldAttributeCount!(T, index, CliPositional) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliPositional attributes");
+    static assert(fieldAttributeCount!(T, index, CliRequired) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliRequired attributes");
+    static assert(fieldAttributeCount!(T, index, CliCount) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliCount attributes");
+    static assert(fieldAttributeCount!(T, index, CliGlobal) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliGlobal attributes");
+    static assert(fieldAttributeCount!(T, index, CliRest) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliRest attributes");
+    static assert(fieldAttributeCount!(T, index, CliHidden) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliHidden attributes");
+    static assert(fieldAttributeCount!(T, index, CliTerminal) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliTerminal attributes");
     enum duplicateLongAlias = firstDuplicateString(fieldLongAliases!(T, index));
     static assert(duplicateLongAlias.length == 0,
         T.stringof ~ "." ~ sourceName ~ " has duplicate long option alias '--" ~
@@ -794,37 +794,37 @@ private bool validateField(Root, T, size_t index)() pure @safe
         T.stringof ~ "." ~ sourceName ~ " has duplicate short option alias '-" ~
             duplicateShortAlias ~ "'");
 
-    static if (fieldHas!(T, index, Terminal))
+    static if (fieldHas!(T, index, CliTerminal))
     {
-        static assert(!fieldHas!(T, index, Positional),
-            T.stringof ~ "." ~ sourceName ~ " @terminal cannot be positional");
-        static assert(!fieldHas!(T, index, Count),
-            T.stringof ~ "." ~ sourceName ~ " @terminal cannot be combined with @count");
+        static assert(!fieldHas!(T, index, CliPositional),
+            T.stringof ~ "." ~ sourceName ~ " @cliTerminal cannot be positional");
+        static assert(!fieldHas!(T, index, CliCount),
+            T.stringof ~ "." ~ sourceName ~ " @cliTerminal cannot be combined with @cliCount");
         static assert(!isArray!Field,
-            T.stringof ~ "." ~ sourceName ~ " @terminal cannot be used with Array fields");
+            T.stringof ~ "." ~ sourceName ~ " @cliTerminal cannot be used with Array fields");
     }
 
-    static if (fieldHas!(T, index, Count))
+    static if (fieldHas!(T, index, CliCount))
     {
         static assert(__traits(isIntegral, Unqualified!Field) &&
                 !is(Unqualified!Field == bool),
-            T.stringof ~ "." ~ sourceName ~ " @count requires an integral field");
-        static assert(!fieldHas!(T, index, Positional),
-            T.stringof ~ "." ~ sourceName ~ " @count cannot be positional");
+            T.stringof ~ "." ~ sourceName ~ " @cliCount requires an integral field");
+        static assert(!fieldHas!(T, index, CliPositional),
+            T.stringof ~ "." ~ sourceName ~ " @cliCount cannot be positional");
     }
-    static if (fieldHas!(T, index, Global))
-        static assert(!fieldHas!(T, index, Positional),
-            T.stringof ~ "." ~ sourceName ~ " @global cannot be positional");
-    static if (fieldHas!(T, index, Rest))
+    static if (fieldHas!(T, index, CliGlobal))
+        static assert(!fieldHas!(T, index, CliPositional),
+            T.stringof ~ "." ~ sourceName ~ " @cliGlobal cannot be positional");
+    static if (fieldHas!(T, index, CliRest))
     {
-        static assert(fieldHas!(T, index, Positional),
-            T.stringof ~ "." ~ sourceName ~ " @rest requires @positional");
+        static assert(fieldHas!(T, index, CliPositional),
+            T.stringof ~ "." ~ sourceName ~ " @cliRest requires @cliPositional");
         static assert(cliFieldIsRepeated!(T, index),
-            T.stringof ~ "." ~ sourceName ~ " @rest requires a repeated Array!T field");
+            T.stringof ~ "." ~ sourceName ~ " @cliRest requires a repeated Array!T field");
     }
-    static if (fieldHas!(T, index, Positional))
+    static if (fieldHas!(T, index, CliPositional))
     {
-        static assert(fieldAttributeCount!(T, index, LongName) == 0 &&
+        static assert(fieldAttributeCount!(T, index, CliLongName) == 0 &&
                 fieldLongAliases!(T, index)
                     .length == 0 &&
                     fieldShortName!(T, index) == '\0' &&
@@ -832,9 +832,9 @@ private bool validateField(Root, T, size_t index)() pure @safe
                     .length == 0,
                 T.stringof ~ "." ~ sourceName ~ " positional fields cannot have option names");
         static if (cliFieldIsRepeated!(T, index))
-            static assert(fieldHas!(T, index, Rest),
+            static assert(fieldHas!(T, index, CliRest),
                 T.stringof ~ "." ~ sourceName ~
-                    " repeated positional Array fields require @rest");
+                    " repeated positional Array fields require @cliRest");
     }
     else
     {
@@ -881,8 +881,8 @@ private bool validateField(Root, T, size_t index)() pure @safe
 private bool validateOptionPair(T, size_t leftIndex, size_t rightIndex)()
 pure @safe
 {
-    static if (!fieldHas!(T, leftIndex, Positional) &&
-        !fieldHas!(T, rightIndex, Positional))
+    static if (!fieldHas!(T, leftIndex, CliPositional) &&
+        !fieldHas!(T, rightIndex, CliPositional))
     {
         enum duplicateLongName = firstOverlap(
                 fieldAllLongNames!(T, leftIndex),
@@ -912,10 +912,10 @@ private bool hasOptionalPositionalBefore(T, size_t index)() pure @safe
     bool result;
     static foreach (candidate; 0 .. index)
     {
-        static if (fieldHas!(T, candidate, Positional))
+        static if (fieldHas!(T, candidate, CliPositional))
         {
             alias Field = FieldType!(T, candidate);
-            static if (isOption!Field && !fieldHas!(T, candidate, Required))
+            static if (isOption!Field && !fieldHas!(T, candidate, CliRequired))
                 result = true;
         }
     }
@@ -926,8 +926,8 @@ private bool hasRestBefore(T, size_t index)() pure @safe
 {
     bool result;
     static foreach (candidate; 0 .. index)
-        static if (fieldHas!(T, candidate, Positional) &&
-            fieldHas!(T, candidate, Rest))
+        static if (fieldHas!(T, candidate, CliPositional) &&
+            fieldHas!(T, candidate, CliRest))
             result = true;
     return result;
 }
@@ -963,12 +963,12 @@ private bool validateChildAt(T, size_t leftIndex)() pure @safe
 
 private bool validatePositionalOrderingAt(T, size_t index)() pure @safe
 {
-    static if (fieldHas!(T, index, Positional))
+    static if (fieldHas!(T, index, CliPositional))
     {
         alias Field = FieldType!(T, index);
         static assert(!hasRestBefore!(T, index)(),
-            T.stringof ~ " has a positional after its @rest field");
-        static if (!isOption!Field && !fieldHas!(T, index, Rest))
+            T.stringof ~ " has a positional after its @cliRest field");
+        static if (!isOption!Field && !fieldHas!(T, index, CliRest))
             static assert(!hasOptionalPositionalBefore!(T, index)(),
                 T.stringof ~ " has a required positional after an optional positional");
     }
@@ -982,7 +982,7 @@ private bool validateGlobalAgainstField(
     size_t childIndex,
 )() pure @safe
 {
-    static if (!fieldHas!(Unqualified!Child, childIndex, Positional))
+    static if (!fieldHas!(Unqualified!Child, childIndex, CliPositional))
     {
         enum duplicateLongName = firstOverlap(
                 fieldAllLongNames!(Parent, globalIndex),
@@ -1024,7 +1024,7 @@ pure @safe
 
 private bool validateGlobalCollisionsAt(T, size_t index)() pure @safe
 {
-    static if (fieldHas!(T, index, Global))
+    static if (fieldHas!(T, index, CliGlobal))
         static foreach (Child; CommandTypes!T)
             static assert(validateGlobalAgainstSubtree!(T, index, Unqualified!Child)());
     return true;
@@ -1032,7 +1032,7 @@ private bool validateGlobalCollisionsAt(T, size_t index)() pure @safe
 
 private bool validateRootVersionAt(T, size_t index)() pure @safe
 {
-    static if (builtinVersionEnabled!T && !fieldHas!(T, index, Positional))
+    static if (builtinVersionEnabled!T && !fieldHas!(T, index, CliPositional))
     {
         enum versionCollision = firstOverlap(fieldAllLongNames!(T, index), ["version"]);
         static assert(versionCollision.length == 0,
@@ -1051,44 +1051,44 @@ private bool validateCommand(Root, T)() pure @safe
 
     static if (is(U == Unqualified!Root))
     {
-        static assert(symbolAttributeCount!(U, AliasName)() == 0,
-            U.stringof ~ " root CLI command cannot declare @aliasName");
-        static assert(symbolAttributeCount!(U, ShortAlias)() == 0,
-            U.stringof ~ " root CLI command cannot declare @shortAlias");
+        static assert(symbolAttributeCount!(U, CliAliasName)() == 0,
+            U.stringof ~ " root CLI command cannot declare @cliAliasName");
+        static assert(symbolAttributeCount!(U, CliShortAlias)() == 0,
+            U.stringof ~ " root CLI command cannot declare @cliShortAlias");
         static assert(symbolAttributeCount!(U, CliVersion)() <= 1,
             U.stringof ~ " has multiple @cliVersion attributes");
-        static assert(symbolAttributeCount!(U, NoBuiltinHelp)() <= 1,
-            U.stringof ~ " has duplicate @noBuiltinHelp attributes");
-        static assert(symbolAttributeCount!(U, NoBuiltinVersion)() <= 1,
-            U.stringof ~ " has duplicate @noBuiltinVersion attributes");
+        static assert(symbolAttributeCount!(U, CliNoBuiltinHelp)() <= 1,
+            U.stringof ~ " has duplicate @cliNoBuiltinHelp attributes");
+        static assert(symbolAttributeCount!(U, CliNoBuiltinVersion)() <= 1,
+            U.stringof ~ " has duplicate @cliNoBuiltinVersion attributes");
     }
     else
     {
-        static assert(symbolAttributeCount!(U, Command)() == 1,
-            U.stringof ~ " used as a subcommand must have exactly one @command(...) attribute");
-        static assert(symbolAttributeCount!(U, ShortAlias)() == 0,
-            U.stringof ~ " @shortAlias is only valid on named option fields");
+        static assert(symbolAttributeCount!(U, CliCommand)() == 1,
+            U.stringof ~ " used as a subcommand must have exactly one @cliCommand(...) attribute");
+        static assert(symbolAttributeCount!(U, CliShortAlias)() == 0,
+            U.stringof ~ " @cliShortAlias is only valid on named option fields");
         static assert(symbolAttributeCount!(U, CliVersion)() == 0,
             U.stringof ~ " @cliVersion is only valid on the root CLI argument type");
-        static assert(symbolAttributeCount!(U, NoBuiltinHelp)() == 0,
-            U.stringof ~ " @noBuiltinHelp is only valid on the root CLI argument type");
-        static assert(symbolAttributeCount!(U, NoBuiltinVersion)() == 0,
-            U.stringof ~ " @noBuiltinVersion is only valid on the root CLI argument type");
+        static assert(symbolAttributeCount!(U, CliNoBuiltinHelp)() == 0,
+            U.stringof ~ " @cliNoBuiltinHelp is only valid on the root CLI argument type");
+        static assert(symbolAttributeCount!(U, CliNoBuiltinVersion)() == 0,
+            U.stringof ~ " @cliNoBuiltinVersion is only valid on the root CLI argument type");
     }
 
-    static assert(symbolAttributeCount!(U, SubcommandOptional)() <= 1,
-        U.stringof ~ " has duplicate @subcommandOptional attributes");
-    static assert(symbolAttributeCount!(U, HelpOnNoSubcommand)() <= 1,
-        U.stringof ~ " has duplicate @helpOnNoSubcommand attributes");
-    static assert(!(symbolAttributeCount!(U, SubcommandOptional)() != 0 &&
-            symbolAttributeCount!(U, HelpOnNoSubcommand)() != 0),
-        U.stringof ~ " cannot use both @subcommandOptional and @helpOnNoSubcommand");
+    static assert(symbolAttributeCount!(U, CliSubcommandOptional)() <= 1,
+        U.stringof ~ " has duplicate @cliSubcommandOptional attributes");
+    static assert(symbolAttributeCount!(U, CliHelpOnNoSubcommand)() <= 1,
+        U.stringof ~ " has duplicate @cliHelpOnNoSubcommand attributes");
+    static assert(!(symbolAttributeCount!(U, CliSubcommandOptional)() != 0 &&
+            symbolAttributeCount!(U, CliHelpOnNoSubcommand)() != 0),
+        U.stringof ~ " cannot use both @cliSubcommandOptional and @cliHelpOnNoSubcommand");
     static if (!hasSubcommands!U)
     {
-        static assert(symbolAttributeCount!(U, SubcommandOptional)() == 0,
-            U.stringof ~ " @subcommandOptional is only valid on commands with subcommands");
-        static assert(symbolAttributeCount!(U, HelpOnNoSubcommand)() == 0,
-            U.stringof ~ " @helpOnNoSubcommand is only valid on commands with subcommands");
+        static assert(symbolAttributeCount!(U, CliSubcommandOptional)() == 0,
+            U.stringof ~ " @cliSubcommandOptional is only valid on commands with subcommands");
+        static assert(symbolAttributeCount!(U, CliHelpOnNoSubcommand)() == 0,
+            U.stringof ~ " @cliHelpOnNoSubcommand is only valid on commands with subcommands");
     }
 
     static foreach (index; 0 .. U.tupleof.length)
@@ -1097,7 +1097,7 @@ private bool validateCommand(Root, T)() pure @safe
     static if (hasSubcommands!U)
     {
         static foreach (index; 0 .. U.tupleof.length)
-            static assert(!fieldHas!(U, index, Positional),
+            static assert(!fieldHas!(U, index, CliPositional),
                 U.stringof ~ " cannot declare positional arguments while it has subcommands");
 
         static foreach (leftIndex; 0 .. CommandTypes!U.length)

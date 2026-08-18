@@ -20,8 +20,8 @@ import xtb.core.string_hash_map;
 import xtb.core.types : String;
 import xtb.core.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
     isValidUtf8;
-import xtb.serde.attributes : Flatten, Ignore, KeyCase, OmitDefault, Rename,
-    Required, TagLayout;
+import xtb.serde.attributes : SerdeFlatten, SerdeIgnore, KeyCase, SerdeOmitDefault, SerdeRename,
+    SerdeRequired, TagLayout;
 import xtb.serde.casing : writeCased;
 import xtb.serde.error : SerdeError, SerdeErrorKind, SerdeLimits;
 import xtb.serde.ownership : Deserialized, abandonDeserialized,
@@ -278,7 +278,7 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     else static if (isSerdeStruct!U)
     {
         static foreach (index; 0 .. U.tupleof.length)
-            static if (!fieldHas!(U, index, Ignore))
+            static if (!fieldHas!(U, index, SerdeIgnore))
                 if (!valuesEqual(value.tupleof[index], expected.tupleof[index]))
                     return false;
         return true;
@@ -325,9 +325,9 @@ private void encodeRoot(T)(ref TomlEncoder encoder, scope const ref T value)
         bool wrote;
         static foreach (index; 0 .. Unqualified!T.tupleof.length)
         {
-            static if (!fieldHas!(T, index, Ignore))
+            static if (!fieldHas!(T, index, SerdeIgnore))
             {
-                static if (fieldHas!(T, index, Flatten))
+                static if (fieldHas!(T, index, SerdeFlatten))
                     encodeFlattened(encoder, value.tupleof[index], &wrote, 0);
                 else
                     encodeRootField!(T, index)(encoder, value.tupleof[index], &wrote);
@@ -407,9 +407,9 @@ private void encodeFlattened(T)(
 {
     static foreach (index; 0 .. Unqualified!T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Ignore))
+        static if (!fieldHas!(T, index, SerdeIgnore))
         {
-            static if (fieldHas!(T, index, Flatten))
+            static if (fieldHas!(T, index, SerdeFlatten))
                 encodeFlattened(encoder, value.tupleof[index], wrote, depth);
             else
                 encodeRootField!(T, index)(encoder, value.tupleof[index], wrote, depth);
@@ -426,7 +426,7 @@ private void encodeRootField(T, size_t index, F)(
 {
     if (fieldShouldOmit!(T, index)(value))
         return;
-    static if (fieldHas!(T, index, OmitDefault))
+    static if (fieldHas!(T, index, SerdeOmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
     if (absentValue(value))
@@ -470,7 +470,7 @@ private bool absentValue(T)(scope const ref T value) pure @safe
 
 private void encodeKey(T, size_t index)(ref TomlEncoder encoder)
 {
-    static if (fieldHas!(T, index, Rename))
+    static if (fieldHas!(T, index, SerdeRename))
         encodeKeyText(encoder, fieldName!(T, index), KeyCase.preserve);
     else
     {
@@ -697,9 +697,9 @@ private void encodeInlineFields(T)(
 {
     static foreach (index; 0 .. Unqualified!T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Ignore))
+        static if (!fieldHas!(T, index, SerdeIgnore))
         {
-            static if (fieldHas!(T, index, Flatten))
+            static if (fieldHas!(T, index, SerdeFlatten))
                 encodeInlineFields(encoder, value.tupleof[index], depth, wrote);
             else
                 encodeInlineField!(T, index)(encoder, value.tupleof[index], depth, wrote);
@@ -716,7 +716,7 @@ private void encodeInlineField(T, size_t index, F)(
 {
     if (fieldShouldOmit!(T, index)(value))
         return;
-    static if (fieldHas!(T, index, OmitDefault))
+    static if (fieldHas!(T, index, SerdeOmitDefault))
         if (fieldIsDefault!(T, index)(value))
             return;
     if (absentValue(value))
@@ -994,9 +994,9 @@ nothrow @nogc:
 private size_t nodeWidth(T, size_t index)() pure @safe
 {
     alias F = FieldType!(T, index);
-    static if (fieldHas!(T, index, Ignore))
+    static if (fieldHas!(T, index, SerdeIgnore))
         return 0;
-    else static if (fieldHas!(T, index, Flatten))
+    else static if (fieldHas!(T, index, SerdeFlatten))
         return tomlNodeCount!F;
     else static if (isTaggedUnion!F)
         return 1;
@@ -1728,9 +1728,9 @@ private void decodePath(T)(
     const key = inPrefix ? prefix[prefixIndex].value : suffix[suffixIndex].value;
     static foreach (index; 0 .. Unqualified!T.tupleof.length)
     {
-        static if (!fieldHas!(T, index, Ignore))
+        static if (!fieldHas!(T, index, SerdeIgnore))
         {
-            static if (fieldHas!(T, index, Flatten))
+            static if (fieldHas!(T, index, SerdeFlatten))
             {
                 if (!*matched)
                     decodePath(parser, &output.tupleof[index], prefix, prefixLength,
@@ -1888,14 +1888,14 @@ private void validateRequiredField(T, size_t index)(
     size_t base,
 )
 {
-    static if (!fieldHas!(T, index, Ignore))
+    static if (!fieldHas!(T, index, SerdeIgnore))
     {
         const ordinal = base + nodeOrdinal!(T, index);
-        static if (fieldHas!(T, index, Flatten))
+        static if (fieldHas!(T, index, SerdeFlatten))
             validateRequired(parser, &output.tupleof[index], seen, ordinal);
         else
         {
-            static if (fieldHas!(T, index, Required))
+            static if (fieldHas!(T, index, SerdeRequired))
                 if (!seen[ordinal])
                     parser.fail(SerdeErrorKind.missingRequiredField,
                         fieldName!(T, index));

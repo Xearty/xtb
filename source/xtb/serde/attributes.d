@@ -2,45 +2,45 @@ module xtb.serde.attributes;
 
 nothrow @nogc:
 
-struct Rename
+struct SerdeRename
 {
     string value;
 }
 
-struct AliasName
+struct SerdeAliasName
 {
     string value;
 }
 
-struct Ignore
+struct SerdeIgnore
 {
 }
 
-struct Required
+struct SerdeRequired
 {
 }
 
-struct OmitDefault
+struct SerdeOmitDefault
 {
 }
 
-struct DefaultValue(T)
+struct SerdeDefaultValue(T)
 {
     T value;
 }
 
-struct OmitIf(alias predicate)
+struct SerdeOmitIf(alias predicate)
 {
     alias test = predicate;
 }
 
-struct WithSerde(alias adapter)
+struct SerdeWith(alias adapter)
 {
     enum isSerdeAdapter = true;
     alias implementation = adapter;
 }
 
-struct Flatten
+struct SerdeFlatten
 {
 }
 
@@ -51,20 +51,20 @@ enum TagLayout : ubyte
     adjacent,
 }
 
-struct TaggedUnion
+struct SerdeTaggedUnion
 {
     TagLayout layout;
 }
 
-struct Discriminant
+struct SerdeDiscriminant
 {
 }
 
-struct Payload
+struct SerdePayload
 {
 }
 
-struct CaseOf(T)
+struct SerdeCaseOf(T)
 {
     T value;
 }
@@ -80,56 +80,56 @@ enum KeyCase : ubyte
     kebab,
 }
 
-struct FieldCase
+struct SerdeFieldCase
 {
     KeyCase value;
 }
 
-struct VariantCase
+struct SerdeVariantCase
 {
     KeyCase value;
 }
 
-Rename rename(string value) pure @safe
+SerdeRename serdeRename(string value) pure @safe
 {
-    return Rename(value);
+    return SerdeRename(value);
 }
 
-AliasName aliasName(string value) pure @safe
+SerdeAliasName serdeAliasName(string value) pure @safe
 {
-    return AliasName(value);
+    return SerdeAliasName(value);
 }
 
-FieldCase fieldCase(KeyCase value) pure @safe
+SerdeFieldCase serdeFieldCase(KeyCase value) pure @safe
 {
-    return FieldCase(value);
+    return SerdeFieldCase(value);
 }
 
-VariantCase variantCase(KeyCase value) pure @safe
+SerdeVariantCase serdeVariantCase(KeyCase value) pure @safe
 {
-    return VariantCase(value);
+    return SerdeVariantCase(value);
 }
 
-DefaultValue!T defaultValue(T)(T value) pure @safe
+SerdeDefaultValue!T serdeDefaultValue(T)(T value) pure @safe
 {
-    return DefaultValue!T(value);
+    return SerdeDefaultValue!T(value);
 }
 
-TaggedUnion taggedUnion(TagLayout layout) pure @safe
+SerdeTaggedUnion serdeTaggedUnion(TagLayout layout) pure @safe
 {
-    return TaggedUnion(layout);
+    return SerdeTaggedUnion(layout);
 }
 
-CaseOf!T caseOf(T)(T value) pure @safe
+SerdeCaseOf!T serdeCaseOf(T)(T value) pure @safe
 {
-    return CaseOf!T(value);
+    return SerdeCaseOf!T(value);
 }
 
-enum ignore = Ignore();
-enum required = Required();
-enum omitDefault = OmitDefault();
-enum omitIf(alias predicate) = OmitIf!predicate();
-enum withSerde(alias adapter) = WithSerde!adapter();
-enum flatten = Flatten();
-enum discriminant = Discriminant();
-enum payload = Payload();
+enum serdeIgnore = SerdeIgnore();
+enum serdeRequired = SerdeRequired();
+enum serdeOmitDefault = SerdeOmitDefault();
+enum serdeOmitIf(alias predicate) = SerdeOmitIf!predicate();
+enum serdeWith(alias adapter) = SerdeWith!adapter();
+enum serdeFlatten = SerdeFlatten();
+enum serdeDiscriminant = SerdeDiscriminant();
+enum serdePayload = SerdePayload();
