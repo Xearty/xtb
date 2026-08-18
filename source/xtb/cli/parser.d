@@ -85,8 +85,6 @@ struct ParsedCommand(T)
 {
 nothrow @nogc:
 
-    static assert(ValidateCliSchema!T);
-
     T args;
 
 private:
@@ -384,15 +382,18 @@ private void parseCommand(Root, T, Ancestors...)(
             continue;
         }
 
-        if (!optionsEnded && token == "--help")
+        static if (builtinHelpEnabled!Root)
         {
-            ++state.index;
-            state.outcome = CliOutcomeKind.help;
-            return;
+            if (!optionsEnded && token == "--help")
+            {
+                ++state.index;
+                state.outcome = CliOutcomeKind.help;
+                return;
+            }
         }
 
         static if (is(Unqualified!T == Unqualified!Root) &&
-            typeVersion!Root.length != 0)
+            builtinVersionEnabled!Root)
         {
             if (!optionsEnded && token == "--version")
             {
@@ -621,11 +622,14 @@ private bool parseShortOptions(Root, T, Ancestors...)(
     while (offset < token.length)
     {
         const shortName = token[offset];
-        if (shortName == 'h')
+        static if (builtinHelpEnabled!Root)
         {
-            ++state.index;
-            state.outcome = CliOutcomeKind.help;
-            return false;
+            if (shortName == 'h')
+            {
+                ++state.index;
+                state.outcome = CliOutcomeKind.help;
+                return false;
+            }
         }
 
         auto match = tryShortOnFrame!T(
@@ -1058,9 +1062,12 @@ int writeCliResult(T)(
             writeError!T(errorOutput, result.error_, result.invocation_);
             errorOutput.put('\n');
             writeSelectedUsage!T(errorOutput, result.programName, result.invocation_);
-            errorOutput.put("\nTry '");
-            writeProgramPath!T(errorOutput, result.programName, result.invocation_);
-            errorOutput.put(" --help' for more information.\n");
+            static if (builtinHelpEnabled!T)
+            {
+                errorOutput.put("\nTry '");
+                writeProgramPath!T(errorOutput, result.programName, result.invocation_);
+                errorOutput.put(" --help' for more information.\n");
+            }
             return 2;
     }
 }
@@ -1128,14 +1135,18 @@ private void writeSelectedHelpAt(Root, T)(
         writePositionals!T(writer);
     }
 
-    writer.put("\nOptions:\n");
-    static if (hasVisibleLocalOptions!T)
-        writeLocalOptions!T(writer);
-
-    writer.put("  -h, --help\tShow this help\n");
-    static if (is(Unqualified!T == Unqualified!Root) &&
-        typeVersion!Root.length != 0)
-        writer.put("      --version\tShow the application version\n");
+    static if (hasVisibleLocalOptions!T || builtinHelpEnabled!Root ||
+        (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
+    {
+        writer.put("\nOptions:\n");
+        static if (hasVisibleLocalOptions!T)
+            writeLocalOptions!T(writer);
+        static if (builtinHelpEnabled!Root)
+            writer.put("  -h, --help\tShow this help\n");
+        static if (is(Unqualified!T == Unqualified!Root) &&
+            builtinVersionEnabled!Root)
+            writer.put("      --version\tShow the application version\n");
+    }
 
     if (hasGlobalsAlongActivePath!Root(tree))
     {

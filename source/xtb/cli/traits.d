@@ -305,6 +305,15 @@ template typeVersion(T)
         enum String typeVersion = "";
 }
 
+/// Returns the application version metadata attached to a CLI root type.
+enum String cliVersionOf(T) = typeVersion!T;
+
+enum builtinHelpEnabled(T) = symbolAttributeCount!(Unqualified!T,
+        NoBuiltinHelp)() == 0;
+
+enum builtinVersionEnabled(T) = cliVersionOf!T.length != 0 &&
+    symbolAttributeCount!(Unqualified!T, NoBuiltinVersion)() == 0;
+
 enum allowsNoSubcommand(T) = symbolAttributeCount!(Unqualified!T,
         AllowNoSubcommand)() != 0;
 
@@ -333,7 +342,7 @@ private bool fieldTakesValue(T, size_t index)() pure @safe
 
 enum cliFieldTakesValue(T, size_t index) = fieldTakesValue!(T, index)();
 
-private bool validateField(T, size_t index)() pure @safe
+private bool validateField(Root, T, size_t index)() pure @safe
 {
     alias Field = FieldType!(T, index);
     alias Value = CliValueType!Field;
@@ -387,11 +396,13 @@ private bool validateField(T, size_t index)() pure @safe
         enum longName = fieldLongName!(T, index);
         static assert(longName.length != 0,
             T.stringof ~ "." ~ sourceName ~ " has an empty long option name");
-        static assert(longName != "help",
-            T.stringof ~ "." ~ sourceName ~ " conflicts with built-in --help");
+        static if (builtinHelpEnabled!Root)
+            static assert(longName != "help",
+                T.stringof ~ "." ~ sourceName ~ " conflicts with built-in --help");
         enum shortName = fieldShortName!(T, index);
-        static assert(shortName != 'h',
-            T.stringof ~ "." ~ sourceName ~ " conflicts with built-in -h");
+        static if (builtinHelpEnabled!Root)
+            static assert(shortName != 'h',
+                T.stringof ~ "." ~ sourceName ~ " conflicts with built-in -h");
         static assert(shortName == '\0' ||
                 ((shortName >= 'a' && shortName <= 'z') ||
                     (shortName >= 'A' && shortName <= 'Z') ||
@@ -540,23 +551,43 @@ private bool validateGlobalCollisionsAt(T, size_t index)() pure @safe
 
 private bool validateRootVersionAt(T, size_t index)() pure @safe
 {
-    static if (typeVersion!T.length != 0 && !fieldHas!(T, index, Positional))
+    static if (builtinVersionEnabled!T && !fieldHas!(T, index, Positional))
         static assert(fieldLongName!(T, index) != "version",
-            T.stringof ~ " declares both @cliVersion and a --version option");
+            T.stringof ~ " declares both built-in --version and a --version option");
     return true;
 }
 
-private bool validateCommand(T)() pure @safe
+private bool validateCommand(Root, T)() pure @safe
 {
     alias U = Unqualified!T;
     static assert(is(U == struct), U.stringof ~ " CLI argument type must be a struct");
     static assert(__traits(compiles, () { U value; }),
         U.stringof ~ " CLI argument type must be default-constructible");
+
+    static if (is(U == Unqualified!Root))
+    {
+        static assert(symbolAttributeCount!(U, CliVersion)() <= 1,
+            U.stringof ~ " has multiple @cliVersion attributes");
+        static assert(symbolAttributeCount!(U, NoBuiltinHelp)() <= 1,
+            U.stringof ~ " has duplicate @noBuiltinHelp attributes");
+        static assert(symbolAttributeCount!(U, NoBuiltinVersion)() <= 1,
+            U.stringof ~ " has duplicate @noBuiltinVersion attributes");
+    }
+    else
+    {
+        static assert(symbolAttributeCount!(U, CliVersion)() == 0,
+            U.stringof ~ " @cliVersion is only valid on the root CLI argument type");
+        static assert(symbolAttributeCount!(U, NoBuiltinHelp)() == 0,
+            U.stringof ~ " @noBuiltinHelp is only valid on the root CLI argument type");
+        static assert(symbolAttributeCount!(U, NoBuiltinVersion)() == 0,
+            U.stringof ~ " @noBuiltinVersion is only valid on the root CLI argument type");
+    }
+
     static assert(symbolAttributeCount!(U, AllowNoSubcommand)() <= 1,
         U.stringof ~ " has duplicate @allowNoSubcommand attributes");
 
     static foreach (index; 0 .. U.tupleof.length)
-        static assert(validateField!(U, index)());
+        static assert(validateField!(Root, U, index)());
 
     static if (hasSubcommands!U)
     {
@@ -578,14 +609,14 @@ private bool validateCommand(T)() pure @safe
         static assert(validateGlobalCollisionsAt!(U, index)());
 
     static foreach (Child; CommandTypes!U)
-        static assert(validateCommand!(Unqualified!Child)());
+        static assert(validateCommand!(Root, Unqualified!Child)());
     return true;
 }
 
 private bool validateCliSchema(T)() pure @safe
 {
     alias U = Unqualified!T;
-    static assert(validateCommand!U());
+    static assert(validateCommand!(U, U)());
     static foreach (index; 0 .. U.tupleof.length)
         static assert(validateRootVersionAt!(U, index)());
     return true;

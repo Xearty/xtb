@@ -20,6 +20,16 @@ struct CliVersion
     string value;
 }
 
+/// Disables generated -h/--help handling for the entire command tree.
+struct NoBuiltinHelp
+{
+}
+
+/// Disables generated root --version handling while retaining version metadata.
+struct NoBuiltinVersion
+{
+}
+
 /// Description shown next to an argument in generated help.
 struct Help
 {
@@ -115,3 +125,5 @@ enum global = Global();
 enum rest = Rest();
 enum hidden = Hidden();
 enum allowNoSubcommand = AllowNoSubcommand();
+enum noBuiltinHelp = NoBuiltinHelp();
+enum noBuiltinVersion = NoBuiltinVersion();

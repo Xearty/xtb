@@ -103,9 +103,81 @@ struct RunArgs
     Array!String arguments;
 }
 
+@(noBuiltinHelp, allowNoSubcommand)
+struct CustomHelpRootArgs
+{
+    @(shortName('h'))
+    bool help;
+
+    alias Commands = CliCommands!(CustomHelpChildArgs);
+}
+
+@command("child")
+struct CustomHelpChildArgs
+{
+    @(shortName('h'))
+    bool help;
+}
+
+@(noBuiltinHelp, allowNoSubcommand)
+struct NoBuiltinHelpRootArgs
+{
+}
+
+@(noBuiltinVersion, cliVersion("9.3.0"), allowNoSubcommand)
+struct CustomVersionRootArgs
+{
+    @longName("version")
+    Option!String version_;
+}
+
+@noBuiltinVersion
+struct NoVersionMetadataRootArgs
+{
+}
+
+struct InvalidChildVersionRootArgs
+{
+    alias Commands = CliCommands!(InvalidChildVersionArgs);
+}
+
+@(command("child"), cliVersion("1.0"))
+struct InvalidChildVersionArgs
+{
+}
+
+struct InvalidChildHelpPolicyRootArgs
+{
+    alias Commands = CliCommands!(InvalidChildHelpPolicyArgs);
+}
+
+@(command("child"), noBuiltinHelp)
+struct InvalidChildHelpPolicyArgs
+{
+}
+
+struct InvalidChildVersionPolicyRootArgs
+{
+    alias Commands = CliCommands!(InvalidChildVersionPolicyArgs);
+}
+
+@(command("child"), noBuiltinVersion)
+struct InvalidChildVersionPolicyArgs
+{
+}
+
 static assert(!cliNeedsAllocator!RootArgs);
 static assert(cliNeedsAllocator!AllocRootArgs);
 static assert(!__traits(compiles, parseArgs!AllocRootArgs(cast(String[]) null)));
+static assert(cliVersionOf!RootArgs == "2.4.1");
+static assert(cliVersionOf!CustomVersionRootArgs == "9.3.0");
+static assert(cliVersionOf!NoVersionMetadataRootArgs.length == 0);
+static assert(!__traits(compiles,
+        parseArgs!InvalidChildVersionRootArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidChildHelpPolicyRootArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidChildVersionPolicyRootArgs(cast(String[]) null)));
 
 private struct TextSink
 {
@@ -367,6 +439,121 @@ private void testGeneratedErrorResponse()
     assert(contains(errors.text, "Try 'tool --help'"));
 }
 
+private void testDisabledBuiltinHelp()
+{
+    {
+        String[2] argv = ["tool", "--help"];
+        auto result = parseArgs!CustomHelpRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.help);
+    }
+
+    {
+        String[2] argv = ["tool", "-h"];
+        auto result = parseArgs!CustomHelpRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.help);
+    }
+
+    {
+        String[3] argv = ["tool", "child", "--help"];
+        auto result = parseArgs!CustomHelpRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        auto child = result.invocation.command!CustomHelpChildArgs;
+        assert(child !is null);
+        assert(child.args.help);
+    }
+
+    {
+        String[3] argv = ["tool", "child", "-h"];
+        auto result = parseArgs!CustomHelpRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        auto child = result.invocation.command!CustomHelpChildArgs;
+        assert(child !is null);
+        assert(child.args.help);
+    }
+
+    {
+        String[2] argv = ["tool", "--wat"];
+        auto result = parseArgs!NoBuiltinHelpRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 2);
+        outputWriter.finish();
+        errorWriter.finish();
+        assert(!contains(errors.text, "--help"));
+    }
+}
+
+private void testDisabledBuiltinVersion()
+{
+    {
+        String[3] argv = ["tool", "--version", "custom"];
+        auto result = parseArgs!CustomVersionRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.version_.isSome);
+        assert(result.invocation.args.version_.value == "custom");
+    }
+
+    {
+        String[2] argv = ["tool", "--version"];
+        auto result = parseArgs!CustomVersionRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingOptionValue);
+    }
+
+    {
+        String[2] argv = ["tool", "--help"];
+        auto result = parseArgs!CustomVersionRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(!result.hasInvocation);
+        assert(!result.failed);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 0);
+        outputWriter.finish();
+        errorWriter.finish();
+        assert(contains(output.text, "--version <VERSION>"));
+        assert(!contains(output.text, "Show the application version"));
+    }
+
+    {
+        String[1] argv = ["tool"];
+        auto result = parseArgs!NoVersionMetadataRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+    }
+}
+
 private void testRepeatedAndRestArgumentsCleanUp()
 {
     AllocationRecord[16] records;
@@ -438,6 +625,8 @@ extern (C) int main()
     testUnknownAndInvalidValues();
     testGeneratedHelpAndVersion();
     testGeneratedErrorResponse();
+    testDisabledBuiltinHelp();
+    testDisabledBuiltinVersion();
     testRepeatedAndRestArgumentsCleanUp();
     testAllocationFailureCleansUp();
     return 0;
