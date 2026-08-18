@@ -457,6 +457,15 @@ private void parseCommand(Root, T, Ancestors...)(
     if (state.outcome != CliOutcomeKind.invocation)
         return;
 
+    static if (hasSubcommands!T && helpOnMissingSubcommand!T)
+    {
+        if (!node.hasCommand)
+        {
+            state.outcome = CliOutcomeKind.help;
+            return;
+        }
+    }
+
     static foreach (index; 0 .. T.tupleof.length)
     {
         {
@@ -497,7 +506,8 @@ private void parseCommand(Root, T, Ancestors...)(
         }
     }
 
-    static if (hasSubcommands!T && !allowsNoSubcommand!T)
+    static if (hasSubcommands!T && !subcommandIsOptional!T &&
+        !helpOnMissingSubcommand!T)
     {
         if (!node.hasCommand)
             state.fail(CliErrorKind.missingCommand, null);
@@ -1316,7 +1326,7 @@ private void writeUsageSuffixForType(T, bool inheritedGlobals)(ref Writer writer
         writer.put(" [OPTIONS]");
     static if (hasSubcommands!T)
     {
-        static if (allowsNoSubcommand!T)
+        static if (subcommandIsOptional!T)
             writer.put(" [COMMAND]");
         else
             writer.put(" <COMMAND>");

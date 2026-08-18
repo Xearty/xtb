@@ -7,7 +7,7 @@ import xtb.core.option : Option;
 import xtb.core.print : writeln;
 import xtb.core.types : String;
 
-@(cliVersion("1.0.0"), about("Small typed command-line parser example"), allowNoSubcommand)
+@(cliVersion("1.0.0"), about("Small typed command-line parser example"), subcommandOptional)
 struct RootArgs
 {
     @(shortName('v'), count, global, help("Increase verbosity"))

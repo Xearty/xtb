@@ -17,7 +17,7 @@ enum BuildMode
     releaseFast,
 }
 
-@(cliVersion("2.4.1"), about("CLI test application"), allowNoSubcommand)
+@(cliVersion("2.4.1"), about("CLI test application"), subcommandOptional)
 struct RootArgs
 {
     @(shortName('v'), count, global, help("Increase verbosity"))
@@ -45,7 +45,7 @@ struct BuildArgs
     Option!String output;
 }
 
-@(command("dependency"), about("Manage dependencies"), allowNoSubcommand)
+@(command("dependency"), about("Manage dependencies"), subcommandOptional)
 struct DependencyArgs
 {
     @(valueName("URL"), help("Registry URL"))
@@ -81,7 +81,48 @@ struct RequiredCommandChild
 {
 }
 
-@(allowNoSubcommand, cliVersion("1.0"))
+@(noBuiltinHelp, helpOnNoSubcommand, about("Choose a command"))
+struct HelpOnMissingRootArgs
+{
+    @required
+    Option!String config;
+
+    alias Commands = CliCommands!(HelpOnMissingGroupArgs);
+}
+
+@(command("group"), helpOnNoSubcommand, about("Choose a group command"))
+struct HelpOnMissingGroupArgs
+{
+    alias Commands = CliCommands!(HelpOnMissingLeafArgs);
+}
+
+@command("run")
+struct HelpOnMissingLeafArgs
+{
+}
+
+@subcommandOptional
+struct InvalidOptionalLeafArgs
+{
+}
+
+@helpOnNoSubcommand
+struct InvalidHelpLeafArgs
+{
+}
+
+@(subcommandOptional, helpOnNoSubcommand)
+struct InvalidCombinedPolicyArgs
+{
+    alias Commands = CliCommands!(InvalidCombinedPolicyChildArgs);
+}
+
+@command("child")
+struct InvalidCombinedPolicyChildArgs
+{
+}
+
+@(subcommandOptional, cliVersion("1.0"))
 struct AllocRootArgs
 {
     @(shortName('v'), count, global)
@@ -103,7 +144,7 @@ struct RunArgs
     Array!String arguments;
 }
 
-@(noBuiltinHelp, allowNoSubcommand)
+@(noBuiltinHelp, subcommandOptional)
 struct CustomHelpRootArgs
 {
     @(shortName('h'))
@@ -119,12 +160,12 @@ struct CustomHelpChildArgs
     bool help;
 }
 
-@(noBuiltinHelp, allowNoSubcommand)
+@noBuiltinHelp
 struct NoBuiltinHelpRootArgs
 {
 }
 
-@(noBuiltinVersion, cliVersion("9.3.0"), allowNoSubcommand)
+@(noBuiltinVersion, cliVersion("9.3.0"))
 struct CustomVersionRootArgs
 {
     @longName("version")
@@ -178,6 +219,9 @@ static assert(!__traits(compiles,
         parseArgs!InvalidChildHelpPolicyRootArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
         parseArgs!InvalidChildVersionPolicyRootArgs(cast(String[]) null)));
+static assert(!__traits(compiles, parseArgs!InvalidOptionalLeafArgs(cast(String[]) null)));
+static assert(!__traits(compiles, parseArgs!InvalidHelpLeafArgs(cast(String[]) null)));
+static assert(!__traits(compiles, parseArgs!InvalidCombinedPolicyArgs(cast(String[]) null)));
 
 private struct TextSink
 {
@@ -338,6 +382,65 @@ private void testRequiredCommand()
         result.deinit();
     assert(result.failed);
     assert(result.error.kind == CliErrorKind.missingCommand);
+}
+
+private void testHelpOnMissingSubcommand()
+{
+    {
+        String[1] argv = ["/usr/local/bin/tool"];
+        auto result = parseArgs!HelpOnMissingRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(!result.hasInvocation);
+        assert(!result.failed);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 0);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(errors.text.length == 0);
+        assert(contains(output.text, "Choose a command"));
+        assert(contains(output.text, "Usage: tool [OPTIONS] <COMMAND>"));
+        assert(contains(output.text, "group"));
+        assert(!contains(output.text, "Show this help"));
+    }
+
+    {
+        String[2] argv = ["tool", "group"];
+        auto result = parseArgs!HelpOnMissingRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(!result.hasInvocation);
+        assert(!result.failed);
+        assert(result.invocation.command!HelpOnMissingGroupArgs !is null);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 0);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(errors.text.length == 0);
+        assert(contains(output.text, "Choose a group command"));
+        assert(contains(output.text, "Usage: tool group <COMMAND>"));
+        assert(contains(output.text, "run"));
+        assert(!contains(output.text, "Show this help"));
+    }
+
+    {
+        String[2] argv = ["tool", "wat"];
+        auto result = parseArgs!HelpOnMissingRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.unknownCommand);
+    }
 }
 
 private void testUnknownAndInvalidValues()
@@ -668,6 +771,7 @@ extern (C) int main()
     testDefaultsAndOptionalCommand();
     testRequiredAndDuplicateErrors();
     testRequiredCommand();
+    testHelpOnMissingSubcommand();
     testUnknownAndInvalidValues();
     testPublicGeneratedHelp();
     testGeneratedHelpAndVersion();

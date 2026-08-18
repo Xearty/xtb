@@ -79,7 +79,12 @@ struct Hidden
 }
 
 /// Allows a command with child commands to execute without selecting one.
-struct AllowNoSubcommand
+struct SubcommandOptional
+{
+}
+
+/// Shows generated help when a command with child commands reaches the end of argv without selecting one.
+struct HelpOnNoSubcommand
 {
 }
 
@@ -124,6 +129,7 @@ enum count = Count();
 enum global = Global();
 enum rest = Rest();
 enum hidden = Hidden();
-enum allowNoSubcommand = AllowNoSubcommand();
+enum subcommandOptional = SubcommandOptional();
+enum helpOnNoSubcommand = HelpOnNoSubcommand();
 enum noBuiltinHelp = NoBuiltinHelp();
 enum noBuiltinVersion = NoBuiltinVersion();

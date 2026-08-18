@@ -314,8 +314,25 @@ enum builtinHelpEnabled(T) = symbolAttributeCount!(Unqualified!T,
 enum builtinVersionEnabled(T) = cliVersionOf!T.length != 0 &&
     symbolAttributeCount!(Unqualified!T, NoBuiltinVersion)() == 0;
 
-enum allowsNoSubcommand(T) = symbolAttributeCount!(Unqualified!T,
-        AllowNoSubcommand)() != 0;
+private enum CliSubcommandPolicy : ubyte
+{
+    required,
+    optional,
+    help,
+}
+
+private enum subcommandPolicy(T) = () {
+    alias U = Unqualified!T;
+    static if (symbolAttributeCount!(U, SubcommandOptional)() != 0)
+        return CliSubcommandPolicy.optional;
+    else static if (symbolAttributeCount!(U, HelpOnNoSubcommand)() != 0)
+        return CliSubcommandPolicy.help;
+    else
+        return CliSubcommandPolicy.required;
+}();
+
+enum subcommandIsOptional(T) = subcommandPolicy!T == CliSubcommandPolicy.optional;
+enum helpOnMissingSubcommand(T) = subcommandPolicy!T == CliSubcommandPolicy.help;
 
 enum cliNeedsAllocator(T) = () {
     alias U = Unqualified!T;
@@ -583,8 +600,20 @@ private bool validateCommand(Root, T)() pure @safe
             U.stringof ~ " @noBuiltinVersion is only valid on the root CLI argument type");
     }
 
-    static assert(symbolAttributeCount!(U, AllowNoSubcommand)() <= 1,
-        U.stringof ~ " has duplicate @allowNoSubcommand attributes");
+    static assert(symbolAttributeCount!(U, SubcommandOptional)() <= 1,
+        U.stringof ~ " has duplicate @subcommandOptional attributes");
+    static assert(symbolAttributeCount!(U, HelpOnNoSubcommand)() <= 1,
+        U.stringof ~ " has duplicate @helpOnNoSubcommand attributes");
+    static assert(!(symbolAttributeCount!(U, SubcommandOptional)() != 0 &&
+            symbolAttributeCount!(U, HelpOnNoSubcommand)() != 0),
+        U.stringof ~ " cannot use both @subcommandOptional and @helpOnNoSubcommand");
+    static if (!hasSubcommands!U)
+    {
+        static assert(symbolAttributeCount!(U, SubcommandOptional)() == 0,
+            U.stringof ~ " @subcommandOptional is only valid on commands with subcommands");
+        static assert(symbolAttributeCount!(U, HelpOnNoSubcommand)() == 0,
+            U.stringof ~ " @helpOnNoSubcommand is only valid on commands with subcommands");
+    }
 
     static foreach (index; 0 .. U.tupleof.length)
         static assert(validateField!(Root, U, index)());

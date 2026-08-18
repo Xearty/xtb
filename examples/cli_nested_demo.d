@@ -9,7 +9,7 @@ import xtb.core.option : Option;
 import xtb.core.print : writeln;
 import xtb.core.types : String;
 
-@(cliVersion("1.0.0"), about("Nested subcommand and repeated-argument example"), allowNoSubcommand)
+@(cliVersion("1.0.0"), about("Nested subcommand and repeated-argument example"), subcommandOptional)
 struct RootArgs
 {
     @(shortName('v'), count, global, help("Increase verbosity"))
