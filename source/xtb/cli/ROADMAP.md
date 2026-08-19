@@ -88,6 +88,21 @@ Named values, fixed positionals, optional `Option!T` positionals, repeated
 `Array!T`, `cliRest`, short clusters, attached short values, `--name=value`, and
 `--` are supported.
 
+## Flattened argument groups — done
+
+**Importance:** high
+
+`cliFlatten` splices the fields of a direct nested struct into the containing
+command's CLI schema while preserving nested D storage. Flattening is recursive,
+expands in declaration order, supports named/positional/repeated/global/hidden/
+terminal/custom-value fields, and participates in normal collision/help/usage
+validation.
+
+**Keep:** flatten only direct by-value structs; do not add pointer/container
+traversal, attribute propagation from the flatten field, subcommands inside a
+flattened group, or runtime adapter objects. D's finite by-value layout rules are
+sufficient cycle prevention for the supported target model.
+
 ## Nested commands and inherited globals — done
 
 **Importance:** foundational

@@ -85,6 +85,14 @@ struct CliPositional
 {
 }
 
+/// Splices the fields of this direct struct-valued field into the containing CLI schema.
+///
+/// Storage remains nested in the D value; only CLI discovery, parsing, validation,
+/// usage, and help treat the nested fields as if they were declared in place.
+struct CliFlatten
+{
+}
+
 /// Uses the field's initialized D value when the argument is omitted.
 struct CliDefault
 {
@@ -218,6 +226,7 @@ CliDefaultInput cliDefaultInput(string value) pure @safe
 }
 
 enum cliPositional = CliPositional();
+enum cliFlatten = CliFlatten();
 enum cliDefault = CliDefault();
 enum cliHideDefault = CliHideDefault();
 enum cliCount = CliCount();

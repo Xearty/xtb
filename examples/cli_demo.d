@@ -84,16 +84,7 @@ private struct CacheBudgetCli
     alias parse = parseCacheBudget;
 }
 
-@(
-    cliVersion("4.2.0"),
-    cliAbout(
-        "XTB Workspace Orchestrator\n"
-        ~ "A deliberately feature-rich CLI showcase for typed parsing, nested commands,\n"
-        ~ "aliases, defaults, custom values, terminal options, and ANSI help rendering."
-),
-cliSubcommandOptional,
-)
-struct RootArgs
+struct GlobalOptions
 {
     @(
         cliShortName('v'),
@@ -167,6 +158,22 @@ struct RootArgs
         cliGlobal,
     )
     bool internalTrace;
+
+}
+
+@(
+    cliVersion("4.2.0"),
+    cliAbout(
+        "XTB Workspace Orchestrator\n"
+        ~ "A deliberately feature-rich CLI showcase for typed parsing, nested commands,\n"
+        ~ "aliases, defaults, custom values, terminal options, and ANSI help rendering."
+),
+cliSubcommandOptional,
+)
+struct RootArgs
+{
+    @cliFlatten
+    GlobalOptions global;
 
     alias Commands = CliCommands!(
         BuildArgs,
@@ -492,7 +499,7 @@ extern (C) int main(int argc, char** argv)
 
     // ANSI capability is application policy. stdout and stderr are resolved
     // independently, and shouldUseAnsi() also honors NO_COLOR and TERM=dumb.
-    const colorEnabled = result.parsed.args.color;
+    const colorEnabled = result.parsed.args.global.color;
     const outputAnsi = colorEnabled && shouldUseAnsi(cast(FILE*) stdout);
     const errorAnsi = colorEnabled && shouldUseAnsi(cast(FILE*) stderr);
 
@@ -501,7 +508,7 @@ extern (C) int main(int argc, char** argv)
 
     if (result.hasTerminal)
     {
-        if (result.parsed.args.printSchema)
+        if (result.parsed.args.global.printSchema)
         {
             writeln("schema: build, test, run, dependency, publish");
             return 0;

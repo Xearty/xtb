@@ -1197,6 +1197,277 @@ static assert(!__traits(compiles,
 static assert(__traits(compiles,
         parseArgs!RequirednessDefaultArgs(cast(String[]) null)));
 
+struct FlattenLeafOptions
+{
+    @(cliShortName('v'), cliAliasName("chatty"), cliHelp("Enable verbose output"))
+    bool verbose;
+
+    @(cliDefault, cliHelp("Parallel jobs"))
+    uint jobs = 4;
+
+    @(cliValueWith!DurationValueCli, cliDefault, cliHelp("Timeout"))
+    DurationValue timeout = DurationValue(30);
+
+    @(cliValueWith!ParserOnlyValueCli, cliDefault, cliHideDefault)
+    ParserOnlyValue hiddenDefault = ParserOnlyValue(7);
+
+    @(cliNegatable, cliHelp("Override color preference"))
+    Option!bool color;
+
+    @(
+        cliValueWith!(TestCliValue!parsePort),
+        cliDefaultInput("443"),
+        cliHelp("Service port"),
+    )
+    Port port;
+
+    @cliHidden
+    bool internalTrace;
+}
+
+struct FlattenCommonOptions
+{
+    @cliFlatten
+    FlattenLeafOptions leaf;
+
+    @(cliValueName("PATH"), cliHelp("Optional config path"))
+    Option!String config;
+
+    @(cliValueName("TOOLCHAIN"), cliHelp("Required toolchain"))
+    String toolchain;
+}
+
+struct FlattenArgs
+{
+    @cliFlatten
+    FlattenCommonOptions common;
+
+    @(cliValueName("OUTPUT"), cliHelp("Required output path"))
+    String output;
+}
+
+struct FlattenPositionalGroup
+{
+    @(cliPositional, cliValueName("SOURCE"), cliHelp("Source value"))
+    String source;
+}
+
+struct FlattenPositionalArgs
+{
+    @(cliPositional, cliValueName("PREFIX"), cliHelp("Prefix value"))
+    String prefix;
+
+    @cliFlatten
+    FlattenPositionalGroup values;
+
+    @(cliPositional, cliValueName("DESTINATION"), cliHelp("Destination value"))
+    String destination;
+}
+
+struct FlattenGlobalOptions
+{
+    @(cliGlobal, cliShortName('v'), cliHelp("Verbose output"))
+    bool verbose;
+
+    @(cliGlobal, cliDefault, cliHelp("Global worker count"))
+    uint workers = 2;
+}
+
+@cliSubcommandOptional
+struct FlattenGlobalRootArgs
+{
+    @cliFlatten
+    FlattenGlobalOptions global;
+
+    alias Commands = CliCommands!(FlattenGlobalChildArgs);
+}
+
+@cliCommand("child")
+struct FlattenGlobalChildArgs
+{
+    Option!String name;
+}
+
+struct FlattenTerminalGroup
+{
+    @(cliTerminal, cliValueName("TOPIC"))
+    Option!String explain;
+}
+
+struct FlattenTerminalArgs
+{
+    @cliFlatten
+    FlattenTerminalGroup terminal;
+
+    String required;
+}
+
+struct FlattenRequiredChoiceGroup
+{
+    @cliNegatable
+    bool color;
+}
+
+struct FlattenRequiredChoiceArgs
+{
+    @cliFlatten
+    FlattenRequiredChoiceGroup choice;
+}
+
+struct FlattenRestGroup
+{
+    @(cliPositional, cliValueName("PROGRAM"))
+    String program;
+
+    @(cliPositional, cliRest, cliValueName("ARG"))
+    Array!String arguments;
+}
+
+struct FlattenRestArgs
+{
+    @cliFlatten
+    FlattenRestGroup run;
+}
+
+struct FlattenOverrideDefaultGroup
+{
+    @cliDefault
+    uint jobs = 4;
+}
+
+struct FlattenOverrideDefaultArgs
+{
+    @cliFlatten
+    FlattenOverrideDefaultGroup common = FlattenOverrideDefaultGroup(9);
+}
+
+struct FlattenAllocGroup
+{
+    @(cliShortName('D'), cliValueName("VALUE"))
+    Array!String defines;
+}
+
+struct FlattenAllocArgs
+{
+    @cliFlatten
+    FlattenAllocGroup compile;
+}
+
+struct FlattenCollisionGroup
+{
+    bool verbose;
+}
+
+struct InvalidFlattenCollisionArgs
+{
+    @cliFlatten
+    FlattenCollisionGroup common;
+
+    bool verbose;
+}
+
+struct InvalidFlattenTwoGroupsArgs
+{
+    @cliFlatten
+    FlattenCollisionGroup first;
+
+    @cliFlatten
+    FlattenCollisionGroup second;
+}
+
+struct InvalidFlattenScalarArgs
+{
+    @cliFlatten
+    uint value;
+}
+
+struct InvalidFlattenPointerArgs
+{
+    @cliFlatten
+    FlattenCollisionGroup* common;
+}
+
+struct InvalidFlattenOptionArgs
+{
+    @cliFlatten
+    Option!FlattenCollisionGroup common;
+}
+
+struct InvalidFlattenArrayArgs
+{
+    @cliFlatten
+    Array!FlattenCollisionGroup common;
+}
+
+struct InvalidFlattenAttributeArgs
+{
+    @(cliFlatten, cliGlobal)
+    FlattenCollisionGroup common;
+}
+
+@cliAbout("not a command")
+struct InvalidFlattenCommandMetadataGroup
+{
+    bool verbose;
+}
+
+struct InvalidFlattenCommandMetadataArgs
+{
+    @cliFlatten
+    InvalidFlattenCommandMetadataGroup common;
+}
+
+struct InvalidFlattenCommandGroup
+{
+    alias Commands = CliCommands!(InvalidFlattenCommandChild);
+}
+
+@cliCommand("child")
+struct InvalidFlattenCommandChild
+{
+}
+
+struct InvalidFlattenCommandArgs
+{
+    @cliFlatten
+    InvalidFlattenCommandGroup common;
+}
+
+static assert(__traits(compiles,
+        parseArgs!FlattenArgs(cast(String[]) null)));
+static assert(__traits(compiles,
+        parseArgs!FlattenPositionalArgs(cast(String[]) null)));
+static assert(__traits(compiles,
+        parseArgs!FlattenGlobalRootArgs(cast(String[]) null)));
+static assert(__traits(compiles,
+        parseArgs!FlattenTerminalArgs(cast(String[]) null)));
+static assert(__traits(compiles,
+        parseArgs!FlattenRequiredChoiceArgs(cast(String[]) null)));
+static assert(__traits(compiles,
+        parseArgs!FlattenOverrideDefaultArgs(cast(String[]) null)));
+static assert(cliNeedsAllocator!FlattenRestArgs);
+static assert(cliNeedsAllocator!FlattenAllocArgs);
+static assert(!__traits(compiles,
+        parseArgs!FlattenAllocArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenCollisionArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenTwoGroupsArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenScalarArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenPointerArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenOptionArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenArrayArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenAttributeArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenCommandMetadataArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidFlattenCommandArgs(cast(String[]) null)));
+
 private struct TextSink
 {
     char[8192] storage;
@@ -1226,6 +1497,231 @@ private bool contains(String haystack, String needle) pure @safe
         if (haystack[offset .. offset + needle.length] == needle)
             return true;
     return false;
+}
+
+private void testFlattenedArguments()
+{
+    {
+        String[5] argv = ["tool", "--toolchain", "ldc2", "--output", "build"];
+        auto result = parseArgs!FlattenArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(!result.invocation.args.common.leaf.verbose);
+        assert(result.invocation.args.common.leaf.jobs == 4);
+        assert(result.invocation.args.common.leaf.timeout.seconds == 30);
+        assert(result.invocation.args.common.leaf.hiddenDefault.value == 7);
+        assert(result.invocation.args.common.leaf.color.isNone);
+        assert(result.invocation.args.common.leaf.port.value == 443);
+        assert(!result.invocation.args.common.leaf.internalTrace);
+        assert(result.invocation.args.common.config.isNone);
+        assert(result.invocation.args.common.toolchain == "ldc2");
+        assert(result.invocation.args.output == "build");
+    }
+
+    {
+        String[14] argv = [
+            "tool",
+            "--toolchain",
+            "ldc2",
+            "--chatty",
+            "--jobs",
+            "9",
+            "--no-color",
+            "--port",
+            "80",
+            "--config",
+            "xtb.conf",
+            "--internal-trace",
+            "--output",
+            "build",
+        ];
+        auto result = parseArgs!FlattenArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.common.leaf.verbose);
+        assert(result.invocation.args.common.leaf.jobs == 9);
+        assert(result.invocation.args.common.leaf.color.isSome);
+        assert(!result.invocation.args.common.leaf.color.value);
+        assert(result.invocation.args.common.leaf.port.value == 80);
+        assert(result.invocation.args.common.leaf.internalTrace);
+        assert(result.invocation.args.common.config.isSome);
+        assert(result.invocation.args.common.config.value == "xtb.conf");
+        assert(result.invocation.args.common.toolchain == "ldc2");
+        assert(result.invocation.args.output == "build");
+    }
+
+    {
+        String[3] argv = ["tool", "--output", "build"];
+        auto result = parseArgs!FlattenArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingRequiredOption);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) == 2);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(contains(errors.text, "required option '--toolchain' was not provided"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!FlattenArgs(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text,
+                "Usage: tool --toolchain <TOOLCHAIN> --output <OUTPUT> [OPTIONS]"));
+        assert(contains(output.text, "Required options:"));
+        assert(contains(output.text, "--toolchain <TOOLCHAIN>"));
+        assert(contains(output.text, "--output <OUTPUT>"));
+        assert(contains(output.text, "Optional options:"));
+        assert(contains(output.text, "--verbose"));
+        assert(contains(output.text, "aliases: --chatty"));
+        assert(contains(output.text, "default: 4"));
+        assert(contains(output.text, "default: 30s"));
+        assert(contains(output.text, "default: 443"));
+        assert(!contains(output.text, "default: 7"));
+        assert(contains(output.text, "--config <PATH>"));
+        assert(!contains(output.text, "internal-trace"));
+        assert(!contains(output.text, "FlattenLeafOptions"));
+        assert(!contains(output.text, "FlattenCommonOptions"));
+    }
+
+    {
+        String[4] argv = ["tool", "prefix", "source", "destination"];
+        auto result = parseArgs!FlattenPositionalArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.prefix == "prefix");
+        assert(result.invocation.args.values.source == "source");
+        assert(result.invocation.args.destination == "destination");
+
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!FlattenPositionalArgs(writer, "tool");
+        assert(writer.finish().ok);
+        assert(contains(output.text, "Usage: tool [OPTIONS] <PREFIX> <SOURCE> <DESTINATION>"));
+    }
+
+    {
+        String[5] argv = ["tool", "child", "--verbose", "--name", "value"];
+        auto result = parseArgs!FlattenGlobalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.global.verbose);
+        assert(result.invocation.args.global.workers == 2);
+        auto child = result.invocation.command!FlattenGlobalChildArgs;
+        assert(child !is null);
+        assert(child.args.name.isSome);
+        assert(child.args.name.value == "value");
+
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(FlattenGlobalRootArgs, FlattenGlobalChildArgs)(writer, "tool");
+        assert(writer.finish().ok);
+        assert(contains(output.text, "Optional global options:"));
+        assert(contains(output.text, "--verbose"));
+        assert(contains(output.text, "--workers <WORKERS>"));
+        assert(contains(output.text, "default: 2"));
+    }
+
+    {
+        String[3] argv = ["tool", "--explain", "schema"];
+        auto result = parseArgs!FlattenTerminalArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasTerminal);
+        assert(result.parsed.args.terminal.explain.isSome);
+        assert(result.parsed.args.terminal.explain.value == "schema");
+    }
+
+    {
+        String[1] argv = ["tool"];
+        auto result = parseArgs!FlattenRequiredChoiceArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingRequiredOption);
+    }
+
+    {
+        String[2] argv = ["tool", "--no-color"];
+        auto result = parseArgs!FlattenRequiredChoiceArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(!result.invocation.args.choice.color);
+
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!FlattenRequiredChoiceArgs(writer, "tool");
+        assert(writer.finish().ok);
+        assert(contains(output.text, "Usage: tool (--color|--no-color) [OPTIONS]"));
+        assert(contains(output.text, "Required options:"));
+    }
+
+    {
+        String[1] argv = ["tool"];
+        auto result = parseArgs!FlattenOverrideDefaultArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.common.jobs == 9);
+
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!FlattenOverrideDefaultArgs(writer, "tool");
+        assert(writer.finish().ok);
+        assert(contains(output.text, "default: 9"));
+    }
+
+    {
+        AllocationRecord[8] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(),
+            records[],
+        );
+        String[5] argv = ["tool", "app", "--", "-x", "value"];
+        auto result = parseArgs!FlattenRestArgs(argv, allocator.allocator);
+        assert(result.hasInvocation);
+        assert(result.invocation.args.run.program == "app");
+        assert(result.invocation.args.run.arguments.length == 2);
+        assert(result.invocation.args.run.arguments[0] == "-x");
+        assert(result.invocation.args.run.arguments[1] == "value");
+        result.deinit();
+        assert(allocator.clean);
+    }
+
+    {
+        AllocationRecord[8] records;
+        InstrumentedAllocator allocator = InstrumentedAllocator.create(
+            mallocAllocator(),
+            records[],
+        );
+        String[5] argv = ["tool", "-Da", "-Db", "-Dc", "-Dd"];
+        auto result = parseArgs!FlattenAllocArgs(argv, allocator.allocator);
+        assert(result.hasInvocation);
+        assert(result.invocation.args.compile.defines.length == 4);
+        assert(result.invocation.args.compile.defines[0] == "a");
+        assert(result.invocation.args.compile.defines[3] == "d");
+        result.deinit();
+        assert(allocator.clean);
+    }
 }
 
 private void testRequirednessAndDefaults()
@@ -2649,6 +3145,7 @@ private void testAllocationFailureCleansUp()
 
 extern (C) int main()
 {
+    testFlattenedArguments();
     testRequirednessAndDefaults();
     testExplicitTypedTraversal();
     testNestedCommandsAndChildVersionOption();

@@ -322,7 +322,7 @@ private struct ParseFrame(T)
 {
 nothrow @nogc:
     ParsedCommand!T* node;
-    bool[T.tupleof.length]* seen;
+    bool[cliFieldCount!T]* seen;
 }
 
 /// Parses process-style argc/argv without copying argument text.
@@ -399,7 +399,7 @@ private void parseCommand(Root, T, Ancestors...)(
     Ancestors ancestors,
 ) @system
 {
-    bool[T.tupleof.length] seen;
+    bool[cliFieldCount!T] seen;
     ParseFrame!T currentFrame = ParseFrame!T(&node, &seen);
     size_t positionalOrdinal;
     bool optionsEnded;
@@ -508,13 +508,13 @@ private void parseCommand(Root, T, Ancestors...)(
         }
     }
 
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
     {
         static if (fieldHasDefaultInput!(T, index))
         {
             if (!(*currentFrame.seen)[index])
             {
-                ref field = currentFrame.node.args.tupleof[index];
+                ref field = cliFieldRef!(T, index)(currentFrame.node.args);
                 if (!assignFieldValue!(T, index)(
                         state,
                         field,
@@ -529,7 +529,7 @@ private void parseCommand(Root, T, Ancestors...)(
         }
     }
 
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
     {
         static if (fieldIsRequired!(T, index))
         {
@@ -653,7 +653,7 @@ private OptionMatch tryLongOnFrame(T)(
     bool globalsOnly,
 ) @system
 {
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
     {
         static if (!fieldHas!(T, index, CliPositional))
         {
@@ -770,7 +770,7 @@ private OptionMatch tryShortOnFrame(T)(
     bool globalsOnly,
 ) @system
 {
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
     {
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldAllShortNames!(T, index).length != 0)
@@ -832,7 +832,7 @@ private OptionMatch consumeNamedField(
 {
     const optionToken = state.current;
     alias Field = FieldType!(T, index);
-    ref field = frame.node.args.tupleof[index];
+    ref field = cliFieldRef!(T, index)(frame.node.args);
     ref bool wasSeen = (*frame.seen)[index];
 
     static if (fieldHas!(T, index, CliNegatable))
@@ -930,7 +930,7 @@ private bool parseNextPositional(T)(
 {
     size_t currentOrdinal;
     bool matched;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
     {
         if (!tryParsePositionalAt!(T, index)(
                 state,
@@ -965,7 +965,7 @@ private bool tryParsePositionalAt(T, size_t index)(
         if (!matched && currentOrdinal == ordinal)
         {
             alias Field = FieldType!(T, index);
-            ref field = frame.node.args.tupleof[index];
+            ref field = cliFieldRef!(T, index)(frame.node.args);
             if (!assignFieldValue!(T, index)(
                     state,
                     field,
@@ -1548,13 +1548,13 @@ private void writeRequiredNamedOptionUsageAt(T, size_t index, bool global)(
 
 private void writeRequiredLocalOptionUsage(T)(ref AnsiWriter writer) @system
 {
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         writeRequiredNamedOptionUsageAt!(T, index, false)(writer);
 }
 
 private void writeRequiredGlobalOptionUsage(T)(ref AnsiWriter writer) @system
 {
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         writeRequiredNamedOptionUsageAt!(T, index, true)(writer);
 }
 
@@ -1750,7 +1750,7 @@ private void writeCommandOrPositionalUsage(T)(ref AnsiWriter writer) @system
 
 private void writePositionalUsage(T)(ref AnsiWriter writer) @system
 {
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         writePositionalUsageAt!(T, index)(writer);
 }
 
@@ -1772,7 +1772,7 @@ private void writePositionalUsageAt(T, size_t index)(ref AnsiWriter writer) @sys
 
 private enum hasVisiblePositionals(T) = () {
     bool result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliHidden))
             result = true;
@@ -1781,7 +1781,7 @@ private enum hasVisiblePositionals(T) = () {
 
 private enum hasVisibleRequiredLocalOptions(T) = () {
     bool result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden) &&
@@ -1792,7 +1792,7 @@ private enum hasVisibleRequiredLocalOptions(T) = () {
 
 private enum hasVisibleOptionalLocalOptions(T) = () {
     bool result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden) &&
@@ -1807,7 +1807,7 @@ private enum positionalHelpLabelWidth(T, size_t index) = fieldValueName!(T, inde
 
 private enum positionalHelpColumnWidth(T) = () {
     size_t result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliHidden))
             if (positionalHelpLabelWidth!(T, index) > result)
@@ -1818,7 +1818,7 @@ private enum positionalHelpColumnWidth(T) = () {
 private void writePositionals(T)(ref AnsiWriter writer, size_t columnWidth) @system
 {
     bool first = true;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
     {
         static if (fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliHidden))
@@ -1873,7 +1873,7 @@ private enum optionHelpLabelWidth(T, size_t index) = () {
 
 private enum visibleLocalOptionHelpColumnWidth(T, bool required) = () {
     size_t result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden) &&
@@ -1885,7 +1885,7 @@ private enum visibleLocalOptionHelpColumnWidth(T, bool required) = () {
 
 private enum visibleGlobalOptionHelpColumnWidth(T, bool required) = () {
     size_t result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden) &&
@@ -1912,7 +1912,7 @@ private void writeLocalOptions(T, bool required)(
 ) @system
 {
     bool first = true;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
     {
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
@@ -2080,7 +2080,7 @@ private void writeFieldHelpDefault(T, size_t index)(ref AnsiWriter writer) @syst
         alias Field = Unqualified!(FieldType!(T, index));
         static assert(fieldHasDefault!(T, index));
         T defaults = T.init;
-        ref value = defaults.tupleof[index];
+        ref value = cliFieldRef!(T, index)(defaults);
         static if (fieldHasValueWith!(T, index))
         {
             alias Representation = FieldValueRepresentation!(T, index);
@@ -2107,7 +2107,7 @@ private void writeFieldHelpDefault(T, size_t index)(ref AnsiWriter writer) @syst
 
 private enum hasVisibleRequiredGlobalOptions(T) = () {
     bool result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden) &&
@@ -2118,7 +2118,7 @@ private enum hasVisibleRequiredGlobalOptions(T) = () {
 
 private enum hasVisibleOptionalGlobalOptions(T) = () {
     bool result;
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden) &&
@@ -2133,7 +2133,7 @@ private void writeVisibleGlobals(T, bool required)(
     ref bool first,
 ) @system
 {
-    static foreach (index; 0 .. T.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!T)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden) &&
@@ -2211,7 +2211,7 @@ private void writeErrorFieldName(T)(
 {
     if (targetDepth == currentDepth)
     {
-        static foreach (index; 0 .. T.tupleof.length)
+        static foreach (index; 0 .. cliFieldCount!T)
         {
             if (fieldIndex == index)
             {

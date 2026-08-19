@@ -19,9 +19,11 @@ The library is designed around the same constraints as the rest of XTB:
 The parser does not invoke command callbacks. It returns a typed parsed tree and
 leaves normal application control flow explicit.
 
-See [`ROADMAP.md`](ROADMAP.md) for proposed future work and
+See [`ROADMAP.md`](ROADMAP.md) for proposed future work,
 [`../../../design_spec/cli_requiredness_defaults.md`](../../../design_spec/cli_requiredness_defaults.md)
-for the requiredness/default redesign.
+for the requiredness/default redesign, and
+[`../../../design_spec/cli_flatten.md`](../../../design_spec/cli_flatten.md) for the
+flattened argument-group design.
 
 ## Quick start
 
@@ -168,6 +170,133 @@ if (auto dependency = root.command!DependencyArgs)
 ```
 
 Exactly one child can be active at each command level.
+
+## Flattened argument groups
+
+`cliFlatten` lets a normal nested D struct contribute its fields directly to the
+containing command's CLI namespace. Only the CLI schema is flattened; storage
+remains nested.
+
+```d
+struct CompileOptions
+{
+    @(cliShortName('j'), cliDefault, cliHelp("Parallel jobs"))
+    uint jobs = 8;
+
+    Option!String compiler;
+}
+
+struct BuildArgs
+{
+    @cliFlatten
+    CompileOptions compile;
+
+    String output;
+}
+```
+
+The CLI accepts the nested fields as ordinary `BuildArgs` options:
+
+```text
+tool build --output build/ --jobs 16 --compiler ldc2
+```
+
+while application code keeps the useful grouping:
+
+```d
+build.args.compile.jobs;
+build.args.compile.compiler;
+build.args.output;
+```
+
+Flattened groups may be nested recursively:
+
+```d
+struct LoggingOptions
+{
+    bool verbose;
+}
+
+struct CommonOptions
+{
+    @cliFlatten
+    LoggingOptions logging;
+
+    Option!String config;
+}
+
+struct Args
+{
+    @cliFlatten
+    CommonOptions common;
+}
+```
+
+The logical field order is the declaration order after expanding each flattened
+field in place. This matters for positional arguments:
+
+```d
+struct Source
+{
+    @(cliPositional, cliValueName("SOURCE"))
+    String source;
+}
+
+struct CopyArgs
+{
+    @(cliPositional, cliValueName("PREFIX"))
+    String prefix;
+
+    @cliFlatten
+    Source input;
+
+    @(cliPositional, cliValueName("DESTINATION"))
+    String destination;
+}
+```
+
+produces:
+
+```text
+Usage: tool <PREFIX> <SOURCE> <DESTINATION>
+```
+
+The nested fields retain all of their normal CLI semantics, including:
+
+- requiredness and `Option!T`;
+- `cliDefault`, `cliDefaultInput`, and `cliHideDefault`;
+- aliases and short names;
+- `cliGlobal`;
+- `cliHidden` and `cliTerminal`;
+- repeated/rest arguments;
+- `cliNegatable` and `cliCount`;
+- `cliValueWith` custom representations.
+
+Collisions are checked in the resulting flat namespace, so a direct field and a
+flattened field cannot claim the same option spelling.
+
+The flatten target itself must be a direct struct-valued field:
+
+```d
+@cliFlatten
+CommonOptions common; // valid
+```
+
+Pointers, `Option!Struct`, containers, and scalar fields are not flattenable.
+The flatten field may not combine `cliFlatten` with other CLI field attributes;
+put those attributes on the nested fields instead. A flattened group may contain
+other flattened groups, but it may not declare `CliCommands` or carry CLI
+type-level attributes. The group is an argument-composition value, not a hidden
+command or policy scope.
+
+No separate flatten-cycle detector is needed. Because flattening follows only
+direct by-value struct fields, D's own finite-layout rules already reject the
+recursive layouts that could form a cycle. Pointer/container recursion is not a
+valid flatten target.
+
+Flattening adds no runtime allocation or adapter object. XTB resolves each
+logical argument to its nested field path at compile time and writes directly
+into the existing nested `args` value.
 
 ## Requiredness and defaults
 

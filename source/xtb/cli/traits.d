@@ -47,16 +47,130 @@ pure @safe
     return result;
 }
 
-template FieldSymbol(T, size_t index)
+template RawFieldSymbol(T, size_t index)
 {
     alias U = Unqualified!T;
     enum name = __traits(identifier, U.tupleof[index]);
-    alias FieldSymbol = __traits(getMember, U, name);
+    alias RawFieldSymbol = __traits(getMember, U, name);
+}
+
+template RawFieldType(T, size_t index)
+{
+    alias RawFieldType = typeof(Unqualified!T.tupleof[index]);
+}
+
+enum rawFieldHas(T, size_t index, A) = containsAttribute!A(
+        __traits(getAttributes, RawFieldSymbol!(T, index)),
+    );
+
+enum rawFieldAttributeCount(T, size_t index, A) = countAttribute!A(
+        __traits(getAttributes, RawFieldSymbol!(T, index)),
+    );
+
+private struct CliFieldPath(Indices...)
+{
+    alias indices = AliasSeq!Indices;
+}
+
+private template PrependFieldPath(size_t head, Path)
+{
+    template Impl(Indices...)
+    {
+        alias Impl = CliFieldPath!(head, Indices);
+    }
+
+    alias PrependFieldPath = Impl!(Path.indices);
+}
+
+private template PrependFieldPaths(size_t head, Paths...)
+{
+    static if (Paths.length == 0)
+        alias PrependFieldPaths = AliasSeq!();
+    else
+        alias PrependFieldPaths = AliasSeq!(
+            PrependFieldPath!(head, Paths[0]),
+            PrependFieldPaths!(head, Paths[1 .. $]),
+        );
+}
+
+private template CliFieldPathsFrom(T, size_t rawIndex)
+{
+    alias U = Unqualified!T;
+    static if (rawIndex == U.tupleof.length)
+        alias CliFieldPathsFrom = AliasSeq!();
+    else static if (rawFieldHas!(U, rawIndex, CliFlatten))
+    {
+        alias Nested = Unqualified!(RawFieldType!(U, rawIndex));
+        static if (is(Nested == struct))
+            alias CliFieldPathsFrom = AliasSeq!(
+                PrependFieldPaths!(rawIndex, CliFieldPaths!Nested),
+                CliFieldPathsFrom!(U, rawIndex + 1),
+            );
+        else
+            alias CliFieldPathsFrom = AliasSeq!(
+                CliFieldPath!rawIndex,
+                CliFieldPathsFrom!(U, rawIndex + 1),
+            );
+    }
+    else
+        alias CliFieldPathsFrom = AliasSeq!(
+            CliFieldPath!rawIndex,
+            CliFieldPathsFrom!(U, rawIndex + 1),
+        );
+}
+
+template CliFieldPaths(T)
+{
+    alias CliFieldPaths = CliFieldPathsFrom!(Unqualified!T, 0);
+}
+
+enum cliFieldCount(T) = CliFieldPaths!(Unqualified!T).length;
+
+private template FieldOwnerAtPath(T, size_t head, Rest...)
+{
+    alias U = Unqualified!T;
+    static if (Rest.length == 0)
+        alias FieldOwnerAtPath = U;
+    else
+        alias FieldOwnerAtPath = FieldOwnerAtPath!(
+            Unqualified!(RawFieldType!(U, head)),
+            Rest,
+        );
+}
+
+private template fieldLeafIndexAtPath(size_t head, Rest...)
+{
+    static if (Rest.length == 0)
+        enum size_t fieldLeafIndexAtPath = head;
+    else
+        enum size_t fieldLeafIndexAtPath = fieldLeafIndexAtPath!Rest;
+}
+
+template FieldPath(T, size_t index)
+{
+    alias FieldPath = CliFieldPaths!(Unqualified!T)[index];
+}
+
+template FieldOwner(T, size_t index)
+{
+    alias Path = FieldPath!(T, index);
+    alias FieldOwner = FieldOwnerAtPath!(Unqualified!T, Path.indices);
+}
+
+template fieldLeafIndex(T, size_t index)
+{
+    alias Path = FieldPath!(T, index);
+    enum size_t fieldLeafIndex = fieldLeafIndexAtPath!(Path.indices);
+}
+
+template FieldSymbol(T, size_t index)
+{
+    alias FieldSymbol = RawFieldSymbol!(FieldOwner!(T, index), fieldLeafIndex!(T, index));
 }
 
 template FieldType(T, size_t index)
 {
-    alias FieldType = typeof(Unqualified!T.tupleof[index]);
+    alias FieldType = RawFieldType!(FieldOwner!(T, index), fieldLeafIndex!(T, index));
 }
 
 enum fieldHas(T, size_t index, A) = containsAttribute!A(
@@ -66,6 +180,21 @@ enum fieldHas(T, size_t index, A) = containsAttribute!A(
 enum fieldAttributeCount(T, size_t index, A) = countAttribute!A(
         __traits(getAttributes, FieldSymbol!(T, index)),
     );
+
+ref auto cliFieldRefAtDepth(Path, size_t depth, T)(ref T value) pure @system
+{
+    enum size_t fieldIndex = Path.indices[depth];
+    static if (depth + 1 == Path.indices.length)
+        return value.tupleof[fieldIndex];
+    else
+        return cliFieldRefAtDepth!(Path, depth + 1)(value.tupleof[fieldIndex]);
+}
+
+ref auto cliFieldRef(T, size_t index)(ref T value) pure @system
+{
+    alias Path = FieldPath!(T, index);
+    return cliFieldRefAtDepth!(Path, 0)(value);
+}
 
 private size_t symbolAttributeCount(alias Symbol, A)() pure @safe
 {
@@ -750,7 +879,13 @@ enum fieldIsRequired(T, size_t index) = () {
         return true;
 }();
 
-enum fieldDefaultValue(T, size_t index) = Unqualified!T.init.tupleof[index];
+private auto fieldDefaultValueStorage(T, size_t index)() pure @system
+{
+    Unqualified!T defaults = Unqualified!T.init;
+    return cliFieldRef!(Unqualified!T, index)(defaults);
+}
+
+enum fieldDefaultValue(T, size_t index) = fieldDefaultValueStorage!(T, index)();
 
 enum fieldHasHelpDefault(T, size_t index) =
     (fieldHasDefault!(T, index) || fieldHasDefaultInput!(T, index)) &&
@@ -894,7 +1029,7 @@ private bool cliFieldNeedsAllocator(T, size_t index)() pure @safe
 enum cliNeedsAllocator(T) = () {
     alias U = Unqualified!T;
     bool result;
-    static foreach (index; 0 .. U.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!U)
         static if (cliFieldNeedsAllocator!(U, index)())
             result = true;
     static foreach (Child; CommandTypes!U)
@@ -964,6 +1099,83 @@ private bool hasLongOptionDelimiter(scope String name) pure @safe
         if (codeUnit == '=')
             return true;
     return false;
+}
+
+private bool isCliAttribute(alias attribute)() pure @safe
+{
+    static if (isPossibleValuesAttribute!attribute || isValueWithAttribute!attribute)
+        return true;
+    else static if (__traits(compiles, typeof(attribute)))
+    {
+        alias A = typeof(attribute);
+        return is(A == CliCommand) || is(A == CliAbout) || is(A == CliVersion) ||
+            is(A == CliNoBuiltinHelp) || is(A == CliNoBuiltinVersion) ||
+            is(A == CliHelp) || is(A == CliLongName) || is(A == CliAliasName) ||
+            is(A == CliShortName) || is(A == CliShortAlias) || is(A == CliValueName) ||
+            is(A == CliPositional) || is(A == CliFlatten) || is(A == CliDefault) ||
+            is(A == CliDefaultInput) || is(A == CliHideDefault) || is(A == CliCount) ||
+            is(A == CliGlobal) || is(A == CliRest) || is(A == CliHidden) ||
+            is(A == CliNegatable) || is(A == CliTerminal) ||
+            is(A == CliSubcommandOptional) || is(A == CliHelpOnNoSubcommand);
+    }
+    else
+        return false;
+}
+
+private bool flattenFieldHasUnsupportedCliAttribute(T, size_t index)() pure @safe
+{
+    bool result;
+    static foreach (attribute; __traits(getAttributes, RawFieldSymbol!(T, index)))
+        static if (isCliAttribute!attribute())
+            static if (!is(typeof(attribute) == CliFlatten))
+                result = true;
+    return result;
+}
+
+private bool flattenTypeHasCliAttribute(T)() pure @safe
+{
+    bool result;
+    static foreach (attribute; __traits(getAttributes, Unqualified!T))
+        static if (isCliAttribute!attribute())
+            result = true;
+    return result;
+}
+
+private bool validateFlattenFields(T)() pure @safe
+{
+    alias U = Unqualified!T;
+    static foreach (index; 0 .. U.tupleof.length)
+    {
+        static assert(rawFieldAttributeCount!(U, index, CliFlatten) <= 1,
+            U.stringof ~ "." ~ __traits(identifier, RawFieldSymbol!(U, index)) ~
+                " has duplicate @cliFlatten attributes");
+        static if (rawFieldHas!(U, index, CliFlatten))
+        {
+            alias Nested = Unqualified!(RawFieldType!(U, index));
+            static assert(is(Nested == struct),
+                U.stringof ~ "." ~ __traits(identifier, RawFieldSymbol!(U, index)) ~
+                    " @cliFlatten requires a direct struct-valued field");
+            static assert(!flattenFieldHasUnsupportedCliAttribute!(U, index)(),
+                U.stringof ~ "." ~ __traits(identifier, RawFieldSymbol!(U, index)) ~
+                    " @cliFlatten cannot be combined with other CLI field attributes");
+            static if (is(Nested == struct))
+                static assert(validateFlattenGroup!Nested());
+        }
+    }
+    return true;
+}
+
+private bool validateFlattenGroup(T)() pure @safe
+{
+    alias U = Unqualified!T;
+    static assert(is(U == struct), U.stringof ~ " flattened CLI group must be a struct");
+    static assert(!hasSubcommands!U,
+        U.stringof ~ " flattened CLI group cannot declare CliCommands");
+    static assert(!flattenTypeHasCliAttribute!U(),
+        U.stringof ~ " flattened CLI group cannot declare CLI type attributes");
+
+    static assert(validateFlattenFields!U());
+    return true;
 }
 
 private bool validateField(Root, T, size_t index)() pure @safe
@@ -1250,7 +1462,7 @@ pure @safe
 
 private bool validateOptionUniquenessAt(T, size_t leftIndex)() pure @safe
 {
-    static foreach (rightIndex; leftIndex + 1 .. T.tupleof.length)
+    static foreach (rightIndex; leftIndex + 1 .. cliFieldCount!T)
         static assert(validateOptionPair!(T, leftIndex, rightIndex)());
     return true;
 }
@@ -1349,7 +1561,7 @@ private bool validateGlobalAgainstField(
 private bool validateGlobalAgainstSubtree(Parent, size_t globalIndex, Child)()
 pure @safe
 {
-    static foreach (index; 0 .. Unqualified!Child.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!(Unqualified!Child))
         static assert(validateGlobalAgainstField!(
                 Parent,
                 globalIndex,
@@ -1395,6 +1607,7 @@ private bool validateCommand(Root, T)() pure @safe
     static assert(is(U == struct), U.stringof ~ " CLI argument type must be a struct");
     static assert(__traits(compiles, () { U value; }),
         U.stringof ~ " CLI argument type must be default-constructible");
+    static assert(validateFlattenFields!U());
 
     static if (is(U == Unqualified!Root))
     {
@@ -1438,12 +1651,12 @@ private bool validateCommand(Root, T)() pure @safe
             U.stringof ~ " @cliHelpOnNoSubcommand is only valid on commands with subcommands");
     }
 
-    static foreach (index; 0 .. U.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!U)
         static assert(validateField!(Root, U, index)());
 
     static if (hasSubcommands!U)
     {
-        static foreach (index; 0 .. U.tupleof.length)
+        static foreach (index; 0 .. cliFieldCount!U)
             static assert(!fieldHas!(U, index, CliPositional),
                 U.stringof ~ " cannot declare positional arguments while it has subcommands");
 
@@ -1451,13 +1664,13 @@ private bool validateCommand(Root, T)() pure @safe
             static assert(validateChildAt!(U, leftIndex)());
     }
 
-    static foreach (leftIndex; 0 .. U.tupleof.length)
+    static foreach (leftIndex; 0 .. cliFieldCount!U)
         static assert(validateOptionUniquenessAt!(U, leftIndex)());
 
-    static foreach (index; 0 .. U.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!U)
         static assert(validatePositionalOrderingAt!(U, index)());
 
-    static foreach (index; 0 .. U.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!U)
         static assert(validateGlobalCollisionsAt!(U, index)());
 
     static foreach (Child; CommandTypes!U)
@@ -1469,7 +1682,7 @@ private bool validateCliSchema(T)() pure @safe
 {
     alias U = Unqualified!T;
     static assert(validateCommand!(U, U)());
-    static foreach (index; 0 .. U.tupleof.length)
+    static foreach (index; 0 .. cliFieldCount!U)
         static assert(validateRootVersionAt!(U, index)());
     return true;
 }
