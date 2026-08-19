@@ -3,8 +3,10 @@ module xtb.core.ansi;
 nothrow @nogc:
 
 import xtb.core.flag_set : FlagSet, enable;
-import xtb.core.print : Writer;
+import xtb.core.print : WriteResult, Writer;
 import xtb.core.string;
+
+version (XTB_Checked) import xtb.core.panic : require;
 
 /// User policy for OS-aware ANSI capability selection.
 enum AnsiMode : ubyte
@@ -261,6 +263,93 @@ nothrow @nogc:
 
 enum ansiReset = AnsiReset.init;
 
+/// A non-owning view over a `Writer` that conditionally emits ANSI SGR styling.
+///
+/// `ansiEnabled` is an explicit rendering decision made by the caller; this
+/// type does not inspect the output destination or environment. The referenced
+/// `Writer` must remain valid for the lifetime of this view.
+struct AnsiWriter
+{
+nothrow @nogc:
+
+    private Writer* writer_;
+    private bool ansiEnabled_;
+
+    /// Creates an ANSI-capable view over `writer`.
+    /// `ansiEnabled` is deliberately required: policy belongs to the caller.
+    static AnsiWriter fromWriter(Writer* writer, bool ansiEnabled)
+    {
+        version (XTB_Checked)
+            require(writer !is null, "AnsiWriter requires a non-null Writer pointer");
+
+        AnsiWriter result;
+        result.writer_ = writer;
+        result.ansiEnabled_ = ansiEnabled;
+        return result;
+    }
+
+    bool ansiEnabled() const pure @safe
+    {
+        return ansiEnabled_;
+    }
+
+    bool ok() const pure @safe
+    {
+        return writer_.ok;
+    }
+
+    size_t written() const pure @safe
+    {
+        return writer_.written;
+    }
+
+    void put(char value)
+    {
+        writer_.put(value);
+    }
+
+    void put(scope String value)
+    {
+        writer_.put(value);
+    }
+
+    void repeat(char value, size_t count)
+    {
+        writer_.repeat(value, count);
+    }
+
+    void flush()
+    {
+        writer_.flush();
+    }
+
+    WriteResult finish()
+    {
+        return writer_.finish();
+    }
+
+    void value(T)(auto ref T value)
+    {
+        writer_.value(value);
+    }
+
+    /// Writes one or more ordinary `Writer.value` values under `style`.
+    /// When ANSI is disabled, this is exactly equivalent to writing the values
+    /// without styling. The emitted reset is a full SGR reset, so this helper
+    /// intentionally does not expose nestable begin/end style scopes.
+    void styled(Values...)(AnsiStyle style, auto ref Values values) if (Values.length != 0)
+    {
+        if (ansiEnabled_)
+            beginAnsi(*writer_, style);
+
+        static foreach (index; 0 .. Values.length)
+            writer_.value(values[index]);
+
+        if (ansiEnabled_)
+            endAnsi(*writer_, style);
+    }
+}
+
 private void append(ref AnsiSequence sequence, char value)
 pure @safe
 {
@@ -395,6 +484,74 @@ void endAnsi(ref Writer writer, AnsiColor foreground)
 {
     if (foreground.enabled)
         writer.resetAnsi();
+}
+
+version (unittest) private struct AnsiWriterTestSinkState
+{
+    char[256] storage;
+    size_t length;
+}
+
+version (unittest) private size_t ansiWriterTestSink(
+    void* context,
+    scope const(ubyte)[] bytes,
+)
+{
+    AnsiWriterTestSinkState* state = cast(AnsiWriterTestSinkState*) context;
+    if (state is null || bytes.length > state.storage.length - state.length)
+        return 0;
+
+    foreach (index, value; bytes)
+        state.storage[state.length + index] = cast(char) value;
+    state.length += bytes.length;
+    return bytes.length;
+}
+
+unittest
+{
+    import xtb.core.print : hexadecimal;
+
+    AnsiWriterTestSinkState state;
+    Writer output = Writer.fromSink(&ansiWriterTestSink, &state);
+
+    static assert(!__traits(compiles, AnsiWriter.fromWriter(&output)));
+    static assert(__traits(compiles, AnsiWriter.fromWriter(&output, false)));
+
+    AnsiWriter plain = AnsiWriter.fromWriter(&output, false);
+    assert(!plain.ansiEnabled);
+    assert(plain.ok);
+    assert(plain.written == 0);
+
+    plain.put('A');
+    plain.put("B");
+    plain.repeat('c', 2);
+    plain.styled(
+        AnsiStyle.foreground(AnsiColor.brightRed).bold,
+        " value=",
+        hexadecimal(42),
+    );
+    assert(state.length == 0);
+    plain.flush();
+    assert(plain.written == state.length);
+    assert(state.storage[0 .. state.length].equal("ABcc value=0x2a"));
+
+    const plainResult = plain.finish();
+    assert(plainResult.ok);
+    assert(plainResult.written == state.length);
+
+    state = AnsiWriterTestSinkState.init;
+    output = Writer.fromSink(&ansiWriterTestSink, &state);
+    AnsiWriter styled = AnsiWriter.fromWriter(&output, true);
+    assert(styled.ansiEnabled);
+
+    const style = AnsiStyle.foreground(AnsiColor.brightRed).bold;
+    styled.styled(style, "value=", 42, '!');
+    const styledResult = styled.finish();
+    assert(styledResult.ok);
+    assert(styledResult.written == state.length);
+    assert(state.storage[0 .. state.length].equal(
+            "\x1b[1;91mvalue=42!\x1b[0m",
+    ));
 }
 
 unittest
