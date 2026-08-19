@@ -641,25 +641,54 @@ writeHelp!(RootArgs, DependencyArgs, DependencyAddArgs)(writer, programPath);
 The command path is compile-time validated. `programPath` is normalized to a
 program basename internally.
 
-Help is canonical-first. Aliases, negation, values, defaults, and requiredness
-are secondary metadata rather than being packed into the primary spelling.
+Help is canonical-first. Requiredness is structural rather than buried in
+metadata: required named options are written explicitly in the usage string and
+listed under `Required options:`, while omittable named options remain under
+`Options:`. Required and optional globals are similarly split into
+`Required global options:` and `Global options:`.
+
+Aliases, negation, values, and defaults remain secondary metadata.
 
 Typical shape:
 
 ```text
-Options:
-  -j, --jobs <N>  Number of parallel jobs
-                  aliases: --parallelism
-                  default: 8
+Usage: tool build --output <PATH> [OPTIONS]
 
-      --mode <MODE>  Build mode
-                     values: debug, release-safe, release-fast
-                     default: debug
-
+Required options:
   -o, --output <PATH>  Output path
                        aliases: --destination
-                       required
+
+Options:
+  -j, --jobs <N>       Number of parallel jobs
+                       aliases: --parallelism
+                       default: 8
+
+      --mode <MODE>    Build mode
+                       values: debug, release-safe, release-fast
+                       default: debug
 ```
+
+The usage notation follows these rules:
+
+- required named options are shown explicitly using their canonical long name;
+- a required negatable boolean is shown as `(--color|--no-color)`;
+- `[OPTIONS]` represents the remaining visible optional options for that command
+  scope, built-ins, and visible optional globals;
+- parent-local `[OPTIONS]` appears before the child command because those options
+  belong to the parent scope;
+- required positionals use `<NAME>`;
+- optional positionals use `[NAME]`;
+- rest positionals use `[NAME...]`.
+
+A nested command may therefore legitimately contain more than one `[OPTIONS]`
+marker, for example:
+
+```text
+Usage: tool dependency [OPTIONS] add [OPTIONS] <PACKAGE>
+```
+
+The first marker belongs to `dependency`; the second belongs to `add` plus
+visible globals/built-ins.
 
 `cliPossibleValues!(...)` is help metadata only. It does not constrain custom
 parsing.

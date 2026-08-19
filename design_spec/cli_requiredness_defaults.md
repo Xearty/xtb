@@ -12,7 +12,7 @@ This document is the source of truth for the implemented redesign. Further chang
 
 ## 1. Motivation
 
-The current CLI design treats requiredness as an independent attribute:
+The pre-redesign CLI design treated requiredness as an independent attribute:
 
 ```d
 @cliRequired
@@ -37,7 +37,7 @@ After a successful parse, the field can therefore never be `none`.
 
 The API also requires the user to explicitly mark the most ordinary scalar case—"this value must be provided"—while a plain field silently behaves as optional.
 
-The proposed design reverses this.
+The implemented design reverses this.
 
 The declaration itself should communicate the schema:
 
@@ -55,7 +55,7 @@ This makes the common cases obvious from the field declaration and removes the n
 
 ## 2. Core semantic model
 
-For ordinary value-taking scalar arguments, the proposed model is:
+For ordinary value-taking scalar arguments, the implemented model is:
 
 | Declaration | Meaning |
 |---|---|
@@ -1045,7 +1045,7 @@ This avoids having several overlapping ways to customize the same concept.
 
 ---
 
-## 26. Proposed default/requiredness matrix
+## 26. Default/requiredness matrix
 
 For value-taking scalar fields:
 
@@ -1224,12 +1224,18 @@ should report something equivalent to:
 error: required option '--registry' was not provided
 ```
 
-Generated help should also communicate requiredness:
+Generated help communicates requiredness structurally. The required named
+option appears explicitly in usage and in a dedicated section:
 
 ```text
---registry <REGISTRY>  Package registry
-                       required
+Usage: tool publish --registry <REGISTRY> [OPTIONS]
+
+Required options:
+  --registry <REGISTRY>  Package registry
 ```
+
+`[OPTIONS]` therefore means the remaining omittable options; it does not hide
+required named options.
 
 For parser-input default failure, diagnostics identify that the application declared an invalid default rather than blaming user input. `invalid` and `outOfRange` become `CliErrorKind.invalidDefault`; `allocationFailed` remains an allocation failure.
 
@@ -1246,8 +1252,10 @@ String output;
 ```
 
 ```text
---output <PATH>  Output path
-                 required
+Usage: tool build --output <PATH> [OPTIONS]
+
+Required options:
+  --output <PATH>  Output path
 ```
 
 ### Semantic default
@@ -1357,26 +1365,24 @@ If no default exists:
 bool color;
 ```
 
-help should include:
+help makes the two-way requirement structural:
 
 ```text
-required
+Usage: tool (--color|--no-color) [OPTIONS]
+
+Required options:
+  --color  Use colored output
+           aliases: --colour
+           negatable: --no-color
 ```
 
-because the user must explicitly provide either the positive or negative spelling.
+The user must explicitly provide either the positive or negative spelling.
 
 ---
 
-## 34. Migration from the current API
+## 34. Implemented API transition
 
-The current implementation includes:
-
-```d
-cliRequired
-cliParseWith!f
-```
-
-The approved design moves toward:
+The redesign has been implemented. The current model is:
 
 ```d
 plain T                 // required scalar
@@ -1387,18 +1393,9 @@ cliHideDefault
 cliValueWith!Representation
 ```
 
-A likely migration path is:
-
-1. Implement the new requiredness analysis.
-2. Add `cliDefault`, `cliDefaultInput`, and `cliHideDefault`.
-3. Add `cliValueWith`.
-4. Port existing custom parser examples/tests from `cliParseWith`.
-5. Remove `cliRequired` completely.
-6. Remove `cliParseWith`; `cliValueWith` is the single custom CLI-value representation hook.
-7. Update generated help and diagnostics.
-8. Expand combination/schema tests.
-
-Because XTB is still evolving, preserving compatibility should not override API clarity unless there is a concrete reason to do so.
+`cliRequired` and `cliParseWith` have been removed. Requiredness is derived from
+the schema, and `cliValueWith` is the single custom CLI-value representation
+hook.
 
 ---
 
@@ -1546,7 +1543,15 @@ When a visible semantic default should intentionally not appear in help, require
 
 ## 38. Remaining presentation details
 
-The core semantics in this document are settled. The following small presentation details can still be revisited independently without changing requiredness/default semantics.
+The core semantics in this document are settled. Generated help currently makes
+requiredness structural: required named options are explicit in `Usage:` and
+split into `Required options:` / `Required global options:` sections. Named
+required options do not also receive a redundant `required` metadata line.
+Required positionals continue to use `<NAME>` in usage and may retain positional
+required metadata in their detailed argument block.
+
+The following small presentation details can still be revisited independently
+without changing requiredness/default semantics.
 
 ### Empty/default input strings
 
@@ -1690,4 +1695,4 @@ static void format(...); // optional
 
 `cliDefaultInput` displays its literal parser input and validates it only when parsed at runtime.
 
-The proposed model removes `cliRequired` entirely, adds `cliHideDefault` as an explicit help-only escape hatch, and makes ordinary CLI schemas much more self-describing.
+The implemented model removes `cliRequired` entirely, adds `cliHideDefault` as an explicit help-only escape hatch, and makes ordinary CLI schemas much more self-describing.

@@ -420,6 +420,19 @@ struct NegatableArgs
     Option!bool cache;
 }
 
+struct RequiredGlobalRootArgs
+{
+    @(cliGlobal, cliValueName("WORKSPACE"), cliHelp("Workspace root"))
+    String workspace;
+
+    alias Commands = CliCommands!(RequiredGlobalChildArgs);
+}
+
+@cliCommand("child")
+struct RequiredGlobalChildArgs
+{
+}
+
 struct NegatableGlobalRootArgs
 {
     @(cliNegatable, cliGlobal, cliDefault)
@@ -1269,8 +1282,10 @@ private void testRequirednessAndDefaults()
         writeHelp!RequirednessDefaultArgs(writer, "tool");
         assert(writer.finish().ok);
 
+        assert(contains(output.text, "Usage: tool --required <REQUIRED> [OPTIONS]"));
+        assert(contains(output.text, "Required options:"));
         assert(contains(output.text, "--required <REQUIRED>"));
-        assert(contains(output.text, "required"));
+        assert(contains(output.text, "Options:"));
         assert(contains(output.text, "--optional <OPTIONAL>"));
         assert(contains(output.text, "default: 0"));
         assert(contains(output.text, "default: 8"));
@@ -1520,7 +1535,7 @@ private void testHelpOnMissingSubcommand()
         assert(errorWriter.finish().ok);
         assert(errors.text.length == 0);
         assert(contains(output.text, "Choose a command"));
-        assert(contains(output.text, "Usage: tool [OPTIONS] <COMMAND>"));
+        assert(contains(output.text, "Usage: tool --config <CONFIG> <COMMAND>"));
         assert(contains(output.text, "group"));
         assert(!contains(output.text, "Show this help"));
     }
@@ -1544,7 +1559,7 @@ private void testHelpOnMissingSubcommand()
         assert(errorWriter.finish().ok);
         assert(errors.text.length == 0);
         assert(contains(output.text, "Choose a group command"));
-        assert(contains(output.text, "Usage: tool group <COMMAND>"));
+        assert(contains(output.text, "Usage: tool --config <CONFIG> group <COMMAND>"));
         assert(contains(output.text, "run"));
         assert(!contains(output.text, "Show this help"));
     }
@@ -1807,6 +1822,18 @@ private void testNegatableBooleans()
     {
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!RequiredNegatableArgs(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "Usage: tool (--color|--no-color) [OPTIONS]"));
+        assert(contains(output.text, "Required options:"));
+        assert(contains(output.text, "--color"));
+        assert(contains(output.text, "negatable: --no-color"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!NegatableArgs(writer, "tool");
         assert(writer.finish().ok);
 
@@ -1830,6 +1857,19 @@ private void testPublicGeneratedHelp()
     {
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(RequiredGlobalRootArgs, RequiredGlobalChildArgs)(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text,
+                "Usage: tool child --workspace <WORKSPACE> [OPTIONS]"));
+        assert(contains(output.text, "Required global options:"));
+        assert(contains(output.text, "--workspace <WORKSPACE>"));
+        assert(!contains(output.text, "Global options:"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(RootArgs, DependencyArgs, DependencyAddArgs)(
             writer,
             "/usr/local/bin/tool",
@@ -1837,7 +1877,7 @@ private void testPublicGeneratedHelp()
         assert(writer.finish().ok);
 
         assert(contains(output.text, "Add a dependency"));
-        assert(contains(output.text, "Usage: tool dependency add [OPTIONS] <PACKAGE>"));
+        assert(contains(output.text, "Usage: tool dependency [OPTIONS] add [OPTIONS] <PACKAGE>"));
         assert(!contains(output.text, "/usr/local/bin/tool"));
         assert(contains(output.text, "--version <VERSION>"));
         assert(contains(output.text, "Global options:"));
@@ -1865,7 +1905,7 @@ private void testPublicGeneratedHelp()
         writeHelp!(CustomHelpRootArgs, CustomHelpChildArgs)(writer, "tool");
         assert(writer.finish().ok);
 
-        assert(contains(output.text, "Usage: tool child [OPTIONS]"));
+        assert(contains(output.text, "Usage: tool [OPTIONS] child [OPTIONS]"));
         assert(contains(output.text, "-h, --help"));
         assert(!contains(output.text, "Show this help"));
     }
@@ -1876,6 +1916,9 @@ private void testPublicGeneratedHelp()
         writeHelp!(RootArgs, BuildArgs)(writer, "tool");
         assert(writer.finish().ok);
 
+        assert(contains(output.text, "Usage: tool build --output <PATH> [OPTIONS]"));
+        assert(contains(output.text, "Required options:"));
+        assert(contains(output.text, "Options:"));
         assert(contains(output.text, "--jobs <N>"));
         assert(contains(output.text, "Parallel jobs"));
         assert(contains(output.text, "default: 1"));
@@ -1885,7 +1928,6 @@ private void testPublicGeneratedHelp()
         assert(contains(output.text, "default: debug"));
         assert(contains(output.text, "--output <PATH>"));
         assert(contains(output.text, "Output path"));
-        assert(contains(output.text, "required"));
         assert(!contains(output.text, "\t"));
     }
 
@@ -1924,12 +1966,12 @@ private void testPublicGeneratedHelp()
         writeHelp!(AliasRootArgs, AliasRemoveArgs)(writer, "tool");
         assert(writer.finish().ok);
 
-        assert(contains(output.text, "Usage: tool remove [OPTIONS]"));
+        assert(contains(output.text, "Usage: tool [OPTIONS] remove --target <TARGET> [OPTIONS]"));
         assert(contains(output.text, "-f, --force"));
         assert(contains(output.text, "aliases: -F, -E, --delete, --erase"));
+        assert(contains(output.text, "Required options:"));
         assert(contains(output.text, "--target <TARGET>"));
         assert(contains(output.text, "aliases: --destination"));
-        assert(contains(output.text, "required"));
     }
 }
 
@@ -2006,7 +2048,7 @@ private void testGeneratedHelpAndVersion()
         assert(errorWriter.finish().ok);
         assert(errors.text.length == 0);
         assert(contains(output.text, "Add a dependency"));
-        assert(contains(output.text, "Usage: tool dependency add [OPTIONS] <PACKAGE>"));
+        assert(contains(output.text, "Usage: tool dependency [OPTIONS] add [OPTIONS] <PACKAGE>"));
         assert(contains(output.text, "--version <VERSION>"));
         assert(contains(output.text, "Global options:"));
         assert(contains(output.text, "--verbose"));

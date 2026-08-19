@@ -1244,14 +1244,24 @@ void writeHelp(Root, Path...)(
     writeStaticUsage!(Root, Path)(writer, programName);
     writeHelpSections!(Root, Target)(writer);
 
-    static if (hasVisibleGlobalsOnStaticPath!(Root, Path))
+    static if (hasVisibleGlobalsOnStaticPath!(true, Root, Path))
+    {
+        writer.put('\n');
+        writer.styled(cliHeadingStyle, "Required global options:");
+        writer.put('\n');
+        enum columnWidth = globalsOnStaticPathHelpColumnWidth!(true, Root, Path);
+        bool firstGlobal = true;
+        writeGlobalsOnStaticPath!(true, Root, Path)(writer, columnWidth, firstGlobal);
+    }
+
+    static if (hasVisibleGlobalsOnStaticPath!(false, Root, Path))
     {
         writer.put('\n');
         writer.styled(cliHeadingStyle, "Global options:");
         writer.put('\n');
-        enum columnWidth = globalsOnStaticPathHelpColumnWidth!(Root, Path);
+        enum columnWidth = globalsOnStaticPathHelpColumnWidth!(false, Root, Path);
         bool firstGlobal = true;
-        writeGlobalsOnStaticPath!(Root, Path)(writer, columnWidth, firstGlobal);
+        writeGlobalsOnStaticPath!(false, Root, Path)(writer, columnWidth, firstGlobal);
     }
 }
 
@@ -1353,14 +1363,24 @@ private void writeSelectedHelpAt(Root, T)(
     writeSelectedUsage!Root(writer, programName, tree);
     writeHelpSections!(Root, T)(writer);
 
-    if (hasGlobalsAlongActivePath!Root(tree))
+    if (hasGlobalsAlongActivePath!(Root, true)(tree))
+    {
+        writer.put('\n');
+        writer.styled(cliHeadingStyle, "Required global options:");
+        writer.put('\n');
+        const columnWidth = globalsAlongActivePathHelpColumnWidth!(Root, true)(tree);
+        bool firstGlobal = true;
+        writeGlobalsAlongActivePath!(Root, true)(writer, tree, columnWidth, firstGlobal);
+    }
+
+    if (hasGlobalsAlongActivePath!(Root, false)(tree))
     {
         writer.put('\n');
         writer.styled(cliHeadingStyle, "Global options:");
         writer.put('\n');
-        const columnWidth = globalsAlongActivePathHelpColumnWidth!Root(tree);
+        const columnWidth = globalsAlongActivePathHelpColumnWidth!(Root, false)(tree);
         bool firstGlobal = true;
-        writeGlobalsAlongActivePath!Root(writer, tree, columnWidth, firstGlobal);
+        writeGlobalsAlongActivePath!(Root, false)(writer, tree, columnWidth, firstGlobal);
     }
 }
 
@@ -1399,16 +1419,25 @@ private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
         writePositionals!T(writer, positionalHelpColumnWidth!T);
     }
 
-    static if (hasVisibleLocalOptions!T || builtinHelpEnabled!Root ||
+    static if (hasVisibleRequiredLocalOptions!T)
+    {
+        writer.put('\n');
+        writer.styled(cliHeadingStyle, "Required options:");
+        writer.put('\n');
+        enum requiredColumnWidth = visibleLocalOptionHelpColumnWidth!(T, true);
+        writeLocalOptions!(T, true)(writer, requiredColumnWidth);
+    }
+
+    static if (hasVisibleOptionalLocalOptions!T || builtinHelpEnabled!Root ||
         (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
     {
         writer.put('\n');
         writer.styled(cliHeadingStyle, "Options:");
         writer.put('\n');
-        enum optionColumnWidth = localOptionHelpColumnWidth!(Root, T);
-        static if (hasVisibleLocalOptions!T)
+        enum optionColumnWidth = optionalLocalOptionHelpColumnWidth!(Root, T);
+        static if (hasVisibleOptionalLocalOptions!T)
         {
-            writeLocalOptions!T(writer, optionColumnWidth);
+            writeLocalOptions!(T, false)(writer, optionColumnWidth);
             static if (builtinHelpEnabled!Root ||
                 (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
                 writer.put('\n');
@@ -1488,6 +1517,68 @@ private template HelpPathTarget(Parent, Path...)
     }
 }
 
+private void writeRequiredNamedOptionUsageAt(T, size_t index, bool global)(
+    ref AnsiWriter writer,
+) @system
+{
+    static if (!fieldHas!(T, index, CliPositional) &&
+        fieldHas!(T, index, CliGlobal) == global &&
+        !fieldHas!(T, index, CliHidden) &&
+        fieldIsRequired!(T, index))
+    {
+        writer.put(' ');
+        static if (fieldHas!(T, index, CliNegatable))
+        {
+            writer.put('(');
+            writer.styled(cliCanonicalStyle, "--", fieldLongName!(T, index));
+            writer.put('|');
+            writer.styled(cliCanonicalStyle, "--", fieldNegativeLongName!(T, index));
+            writer.put(')');
+        }
+        else
+        {
+            writer.styled(cliCanonicalStyle, "--", fieldLongName!(T, index));
+            static if (cliFieldTakesValue!(T, index))
+            {
+                writer.put(' ');
+                writer.styled(cliValueStyle, '<', fieldValueName!(T, index), '>');
+            }
+        }
+    }
+}
+
+private void writeRequiredLocalOptionUsage(T)(ref AnsiWriter writer) @system
+{
+    static foreach (index; 0 .. T.tupleof.length)
+        writeRequiredNamedOptionUsageAt!(T, index, false)(writer);
+}
+
+private void writeRequiredGlobalOptionUsage(T)(ref AnsiWriter writer) @system
+{
+    static foreach (index; 0 .. T.tupleof.length)
+        writeRequiredNamedOptionUsageAt!(T, index, true)(writer);
+}
+
+private void writeOptionalOptionsUsage(ref AnsiWriter writer) @system
+{
+    writer.put(' ');
+    writer.styled(cliValueStyle, "[OPTIONS]");
+}
+
+private void writeStaticLocalUsagePath(Current, Path...)(ref AnsiWriter writer) @system
+{
+    writeRequiredLocalOptionUsage!Current(writer);
+    static if (Path.length != 0)
+    {
+        static if (hasVisibleOptionalLocalOptions!Current)
+            writeOptionalOptionsUsage(writer);
+        alias Child = Path[0];
+        writer.put(' ');
+        writer.styled(cliCanonicalStyle, commandName!Child);
+        writeStaticLocalUsagePath!(Child, Path[1 .. $])(writer);
+    }
+}
+
 private void writeStaticUsage(Root, Path...)(
     ref AnsiWriter writer,
     String programName,
@@ -1498,55 +1589,68 @@ private void writeStaticUsage(Root, Path...)(
     writer.styled(cliHeadingStyle, "Usage:");
     writer.put(' ');
     writer.styled(cliCanonicalStyle, programName);
-    static foreach (CommandType; Path)
-    {
-        writer.put(' ');
-        writer.styled(cliCanonicalStyle, commandName!CommandType);
-    }
-    writeUsageSuffixForType!(Target, hasInheritedGlobalsOnStaticPath!(Root, Path))(writer);
+    writeStaticLocalUsagePath!(Root, Path)(writer);
+    writeRequiredGlobalsOnStaticPathUsage!(Root, Path)(writer);
+    static if (hasVisibleOptionalLocalOptions!Target ||
+        hasVisibleGlobalsOnStaticPath!(false, Root, Path) ||
+        builtinHelpEnabled!Root ||
+        (Path.length == 0 && builtinVersionEnabled!Root))
+        writeOptionalOptionsUsage(writer);
+    writeCommandOrPositionalUsage!Target(writer);
     writer.put('\n');
 }
 
-private template hasInheritedGlobalsOnStaticPath(Parent, Path...)
+private void writeRequiredGlobalsOnStaticPathUsage(Parent, Path...)(
+    ref AnsiWriter writer,
+) @system
 {
-    static if (Path.length == 0)
-        enum bool hasInheritedGlobalsOnStaticPath = false;
-    else
-        enum bool hasInheritedGlobalsOnStaticPath = hasAnyGlobalOptions!Parent ||
-            hasInheritedGlobalsOnStaticPath!(Path[0], Path[1 .. $]);
+    writeRequiredGlobalOptionUsage!Parent(writer);
+    static if (Path.length != 0)
+        writeRequiredGlobalsOnStaticPathUsage!(Path[0], Path[1 .. $])(writer);
 }
 
-private template hasVisibleGlobalsOnStaticPath(Parent, Path...)
+private template hasVisibleGlobalsOnStaticPath(bool required, Parent, Path...)
 {
     static if (Path.length == 0)
-        enum bool hasVisibleGlobalsOnStaticPath = hasVisibleGlobalOptions!Parent;
+        enum bool hasVisibleGlobalsOnStaticPath = required
+            ? hasVisibleRequiredGlobalOptions!Parent : hasVisibleOptionalGlobalOptions!Parent;
     else
-        enum bool hasVisibleGlobalsOnStaticPath = hasVisibleGlobalOptions!Parent ||
-            hasVisibleGlobalsOnStaticPath!(Path[0], Path[1 .. $]);
+        enum bool hasVisibleGlobalsOnStaticPath = (required
+                    ? hasVisibleRequiredGlobalOptions!Parent : hasVisibleOptionalGlobalOptions!Parent) ||
+            hasVisibleGlobalsOnStaticPath!(required, Path[0], Path[1 .. $]);
 }
 
-private template globalsOnStaticPathHelpColumnWidth(Parent, Path...)
+private template globalsOnStaticPathHelpColumnWidth(bool required, Parent, Path...)
 {
     static if (Path.length == 0)
-        enum size_t globalsOnStaticPathHelpColumnWidth = visibleGlobalOptionHelpColumnWidth!Parent;
+        enum size_t globalsOnStaticPathHelpColumnWidth =
+            visibleGlobalOptionHelpColumnWidth!(Parent, required);
     else
     {
-        enum childWidth = globalsOnStaticPathHelpColumnWidth!(Path[0], Path[1 .. $]);
-        enum currentWidth = visibleGlobalOptionHelpColumnWidth!Parent;
+        enum childWidth = globalsOnStaticPathHelpColumnWidth!(
+                required,
+                Path[0],
+                Path[1 .. $],
+            );
+        enum currentWidth = visibleGlobalOptionHelpColumnWidth!(Parent, required);
         enum size_t globalsOnStaticPathHelpColumnWidth = currentWidth > childWidth
             ? currentWidth : childWidth;
     }
 }
 
-private void writeGlobalsOnStaticPath(Parent, Path...)(
+private void writeGlobalsOnStaticPath(bool required, Parent, Path...)(
     ref AnsiWriter writer,
     size_t columnWidth,
     ref bool first,
 ) @system
 {
-    writeVisibleGlobals!Parent(writer, columnWidth, first);
+    writeVisibleGlobals!(Parent, required)(writer, columnWidth, first);
     static if (Path.length != 0)
-        writeGlobalsOnStaticPath!(Path[0], Path[1 .. $])(writer, columnWidth, first);
+        writeGlobalsOnStaticPath!(required, Path[0], Path[1 .. $])(
+            writer,
+            columnWidth,
+            first,
+        );
 }
 
 private void writeSelectedUsage(T)(
@@ -1557,9 +1661,53 @@ private void writeSelectedUsage(T)(
 {
     writer.styled(cliHeadingStyle, "Usage:");
     writer.put(' ');
-    writeProgramPath!T(writer, programName, root);
-    writeUsageSuffixForActive!(T, false)(writer, root);
+    writer.styled(cliCanonicalStyle, programName);
+    writeActiveUsagePath!(T, T)(writer, root, root);
     writer.put('\n');
+}
+
+private void writeActiveUsagePath(Root, T)(
+    ref AnsiWriter writer,
+    ref ParsedCommand!Root tree,
+    ref ParsedCommand!T node,
+) @system
+{
+    writeRequiredLocalOptionUsage!T(writer);
+    static foreach (Child; CommandTypes!T)
+    {
+        if (auto child = node.command!Child)
+        {
+            static if (hasVisibleOptionalLocalOptions!T)
+                writeOptionalOptionsUsage(writer);
+            writer.put(' ');
+            writer.styled(cliCanonicalStyle, commandName!Child);
+            writeActiveUsagePath!(Root, Child)(writer, tree, *child);
+            return;
+        }
+    }
+
+    writeRequiredGlobalsAlongActivePathUsage!Root(writer, tree);
+    if (hasGlobalsAlongActivePath!(Root, false)(tree) ||
+        hasVisibleOptionalLocalOptions!T || builtinHelpEnabled!Root ||
+        (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
+        writeOptionalOptionsUsage(writer);
+    writeCommandOrPositionalUsage!T(writer);
+}
+
+private void writeRequiredGlobalsAlongActivePathUsage(T)(
+    ref AnsiWriter writer,
+    ref ParsedCommand!T node,
+) @system
+{
+    writeRequiredGlobalOptionUsage!T(writer);
+    static foreach (Child; CommandTypes!T)
+    {
+        if (auto child = node.command!Child)
+        {
+            writeRequiredGlobalsAlongActivePathUsage!Child(writer, *child);
+            return;
+        }
+    }
 }
 
 private void writeProgramPath(T)(
@@ -1587,33 +1735,8 @@ private void writeChildPath(T)(ref AnsiWriter writer, ref ParsedCommand!T node)
     }
 }
 
-private void writeUsageSuffixForActive(T, bool inheritedGlobals)(
-    ref AnsiWriter writer,
-    ref ParsedCommand!T node,
-) @system
+private void writeCommandOrPositionalUsage(T)(ref AnsiWriter writer) @system
 {
-    static foreach (Child; CommandTypes!T)
-    {
-        if (auto child = node.command!Child)
-        {
-            writeUsageSuffixForActive!(
-                Child,
-                inheritedGlobals || hasAnyGlobalOptions!T,
-            )(writer, *child);
-            return;
-        }
-    }
-
-    writeUsageSuffixForType!(T, inheritedGlobals)(writer);
-}
-
-private void writeUsageSuffixForType(T, bool inheritedGlobals)(ref AnsiWriter writer) @system
-{
-    static if (hasAnyNamedOptions!T || inheritedGlobals)
-    {
-        writer.put(' ');
-        writer.styled(cliValueStyle, "[OPTIONS]");
-    }
     static if (hasSubcommands!T)
     {
         writer.put(' ');
@@ -1657,29 +1780,24 @@ private enum hasVisiblePositionals(T) = () {
     return result;
 }();
 
-private enum hasAnyNamedOptions(T) = () {
-    bool result;
-    static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, CliPositional))
-            result = true;
-    return result;
-}();
-
-private enum hasAnyGlobalOptions(T) = () {
-    bool result;
-    static foreach (index; 0 .. T.tupleof.length)
-        static if (!fieldHas!(T, index, CliPositional) &&
-            fieldHas!(T, index, CliGlobal))
-            result = true;
-    return result;
-}();
-
-private enum hasVisibleLocalOptions(T) = () {
+private enum hasVisibleRequiredLocalOptions(T) = () {
     bool result;
     static foreach (index; 0 .. T.tupleof.length)
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
-            !fieldHas!(T, index, CliHidden))
+            !fieldHas!(T, index, CliHidden) &&
+            fieldIsRequired!(T, index))
+            result = true;
+    return result;
+}();
+
+private enum hasVisibleOptionalLocalOptions(T) = () {
+    bool result;
+    static foreach (index; 0 .. T.tupleof.length)
+        static if (!fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden) &&
+            !fieldIsRequired!(T, index))
             result = true;
     return result;
 }();
@@ -1752,30 +1870,32 @@ private enum optionHelpLabelWidth(T, size_t index) = () {
     return result;
 }();
 
-private enum visibleLocalOptionHelpColumnWidth(T) = () {
+private enum visibleLocalOptionHelpColumnWidth(T, bool required) = () {
     size_t result;
     static foreach (index; 0 .. T.tupleof.length)
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
-            !fieldHas!(T, index, CliHidden))
+            !fieldHas!(T, index, CliHidden) &&
+            fieldIsRequired!(T, index) == required)
             if (optionHelpLabelWidth!(T, index) > result)
                 result = optionHelpLabelWidth!(T, index);
     return result;
 }();
 
-private enum visibleGlobalOptionHelpColumnWidth(T) = () {
+private enum visibleGlobalOptionHelpColumnWidth(T, bool required) = () {
     size_t result;
     static foreach (index; 0 .. T.tupleof.length)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
-            !fieldHas!(T, index, CliHidden))
+            !fieldHas!(T, index, CliHidden) &&
+            fieldIsRequired!(T, index) == required)
             if (optionHelpLabelWidth!(T, index) > result)
                 result = optionHelpLabelWidth!(T, index);
     return result;
 }();
 
-private enum localOptionHelpColumnWidth(Root, T) = () {
-    size_t result = visibleLocalOptionHelpColumnWidth!T;
+private enum optionalLocalOptionHelpColumnWidth(Root, T) = () {
+    size_t result = visibleLocalOptionHelpColumnWidth!(T, false);
     static if (builtinHelpEnabled!Root)
         if ("-h, --help".length > result)
             result = "-h, --help".length;
@@ -1785,14 +1905,18 @@ private enum localOptionHelpColumnWidth(Root, T) = () {
     return result;
 }();
 
-private void writeLocalOptions(T)(ref AnsiWriter writer, size_t columnWidth) @system
+private void writeLocalOptions(T, bool required)(
+    ref AnsiWriter writer,
+    size_t columnWidth,
+) @system
 {
     bool first = true;
     static foreach (index; 0 .. T.tupleof.length)
     {
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
-            !fieldHas!(T, index, CliHidden))
+            !fieldHas!(T, index, CliHidden) &&
+            fieldIsRequired!(T, index) == required)
         {
             if (!first)
                 writer.put('\n');
@@ -1858,7 +1982,6 @@ private void writeFieldHelpBlock(T, size_t index)(
 {
     enum helpText = fieldHelp!(T, index);
     enum possibleValues = fieldHelpPossibleValues!(T, index);
-    enum hasRequired = fieldIsRequired!(T, index);
     enum hasDefault = fieldHasHelpDefault!(T, index);
 
     static if (helpText.length != 0)
@@ -1932,7 +2055,7 @@ private void writeFieldHelpBlock(T, size_t index)(
         writer.put('\n');
     }
 
-    static if (hasRequired)
+    static if (fieldHas!(T, index, CliPositional) && fieldIsRequired!(T, index))
     {
         writeHelpMetadataIndent(writer, columnWidth);
         writer.styled(requiredMetadataStyle, "required");
@@ -1987,17 +2110,29 @@ private void writeFieldHelpDefault(T, size_t index)(ref AnsiWriter writer) @syst
     }
 }
 
-private enum hasVisibleGlobalOptions(T) = () {
+private enum hasVisibleRequiredGlobalOptions(T) = () {
     bool result;
     static foreach (index; 0 .. T.tupleof.length)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
-            !fieldHas!(T, index, CliHidden))
+            !fieldHas!(T, index, CliHidden) &&
+            fieldIsRequired!(T, index))
             result = true;
     return result;
 }();
 
-private void writeVisibleGlobals(T)(
+private enum hasVisibleOptionalGlobalOptions(T) = () {
+    bool result;
+    static foreach (index; 0 .. T.tupleof.length)
+        static if (!fieldHas!(T, index, CliPositional) &&
+            fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden) &&
+            !fieldIsRequired!(T, index))
+            result = true;
+    return result;
+}();
+
+private void writeVisibleGlobals(T, bool required)(
     ref AnsiWriter writer,
     size_t columnWidth,
     ref bool first,
@@ -2006,7 +2141,8 @@ private void writeVisibleGlobals(T)(
     static foreach (index; 0 .. T.tupleof.length)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
-            !fieldHas!(T, index, CliHidden))
+            !fieldHas!(T, index, CliHidden) &&
+            fieldIsRequired!(T, index) == required)
             {
             if (!first)
                 writer.put('\n');
@@ -2015,26 +2151,26 @@ private void writeVisibleGlobals(T)(
         }
 }
 
-private bool hasGlobalsAlongActivePath(T)(ref ParsedCommand!T node) @system
+private bool hasGlobalsAlongActivePath(T, bool required)(ref ParsedCommand!T node) @system
 {
-    static if (hasVisibleGlobalOptions!T)
+    static if (required ? hasVisibleRequiredGlobalOptions!T : hasVisibleOptionalGlobalOptions!T)
         return true;
     static foreach (Child; CommandTypes!T)
         if (auto child = node.command!Child)
-            return hasGlobalsAlongActivePath!Child(*child);
+            return hasGlobalsAlongActivePath!(Child, required)(*child);
     return false;
 }
 
-private size_t globalsAlongActivePathHelpColumnWidth(T)(
+private size_t globalsAlongActivePathHelpColumnWidth(T, bool required)(
     ref ParsedCommand!T node,
 ) @system
 {
-    size_t result = visibleGlobalOptionHelpColumnWidth!T;
+    size_t result = visibleGlobalOptionHelpColumnWidth!(T, required);
     static foreach (Child; CommandTypes!T)
     {
         if (auto child = node.command!Child)
         {
-            const childWidth = globalsAlongActivePathHelpColumnWidth!Child(*child);
+            const childWidth = globalsAlongActivePathHelpColumnWidth!(Child, required)(*child);
             if (childWidth > result)
                 result = childWidth;
             return result;
@@ -2043,19 +2179,19 @@ private size_t globalsAlongActivePathHelpColumnWidth(T)(
     return result;
 }
 
-private void writeGlobalsAlongActivePath(T)(
+private void writeGlobalsAlongActivePath(T, bool required)(
     ref AnsiWriter writer,
     ref ParsedCommand!T node,
     size_t columnWidth,
     ref bool first,
 ) @system
 {
-    writeVisibleGlobals!T(writer, columnWidth, first);
+    writeVisibleGlobals!(T, required)(writer, columnWidth, first);
     static foreach (Child; CommandTypes!T)
     {
         if (auto child = node.command!Child)
         {
-            writeGlobalsAlongActivePath!Child(writer, *child, columnWidth, first);
+            writeGlobalsAlongActivePath!(Child, required)(writer, *child, columnWidth, first);
             return;
         }
     }
