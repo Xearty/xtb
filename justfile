@@ -47,9 +47,15 @@ run kind name *tail:
             ;;
     esac
 
-    # `just` preserves the public `--` with positional arguments. Consume the
-    # wrapper separator; a second `--` remains an executable argument.
-    if [[ "${1-}" == -- ]]; then
+    # Program arguments must be separated from the wrapper arguments
+    # explicitly. This keeps build-mode names unambiguous when they are meant
+    # to be passed to the executable.
+    if (( $# != 0 )); then
+        if [[ "$1" != -- ]]; then
+            echo "example arguments must follow '--'" >&2
+            echo "usage: just run example <name> [mode] -- <arguments...>" >&2
+            exit 2
+        fi
         shift
     fi
 
@@ -132,7 +138,7 @@ release-fast: (_dispatch "build" "static" "all" "release-fast")
 build-example name mode="debug": (_dispatch "build" "example" name mode)
 
 # `mode` is recognized as the first argument when it is one of the supported
-# build modes. Everything else is forwarded verbatim to the example.
+# build modes. Executable arguments must follow an explicit `--` separator.
 #
 # Examples:
 #   just run-example cli -- --help
@@ -151,9 +157,14 @@ run-example name *tail:
             ;;
     esac
 
-    # Consume the recipe-level separator while preserving a deliberate second
-    # `--` for the executable.
-    if [[ "${1-}" == -- ]]; then
+    # Program arguments must be separated from the wrapper arguments
+    # explicitly. A deliberate second `--` remains an executable argument.
+    if (( $# != 0 )); then
+        if [[ "$1" != -- ]]; then
+            echo "example arguments must follow '--'" >&2
+            echo "usage: just run-example <name> [mode] -- <arguments...>" >&2
+            exit 2
+        fi
         shift
     fi
 
@@ -264,22 +275,54 @@ _dispatch action kind name mode *program_args:
         dub build ":$target" "${dub_args[@]}"
     }
 
-    normalize_example() {
-        local value="$1"
-        value="${value%.d}"
-        value="${value%_demo}"
-        value="${value%-demo}"
-        value="${value//-/_}"
-        printf '%s-demo\n' "$value"
+    resolve_example() {
+        local requested="$1"
+        local configurations=({{ example_configurations }})
+        local value base candidate
+
+        # Prefer exact configuration names first.
+        if contains "$requested" "${configurations[@]}"; then
+            printf '%s\n' "$requested"
+            return 0
+        fi
+
+        value="${requested%.d}"
+        if contains "$value" "${configurations[@]}"; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+
+        base="${value%_demo}"
+        base="${base%-demo}"
+
+        # The public target name is exactly the configuration name without its
+        # `-demo` suffix. Try that spelling before compatibility normalizations.
+        candidate="$base-demo"
+        if contains "$candidate" "${configurations[@]}"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+
+        candidate="${base//-/_}-demo"
+        if contains "$candidate" "${configurations[@]}"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+
+        candidate="${base//_/-}-demo"
+        if contains "$candidate" "${configurations[@]}"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+
+        return 1
     }
 
     build_or_run_example() {
         local operation="$1"
         local requested="$2"
         local config
-        config="$(normalize_example "$requested")"
-        local configurations=({{ example_configurations }})
-        if ! contains "$config" "${configurations[@]}"; then
+        if ! config="$(resolve_example "$requested")"; then
             echo "unknown example: $requested" >&2
             echo "run 'just targets' to list examples" >&2
             exit 2
