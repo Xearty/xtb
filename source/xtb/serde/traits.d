@@ -8,7 +8,6 @@ import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
 import xtb.core.result : Result;
-import xtb.core.owned_string;
 import xtb.core.string;
 import xtb.core.string_hash_map;
 import xtb.core.string_hash_set : StringHashSet, StringHashSetUnmanaged;

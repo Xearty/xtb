@@ -2,7 +2,7 @@ module tests.pretty_print_tests;
 
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.memory : Allocator;
-import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged;
+import xtb.core.string : OwnedString, OwnedStringUnmanaged;
 import xtb.core.pretty_print;
 import xtb.core.print : Writer, writeBuffer;
 import xtb.core.string : StringBuf, StringBufUnmanaged;

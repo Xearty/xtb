@@ -24,7 +24,6 @@ import xtb.core.logger;
 import xtb.core.thread_logger;
 import xtb.core.utf8;
 import xtb.core.string;
-import xtb.core.owned_string;
 import xtb.core.string_hash_map;
 import xtb.core.string_hash_set;
 import xtb.core.print;

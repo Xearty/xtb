@@ -7,8 +7,7 @@ import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.hash_map;
 import xtb.core.lifetime : deinit, move;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
-import xtb.core.owned_string : OwnedString;
-import xtb.core.string : StringBuf;
+import xtb.core.string : OwnedString, StringBuf;
 import xtb.core.string_hash_map : OwnedStringHashMap, StringHashMap;
 import xtb.core.string_hash_set : StringHashSet;
 

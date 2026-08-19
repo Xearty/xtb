@@ -7,7 +7,6 @@ import xtb.core.lifetime : canFinalizeWithoutContext, finalize,
 import xtb.core.hash : HashSeed, hashValue;
 import xtb.core.hash_map;
 import xtb.core.memory : Allocator;
-import xtb.core.owned_string;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;

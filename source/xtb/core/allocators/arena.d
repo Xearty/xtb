@@ -10,7 +10,6 @@ import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.print : Writer;
 import xtb.core.numeric : addOverflows, multiplyOverflows;
 
 private struct ArenaChunk
@@ -30,19 +29,6 @@ nothrow @nogc:
     size_t reservedBytes;
     size_t peakUsedBytes;
     size_t chunkCount;
-
-    void formatTo(ref Writer writer) const
-    {
-        writer.put("ArenaStats(used=");
-        writer.value(usedBytes);
-        writer.put(", reserved=");
-        writer.value(reservedBytes);
-        writer.put(", peak=");
-        writer.value(peakUsedBytes);
-        writer.put(", chunks=");
-        writer.value(chunkCount);
-        writer.put(')');
-    }
 }
 
 private int tlsThreadMarker;

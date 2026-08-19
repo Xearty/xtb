@@ -756,7 +756,10 @@ link behavior.
 The string model has three deliberately separate types: `String` is a
 read-only borrowed view, `StringBuf` is an owning mutable growable buffer, and
 `OwnedString` is an owning immutable exact-sized value. Do not collapse these
-roles and do not use a mutable D slice as the public string abstraction.
+roles and do not use a mutable D slice as the public string abstraction. Their
+public implementations, including the unmanaged counterparts of both owning
+types, live together in `xtb.core.string`; `xtb.core.owned_string` is only a
+compatibility re-export for older focused imports.
 
 #### `String`: read-only borrowed text
 

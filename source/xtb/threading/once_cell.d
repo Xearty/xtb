@@ -15,7 +15,7 @@ version (unittest)
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.memory : Allocator;
-    import xtb.core.owned_string : OwnedString;
+    import xtb.core.string : OwnedString;
     import xtb.threading.atomic : Atomic, MemoryOrder;
 }
 

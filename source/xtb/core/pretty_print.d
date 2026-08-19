@@ -18,7 +18,6 @@ version (unittest)
     import xtb.core.array;
     import xtb.core.flag_set : FlagSet;
     import xtb.core.hash_map;
-    import xtb.core.owned_string;
     import xtb.core.option : Option;
     import xtb.core.result : Result;
     import xtb.core.string;

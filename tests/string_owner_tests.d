@@ -11,11 +11,10 @@ import xtb.core.hash_map : AddStatus, OwnedHashMap, OwnedHashSet, SetStatus;
 import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
-import xtb.core.owned_string : OwnedString, OwnedStringUnmanaged, concat, copy,
-    escape, intoOwnedString, join, replace, tryConcat, tryCopy, tryEscape,
-    tryIntoOwnedString, tryJoin, tryReplace;
 import xtb.core.result : Result;
-import xtb.core.string : StringBuf, StringBufUnmanaged;
+import xtb.core.string : OwnedString, OwnedStringUnmanaged, StringBuf,
+    StringBufUnmanaged, concat, copy, escape, intoOwnedString, join, replace,
+    tryConcat, tryCopy, tryEscape, tryIntoOwnedString, tryJoin, tryReplace;
 import xtb.core.string_hash_map : OwnedStringHashMap;
 import xtb.core.types : String;
 

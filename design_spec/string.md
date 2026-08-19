@@ -1,7 +1,8 @@
 # String API design specification
 
-This specification is implemented by `xtb.core.string`,
-`xtb.core.owned_string`, and `xtb.core.utf8`.
+This specification is implemented by `xtb.core.string` and `xtb.core.utf8`.
+The legacy `xtb.core.owned_string` module publicly re-exports its string-owned
+symbols for source compatibility.
 
 ## Representation and invariant
 
@@ -367,8 +368,8 @@ for audited, already validated bytes. They are not binary constructors.
 
 ### Consuming `StringBuf` into `OwnedString`
 
-Free UFCS helpers provide the consuming mutable-to-immutable boundary without
-introducing a `xtb.core.string` -> `xtb.core.owned_string` import cycle:
+Free UFCS helpers provide the explicitly consuming mutable-to-immutable
+boundary and take the source by `ref` so ownership can be transferred:
 
 ```d
 OwnedString intoOwnedString(scope ref StringBuf source);

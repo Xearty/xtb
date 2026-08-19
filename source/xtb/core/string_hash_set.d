@@ -6,7 +6,7 @@ import xtb.core.lifetime : move, moveEmplace;
 import xtb.core.hash : HashSeed;
 import xtb.core.hash_map : AddStatus, HashSet, HashSetUnmanaged;
 import xtb.core.memory : Allocator;
-import xtb.core.owned_string : OwnedString;
+import xtb.core.string : OwnedString;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -630,8 +630,7 @@ private void requireValidStringHashSetAllocator(Allocator* allocator) @trusted
 unittest
 {
     import xtb.core.allocators.malloc : mallocAllocator;
-    import xtb.core.owned_string : OwnedString;
-    import xtb.core.string : StringBuf;
+    import xtb.core.string : OwnedString, StringBuf;
 
     static assert(is(StringViewHashSet == HashSet!String));
     static assert(!__traits(isCopyable, StringHashSet));
@@ -744,7 +743,7 @@ unittest
 {
     import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.core.allocators.malloc : mallocAllocator;
-    import xtb.core.owned_string : OwnedString;
+    import xtb.core.string : OwnedString;
 
     AllocationRecord[16] setRecords;
     AllocationRecord[8] sourceRecords;
