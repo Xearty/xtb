@@ -123,7 +123,7 @@ configuration "cli-demo" {
     targetName "cli_demo"
     targetPath "../build/examples"
     mainSourceFile "cli_demo.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/cli/*.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/cli/*.d" "../source/xtb/os/*.d"
 }
 
 configuration "cli-nested-demo" {

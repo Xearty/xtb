@@ -685,7 +685,11 @@ struct CustomPositionalValueArgs
 
 struct OverrideBuiltInValueArgs
 {
-    @(cliParseWith!parseAutomaticJobs, cliPossibleValues!("auto"))
+    @(
+        cliAliasName("parallelism"),
+        cliParseWith!parseAutomaticJobs,
+        cliPossibleValues!("auto"),
+    )
     uint jobs = 8;
 }
 
@@ -1532,6 +1536,7 @@ private void testPublicGeneratedHelp()
         assert(writer.finish().ok);
 
         assert(contains(output.text, "--jobs <JOBS>"));
+        assert(contains(output.text, "aliases: --parallelism"));
         assert(contains(output.text, "values: auto"));
         assert(!contains(output.text, "default:"));
     }
@@ -1565,6 +1570,60 @@ private void testPublicGeneratedHelp()
         assert(contains(output.text, "--target <TARGET>"));
         assert(contains(output.text, "aliases: --destination"));
         assert(contains(output.text, "required"));
+    }
+}
+
+private void testAnsiRendering()
+{
+    {
+        TextSink plain;
+        Writer plainWriter = Writer.fromSink(&textSink, &plain);
+        writeHelp!OverrideBuiltInValueArgs(plainWriter, "tool");
+        assert(plainWriter.finish().ok);
+        assert(!contains(plain.text, "\x1b["));
+
+        TextSink styled;
+        Writer styledWriter = Writer.fromSink(&textSink, &styled);
+        writeHelp!OverrideBuiltInValueArgs(styledWriter, "tool", true);
+        assert(styledWriter.finish().ok);
+        assert(contains(styled.text, "\x1b[1mUsage:\x1b[0m"));
+        assert(contains(styled.text, "\x1b[2maliases:\x1b[0m"));
+        assert(contains(styled.text, "\x1b[93mauto\x1b[0m"));
+    }
+
+    {
+        String[2] argv = ["tool", "--help"];
+        auto result = parseArgs!RootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result, true, false) == 0);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(contains(output.text, "\x1b["));
+        assert(errors.text.length == 0);
+    }
+
+    {
+        String[2] argv = ["tool", "wat"];
+        auto result = parseArgs!RootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result, false, true) == 2);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(output.text.length == 0);
+        assert(contains(errors.text, "\x1b[1;91merror:\x1b[0m"));
+        assert(contains(errors.text, "\x1b[93mwat\x1b[0m"));
     }
 }
 
@@ -2163,6 +2222,7 @@ extern (C) int main()
     testAliases();
     testNegatableBooleans();
     testPublicGeneratedHelp();
+    testAnsiRendering();
     testGeneratedHelpAndVersion();
     testGeneratedErrorResponse();
     testDisabledBuiltinHelp();
