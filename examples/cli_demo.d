@@ -347,7 +347,7 @@ struct DependencyAddArgs
         cliValueName("VERSION"),
         cliHelp("Version or version constraint"),
     )
-    Option!String version_;
+    String version_;
 
     @(cliLongName("scope"), cliDefault, cliHelp("Dependency scope written to the manifest"))
     DependencyScope scope_ = DependencyScope.runtime;

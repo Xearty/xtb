@@ -643,9 +643,9 @@ program basename internally.
 
 Help is canonical-first. Requiredness is structural rather than buried in
 metadata: required named options are written explicitly in the usage string and
-listed under `Required options:`, while omittable named options remain under
-`Options:`. Required and optional globals are similarly split into
-`Required global options:` and `Global options:`.
+listed under `Required options:`, while omittable named options are listed under
+`Optional options:`. Required and optional globals are similarly split into
+`Required global options:` and `Optional global options:`.
 
 Aliases, negation, values, and defaults remain secondary metadata.
 
@@ -658,7 +658,7 @@ Required options:
   -o, --output <PATH>  Output path
                        aliases: --destination
 
-Options:
+Optional options:
   -j, --jobs <N>       Number of parallel jobs
                        aliases: --parallelism
                        default: 8
@@ -672,13 +672,15 @@ The usage notation follows these rules:
 
 - required named options are shown explicitly using their canonical long name;
 - a required negatable boolean is shown as `(--color|--no-color)`;
-- `[OPTIONS]` represents the remaining visible optional options for that command
-  scope, built-ins, and visible optional globals;
+- `[OPTIONS]` appears only when that usage scope accepts at least one visible
+  optional named option; built-in `--help`/`--version` and visible optional globals
+  count as optional options;
 - parent-local `[OPTIONS]` appears before the child command because those options
   belong to the parent scope;
-- required positionals use `<NAME>`;
-- optional positionals use `[NAME]`;
-- rest positionals use `[NAME...]`.
+- required positionals use `<NAME>` in both usage and the `Arguments:` section;
+- optional positionals use `[NAME]` in both places;
+- rest positionals use `[NAME...]` in both places;
+- positional arguments do not get a redundant `required` metadata line.
 
 A nested command may therefore legitimately contain more than one `[OPTIONS]`
 marker, for example:

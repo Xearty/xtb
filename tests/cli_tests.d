@@ -166,6 +166,13 @@ struct NoBuiltinHelpRootArgs
 {
 }
 
+@cliNoBuiltinHelp
+struct RequiredOnlyHelpArgs
+{
+    @(cliValueName("OUTPUT"), cliHelp("Output path"))
+    String output;
+}
+
 @(cliNoBuiltinVersion, cliVersion("9.3.0"))
 struct CustomVersionRootArgs
 {
@@ -1285,7 +1292,7 @@ private void testRequirednessAndDefaults()
         assert(contains(output.text, "Usage: tool --required <REQUIRED> [OPTIONS]"));
         assert(contains(output.text, "Required options:"));
         assert(contains(output.text, "--required <REQUIRED>"));
-        assert(contains(output.text, "Options:"));
+        assert(contains(output.text, "Optional options:"));
         assert(contains(output.text, "--optional <OPTIONAL>"));
         assert(contains(output.text, "default: 0"));
         assert(contains(output.text, "default: 8"));
@@ -1857,6 +1864,18 @@ private void testPublicGeneratedHelp()
     {
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!RequiredOnlyHelpArgs(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "Usage: tool --output <OUTPUT>"));
+        assert(!contains(output.text, "[OPTIONS]"));
+        assert(contains(output.text, "Required options:"));
+        assert(!contains(output.text, "Optional options:"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(RequiredGlobalRootArgs, RequiredGlobalChildArgs)(writer, "tool");
         assert(writer.finish().ok);
 
@@ -1864,7 +1883,7 @@ private void testPublicGeneratedHelp()
                 "Usage: tool child --workspace <WORKSPACE> [OPTIONS]"));
         assert(contains(output.text, "Required global options:"));
         assert(contains(output.text, "--workspace <WORKSPACE>"));
-        assert(!contains(output.text, "Global options:"));
+        assert(!contains(output.text, "Optional global options:"));
     }
 
     {
@@ -1879,8 +1898,11 @@ private void testPublicGeneratedHelp()
         assert(contains(output.text, "Add a dependency"));
         assert(contains(output.text, "Usage: tool dependency [OPTIONS] add [OPTIONS] <PACKAGE>"));
         assert(!contains(output.text, "/usr/local/bin/tool"));
+        assert(contains(output.text, "  <PACKAGE>"));
+        assert(!contains(output.text, "required
+"));
         assert(contains(output.text, "--version <VERSION>"));
-        assert(contains(output.text, "Global options:"));
+        assert(contains(output.text, "Optional global options:"));
         assert(contains(output.text, "--verbose"));
         assert(!contains(output.text, "Show the application version"));
 
@@ -1918,7 +1940,7 @@ private void testPublicGeneratedHelp()
 
         assert(contains(output.text, "Usage: tool build --output <PATH> [OPTIONS]"));
         assert(contains(output.text, "Required options:"));
-        assert(contains(output.text, "Options:"));
+        assert(contains(output.text, "Optional options:"));
         assert(contains(output.text, "--jobs <N>"));
         assert(contains(output.text, "Parallel jobs"));
         assert(contains(output.text, "default: 1"));
@@ -2050,7 +2072,7 @@ private void testGeneratedHelpAndVersion()
         assert(contains(output.text, "Add a dependency"));
         assert(contains(output.text, "Usage: tool dependency [OPTIONS] add [OPTIONS] <PACKAGE>"));
         assert(contains(output.text, "--version <VERSION>"));
-        assert(contains(output.text, "Global options:"));
+        assert(contains(output.text, "Optional global options:"));
         assert(contains(output.text, "--verbose"));
         assert(!contains(output.text, "Show the application version"));
     }

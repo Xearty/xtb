@@ -24,7 +24,6 @@ private enum cliSecondaryStyle = AnsiStyle.foreground(AnsiColor.cyan).dim;
 private enum cliValueStyle = AnsiStyle.foreground(AnsiColor.brightYellow);
 private enum cliDefaultStyle = AnsiStyle.foreground(AnsiColor.brightGreen);
 private enum cliMetadataStyle = AnsiStyle.init.dim;
-private enum requiredMetadataStyle = AnsiStyle.foreground(AnsiColor.brightYellow).bold;
 private enum cliErrorStyle = AnsiStyle.foreground(AnsiColor.brightRed).bold;
 
 enum CliErrorKind : ubyte
@@ -1257,7 +1256,7 @@ void writeHelp(Root, Path...)(
     static if (hasVisibleGlobalsOnStaticPath!(false, Root, Path))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Global options:");
+        writer.styled(cliHeadingStyle, "Optional global options:");
         writer.put('\n');
         enum columnWidth = globalsOnStaticPathHelpColumnWidth!(false, Root, Path);
         bool firstGlobal = true;
@@ -1376,7 +1375,7 @@ private void writeSelectedHelpAt(Root, T)(
     if (hasGlobalsAlongActivePath!(Root, false)(tree))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Global options:");
+        writer.styled(cliHeadingStyle, "Optional global options:");
         writer.put('\n');
         const columnWidth = globalsAlongActivePathHelpColumnWidth!(Root, false)(tree);
         bool firstGlobal = true;
@@ -1432,7 +1431,7 @@ private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
         (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Options:");
+        writer.styled(cliHeadingStyle, "Optional options:");
         writer.put('\n');
         enum optionColumnWidth = optionalLocalOptionHelpColumnWidth!(Root, T);
         static if (hasVisibleOptionalLocalOptions!T)
@@ -1804,7 +1803,7 @@ private enum hasVisibleOptionalLocalOptions(T) = () {
 
 private enum positionalHelpLabelWidth(T, size_t index) = fieldValueName!(T, index).length +
     (
-        fieldHas!(T, index, CliRest) ? 3 : 0);
+        fieldHas!(T, index, CliRest) ? 5 : 2);
 
 private enum positionalHelpColumnWidth(T) = () {
     size_t result;
@@ -1843,9 +1842,11 @@ private void writePositionalLine(T, size_t index)(
     {
         writer.put("  ");
         static if (fieldHas!(T, index, CliRest))
-            writer.styled(cliValueStyle, fieldValueName!(T, index), "...");
+            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), "...", ']');
+        else static if (fieldIsRequired!(T, index))
+            writer.styled(cliValueStyle, '<', fieldValueName!(T, index), '>');
         else
-            writer.styled(cliValueStyle, fieldValueName!(T, index));
+            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), ']');
         writeFieldHelpBlock!(T, index)(
             writer,
             positionalHelpLabelWidth!(T, index),
@@ -2055,12 +2056,6 @@ private void writeFieldHelpBlock(T, size_t index)(
         writer.put('\n');
     }
 
-    static if (fieldHas!(T, index, CliPositional) && fieldIsRequired!(T, index))
-    {
-        writeHelpMetadataIndent(writer, columnWidth);
-        writer.styled(requiredMetadataStyle, "required");
-        writer.put('\n');
-    }
 }
 
 private struct CliFormattedDefault(alias Representation, T)

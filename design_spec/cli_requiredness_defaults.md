@@ -1234,8 +1234,9 @@ Required options:
   --registry <REGISTRY>  Package registry
 ```
 
-`[OPTIONS]` therefore means the remaining omittable options; it does not hide
-required named options.
+`[OPTIONS]` therefore means the remaining visible omittable named options; it does
+not hide required named options. It is omitted entirely when the scope has no
+optional named options. Built-in help/version count as optional options when enabled.
 
 For parser-input default failure, diagnostics identify that the application declared an invalid default rather than blaming user input. `invalid` and `outOfRange` become `CliErrorKind.invalidDefault`; `allocationFailed` remains an allocation failure.
 
@@ -1545,10 +1546,14 @@ When a visible semantic default should intentionally not appear in help, require
 
 The core semantics in this document are settled. Generated help currently makes
 requiredness structural: required named options are explicit in `Usage:` and
-split into `Required options:` / `Required global options:` sections. Named
+split into `Required options:` / `Required global options:` sections, while
+omittable options use `Optional options:` / `Optional global options:`. Named
 required options do not also receive a redundant `required` metadata line.
-Required positionals continue to use `<NAME>` in usage and may retain positional
-required metadata in their detailed argument block.
+Required positionals use `<NAME>`, optional positionals use `[NAME]`, and rest
+positionals use `[NAME...]` in both usage and the detailed `Arguments:` section;
+there is no separate positional `required` metadata line. `[OPTIONS]` is emitted
+only when that scope actually has a visible optional named option (including
+built-ins when enabled).
 
 The following small presentation details can still be revisited independently
 without changing requiredness/default semantics.

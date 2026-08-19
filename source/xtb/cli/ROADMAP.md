@@ -116,8 +116,8 @@ help independently of parser interception.
 Help renders canonical spellings first. Required named options are structural:
 they appear explicitly in `Usage:` and in `Required options:` /
 `Required global options:` sections, while omittable options remain under
-`Options:` / `Global options:`. Aliases, negation, values, and defaults stay as
-secondary metadata. ANSI emission is explicitly selected by the caller and uses
+`Optional options:` / `Optional global options:`. Aliases, negation, values, and
+defaults stay as secondary metadata. ANSI emission is explicitly selected by the caller and uses
 the generic core `AnsiWriter`; TTY/`NO_COLOR` policy remains outside `xtb.cli`.
 
 ## Option and command aliases — done
