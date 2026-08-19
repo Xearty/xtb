@@ -438,6 +438,51 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 }
 
+private void testStringBufReplacementOutputs(InstrumentedAllocator* tracked)
+{
+    static assert(__traits(compiles,
+            (scope const StringBuf* value, Allocator* allocator, Arena* arena) {
+            OwnedString owned = value.replace("cat", "lynx", allocator);
+            String temporary = value.replace("cat", "lynx", arena);
+        }));
+    static assert(!__traits(compiles,
+            (scope const StringBuf* value) { auto replaced = value.replace("cat", "lynx"); }));
+
+    StringBuf source = StringBuf.fromString(
+        tracked.allocator,
+        "cat dog cat",
+    );
+    scope (exit)
+        source.deinit();
+
+    String aliasedFrom = source.view[0 .. 3];
+    OwnedString owned = source.replace(
+        aliasedFrom,
+        "lynx",
+        tracked.allocator,
+    );
+    scope (exit)
+        owned.deinit();
+    assert(owned.view == "lynx dog lynx");
+    assert(owned.allocator is tracked.allocator);
+    assert(source.view == "cat dog cat");
+
+    Arena arena = Arena.create(tracked.allocator, 128);
+    scope (exit)
+        arena.deinit();
+    String temporary = source.replace("cat", "tiger", &arena);
+    assert(temporary == "tiger dog tiger");
+    assert(source.view == "cat dog cat");
+
+    OwnedString failed;
+    tracked.failAfter(0);
+    assert(!source.tryReplace("cat", "lion", tracked.allocator, &failed));
+    assert(failed.allocator is null && failed.empty);
+    assert(source.view == "cat dog cat");
+    tracked.allowAllocations();
+    failed.deinit();
+}
+
 private void testArenaStringTransforms(InstrumentedAllocator* tracked)
 {
     static assert(is(typeof("copy".copy(cast(Arena*) null)) == String));
@@ -901,6 +946,7 @@ extern (C) int main()
     testOwnedStringTransforms(&tracked);
     testDirectOwnedStringTransforms(&tracked);
     testStringBufInPlaceTransforms(&tracked);
+    testStringBufReplacementOutputs(&tracked);
     testArenaStringTransforms(&tracked);
     testStringBufIntoOwnedString(&tracked);
     testOptionResultComposition(&tracked);

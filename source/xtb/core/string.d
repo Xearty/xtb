@@ -1351,6 +1351,45 @@ public:
         storage_.replaceInPlace(allocator_, from, to);
     }
 
+    /// Replaces every non-overlapping `from` occurrence in a new exact-sized
+    /// owner allocated by `allocator`.
+    bool tryReplace(
+        String from,
+        String to,
+        Allocator* allocator,
+        scope OwnedString* output,
+    ) const @trusted
+    {
+        return storage_.view.tryReplace(from, to, allocator, output);
+    }
+
+    /// Replaces every non-overlapping `from` occurrence in arena-owned output.
+    bool tryReplace(
+        String from,
+        String to,
+        Arena* arena,
+        scope String* output,
+    ) const @trusted
+    {
+        return storage_.view.tryReplace(from, to, arena, output);
+    }
+
+    /// Panicking independently owned counterpart to `tryReplace`.
+    OwnedString replace(
+        String from,
+        String to,
+        Allocator* allocator,
+    ) const @trusted
+    {
+        return storage_.view.replace(from, to, allocator);
+    }
+
+    /// Panicking arena-owned counterpart to `tryReplace`.
+    String replace(String from, String to, Arena* arena) const @trusted
+    {
+        return storage_.view.replace(from, to, arena);
+    }
+
     bool tryEscapeInPlace() @trusted
     {
         return storage_.tryEscapeInPlace(allocator_);
@@ -1379,118 +1418,118 @@ public:
     /// Returns the first UTF-8 code unit. The buffer must not be empty.
     char frontCodeUnit() const @trusted
     {
-        return xtb.core.string.frontCodeUnit(storage_.view);
+        return storage_.view.frontCodeUnit();
     }
 
     /// Returns the last UTF-8 code unit. The buffer must not be empty.
     char backCodeUnit() const @trusted
     {
-        return xtb.core.string.backCodeUnit(storage_.view);
+        return storage_.view.backCodeUnit();
     }
 
     int compare(scope String other) const pure @trusted
     {
-        return xtb.core.string.compare(storage_.view, other);
+        return storage_.view.compare(other);
     }
 
     String sliceBytes(size_t beginByteOffset, size_t endByteOffset) const return @trusted
     {
-        return xtb.core.string.sliceBytes(storage_.view, beginByteOffset, endByteOffset);
+        return storage_.view.sliceBytes(beginByteOffset, endByteOffset);
     }
 
     String prefixBytes(size_t endByteOffset) const return @trusted
     {
-        return xtb.core.string.prefixBytes(storage_.view, endByteOffset);
+        return storage_.view.prefixBytes(endByteOffset);
     }
 
     String suffixBytes(size_t beginByteOffset) const return @trusted
     {
-        return xtb.core.string.suffixBytes(storage_.view, beginByteOffset);
+        return storage_.view.suffixBytes(beginByteOffset);
     }
 
     size_t find(scope String needle) const pure @trusted
     {
-        return xtb.core.string.find(storage_.view, needle);
+        return storage_.view.find(needle);
     }
 
     size_t findLast(scope String needle) const pure @trusted
     {
-        return xtb.core.string.findLast(storage_.view, needle);
+        return storage_.view.findLast(needle);
     }
 
     size_t findCodeUnit(char codeUnit) const pure @trusted
     {
-        return xtb.core.string.findCodeUnit(storage_.view, codeUnit);
+        return storage_.view.findCodeUnit(codeUnit);
     }
 
     size_t findLastCodeUnit(char codeUnit) const pure @trusted
     {
-        return xtb.core.string.findLastCodeUnit(storage_.view, codeUnit);
+        return storage_.view.findLastCodeUnit(codeUnit);
     }
 
     size_t findCodePoint(dchar codePoint) const @trusted
     {
-        return xtb.core.string.findCodePoint(storage_.view, codePoint);
+        return storage_.view.findCodePoint(codePoint);
     }
 
     size_t findLastCodePoint(dchar codePoint) const @trusted
     {
-        return xtb.core.string.findLastCodePoint(storage_.view, codePoint);
+        return storage_.view.findLastCodePoint(codePoint);
     }
 
     bool contains(scope String needle) const pure @trusted
     {
-        return xtb.core.string.contains(storage_.view, needle);
+        return storage_.view.contains(needle);
     }
 
     bool containsCodeUnit(char codeUnit) const pure @trusted
     {
-        return xtb.core.string.containsCodeUnit(storage_.view, codeUnit);
+        return storage_.view.containsCodeUnit(codeUnit);
     }
 
     bool containsCodePoint(dchar codePoint) const @trusted
     {
-        return xtb.core.string.containsCodePoint(storage_.view, codePoint);
+        return storage_.view.containsCodePoint(codePoint);
     }
 
     bool containsNul() const pure @trusted
     {
-        return xtb.core.string.containsNul(storage_.view);
+        return storage_.view.containsNul();
     }
 
     bool startsWith(scope String prefix) const pure @trusted
     {
-        return xtb.core.string.startsWith(storage_.view, prefix);
+        return storage_.view.startsWith(prefix);
     }
 
     bool endsWith(scope String suffix) const pure @trusted
     {
-        return xtb.core.string.endsWith(storage_.view, suffix);
+        return storage_.view.endsWith(suffix);
     }
 
     String baseName() const return pure @trusted
     {
-        return xtb.core.string.baseName(storage_.view);
+        return storage_.view.baseName();
     }
 
     String stripExtension() const return pure @trusted
     {
-        return xtb.core.string.stripExtension(storage_.view);
+        return storage_.view.stripExtension();
     }
 
     String trimAsciiStart() const return pure @trusted
     {
-        return xtb.core.string.trimAsciiStart(storage_.view);
+        return storage_.view.trimAsciiStart();
     }
 
     String trimAsciiEnd() const return pure @trusted
     {
-        return xtb.core.string.trimAsciiEnd(storage_.view);
+        return storage_.view.trimAsciiEnd();
     }
 
     String trimAscii() const return pure @trusted
     {
-        return xtb.core.string.trimAscii(storage_.view);
+        return storage_.view.trimAscii();
     }
 
     /// Replaces the complete contents while retaining reusable capacity.
@@ -1542,7 +1581,7 @@ public:
     /// Removes `prefix` when present and reports whether the buffer changed.
     bool removePrefix(scope String prefix) @trusted
     {
-        if (!xtb.core.string.startsWith(storage_.view, prefix))
+        if (!storage_.view.startsWith(prefix))
             return false;
         if (prefix.length != 0)
             storage_.bytes_.removeRange(0, prefix.length);
@@ -1552,7 +1591,7 @@ public:
     /// Removes `suffix` when present and reports whether the buffer changed.
     bool removeSuffix(scope String suffix) @trusted
     {
-        if (!xtb.core.string.endsWith(storage_.view, suffix))
+        if (!storage_.view.endsWith(suffix))
             return false;
         if (suffix.length != 0)
             storage_.truncateBytes(storage_.byteLength - suffix.length);
@@ -1562,7 +1601,7 @@ public:
     /// Removes leading ASCII whitespace in place.
     void trimAsciiStartInPlace() @trusted
     {
-        const trimmed = xtb.core.string.trimAsciiStart(storage_.view);
+        const trimmed = storage_.view.trimAsciiStart();
         const removed = storage_.byteLength - trimmed.length;
         if (removed != 0)
             storage_.bytes_.removeRange(0, removed);
@@ -1571,7 +1610,7 @@ public:
     /// Removes trailing ASCII whitespace in place.
     void trimAsciiEndInPlace() @trusted
     {
-        const trimmed = xtb.core.string.trimAsciiEnd(storage_.view);
+        const trimmed = storage_.view.trimAsciiEnd();
         storage_.truncateBytes(trimmed.length);
     }
 
@@ -1579,7 +1618,7 @@ public:
     void trimAsciiInPlace() @trusted
     {
         const original = storage_.view;
-        const trimmed = xtb.core.string.trimAscii(original);
+        const trimmed = original.trimAscii();
         const begin = trimmed.length == 0
             ? original.length : cast(size_t) trimmed.ptr - cast(size_t) original.ptr;
         if (begin != 0)
@@ -1589,22 +1628,22 @@ public:
 
     Array!String split(scope String separator, Allocator* allocator) const @trusted
     {
-        return xtb.core.string.split(storage_.view, separator, allocator);
+        return storage_.view.split(separator, allocator);
     }
 
     Array!String split(char separator, Allocator* allocator) const @trusted
     {
-        return xtb.core.string.split(storage_.view, separator, allocator);
+        return storage_.view.split(separator, allocator);
     }
 
     Array!String splitWhitespace(Allocator* allocator) const @trusted
     {
-        return xtb.core.string.splitWhitespace(storage_.view, allocator);
+        return storage_.view.splitWhitespace(allocator);
     }
 
     Array!String splitLines(Allocator* allocator) const @trusted
     {
-        return xtb.core.string.splitLines(storage_.view, allocator);
+        return storage_.view.splitLines(allocator);
     }
 
     bool opEquals(scope String other) const pure @trusted

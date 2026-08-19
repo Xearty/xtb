@@ -236,6 +236,12 @@ extern (C) int main() nothrow @nogc
         builder.append(cast(dchar) 0x1f642);
         builder.append("  ");
         builder.trimAsciiEndInPlace();
+
+        OwnedString originalMethod = builder.replace("GET", "HEAD", heap);
+        scope (exit)
+            originalMethod.deinit();
+        formatln!"immutable replacement: {}"(originalMethod);
+
         builder.replaceInPlace("GET", "PATCH");
         builder.append("\nrequest-id=42");
         builder.escapeInPlace();

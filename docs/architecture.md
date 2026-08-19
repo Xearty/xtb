@@ -924,7 +924,10 @@ returns `OwnedString` (or writes `OwnedString*`) so the result carries its
 cleanup obligation. Passing `Arena*` returns/writes a plain `String`; the arena
 owns those bytes and the view must not outlive arena rewind, `clear`, or
 `deinit`. Prefer the direct `Arena*` overload for region-lifetime text instead
-of storing an allocator pointer in every arena-backed string.
+of storing an allocator pointer in every arena-backed string. `StringBuf`
+exposes these two `replace`/`tryReplace` forms as real `const` members, so a
+buffer can produce transformed text without spelling `.view`; both require the
+destination context explicitly and leave the buffer unchanged.
 
 `StringBuf` mutation uses visibly mutating names. `replaceInPlace` and
 `escapeInPlace` transform the current contents; their `try...InPlace` forms

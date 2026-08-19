@@ -319,6 +319,24 @@ struct StringBuf
     void trimAsciiInPlace();
     bool tryReplaceInPlace(String from, String to);
     void replaceInPlace(String from, String to);
+    bool tryReplace(
+        String from,
+        String to,
+        Allocator* allocator,
+        OwnedString* output,
+    ) const;
+    OwnedString replace(
+        String from,
+        String to,
+        Allocator* allocator,
+    ) const;
+    bool tryReplace(
+        String from,
+        String to,
+        Arena* arena,
+        String* output,
+    ) const;
+    String replace(String from, String to, Arena* arena) const;
     bool tryAppendEscaped(String value);
     void appendEscaped(String value);
     bool tryEscapeInPlace();
@@ -347,9 +365,11 @@ name. `tryReplaceInPlace` and `tryEscapeInPlace` reserve every required byte
 before changing logical contents, so allocation failure leaves the buffer
 unchanged. Replacement arguments that alias the current buffer are supported:
 aliased `from`/`to` views are snapshotted before reserve/reallocation so growth
-cannot invalidate them. There is no `tryReplace` alias: the `InPlace` suffix
-is part of the public mutation contract and keeps this operation distinct from
-immutable `replace`.
+cannot invalidate them. The nonmutating `replace` and `tryReplace` overloads
+require an explicit destination context. `Allocator*` produces an exact-sized
+`OwnedString`, while `Arena*` produces an arena-owned `String`; neither changes
+the source buffer. The `InPlace` suffix therefore remains an unambiguous part
+of the mutation contract.
 
 `escapeInPlace` escapes the buffer's current contents. It is different from
 `appendEscaped(value)`, which appends an escaped representation of another
