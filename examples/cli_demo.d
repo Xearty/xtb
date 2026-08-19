@@ -18,6 +18,9 @@ struct RootArgs
         cliHelp("Change the working directory"))
     Option!String directory;
 
+    @(cliNegatable, cliGlobal, cliHelp("Use colored output"))
+    bool color = true;
+
     alias Commands = CliCommands!(BuildArgs, TestArgs);
 }
 
@@ -43,7 +46,7 @@ struct TestArgs
 private int runBuild(ref RootArgs root, ref BuildArgs args)
 {
     writeln("build: release=", args.release, ", jobs=", args.jobs,
-        ", verbosity=", root.verbose);
+        ", verbosity=", root.verbose, ", color=", root.color);
     return 0;
 }
 

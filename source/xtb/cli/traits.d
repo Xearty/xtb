@@ -503,6 +503,45 @@ template fieldAllLongNames(T, size_t index)
     enum String[] fieldAllLongNames = fieldAllLongNamesStorage!(T, index)();
 }
 
+private auto negativeLongNameStorage(T, size_t index)() pure @safe
+{
+    enum canonical = fieldLongName!(T, index);
+    NameStorage!(canonical.length + 3) result;
+    result.data[0 .. 3] = "no-";
+    result.length = 3;
+    foreach (codeUnit; canonical)
+        result.data[result.length++] = codeUnit;
+    return result;
+}
+
+template fieldNegativeLongName(T, size_t index)
+{
+    static if (fieldHas!(T, index, CliNegatable))
+    {
+        enum storage = negativeLongNameStorage!(T, index)();
+        enum String fieldNegativeLongName = storage.data[0 .. storage.length];
+    }
+    else
+        enum String fieldNegativeLongName = "";
+}
+
+private auto fieldAllRecognizedLongNamesStorage(T, size_t index)() pure @safe
+{
+    enum negatable = fieldHas!(T, index, CliNegatable);
+    String[fieldAllLongNames!(T, index).length + (negatable ? 1 : 0)] result;
+    static foreach (nameIndex, name; fieldAllLongNames!(T, index))
+        result[nameIndex] = name;
+    static if (negatable)
+        result[$ - 1] = fieldNegativeLongName!(T, index);
+    return result;
+}
+
+template fieldAllRecognizedLongNames(T, size_t index)
+{
+    enum String[] fieldAllRecognizedLongNames =
+        fieldAllRecognizedLongNamesStorage!(T, index)();
+}
+
 template fieldShortName(T, size_t index)
 {
     static assert(fieldAttributeCount!(T, index, CliShortName) <= 1,
@@ -664,7 +703,7 @@ enum cliNeedsAllocator(T) = () {
 private bool fieldTakesValue(T, size_t index)() pure @safe
 {
     alias Field = FieldType!(T, index);
-    static if (fieldHas!(T, index, CliCount))
+    static if (fieldHas!(T, index, CliCount) || fieldHas!(T, index, CliNegatable))
         return false;
     else static if (!isOption!Field && !isArray!Field && is(Unqualified!Field == bool))
         return false;
@@ -754,11 +793,14 @@ private bool validateField(Root, T, size_t index)() pure @safe
         static assert(!hasDDestructor!ParsedValue,
             T.stringof ~ "." ~ sourceName ~
                 " @cliParseWith value types with D destructor semantics are not supported");
-        static if (is(Unqualified!Field == bool) && !fieldHas!(T, index, CliPositional))
+        static if (is(Unqualified!Field == bool) &&
+            !fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliNegatable))
             static assert(false,
                 T.stringof ~ "." ~ sourceName ~
                     " @cliParseWith cannot be used with a named bool presence flag");
-        static if (isOption!Field && is(Unqualified!Value == bool))
+        static if (isOption!Field && is(Unqualified!Value == bool) &&
+            !fieldHas!(T, index, CliNegatable))
             static assert(false,
                 T.stringof ~ "." ~ sourceName ~
                     " Option!bool CLI fields are not supported yet");
@@ -768,7 +810,8 @@ private bool validateField(Root, T, size_t index)() pure @safe
                 T.stringof ~ "." ~ sourceName ~
                     " repeated Array!bool CLI fields are not supported");
     }
-    else
+    else static if (!(fieldHas!(T, index, CliNegatable) && isOption!Field &&
+            is(Unqualified!Value == bool)))
         static assert(isCliFieldType!Field,
             T.stringof ~ "." ~ sourceName ~ " has unsupported CLI field type " ~ Field.stringof);
     static assert(fieldAttributeCount!(T, index, CliPositional) <= 1,
@@ -783,6 +826,8 @@ private bool validateField(Root, T, size_t index)() pure @safe
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliRest attributes");
     static assert(fieldAttributeCount!(T, index, CliHidden) <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliHidden attributes");
+    static assert(fieldAttributeCount!(T, index, CliNegatable) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliNegatable attributes");
     static assert(fieldAttributeCount!(T, index, CliTerminal) <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliTerminal attributes");
     enum duplicateLongAlias = firstDuplicateString(fieldLongAliases!(T, index));
@@ -802,6 +847,23 @@ private bool validateField(Root, T, size_t index)() pure @safe
             T.stringof ~ "." ~ sourceName ~ " @cliTerminal cannot be combined with @cliCount");
         static assert(!isArray!Field,
             T.stringof ~ "." ~ sourceName ~ " @cliTerminal cannot be used with Array fields");
+    }
+
+    static if (fieldHas!(T, index, CliNegatable))
+    {
+        enum isBool = is(Unqualified!Field == bool);
+        enum isOptionalBool = isOption!Field && is(Unqualified!Value == bool);
+        static assert(isBool || isOptionalBool,
+            T.stringof ~ "." ~ sourceName ~
+                " @cliNegatable requires bool or Option!bool");
+        static assert(!fieldHas!(T, index, CliPositional),
+            T.stringof ~ "." ~ sourceName ~ " @cliNegatable cannot be positional");
+        static assert(!fieldHas!(T, index, CliCount),
+            T.stringof ~ "." ~ sourceName ~
+                " @cliNegatable cannot be combined with @cliCount");
+        static assert(!fieldHasParseWith!(T, index),
+            T.stringof ~ "." ~ sourceName ~
+                " @cliNegatable cannot be combined with @cliParseWith");
     }
 
     static if (fieldHas!(T, index, CliCount))
@@ -838,7 +900,7 @@ private bool validateField(Root, T, size_t index)() pure @safe
     }
     else
     {
-        static foreach (name; fieldAllLongNames!(T, index))
+        static foreach (name; fieldAllRecognizedLongNames!(T, index))
         {
             static assert(name.length != 0,
                 T.stringof ~ "." ~ sourceName ~ " has an empty long option name");
@@ -847,10 +909,11 @@ private bool validateField(Root, T, size_t index)() pure @safe
                     "': '=' is reserved for attached option values");
         }
         static if (builtinHelpEnabled!Root)
-            static foreach (name; fieldAllLongNames!(T, index))
+            static foreach (name; fieldAllRecognizedLongNames!(T, index))
                 static assert(name != "help",
                     T.stringof ~ "." ~ sourceName ~ " conflicts with built-in --help");
-        enum duplicateLongName = firstDuplicateString(fieldAllLongNames!(T, index));
+        enum duplicateLongName = firstDuplicateString(
+                fieldAllRecognizedLongNames!(T, index));
         static assert(duplicateLongName.length == 0,
             T.stringof ~ " has duplicate long option '--" ~ duplicateLongName ~ "'");
         static if (builtinHelpEnabled!Root)
@@ -885,8 +948,8 @@ pure @safe
         !fieldHas!(T, rightIndex, CliPositional))
     {
         enum duplicateLongName = firstOverlap(
-                fieldAllLongNames!(T, leftIndex),
-                fieldAllLongNames!(T, rightIndex),
+                fieldAllRecognizedLongNames!(T, leftIndex),
+                fieldAllRecognizedLongNames!(T, rightIndex),
             );
         static assert(duplicateLongName.length == 0,
             T.stringof ~ " has duplicate long option '--" ~ duplicateLongName ~ "'");
@@ -985,8 +1048,8 @@ private bool validateGlobalAgainstField(
     static if (!fieldHas!(Unqualified!Child, childIndex, CliPositional))
     {
         enum duplicateLongName = firstOverlap(
-                fieldAllLongNames!(Parent, globalIndex),
-                fieldAllLongNames!(Unqualified!Child, childIndex),
+                fieldAllRecognizedLongNames!(Parent, globalIndex),
+                fieldAllRecognizedLongNames!(Unqualified!Child, childIndex),
             );
         static assert(duplicateLongName.length == 0,
             Unqualified!Child.stringof ~ " option '--" ~ duplicateLongName ~
@@ -1034,7 +1097,10 @@ private bool validateRootVersionAt(T, size_t index)() pure @safe
 {
     static if (builtinVersionEnabled!T && !fieldHas!(T, index, CliPositional))
     {
-        enum versionCollision = firstOverlap(fieldAllLongNames!(T, index), ["version"]);
+        enum versionCollision = firstOverlap(
+                fieldAllRecognizedLongNames!(T, index),
+                ["version"],
+            );
         static assert(versionCollision.length == 0,
             T.stringof ~ " declares both built-in --version and option '--" ~
                 versionCollision ~ "'");

@@ -90,6 +90,14 @@ struct CliHidden
 {
 }
 
+/// Gives a named boolean option explicit positive and negative long forms.
+///
+/// `--name` selects true and `--no-name` selects false. Short names and
+/// aliases remain positive-only spellings.
+struct CliNegatable
+{
+}
+
 /// Stops normal parsing after this named, non-repeating argument is successfully consumed.
 struct CliTerminal
 {
@@ -175,6 +183,7 @@ enum cliCount = CliCount();
 enum cliGlobal = CliGlobal();
 enum cliRest = CliRest();
 enum cliHidden = CliHidden();
+enum cliNegatable = CliNegatable();
 enum cliTerminal = CliTerminal();
 enum cliSubcommandOptional = CliSubcommandOptional();
 enum cliHelpOnNoSubcommand = CliHelpOnNoSubcommand();

@@ -647,6 +647,17 @@ private OptionMatch tryLongOnFrame(T)(
                         hasAttached,
                     );
             }
+            static if (fieldHas!(T, index, CliNegatable))
+            {
+                if ((!globalsOnly || fieldHas!(T, index, CliGlobal)) &&
+                    name == fieldNegativeLongName!(T, index))
+                    return consumeNamedField!(T, index, false, true)(
+                        state,
+                        frame,
+                        attached,
+                        hasAttached,
+                    );
+            }
         }
     }
     return OptionMatch.noMatch;
@@ -786,7 +797,12 @@ private OptionMatch tryShortOnFrame(T)(
 }
 
 pragma(inline, true)
-private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
+private OptionMatch consumeNamedField(
+    T,
+    size_t index,
+    bool shortForm,
+    bool negated = false,
+)(
     ref ParseState state,
     ref ParseFrame!T frame,
     String attached,
@@ -798,7 +814,24 @@ private OptionMatch consumeNamedField(T, size_t index, bool shortForm)(
     ref field = frame.node.args.tupleof[index];
     ref bool wasSeen = (*frame.seen)[index];
 
-    static if (fieldHas!(T, index, CliCount))
+    static if (fieldHas!(T, index, CliNegatable))
+    {
+        if (hasAttached)
+        {
+            state.fail(CliErrorKind.invalidValue, state.current, optionToken);
+            return OptionMatch.failed;
+        }
+        if (wasSeen)
+        {
+            state.fail(CliErrorKind.duplicateOption, state.current, optionToken);
+            return OptionMatch.failed;
+        }
+        static if (isOption!Field)
+            field = Option!bool.some(!negated);
+        else
+            field = !negated;
+    }
+    else static if (fieldHas!(T, index, CliCount))
     {
         if (hasAttached)
         {
@@ -1592,6 +1625,14 @@ private void writeOptionLine(T, size_t index)(ref Writer writer) @system
             writer.put("    ");
         writer.put("--");
         writer.put(longName);
+        first = false;
+    }
+    static if (fieldHas!(T, index, CliNegatable))
+    {
+        if (!first)
+            writer.put(", ");
+        writer.put("--");
+        writer.put(fieldNegativeLongName!(T, index));
         first = false;
     }
     static if (cliFieldTakesValue!(T, index))

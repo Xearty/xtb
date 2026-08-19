@@ -409,6 +409,98 @@ struct DisabledBuiltinVersionAliasArgs
     bool custom;
 }
 
+struct NegatableArgs
+{
+    @(cliNegatable, cliShortName('c'), cliAliasName("colour"),
+        cliHelp("Use colored output"))
+    bool color;
+
+    @cliNegatable
+    bool feature = true;
+
+    @cliNegatable
+    Option!bool cache;
+}
+
+struct NegatableGlobalRootArgs
+{
+    @(cliNegatable, cliGlobal)
+    bool color = true;
+
+    alias Commands = CliCommands!(NegatableGlobalChildArgs);
+}
+
+@cliCommand("child")
+struct NegatableGlobalChildArgs
+{
+}
+
+struct NegatableTerminalArgs
+{
+    @cliRequired
+    Option!String output;
+
+    @(cliNegatable, cliTerminal)
+    Option!bool diagnostics;
+}
+
+struct RequiredNegatableArgs
+{
+    @(cliNegatable, cliRequired)
+    Option!bool color;
+}
+
+struct InvalidPlainOptionalBoolArgs
+{
+    Option!bool color;
+}
+
+struct InvalidNegatableTypeArgs
+{
+    @cliNegatable
+    uint jobs;
+}
+
+struct InvalidNegatablePositionalArgs
+{
+    @(cliNegatable, cliPositional)
+    bool color;
+}
+
+struct InvalidDuplicateNegatableArgs
+{
+    @(cliNegatable, cliNegatable)
+    bool color;
+}
+
+struct InvalidNegatableAliasCollisionArgs
+{
+    @(cliNegatable, cliAliasName("no-color"))
+    bool color;
+}
+
+struct InvalidNegatableFieldCollisionArgs
+{
+    @cliNegatable
+    bool color;
+
+    bool noColor;
+}
+
+struct InvalidNegatableGlobalCollisionRootArgs
+{
+    @(cliNegatable, cliGlobal)
+    bool color;
+
+    alias Commands = CliCommands!(InvalidNegatableGlobalCollisionChildArgs);
+}
+
+@cliCommand("child")
+struct InvalidNegatableGlobalCollisionChildArgs
+{
+    bool noColor;
+}
+
 struct Port
 {
     ushort value;
@@ -675,6 +767,12 @@ struct InvalidCustomBoolArgs
     bool flag;
 }
 
+struct InvalidNegatableParseWithArgs
+{
+    @(cliNegatable, cliParseWith!parseBool)
+    bool flag;
+}
+
 struct InvalidCustomParserScopeArgs
 {
     @(cliParseWith!parsePortWithoutScope)
@@ -783,6 +881,20 @@ static assert(!__traits(compiles,
         parseArgs!InvalidDuplicateCommandAliasRootArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
         parseArgs!InvalidCommandShortAliasRootArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidPlainOptionalBoolArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidNegatableTypeArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidNegatablePositionalArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicateNegatableArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidNegatableAliasCollisionArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidNegatableFieldCollisionArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidNegatableGlobalCollisionRootArgs(cast(String[]) null)));
 static assert(cliNeedsAllocator!TerminalAllocArgs);
 static assert(!cliNeedsAllocator!CustomValueNoAllocArgs);
 static assert(cliNeedsAllocator!CustomValueArgs);
@@ -802,6 +914,8 @@ static assert(!__traits(compiles,
         parseArgs!AllocatorCustomValueArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
         parseArgs!InvalidCustomBoolArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidNegatableParseWithArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
         parseArgs!InvalidCustomDestructorArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
@@ -1165,6 +1279,133 @@ private void testAliases()
 
         assert(result.hasInvocation);
         assert(result.invocation.args.custom);
+    }
+}
+
+private void testNegatableBooleans()
+{
+    {
+        String[1] argv = ["tool"];
+        auto result = parseArgs!NegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(!result.invocation.args.color);
+        assert(result.invocation.args.feature);
+        assert(result.invocation.args.cache.isNone);
+    }
+
+    {
+        String[4] argv = ["tool", "--colour", "--no-feature", "--cache"];
+        auto result = parseArgs!NegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.color);
+        assert(!result.invocation.args.feature);
+        assert(result.invocation.args.cache.isSome);
+        assert(result.invocation.args.cache.value);
+    }
+
+    {
+        String[3] argv = ["tool", "-c", "--no-cache"];
+        auto result = parseArgs!NegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.color);
+        assert(result.invocation.args.cache.isSome);
+        assert(!result.invocation.args.cache.value);
+    }
+
+    {
+        String[3] argv = ["tool", "--color", "--no-color"];
+        auto result = parseArgs!NegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.duplicateOption);
+    }
+
+    {
+        String[2] argv = ["tool", "--color=true"];
+        auto result = parseArgs!NegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.invalidValue);
+    }
+
+    {
+        String[2] argv = ["tool", "--no-colour"];
+        auto result = parseArgs!NegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.unknownOption);
+    }
+
+    {
+        String[3] argv = ["tool", "child", "--no-color"];
+        auto result = parseArgs!NegatableGlobalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(!result.invocation.args.color);
+        assert(result.invocation.command!NegatableGlobalChildArgs !is null);
+    }
+
+    {
+        String[3] argv = ["tool", "--no-diagnostics", "ignored"];
+        auto result = parseArgs!NegatableTerminalArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasTerminal);
+        assert(result.parsed.args.output.isNone);
+        assert(result.parsed.args.diagnostics.isSome);
+        assert(!result.parsed.args.diagnostics.value);
+    }
+
+    {
+        String[1] argv = ["tool"];
+        auto result = parseArgs!RequiredNegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingRequiredOption);
+    }
+
+    {
+        String[2] argv = ["tool", "--no-color"];
+        auto result = parseArgs!RequiredNegatableArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.hasInvocation);
+        assert(result.invocation.args.color.isSome);
+        assert(!result.invocation.args.color.value);
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!NegatableArgs(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "-c, --color, --colour, --no-color"));
+        assert(contains(output.text, "--feature, --no-feature"));
+        assert(contains(output.text, "--cache, --no-cache"));
+        assert(!contains(output.text, "--no-colour"));
+        assert(!contains(output.text, "<CACHE>"));
     }
 }
 
@@ -1831,6 +2072,7 @@ extern (C) int main()
     testHelpOnMissingSubcommand();
     testUnknownAndInvalidValues();
     testAliases();
+    testNegatableBooleans();
     testPublicGeneratedHelp();
     testGeneratedHelpAndVersion();
     testGeneratedErrorResponse();
