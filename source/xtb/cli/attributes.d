@@ -66,6 +66,21 @@ struct CliValueName
     string value;
 }
 
+/// Declares possible value spellings shown in generated help.
+///
+/// This is help metadata only; parsing remains authoritative.
+struct CliPossibleValues(Values...)
+{
+    enum isCliPossibleValues = true;
+    enum values = Values;
+}
+
+/// Creates a `CliPossibleValues` attribute.
+template cliPossibleValues(Values...)
+{
+    enum cliPossibleValues = CliPossibleValues!Values();
+}
+
 struct CliPositional
 {
 }

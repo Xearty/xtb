@@ -1213,7 +1213,9 @@ void writeHelp(Root, Path...)(ref Writer writer, String programPath) @system
     static if (hasVisibleGlobalsOnStaticPath!(Root, Path))
     {
         writer.put("\nGlobal options:\n");
-        writeGlobalsOnStaticPath!(Root, Path)(writer);
+        enum columnWidth = globalsOnStaticPathHelpColumnWidth!(Root, Path);
+        bool firstGlobal = true;
+        writeGlobalsOnStaticPath!(Root, Path)(writer, columnWidth, firstGlobal);
     }
 }
 
@@ -1300,7 +1302,9 @@ private void writeSelectedHelpAt(Root, T)(
     if (hasGlobalsAlongActivePath!Root(tree))
     {
         writer.put("\nGlobal options:\n");
-        writeGlobalsAlongActivePath!Root(writer, tree);
+        const columnWidth = globalsAlongActivePathHelpColumnWidth!Root(tree);
+        bool firstGlobal = true;
+        writeGlobalsAlongActivePath!Root(writer, tree, columnWidth, firstGlobal);
     }
 }
 
@@ -1319,47 +1323,93 @@ private void writeHelpSections(Root, T)(ref Writer writer) @system
     static if (hasSubcommands!T)
     {
         writer.put("\nCommands:\n");
+        enum commandColumnWidth = commandHelpColumnWidth!T;
+        bool firstCommand = true;
         static foreach (Child; CommandTypes!T)
-            writeCommandHelpLine!Child(writer);
+        {
+            if (!firstCommand)
+                writer.put('\n');
+            writeCommandHelpLine!Child(writer, commandColumnWidth);
+            firstCommand = false;
+        }
     }
     else static if (hasVisiblePositionals!T)
     {
         writer.put("\nArguments:\n");
-        writePositionals!T(writer);
+        writePositionals!T(writer, positionalHelpColumnWidth!T);
     }
 
     static if (hasVisibleLocalOptions!T || builtinHelpEnabled!Root ||
         (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
     {
         writer.put("\nOptions:\n");
+        enum optionColumnWidth = localOptionHelpColumnWidth!(Root, T);
         static if (hasVisibleLocalOptions!T)
-            writeLocalOptions!T(writer);
+        {
+            writeLocalOptions!T(writer, optionColumnWidth);
+            static if (builtinHelpEnabled!Root ||
+                (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
+                writer.put('\n');
+        }
         static if (builtinHelpEnabled!Root)
-            writer.put("  -h, --help\tShow this help\n");
+            writeBuiltinOptionLine(writer, "-h, --help", "Show this help", optionColumnWidth);
         static if (is(Unqualified!T == Unqualified!Root) &&
             builtinVersionEnabled!Root)
-            writer.put("      --version\tShow the application version\n");
+            writeBuiltinOptionLine(
+                writer,
+                "    --version",
+                "Show the application version",
+                optionColumnWidth,
+            );
     }
 }
 
-private void writeCommandHelpLine(T)(ref Writer writer) @system
+private enum commandHelpLabelWidth(T) = commandName!T.length;
+
+private enum commandHelpColumnWidth(T) = () {
+    size_t result;
+    static foreach (Child; CommandTypes!T)
+        if (commandHelpLabelWidth!Child > result)
+            result = commandHelpLabelWidth!Child;
+    return result;
+}();
+
+private void writeHelpGap(ref Writer writer, size_t labelWidth, size_t columnWidth) @system
+{
+    writer.repeat(' ', columnWidth - labelWidth + 2);
+}
+
+private void writeHelpMetadataIndent(ref Writer writer, size_t columnWidth) @system
+{
+    writer.repeat(' ', columnWidth + 4);
+}
+
+private void writeCommandHelpLine(T)(ref Writer writer, size_t columnWidth) @system
 {
     writer.put("  ");
-    bool first = true;
-    static foreach (name; commandAllNames!T)
-    {
-        if (!first)
-            writer.put(", ");
-        writer.put(name);
-        first = false;
-    }
+    writer.put(commandName!T);
     enum aboutText = typeAbout!T;
     static if (aboutText.length != 0)
     {
-        writer.put("\t");
+        writeHelpGap(writer, commandHelpLabelWidth!T, columnWidth);
         writer.put(aboutText);
     }
     writer.put('\n');
+
+    static if (commandAliases!T.length != 0)
+    {
+        writeHelpMetadataIndent(writer, columnWidth);
+        writer.put("aliases: ");
+        bool first = true;
+        static foreach (name; commandAliases!T)
+        {
+            if (!first)
+                writer.put(", ");
+            writer.put(name);
+            first = false;
+        }
+        writer.put('\n');
+    }
 }
 
 private template HelpPathTarget(Parent, Path...)
@@ -1411,11 +1461,28 @@ private template hasVisibleGlobalsOnStaticPath(Parent, Path...)
             hasVisibleGlobalsOnStaticPath!(Path[0], Path[1 .. $]);
 }
 
-private void writeGlobalsOnStaticPath(Parent, Path...)(ref Writer writer) @system
+private template globalsOnStaticPathHelpColumnWidth(Parent, Path...)
 {
-    writeVisibleGlobals!Parent(writer);
+    static if (Path.length == 0)
+        enum size_t globalsOnStaticPathHelpColumnWidth = visibleGlobalOptionHelpColumnWidth!Parent;
+    else
+    {
+        enum childWidth = globalsOnStaticPathHelpColumnWidth!(Path[0], Path[1 .. $]);
+        enum currentWidth = visibleGlobalOptionHelpColumnWidth!Parent;
+        enum size_t globalsOnStaticPathHelpColumnWidth = currentWidth > childWidth
+            ? currentWidth : childWidth;
+    }
+}
+
+private void writeGlobalsOnStaticPath(Parent, Path...)(
+    ref Writer writer,
+    size_t columnWidth,
+    ref bool first,
+) @system
+{
+    writeVisibleGlobals!Parent(writer, columnWidth, first);
     static if (Path.length != 0)
-        writeGlobalsOnStaticPath!(Path[0], Path[1 .. $])(writer);
+        writeGlobalsOnStaticPath!(Path[0], Path[1 .. $])(writer, columnWidth, first);
 }
 
 private void writeSelectedUsage(T)(
@@ -1567,14 +1634,41 @@ private enum hasVisibleLocalOptions(T) = () {
     return result;
 }();
 
-private void writePositionals(T)(ref Writer writer) @system
-{
+private enum positionalHelpLabelWidth(T, size_t index) = fieldValueName!(T, index).length +
+    (
+        fieldHas!(T, index, CliRest) ? 3 : 0);
+
+private enum positionalHelpColumnWidth(T) = () {
+    size_t result;
     static foreach (index; 0 .. T.tupleof.length)
-        writePositionalLine!(T, index)(writer);
+        static if (fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliHidden))
+            if (positionalHelpLabelWidth!(T, index) > result)
+                result = positionalHelpLabelWidth!(T, index);
+    return result;
+}();
+
+private void writePositionals(T)(ref Writer writer, size_t columnWidth) @system
+{
+    bool first = true;
+    static foreach (index; 0 .. T.tupleof.length)
+    {
+        static if (fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliHidden))
+        {
+            if (!first)
+                writer.put('\n');
+            writePositionalLine!(T, index)(writer, columnWidth);
+            first = false;
+        }
+    }
 }
 
 pragma(inline, true)
-private void writePositionalLine(T, size_t index)(ref Writer writer) @system
+private void writePositionalLine(T, size_t index)(
+    ref Writer writer,
+    size_t columnWidth,
+) @system
 {
     static if (fieldHas!(T, index, CliPositional) &&
         !fieldHas!(T, index, CliHidden))
@@ -1583,73 +1677,220 @@ private void writePositionalLine(T, size_t index)(ref Writer writer) @system
         writer.put(fieldValueName!(T, index));
         static if (fieldHas!(T, index, CliRest))
             writer.put("...");
-        enum helpText = fieldHelp!(T, index);
-        static if (helpText.length != 0)
-        {
-            writer.put("\t");
-            writer.put(helpText);
-        }
-        writer.put('\n');
+        writeFieldHelpBlock!(T, index)(
+            writer,
+            positionalHelpLabelWidth!(T, index),
+            columnWidth,
+        );
     }
 }
 
-private void writeLocalOptions(T)(ref Writer writer) @system
+private enum optionHelpLabelWidth(T, size_t index) = () {
+    size_t result;
+    static if (fieldShortName!(T, index) != '\0')
+        result += 2;
+    static if (fieldShortName!(T, index) != '\0')
+        result += 2;
+    else
+        result += 4;
+    result += 2 + fieldLongName!(T, index).length;
+    static if (cliFieldTakesValue!(T, index))
+    {
+        result += 3 + fieldValueName!(T, index).length;
+    }
+    return result;
+}();
+
+private enum visibleLocalOptionHelpColumnWidth(T) = () {
+    size_t result;
+    static foreach (index; 0 .. T.tupleof.length)
+        static if (!fieldHas!(T, index, CliPositional) &&
+            !fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden))
+            if (optionHelpLabelWidth!(T, index) > result)
+                result = optionHelpLabelWidth!(T, index);
+    return result;
+}();
+
+private enum visibleGlobalOptionHelpColumnWidth(T) = () {
+    size_t result;
+    static foreach (index; 0 .. T.tupleof.length)
+        static if (!fieldHas!(T, index, CliPositional) &&
+            fieldHas!(T, index, CliGlobal) &&
+            !fieldHas!(T, index, CliHidden))
+            if (optionHelpLabelWidth!(T, index) > result)
+                result = optionHelpLabelWidth!(T, index);
+    return result;
+}();
+
+private enum localOptionHelpColumnWidth(Root, T) = () {
+    size_t result = visibleLocalOptionHelpColumnWidth!T;
+    static if (builtinHelpEnabled!Root)
+        if ("-h, --help".length > result)
+            result = "-h, --help".length;
+    static if (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root)
+        if ("    --version".length > result)
+            result = "    --version".length;
+    return result;
+}();
+
+private void writeLocalOptions(T)(ref Writer writer, size_t columnWidth) @system
 {
+    bool first = true;
     static foreach (index; 0 .. T.tupleof.length)
     {
         static if (!fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden))
-            writeOptionLine!(T, index)(writer);
+        {
+            if (!first)
+                writer.put('\n');
+            writeOptionLine!(T, index)(writer, columnWidth);
+            first = false;
+        }
     }
 }
 
 pragma(inline, true)
-private void writeOptionLine(T, size_t index)(ref Writer writer) @system
+private void writeOptionLine(T, size_t index)(
+    ref Writer writer,
+    size_t columnWidth,
+) @system
 {
     writer.put("  ");
-    bool first = true;
-    static foreach (shortName; fieldAllShortNames!(T, index))
+    enum shortName = fieldShortName!(T, index);
+    static if (shortName != '\0')
     {
-        if (!first)
-            writer.put(", ");
         writer.put('-');
         writer.put(shortName);
-        first = false;
+        writer.put(", ");
     }
-    static foreach (longName; fieldAllLongNames!(T, index))
-    {
-        if (!first)
-            writer.put(", ");
-        else if (fieldAllShortNames!(T, index).length == 0)
-            writer.put("    ");
-        writer.put("--");
-        writer.put(longName);
-        first = false;
-    }
-    static if (fieldHas!(T, index, CliNegatable))
-    {
-        if (!first)
-            writer.put(", ");
-        writer.put("--");
-        writer.put(fieldNegativeLongName!(T, index));
-        first = false;
-    }
+    else
+        writer.put("    ");
+    writer.put("--");
+    writer.put(fieldLongName!(T, index));
     static if (cliFieldTakesValue!(T, index))
     {
         writer.put(" <");
         writer.put(fieldValueName!(T, index));
         writer.put('>');
     }
-    static if (fieldHas!(T, index, CliCount))
-        writer.put("...");
+    writeFieldHelpBlock!(T, index)(
+        writer,
+        optionHelpLabelWidth!(T, index),
+        columnWidth,
+    );
+}
+
+private void writeBuiltinOptionLine(
+    ref Writer writer,
+    String label,
+    String helpText,
+    size_t columnWidth,
+) @system
+{
+    writer.put("  ");
+    writer.put(label);
+    writeHelpGap(writer, label.length, columnWidth);
+    writer.put(helpText);
+    writer.put('\n');
+}
+
+private void writeFieldHelpBlock(T, size_t index)(
+    ref Writer writer,
+    size_t labelWidth,
+    size_t columnWidth,
+) @system
+{
     enum helpText = fieldHelp!(T, index);
+    enum possibleValues = fieldHelpPossibleValues!(T, index);
+    enum hasRequired = fieldIsRequired!(T, index);
+    enum hasDefault = fieldHasHelpDefault!(T, index);
+
     static if (helpText.length != 0)
     {
-        writer.put("\t");
+        writeHelpGap(writer, labelWidth, columnWidth);
         writer.put(helpText);
     }
     writer.put('\n');
+
+    static if (!fieldHas!(T, index, CliPositional) &&
+        (fieldShortAliases!(T, index).length != 0 ||
+            fieldLongAliases!(T, index).length != 0))
+    {
+        writeHelpMetadataIndent(writer, columnWidth);
+        writer.put("aliases: ");
+        bool first = true;
+        static foreach (shortAlias; fieldShortAliases!(T, index))
+        {
+            if (!first)
+                writer.put(", ");
+            writer.put('-');
+            writer.put(shortAlias);
+            first = false;
+        }
+        static foreach (longAlias; fieldLongAliases!(T, index))
+        {
+            if (!first)
+                writer.put(", ");
+            writer.put("--");
+            writer.put(longAlias);
+            first = false;
+        }
+        writer.put('\n');
+    }
+
+    static if (!fieldHas!(T, index, CliPositional) &&
+        fieldHas!(T, index, CliNegatable))
+    {
+        writeHelpMetadataIndent(writer, columnWidth);
+        writer.put("negatable: --");
+        writer.put(fieldNegativeLongName!(T, index));
+        writer.put('\n');
+    }
+
+    static if (possibleValues.length != 0)
+    {
+        writeHelpMetadataIndent(writer, columnWidth);
+        writer.put("values: ");
+        bool first = true;
+        static foreach (value; possibleValues)
+        {
+            if (!first)
+                writer.put(", ");
+            writer.put(value);
+            first = false;
+        }
+        writer.put('\n');
+    }
+
+    static if (hasDefault)
+    {
+        writeHelpMetadataIndent(writer, columnWidth);
+        writer.put("default: ");
+        writeAutomaticFieldDefault!(T, index)(writer);
+        writer.put('\n');
+    }
+
+    static if (hasRequired)
+    {
+        writeHelpMetadataIndent(writer, columnWidth);
+        writer.put("required\n");
+    }
+}
+
+private void writeAutomaticFieldDefault(T, size_t index)(ref Writer writer) @system
+{
+    alias Field = Unqualified!(FieldType!(T, index));
+    static assert(fieldHasAutomaticDefault!(T, index));
+    static if (is(Field == enum))
+        writer.put(fieldAutomaticEnumDefaultName!(T, index));
+    else static if (is(Field == String))
+        writer.put(fieldDefaultValue!(T, index));
+    else static if (is(Field == char) || is(Field == wchar) || is(Field == dchar))
+        writer.value(cast(uint) fieldDefaultValue!(T, index));
+    else
+        writer.value(fieldDefaultValue!(T, index));
 }
 
 private enum hasVisibleGlobalOptions(T) = () {
@@ -1662,13 +1903,22 @@ private enum hasVisibleGlobalOptions(T) = () {
     return result;
 }();
 
-private void writeVisibleGlobals(T)(ref Writer writer) @system
+private void writeVisibleGlobals(T)(
+    ref Writer writer,
+    size_t columnWidth,
+    ref bool first,
+) @system
 {
     static foreach (index; 0 .. T.tupleof.length)
         static if (!fieldHas!(T, index, CliPositional) &&
             fieldHas!(T, index, CliGlobal) &&
             !fieldHas!(T, index, CliHidden))
-            writeOptionLine!(T, index)(writer);
+            {
+            if (!first)
+                writer.put('\n');
+            writeOptionLine!(T, index)(writer, columnWidth);
+            first = false;
+        }
 }
 
 private bool hasGlobalsAlongActivePath(T)(ref ParsedCommand!T node) @system
@@ -1681,17 +1931,37 @@ private bool hasGlobalsAlongActivePath(T)(ref ParsedCommand!T node) @system
     return false;
 }
 
-private void writeGlobalsAlongActivePath(T)(
-    ref Writer writer,
+private size_t globalsAlongActivePathHelpColumnWidth(T)(
     ref ParsedCommand!T node,
 ) @system
 {
-    writeVisibleGlobals!T(writer);
+    size_t result = visibleGlobalOptionHelpColumnWidth!T;
     static foreach (Child; CommandTypes!T)
     {
         if (auto child = node.command!Child)
         {
-            writeGlobalsAlongActivePath!Child(writer, *child);
+            const childWidth = globalsAlongActivePathHelpColumnWidth!Child(*child);
+            if (childWidth > result)
+                result = childWidth;
+            return result;
+        }
+    }
+    return result;
+}
+
+private void writeGlobalsAlongActivePath(T)(
+    ref Writer writer,
+    ref ParsedCommand!T node,
+    size_t columnWidth,
+    ref bool first,
+) @system
+{
+    writeVisibleGlobals!T(writer, columnWidth, first);
+    static foreach (Child; CommandTypes!T)
+    {
+        if (auto child = node.command!Child)
+        {
+            writeGlobalsAlongActivePath!Child(writer, *child, columnWidth, first);
             return;
         }
     }

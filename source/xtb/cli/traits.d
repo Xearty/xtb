@@ -146,6 +146,36 @@ private template isParseWithAttribute(alias attribute)
         enum isParseWithAttribute = false;
 }
 
+private template isPossibleValuesAttribute(alias attribute)
+{
+    static if (__traits(compiles, typeof(attribute).isCliPossibleValues))
+        enum isPossibleValuesAttribute = typeof(attribute).isCliPossibleValues;
+    else
+        enum isPossibleValuesAttribute = false;
+}
+
+private size_t fieldPossibleValuesCount(T, size_t index)() pure @safe
+{
+    size_t result;
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+        static if (isPossibleValuesAttribute!attribute)
+            ++result;
+    return result;
+}
+
+enum fieldHasPossibleValues(T, size_t index) =
+    fieldPossibleValuesCount!(T, index)() != 0;
+
+template FieldPossibleValues(T, size_t index)
+{
+    static assert(fieldPossibleValuesCount!(T, index)() == 1,
+        T.stringof ~ "." ~ __traits(identifier, FieldSymbol!(T, index)) ~
+            " must have exactly one @cliPossibleValues attribute");
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+        static if (isPossibleValuesAttribute!attribute)
+            alias FieldPossibleValues = typeof(attribute).values;
+}
+
 private size_t fieldParseWithCount(T, size_t index)() pure @safe
 {
     size_t result;
@@ -593,6 +623,105 @@ template fieldValueName(T, size_t index)
         enum String fieldValueName = upperValueName!(fieldLongName!(T, index));
 }
 
+private auto fieldExplicitPossibleValuesStorage(T, size_t index)() pure @safe
+{
+    alias Values = FieldPossibleValues!(T, index);
+    String[Values.length] result;
+    static foreach (valueIndex, value; Values)
+    {
+        static assert(is(typeof(value) : String),
+            "@cliPossibleValues arguments must be strings");
+        result[valueIndex] = value;
+    }
+    return result;
+}
+
+template fieldExplicitPossibleValues(T, size_t index)
+{
+    static if (fieldHasPossibleValues!(T, index))
+        enum String[] fieldExplicitPossibleValues =
+            fieldExplicitPossibleValuesStorage!(T, index)();
+    else
+        enum String[] fieldExplicitPossibleValues = [];
+}
+
+private auto enumCliNamesStorage(T)() pure @safe
+{
+    alias U = Unqualified!T;
+    String[__traits(allMembers, U).length] result;
+    static foreach (index, member; __traits(allMembers, U))
+        result[index] = enumCliName!(U, member);
+    return result;
+}
+
+template enumCliNames(T)
+{
+    alias U = Unqualified!T;
+    static assert(is(U == enum), U.stringof ~ " must be an enum");
+    enum String[] enumCliNames = enumCliNamesStorage!U();
+}
+
+private String enumCliNameForValue(T)(T value) pure @safe
+{
+    alias U = Unqualified!T;
+    String result;
+    static foreach (member; __traits(allMembers, U))
+    {
+        if (result.length == 0 && value == __traits(getMember, U, member))
+            result = enumCliName!(U, member);
+    }
+    return result;
+}
+
+enum fieldIsRequired(T, size_t index) = () {
+    alias Field = FieldType!(T, index);
+    static if (fieldHas!(T, index, CliPositional))
+        return fieldHas!(T, index, CliRequired) ||
+            (!isOption!Field && !fieldHas!(T, index, CliRest));
+    else
+        return fieldHas!(T, index, CliRequired);
+}();
+
+enum fieldDefaultValue(T, size_t index) = Unqualified!T.init.tupleof[index];
+
+enum fieldHasAutomaticDefault(T, size_t index) = () {
+    alias Field = Unqualified!(FieldType!(T, index));
+    static if (fieldIsRequired!(T, index) || fieldHasParseWith!(T, index) ||
+        isOption!Field || isArray!Field)
+        return false;
+    else static if (is(Field == enum))
+        return enumCliNameForValue!Field(fieldDefaultValue!(T, index)).length != 0;
+    else static if (is(Field == bool))
+        return fieldHas!(T, index, CliNegatable) ||
+            fieldDefaultValue!(T, index) != bool.init;
+    else static if (__traits(isIntegral, Field) || is(Field == String))
+        return fieldDefaultValue!(T, index) != Field.init;
+    else
+        return false;
+}();
+
+enum fieldHasHelpDefault(T, size_t index) = fieldHasAutomaticDefault!(T, index);
+
+template fieldAutomaticEnumDefaultName(T, size_t index)
+{
+    alias Field = Unqualified!(FieldType!(T, index));
+    static assert(is(Field == enum));
+    enum String fieldAutomaticEnumDefaultName =
+        enumCliNameForValue!Field(fieldDefaultValue!(T, index));
+}
+
+template fieldHelpPossibleValues(T, size_t index)
+{
+    alias Field = FieldType!(T, index);
+    alias Value = CliValueType!Field;
+    static if (fieldHasPossibleValues!(T, index))
+        enum String[] fieldHelpPossibleValues = fieldExplicitPossibleValues!(T, index);
+    else static if (!fieldHasParseWith!(T, index) && is(Unqualified!Value == enum))
+        enum String[] fieldHelpPossibleValues = enumCliNames!(Unqualified!Value);
+    else
+        enum String[] fieldHelpPossibleValues = [];
+}
+
 template commandName(T)
 {
     alias U = Unqualified!T;
@@ -830,6 +959,34 @@ private bool validateField(Root, T, size_t index)() pure @safe
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliNegatable attributes");
     static assert(fieldAttributeCount!(T, index, CliTerminal) <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliTerminal attributes");
+    static assert(fieldPossibleValuesCount!(T, index)() <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliPossibleValues attributes");
+
+    static if (fieldHasPossibleValues!(T, index))
+    {
+        enum possibleValues = fieldExplicitPossibleValues!(T, index);
+        static assert(possibleValues.length != 0,
+            T.stringof ~ "." ~ sourceName ~ " @cliPossibleValues cannot be empty");
+        static foreach (value; possibleValues)
+            static assert(value.length != 0,
+                T.stringof ~ "." ~ sourceName ~
+                    " @cliPossibleValues cannot contain an empty value");
+        enum duplicatePossibleValue = firstDuplicateString(possibleValues);
+        static assert(duplicatePossibleValue.length == 0,
+            T.stringof ~ "." ~ sourceName ~ " has duplicate possible value '" ~
+                duplicatePossibleValue ~ "'");
+        static assert(cliFieldTakesValue!(T, index),
+            T.stringof ~ "." ~ sourceName ~
+                " @cliPossibleValues requires an argument that takes a value");
+    }
+
+    static if (!fieldHasParseWith!(T, index) && is(Unqualified!Value == enum))
+    {
+        enum duplicateEnumValueName = firstDuplicateString(enumCliNames!(Unqualified!Value));
+        static assert(duplicateEnumValueName.length == 0,
+            T.stringof ~ "." ~ sourceName ~ " enum " ~ Unqualified!Value.stringof ~
+                " has duplicate CLI value name '" ~ duplicateEnumValueName ~ "'");
+    }
     enum duplicateLongAlias = firstDuplicateString(fieldLongAliases!(T, index));
     static assert(duplicateLongAlias.length == 0,
         T.stringof ~ "." ~ sourceName ~ " has duplicate long option alias '--" ~

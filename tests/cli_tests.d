@@ -685,8 +685,8 @@ struct CustomPositionalValueArgs
 
 struct OverrideBuiltInValueArgs
 {
-    @(cliParseWith!parseAutomaticJobs)
-    uint jobs;
+    @(cliParseWith!parseAutomaticJobs, cliPossibleValues!("auto"))
+    uint jobs = 8;
 }
 
 struct OwnedParsedValue
@@ -795,6 +795,41 @@ struct InvalidCountParseWithArgs
 {
     @(cliCount, cliParseWith!parseAutomaticJobs)
     uint jobs;
+}
+
+struct InvalidEmptyPossibleValuesArgs
+{
+    @(cliPossibleValues!())
+    String mode;
+}
+
+struct InvalidDuplicatePossibleValuesArgs
+{
+    @(cliPossibleValues!("fast", "fast"))
+    String mode;
+}
+
+struct InvalidPossibleValuesFlagArgs
+{
+    @(cliPossibleValues!("true", "false"))
+    bool flag;
+}
+
+struct InvalidDuplicatePossibleValuesAttributesArgs
+{
+    @(cliPossibleValues!("fast"), cliPossibleValues!("slow"))
+    String mode;
+}
+
+enum InvalidNormalizedEnumNames
+{
+    fastMode,
+    fast_mode,
+}
+
+struct InvalidNormalizedEnumNamesArgs
+{
+    InvalidNormalizedEnumNames mode;
 }
 
 struct InvalidChildVersionRootArgs
@@ -926,6 +961,16 @@ static assert(!__traits(compiles,
         parseArgs!InvalidDuplicateParseWithArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
         parseArgs!InvalidCountParseWithArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidEmptyPossibleValuesArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicatePossibleValuesArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidPossibleValuesFlagArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidDuplicatePossibleValuesAttributesArgs(cast(String[]) null)));
+static assert(!__traits(compiles,
+        parseArgs!InvalidNormalizedEnumNamesArgs(cast(String[]) null)));
 
 private struct TextSink
 {
@@ -1401,9 +1446,16 @@ private void testNegatableBooleans()
         writeHelp!NegatableArgs(writer, "tool");
         assert(writer.finish().ok);
 
-        assert(contains(output.text, "-c, --color, --colour, --no-color"));
-        assert(contains(output.text, "--feature, --no-feature"));
-        assert(contains(output.text, "--cache, --no-cache"));
+        assert(contains(output.text, "-c, --color"));
+        assert(contains(output.text, "Use colored output"));
+        assert(contains(output.text, "aliases: --colour"));
+        assert(contains(output.text, "negatable: --no-color"));
+        assert(contains(output.text, "default: false"));
+        assert(contains(output.text, "--feature"));
+        assert(contains(output.text, "negatable: --no-feature"));
+        assert(contains(output.text, "default: true"));
+        assert(contains(output.text, "--cache"));
+        assert(contains(output.text, "negatable: --no-cache"));
         assert(!contains(output.text, "--no-colour"));
         assert(!contains(output.text, "<CACHE>"));
     }
@@ -1457,14 +1509,48 @@ private void testPublicGeneratedHelp()
     {
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(RootArgs, BuildArgs)(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "--jobs <N>"));
+        assert(contains(output.text, "Parallel jobs"));
+        assert(contains(output.text, "default: 1"));
+        assert(contains(output.text, "--mode <MODE>"));
+        assert(contains(output.text, "Build mode"));
+        assert(contains(output.text, "values: debug, release-safe, release-fast"));
+        assert(contains(output.text, "default: debug"));
+        assert(contains(output.text, "--output <PATH>"));
+        assert(contains(output.text, "Output path"));
+        assert(contains(output.text, "required"));
+        assert(!contains(output.text, "\t"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!OverrideBuiltInValueArgs(writer, "tool");
+        assert(writer.finish().ok);
+
+        assert(contains(output.text, "--jobs <JOBS>"));
+        assert(contains(output.text, "values: auto"));
+        assert(!contains(output.text, "default:"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(AliasRootArgs)(writer, "tool");
         assert(writer.finish().ok);
 
-        assert(contains(output.text, "remove, rm, del"));
-        assert(contains(output.text, "list, ls"));
-        assert(contains(output.text,
-                "-v, -V, -Q, --verbose, --verbosity, --chatty"));
-        assert(contains(output.text, "--color, --colour"));
+        assert(contains(output.text, "remove"));
+        assert(contains(output.text, "Remove an item"));
+        assert(contains(output.text, "aliases: rm, del"));
+        assert(contains(output.text, "list"));
+        assert(contains(output.text, "aliases: ls"));
+        assert(contains(output.text, "-v, --verbose"));
+        assert(contains(output.text, "aliases: -V, -Q, --verbosity, --chatty"));
+        assert(contains(output.text, "--color"));
+        assert(contains(output.text, "aliases: --colour"));
     }
 
     {
@@ -1474,8 +1560,11 @@ private void testPublicGeneratedHelp()
         assert(writer.finish().ok);
 
         assert(contains(output.text, "Usage: tool remove [OPTIONS]"));
-        assert(contains(output.text, "-f, -F, -E, --force, --delete, --erase"));
-        assert(contains(output.text, "--target, --destination <TARGET>"));
+        assert(contains(output.text, "-f, --force"));
+        assert(contains(output.text, "aliases: -F, -E, --delete, --erase"));
+        assert(contains(output.text, "--target <TARGET>"));
+        assert(contains(output.text, "aliases: --destination"));
+        assert(contains(output.text, "required"));
     }
 }
 
