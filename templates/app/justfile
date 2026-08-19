@@ -1,24 +1,144 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+set script-interpreter := ["bash", "-eu", "-o", "pipefail"]
 
 d_compiler := env_var_or_default("DC", "ldc2")
 d_files := `find source -type f -name '*.d' -print | sort | tr '\n' ' '`
-dub_options := "--compiler=" + d_compiler + " --skip-registry=all"
+dub_options := "--quiet --parallel --compiler=" + d_compiler + " --skip-registry=all"
 
 default: run
 
-build:
-    DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=on" dub build {{ dub_options }} --build=debug --d-version=XTB_Checked
+# Build the application against XTB in the same mode.
+build mode="debug": (_dub "build" mode)
 
-run:
-    DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=on" dub run {{ dub_options }} --build=debug --d-version=XTB_Checked
-
-format:
-    dfmt --config . --inplace {{ d_files }}
-
+# Run the application, forwarding arguments after `--`.
+#
+# Examples:
+#   just run
+#   just run release-safe
+#   just run -- first second
+#   just run release-safe -- first second
 [script]
-check:
-    for source_file in {{ d_files }}; do
-        diff -u "$source_file" <(dfmt --config . "$source_file")
+[positional-arguments]
+run *tail:
+    mode=debug
+    if [[ "${1-}" == debug || "${1-}" == release-safe || "${1-}" == release-fast ]]; then
+        mode="$1"
+        shift
+    fi
+    if (( $# != 0 )); then
+        if [[ "$1" != -- ]]; then
+            echo "application arguments must follow '--'" >&2
+            echo "usage: just run [debug|release-safe|release-fast] -- <arguments...>" >&2
+            exit 2
+        fi
+        shift
+    fi
+    just --justfile "{{ justfile() }}" _dub run "$mode" -- "$@"
+
+# Run colocated BetterC unittests outside the executable's main module.
+# Release-fast compiles them with assertions removed.
+test mode="debug": (_dub "test" mode)
+
+# Print the supported application and XTB build modes.
+targets:
+    @echo "Build modes: debug release-safe release-fast"
+
+# Remove DUB state and generated build outputs.
+clean:
+    rm -rf .dub build
+
+# Format every D source file in place.
+format:
+    @dfmt --config . --inplace {{ d_files }}
+
+# Verify formatting without modifying the worktree.
+[script]
+format-check:
+    status=0
+    for file in {{ d_files }}; do
+        if ! dfmt --config . "$file" | cmp -s "$file" -; then
+            echo "not formatted: $file" >&2
+            status=1
+        fi
     done
-    dscanner lint --config dscanner.ini {{ d_files }}
-    DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=on" dub build {{ dub_options }} --build=debug --d-version=XTB_Checked
+    exit "$status"
+
+# Run compiler semantic checks and D-Scanner policy checks.
+[script]
+lint:
+    export DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=on"
+    export XTB_LIBRARY_PATH="$XTB_LIBRARY_ROOT/release-safe"
+    dub build {{ dub_options }} --build=syntax --d-version=XTB_Checked
+    dscanner lint --config dscanner.ini --styleCheck {{ d_files }}
+
+# Check formatting, semantics, every build, and every unittest configuration.
+check: format-check lint _check-build-debug _check-test-debug _check-build-release-safe _check-test-release-safe _check-build-release-fast _check-test-release-fast
+
+_check-build-debug: (_dub "build" "debug")
+_check-test-debug: (_dub "test" "debug")
+_check-build-release-safe: (_dub "build" "release-safe")
+_check-test-release-safe: (_dub "test" "release-safe")
+_check-build-release-fast: (_dub "build" "release-fast")
+_check-test-release-fast: (_dub "test" "release-fast")
+
+# Shared DUB dispatcher. Each application mode selects the matching installed
+# XTB archive.
+[script]
+[positional-arguments]
+_dub action mode *program_args:
+    action="$1"
+    mode="$2"
+    shift 2
+    if [[ "${1-}" == -- ]]; then
+        shift
+    fi
+
+    case "$mode" in
+        debug)
+            build_type=debug
+            bounds=on
+            checked=true
+            ;;
+        release-safe)
+            build_type=release-safe
+            bounds=on
+            checked=true
+            ;;
+        release-fast)
+            build_type=release-nobounds
+            bounds=off
+            checked=false
+            ;;
+        *)
+            echo "unknown build mode: $mode" >&2
+            echo "expected debug, release-safe, or release-fast" >&2
+            exit 2
+            ;;
+    esac
+
+    export XTB_LIBRARY_PATH="$XTB_LIBRARY_ROOT/$mode"
+    export DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=$bounds"
+    dub_args=({{ dub_options }} --build="$build_type")
+    if [[ "$checked" == true ]]; then
+        dub_args+=(--d-version=XTB_Checked)
+    fi
+
+    case "$action" in
+        build)
+            dub build "${dub_args[@]}"
+            ;;
+        run)
+            dub run "${dub_args[@]}" -- "$@"
+            ;;
+        test)
+            if (( $# != 0 )); then
+                echo "test does not accept application arguments" >&2
+                exit 2
+            fi
+            dub test "${dub_args[@]}"
+            ;;
+        *)
+            echo "unknown action: $action" >&2
+            exit 2
+            ;;
+    esac

@@ -1,5 +1,6 @@
 module app;
 
+import greeting : greetingSubject;
 import xtb.core;
 
 extern (C) int main() nothrow @nogc
@@ -7,12 +8,8 @@ extern (C) int main() nothrow @nogc
     ThreadContextScope context = ThreadContextScope.acquire();
     ScratchScope scratch = ScratchScope.acquire();
 
-    String possession = "codebase";
-    
-    StringBuf message = formatString!"All your {} are belong to us."(
-        scratch.allocator,
-        possession,
-    );
+    StringBuf message = StringBuf.create(scratch.allocator);
+    message.formatTo!"All your {} are belong to us."(greetingSubject);
 
     writeln(message);
 

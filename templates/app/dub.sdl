@@ -12,9 +12,16 @@ buildOptions "betterC"
 buildRequirements "disallowDeprecations"
 dflags "-preview=dip1000" platform="ldc"
 
-// Match the installed XTB package's optimized checked mode.
+// Optimized checked build.
 buildType "release-safe" {
     buildOptions "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
 }
 lflags "-L$XTB_LIBRARY_PATH"
-libs "xtb_core"
+
+// The monolithic archive contains one object per module, so the linker pulls
+// only the XTB modules used by the application while every package remains
+// available without maintaining component-library order here.
+libs "xtb"
+libs "backtrace" platform="linux"
+libs "pthread" platform="linux"

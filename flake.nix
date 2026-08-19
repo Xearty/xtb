@@ -14,6 +14,14 @@
       "aarch64-darwin"
     ];
     forAllSystems = lib.genAttrs supportedSystems;
+    staticLibbacktrace = pkgs:
+      pkgs.libbacktrace.overrideAttrs (_: {
+        dontDisableStatic = true;
+        configureFlags = [
+          "--enable-static"
+          "--disable-shared"
+        ];
+      });
     projectSource = lib.fileset.toSource {
       root = ./.;
       fileset = lib.fileset.difference ./. (
@@ -41,6 +49,7 @@
 
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
+      libbacktrace = staticLibbacktrace pkgs;
     in rec {
       default = xtb;
       xtb = pkgs.stdenv.mkDerivation {
@@ -48,18 +57,24 @@
         version = "0.1.0";
         src = projectSource;
         nativeBuildInputs = [pkgs.ldc pkgs.dub pkgs.just];
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.libbacktrace];
+        propagatedBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
         dontConfigure = true;
+        dontStrip = true;
         buildPhase = ''
           runHook preBuild
           export DUB_HOME="$TMPDIR/dub"
-          just build static all release-safe
+          for mode in debug release-safe release-fast; do
+            just build static all "$mode"
+          done
           runHook postBuild
         '';
         installPhase = ''
           runHook preInstall
-          mkdir -p $out/lib $out/include
-          cp build/release-safe/libxtb*.a $out/lib/
+          mkdir -p $out/include
+          for mode in debug release-safe release-fast; do
+            mkdir -p "$out/lib/$mode"
+            cp build/"$mode"/libxtb*.a "$out/lib/$mode/"
+          done
           cp -R source/xtb $out/include/
           runHook postInstall
         '';
@@ -68,10 +83,7 @@
 
     checks = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      linkedBacktrace = pkgs.runCommand "libbacktrace-linked" {} ''
-        mkdir -p $out/lib
-        ln -s ${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0 $out/lib/libbacktrace.so
-      '';
+      libbacktrace = staticLibbacktrace pkgs;
     in {
       package = self.packages.${system}.xtb;
       tests = pkgs.stdenv.mkDerivation {
@@ -85,12 +97,11 @@
           pkgs.dscanner
           pkgs.dformat
         ];
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.libbacktrace];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
           export DUB_HOME="$TMPDIR/dub"
-          ${pkgs.lib.optionalString pkgs.stdenv.isLinux "export XTB_LIBBACKTRACE=${linkedBacktrace}/lib/libbacktrace.so"}
           just check
           runHook postBuild
         '';
@@ -103,35 +114,26 @@
 
     devShells = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      linkedBacktrace = pkgs.runCommand "libbacktrace-linked" {} ''
-        mkdir -p $out/lib
-        ln -s ${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0 $out/lib/libbacktrace.so
-      '';
+      libbacktrace = staticLibbacktrace pkgs;
     in {
       default = pkgs.mkShell {
         name = "xtb";
         strictDeps = true;
 
-        packages = with pkgs;
-          [
-            ldc
-            dub
-            dscanner
-            dformat
-            just
-            pkg-config
-            clang-tools
-            lldb
-          ]
-          ++ lib.optionals stdenv.isLinux [linkedBacktrace];
+        packages = with pkgs; [
+          ldc
+          dub
+          dscanner
+          dformat
+          just
+          pkg-config
+          clang-tools
+          lldb
+        ];
+        buildInputs = lib.optionals pkgs.stdenv.isLinux [libbacktrace];
 
         shellHook = ''
           export XTB_LIBRARY_OUTPUT_DIR=''${XTB_LIBRARY_OUTPUT_DIR:-"$PWD/build"}
-          ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-            export XTB_LIBBACKTRACE=${pkgs.libbacktrace}/lib/libbacktrace.so.0.0.0
-            export LIBRARY_PATH=${linkedBacktrace}/lib''${LIBRARY_PATH:+:}$LIBRARY_PATH
-            export LD_LIBRARY_PATH=${pkgs.libbacktrace}/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
-          ''}
           echo "xtb BetterC shell: $(ldc2 --version | head -n 1)"
         '';
       };

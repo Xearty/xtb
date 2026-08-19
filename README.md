@@ -21,10 +21,11 @@ direnv allow
 just run
 ```
 
-The generated flake pins xtb and consumes its installed modules and static
-libraries directly from the Nix store. It does not make a writable source copy.
-Run `nix flake update xtb` in the application when you want to update the
-library revision.
+The generated flake pins xtb and consumes its installed modules and monolithic
+static archive directly from the Nix store. The archive keeps one object per
+module, so unused packages are not linked into the application. The template
+does not make a writable source copy. Run `nix flake update xtb` in the
+application when you want to update the library revision.
 
 The `xtb.math` package adds allocation-free scalar, vector, matrix, transform,
 camera, and projection operations, plus a stable deterministic random generator
@@ -105,7 +106,9 @@ monolithic library and every component library in the selected mode. See
 `docs/build-modes.md` for exact check semantics. Other commands include
 `just test [mode]`, `just test-sanitize`, `just format-check`, `just lint`, and
 `just clean`. A reproducible package and test derivation are also available
-through `nix build` and `nix flake check`.
+through `nix build` and `nix flake check`. The Nix package installs debug,
+release-safe, and release-fast static archives under matching `lib/`
+subdirectories so consumers can select one coherent mode.
 
 When running one example, arguments after `--` are forwarded to the example
 executable. The optional build mode still comes before `--`; if omitted, it
@@ -197,9 +200,10 @@ just build static all release-safe
 ```
 
 `all` builds `libxtb.a` plus the independent component libraries
-`libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`, `libxtb_os.a`,
-`libxtb_parser.a`, `libxtb_serde.a`, and `libxtb_threading.a`. Additional
-component subpackages under `source/xtb` are discovered automatically.
+`libxtb_cli.a`, `libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`,
+`libxtb_os.a`, `libxtb_parser.a`, `libxtb_serde.a`, and
+`libxtb_threading.a`. Additional component subpackages under `source/xtb` are
+discovered automatically.
 
 Examples use the same mode names and accept short names with or without the
 `-demo` suffix:

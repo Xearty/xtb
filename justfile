@@ -184,6 +184,13 @@ test-sanitize: (_test "asan")
 # Run the complete local verification matrix.
 check: format-check lint _check-build-debug _check-build-release-safe _check-build-release-fast test test-optimized test-release-safe test-release-fast test-sanitize run-examples
 
+# Run every project check and independently validate the application template
+# against the current checkout before committing.
+pre-commit: check check-template
+
+check-template:
+    nix flake check path:templates/app --override-input xtb path:.
+
 _check-build-debug: (_dispatch "build" "static" "all" "debug")
 _check-build-release-safe: (_dispatch "build" "static" "all" "release-safe")
 _check-build-release-fast: (_dispatch "build" "static" "all" "release-fast")
