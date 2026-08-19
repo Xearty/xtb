@@ -85,7 +85,19 @@ struct CliPositional
 {
 }
 
-struct CliRequired
+/// Uses the field's initialized D value when the argument is omitted.
+struct CliDefault
+{
+}
+
+/// Parses this command-line spelling at runtime when the argument is omitted.
+struct CliDefaultInput
+{
+    string value;
+}
+
+/// Suppresses default-value metadata in generated help.
+struct CliHideDefault
 {
 }
 
@@ -101,6 +113,10 @@ struct CliRest
 {
 }
 
+/// Omits this argument from generated help while leaving it fully parseable.
+///
+/// Hidden arguments must be omittable; a required argument may not be hidden
+/// because generated help would provide no way to discover it.
 struct CliHidden
 {
 }
@@ -118,23 +134,27 @@ struct CliTerminal
 {
 }
 
-/// Selects an application-defined parser for this field.
+/// Selects an application-defined CLI value representation for this field.
 ///
-/// The parser must return `CliValueError` and accept either `(scope String, T*)`
-/// or `(scope String, Allocator*, T*)`. For `Option!T` and `Array!T`, a parser
-/// targeting `T*` parses the contained/repeated element. A parser targeting the
-/// full field type parses the whole field from one command-line value. Exactly
-/// one compatible parser target/signature must exist.
-struct CliParseWith(alias Parser)
+/// The representation must expose a static `parse` operation returning
+/// `CliValueError` and accepting either `(scope String, T*)` or
+/// `(scope String, Allocator*, T*)`. For `Option!T` and `Array!T`, a parser
+/// targeting `T*` parses the contained/repeated element. A parser targeting
+/// the full field type parses the whole field from one command-line value.
+///
+/// The representation may additionally expose
+/// `void format(ref Writer, scope const T*) nothrow @nogc` to provide the
+/// canonical CLI spelling used for semantic default values.
+struct CliValueWith(alias Representation)
 {
-    enum isCliParseWith = true;
-    alias parser = Parser;
+    enum isCliValueWith = true;
+    alias representation = Representation;
 }
 
-/// Creates a `CliParseWith` attribute for `Parser`.
-template cliParseWith(alias Parser)
+/// Creates a `CliValueWith` attribute for `Representation`.
+template cliValueWith(alias Representation)
 {
-    enum cliParseWith = CliParseWith!Parser();
+    enum cliValueWith = CliValueWith!Representation();
 }
 
 /// Allows a command with child commands to execute without selecting one.
@@ -192,8 +212,14 @@ CliValueName cliValueName(string value) pure @safe
     return CliValueName(value);
 }
 
+CliDefaultInput cliDefaultInput(string value) pure @safe
+{
+    return CliDefaultInput(value);
+}
+
 enum cliPositional = CliPositional();
-enum cliRequired = CliRequired();
+enum cliDefault = CliDefault();
+enum cliHideDefault = CliHideDefault();
 enum cliCount = CliCount();
 enum cliGlobal = CliGlobal();
 enum cliRest = CliRest();

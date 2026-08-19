@@ -79,6 +79,11 @@ private CliValueError parseCacheBudget(scope String input, uint* output)
     return CliValueError.invalid("expected auto, 64MiB, 256MiB, or 1GiB");
 }
 
+private struct CacheBudgetCli
+{
+    alias parse = parseCacheBudget;
+}
+
 @(
     cliVersion("4.2.0"),
     cliAbout(
@@ -115,6 +120,7 @@ struct RootArgs
         cliShortName('c'),
         cliAliasName("colour"),
         cliNegatable,
+        cliDefault,
         cliGlobal,
         cliHelp("Enable styled application output and generated CLI responses"),
     )
@@ -122,6 +128,7 @@ struct RootArgs
 
     @(
         cliAliasName("environment"),
+        cliDefault,
         cliGlobal,
         cliHelp("Select the deployment profile"),
     )
@@ -131,19 +138,21 @@ struct RootArgs
         cliLongName("diagnostic-format"),
         cliAliasName("diagnostics"),
         cliValueName("FORMAT"),
+        cliDefault,
         cliGlobal,
         cliHelp("Choose how diagnostics are rendered"),
     )
     DiagnosticFormat diagnosticFormat = DiagnosticFormat.human;
 
     @(
-        cliParseWith!parseCacheBudget,
+        cliValueWith!CacheBudgetCli,
         cliPossibleValues!("auto", "64MiB", "256MiB", "1GiB"),
+        cliDefaultInput("auto"),
         cliValueName("SIZE"),
         cliGlobal,
         cliHelp("Override the build-cache memory budget"),
     )
-    Option!uint cacheBudget;
+    uint cacheBudget;
 
     @(
         cliAliasName("schema"),
@@ -187,25 +196,26 @@ struct BuildArgs
         cliShortName('j'),
         cliAliasName("parallelism"),
         cliValueName("N"),
+        cliDefault,
         cliHelp("Maximum number of parallel compiler jobs"),
     )
     uint jobs = 8;
 
-    @(cliHelp("Select the compiler safety/optimization profile"))
+    @(cliDefault, cliHelp("Select the compiler safety/optimization profile"))
     BuildMode mode = BuildMode.debug_;
 
     @(
         cliShortName('o'),
         cliAliasName("destination"),
         cliValueName("PATH"),
-        cliRequired,
         cliHelp("Write build artifacts to this directory"),
     )
-    Option!String output;
+    String output;
 
     @(
         cliAliasName("incremental-build"),
         cliNegatable,
+        cliDefault,
         cliHelp("Reuse valid artifacts from previous builds"),
     )
     bool incremental = true;
@@ -237,11 +247,12 @@ struct TestArgs
     @(
         cliShortName('f'),
         cliAliasName("reporter"),
+        cliDefault,
         cliHelp("Select the test report format"),
     )
     TestFormat format = TestFormat.pretty;
 
-    @(cliHelp("Retry each failed test up to N times"))
+    @(cliDefault, cliHelp("Retry each failed test up to N times"))
     uint retries = 2;
 
     @(
@@ -252,6 +263,7 @@ struct TestArgs
 
     @(
         cliNegatable,
+        cliDefault,
         cliHelp("Collect source coverage information"),
     )
     bool coverage = true;
@@ -337,7 +349,7 @@ struct DependencyAddArgs
     )
     Option!String version_;
 
-    @(cliLongName("scope"), cliHelp("Dependency scope written to the manifest"))
+    @(cliLongName("scope"), cliDefault, cliHelp("Dependency scope written to the manifest"))
     DependencyScope scope_ = DependencyScope.runtime;
 
     @(
@@ -364,6 +376,7 @@ struct DependencyRemoveArgs
 
     @(
         cliNegatable,
+        cliDefault,
         cliHelp("Remove dependencies that become unreachable"),
     )
     bool prune = true;
@@ -379,12 +392,13 @@ struct DependencyListArgs
     @(cliShortName('a'), cliHelp("Include transitive dependencies"))
     bool all;
 
-    @(cliHelp("Select the dependency-list presentation"))
+    @(cliDefault, cliHelp("Select the dependency-list presentation"))
     ListFormat format = ListFormat.table;
 
     @(
         cliAliasName("development"),
         cliNegatable,
+        cliDefault,
         cliHelp("Include development-only dependencies"),
     )
     bool dev = true;
@@ -409,10 +423,9 @@ struct PublishArgs
         cliShortName('t'),
         cliAliasName("auth-token"),
         cliValueName("TOKEN"),
-        cliRequired,
         cliHelp("Registry authentication token"),
     )
-    Option!String token;
+    String token;
 
     @(
         cliAliasName("registry-url"),
@@ -479,7 +492,7 @@ extern (C) int main(int argc, char** argv)
 
     // ANSI capability is application policy. stdout and stderr are resolved
     // independently, and shouldUseAnsi() also honors NO_COLOR and TERM=dumb.
-    const colorEnabled = result.invocation.args.color;
+    const colorEnabled = result.parsed.args.color;
     const outputAnsi = colorEnabled && shouldUseAnsi(cast(FILE*) stdout);
     const errorAnsi = colorEnabled && shouldUseAnsi(cast(FILE*) stderr);
 

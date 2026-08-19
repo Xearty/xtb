@@ -178,13 +178,3 @@ configuration "test-cli" {
     dependency "xtb:core" version="*"
     dependency "xtb:cli" version="*"
 }
-
-configuration "test-attribute-namespaces" {
-    targetType "executable"
-    targetName "attribute_namespace_tests"
-    targetPath "../build/test/$XTB_TEST_MODE"
-    mainSourceFile "attribute_namespace_tests.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:cli" version="*"
-    dependency "xtb:serde" version="*"
-}

@@ -24,7 +24,7 @@ private enum cliSecondaryStyle = AnsiStyle.foreground(AnsiColor.cyan).dim;
 private enum cliValueStyle = AnsiStyle.foreground(AnsiColor.brightYellow);
 private enum cliDefaultStyle = AnsiStyle.foreground(AnsiColor.brightGreen);
 private enum cliMetadataStyle = AnsiStyle.init.dim;
-private enum cliRequiredStyle = AnsiStyle.foreground(AnsiColor.brightYellow).bold;
+private enum requiredMetadataStyle = AnsiStyle.foreground(AnsiColor.brightYellow).bold;
 private enum cliErrorStyle = AnsiStyle.foreground(AnsiColor.brightRed).bold;
 
 enum CliErrorKind : ubyte
@@ -35,6 +35,7 @@ enum CliErrorKind : ubyte
     unknownCommand,
     missingOptionValue,
     invalidValue,
+    invalidDefault,
     missingRequiredOption,
     missingPositional,
     missingCommand,
@@ -477,8 +478,11 @@ private void parseCommand(Root, T, Ancestors...)(
                 }
             }
             if (!matched)
+            {
                 state.fail(CliErrorKind.unknownCommand, token);
-            return;
+                return;
+            }
+            break;
         }
         else
         {
@@ -507,31 +511,40 @@ private void parseCommand(Root, T, Ancestors...)(
 
     static foreach (index; 0 .. T.tupleof.length)
     {
+        static if (fieldHasDefaultInput!(T, index))
         {
-            static if (fieldHas!(T, index, CliPositional))
+            if (!(*currentFrame.seen)[index])
             {
-                alias Field = FieldType!(T, index);
-                enum requiredPositional = fieldHas!(T, index, CliRequired) ||
-                    (!isOption!Field && !fieldHas!(T, index, CliRest));
-                static if (requiredPositional)
-                {
-                    if (!(*currentFrame.seen)[index])
-                    {
-                        state.fail(
-                            CliErrorKind.missingPositional,
-                            null,
-                            null,
-                            Ancestors.length,
-                            index,
-                        );
-                        return;
-                    }
-                }
+                ref field = currentFrame.node.args.tupleof[index];
+                if (!assignFieldValue!(T, index)(
+                        state,
+                        field,
+                        fieldDefaultInput!(T, index),
+                        null,
+                        Ancestors.length,
+                        index,
+                        CliErrorKind.invalidDefault,
+                    ))
+                    return;
             }
-            else static if (fieldHas!(T, index, CliRequired))
+        }
+    }
+
+    static foreach (index; 0 .. T.tupleof.length)
+    {
+        static if (fieldIsRequired!(T, index))
+        {
+            if (!(*currentFrame.seen)[index])
             {
-                if (!(*currentFrame.seen)[index])
-                {
+                static if (fieldHas!(T, index, CliPositional))
+                    state.fail(
+                        CliErrorKind.missingPositional,
+                        null,
+                        null,
+                        Ancestors.length,
+                        index,
+                    );
+                else
                     state.fail(
                         CliErrorKind.missingRequiredOption,
                         null,
@@ -539,8 +552,7 @@ private void parseCommand(Root, T, Ancestors...)(
                         Ancestors.length,
                         index,
                     );
-                    return;
-                }
+                return;
             }
         }
     }
@@ -981,10 +993,11 @@ private bool parseFieldValue(T, size_t index, Value)(
     String detail,
     size_t commandDepth,
     size_t fieldIndex,
+    CliErrorKind invalidKind = CliErrorKind.invalidValue,
 ) @system
 {
     CliValueError valueError;
-    static if (fieldHasParseWith!(T, index))
+    static if (fieldHasValueWith!(T, index))
     {
         alias Parser = FieldValueParser!(T, index);
         static if (cliParserNeedsAllocator!(Parser, Value))
@@ -1014,7 +1027,7 @@ private bool parseFieldValue(T, size_t index, Value)(
     if (valueError.failed)
     {
         const errorKind = valueError.kind == CliValueErrorKind.allocationFailed
-            ? CliErrorKind.allocationFailed : CliErrorKind.invalidValue;
+            ? CliErrorKind.allocationFailed : invalidKind;
         state.fail(
             errorKind,
             text,
@@ -1035,10 +1048,11 @@ private bool assignFieldValue(T, size_t index)(
     String detail,
     size_t commandDepth = size_t.max,
     size_t fieldIndex = size_t.max,
+    CliErrorKind invalidKind = CliErrorKind.invalidValue,
 ) @system
 {
     alias Field = FieldType!(T, index);
-    static if (fieldHasParseWith!(T, index) && cliFieldParserParsesWholeField!(T, index))
+    static if (fieldHasValueWith!(T, index) && cliFieldParserParsesWholeField!(T, index))
     {
         return parseFieldValue!(T, index, Field)(
             state,
@@ -1047,6 +1061,7 @@ private bool assignFieldValue(T, size_t index)(
             detail,
             commandDepth,
             fieldIndex,
+            invalidKind,
         );
     }
     else static if (isOption!Field)
@@ -1063,6 +1078,7 @@ private bool assignFieldValue(T, size_t index)(
                 detail,
                 commandDepth,
                 fieldIndex,
+                invalidKind,
             ))
             return false;
         field = Option!Value.some(move(value));
@@ -1082,6 +1098,7 @@ private bool assignFieldValue(T, size_t index)(
                 detail,
                 commandDepth,
                 fieldIndex,
+                invalidKind,
             ))
             return false;
         if (field.allocator is null)
@@ -1110,6 +1127,7 @@ private bool assignFieldValue(T, size_t index)(
             detail,
             commandDepth,
             fieldIndex,
+            invalidKind,
         );
     }
 }
@@ -1617,21 +1635,16 @@ private void writePositionalUsage(T)(ref AnsiWriter writer) @system
 pragma(inline, true)
 private void writePositionalUsageAt(T, size_t index)(ref AnsiWriter writer) @system
 {
-    static if (fieldHas!(T, index, CliPositional))
+    static if (fieldHas!(T, index, CliPositional) &&
+        !fieldHas!(T, index, CliHidden))
     {
-        alias Field = FieldType!(T, index);
         writer.put(' ');
         static if (fieldHas!(T, index, CliRest))
-        {
-            static if (fieldHas!(T, index, CliRequired))
-                writer.styled(cliValueStyle, '<', fieldValueName!(T, index), "...", '>');
-            else
-                writer.styled(cliValueStyle, '[', fieldValueName!(T, index), "...", ']');
-        }
-        else static if (isOption!Field && !fieldHas!(T, index, CliRequired))
-            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), ']');
-        else
+            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), "...", ']');
+        else static if (fieldIsRequired!(T, index))
             writer.styled(cliValueStyle, '<', fieldValueName!(T, index), '>');
+        else
+            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), ']');
     }
 }
 
@@ -1915,30 +1928,63 @@ private void writeFieldHelpBlock(T, size_t index)(
         writeHelpMetadataIndent(writer, columnWidth);
         writer.styled(cliMetadataStyle, "default:");
         writer.put(' ');
-        writeAutomaticFieldDefault!(T, index)(writer);
+        writeFieldHelpDefault!(T, index)(writer);
         writer.put('\n');
     }
 
     static if (hasRequired)
     {
         writeHelpMetadataIndent(writer, columnWidth);
-        writer.styled(cliRequiredStyle, "required");
+        writer.styled(requiredMetadataStyle, "required");
         writer.put('\n');
     }
 }
 
-private void writeAutomaticFieldDefault(T, size_t index)(ref AnsiWriter writer) @system
+private struct CliFormattedDefault(alias Representation, T)
 {
-    alias Field = Unqualified!(FieldType!(T, index));
-    static assert(fieldHasAutomaticDefault!(T, index));
-    static if (is(Field == enum))
-        writer.styled(cliDefaultStyle, fieldAutomaticEnumDefaultName!(T, index));
-    else static if (is(Field == String))
-        writer.styled(cliDefaultStyle, fieldDefaultValue!(T, index));
-    else static if (is(Field == char) || is(Field == wchar) || is(Field == dchar))
-        writer.styled(cliDefaultStyle, cast(uint) fieldDefaultValue!(T, index));
+nothrow @nogc:
+
+    const(T)* value;
+
+    void formatTo(ref Writer writer) const
+    {
+        Representation.format(writer, value);
+    }
+}
+
+private void writeFieldHelpDefault(T, size_t index)(ref AnsiWriter writer) @system
+{
+    static assert(fieldHasHelpDefault!(T, index));
+    static if (fieldHasDefaultInput!(T, index))
+        writer.styled(cliDefaultStyle, fieldDefaultInput!(T, index));
     else
-        writer.styled(cliDefaultStyle, fieldDefaultValue!(T, index));
+    {
+        alias Field = Unqualified!(FieldType!(T, index));
+        static assert(fieldHasDefault!(T, index));
+        T defaults = T.init;
+        ref value = defaults.tupleof[index];
+        static if (fieldHasValueWith!(T, index))
+        {
+            alias Representation = FieldValueRepresentation!(T, index);
+            static if (cliRepresentationHasFormatter!(Representation, Field))
+            {
+                auto formatted = CliFormattedDefault!(Representation, Field)(&value);
+                writer.styled(cliDefaultStyle, formatted);
+            }
+            else static if (is(Field == enum))
+                writer.styled(cliDefaultStyle, fieldAutomaticEnumDefaultName!(T, index));
+            else static if (is(Field == char) || is(Field == wchar) || is(Field == dchar))
+                writer.styled(cliDefaultStyle, cast(uint) value);
+            else
+                writer.styled(cliDefaultStyle, value);
+        }
+        else static if (is(Field == enum))
+            writer.styled(cliDefaultStyle, fieldAutomaticEnumDefaultName!(T, index));
+        else static if (is(Field == char) || is(Field == wchar) || is(Field == dchar))
+            writer.styled(cliDefaultStyle, cast(uint) value);
+        else
+            writer.styled(cliDefaultStyle, value);
+    }
 }
 
 private enum hasVisibleGlobalOptions(T) = () {
@@ -2115,6 +2161,27 @@ private void writeError(T)(
                 writer.put(error.detail);
             if (error.valueError.kind == CliValueErrorKind.outOfRange)
                 writer.put(" is out of range");
+            if (error.valueError.message.length != 0)
+            {
+                writer.put(": ");
+                writer.put(error.valueError.message);
+            }
+            break;
+        case CliErrorKind.invalidDefault:
+            writer.put("application default '");
+            writer.styled(cliValueStyle, error.token);
+            writer.put("' for ");
+            writeErrorFieldName!T(
+                writer,
+                root,
+                error.commandDepth,
+                error.fieldIndex,
+                0,
+                true,
+            );
+            writer.put(" is invalid");
+            if (error.valueError.kind == CliValueErrorKind.outOfRange)
+                writer.put(" (out of range)");
             if (error.valueError.message.length != 0)
             {
                 writer.put(": ");

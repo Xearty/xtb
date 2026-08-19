@@ -8,6 +8,7 @@ import xtb.core.array : Array;
 import xtb.core.lifetime : hasDDestructor, needsFinalization;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
+import xtb.core.print : Writer;
 import xtb.core.types : String;
 
 private alias AliasSeq(T...) = T;
@@ -138,12 +139,12 @@ private auto commandAliasNamesStorage(T)() pure @safe
     return result;
 }
 
-private template isParseWithAttribute(alias attribute)
+private template isValueWithAttribute(alias attribute)
 {
-    static if (__traits(compiles, typeof(attribute).isCliParseWith))
-        enum isParseWithAttribute = typeof(attribute).isCliParseWith;
+    static if (__traits(compiles, typeof(attribute).isCliValueWith))
+        enum isValueWithAttribute = typeof(attribute).isCliValueWith;
     else
-        enum isParseWithAttribute = false;
+        enum isValueWithAttribute = false;
 }
 
 private template isPossibleValuesAttribute(alias attribute)
@@ -176,25 +177,46 @@ template FieldPossibleValues(T, size_t index)
             alias FieldPossibleValues = typeof(attribute).values;
 }
 
-private size_t fieldParseWithCount(T, size_t index)() pure @safe
+private size_t fieldValueWithCount(T, size_t index)() pure @safe
 {
     size_t result;
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
-        static if (isParseWithAttribute!attribute)
+        static if (isValueWithAttribute!attribute)
             ++result;
     return result;
 }
 
-enum fieldHasParseWith(T, size_t index) = fieldParseWithCount!(T, index)() != 0;
+enum fieldHasValueWith(T, size_t index) = fieldValueWithCount!(T, index)() != 0;
+
+template FieldValueRepresentation(T, size_t index)
+{
+    static assert(fieldValueWithCount!(T, index)() == 1,
+        T.stringof ~ "." ~ __traits(identifier, FieldSymbol!(T, index)) ~
+            " must have exactly one @cliValueWith attribute");
+    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
+        static if (isValueWithAttribute!attribute)
+            alias FieldValueRepresentation = typeof(attribute).representation;
+}
 
 template FieldValueParser(T, size_t index)
 {
-    static assert(fieldParseWithCount!(T, index)() == 1,
+    alias Representation = FieldValueRepresentation!(T, index);
+    static assert(__traits(hasMember, Representation, "parse"),
         T.stringof ~ "." ~ __traits(identifier, FieldSymbol!(T, index)) ~
-            " must have exactly one @cliParseWith attribute");
-    static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
-        static if (isParseWithAttribute!attribute)
-            alias FieldValueParser = typeof(attribute).parser;
+            " @cliValueWith representation must define static parse");
+    alias FieldValueParser = __traits(getMember, Representation, "parse");
+}
+
+enum fieldHasDefault(T, size_t index) = fieldHas!(T, index, CliDefault);
+enum fieldHasDefaultInput(T, size_t index) = fieldHas!(T, index, CliDefaultInput);
+enum fieldHidesDefault(T, size_t index) = fieldHas!(T, index, CliHideDefault);
+
+template fieldDefaultInput(T, size_t index)
+{
+    static assert(fieldAttributeCount!(T, index, CliDefaultInput) == 1,
+        T.stringof ~ "." ~ __traits(identifier, FieldSymbol!(T, index)) ~
+            " must have exactly one @cliDefaultInput attribute");
+    enum String fieldDefaultInput = fieldAttribute!(T, index, CliDefaultInput)().value;
 }
 
 private template ParserOverloads(alias operation)
@@ -251,6 +273,45 @@ private bool parserParameterIsScope(alias operation, size_t index)() pure @safe
         return false;
     }
 }
+
+private bool functionParameterIsRef(alias operation, size_t index)() pure @safe
+{
+    static if (is(ParserFunctionType!operation == void))
+        return false;
+    else
+    {
+        static foreach (storageClass; __traits(getParameterStorageClasses, typeof(&operation), index))
+            if (storageClass == "ref")
+                return true;
+        return false;
+    }
+}
+
+private enum cliFormatterIsValid(alias Formatter, T) = () {
+    alias Value = Unqualified!T;
+    alias Parameters = ParserParameters!Formatter;
+    static if (!is(ParserReturnType!Formatter == void) ||
+        !parserHasFunctionAttribute!(Formatter, "nothrow")() ||
+        !parserHasFunctionAttribute!(Formatter, "@nogc")() ||
+        Parameters.length != 2)
+        return false;
+    else
+        return is(Parameters[0] == Writer) &&
+            functionParameterIsRef!(Formatter, 0)() &&
+            (is(Parameters[1] == const(Value)*) ||
+                    is(Parameters[1] == const(Value*))) &&
+            parserParameterIsScope!(Formatter, 1)();
+}();
+
+enum cliRepresentationHasFormatter(Representation, T) = () {
+    static if (!__traits(hasMember, Representation, "format"))
+        return false;
+    else
+    {
+        alias Formatter = __traits(getMember, Representation, "format");
+        return cliFormatterIsValid!(Formatter, T);
+    }
+}();
 
 private enum parserHasCommonContract(alias Parser) =
     is(ParserReturnType!Parser == CliValueError) &&
@@ -346,7 +407,7 @@ template CliValueType(T)
 }
 
 private enum cliFieldParserTarget(T, size_t index) = () {
-    static if (!fieldHasParseWith!(T, index))
+    static if (!fieldHasValueWith!(T, index))
         return CliFieldParserTarget.invalid;
     else
     {
@@ -674,33 +735,46 @@ private String enumCliNameForValue(T)(T value) pure @safe
 }
 
 enum fieldIsRequired(T, size_t index) = () {
-    alias Field = FieldType!(T, index);
-    static if (fieldHas!(T, index, CliPositional))
-        return fieldHas!(T, index, CliRequired) ||
-            (!isOption!Field && !fieldHas!(T, index, CliRest));
+    alias Field = Unqualified!(FieldType!(T, index));
+
+    static if (isOption!Field || isArray!Field ||
+        fieldHasDefault!(T, index) || fieldHasDefaultInput!(T, index) ||
+        fieldHas!(T, index, CliCount) || fieldHas!(T, index, CliRest) ||
+        fieldHas!(T, index, CliTerminal))
+        return false;
+    else static if (is(Field == bool) &&
+        !fieldHas!(T, index, CliNegatable) &&
+        !fieldHas!(T, index, CliPositional))
+        return false;
     else
-        return fieldHas!(T, index, CliRequired);
+        return true;
 }();
 
 enum fieldDefaultValue(T, size_t index) = Unqualified!T.init.tupleof[index];
 
-enum fieldHasAutomaticDefault(T, size_t index) = () {
-    alias Field = Unqualified!(FieldType!(T, index));
-    static if (fieldIsRequired!(T, index) || fieldHasParseWith!(T, index) ||
-        isOption!Field || isArray!Field)
-        return false;
-    else static if (is(Field == enum))
-        return enumCliNameForValue!Field(fieldDefaultValue!(T, index)).length != 0;
-    else static if (is(Field == bool))
-        return fieldHas!(T, index, CliNegatable) ||
-            fieldDefaultValue!(T, index) != bool.init;
-    else static if (__traits(isIntegral, Field) || is(Field == String))
-        return fieldDefaultValue!(T, index) != Field.init;
-    else
-        return false;
-}();
+enum fieldHasHelpDefault(T, size_t index) =
+    (fieldHasDefault!(T, index) || fieldHasDefaultInput!(T, index)) &&
+    !fieldHidesDefault!(T, index) && !fieldHas!(T, index, CliHidden);
 
-enum fieldHasHelpDefault(T, size_t index) = fieldHasAutomaticDefault!(T, index);
+private enum normalWriterCanFormat(T) = __traits(compiles, {
+        Writer writer;
+        Unqualified!T value;
+        writer.value(value);
+    });
+
+enum fieldSemanticDefaultCanFormat(T, size_t index) = () {
+    alias Field = Unqualified!(FieldType!(T, index));
+    static if (is(Field == enum) || isCliScalar!Field)
+        return true;
+    else static if (fieldHasValueWith!(T, index))
+    {
+        alias Representation = FieldValueRepresentation!(T, index);
+        return cliRepresentationHasFormatter!(Representation, Field) ||
+            normalWriterCanFormat!Field;
+    }
+    else
+        return normalWriterCanFormat!Field;
+}();
 
 template fieldAutomaticEnumDefaultName(T, size_t index)
 {
@@ -716,7 +790,7 @@ template fieldHelpPossibleValues(T, size_t index)
     alias Value = CliValueType!Field;
     static if (fieldHasPossibleValues!(T, index))
         enum String[] fieldHelpPossibleValues = fieldExplicitPossibleValues!(T, index);
-    else static if (!fieldHasParseWith!(T, index) && is(Unqualified!Value == enum))
+    else static if (!fieldHasValueWith!(T, index) && is(Unqualified!Value == enum))
         enum String[] fieldHelpPossibleValues = enumCliNames!(Unqualified!Value);
     else
         enum String[] fieldHelpPossibleValues = [];
@@ -802,7 +876,7 @@ enum helpOnMissingSubcommand(T) = subcommandPolicy!T == CliSubcommandPolicy.help
 
 private bool cliFieldNeedsAllocator(T, size_t index)() pure @safe
 {
-    static if (fieldHasParseWith!(T, index))
+    static if (fieldHasValueWith!(T, index))
     {
         static if (cliFieldParserParsesWholeField!(T, index))
             return cliFieldParserNeedsAllocator!(T, index)();
@@ -898,36 +972,43 @@ private bool validateField(Root, T, size_t index)() pure @safe
     alias Value = CliValueType!Field;
     enum sourceName = __traits(identifier, FieldSymbol!(T, index));
 
-    static assert(fieldParseWithCount!(T, index)() <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliParseWith attributes");
-    static if (fieldHasParseWith!(T, index))
+    static assert(fieldValueWithCount!(T, index)() <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliValueWith attributes");
+    static if (fieldHasValueWith!(T, index))
     {
         alias Parser = FieldValueParser!(T, index);
         enum parserTarget = cliFieldParserTarget!(T, index);
         static assert(parserTarget != CliFieldParserTarget.ambiguous,
             T.stringof ~ "." ~ sourceName ~
-                " @cliParseWith parser is ambiguous between the field and element types");
+                " @cliValueWith parser is ambiguous between the field and element types");
         static assert(parserTarget != CliFieldParserTarget.invalid,
             T.stringof ~ "." ~ sourceName ~
-                " @cliParseWith parser must be nothrow @nogc and parse either " ~
+                " @cliValueWith parser must be nothrow @nogc and parse either " ~
                 Field.stringof ~ " or its Option/Array element type using " ~
                 "CliValueError(scope String, T*) or " ~
                 "CliValueError(scope String, Allocator*, T*)");
         static assert(!fieldHas!(T, index, CliCount),
-            T.stringof ~ "." ~ sourceName ~ " @cliParseWith cannot be combined with @cliCount");
+            T.stringof ~ "." ~ sourceName ~ " @cliValueWith cannot be combined with @cliCount");
         static if (cliFieldParserParsesWholeField!(T, index))
             alias ParsedValue = Unqualified!Field;
         else
             alias ParsedValue = Value;
         static assert(!hasDDestructor!ParsedValue,
             T.stringof ~ "." ~ sourceName ~
-                " @cliParseWith value types with D destructor semantics are not supported");
+                " @cliValueWith value types with D destructor semantics are not supported");
+        alias Representation = FieldValueRepresentation!(T, index);
+        static if (__traits(hasMember, Representation, "format"))
+            static assert(cliRepresentationHasFormatter!(Representation, ParsedValue),
+                T.stringof ~ "." ~ sourceName ~
+                    " @cliValueWith format must be " ~
+                    "void format(ref Writer, scope const " ~ ParsedValue.stringof ~
+                    "*) nothrow @nogc");
         static if (is(Unqualified!Field == bool) &&
             !fieldHas!(T, index, CliPositional) &&
             !fieldHas!(T, index, CliNegatable))
             static assert(false,
                 T.stringof ~ "." ~ sourceName ~
-                    " @cliParseWith cannot be used with a named bool presence flag");
+                    " @cliValueWith cannot be used with a named bool presence flag");
         static if (isOption!Field && is(Unqualified!Value == bool) &&
             !fieldHas!(T, index, CliNegatable))
             static assert(false,
@@ -945,8 +1026,12 @@ private bool validateField(Root, T, size_t index)() pure @safe
             T.stringof ~ "." ~ sourceName ~ " has unsupported CLI field type " ~ Field.stringof);
     static assert(fieldAttributeCount!(T, index, CliPositional) <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliPositional attributes");
-    static assert(fieldAttributeCount!(T, index, CliRequired) <= 1,
-        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliRequired attributes");
+    static assert(fieldAttributeCount!(T, index, CliDefault) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliDefault attributes");
+    static assert(fieldAttributeCount!(T, index, CliDefaultInput) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliDefaultInput attributes");
+    static assert(fieldAttributeCount!(T, index, CliHideDefault) <= 1,
+        T.stringof ~ "." ~ sourceName ~ " has duplicate @cliHideDefault attributes");
     static assert(fieldAttributeCount!(T, index, CliCount) <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliCount attributes");
     static assert(fieldAttributeCount!(T, index, CliGlobal) <= 1,
@@ -961,6 +1046,44 @@ private bool validateField(Root, T, size_t index)() pure @safe
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliTerminal attributes");
     static assert(fieldPossibleValuesCount!(T, index)() <= 1,
         T.stringof ~ "." ~ sourceName ~ " has duplicate @cliPossibleValues attributes");
+
+    enum hasSemanticDefault = fieldHasDefault!(T, index);
+    enum hasInputDefault = fieldHasDefaultInput!(T, index);
+    enum hasAnyDefault = hasSemanticDefault || hasInputDefault;
+    static assert(!(hasSemanticDefault && hasInputDefault),
+        T.stringof ~ "." ~ sourceName ~
+            " cannot combine @cliDefault with @cliDefaultInput");
+    static if (fieldHidesDefault!(T, index))
+        static assert(hasAnyDefault,
+            T.stringof ~ "." ~ sourceName ~
+                " @cliHideDefault requires @cliDefault or @cliDefaultInput");
+    static if (hasAnyDefault)
+    {
+        static assert(!isOption!Field,
+            T.stringof ~ "." ~ sourceName ~
+                " defaults cannot be used with Option fields");
+        static assert(!isArray!Field,
+            T.stringof ~ "." ~ sourceName ~
+                " defaults cannot be used with repeated Array fields");
+        static assert(!fieldHas!(T, index, CliCount),
+            T.stringof ~ "." ~ sourceName ~
+                " defaults cannot be combined with @cliCount");
+        static assert(!fieldHas!(T, index, CliTerminal),
+            T.stringof ~ "." ~ sourceName ~
+                " defaults cannot be combined with @cliTerminal");
+        static if (is(Unqualified!Field == bool) &&
+            !fieldHas!(T, index, CliNegatable) &&
+            !fieldHas!(T, index, CliPositional))
+            static assert(false,
+                T.stringof ~ "." ~ sourceName ~
+                    " defaults cannot be used with a bool presence flag");
+    }
+    static if (hasSemanticDefault && !fieldHidesDefault!(T, index) &&
+        !fieldHas!(T, index, CliHidden))
+        static assert(fieldSemanticDefaultCanFormat!(T, index),
+            T.stringof ~ "." ~ sourceName ~
+                " @cliDefault value cannot be formatted for help; " ~
+                "provide a cliValueWith formatter or add @cliHideDefault");
 
     static if (fieldHasPossibleValues!(T, index))
     {
@@ -980,7 +1103,7 @@ private bool validateField(Root, T, size_t index)() pure @safe
                 " @cliPossibleValues requires an argument that takes a value");
     }
 
-    static if (!fieldHasParseWith!(T, index) && is(Unqualified!Value == enum))
+    static if (!fieldHasValueWith!(T, index) && is(Unqualified!Value == enum))
     {
         enum duplicateEnumValueName = firstDuplicateString(enumCliNames!(Unqualified!Value));
         static assert(duplicateEnumValueName.length == 0,
@@ -995,6 +1118,11 @@ private bool validateField(Root, T, size_t index)() pure @safe
     static assert(duplicateShortAlias == '\0',
         T.stringof ~ "." ~ sourceName ~ " has duplicate short option alias '-" ~
             duplicateShortAlias ~ "'");
+
+    static if (fieldHas!(T, index, CliHidden))
+        static assert(!fieldIsRequired!(T, index),
+            T.stringof ~ "." ~ sourceName ~
+                " @cliHidden cannot be used with a required argument");
 
     static if (fieldHas!(T, index, CliTerminal))
     {
@@ -1018,9 +1146,9 @@ private bool validateField(Root, T, size_t index)() pure @safe
         static assert(!fieldHas!(T, index, CliCount),
             T.stringof ~ "." ~ sourceName ~
                 " @cliNegatable cannot be combined with @cliCount");
-        static assert(!fieldHasParseWith!(T, index),
+        static assert(!fieldHasValueWith!(T, index),
             T.stringof ~ "." ~ sourceName ~
-                " @cliNegatable cannot be combined with @cliParseWith");
+                " @cliNegatable cannot be combined with @cliValueWith");
     }
 
     static if (fieldHas!(T, index, CliCount))
@@ -1133,11 +1261,8 @@ private bool hasOptionalPositionalBefore(T, size_t index)() pure @safe
     static foreach (candidate; 0 .. index)
     {
         static if (fieldHas!(T, candidate, CliPositional))
-        {
-            alias Field = FieldType!(T, candidate);
-            static if (isOption!Field && !fieldHas!(T, candidate, CliRequired))
+            static if (!fieldIsRequired!(T, candidate))
                 result = true;
-        }
     }
     return result;
 }
@@ -1185,10 +1310,9 @@ private bool validatePositionalOrderingAt(T, size_t index)() pure @safe
 {
     static if (fieldHas!(T, index, CliPositional))
     {
-        alias Field = FieldType!(T, index);
         static assert(!hasRestBefore!(T, index)(),
             T.stringof ~ " has a positional after its @cliRest field");
-        static if (!isOption!Field && !fieldHas!(T, index, CliRest))
+        static if (fieldIsRequired!(T, index))
             static assert(!hasOptionalPositionalBefore!(T, index)(),
                 T.stringof ~ " has a required positional after an optional positional");
     }
