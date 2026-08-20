@@ -24,6 +24,32 @@ enum notFound = size_t.max;
 
 alias SplitPredicate = size_t function(String rest, void* context);
 
+private template UnqualifiedStringInput(T)
+{
+    alias UnqualifiedStringInput = typeof(cast() T.init);
+}
+
+private enum isOwnedStringInput(T) =
+    is(UnqualifiedStringInput!T == OwnedString);
+
+private enum isStringBufInput(T) = is(T : String) || isOwnedStringInput!T;
+
+private enum isStringBufArgument(alias value) =
+    isStringBufInput!(typeof(value)) &&
+    (!isOwnedStringInput!(typeof(value)) || __traits(isRef, value));
+
+private String stringBufInput(T)(return scope auto ref T value) pure @trusted if (isStringBufInput!T)
+{
+    static if (isOwnedStringInput!T)
+    {
+        static assert(__traits(isRef, value),
+            "temporary OwnedString input would lose its cleanup obligation");
+        return value.view;
+    }
+    else
+        return value;
+}
+
 /// Borrows bytes already proven to be valid UTF-8.
 String asStringUnchecked(return scope const(u8)[] bytes)
 pure @system
@@ -485,11 +511,11 @@ public:
         return result;
     }
 
-    static bool tryFromString(
+    static bool tryFromString(Value)(
         Allocator* allocator,
-        String value,
+        scope auto ref Value value,
         scope StringBufUnmanaged* output,
-    )
+    ) if (isStringBufArgument!value)
     {
         version (XTB_Checked)
         {
@@ -505,10 +531,10 @@ public:
         return true;
     }
 
-    static StringBufUnmanaged fromString(
+    static StringBufUnmanaged fromString(Value)(
         Allocator* allocator,
-        String value,
-    )
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
         StringBufUnmanaged result;
         if (!tryFromString(allocator, value, &result))
@@ -616,9 +642,9 @@ public:
         pretty.value(view);
     }
 
-    bool opEquals(scope String other) const pure @trusted
+    bool opEquals(Other)(scope auto ref Other other) const pure @trusted if (isStringBufArgument!other)
     {
-        return view.equal(other);
+        return view.equal(stringBufInput(other));
     }
 
     bool opEquals(scope ref const StringBufUnmanaged other) const pure @trusted
@@ -651,14 +677,20 @@ public:
         bytes_.shrinkToFit(allocator);
     }
 
-    void append(Allocator* allocator, String value)
+    void append(Value)(
+        Allocator* allocator,
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
-        bytes_.append(allocator, value);
+        bytes_.append(allocator, stringBufInput(value));
     }
 
-    bool tryAppend(Allocator* allocator, String value)
+    bool tryAppend(Value)(
+        Allocator* allocator,
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
-        return bytes_.tryAppend(allocator, value);
+        return bytes_.tryAppend(allocator, stringBufInput(value));
     }
 
     void append(Allocator* allocator, char value)
@@ -693,9 +725,9 @@ public:
         );
     }
 
-    void appendAssumeCapacity(String value)
+    void appendAssumeCapacity(Value)(scope auto ref Value value) if (isStringBufArgument!value)
     {
-        bytes_.appendAssumeCapacity(value);
+        bytes_.appendAssumeCapacity(stringBufInput(value));
     }
 
     void appendAssumeCapacity(char value)
@@ -713,11 +745,11 @@ public:
         bytes_.appendAssumeCapacity(codeUnits[0 .. encoded.byteLength]);
     }
 
-    bool tryInsert(
+    bool tryInsert(Value)(
         Allocator* allocator,
         size_t byteOffset,
-        String value,
-    )
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
         version (XTB_Checked)
         {
@@ -726,25 +758,35 @@ public:
             require(view.isCodePointBoundary(byteOffset),
                 "StringBuf insertion byte offset is inside UTF-8 code point");
         }
-        return bytes_.tryInsert(allocator, byteOffset, value);
+        return bytes_.tryInsert(
+            allocator,
+            byteOffset,
+            stringBufInput(value),
+        );
     }
 
-    void insert(
+    void insert(Value)(
         Allocator* allocator,
         size_t byteOffset,
-        String value,
-    )
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
         if (!tryInsert(allocator, byteOffset, value))
             panic("StringBuf allocation failed");
     }
 
-    bool tryPrepend(Allocator* allocator, String value)
+    bool tryPrepend(Value)(
+        Allocator* allocator,
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
         return tryInsert(allocator, 0, value);
     }
 
-    void prepend(Allocator* allocator, String value)
+    void prepend(Value)(
+        Allocator* allocator,
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
         insert(allocator, 0, value);
     }
@@ -766,38 +808,42 @@ public:
         bytes_.clear();
     }
 
-    bool tryAppendEscaped(Allocator* allocator, String value)
+    bool tryAppendEscaped(Value)(
+        Allocator* allocator,
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
+        String input = stringBufInput(value);
         bool aliasesBuffer;
         size_t sourceOffset;
-        if (value.length != 0 && byteLength != 0)
+        if (input.length != 0 && byteLength != 0)
         {
-            const sourceAddress = cast(size_t) value.ptr;
+            const sourceAddress = cast(size_t) input.ptr;
             const beginAddress = cast(size_t) view.ptr;
             const byteOffset = sourceAddress - beginAddress;
             aliasesBuffer = sourceAddress >= beginAddress &&
                 byteOffset < byteLength;
             if (aliasesBuffer)
             {
-                if (value.length > byteLength - byteOffset)
+                if (input.length > byteLength - byteOffset)
                     return false;
                 sourceOffset = byteOffset;
             }
         }
 
         size_t escapedCount;
-        foreach (character; value)
+        foreach (character; input)
             if (escapedCharacter(character) != '\0')
                 ++escapedCount;
-        if (escapedCount > size_t.max - value.length ||
-            value.length + escapedCount > size_t.max - byteLength)
+        if (escapedCount > size_t.max - input.length ||
+            input.length + escapedCount > size_t.max - byteLength)
             return false;
-        const required = byteLength + value.length + escapedCount;
+        const required = byteLength + input.length + escapedCount;
         if (!tryReserve(allocator, required))
             return false;
         if (aliasesBuffer)
-            value = view[sourceOffset .. sourceOffset + value.length];
-        foreach (character; value)
+            input = view[sourceOffset .. sourceOffset + input.length];
+        foreach (character; input)
         {
             const escaped = escapedCharacter(character);
             if (escaped != '\0')
@@ -811,7 +857,10 @@ public:
         return true;
     }
 
-    void appendEscaped(Allocator* allocator, String value)
+    void appendEscaped(Value)(
+        Allocator* allocator,
+        scope auto ref Value value,
+    ) if (isStringBufArgument!value)
     {
         if (!tryAppendEscaped(allocator, value))
             panic("StringBuf allocation failed");
@@ -821,12 +870,15 @@ public:
     ///
     /// Aliased `from` and `to` views are snapshotted before any mutation. On
     /// allocation failure the buffer remains unchanged.
-    bool tryReplaceInPlace(
+    bool tryReplaceInPlace(From, To)(
         Allocator* allocator,
-        String from,
-        String to,
-    )
+        scope auto ref From fromValue,
+        scope auto ref To toValue,
+    ) if (isStringBufArgument!fromValue &&
+        isStringBufArgument!toValue)
     {
+        String from = stringBufInput(fromValue);
+        String to = stringBufInput(toValue);
         if (from.length == 0)
             return true;
 
@@ -943,11 +995,11 @@ public:
         return true;
     }
 
-    void replaceInPlace(
+    void replaceInPlace(From, To)(
         Allocator* allocator,
-        String from,
-        String to,
-    )
+        scope auto ref From from,
+        scope auto ref To to,
+    ) if (isStringBufArgument!from && isStringBufArgument!to)
     {
         if (!tryReplaceInPlace(allocator, from, to))
             panic("StringBuf allocation failed");
@@ -1101,11 +1153,11 @@ public:
         return move(result);
     }
 
-    static bool tryFromString(
+    static bool tryFromString(Value)(
         Allocator* allocator,
-        String value,
+        scope auto ref Value value,
         scope Self* output,
-    ) @trusted
+    ) @trusted if (isStringBufArgument!value)
     {
         version (XTB_Checked)
         {
@@ -1114,14 +1166,21 @@ public:
                 "StringBuf output is already initialized");
         }
         Storage storage;
-        if (!Storage.tryFromString(allocator, value, &storage))
+        if (!Storage.tryFromString(
+                allocator,
+                stringBufInput(value),
+                &storage,
+            ))
             return false;
         output.allocator_ = allocator;
         moveEmplace(storage, output.storage_);
         return true;
     }
 
-    static Self fromString(Allocator* allocator, String value) @trusted
+    static Self fromString(Value)(
+        Allocator* allocator,
+        scope auto ref Value value,
+    ) @trusted if (isStringBufArgument!value)
     {
         Self result;
         if (!tryFromString(allocator, value, &result))
@@ -1226,9 +1285,9 @@ public:
         pretty.value(view);
     }
 
-    bool equal(scope String other) const pure @trusted
+    bool equal(Other)(scope auto ref Other other) const pure @trusted if (isStringBufArgument!other)
     {
-        return storage_ == other;
+        return storage_ == stringBufInput(other);
     }
 
     bool equal(scope ref const Self other) const pure @trusted
@@ -1256,14 +1315,14 @@ public:
         storage_.shrinkToFit(allocator_);
     }
 
-    void append(String value) @trusted
+    void append(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
-        storage_.append(allocator_, value);
+        storage_.append(allocator_, stringBufInput(value));
     }
 
-    bool tryAppend(String value) @trusted
+    bool tryAppend(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
-        return storage_.tryAppend(allocator_, value);
+        return storage_.tryAppend(allocator_, stringBufInput(value));
     }
 
     void append(char value) @trusted
@@ -1286,9 +1345,9 @@ public:
         return storage_.tryAppend(allocator_, value);
     }
 
-    void appendAssumeCapacity(String value) @trusted
+    void appendAssumeCapacity(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
-        storage_.appendAssumeCapacity(value);
+        storage_.appendAssumeCapacity(stringBufInput(value));
     }
 
     void appendAssumeCapacity(char value) @trusted
@@ -1301,24 +1360,34 @@ public:
         storage_.appendAssumeCapacity(value);
     }
 
-    bool tryInsert(size_t byteOffset, String value) @trusted
+    bool tryInsert(Value)(
+        size_t byteOffset,
+        scope auto ref Value value,
+    ) @trusted if (isStringBufArgument!value)
     {
-        return storage_.tryInsert(allocator_, byteOffset, value);
+        return storage_.tryInsert(
+            allocator_,
+            byteOffset,
+            stringBufInput(value),
+        );
     }
 
-    void insert(size_t byteOffset, String value) @trusted
+    void insert(Value)(
+        size_t byteOffset,
+        scope auto ref Value value,
+    ) @trusted if (isStringBufArgument!value)
     {
-        storage_.insert(allocator_, byteOffset, value);
+        storage_.insert(allocator_, byteOffset, stringBufInput(value));
     }
 
-    bool tryPrepend(String value) @trusted
+    bool tryPrepend(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
-        return storage_.tryPrepend(allocator_, value);
+        return storage_.tryPrepend(allocator_, stringBufInput(value));
     }
 
-    void prepend(String value) @trusted
+    void prepend(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
-        storage_.prepend(allocator_, value);
+        storage_.prepend(allocator_, stringBufInput(value));
     }
 
     void truncateBytes(size_t newByteLength) @trusted
@@ -1331,14 +1400,17 @@ public:
         storage_.clear();
     }
 
-    bool tryAppendEscaped(String value) @trusted
+    bool tryAppendEscaped(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
-        return storage_.tryAppendEscaped(allocator_, value);
+        return storage_.tryAppendEscaped(
+            allocator_,
+            stringBufInput(value),
+        );
     }
 
-    void appendEscaped(String value) @trusted
+    void appendEscaped(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
-        storage_.appendEscaped(allocator_, value);
+        storage_.appendEscaped(allocator_, stringBufInput(value));
     }
 
     /// Copies this buffer into a new exact-sized owner allocated by `allocator`.
@@ -1368,53 +1440,89 @@ public:
         return storage_.view.copy(arena);
     }
 
-    bool tryReplaceInPlace(String from, String to) @trusted
+    bool tryReplaceInPlace(From, To)(
+        scope auto ref From from,
+        scope auto ref To to,
+    ) @trusted if (isStringBufArgument!from && isStringBufArgument!to)
     {
-        return storage_.tryReplaceInPlace(allocator_, from, to);
+        return storage_.tryReplaceInPlace(
+            allocator_,
+            stringBufInput(from),
+            stringBufInput(to),
+        );
     }
 
-    void replaceInPlace(String from, String to) @trusted
+    void replaceInPlace(From, To)(
+        scope auto ref From from,
+        scope auto ref To to,
+    ) @trusted if (isStringBufArgument!from && isStringBufArgument!to)
     {
-        storage_.replaceInPlace(allocator_, from, to);
+        storage_.replaceInPlace(
+            allocator_,
+            stringBufInput(from),
+            stringBufInput(to),
+        );
     }
 
     /// Replaces every non-overlapping `from` occurrence in a new exact-sized
     /// owner allocated by `allocator`.
-    bool tryReplace(
-        String from,
-        String to,
+    bool tryReplace(From, To)(
+        scope auto ref From from,
+        scope auto ref To to,
         Allocator* allocator,
         scope OwnedString* output,
-    ) const @trusted
+    ) const @trusted if (isStringBufArgument!from && isStringBufArgument!to)
     {
-        return storage_.view.tryReplace(from, to, allocator, output);
+        return storage_.view.tryReplace(
+            stringBufInput(from),
+            stringBufInput(to),
+            allocator,
+            output,
+        );
     }
 
     /// Replaces every non-overlapping `from` occurrence in arena-owned output.
-    bool tryReplace(
-        String from,
-        String to,
+    bool tryReplace(From, To)(
+        scope auto ref From from,
+        scope auto ref To to,
         Arena* arena,
         scope String* output,
-    ) const @trusted
+    ) const @trusted if (isStringBufArgument!from && isStringBufArgument!to)
     {
-        return storage_.view.tryReplace(from, to, arena, output);
+        return storage_.view.tryReplace(
+            stringBufInput(from),
+            stringBufInput(to),
+            arena,
+            output,
+        );
     }
 
     /// Panicking independently owned counterpart to `tryReplace`.
-    OwnedString replace(
-        String from,
-        String to,
+    OwnedString replace(From, To)(
+        scope auto ref From from,
+        scope auto ref To to,
         Allocator* allocator,
-    ) const @trusted
+    ) const @trusted if (isStringBufArgument!from && isStringBufArgument!to)
     {
-        return storage_.view.replace(from, to, allocator);
+        return storage_.view.replace(
+            stringBufInput(from),
+            stringBufInput(to),
+            allocator,
+        );
     }
 
     /// Panicking arena-owned counterpart to `tryReplace`.
-    String replace(String from, String to, Arena* arena) const @trusted
+    String replace(From, To)(
+        scope auto ref From from,
+        scope auto ref To to,
+        Arena* arena,
+    ) const @trusted if (isStringBufArgument!from && isStringBufArgument!to)
     {
-        return storage_.view.replace(from, to, arena);
+        return storage_.view.replace(
+            stringBufInput(from),
+            stringBufInput(to),
+            arena,
+        );
     }
 
     bool tryEscapeInPlace() @trusted
@@ -1454,9 +1562,9 @@ public:
         return storage_.view.backCodeUnit();
     }
 
-    int compare(scope String other) const pure @trusted
+    int compare(Other)(scope auto ref Other other) const pure @trusted if (isStringBufArgument!other)
     {
-        return storage_.view.compare(other);
+        return storage_.view.compare(stringBufInput(other));
     }
 
     String sliceBytes(size_t beginByteOffset, size_t endByteOffset) const return @trusted
@@ -1474,14 +1582,16 @@ public:
         return storage_.view.suffixBytes(beginByteOffset);
     }
 
-    size_t find(scope String needle) const pure @trusted
+    size_t find(Needle)(scope auto ref Needle needle) const pure @trusted
+            if (isStringBufArgument!needle)
     {
-        return storage_.view.find(needle);
+        return storage_.view.find(stringBufInput(needle));
     }
 
-    size_t findLast(scope String needle) const pure @trusted
+    size_t findLast(Needle)(scope auto ref Needle needle) const pure @trusted
+            if (isStringBufArgument!needle)
     {
-        return storage_.view.findLast(needle);
+        return storage_.view.findLast(stringBufInput(needle));
     }
 
     size_t findCodeUnit(char codeUnit) const pure @trusted
@@ -1504,9 +1614,10 @@ public:
         return storage_.view.findLastCodePoint(codePoint);
     }
 
-    bool contains(scope String needle) const pure @trusted
+    bool contains(Needle)(scope auto ref Needle needle) const pure @trusted
+            if (isStringBufArgument!needle)
     {
-        return storage_.view.contains(needle);
+        return storage_.view.contains(stringBufInput(needle));
     }
 
     bool containsCodeUnit(char codeUnit) const pure @trusted
@@ -1524,14 +1635,16 @@ public:
         return storage_.view.containsNul();
     }
 
-    bool startsWith(scope String prefix) const pure @trusted
+    bool startsWith(Prefix)(scope auto ref Prefix prefix) const pure @trusted
+            if (isStringBufArgument!prefix)
     {
-        return storage_.view.startsWith(prefix);
+        return storage_.view.startsWith(stringBufInput(prefix));
     }
 
-    bool endsWith(scope String suffix) const pure @trusted
+    bool endsWith(Suffix)(scope auto ref Suffix suffix) const pure @trusted
+            if (isStringBufArgument!suffix)
     {
-        return storage_.view.endsWith(suffix);
+        return storage_.view.endsWith(stringBufInput(suffix));
     }
 
     String baseName() const return pure @trusted
@@ -1563,65 +1676,68 @@ public:
     ///
     /// `value` may be a view into this buffer; self-assignment and subview
     /// assignment are handled without allocation.
-    bool tryAssign(scope String value) @trusted
+    bool tryAssign(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
+        const input = stringBufInput(value);
         const current = storage_.view;
         bool aliases;
         size_t sourceOffset;
-        if (value.length != 0 && current.length != 0)
+        if (input.length != 0 && current.length != 0)
         {
-            const sourceAddress = cast(size_t) value.ptr;
+            const sourceAddress = cast(size_t) input.ptr;
             const beginAddress = cast(size_t) current.ptr;
             if (sourceAddress >= beginAddress)
             {
                 sourceOffset = sourceAddress - beginAddress;
                 aliases = sourceOffset <= current.length &&
-                    value.length <= current.length - sourceOffset;
+                    input.length <= current.length - sourceOffset;
             }
         }
 
         if (aliases)
         {
-            if (value.length != 0 && sourceOffset != 0)
-                memmove(storage_.bytes_.slice.ptr, value.ptr, value.length);
-            if (value.length < current.length)
+            if (input.length != 0 && sourceOffset != 0)
+                memmove(storage_.bytes_.slice.ptr, input.ptr, input.length);
+            if (input.length < current.length)
                 storage_.bytes_.removeRange(
-                    value.length,
-                    current.length - value.length,
+                    input.length,
+                    current.length - input.length,
                 );
             return true;
         }
 
-        if (!storage_.tryReserve(allocator_, value.length))
+        if (!storage_.tryReserve(allocator_, input.length))
             return false;
         storage_.clear();
-        storage_.appendAssumeCapacity(value);
+        storage_.appendAssumeCapacity(input);
         return true;
     }
 
-    void assign(scope String value) @trusted
+    void assign(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
         if (!tryAssign(value))
             panic("StringBuf allocation failed");
     }
 
     /// Removes `prefix` when present and reports whether the buffer changed.
-    bool removePrefix(scope String prefix) @trusted
+    bool removePrefix(Prefix)(scope auto ref Prefix prefix) @trusted if (isStringBufArgument!prefix)
     {
-        if (!storage_.view.startsWith(prefix))
+        const input = stringBufInput(prefix);
+        if (!storage_.view.startsWith(input))
             return false;
-        if (prefix.length != 0)
-            storage_.bytes_.removeRange(0, prefix.length);
+        if (input.length != 0)
+            storage_.bytes_.removeRange(0, input.length);
         return true;
     }
 
     /// Removes `suffix` when present and reports whether the buffer changed.
-    bool removeSuffix(scope String suffix) @trusted
+    bool removeSuffix(Suffix)(scope auto ref Suffix suffix) @trusted if (isStringBufArgument!suffix)
     {
-        if (!storage_.view.endsWith(suffix))
+        const input = stringBufInput(suffix);
+        if (!storage_.view.endsWith(input))
             return false;
-        if (suffix.length != 0)
-            storage_.truncateBytes(storage_.byteLength - suffix.length);
+        if (input.length != 0)
+            storage_.truncateBytes(storage_.byteLength - input.length);
         return true;
     }
 
@@ -1653,9 +1769,12 @@ public:
         storage_.truncateBytes(trimmed.length);
     }
 
-    Array!String split(scope String separator, Allocator* allocator) const @trusted
+    Array!String split(Separator)(
+        scope auto ref Separator separator,
+        Allocator* allocator,
+    ) const @trusted if (isStringBufArgument!separator)
     {
-        return storage_.view.split(separator, allocator);
+        return storage_.view.split(stringBufInput(separator), allocator);
     }
 
     Array!String split(char separator, Allocator* allocator) const @trusted
@@ -1673,9 +1792,9 @@ public:
         return storage_.view.splitLines(allocator);
     }
 
-    bool opEquals(scope String other) const pure @trusted
+    bool opEquals(Other)(scope auto ref Other other) const pure @trusted if (isStringBufArgument!other)
     {
-        return storage_ == other;
+        return storage_ == stringBufInput(other);
     }
 
     bool opEquals(scope ref const Self other) const pure @trusted

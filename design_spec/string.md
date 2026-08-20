@@ -348,6 +348,32 @@ struct StringBuf
 }
 ```
 
+Every `StringBuf` and `StringBufUnmanaged` operation that accepts borrowed
+`String` input also accepts an existing `OwnedString` directly:
+
+```d
+OwnedString name = "Ada".copy(allocator);
+scope (exit) name.deinit();
+
+StringBuf message = StringBuf.fromString(allocator, "Hello, ");
+scope (exit) message.deinit();
+message.append(name);
+```
+
+These operations borrow `name.view`; they do not allocate, copy the owner, move
+it, or transfer its cleanup obligation. Their constrained `auto ref` parameters
+accept ordinary `String` rvalues and literals, but require every `OwnedString`
+argument to have arrived by reference. Consequently,
+`message.append(makeOwnedString())` is rejected instead of silently discarding
+the temporary owner. The same adapter handles single-input operations and each
+operand of two-input operations such as replacement, so the public member has
+one implementation rather than parallel String and OwnedString overloads.
+
+`OwnedString` has no implicit conversion to `String`, so assigning an owning
+factory result to a borrowed view remains a compile-time error. The unmanaged
+buffer keeps its allocator argument explicit; only the borrowed text argument
+uses the shared adapter.
+
 
 D automatically permits member lookup through a non-null `StringBuf*`, so no
 parallel pointer-forwarding overload set is needed. Checked builds use the

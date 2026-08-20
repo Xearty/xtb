@@ -26,6 +26,98 @@ static assert(needsDeinit!StringBuf);
 static assert(needsDeinit!OwnedString);
 static assert(needsDeinit!StringBufUnmanaged);
 static assert(needsDeinit!OwnedStringUnmanaged);
+static assert(__traits(compiles,
+        (Allocator* allocator, Arena* arena, ref StringBuf buffer,
+        scope ref const OwnedString first,
+        scope ref const OwnedString second) {
+        StringBuf copy = StringBuf.fromString(allocator, first);
+        StringBuf output;
+        StringBuf.tryFromString(allocator, first, &output);
+        buffer.equal(first);
+        buffer.append(first);
+        buffer.tryAppend(first);
+        buffer.appendAssumeCapacity(first);
+        buffer.insert(0, first);
+        buffer.tryInsert(0, first);
+        buffer.prepend(first);
+        buffer.tryPrepend(first);
+        buffer.appendEscaped(first);
+        buffer.tryAppendEscaped(first);
+        buffer.compare(first);
+        buffer.find(first);
+        buffer.findLast(first);
+        buffer.contains(first);
+        buffer.startsWith(first);
+        buffer.endsWith(first);
+        buffer.assign(first);
+        buffer.tryAssign(first);
+        buffer.removePrefix(first);
+        buffer.removeSuffix(first);
+        auto parts = buffer.split(first, allocator);
+        buffer.replaceInPlace(first, second);
+        buffer.replaceInPlace(first, "second");
+        buffer.replaceInPlace("first", second);
+        buffer.tryReplaceInPlace(first, second);
+        OwnedString owned = buffer.replace(first, second, allocator);
+        String temporary = buffer.replace(first, second, arena);
+        OwnedString tryOwned;
+        String tryTemporary;
+        buffer.tryReplace(first, second, allocator, &tryOwned);
+        buffer.tryReplace(first, second, arena, &tryTemporary);
+        bool same = buffer == first;
+        bool reverseSame = first == buffer;
+    }));
+static assert(!__traits(compiles,
+        (Allocator* allocator, ref StringBuf buffer) {
+        buffer.append(OwnedString.fromString(allocator, "temporary"));
+    }));
+static assert(!__traits(compiles,
+        (Allocator* allocator, ref StringBuf buffer,
+        scope ref const OwnedString replacement) {
+        buffer.replaceInPlace(
+        OwnedString.fromString(allocator, "temporary"),
+        replacement,
+        );
+    }));
+static assert(__traits(compiles,
+        (Allocator* allocator, ref StringBufUnmanaged buffer,
+        scope ref const OwnedString first,
+        scope ref const OwnedString second) {
+        auto copy = StringBufUnmanaged.fromString(allocator, first);
+        StringBufUnmanaged output;
+        StringBufUnmanaged.tryFromString(allocator, first, &output);
+        buffer.append(allocator, first);
+        buffer.tryAppend(allocator, first);
+        buffer.appendAssumeCapacity(first);
+        buffer.insert(allocator, 0, first);
+        buffer.tryInsert(allocator, 0, first);
+        buffer.prepend(allocator, first);
+        buffer.tryPrepend(allocator, first);
+        buffer.appendEscaped(allocator, first);
+        buffer.tryAppendEscaped(allocator, first);
+        buffer.replaceInPlace(allocator, first, second);
+        buffer.replaceInPlace(allocator, first, "second");
+        buffer.replaceInPlace(allocator, "first", second);
+        buffer.tryReplaceInPlace(allocator, first, second);
+        bool same = buffer == first;
+        bool reverseSame = first == buffer;
+    }));
+static assert(!__traits(compiles,
+        (Allocator* allocator, ref StringBufUnmanaged buffer) {
+        buffer.append(
+        allocator,
+        OwnedString.fromString(allocator, "temporary"),
+        );
+    }));
+static assert(!__traits(compiles,
+        (Allocator* allocator, ref StringBufUnmanaged buffer,
+        scope ref const OwnedString replacement) {
+        buffer.replaceInPlace(
+        allocator,
+        OwnedString.fromString(allocator, "temporary"),
+        replacement,
+        );
+    }));
 static assert(!__traits(compiles,
         (ref StringBufUnmanaged value) { deinit(value); }));
 static assert(!__traits(compiles,
@@ -73,6 +165,104 @@ private static immutable integrationKeys = [
     "key-16", "key-17", "key-18", "key-19",
     "key-20", "key-21", "key-22", "key-23",
 ];
+
+private void testOwnedStringStringBufInputs(InstrumentedAllocator* tracked)
+{
+    {
+        OwnedString source = OwnedString.fromString(
+            tracked.allocator,
+            "source",
+        );
+        scope (exit)
+            source.deinit();
+        OwnedString replacement = OwnedString.fromString(
+            tracked.allocator,
+            "replacement",
+        );
+        scope (exit)
+            replacement.deinit();
+
+        StringBuf buffer = StringBuf.fromString(tracked.allocator, source);
+        scope (exit)
+            buffer.deinit();
+        assert(buffer == source);
+        assert(source == buffer);
+        assert(buffer.equal(source));
+        assert(buffer.compare(source) == 0);
+        assert(buffer.contains(source));
+        assert(buffer.startsWith(source));
+        assert(buffer.endsWith(source));
+        assert(buffer.find(source) == 0);
+        assert(buffer.findLast(source) == 0);
+
+        buffer.clear();
+        buffer.append(source);
+        buffer.prepend(source);
+        buffer.insert(source.byteLength, replacement);
+        assert(buffer.view == "sourcereplacementsource");
+
+        buffer.assign(source);
+        buffer.replaceInPlace(source, replacement);
+        assert(buffer.view == replacement.view);
+
+        buffer.clear();
+        buffer.appendEscaped(replacement);
+        assert(buffer.view == replacement.view);
+
+        buffer.assign(source);
+        assert(buffer.removePrefix(source));
+        assert(buffer.empty);
+        buffer.assign(source);
+        assert(buffer.removeSuffix(source));
+        assert(buffer.empty);
+
+        buffer.assign("leftsourceleft");
+        auto parts = buffer.split(source, tracked.allocator);
+        scope (exit)
+            parts.deinit();
+        assert(parts.length == 2);
+        assert(parts[0] == "left" && parts[1] == "left");
+
+        OwnedString replaced = buffer.replace(
+            source,
+            replacement,
+            tracked.allocator,
+        );
+        scope (exit)
+            replaced.deinit();
+        assert(replaced.view == "leftreplacementleft");
+
+        StringBufUnmanaged unmanaged = StringBufUnmanaged.fromString(
+            tracked.allocator,
+            source,
+        );
+        scope (exit)
+            unmanaged.deinit(tracked.allocator);
+        assert(unmanaged == source);
+        assert(source == unmanaged);
+
+        unmanaged.clear();
+        unmanaged.append(tracked.allocator, source);
+        unmanaged.prepend(tracked.allocator, source);
+        unmanaged.insert(
+            tracked.allocator,
+            source.byteLength,
+            replacement,
+        );
+        assert(unmanaged.view == "sourcereplacementsource");
+
+        unmanaged.clear();
+        unmanaged.appendEscaped(tracked.allocator, replacement);
+        assert(unmanaged.view == replacement.view);
+        unmanaged.replaceInPlace(
+            tracked.allocator,
+            replacement,
+            source,
+        );
+        assert(unmanaged.view == source.view);
+    }
+    assert(tracked.clean);
+}
 
 private void testStringBufMoveReplacement(InstrumentedAllocator* tracked)
 {
@@ -1012,6 +1202,7 @@ extern (C) int main()
         records[],
     );
 
+    testOwnedStringStringBufInputs(&tracked);
     testStringBufMoveReplacement(&tracked);
     testOwnedStringMoveReplacement(&tracked);
     testReleasedStorage(&tracked);

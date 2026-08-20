@@ -875,6 +875,17 @@ buffer.append(value);
 String result = buffer.view;
 ```
 
+An existing `OwnedString` lvalue may be passed directly wherever `StringBuf` or
+`StringBufUnmanaged` accepts borrowed `String` input. These operations forward
+the owner's view without allocation or ownership transfer. They deliberately
+require an lvalue owner: a factory temporary is rejected so its explicit
+`deinit` obligation cannot disappear during argument conversion. A shared
+constrained `auto ref` adapter distinguishes ordinary String rvalues from
+`OwnedString` rvalues; the latter are excluded with `__traits(isRef)`. This
+keeps one implementation per operation, including methods with two text
+inputs. `OwnedString` itself does not define `alias this`; unmanaged buffer
+operations continue to require their allocator explicitly.
+
 The same rule applies to `Array!T`, `HashMap`, `HashSet`, `OwnedString`, the
 string hash containers, and future managed containers. Their structs contain
 ownership fields, static factories, ordinary member operations, one
