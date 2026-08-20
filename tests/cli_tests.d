@@ -2687,6 +2687,12 @@ private void testPublicGeneratedHelp()
         assert(contains(output.text, "aliases: --parallelism"));
         assert(contains(output.text, "values: auto"));
         assert(contains(output.text, "default: auto"));
+        assert(contains(
+                output.text,
+                "      --jobs <JOBS>  aliases: --parallelism\n" ~
+                "                     values: auto\n" ~
+                "                     default: auto\n",
+        ));
     }
 
     {
@@ -2704,6 +2710,17 @@ private void testPublicGeneratedHelp()
         assert(contains(output.text, "aliases: -V, -Q, --verbosity, --chatty"));
         assert(contains(output.text, "--color"));
         assert(contains(output.text, "aliases: --colour"));
+        assert(contains(
+                output.text,
+                "  remove  Remove an item\n" ~
+                "          aliases: rm, del\n\n" ~
+                "  list    aliases: ls\n",
+        ));
+        assert(contains(
+                output.text,
+                "  -v, --verbose  aliases: -V, -Q, --verbosity, --chatty\n",
+        ));
+        assert(contains(output.text, "      --color  aliases: --colour\n"));
     }
 
     {

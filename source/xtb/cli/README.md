@@ -802,7 +802,9 @@ listed under `Required options:`, while omittable named options are listed under
 `Optional options:`. Required and optional globals are similarly split into
 `Required global options:` and `Optional global options:`.
 
-Aliases, negation, values, and defaults remain secondary metadata.
+Aliases, negation, values, and defaults remain secondary metadata. When an
+entry has no description, its first metadata item occupies the normal detail
+column on the canonical-name line; remaining metadata continues below it.
 
 Typical shape:
 

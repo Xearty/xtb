@@ -1519,21 +1519,48 @@ private void writeHelpMetadataIndent(ref AnsiWriter writer, size_t columnWidth) 
     writer.repeat(' ', columnWidth + 4);
 }
 
+private void writeHelpDetailPrefix(
+    ref AnsiWriter writer,
+    size_t labelWidth,
+    size_t columnWidth,
+    ref bool firstDetail,
+) @system
+{
+    if (firstDetail)
+    {
+        writeHelpGap(writer, labelWidth, columnWidth);
+        firstDetail = false;
+    }
+    else
+        writeHelpMetadataIndent(writer, columnWidth);
+}
+
 private void writeCommandHelpLine(T)(ref AnsiWriter writer, size_t columnWidth) @system
 {
     writer.put("  ");
     writer.styled(cliCanonicalStyle, commandName!T);
+    bool firstDetail = true;
     enum aboutText = typeAbout!T;
     static if (aboutText.length != 0)
     {
-        writeHelpGap(writer, commandHelpLabelWidth!T, columnWidth);
+        writeHelpDetailPrefix(
+            writer,
+            commandHelpLabelWidth!T,
+            columnWidth,
+            firstDetail,
+        );
         writer.put(aboutText);
+        writer.put('\n');
     }
-    writer.put('\n');
 
     static if (commandAliases!T.length != 0)
     {
-        writeHelpMetadataIndent(writer, columnWidth);
+        writeHelpDetailPrefix(
+            writer,
+            commandHelpLabelWidth!T,
+            columnWidth,
+            firstDetail,
+        );
         writer.styled(cliMetadataStyle, "aliases:");
         writer.put(' ');
         bool first = true;
@@ -1546,6 +1573,9 @@ private void writeCommandHelpLine(T)(ref AnsiWriter writer, size_t columnWidth) 
         }
         writer.put('\n');
     }
+
+    if (firstDetail)
+        writer.put('\n');
 }
 
 private template HelpPathTarget(Parent, Path...)
@@ -2032,19 +2062,20 @@ private void writeFieldHelpBlock(T, size_t index)(
     enum helpText = fieldHelp!(T, index);
     enum possibleValues = fieldHelpPossibleValues!(T, index);
     enum hasDefault = fieldHasHelpDefault!(T, index);
+    bool firstDetail = true;
 
     static if (helpText.length != 0)
     {
-        writeHelpGap(writer, labelWidth, columnWidth);
+        writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
         writer.put(helpText);
+        writer.put('\n');
     }
-    writer.put('\n');
 
     static if (!fieldHas!(T, index, CliPositional) &&
         (fieldShortAliases!(T, index).length != 0 ||
             fieldLongAliases!(T, index).length != 0))
     {
-        writeHelpMetadataIndent(writer, columnWidth);
+        writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
         writer.styled(cliMetadataStyle, "aliases:");
         writer.put(' ');
         bool firstAlias = true;
@@ -2068,7 +2099,7 @@ private void writeFieldHelpBlock(T, size_t index)(
     static if (!fieldHas!(T, index, CliPositional) &&
         fieldHas!(T, index, CliNegatable))
     {
-        writeHelpMetadataIndent(writer, columnWidth);
+        writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
         writer.styled(cliMetadataStyle, "negatable:");
         writer.put(' ');
         writer.styled(
@@ -2081,7 +2112,7 @@ private void writeFieldHelpBlock(T, size_t index)(
 
     static if (possibleValues.length != 0)
     {
-        writeHelpMetadataIndent(writer, columnWidth);
+        writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
         writer.styled(cliMetadataStyle, "values:");
         writer.put(' ');
         bool firstValue = true;
@@ -2097,13 +2128,15 @@ private void writeFieldHelpBlock(T, size_t index)(
 
     static if (hasDefault)
     {
-        writeHelpMetadataIndent(writer, columnWidth);
+        writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
         writer.styled(cliMetadataStyle, "default:");
         writer.put(' ');
         writeFieldHelpDefault!(T, index)(writer);
         writer.put('\n');
     }
 
+    if (firstDetail)
+        writer.put('\n');
 }
 
 private struct CliFormattedDefault(alias Representation, T)
