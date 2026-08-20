@@ -311,6 +311,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         if (cStringEqual(name, "crash-segv-unwind"))
         {
             CrashHandlerOptions options;
+            options.theme = StackTraceTheme.plain;
             options.signalTraceMode = SignalTraceMode.attemptStackUnwind;
             scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
             raise(SIGSEGV);
@@ -470,6 +471,31 @@ version (Posix) private void expectSignalDiagnostic(
     assert(output.text.contains("<faulting instruction>"));
 }
 
+version (Posix) private bool signalProgramCountersAligned(String text)
+pure nothrow @safe @nogc
+{
+    size_t expectedColumn = notFound;
+    size_t lineBegin;
+    while (lineBegin < text.length)
+    {
+        const relativeEnd = text[lineBegin .. $].findCodeUnit('\n');
+        const lineEnd = relativeEnd == notFound
+            ? text.length : lineBegin + relativeEnd;
+        const column = text[lineBegin .. lineEnd].find("pc=");
+        if (column != notFound)
+        {
+            if (expectedColumn == notFound)
+                expectedColumn = column;
+            else if (column != expectedColumn)
+                return false;
+        }
+        if (lineEnd == text.length)
+            break;
+        lineBegin = lineEnd + 1;
+    }
+    return expectedColumn != notFound;
+}
+
 extern (C) int main(int argumentCount, char** arguments)
 {
     if (argumentCount == 3 && cStringEqual(arguments[1], "--death-case"))
@@ -575,7 +601,20 @@ extern (C) int main(int argumentCount, char** arguments)
             );
             assert(unwound.signal == SIGSEGV);
             assert(unwound.text.contains("SIGSEGV"));
-            assert(unwound.text.contains("+1"));
+            assert(unwound.text.contains("[0] pc="));
+            assert(unwound.text.contains("[+1] pc="));
+            assert(!unwound.text.contains("[ "));
+            assert(unwound.text.contains("] pc="));
+            assert(signalProgramCountersAligned(unwound.text));
+            const faultAddressBegin = unwound.text.find("pc=");
+            assert(faultAddressBegin != notFound);
+            const faultAddressLength = "pc=0x".length + size_t.sizeof * 2;
+            const faultAddressEnd = faultAddressBegin + faultAddressLength;
+            assert(faultAddressEnd <= unwound.text.length);
+            const faultAddress = unwound.text[
+                faultAddressBegin .. faultAddressEnd
+            ];
+            assert(unwound.text[faultAddressEnd .. $].find(faultAddress) == notFound);
 
             expectSignalDiagnostic(
                 arguments[0], "crash-abrt", SIGABRT, "SIGABRT",

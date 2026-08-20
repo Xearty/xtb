@@ -269,6 +269,26 @@ version (linux)
         rawWrite(buffer[begin .. $]);
     }
 
+    private size_t decimalWidth(size_t value) pure @safe
+    {
+        size_t width = 1;
+        while (value >= 10)
+        {
+            value /= 10;
+            ++width;
+        }
+        return width;
+    }
+
+    private void rawSpaces(size_t count) @system
+    {
+        while (count != 0)
+        {
+            rawWrite(" ");
+            --count;
+        }
+    }
+
     private void rawAnsi(AnsiColor color) @system
     {
         const sequence = ansiSequence(AnsiStyle.foreground(color));
@@ -317,8 +337,28 @@ version (linux)
         rawWrite("\n");
 
         size_t faultPC = faultProgramCounter(rawContext);
+        const attemptUnwind =
+            globalState.signalTraceMode == SignalTraceMode.attemptStackUnwind &&
+            globalState.panicTraceWritten == 0;
+        void*[64] addresses;
+        int addressCount;
+        size_t frameCount;
+        if (attemptUnwind)
+        {
+            addressCount = backtrace(addresses.ptr, cast(int) addresses.length);
+            foreach (index; 2 .. addressCount)
+            {
+                const address = cast(size_t) addresses[index];
+                if (faultPC == 0 || address != faultPC)
+                    ++frameCount;
+            }
+        }
+        const labelWidth = frameCount == 0
+            ? cast(size_t) 3 : 3 + decimalWidth(frameCount);
+
         if (faultPC != 0)
         {
+            rawSpaces(labelWidth - 3);
             rawStyled("[", colors.decoration);
             rawStyled("0", colors.lineNumber);
             rawStyled("] ", colors.decoration);
@@ -331,25 +371,27 @@ version (linux)
             rawWrite("\n");
         }
 
-        if (globalState.signalTraceMode == SignalTraceMode.attemptStackUnwind &&
-            globalState.panicTraceWritten == 0)
+        if (attemptUnwind)
         {
-            void*[64] addresses;
-            const count = backtrace(addresses.ptr, cast(int) addresses.length);
-            foreach (index; 2 .. count)
+            size_t frameNumber = 1;
+            foreach (index; 2 .. addressCount)
             {
-                rawWrite("  ");
+                const address = cast(size_t) addresses[index];
+                if (faultPC != 0 && address == faultPC)
+                    continue;
+                rawSpaces(labelWidth - decimalWidth(frameNumber) - 3);
                 rawStyled("[", colors.decoration);
                 rawAnsi(colors.lineNumber);
                 rawWrite("+");
-                rawDecimal(cast(size_t) index - 1);
+                rawDecimal(frameNumber);
                 rawAnsiReset(colors.lineNumber);
                 rawStyled("] ", colors.decoration);
                 rawAnsi(colors.address);
                 rawWrite("pc=");
-                rawHex(cast(size_t) addresses[index]);
+                rawHex(address);
                 rawAnsiReset(colors.address);
                 rawWrite("\n");
+                ++frameNumber;
             }
         }
         else
