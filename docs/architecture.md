@@ -400,13 +400,17 @@ so callers that nest styles must explicitly reapply the outer style.
 ### Diagnostics and fatal crashes
 
 Logging has an explicit foundation and an optional per-thread convenience
-layer. `Logger` owns no sink or message storage: it borrows a callback/context
-pair and a caller-provided formatting buffer. Library code that accepts more
-than one independent log destination, exposes logging as a dependency, or may
-run without a `ThreadContext` should accept and call an explicit `Logger`.
+layer. `Logger` owns no sink or message storage: it borrows a `LogSinkRef` and a
+caller-provided formatting buffer. `LogSinkRef` is a copyable, non-owning
+callback/context/flush descriptor. Custom sinks consume an explicit lifecycle
+protocol (`beginRecord`, styled logger `text`, `beginMessage`, verbatim
+`messageChunk`, `endMessage`, and `endRecord`) rather than one complete
+`LogRecord`. Sinks never infer a first chunk.
 
-Applications may install one as the current logger in an existing thread
-context:
+Library code that accepts more than one independent log destination, exposes
+logging as a dependency, or may run without a `ThreadContext` should accept and
+call an explicit `Logger`. Applications may install one as the current logger in
+an existing thread context:
 
 ```d
 ThreadContextScope context = ThreadContextScope.acquire();
@@ -435,33 +439,82 @@ The overloads without a `Logger` receiver—`enabled(level)`, `log(level, ...)`,
 thread's context. With no installed logger, `enabled` and `flushLogger` return
 `false`, while logging returns `LogStatus.invalidLogger`; it does not silently
 write to stderr or manufacture persistent storage. Filtering happens before
-formatting. The original `logger.log(...)`, `logger.logf!pattern(...)`, and
-`logger.flush()` APIs remain available and do not consult TLS.
+formatting. The explicit `logger.log(...)`, `logger.logf!pattern(...)`, and
+`logger.flush()` APIs do not consult TLS.
 
-File logger coloring is explicit. `LogStyle.plain`, the core default, never
-emits control sequences. `LogStyle.ansi` applies one `AnsiStyle` to the entire
-`[level] message`, followed by a reset before the newline. `LogPalette`
-contains independently configurable styles for all six levels;
-`LogPalette.defaults()` supplies a readable named-color palette and makes
-critical messages bold. All logger creation functions use that palette when
-the argument is omitted. Passing a modified value configures a logger without
-global state:
+The logger owns textual framing. It emits the level label (`[warning]`, etc.),
+the separating space, message boundaries, and the final newline as sink events.
+A sink may style or ignore those bytes, but it does not choose their spelling.
+Future timestamps or other logger metadata can therefore be added as ordinary
+styled `text` events without teaching sinks about timestamp semantics.
+
+`LogPalette` contains one `LogLevelStyle` per severity. `label` styles the
+logger-generated level label; `message` is an optional base style for the
+formatted message. `LogPalettePreset.basic` is the default portable 16-color
+palette and leaves message text unstyled. `extended` uses the 256-color palette
+with progressively brighter gray message text, while `trueColor` uses RGB
+colors. Both enhanced presets target dark terminal backgrounds. Selection is
+direct, and any preset remains an ordinary customizable `LogPalette` value:
 
 ```d
-LogPalette palette = LogPalette.defaults();
-palette.warning = AnsiStyle.foreground(AnsiColor.rgb(255, 175, 0)).bold;
-Logger logger = stderrLogger(
-    storage[],
-    LogLevel.trace,
-    LogStyle.ansi,
-    palette,
+logger.setPalette(LogPalettePreset.trueColor);
+
+LogPalette palette = LogPalette.preset(LogPalettePreset.trueColor);
+palette.warning.message = AnsiStyle.foreground(
+    AnsiColor.rgb(210, 215, 225),
 );
+logger.setPalette(palette);
 ```
 
-Formatting buffers and `LogRecord.message` never contain ANSI bytes. Styling
-is presentation metadata applied by the ANSI file sink, so plain file sinks
-and application-defined capture sinks retain clean messages. `LogResult`
-counts formatted message bytes, not prefix, newline, or presentation escapes.
+`LogStyle.plain` ignores logger presentation styles and strips supported ANSI
+SGR sequences embedded in formatter message bytes. `LogStyle.ansi` renders
+styled logger text, preserves embedded message SGR, and optionally applies the
+configured base message style. With no base message style, message chunks are
+written directly. With a base style, only chunks containing `ESC` need reset
+recognition; a complete full SGR reset is preserved and immediately followed by
+the base style so later message bytes return to the configured presentation.
+Partial resets such as `39m` retain their normal SGR meaning. `endMessage`
+always emits one full terminal reset.
+
+Formatter message bytes remain borrowed and unmodified. The current fixed
+formatter buffer still yields at most one logger-produced message chunk, but if
+truncation would leave a supported SGR sequence incomplete at the end of that
+chunk, the logger exposes only the preceding safe slice. The check scans only a
+bounded suffix consistent with `AnsiSequence.capacity`; UTF-8 boundary repair
+still occurs first. `LogResult.written` reports the safely selected message
+length while `required` retains the formatter's full demand. Presentation
+escapes added by the sink and logger-generated framing remain outside both
+counts.
+
+For composition, `plainFileLogSink(file)` and `ansiFileLogSink(file)` expose the
+built-in file presentation paths directly as borrowed `LogSinkRef` values.
+Their `FILE*` must outlive the sink reference. The base message style is repeated
+on each `messageChunk` event so these presentation callbacks remain stateless;
+this is logger presentation data, not formatter ANSI metadata.
+
+`TeeLogSink` is the allocation-free two-way fan-out combinator. It borrows two
+`LogSinkRef` children and exposes another `LogSinkRef`, so tees may be nested.
+The tee forwards protocol events first child then second child and has no logging
+or presentation policy of its own. A child failure does not stop a healthy peer
+from receiving the remainder of the record. Failure is reported at `endRecord`
+after required cleanup has been attempted. In particular, once `beginMessage`
+has been delivered to a child, `endMessage` is still attempted even when that
+`beginMessage` call itself reports failure; this preserves the same cleanup
+contract as direct logger delivery. A child that rejects `beginRecord` receives
+no later events for that record.
+
+```d
+LogSinkRef terminal = ansiFileLogSink(stderr);
+LogSinkRef logfile = plainFileLogSink(file);
+TeeLogSink tee = TeeLogSink.create(terminal, logfile);
+char[1024] storage;
+Logger logger = Logger.create(tee.sinkRef(), storage[]);
+```
+
+`TeeLogSink` is stateful and non-copyable. Its address, its children, and every
+borrowed destination must remain valid while `sinkRef()` is in use. Distinct
+thread-confined loggers/tees may share file presentation sinks because the file
+callbacks serialize the complete logical record.
 
 Normal call sites should use the level-specific convenience functions instead
 of spelling `LogLevel` repeatedly. The plain family forwards to `log`, and the
@@ -493,10 +546,10 @@ for code where the level is selected dynamically.
 
 An installed logger is not owned and does not become thread-safe. Each thread
 normally owns a distinct `Logger` and message buffer. File sinks serialize the
-final file write, but sharing one `Logger` between threads would still race on
-its formatting buffer, filter state, and recursion guard. Cross-thread logging
-uses distinct logger values whose sinks perform whatever synchronization the
-destination requires.
+whole logical record from `beginRecord` through `endRecord`, but sharing one
+`Logger` between threads would still race on its formatting buffer, filter
+state, and recursion guard. Cross-thread logging uses distinct logger values
+whose sinks perform whatever synchronization the destination requires.
 
 Stack traces use caller-provided frame and text storage. Symbol capture,
 demangling, signature tokenization, styling, and rendering must not allocate.

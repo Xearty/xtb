@@ -155,8 +155,10 @@ automatic terminal detection, and palette customization.
 Terminal styling is allocation-free and shared by logging and stack traces.
 Build styles from named, indexed, or RGB `AnsiColor` values and combine text
 attributes through `AnsiStyle`. Logger colors are configurable with
-`LogPalette`; the core logger remains explicit and defaults to plain output.
-Applications importing `xtb.os` can select `LogStyle.ansi` when
+`LogPalette`; `LogPalettePreset.basic`, `extended`, and `trueColor` provide
+ready-made 16-color, 256-color, and RGB schemes, and `logger.setPalette(preset)`
+switches between them directly. The core logger remains explicit and defaults
+to plain output. Applications importing `xtb.os` can select `LogStyle.ansi` when
 `shouldUseAnsi(stderr)` succeeds. Automatic policy uses the destination,
 `TERM`, and `NO_COLOR`; there is deliberately no separate terminal logger or
 hidden environment lookup in `xtb.core.logger`.

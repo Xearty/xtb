@@ -1,6 +1,6 @@
 module examples.logging_demo;
 
-import core.stdc.stdio : FILE, stderr;
+import core.stdc.stdio : FILE, fclose, stderr, tmpfile;
 import xtb.core;
 import xtb.os : shouldUseAnsi;
 
@@ -47,7 +47,9 @@ nothrow @nogc
     delivered = logger.error(
         paletteName,
         ": ",
+        AnsiStyle.foreground(AnsiColor.brightRed),
         RequestId(0x2a),
+        ansiReset,
         " failed",
     ).delivered && delivered;
     delivered = logger.criticalf!"{}: subsystem {} is unavailable"(
@@ -59,31 +61,61 @@ nothrow @nogc
 
 extern (C) int main() nothrow @nogc
 {
-    const ansi = shouldUseAnsi(cast(FILE*) stderr);
-    const outputStyle = ansi ? LogStyle.ansi : LogStyle.plain;
+    const terminalSupportsAnsi = shouldUseAnsi(cast(FILE*) stderr);
 
-    char[512] messageStorage;
-    Logger logger = stderrLogger(
-        messageStorage[],
-        LogLevel.trace,
-        outputStyle,
+    // Ordinary plain logging is still the smallest built-in configuration.
+    char[256] plainStorage;
+    Logger plain = stderrLogger(
+        plainStorage[],
+        LogLevel.info,
+        LogStyle.plain,
     );
-
-    // Explicit logger calls need neither TLS installation nor a thread context.
-    if (!logger.logEveryLevel("default palette"))
+    if (!plain.info("plain logger: application starting").delivered || !plain.flush())
         return 1;
 
-    LogPalette palette = LogPalette.defaults();
-    palette.trace = AnsiStyle.foreground(AnsiColor.indexed(244)).dim;
-    palette.debug_ = AnsiStyle.foreground(AnsiColor.brightMagenta);
-    palette.info = AnsiStyle.foreground(AnsiColor.brightCyan);
-    palette.warning = AnsiStyle.foreground(AnsiColor.indexed(214)).bold;
-    palette.error = AnsiStyle.foreground(AnsiColor.rgb(255, 95, 95));
-    palette.critical = AnsiStyle.foreground(AnsiColor.brightWhite)
-        .withBackground(AnsiColor.red)
-        .bold;
+    // Tee one formatting pass to terminal presentation and a plain file branch.
+    // `tmpfile` keeps the example self-cleaning; a real application would pass
+    // its long-lived logfile `FILE*` here instead.
+    FILE* logFile = tmpfile();
+    if (logFile is null)
+        return 1;
+    scope (exit)
+        fclose(logFile);
+
+    LogSinkRef terminal = terminalSupportsAnsi
+        ? ansiFileLogSink(cast(FILE*) stderr) : plainFileLogSink(cast(FILE*) stderr);
+    LogSinkRef logfile = plainFileLogSink(logFile);
+    TeeLogSink tee = TeeLogSink.create(terminal, logfile);
+
+    char[512] messageStorage;
+    Logger logger = Logger.create(
+        tee.sinkRef(),
+        messageStorage[],
+        LogLevel.trace,
+    );
+
+    // `basic` is the default and uses only the terminal's configurable 4-bit
+    // colors. It leaves message text at the terminal default.
+    if (!logger.logEveryLevel("basic preset"))
+        return 1;
+
+    // `extended` uses the 256-color palette and progressively brighter gray
+    // message text as severity increases.
+    logger.setPalette(LogPalettePreset.extended);
+    if (!logger.logEveryLevel("extended preset"))
+        return 1;
+
+    // `trueColor` is tuned for dark terminals. Its error label intentionally
+    // uses RGB #ff5f5f while preserving the same message-brightness progression.
+    logger.setPalette(LogPalettePreset.trueColor);
+    if (!logger.logEveryLevel("true-color preset"))
+        return 1;
+
+    // A preset is still an ordinary value and can be customized before use.
+    LogPalette palette = LogPalette.preset(LogPalettePreset.trueColor);
+    palette.warning.message = AnsiStyle.foreground(AnsiColor.rgb(210, 215, 225));
     logger.setPalette(palette);
-    if (!logger.logEveryLevel("custom palette"))
+    if (!logger.warning("customized preset: warning message override").delivered)
         return 1;
 
     // Filtering happens before custom formatting.
@@ -96,7 +128,7 @@ extern (C) int main() nothrow @nogc
     logger.warningf!"filtered formatter calls={}"(formatCalls);
     logger.setMinimumLevel(LogLevel.trace);
 
-    // Install the same borrowed logger for concise application-level calls.
+    // Install the same borrowed tee-backed logger for concise application calls.
     ThreadContextScope context = ThreadContextScope.acquire();
     {
         ThreadLoggerScope logging = ThreadLoggerScope.install(&logger);
@@ -115,13 +147,18 @@ extern (C) int main() nothrow @nogc
             ThreadLoggerScope redirected = ThreadLoggerScope.install(&nested);
             info("nested logger: deliberately plain output");
         }
-        info("current logger: colored palette restored");
+        info("current logger: tee-backed palette restored");
 
         const selectedLevel = LogLevel.warning;
         log(selectedLevel, "dynamic level: selected at runtime");
         if (!flushLogger())
             return 1;
     }
+
+    // `logger` borrows `tee`; `tee` borrows both sink references; the file must
+    // remain open through the final flush. No object in this chain owns another.
+    if (!logger.flush())
+        return 1;
 
     return 0;
 }

@@ -54,6 +54,14 @@ configuration "test-core" {
     dependency "xtb:diagnostics" version="*"
 }
 
+configuration "test-logging" {
+    targetType "executable"
+    targetName "logging_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "logging_tests.d"
+    dependency "xtb:core" version="*"
+}
+
 configuration "test-lifetime" {
     targetType "executable"
     targetName "lifetime_tests"

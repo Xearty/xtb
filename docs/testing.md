@@ -233,7 +233,9 @@ formatting, truncation, sink and flush failure, recursion rejection, nested
 thread-logger restoration, and the no-context/no-installed-logger behavior.
 ANSI tests cover named, indexed, and RGB encoding, combined foreground,
 background, and `FlagSet`-backed attributes, reset behavior, plain file output,
-custom logger palettes, and coloring of the complete log record. OS tests
+custom logger palettes, independent level-label/base-message styles, embedded
+message SGR preservation/stripping, full-reset base-style restoration, and
+ANSI-safe truncation boundaries. OS tests
 exercise forced and disabled ANSI policy, conservative redirected-file
 detection, `TERM=dumb`/`NO_COLOR` policy logic, and environment-name
 validation. Core ANSI tests never depend on a terminal or process environment.

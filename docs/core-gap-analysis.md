@@ -142,12 +142,18 @@ Future general-purpose additions are ranked separately in
 - integers, arbitrary radix, binary/hex wrappers, floating-point modes,
   pointers, strings, and opt-in custom `formatTo` values;
 - compile-time checked `{}` formatting and one-pass owned `StringBuf` results;
-- one complete structured `LogRecord` per sink invocation;
-- severity kept separate from message text;
+- explicit record/message lifecycle events through a borrowed `LogSinkRef`;
+- logger-owned level-label framing with label and optional message styles kept
+  separate from formatter message bytes;
+- plain presentation that strips supported embedded SGR and ANSI presentation
+  that preserves embedded SGR while optionally restoring a base message style
+  after full resets;
+- bounded suffix trimming so truncated formatter output never exposes a partial
+  supported SGR sequence;
 - explicit caller-provided message storage;
 - filtered, delivered, truncated, failed, recursive, and invalid logger status;
-- complete-message callbacks, stdout/stderr/file factories, plain/ANSI styles,
-  threshold mutation, sink replacement, and flush;
+- stdout/stderr/file factories, plain/ANSI protocol consumers, threshold
+  mutation, sink replacement, and flush;
 - serialized POSIX file records and non-terminating `critical` severity;
 - no mutable process-global logger.
 

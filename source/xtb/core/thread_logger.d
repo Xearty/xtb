@@ -169,23 +169,47 @@ bool flushLogger()
 
 version (unittest)
 {
+    import xtb.core.string : String;
+
     private struct Capture
     {
+    nothrow @nogc:
+
         char[128] bytes;
         size_t length;
+        char[16] label;
+        size_t labelLength;
         size_t flushCount;
-        LogLevel level;
+
+        String labelText() const return @trusted
+        {
+            return label[0 .. labelLength];
+        }
     }
 
-    private bool captureSink(void* context, scope const explicitLogger.LogRecord* record)
+    private bool captureSink(
+        void* context,
+        scope const explicitLogger.LogSinkEvent* event,
+    )
     {
         Capture* capture = cast(Capture*) context;
-        capture.level = record.level;
-        if (record.message.length > capture.bytes.length - capture.length)
-            return false;
-        foreach (index, value; record.message)
-            capture.bytes[capture.length + index] = value;
-        capture.length += record.message.length;
+        if (event.kind == explicitLogger.LogSinkEventKind.messageChunk)
+        {
+            if (event.bytes.length > capture.bytes.length - capture.length)
+                return false;
+            foreach (index, value; event.bytes)
+                capture.bytes[capture.length + index] = value;
+            capture.length += event.bytes.length;
+        }
+        else if (event.kind == explicitLogger.LogSinkEventKind.text &&
+            event.bytes.length >= 2 && event.bytes[0] == '[')
+        {
+            if (event.bytes.length > capture.label.length)
+                return false;
+            capture.labelLength = event.bytes.length;
+            foreach (index, value; event.bytes)
+                capture.label[index] = value;
+        }
         return true;
     }
 
@@ -249,23 +273,26 @@ unittest
 
         explicitLogger.setMinimumLevel(outer, LogLevel.trace);
         outerCapture.length = 0;
-        assert(trace("trace").delivered && outerCapture.level == LogLevel.trace);
+        assert(trace("trace").delivered && outerCapture.labelText.equal("[trace]"));
         assert(tracef!"{}"("tracef").delivered &&
-                outerCapture.level == LogLevel.trace);
-        assert(debug_("debug").delivered && outerCapture.level == LogLevel.debug_);
+                outerCapture.labelText.equal("[trace]"));
+        assert(debug_("debug").delivered && outerCapture.labelText.equal("[debug]"));
         assert(debugf!"{}"("debugf").delivered &&
-                outerCapture.level == LogLevel.debug_);
-        assert(info("info").delivered && outerCapture.level == LogLevel.info);
-        assert(infof!"{}"("infof").delivered && outerCapture.level == LogLevel.info);
-        assert(warning("warning").delivered && outerCapture.level == LogLevel.warning);
+                outerCapture.labelText.equal("[debug]"));
+        assert(info("info").delivered && outerCapture.labelText.equal("[info]"));
+        assert(infof!"{}"("infof").delivered &&
+                outerCapture.labelText.equal("[info]"));
+        assert(warning("warning").delivered &&
+                outerCapture.labelText.equal("[warning]"));
         assert(warningf!"{}"("warningf").delivered &&
-                outerCapture.level == LogLevel.warning);
-        assert(error("error").delivered && outerCapture.level == LogLevel.error);
-        assert(errorf!"{}"("errorf").delivered && outerCapture.level == LogLevel.error);
+                outerCapture.labelText.equal("[warning]"));
+        assert(error("error").delivered && outerCapture.labelText.equal("[error]"));
+        assert(errorf!"{}"("errorf").delivered &&
+                outerCapture.labelText.equal("[error]"));
         assert(critical("critical").delivered &&
-                outerCapture.level == LogLevel.critical);
+                outerCapture.labelText.equal("[critical]"));
         assert(criticalf!"{}"("criticalf").delivered &&
-                outerCapture.level == LogLevel.critical);
+                outerCapture.labelText.equal("[critical]"));
         outerCapture.length = 0;
 
         Capture nestedCapture;
