@@ -325,6 +325,19 @@ nothrow @nogc:
     bool[cliFieldCount!T]* seen;
 }
 
+private bool requiredFieldsSatisfied(T)(ParseFrame!T frame)
+{
+    static foreach (index; 0 .. cliFieldCount!T)
+    {
+        static if (fieldIsRequired!(T, index))
+        {
+            if (!(*frame.seen)[index])
+                return false;
+        }
+    }
+    return true;
+}
+
 /// Parses process-style argc/argv without copying argument text.
 CliParseResult!T parseArgs(T)(int argc, char** argv) @trusted if (!cliNeedsAllocator!T)
 {
@@ -457,6 +470,19 @@ private void parseCommand(Root, T, Ancestors...)(
 
         static if (hasSubcommands!T)
         {
+            if (positionalOrdinal < positionalFieldCount!T)
+            {
+                if (!parseNextPositional!T(
+                        state,
+                        currentFrame,
+                        positionalOrdinal,
+                        Ancestors.length,
+                    ))
+                    return;
+                ++state.index;
+                continue;
+            }
+
             bool matched;
             static foreach (Child; CommandTypes!T)
             {
@@ -498,15 +524,6 @@ private void parseCommand(Root, T, Ancestors...)(
 
     if (state.outcome != CliOutcomeKind.invocation)
         return;
-
-    static if (hasSubcommands!T && helpOnMissingSubcommand!T)
-    {
-        if (!node.hasCommand)
-        {
-            state.outcome = CliOutcomeKind.help;
-            return;
-        }
-    }
 
     static foreach (index; 0 .. cliFieldCount!T)
     {
@@ -551,6 +568,25 @@ private void parseCommand(Root, T, Ancestors...)(
                         Ancestors.length,
                         index,
                     );
+                return;
+            }
+        }
+    }
+
+    static if (hasSubcommands!T && helpOnMissingSubcommand!T)
+    {
+        if (!node.hasCommand)
+        {
+            bool ancestorsComplete = true;
+            static foreach (index; 0 .. Ancestors.length)
+            {
+                if (!requiredFieldsSatisfied(ancestors[index]))
+                    ancestorsComplete = false;
+            }
+
+            if (ancestorsComplete)
+            {
+                state.outcome = CliOutcomeKind.help;
                 return;
             }
         }
@@ -920,6 +956,14 @@ private OptionMatch consumeNamedField(
         state.outcome = CliOutcomeKind.terminal;
     return OptionMatch.matched;
 }
+
+private enum positionalFieldCount(T) = () {
+    size_t result;
+    static foreach (index; 0 .. cliFieldCount!T)
+        static if (fieldHas!(T, index, CliPositional))
+            ++result;
+    return result;
+}();
 
 private bool parseNextPositional(T)(
     ref ParseState state,
@@ -1395,6 +1439,14 @@ private void writeHelpAbout(T)(ref AnsiWriter writer) @system
 
 private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
 {
+    static if (hasVisiblePositionals!T)
+    {
+        writer.put('\n');
+        writer.styled(cliHeadingStyle, "Arguments:");
+        writer.put('\n');
+        writePositionals!T(writer, positionalHelpColumnWidth!T);
+    }
+
     static if (hasSubcommands!T)
     {
         writer.put('\n');
@@ -1409,13 +1461,6 @@ private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
             writeCommandHelpLine!Child(writer, commandColumnWidth);
             firstCommand = false;
         }
-    }
-    else static if (hasVisiblePositionals!T)
-    {
-        writer.put('\n');
-        writer.styled(cliHeadingStyle, "Arguments:");
-        writer.put('\n');
-        writePositionals!T(writer, positionalHelpColumnWidth!T);
     }
 
     static if (hasVisibleRequiredLocalOptions!T)
@@ -1571,6 +1616,7 @@ private void writeStaticLocalUsagePath(Current, Path...)(ref AnsiWriter writer) 
     {
         static if (hasVisibleOptionalLocalOptions!Current)
             writeOptionalOptionsUsage(writer);
+        writePositionalUsage!Current(writer);
         alias Child = Path[0];
         writer.put(' ');
         writer.styled(cliCanonicalStyle, commandName!Child);
@@ -1678,6 +1724,7 @@ private void writeActiveUsagePath(Root, T)(
         {
             static if (hasVisibleOptionalLocalOptions!T)
                 writeOptionalOptionsUsage(writer);
+            writePositionalUsage!T(writer);
             writer.put(' ');
             writer.styled(cliCanonicalStyle, commandName!Child);
             writeActiveUsagePath!(Root, Child)(writer, tree, *child);
@@ -1738,6 +1785,7 @@ private void writeCommandOrPositionalUsage(T)(ref AnsiWriter writer) @system
 {
     static if (hasSubcommands!T)
     {
+        writePositionalUsage!T(writer);
         writer.put(' ');
         static if (subcommandIsOptional!T)
             writer.styled(cliValueStyle, "[COMMAND]");

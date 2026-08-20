@@ -73,6 +73,174 @@ struct DependencyListArgs
     bool all;
 }
 
+struct ParentPositionalRootArgs
+{
+    @(cliPositional, cliValueName("WORKSPACE"), cliHelp("Workspace to operate on"))
+    String workspace;
+
+    @(cliShortName('v'), cliCount, cliGlobal)
+    uint verbose;
+
+    alias Commands = CliCommands!(ParentPositionalBuildArgs, ParentPositionalTestArgs);
+}
+
+@(cliCommand("build"), cliAliasName("b"))
+struct ParentPositionalBuildArgs
+{
+    @(cliPositional, cliValueName("TARGET"))
+    String target;
+
+    String output;
+}
+
+@cliCommand("test")
+struct ParentPositionalTestArgs
+{
+    bool all;
+}
+
+struct ParentPositionalTerminalRootArgs
+{
+    @(cliPositional, cliValueName("WORKSPACE"))
+    String workspace;
+
+    @cliTerminal
+    bool done;
+
+    alias Commands = CliCommands!(ParentPositionalTerminalChildArgs);
+}
+
+@cliCommand("run")
+struct ParentPositionalTerminalChildArgs
+{
+}
+
+@(cliHelpOnNoSubcommand, cliAbout("Choose a workspace command"))
+struct ParentPositionalHelpRootArgs
+{
+    String config;
+
+    @(cliPositional, cliValueName("WORKSPACE"))
+    String workspace;
+
+    alias Commands = CliCommands!(ParentPositionalHelpChildArgs);
+}
+
+@cliCommand("run")
+struct ParentPositionalHelpChildArgs
+{
+}
+
+@cliSubcommandOptional
+struct OptionalParentPositionalRootArgs
+{
+    @(cliPositional, cliValueName("WORKSPACE"))
+    String workspace;
+
+    alias Commands = CliCommands!(OptionalParentPositionalChildArgs);
+}
+
+@cliCommand("run")
+struct OptionalParentPositionalChildArgs
+{
+}
+
+struct ParentPositionalGroup
+{
+    @(cliPositional, cliValueName("ORG"))
+    String organization;
+
+    @(cliPositional, cliValueName("PROJECT"))
+    String project;
+}
+
+struct FlattenedParentPositionalRootArgs
+{
+    @cliFlatten
+    ParentPositionalGroup context;
+
+    @(cliShortName('v'), cliCount, cliGlobal)
+    uint verbose;
+
+    alias Commands = CliCommands!(FlattenedParentPositionalChildArgs);
+}
+
+@cliCommand("show")
+struct FlattenedParentPositionalChildArgs
+{
+}
+
+struct NestedParentPositionalRootArgs
+{
+    @(cliPositional, cliValueName("ORG"))
+    String organization;
+
+    alias Commands = CliCommands!(NestedParentPositionalGroupArgs);
+}
+
+@cliCommand("project")
+struct NestedParentPositionalGroupArgs
+{
+    @(cliPositional, cliValueName("PROJECT"))
+    String project;
+
+    @(cliGlobal, cliShortName('q'))
+    bool quiet;
+
+    alias Commands = CliCommands!(NestedParentPositionalLeafArgs);
+}
+
+@cliCommand("build")
+struct NestedParentPositionalLeafArgs
+{
+    bool release;
+}
+
+struct InvalidDefaultParentPositionalArgs
+{
+    @(cliPositional, cliDefault)
+    uint workspace = 1;
+
+    alias Commands = CliCommands!(InvalidParentPositionalChildArgs);
+}
+
+struct InvalidDefaultInputParentPositionalArgs
+{
+    @(cliPositional, cliDefaultInput("workspace"))
+    String workspace;
+
+    alias Commands = CliCommands!(InvalidParentPositionalChildArgs);
+}
+
+struct InvalidOptionalParentPositionalArgs
+{
+    @cliPositional
+    Option!String workspace;
+
+    alias Commands = CliCommands!(InvalidParentPositionalChildArgs);
+}
+
+struct InvalidRepeatedParentPositionalArgs
+{
+    @cliPositional
+    Array!String workspace;
+
+    alias Commands = CliCommands!(InvalidParentPositionalChildArgs);
+}
+
+struct InvalidRestParentPositionalArgs
+{
+    @(cliPositional, cliRest)
+    Array!String workspace;
+
+    alias Commands = CliCommands!(InvalidParentPositionalChildArgs);
+}
+
+@cliCommand("child")
+struct InvalidParentPositionalChildArgs
+{
+}
+
 struct RequiredCommandRoot
 {
     alias Commands = CliCommands!(RequiredCommandChild);
@@ -94,6 +262,8 @@ struct HelpOnMissingRootArgs
 @(cliCommand("group"), cliHelpOnNoSubcommand, cliAbout("Choose a group command"))
 struct HelpOnMissingGroupArgs
 {
+    String profile;
+
     alias Commands = CliCommands!(HelpOnMissingLeafArgs);
 }
 
@@ -545,6 +715,19 @@ CliValueError parsePort(scope String input, Port* output) nothrow @nogc
     if (input == "silent")
         return CliValueError.invalid();
     return CliValueError.invalid("expected a numeric port");
+}
+
+struct CustomParentPositionalRootArgs
+{
+    @(cliPositional, cliValueName("PORT"), cliValueWith!(TestCliValue!parsePort))
+    Port port;
+
+    alias Commands = CliCommands!(CustomParentPositionalChildArgs);
+}
+
+@cliCommand("serve")
+struct CustomParentPositionalChildArgs
+{
 }
 
 CliValueError parseAutomaticJobs(scope String input, uint* output) nothrow @nogc
@@ -2020,8 +2203,22 @@ private void testRequiredCommand()
 
 private void testHelpOnMissingSubcommand()
 {
+    // Missing required fields are more specific than the no-subcommand help
+    // policy. The policy only activates once the current command is otherwise
+    // complete.
     {
         String[1] argv = ["/usr/local/bin/tool"];
+        auto result = parseArgs!HelpOnMissingRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingRequiredOption);
+        assert(result.error.fieldIndex == 0);
+    }
+
+    {
+        String[3] argv = ["tool", "--config", "config.toml"];
         auto result = parseArgs!HelpOnMissingRootArgs(argv);
         scope (exit)
             result.deinit();
@@ -2043,15 +2240,45 @@ private void testHelpOnMissingSubcommand()
         assert(!contains(output.text, "Show this help"));
     }
 
+    // Required fields on the command carrying @cliHelpOnNoSubcommand also
+    // take precedence over generated help.
     {
-        String[2] argv = ["tool", "group"];
+        String[4] argv = ["tool", "--config", "config.toml", "group"];
+        auto result = parseArgs!HelpOnMissingRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingRequiredOption);
+        assert(result.error.commandDepth == 1);
+        assert(result.error.fieldIndex == 0);
+    }
+
+    // A descendant help policy must not hide missing required fields on an
+    // ancestor command. Let normal recursive validation report the ancestor.
+    {
+        String[4] argv = ["tool", "group", "--profile", "dev"];
+        auto result = parseArgs!HelpOnMissingRootArgs(argv);
+        scope (exit)
+            result.deinit();
+
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingRequiredOption);
+        assert(result.error.commandDepth == 0);
+        assert(result.error.fieldIndex == 0);
+    }
+
+    {
+        String[6] argv = [
+            "tool", "--config", "config.toml", "group", "--profile", "dev",
+        ];
         auto result = parseArgs!HelpOnMissingRootArgs(argv);
         scope (exit)
             result.deinit();
 
         assert(!result.hasInvocation);
         assert(!result.failed);
-        assert(result.invocation.command!HelpOnMissingGroupArgs !is null);
+        assert(result.parsed.command!HelpOnMissingGroupArgs !is null);
 
         TextSink output;
         TextSink errors;
@@ -2062,13 +2289,14 @@ private void testHelpOnMissingSubcommand()
         assert(errorWriter.finish().ok);
         assert(errors.text.length == 0);
         assert(contains(output.text, "Choose a group command"));
-        assert(contains(output.text, "Usage: tool --config <CONFIG> group <COMMAND>"));
+        assert(contains(output.text,
+                "Usage: tool --config <CONFIG> group --profile <PROFILE> <COMMAND>"));
         assert(contains(output.text, "run"));
         assert(!contains(output.text, "Show this help"));
     }
 
     {
-        String[2] argv = ["tool", "wat"];
+        String[4] argv = ["tool", "--config", "config.toml", "wat"];
         auto result = parseArgs!HelpOnMissingRootArgs(argv);
         scope (exit)
             result.deinit();
@@ -3056,6 +3284,359 @@ private void testTerminalArguments()
     }
 }
 
+private void testParentPositionalsBeforeSubcommands()
+{
+    static assert(__traits(compiles, parseArgs!ParentPositionalRootArgs(cast(String[]) null)));
+    static assert(__traits(compiles, parseArgs!FlattenedParentPositionalRootArgs(cast(String[]) null)));
+    static assert(!__traits(compiles,
+            parseArgs!InvalidOptionalParentPositionalArgs(cast(String[]) null)));
+    static assert(!__traits(compiles,
+            parseArgs!InvalidRepeatedParentPositionalArgs(cast(String[]) null)));
+    static assert(!__traits(compiles,
+            parseArgs!InvalidRestParentPositionalArgs(cast(String[]) null)));
+    static assert(!__traits(compiles,
+            parseArgs!InvalidDefaultParentPositionalArgs(cast(String[]) null)));
+    static assert(!__traits(compiles,
+            parseArgs!InvalidDefaultInputParentPositionalArgs(cast(String[]) null)));
+
+    // The parent prefix is required before command matching begins.
+    {
+        String[1] argv = ["tool"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingPositional);
+        assert(result.error.fieldIndex == 0);
+    }
+
+    {
+        String[6] argv = ["tool", "workspace", "build", "target", "--output", "out"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.workspace == "workspace");
+        auto build = result.invocation.command!ParentPositionalBuildArgs;
+        assert(build !is null);
+        assert(build.args.target == "target");
+        assert(build.args.output == "out");
+    }
+
+    // Command aliases become eligible at the same boundary as canonical names.
+    {
+        String[6] argv = ["tool", "workspace", "b", "target", "--output", "out"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.workspace == "workspace");
+        assert(result.invocation.command!ParentPositionalBuildArgs !is null);
+    }
+
+    // Options remain parseable before and within the required positional prefix.
+    {
+        String[6] argv = ["tool", "-vv", "workspace", "build", "target", "--output"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingOptionValue);
+        assert(result.parsed.args.workspace == "workspace");
+        assert(result.parsed.args.verbose == 2);
+    }
+
+    {
+        String[4] argv = ["tool", "workspace", "-v", "test"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.workspace == "workspace");
+        assert(result.invocation.args.verbose == 1);
+        assert(result.invocation.command!ParentPositionalTestArgs !is null);
+    }
+
+    {
+        String[5] argv = ["tool", "acme", "-vv", "rocket", "show"];
+        auto result = parseArgs!FlattenedParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.context.organization == "acme");
+        assert(result.invocation.args.context.project == "rocket");
+        assert(result.invocation.args.verbose == 2);
+        assert(result.invocation.command!FlattenedParentPositionalChildArgs !is null);
+    }
+
+    // A token matching a command name or alias is still a positional until the
+    // complete fixed prefix has been consumed.
+    {
+        String[2] argv = ["tool", "build"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.parsed.args.workspace == "build");
+        assert(result.error.kind == CliErrorKind.missingCommand);
+    }
+
+    {
+        String[4] argv = ["tool", "show", "rocket", "show"];
+        auto result = parseArgs!FlattenedParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.context.organization == "show");
+        assert(result.invocation.args.context.project == "rocket");
+        assert(result.invocation.command!FlattenedParentPositionalChildArgs !is null);
+    }
+
+    {
+        String[2] argv = ["tool", "acme"];
+        auto result = parseArgs!FlattenedParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingPositional);
+        assert(result.parsed.args.context.organization == "acme");
+    }
+
+    // `--` preserves the existing command semantics while allowing a leading
+    // dash in a parent positional.
+    {
+        String[4] argv = ["tool", "--", "-workspace", "test"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.workspace == "-workspace");
+        assert(result.invocation.command!ParentPositionalTestArgs !is null);
+    }
+
+    {
+        String[4] argv = ["tool", "workspace", "--", "test"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.workspace == "workspace");
+        assert(result.invocation.command!ParentPositionalTestArgs !is null);
+    }
+
+    // Once the prefix is complete, an unmatched bare token is a command error.
+    {
+        String[3] argv = ["tool", "workspace", "wat"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.unknownCommand);
+        assert(result.error.token == "wat");
+    }
+
+    // Child requiredness is checked only after the parent prefix and command
+    // have been consumed.
+    {
+        String[3] argv = ["tool", "workspace", "build"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingPositional);
+        assert(result.error.commandDepth == 1);
+    }
+
+    {
+        String[4] argv = ["tool", "workspace", "build", "target"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingRequiredOption);
+        assert(result.error.commandDepth == 1);
+    }
+
+    // Nested commands independently apply their own fixed parent prefix.
+    {
+        String[6] argv = ["tool", "acme", "project", "rocket", "-q", "build"];
+        auto result = parseArgs!NestedParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.organization == "acme");
+        auto group = result.invocation.command!NestedParentPositionalGroupArgs;
+        assert(group !is null);
+        assert(group.args.project == "rocket");
+        assert(group.args.quiet);
+        assert(group.command!NestedParentPositionalLeafArgs !is null);
+    }
+
+    {
+        String[4] argv = ["tool", "acme", "project", "build"];
+        auto result = parseArgs!NestedParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        auto group = result.parsed.command!NestedParentPositionalGroupArgs;
+        assert(group !is null);
+        assert(group.args.project == "build");
+        assert(result.error.kind == CliErrorKind.missingCommand);
+    }
+
+    // Custom one-token value representations work in the fixed prefix.
+    {
+        String[3] argv = ["tool", "443", "serve"];
+        auto result = parseArgs!CustomParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.port.value == 443);
+        assert(result.invocation.command!CustomParentPositionalChildArgs !is null);
+    }
+
+    {
+        String[3] argv = ["tool", "bad", "serve"];
+        auto result = parseArgs!CustomParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.invalidValue);
+        assert(result.error.token == "bad");
+    }
+
+    // Flattened positionals participate in the same declaration-order prefix.
+    {
+        String[4] argv = ["tool", "acme", "rocket", "show"];
+        auto result = parseArgs!FlattenedParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.context.organization == "acme");
+        assert(result.invocation.args.context.project == "rocket");
+        assert(result.invocation.command!FlattenedParentPositionalChildArgs !is null);
+    }
+
+    // Explicit built-in and terminal outcomes still short-circuit ordinary
+    // requiredness, including an incomplete parent positional prefix.
+    {
+        String[2] argv = ["tool", "--help"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasBuiltinResponse);
+        assert(!result.failed);
+    }
+
+    {
+        String[3] argv = ["tool", "workspace", "--help"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasBuiltinResponse);
+        assert(result.parsed.args.workspace == "workspace");
+    }
+
+    {
+        String[2] argv = ["tool", "--done"];
+        auto result = parseArgs!ParentPositionalTerminalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasTerminal);
+        assert(result.parsed.args.done);
+        assert(result.parsed.args.workspace.length == 0);
+    }
+
+    {
+        String[3] argv = ["tool", "workspace", "--done"];
+        auto result = parseArgs!ParentPositionalTerminalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasTerminal);
+        assert(result.parsed.args.done);
+        assert(result.parsed.args.workspace == "workspace");
+    }
+
+    // Missing-subcommand policies do not weaken the required parent prefix.
+    {
+        String[3] argv = ["tool", "--config", "config.toml"];
+        auto result = parseArgs!ParentPositionalHelpRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingPositional);
+    }
+
+    {
+        String[4] argv = ["tool", "--config", "config.toml", "workspace"];
+        auto result = parseArgs!ParentPositionalHelpRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(!result.failed);
+        assert(!result.hasInvocation);
+        assert(result.parsed.args.config == "config.toml");
+        assert(result.parsed.args.workspace == "workspace");
+    }
+
+    {
+        String[1] argv = ["tool"];
+        auto result = parseArgs!OptionalParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingPositional);
+    }
+
+    {
+        String[2] argv = ["tool", "workspace"];
+        auto result = parseArgs!OptionalParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.hasInvocation);
+        assert(result.invocation.args.workspace == "workspace");
+        assert(!result.invocation.hasCommand);
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!ParentPositionalRootArgs(writer, "tool");
+        assert(writer.finish().ok);
+        assert(contains(output.text, "Usage: tool [OPTIONS] <WORKSPACE> <COMMAND>"));
+        assert(contains(output.text, "Arguments:"));
+        assert(contains(output.text, "<WORKSPACE>"));
+        assert(contains(output.text, "Workspace to operate on"));
+        assert(contains(output.text, "Commands:"));
+    }
+
+    {
+        TextSink output;
+        Writer writer = Writer.fromSink(&textSink, &output);
+        writeHelp!(ParentPositionalRootArgs, ParentPositionalBuildArgs)(writer, "tool");
+        assert(writer.finish().ok);
+        assert(contains(output.text,
+                "Usage: tool <WORKSPACE> build --output <OUTPUT> [OPTIONS] <TARGET>"));
+    }
+
+    {
+        String[2] argv = ["tool", "workspace"];
+        auto result = parseArgs!ParentPositionalRootArgs(argv);
+        scope (exit)
+            result.deinit();
+        assert(result.failed);
+        assert(result.error.kind == CliErrorKind.missingCommand);
+
+        TextSink output;
+        TextSink errors;
+        Writer outputWriter = Writer.fromSink(&textSink, &output);
+        Writer errorWriter = Writer.fromSink(&textSink, &errors);
+        assert(writeCliResult(outputWriter, errorWriter, result) != 0);
+        assert(outputWriter.finish().ok);
+        assert(errorWriter.finish().ok);
+        assert(contains(errors.text, "Usage: tool [OPTIONS] <WORKSPACE> <COMMAND>"));
+    }
+}
+
 private void testTerminalCleanup()
 {
     AllocationRecord[16] records;
@@ -3146,6 +3727,7 @@ private void testAllocationFailureCleansUp()
 extern (C) int main()
 {
     testFlattenedArguments();
+    testParentPositionalsBeforeSubcommands();
     testRequirednessAndDefaults();
     testExplicitTypedTraversal();
     testNestedCommandsAndChildVersionOption();

@@ -1657,8 +1657,15 @@ private bool validateCommand(Root, T)() pure @safe
     static if (hasSubcommands!U)
     {
         static foreach (index; 0 .. cliFieldCount!U)
-            static assert(!fieldHas!(U, index, CliPositional),
-                U.stringof ~ " cannot declare positional arguments while it has subcommands");
+        {
+            static if (fieldHas!(U, index, CliPositional))
+            {
+                static assert(fieldIsRequired!(U, index),
+                    U.stringof ~ " parent positional arguments before subcommands must be required");
+                static assert(!fieldHas!(U, index, CliRest) && !cliFieldIsRepeated!(U, index),
+                    U.stringof ~ " parent positional arguments before subcommands must consume exactly one value");
+            }
+        }
 
         static foreach (leftIndex; 0 .. CommandTypes!U.length)
             static assert(validateChildAt!(U, leftIndex)());

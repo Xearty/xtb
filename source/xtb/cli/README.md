@@ -515,9 +515,31 @@ Array!String arguments;
 
 `--` ends option recognition and is useful before forwarded/rest arguments.
 
-Current limitation: a command that has child commands cannot itself declare
-positionals. Required parent positionals before subcommands are the highest
-priority item in the roadmap.
+Commands with child commands may declare required fixed-count positionals.
+Those positionals are consumed in declaration order before a bare token can
+select a child command:
+
+```d
+struct RootArgs
+{
+    @(cliPositional, cliValueName("WORKSPACE"))
+    String workspace;
+
+    alias Commands = CliCommands!(BuildArgs, TestArgs);
+}
+```
+
+```text
+tool my-workspace build
+tool my-workspace test
+```
+
+Optional, defaulted, repeated, and rest parent positionals are rejected because
+they would make the positional/command boundary ambiguous. A token that happens
+to equal a command name is still consumed as a parent positional until all
+required parent positionals are satisfied. Thus `tool build` above means
+`WORKSPACE="build"` followed by a missing-command error. Named and global
+options may still appear around the parent positional prefix.
 
 ## Naming and aliases
 
@@ -729,7 +751,11 @@ struct RootArgs
 }
 ```
 
-returns generated help when argv ends without a child command.
+returns generated help when argv ends without a child command, but only after
+all required fields on the active command path have been satisfied. Missing
+required options or positionals therefore produce their normal diagnostics
+instead of being replaced by help. Explicit built-in or terminal outcomes still
+short-circuit normal requiredness.
 
 The two policies are mutually exclusive.
 
@@ -925,7 +951,6 @@ not become runtime parser edge cases.
 Important current limitations are tracked in [`ROADMAP.md`](ROADMAP.md). The
 most relevant today are:
 
-- commands with child commands cannot declare parent positionals;
 - cross-argument relationships/groups are application validation;
 - unknown-option/command diagnostics do not yet provide typo suggestions;
 - shell completion scripts are not generated;

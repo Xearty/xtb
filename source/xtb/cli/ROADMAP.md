@@ -155,6 +155,10 @@ composes with `Option!bool` and semantic defaults.
 
 `cliSubcommandOptional` and `cliHelpOnNoSubcommand` cover the useful non-error
 behaviors when argv ends before a child command is selected.
+`cliHelpOnNoSubcommand` applies only after required fields on the active command
+path are satisfied, so missing required options or positionals keep their normal
+diagnostics. Explicit built-in and terminal outcomes continue to short-circuit
+normal requiredness.
 
 ## Terminal arguments — done
 
@@ -175,76 +179,26 @@ schemas.
 
 # Ranked future work
 
-## 1. Required parent positionals before subcommands
+## Required parent positionals before subcommands — done
 
-**Status:** proposed
 **Importance:** very high
 
-### Why
+Commands with child commands may declare a fixed prefix of required positional
+arguments. The parser consumes that prefix before attempting child-command
+matching, so command-like positional values remain unambiguous. Optional,
+defaulted, repeated, and rest parent positionals remain compile-time schema
+errors. Usage/help include the parent positional prefix before the command, and
+commands with both parent positionals and children render independent
+`Arguments:` and `Commands:` sections.
 
-This is the largest remaining structural limitation. Common CLIs naturally put
-a resource identifier before an operation:
-
-```text
-tool <WORKSPACE> build
-tool <WORKSPACE> test
-cloud <PROJECT> deploy
-```
-
-Today a command with child commands cannot declare any positional fields.
-
-### Proposed interface
-
-No new attribute should be necessary:
-
-```d
-struct RootArgs
-{
-    @(cliPositional, cliValueName("WORKSPACE"))
-    String workspace;
-
-    alias Commands = CliCommands!(BuildArgs, TestArgs);
-}
-```
-
-### Proposed semantics
-
-Initially permit only **fixed required** parent positionals before subcommand
-selection.
-
-Allow:
-
-```text
-tool <WORKSPACE> <COMMAND>
-tool <ORG> <PROJECT> <COMMAND>
-```
-
-Continue to reject optional, repeated, or rest parent positionals because they
-make the command boundary ambiguous.
-
-Required parent positionals are consumed first. Only after they are complete
-does a bare token participate in child-command matching. Therefore, if
-`<PROJECT>` is required, `tool build` means `PROJECT="build"` followed by a
-missing command. This preserves the ability to name a project `build`.
-
-### Implementation thoughts
-
-- Relax the blanket positional/subcommand schema assertion only for a proven
-  fixed-required prefix.
-- Parse that prefix before child matching.
-- Preserve named/global option handling around it.
-- Update selected/static usage to include ancestor positionals.
-- Finalize parent defaults/requiredness before declaring the invocation valid.
-- Test aliases, globals, `--`, built-in help, terminal outcomes, and both
-  missing-position/missing-command diagnostics.
-
-### Recommendation
-
-**Undertake.** High value, deterministic if kept to the strict form above.
+**Keep:** do not add heuristic subcommand lookahead. If `<PROJECT>` is still
+required, a token `build` is the project value even when `build` is also a child
+command name. Preserve option parsing around the positional prefix and the
+existing `--` semantics.
 
 ---
 
-## 2. Argument relationships and groups
+## 1. Argument relationships and groups
 
 **Status:** proposed
 **Importance:** very high
@@ -312,12 +266,12 @@ at-least-one, and exactly-one. Avoid arbitrary boolean-expression DSLs.
 
 ### Recommendation
 
-**Undertake after parent positionals.** This eliminates a large amount of
+**Recommended next.** This eliminates a large amount of
 application-side validation without making the parser dynamic.
 
 ---
 
-## 3. Better diagnostics and typo suggestions
+## 2. Better diagnostics and typo suggestions
 
 **Status:** proposed
 **Importance:** high
@@ -361,7 +315,7 @@ output.
 
 ---
 
-## 4. Generated shell completions
+## 3. Generated shell completions
 
 **Status:** proposed
 **Importance:** high
@@ -402,7 +356,7 @@ CompletionShell completions;
 
 ---
 
-## 5. Help wrapping and rendering options
+## 4. Help wrapping and rendering options
 
 **Status:** proposed
 **Importance:** high-medium
@@ -449,7 +403,7 @@ capabilities.
 
 ---
 
-## 6. Common value constraints
+## 5. Common value constraints
 
 **Status:** proposed
 **Importance:** medium-high
@@ -494,7 +448,7 @@ problem and may be sufficient.
 
 ---
 
-## 7. Environment-variable fallback
+## 6. Environment-variable fallback
 
 **Status:** proposed
 **Importance:** medium
@@ -546,7 +500,7 @@ casually add ambient environment reads to the parser.
 
 ---
 
-## 8. Hidden subcommands
+## 7. Hidden subcommands
 
 **Status:** proposed
 **Importance:** medium
@@ -582,7 +536,7 @@ struct InternalArgs
 
 ---
 
-## 9. Deprecation metadata for old spellings
+## 8. Deprecation metadata for old spellings
 
 **Status:** proposed
 **Importance:** medium-low
@@ -611,7 +565,7 @@ semantics. It should not be implemented merely because aliases exist.
 
 ---
 
-## 10. Response files (`@args.txt`)
+## 9. Response files (`@args.txt`)
 
 **Status:** deferred
 **Importance:** medium-low
@@ -660,11 +614,8 @@ rules. Avoid growing a mini boolean language in attributes.
 
 # Next discussion
 
-The next feature to discuss is **required parent positionals before
-subcommands**. Before implementation, settle:
-
-1. exact interaction with `--`;
-2. whether only plain required scalar positionals are allowed or whether
-   required custom-representation positionals are equally valid;
-3. how descendant help should present ancestor positional descriptions;
-4. exact missing-positional versus missing-command diagnostics.
+The next feature to discuss is **argument relationships/groups**: conflicts,
+requires, exactly-one / at-least-one constraints, and potentially explicit
+cardinality constraints for repeated/count arguments. The design should remain
+small and statically validated rather than becoming a general boolean
+expression DSL.
