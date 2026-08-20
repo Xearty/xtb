@@ -1341,6 +1341,33 @@ public:
         storage_.appendEscaped(allocator_, value);
     }
 
+    /// Copies this buffer into a new exact-sized owner allocated by `allocator`.
+    bool tryCopy(
+        Allocator* allocator,
+        scope OwnedString* output,
+    ) const @trusted
+    {
+        return storage_.view.tryCopy(allocator, output);
+    }
+
+    /// Copies this buffer into arena-owned storage.
+    bool tryCopy(Arena* arena, scope String* output) const @trusted
+    {
+        return storage_.view.tryCopy(arena, output);
+    }
+
+    /// Panicking independently owned counterpart to `tryCopy`.
+    OwnedString copy(Allocator* allocator) const @trusted
+    {
+        return storage_.view.copy(allocator);
+    }
+
+    /// Panicking arena-owned counterpart to `tryCopy`.
+    String copy(Arena* arena) const @trusted
+    {
+        return storage_.view.copy(arena);
+    }
+
     bool tryReplaceInPlace(String from, String to) @trusted
     {
         return storage_.tryReplaceInPlace(allocator_, from, to);
@@ -2265,15 +2292,6 @@ private:
     Allocator* allocator_;
     Storage storage_;
 
-    /// D's transitive const turns `Allocator*` into `const(Allocator)*` in a
-    /// const method even though invoking the allocator does not mutate this
-    /// `OwnedString`. Constructors only accept mutable allocator slots, so the
-    /// original allocator remains mutable when the string is viewed as const.
-    Allocator* allocatorForAllocation() const @trusted
-    {
-        return cast(Allocator*) allocator_;
-    }
-
     version (XTB_Checked)
     {
         invariant
@@ -2433,12 +2451,6 @@ public:
         return storage_.view.copy(arena);
     }
 
-    /// Clones this value with its current allocator.
-    bool tryClone(scope Self* output) const @trusted
-    {
-        return Self.tryFromString(allocatorForAllocation, storage_.view, output);
-    }
-
     /// Clones this value with an explicit allocator.
     bool tryClone(
         Allocator* allocator,
@@ -2448,22 +2460,10 @@ public:
         return Self.tryFromString(allocator, storage_.view, output);
     }
 
-    /// Panicking clone using this value's current allocator.
-    Self clone() const @trusted
-    {
-        return Self.fromString(allocatorForAllocation, storage_.view);
-    }
-
     /// Panicking clone using an explicit allocator.
     Self clone(Allocator* allocator) const @trusted
     {
         return Self.fromString(allocator, storage_.view);
-    }
-
-    /// Concatenates into a new owner using this value's allocator.
-    bool tryConcat(String right, scope Self* output) const @trusted
-    {
-        return storage_.view.tryConcat(right, allocatorForAllocation, output);
     }
 
     /// Concatenates into a new owner using an explicit allocator.
@@ -2486,12 +2486,6 @@ public:
         return storage_.view.tryConcat(right, arena, output);
     }
 
-    /// Panicking concatenation using this value's allocator.
-    Self concat(String right) const @trusted
-    {
-        return storage_.view.concat(right, allocatorForAllocation);
-    }
-
     /// Panicking concatenation using an explicit allocator.
     Self concat(String right, Allocator* allocator) const @trusted
     {
@@ -2502,16 +2496,6 @@ public:
     String concat(String right, Arena* arena) const @trusted
     {
         return storage_.view.concat(right, arena);
-    }
-
-    /// Replaces matches into a new owner using this value's allocator.
-    bool tryReplace(
-        String from,
-        String to,
-        scope Self* output,
-    ) const @trusted
-    {
-        return storage_.view.tryReplace(from, to, allocatorForAllocation, output);
     }
 
     /// Replaces matches into a new owner using an explicit allocator.
@@ -2536,12 +2520,6 @@ public:
         return storage_.view.tryReplace(from, to, arena, output);
     }
 
-    /// Panicking replacement using this value's allocator.
-    Self replace(String from, String to) const @trusted
-    {
-        return storage_.view.replace(from, to, allocatorForAllocation);
-    }
-
     /// Panicking replacement using an explicit allocator.
     Self replace(
         String from,
@@ -2558,12 +2536,6 @@ public:
         return storage_.view.replace(from, to, arena);
     }
 
-    /// Escapes into a new owner using this value's allocator.
-    bool tryEscape(scope Self* output) const @trusted
-    {
-        return storage_.view.tryEscape(allocatorForAllocation, output);
-    }
-
     /// Escapes into a new owner using an explicit allocator.
     bool tryEscape(
         Allocator* allocator,
@@ -2577,12 +2549,6 @@ public:
     bool tryEscape(Arena* arena, scope String* output) const @trusted
     {
         return storage_.view.tryEscape(arena, output);
-    }
-
-    /// Panicking escape using this value's allocator.
-    Self escape() const @trusted
-    {
-        return storage_.view.escape(allocatorForAllocation);
     }
 
     /// Panicking escape using an explicit allocator.
@@ -2632,101 +2598,6 @@ package(xtb):
         moveEmplace(*storage, result.storage_);
         return move(result);
     }
-}
-
-/// Consumes `source` into an immutable exact-sized owner using the buffer's
-/// current allocator. On allocation failure `source` is unchanged.
-bool tryIntoOwnedString(
-    scope ref StringBuf source,
-    scope OwnedString* output,
-) @trusted
-{
-    return tryIntoOwnedString(source, source.allocator, output);
-}
-
-/// Consumes `source` into an immutable exact-sized owner using `destination`.
-/// On allocation failure `source` is unchanged.
-bool tryIntoOwnedString(
-    scope ref StringBuf source,
-    Allocator* destination,
-    scope OwnedString* output,
-) @trusted
-{
-    return tryConsumeStringBuf(destination, &source, output);
-}
-
-/// Panicking counterpart to `tryIntoOwnedString` using the buffer's allocator.
-OwnedString intoOwnedString(scope ref StringBuf source) @trusted
-{
-    return intoOwnedString(source, source.allocator);
-}
-
-/// Panicking counterpart to `tryIntoOwnedString` using `destination`.
-OwnedString intoOwnedString(
-    scope ref StringBuf source,
-    Allocator* destination,
-) @trusted
-{
-    OwnedString result;
-    if (!tryConsumeStringBuf(destination, &source, &result))
-        panic("OwnedString allocation failed");
-    return move(result);
-}
-
-private bool tryConsumeStringBuf(
-    Allocator* destination,
-    scope StringBuf* source,
-    scope OwnedString* output,
-) @trusted
-{
-    requireValidOwnedStringAllocator(destination);
-    version (XTB_Checked)
-    {
-        require(source !is null, "StringBuf source pointer is null");
-        require(output !is null, "OwnedString output pointer is null");
-        require(output.allocator_ is null && output.storage_.empty,
-            "OwnedString output is not empty");
-    }
-
-    if (source.empty)
-    {
-        source.resetAndRelease();
-        source.deinit();
-        OwnedString result = OwnedString.create(destination);
-        moveEmplace(result, *output);
-        return true;
-    }
-
-    if (source.allocator is destination)
-    {
-        if (source.byteCapacity == source.byteLength ||
-            source.tryShrinkToFit())
-        {
-            auto released = source.release();
-            Allocator* releasedAllocator;
-            StringBufUnmanaged raw = released.extract(
-                &releasedAllocator,
-            );
-            version (XTB_Checked)
-                require(releasedAllocator is destination,
-                    "StringBuf allocator changed during release");
-            RawArrayStorage!char exact = raw.releaseExactStorage();
-            OwnedStringUnmanaged storage =
-                OwnedStringUnmanaged.adoptExact(&exact);
-            OwnedString result =
-                OwnedString.adoptUnmanaged(destination, &storage);
-            moveEmplace(result, *output);
-            return true;
-        }
-    }
-
-    OwnedString copied;
-    if (!OwnedString.tryFromString(destination, source.view, &copied))
-        return false;
-    source.resetAndRelease();
-    source.deinit();
-    moveEmplace(copied, *output);
-    return true;
 }
 
 /// Copies borrowed text into exact-sized independently owned storage.
@@ -3290,13 +3161,10 @@ unittest
         exact.shrinkToFit();
         exactPointer = exact.view.ptr;
     }
-    OwnedString adopted = exact.intoOwnedString();
-    {
-        import xtb.core.string : empty;
-
-        assert(exact.allocator is null && exact.empty);
-    }
-    assert(adopted.view.ptr is exactPointer);
+    OwnedString bufferCopy = exact.copy(mallocAllocator());
+    assert(bufferCopy.view == exact.view);
+    assert(bufferCopy.view.ptr !is exactPointer);
+    assert(exact.view.ptr is exactPointer);
 
     StringBufUnmanaged unmanaged = StringBufUnmanaged.fromString(
         mallocAllocator(),
@@ -3320,7 +3188,7 @@ unittest
     StringBuf source = StringBuf.fromString(mallocAllocator(), "retained");
     failing.failAfter(0);
     OwnedString failed;
-    assert(!source.tryIntoOwnedString(failing.allocator, &failed));
+    assert(!source.tryCopy(failing.allocator, &failed));
     {
         assert(source.view == "retained");
         source.deinit();
@@ -3329,7 +3197,8 @@ unittest
     assert(failing.clean);
 
     failed.deinit();
-    adopted.deinit();
+    bufferCopy.deinit();
+    exact.deinit();
     copy.deinit();
     text.deinit();
     empty.deinit();
@@ -3368,14 +3237,11 @@ unittest
     {
         spare.append("small");
     }
-    OwnedString compact = spare.intoOwnedString();
+    OwnedString compact = spare.copy(allocator.allocator);
     assert(compact.view == "small");
     assert(compact.byteLength == 5);
-    {
-        import xtb.core.string : empty;
-
-        assert(spare.allocator is null && spare.empty);
-    }
+    assert(compact.view.ptr !is spare.view.ptr);
+    assert(spare.view == "small");
 
     AllocationRecord[8] foreignRecords;
     InstrumentedAllocator foreign = InstrumentedAllocator.create(
@@ -3390,19 +3256,16 @@ unittest
     {
         foreignPointer = foreignBuffer.view.ptr;
     }
-    OwnedString normalized =
-        foreignBuffer.intoOwnedString(allocator.allocator);
+    OwnedString normalized = foreignBuffer.copy(allocator.allocator);
     assert(normalized.view == "foreign");
     assert(normalized.view.ptr !is foreignPointer);
-    {
-        import xtb.core.string : empty;
-
-        assert(foreignBuffer.allocator is null && foreignBuffer.empty);
-    }
+    assert(foreignBuffer.view == "foreign");
+    foreignBuffer.deinit();
     assert(foreign.clean);
 
     normalized.deinit();
     compact.deinit();
+    spare.deinit();
     empty.deinit();
     assert(allocator.clean);
     assert(allocator.stats.invalidCalls == 0);

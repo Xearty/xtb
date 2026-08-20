@@ -758,8 +758,7 @@ read-only borrowed view, `StringBuf` is an owning mutable growable buffer, and
 `OwnedString` is an owning immutable exact-sized value. Do not collapse these
 roles and do not use a mutable D slice as the public string abstraction. Their
 public implementations, including the unmanaged counterparts of both owning
-types, live together in `xtb.core.string`; `xtb.core.owned_string` is only a
-compatibility re-export for older focused imports.
+types, live together in `xtb.core.string`.
 
 #### `String`: read-only borrowed text
 
@@ -963,26 +962,22 @@ just like other managed containers. `OwnedString` has no D destructor; callers
 end its owning lifetime explicitly with `deinit`, while `release` transfers that
 cleanup obligation into a `ReleasedStorage` token.
 
-Conversion from `StringBuf` is explicitly consuming and transactional. The
-preferred spelling is `buffer.intoOwnedString()`, which keeps the buffer's
-allocator, or `buffer.intoOwnedString(destination)` for an explicit ownership
-domain. The matching `tryIntoOwnedString` forms leave both source and output
-unchanged on recoverable failure. On success the source buffer is inert. A
-same-allocator buffer with exact capacity transfers its allocation directly;
-spare capacity is first shrunk when possible. A foreign-allocator buffer is
-copied into the destination allocator and released only after the copy
-succeeds. The older `OwnedString.fromStringBuf(...)` factory spelling is not
-kept because it obscures the fact that the source is consumed.
+`StringBuf.copy` always leaves the mutable source unchanged. With an explicit
+`Allocator*`, it allocates exact-sized `OwnedString` storage and copies every
+nonempty input. With an explicit `Arena*`, it copies into arena-owned storage
+and returns `String`. The matching `tryCopy` forms leave both the source and
+required-empty output unchanged on recoverable failure. There is no consuming
+conversion that changes between allocation transfer, shrinking, and copying
+based on buffer capacity or allocator identity.
 
 `OwnedString.view` returns a borrowed `String`. Routine immutable
 transformations do not require manually spelling that view: `concat`,
-`replace`, and `escape` are direct `OwnedString` methods. With no explicit
-context they allocate another `OwnedString` using the source allocator; an
-explicit `Allocator*` selects another independent allocator, while an `Arena*`
-returns an arena-owned `String`. `clone()` likewise reuses the source allocator,
-`clone(Allocator*)` selects another allocator, and `copy(Arena*)` projects the
-bytes into arena lifetime. Independent duplication keeps the ownership-specific
-`clone` spelling rather than adding a redundant `copy(Allocator*)` member.
+`replace`, and `escape` are direct `OwnedString` methods. Every allocating form
+requires an explicit `Allocator*` and returns another independent owner, while
+an explicit `Arena*` returns an arena-owned `String`. `clone(Allocator*)`
+follows the same rule, and `copy(Arena*)` projects the bytes into arena lifetime.
+Independent duplication keeps the ownership-specific `clone` spelling rather
+than adding a redundant `copy(Allocator*)` member.
 
 Embedded NUL participates in length, equality, and hashing. Callers needing a
 conventional C string copy the view into `StringBuf` and call `checkedCString`;
@@ -1235,13 +1230,13 @@ OwnedString makePath(
     ScratchScope scratch = ScratchScope.acquire(outputAllocator);
 
     StringBuf temporary = StringBuf.create(scratch.allocator);
+    scope (exit) temporary.deinit();
     temporary.append(left);
     temporary.append('/');
     temporary.append(right);
 
-    // The conversion consumes the builder and copies exact storage into
-    // outputAllocator. The result therefore survives the scratch rewind.
-    return temporary.intoOwnedString(outputAllocator);
+    // Explicitly copy into outputAllocator so the result survives rewind.
+    return temporary.copy(outputAllocator);
 }
 ```
 

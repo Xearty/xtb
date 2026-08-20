@@ -13,8 +13,8 @@ import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
 import xtb.core.result : Result;
 import xtb.core.string : OwnedString, OwnedStringUnmanaged, StringBuf,
-    StringBufUnmanaged, concat, copy, escape, intoOwnedString, join, replace,
-    tryConcat, tryCopy, tryEscape, tryIntoOwnedString, tryJoin, tryReplace;
+    StringBufUnmanaged, concat, copy, escape, join, replace, tryConcat,
+    tryCopy, tryEscape, tryJoin, tryReplace;
 import xtb.core.string_hash_map : OwnedStringHashMap;
 import xtb.core.types : String;
 
@@ -48,8 +48,6 @@ static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBuf value) {
         auto result = OwnedString.fromStringBuf(allocator, &value);
     }));
-static assert(__traits(compiles,
-        (ref StringBuf value) { OwnedString result = value.intoOwnedString(); deinit(result); }));
 static assert(!__traits(compiles,
         (ref StringBufUnmanaged left, ref StringBufUnmanaged right) { left = move(right); }));
 static assert(!__traits(compiles,
@@ -214,18 +212,37 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
 {
     static assert(__traits(compiles,
             (scope const OwnedString* value, Allocator* allocator, Arena* arena) {
-            OwnedString clone = value.clone();
-            OwnedString concatDefault = value.concat("!");
+            OwnedString clone = value.clone(allocator);
             OwnedString concatExplicit = value.concat("!", allocator);
             String concatArena = value.concat("!", arena);
-            OwnedString replaceDefault = value.replace("a", "b");
             OwnedString replaceExplicit = value.replace("a", "b", allocator);
             String replaceArena = value.replace("a", "b", arena);
-            OwnedString escapeDefault = value.escape();
             OwnedString escapeExplicit = value.escape(allocator);
             String escapeArena = value.escape(arena);
             String arenaCopy = value.copy(arena);
+            OwnedString output;
+            value.tryClone(allocator, &output);
         }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value) { auto result = value.clone(); }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value) { auto result = value.concat("!"); }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value) { auto result = value.replace("a", "b"); }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value) { auto result = value.escape(); }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value, scope OwnedString* output) { value.tryClone(output); }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value, scope OwnedString* output) {
+            value.tryConcat("!", output);
+        }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value, scope OwnedString* output) {
+            value.tryReplace("a", "b", output);
+        }));
+    static assert(!__traits(compiles,
+            (scope const OwnedString* value, scope OwnedString* output) { value.tryEscape(output); }));
 
     AllocationRecord[32] otherRecords;
     InstrumentedAllocator other = InstrumentedAllocator.create(
@@ -238,26 +255,30 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
         scope (exit)
             source.deinit();
 
-        OwnedString cloned = source.clone();
+        OwnedString cloned = source.clone(tracked.allocator);
         scope (exit)
             cloned.deinit();
         assert(cloned.view == source.view);
         assert(cloned.view.ptr !is source.view.ptr);
         assert(cloned.allocator is source.allocator);
 
-        OwnedString concatenated = source.concat("!");
+        OwnedString concatenated = source.concat("!", tracked.allocator);
         scope (exit)
             concatenated.deinit();
         assert(concatenated.view == "hello\nworld!");
         assert(concatenated.allocator is source.allocator);
 
-        OwnedString replaced = concatenated.replace("world", "XTB");
+        OwnedString replaced = concatenated.replace(
+            "world",
+            "XTB",
+            tracked.allocator,
+        );
         scope (exit)
             replaced.deinit();
         assert(replaced.view == "hello\nXTB!");
         assert(replaced.allocator is source.allocator);
 
-        OwnedString escaped = replaced.escape();
+        OwnedString escaped = replaced.escape(tracked.allocator);
         scope (exit)
             escaped.deinit();
         assert(escaped.view == "hello\\nXTB!");
@@ -298,7 +319,7 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
         OwnedString failed;
         scope (exit)
             failed.deinit();
-        assert(!source.tryConcat(" failure", &failed));
+        assert(!source.tryConcat(" failure", tracked.allocator, &failed));
         assert(failed.allocator is null && failed.empty);
         tracked.allowAllocations();
     }
@@ -555,21 +576,48 @@ private void testArenaStringTransforms(InstrumentedAllocator* tracked)
     failing.deinit();
 }
 
-private void testStringBufIntoOwnedString(InstrumentedAllocator* tracked)
+private void testStringBufCopies(InstrumentedAllocator* tracked)
 {
+    static assert(__traits(compiles,
+            (scope const StringBuf* value, Allocator* allocator, Arena* arena) {
+            OwnedString owned = value.copy(allocator);
+            String temporary = value.copy(arena);
+        }));
+    static assert(!__traits(compiles,
+            (scope const StringBuf* value) { auto copied = value.copy(); }));
+
     {
-        StringBuf exact = StringBuf.fromString(tracked.allocator, "exact");
-        exact.shrinkToFit();
-        const(char)* original = exact.view.ptr;
-
-        OwnedString frozen = exact.intoOwnedString();
+        StringBuf source = StringBuf.create(tracked.allocator);
         scope (exit)
-            frozen.deinit();
+            source.deinit();
+        const allocationCalls = tracked.stats.allocationCalls;
 
-        assert(frozen.view == "exact");
-        assert(frozen.view.ptr is original);
-        assert(frozen.allocator is tracked.allocator);
-        assert(exact.allocator is null && exact.empty);
+        OwnedString copied = source.copy(tracked.allocator);
+        scope (exit)
+            copied.deinit();
+        assert(copied.empty);
+        assert(copied.allocator is tracked.allocator);
+        assert(source.empty);
+        assert(source.allocator is tracked.allocator);
+        assert(tracked.stats.allocationCalls == allocationCalls);
+    }
+    assert(tracked.clean);
+
+    {
+        StringBuf source = StringBuf.fromString(tracked.allocator, "same");
+        scope (exit)
+            source.deinit();
+        const(char)* original = source.view.ptr;
+
+        OwnedString copied = source.copy(tracked.allocator);
+        scope (exit)
+            copied.deinit();
+
+        assert(copied.view == "same");
+        assert(copied.view.ptr !is original);
+        assert(copied.allocator is tracked.allocator);
+        assert(source.view == "same");
+        assert(source.allocator is tracked.allocator);
     }
     assert(tracked.clean);
 
@@ -579,18 +627,36 @@ private void testStringBufIntoOwnedString(InstrumentedAllocator* tracked)
         foreignRecords[],
     );
     {
-        StringBuf source = StringBuf.fromString(foreign.allocator, "promote");
+        StringBuf source = StringBuf.fromString(foreign.allocator, "foreign");
+        scope (exit)
+            source.deinit();
         const(char)* original = source.view.ptr;
 
-        OwnedString promoted = source.intoOwnedString(tracked.allocator);
+        OwnedString copied = source.copy(tracked.allocator);
         scope (exit)
-            promoted.deinit();
+            copied.deinit();
 
-        assert(promoted.view == "promote");
-        assert(promoted.view.ptr !is original);
-        assert(promoted.allocator is tracked.allocator);
-        assert(source.allocator is null && source.empty);
-        assert(foreign.clean);
+        assert(copied.view == "foreign");
+        assert(copied.view.ptr !is original);
+        assert(copied.allocator is tracked.allocator);
+        assert(source.view == "foreign");
+        assert(source.allocator is foreign.allocator);
+    }
+    assert(foreign.clean);
+    assert(tracked.clean);
+
+    {
+        StringBuf source = StringBuf.fromString(tracked.allocator, "temporary");
+        scope (exit)
+            source.deinit();
+        Arena arena = Arena.create(tracked.allocator, 128);
+        scope (exit)
+            arena.deinit();
+
+        String copied = source.copy(&arena);
+        assert(copied == "temporary");
+        assert(copied.ptr !is source.view.ptr);
+        assert(source.view == "temporary");
     }
     assert(tracked.clean);
 
@@ -608,11 +674,18 @@ private void testStringBufIntoOwnedString(InstrumentedAllocator* tracked)
             output.deinit();
 
         failing.failAfter(0);
-        assert(!retained.tryIntoOwnedString(failing.allocator, &output));
+        assert(!retained.tryCopy(failing.allocator, &output));
         assert(retained.view == "retained");
         assert(retained.allocator is tracked.allocator);
         assert(output.allocator is null && output.empty);
         assert(failing.clean);
+
+        Arena failingArena = Arena.create(failing.allocator, 128);
+        String arenaOutput = "unchanged";
+        assert(!retained.tryCopy(&failingArena, &arenaOutput));
+        assert(arenaOutput == "unchanged");
+        assert(retained.view == "retained");
+        failingArena.deinit();
     }
     assert(tracked.clean);
 }
@@ -948,7 +1021,7 @@ extern (C) int main()
     testStringBufInPlaceTransforms(&tracked);
     testStringBufReplacementOutputs(&tracked);
     testArenaStringTransforms(&tracked);
-    testStringBufIntoOwnedString(&tracked);
+    testStringBufCopies(&tracked);
     testOptionResultComposition(&tracked);
     testOwnedContainers(&tracked);
     testOwnedArrayIntegration(&tracked);

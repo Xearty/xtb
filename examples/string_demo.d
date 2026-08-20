@@ -147,23 +147,24 @@ extern (C) int main() nothrow @nogc
         scope (exit)
             ownedCopy.deinit();
 
-        // OwnedString forwards immutable transforms directly. Omitting the
-        // allocator reuses the source owner's allocator.
-        OwnedString ownedConcat = ownedCopy.concat(" world");
+        // OwnedString forwards immutable transforms directly while keeping
+        // the destination allocator explicit.
+        OwnedString ownedConcat = ownedCopy.concat(" world", heap);
         scope (exit)
             ownedConcat.deinit();
 
-        OwnedString ownedReplace = ownedConcat.replace("world", "XTB");
+        OwnedString ownedReplace = ownedConcat.replace("world", "XTB", heap);
         scope (exit)
             ownedReplace.deinit();
 
         OwnedString ownedWithControls = ownedReplace.concat(
             "\nsecond\t\"quoted\"",
+            heap,
         );
         scope (exit)
             ownedWithControls.deinit();
 
-        OwnedString ownedEscape = ownedWithControls.escape();
+        OwnedString ownedEscape = ownedWithControls.escape(heap);
         scope (exit)
             ownedEscape.deinit();
 
@@ -187,8 +188,8 @@ extern (C) int main() nothrow @nogc
         String borrowedFromOwner = ownedJoin.view;
         formatln!"borrowed from owner: {}"(borrowedFromOwner);
 
-        // clone() is the explicit way to create another independent owner.
-        OwnedString independentClone = ownedJoin.clone();
+        // clone(Allocator*) explicitly creates another independent owner.
+        OwnedString independentClone = ownedJoin.clone(heap);
         scope (exit)
             independentClone.deinit();
         assert(independentClone == ownedJoin);
@@ -199,7 +200,7 @@ extern (C) int main() nothrow @nogc
         OwnedString fallibleOwned;
         scope (exit)
             fallibleOwned.deinit();
-        if (!ownedCopy.tryConcat(" owner", &fallibleOwned))
+        if (!ownedCopy.tryConcat(" owner", heap, &fallibleOwned))
             return 1;
         formatln!"fallible owned result: {}"(fallibleOwned);
     }
@@ -228,9 +229,9 @@ extern (C) int main() nothrow @nogc
     writeln("\n== mutable StringBuf ==");
 
     {
-        // builder is consumed by intoOwnedString before the end of the block, so
-        // the final owner is frozen, not builder.
         StringBuf builder = StringBuf.withCapacity(heap, 64);
+        scope (exit)
+            builder.deinit();
         builder.append("GET ");
         builder.append("/v1/users/");
         builder.append(cast(dchar) 0x1f642);
@@ -247,10 +248,9 @@ extern (C) int main() nothrow @nogc
         builder.escapeInPlace();
         formatln!"mutable buffer: {}"(builder);
 
-        // intoOwnedString consumes the mutable owner and freezes it into
-        // exact-sized immutable storage. With no explicit allocator it reuses
-        // the StringBuf allocator and can adopt the allocation after shrinking.
-        OwnedString frozen = builder.intoOwnedString();
+        // Copying into immutable exact-sized storage has one predictable
+        // behavior and leaves the mutable builder unchanged.
+        OwnedString frozen = builder.copy(heap);
         scope (exit)
             frozen.deinit();
         formatln!"frozen buffer: {}"(frozen);

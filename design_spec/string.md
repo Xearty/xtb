@@ -1,8 +1,6 @@
 # String API design specification
 
 This specification is implemented by `xtb.core.string` and `xtb.core.utf8`.
-The legacy `xtb.core.owned_string` module publicly re-exports its string-owned
-symbols for source compatibility.
 
 ## Representation and invariant
 
@@ -224,24 +222,23 @@ are a separate policy problem rather than an implicit part of this API.
 
 `OwnedString` exposes the immutable transformation family directly so routine
 owned-string code does not need to spell `.view` merely to transform bytes.
-When no allocation context is supplied, the result uses the source owner's
-stored allocator:
+Every operation that creates new storage requires its destination context:
 
 ```d
 OwnedString source = "hello".copy(heap);
 scope (exit) source.deinit();
 
-OwnedString concatenated = source.concat(" world");
+OwnedString concatenated = source.concat(" world", heap);
 scope (exit) concatenated.deinit();
 
-OwnedString replaced = concatenated.replace("world", "XTB");
+OwnedString replaced = concatenated.replace("world", "XTB", heap);
 scope (exit) replaced.deinit();
 
-OwnedString escaped = replaced.escape();
+OwnedString escaped = replaced.escape(heap);
 scope (exit) escaped.deinit();
 ```
 
-The explicit-context overloads remain available:
+Another allocator or an arena selects a different ownership domain:
 
 ```d
 OwnedString otherHeap = source.concat("!", otherAllocator);
@@ -255,21 +252,20 @@ The complete ownership matrix is therefore:
 ```text
 String + Allocator*       -> OwnedString
 String + Arena*           -> String
-OwnedString + default     -> OwnedString using the source allocator
 OwnedString + Allocator*  -> OwnedString using the explicit allocator
 OwnedString + Arena*      -> String owned by the arena
 ```
 
-`OwnedString.clone()` creates another independent owner with the source
-allocator; `clone(Allocator*)` selects a different independent allocator.
+`OwnedString.clone(Allocator*)` creates another independent owner with the
+explicit allocator.
 `OwnedString.copy(Arena*)` copies into arena-owned storage. `copy(Allocator*)`
 is intentionally not duplicated on `OwnedString`: `clone` is the ownership
 spelling for creating another independent owner.
 
-The direct `tryConcat`, `tryReplace`, and `tryEscape` overloads follow the same
-context-selection rules and preserve the existing empty-output failure
-contract. Direct methods are callable through `const OwnedString`; allocating
-through the stored allocator does not mutate the source string.
+The direct `tryClone`, `tryConcat`, `tryReplace`, and `tryEscape` overloads
+follow the same context-selection rules and preserve the existing empty-output
+failure contract. Direct methods are callable through `const OwnedString`;
+allocating through the supplied context does not mutate the source string.
 
 ## Scalar traversal
 
@@ -315,6 +311,10 @@ struct StringBuf
     bool tryAppend(String value);
     void append(String value);
     void append(dchar codePoint);
+    bool tryCopy(Allocator* allocator, OwnedString* output) const;
+    OwnedString copy(Allocator* allocator) const;
+    bool tryCopy(Arena* arena, String* output) const;
+    String copy(Arena* arena) const;
     bool tryAssign(String value);
     void trimAsciiInPlace();
     bool tryReplaceInPlace(String from, String to);
@@ -386,55 +386,24 @@ UTF-8.
 `StringBuf.fromBytesUnchecked` and its fallible counterpart remain `@system`
 for audited, already validated bytes. They are not binary constructors.
 
-### Consuming `StringBuf` into `OwnedString`
+### Copying `StringBuf` output
 
-Free UFCS helpers provide the explicitly consuming mutable-to-immutable
-boundary and take the source by `ref` so ownership can be transferred:
-
-```d
-OwnedString intoOwnedString(scope ref StringBuf source);
-OwnedString intoOwnedString(scope ref StringBuf source, Allocator* destination);
-bool tryIntoOwnedString(
-    scope ref StringBuf source,
-    OwnedString* output,
-);
-bool tryIntoOwnedString(
-    scope ref StringBuf source,
-    Allocator* destination,
-    OwnedString* output,
-);
-```
-
-The intended spelling is member-like through UFCS:
+`StringBuf.copy` provides a predictable nonmutating boundary from a builder to
+independent or arena-owned text:
 
 ```d
-StringBuf buffer = StringBuf.withCapacity(heap, 64);
-buffer.append("hello");
+OwnedString persistent = buffer.copy(outputAllocator);
+scope (exit) persistent.deinit();
 
-OwnedString frozen = buffer.intoOwnedString();
-scope (exit) frozen.deinit();
+String temporary = buffer.copy(&arena);
 ```
 
-`intoOwnedString()` is explicitly consuming. On success the source buffer is
-inert and ownership belongs only to the returned `OwnedString`. With no
-destination argument, the source buffer's allocator is retained. If the
-buffer already has exact-sized storage, or can shrink to exact size, the
-allocation may be adopted without copying.
-
-Passing an explicit destination allocator performs a cross-allocator promotion
-when necessary:
-
-```d
-OwnedString frozen = buffer.intoOwnedString(longLivedAllocator);
-scope (exit) frozen.deinit();
-```
-
-The `try` forms are transactional: allocation failure leaves the `StringBuf`
-unchanged and leaves the required-empty `OwnedString` output unchanged.
-
-The older factory spelling `OwnedString.fromStringBuf(...)` is intentionally
-not retained. A `from...` factory looks like a copy, while `intoOwnedString`
-makes consumption visible at the call site.
+Both overloads always copy nonempty input and leave the buffer unchanged.
+`Allocator*` returns an exact-sized `OwnedString`; `Arena*` returns a `String`
+owned by the arena. The `tryCopy` forms require an empty output and leave both
+the output and source unchanged on allocation failure. There is deliberately
+no hybrid consuming conversion that sometimes transfers buffer storage and
+sometimes copies it.
 
 `StringBuf` does not maintain a terminator after every mutation. `tryCString`
 reserves one extra byte when necessary, writes a trailing NUL outside
