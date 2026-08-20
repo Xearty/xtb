@@ -542,16 +542,20 @@ extern (C) int main(int argumentCount, char** arguments)
             );
             assert(panicOutput.signal == SIGABRT);
             assert(panicOutput.text.contains("Stack trace"));
+            assert(panicOutput.text.contains("runDeathCase"));
             assert(panicOutput.text.contains("intentional diagnostic panic"));
-            assert(panicOutput.text.contains("<rich panic trace printed above>"));
+            assert(!panicOutput.text.contains("Fatal crash: "));
+            assert(!panicOutput.text.contains("Stack trace (signal context):"));
             DeathOutput workerPanic = captureDeath(
                 arguments[0],
                 "diagnostic-panic-thread",
             );
             assert(workerPanic.signal == SIGABRT);
             assert(workerPanic.text.contains("Stack trace"));
+            assert(workerPanic.text.contains("panicOnOtherThread"));
             assert(workerPanic.text.contains("intentional worker diagnostic panic"));
-            assert(workerPanic.text.contains("<rich panic trace printed above>"));
+            assert(!workerPanic.text.contains("Fatal crash: "));
+            assert(!workerPanic.text.contains("Stack trace (signal context):"));
             DeathOutput addressOnly = captureDeath(
                 arguments[0],
                 "crash-segv-address",

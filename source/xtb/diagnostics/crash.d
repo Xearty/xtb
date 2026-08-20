@@ -114,7 +114,7 @@ private void tracePanic(String message, void*)
     writer.put('\n');
     StackFrame[64] frames;
     char[16 * 1024] text;
-    StackTrace trace = globalState.context.capture(frames[], text[], 3);
+    StackTrace trace = globalState.context.capture(frames[], text[], 2);
     char[32 * 1024] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &globalState.style);
     cast(void) writer.finish();
@@ -302,6 +302,12 @@ version (linux)
             _exit(128 + signal);
         handling = 1;
 
+        if (signal == SIGABRT && globalState.panicTraceWritten != 0)
+        {
+            redeliverSignal(signal);
+            return;
+        }
+
         const colors = &globalState.style.colors;
         rawWrite("\n");
         rawStyled("Fatal crash: ", colors.warning);
@@ -346,11 +352,6 @@ version (linux)
                 rawWrite("\n");
             }
         }
-        else if (globalState.panicTraceWritten != 0)
-        {
-            rawStyled("<rich panic trace printed above>", colors.decoration);
-            rawWrite("\n");
-        }
         else
         {
             rawStyled(
@@ -364,6 +365,11 @@ version (linux)
         // it after SA_RESETHAND restored the default disposition, then return
         // so the kernel can perform normal signal termination (and core-dump
         // handling). Use _exit only if re-delivery itself fails.
+        redeliverSignal(signal);
+    }
+
+    private void redeliverSignal(int signal)
+    {
         if (kill(getpid(), signal) != 0)
             _exit(128 + signal);
     }
