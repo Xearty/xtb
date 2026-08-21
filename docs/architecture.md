@@ -487,15 +487,109 @@ the base style so later message bytes return to the configured presentation.
 Partial resets such as `39m` retain their normal SGR meaning. `endMessage`
 always emits one full terminal reset.
 
-Formatter message bytes remain borrowed and unmodified. The current fixed
-formatter buffer still yields at most one logger-produced message chunk, but if
-truncation would leave a supported SGR sequence incomplete at the end of that
-chunk, the logger exposes only the preceding safe slice. The check scans only a
-bounded suffix consistent with `AnsiSequence.capacity`; UTF-8 boundary repair
-still occurs first. `LogResult.written` reports the safely selected message
-length while `required` retains the formatter's full demand. Presentation
-escapes added by the sink and logger-generated framing remain outside both
-counts.
+Formatter message bytes remain borrowed and unmodified. The fixed logger
+buffer is deliberately the maximum complete-message storage for ordinary
+`log` / `logf` calls: they finish formatting before opening the sink record and
+return `LogStatus.truncated` when the representation does not fit. This keeps
+normal logging output bounded and keeps expensive formatting outside
+record-scoped sink locking. Ordinary logging still yields at most one
+logger-produced message chunk. If truncation would leave a supported SGR
+sequence incomplete at the end of that chunk, the logger exposes only the
+preceding safe slice. The check scans only a bounded suffix consistent with
+`AnsiSequence.capacity`; UTF-8 boundary repair still occurs first.
+`LogResult.written` reports the safely selected message length while `required`
+retains the formatter's full demand. Presentation escapes added by the sink and
+logger-generated framing remain outside both counts.
+
+For diagnostics that deliberately must not be bounded by that formatting
+buffer, `Logger.stream(level, producer)` is the explicit unbounded alternative.
+It opens the same record/message lifecycle and invokes a synchronous producer with
+a borrowed `LogMessageWriter`. The writer reuses the logger's message buffer as
+staging storage, coalesces small writes, and forwards large borrowed slices
+directly when possible. A logical streamed message may therefore exceed the
+staging buffer by any amount without allocation or truncation. Because the
+record is already open while the producer runs, record-serializing sinks may
+hold their lock for the producer's full duration. The producer does not run when
+the logger is invalid, filtered, recursive, or the sink rejects framing before
+`beginMessage`. The logger keeps its sink snapshot and recursion guard for the
+entire producer call.
+
+`LogMessageWriter.format(values...)` adapts the existing streaming
+`xtb.core.print.Writer` into the message rather than implementing a second
+value formatter. Primitive values and normal `formatRepresentation()` /
+`formatTo(ref Writer)` customizations therefore keep exactly the ordinary XTB
+print semantics without materializing a complete formatted string. The core
+print writer already emits incrementally; sufficiently large borrowed strings
+can pass through both layers without an intermediate copy.
+
+Pretty printing composes through the same API rather than adding a
+logging-specific pretty formatter. `PrettyValue` and `OwnedPrettyValue` already
+implement `formatTo(ref Writer)`, and the pretty printer itself renders directly
+to that writer. Passing `value.pretty(options)` to `output.format(...)` therefore
+streams nested, multiline, or otherwise large representations through bounded
+storage. Automatic layout may measure a value before rendering it, but it does
+not materialize the full representation.
+
+```d
+const result = logger.stream(LogLevel.error,
+    (scope ref LogMessageWriter output)
+    {
+        output.write("allocation failed: attempt=");
+        output.format(attempt);
+        output.write("\ndiagnostic details continue without a message-size limit");
+    });
+```
+
+On successful streaming delivery, `LogResult.written` and `required` are equal
+and report the message bytes accepted by the sink. If streaming stops on a sink
+failure, both report the successfully accepted streamed prefix because no full
+required length exists independently of continuing the producer. Logger framing
+and presentation escapes remain outside those counts.
+
+### Streaming logging performance rationale
+
+The chunked message lifecycle is retained deliberately rather than only for
+future extensibility. `Logger.stream` and the stack-trace logger are production
+consumers of it, while ordinary bounded logging still emits exactly one message
+chunk.
+
+The opt-in logging microbenchmark isolates both the dormant protocol cost and
+the active streaming paths:
+
+```text
+just benchmark logging 500000
+```
+
+It compares the current eight-event normal record against a benchmark-only
+six-event sequence with `beginMessage` / `endMessage` removed, then measures
+normal and streaming delivery through a null sink, plain and ANSI `FILE*` sinks
+targeting `/dev/null`, and a two-way null tee. It also compares a 64 KiB borrowed
+message copied through a correspondingly large normal logger buffer against the
+streaming writer's direct borrowed-slice path, plus an incrementally generated
+~64 KiB message that exercises staging and repeated chunks.
+
+On the development x86-64 release-fast run used to validate this design, the two
+message-boundary callbacks added roughly 3--4 ns per record to a null sink. That
+is intentionally treated as a machine-specific order-of-magnitude result, not a
+performance guarantee. The same run measured ordinary small null-sink logging at
+roughly 75--90 ns per record and real `FILE*` presentation at a higher cost, so
+the dormant lifecycle overhead is small relative to formatting and destination
+work.
+
+The active benchmark also demonstrates the reason to keep the protocol: a large
+borrowed slice can be submitted by the streaming writer without first copying
+its bytes into the logger buffer. A null sink therefore exposes almost only
+record/callback overhead for that case, while the bounded normal path pays for
+the complete 64 KiB copy. Incrementally generated output remains proportional
+to bytes generated and chunk count, which is the intended bounded-memory
+tradeoff rather than a claim that streaming is universally faster.
+
+The final design decision is therefore to keep the single
+`beginMessage` / `messageChunk*` / `endMessage` protocol. The measured dormant
+cost is small, and maintaining one protocol avoids duplicating every sink and
+decorator with separate complete-message and streaming-message paths. Re-run the
+benchmark when changing logger framing, writer buffering, presentation sinks, or
+tee dispatch; benchmark numbers are diagnostics, not API contracts.
 
 For composition, `plainFileLogSink(file)` and `ansiFileLogSink(file)` expose the
 built-in file presentation paths directly as borrowed `LogSinkRef` values.
@@ -582,7 +676,9 @@ whose sinks perform whatever synchronization the destination requires.
 Stack traces use caller-provided frame and text storage. Symbol capture,
 demangling, signature tokenization, styling, and rendering must not allocate.
 `writeStackTrace` additionally receives a caller-owned signature workspace,
-which it reuses for every frame. A workspace too small for one complete name
+which it reuses for every frame. It renders no trailing newline; standalone
+callers add their own terminator while `logStackTrace` lets the logger terminate
+the record. A workspace too small for one complete name
 causes that frame to retain its mangled linkage name; it never inserts `...`.
 The D demangler implements relative identifier/type back-references, template
 types and values, qualifiers, arrays, pointers, functions, delegates, tuples,

@@ -17,9 +17,24 @@ enum LogSinkEventKind : ubyte
 
 /// A borrowed event delivered synchronously to a `LogSink`.
 ///
+/// A logical record is delimited by `beginRecord` / `endRecord`. At most one
+/// message lifecycle may be open inside that record:
+///
+/// `beginMessage`, zero or more `messageChunk` events, then `endMessage`.
+///
+/// Chunk boundaries are transport boundaries only. They do not delimit values,
+/// lines, or formatter operations, and sinks must not assume that one chunk is
+/// the complete message. Producers that introduce transport boundaries into
+/// styled text must not split a supported SGR sequence across two chunks; this
+/// lets presentation sinks remain allocation-free and stateless across chunk
+/// callbacks. A final chunk may end with an incomplete sequence when those bytes
+/// are literally the end of the logical message. The base message
+/// style supplied to every chunk must match the active `beginMessage` style.
+///
 /// `bytes` is meaningful for `text` and `messageChunk`. `style` is meaningful
-/// for styled logger-generated `text`, for `beginMessage`, and as the
-/// optional base message style carried by `messageChunk`.
+/// for styled logger-generated `text`, for `beginMessage`, and as the repeated
+/// base message style carried by `messageChunk`. Event payloads are borrowed only
+/// for the synchronous sink callback and must not escape it.
 struct LogSinkEvent
 {
 nothrow @nogc:
@@ -48,7 +63,10 @@ nothrow @nogc:
 
     /// Creates one borrowed formatter-output chunk.
     ///
-    /// `baseStyle` must match the style selected for the active message. It is
+    /// A chunk may contain any portion of the logical message, including an
+    /// empty portion. A non-final chunk must not split a supported SGR sequence
+    /// from the following chunk. `baseStyle` must match the style selected for
+    /// the active message and is
     /// repeated so presentation sinks can remain stateless across callbacks.
     static LogSinkEvent messageChunk(
         return scope String bytes,

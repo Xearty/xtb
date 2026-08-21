@@ -1,0 +1,16 @@
+name "benchmarks"
+description "Opt-in XTB microbenchmarks"
+license "BSL-1.0"
+targetType "none"
+importPaths "../source"
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-preview=dip1000" platform="ldc"
+
+configuration "logging" {
+    targetType "executable"
+    targetName "logging_benchmark"
+    targetPath "../build/benchmarks"
+    mainSourceFile "logging.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+}

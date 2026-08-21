@@ -134,6 +134,33 @@ extern (C) int main() nothrow @nogc
     logger.warningf!"filtered formatter calls={}"(formatCalls);
     logger.setMinimumLevel(LogLevel.trace);
 
+    // Streaming keeps one atomic record while allowing the logical message to
+    // exceed its staging buffer without allocation or truncation.
+    char[8] streamStorage;
+    Logger streaming = Logger.create(
+        tee.sinkRef(),
+        streamStorage[],
+        LogLevel.info,
+    );
+    int[12] attemptHistory;
+    foreach (index, ref attemptNumber; attemptHistory)
+        attemptNumber = cast(int) index + 1;
+    const diagnosticPretty = PrettyPrintOptions.defaults()
+        .withoutColors()
+        .withLayout(PrettyPrintLayout.expanded);
+    const streamed = streaming.stream(
+        LogLevel.info,
+        (scope ref LogMessageWriter output) {
+            output.write("streamed diagnostic: ");
+            output.format(RequestId(0x2a), " attempt=", 3, ": ");
+            output.write("this message is much larger than eight bytes");
+            output.write("\nattempt history: ");
+            output.format(attemptHistory.pretty(diagnosticPretty));
+        },
+    );
+    if (!streamed.delivered)
+        return 1;
+
     // Install the same borrowed tee-backed logger for concise application calls.
     ThreadContextScope context = ThreadContextScope.acquire();
     {

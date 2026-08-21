@@ -93,6 +93,7 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
     style.signatureDetail = SignatureDetail.overloadIdentityAndReturn;
     char[64 * 1024] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &style);
+    writer.put('\n');
     return writer.finish().ok ? 0 : 1;
 }
 

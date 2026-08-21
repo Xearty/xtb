@@ -8,11 +8,13 @@ import xtb.core.logging;
 import xtb.core.logging.sgr : SgrParseKind, maxSupportedSgrLength, parseSgrPrefix, safeSgrPrefixLength;
 import xtb.core.logging.file : fileFlush;
 import xtb.core.logging.sink : submit;
+import xtb.core.logging.writer : createLogMessageWriter;
 import xtb.core.string;
 
 version (unittest)
 {
-    import xtb.core.print : Writer;
+    import xtb.core.pretty_print : PrettyPrintLayout, PrettyPrintOptions, pretty;
+    import xtb.core.print : Writer, writeBuffer;
 
     private struct CapturedEvent
     {
@@ -75,6 +77,68 @@ version (unittest)
         return capture.flushAccepted;
     }
 
+    private struct ChunkCounter
+    {
+        size_t calls;
+        size_t bytes;
+        const(char)* source;
+        size_t rejectAt = size_t.max;
+    }
+
+    private struct MessageCapture
+    {
+    nothrow @nogc:
+
+        char[8192] bytes;
+        size_t length;
+        size_t chunks;
+        size_t maxChunk;
+
+        String text() const return @trusted
+        {
+            return bytes[0 .. length];
+        }
+    }
+
+    private bool chunkCounterSink(
+        void* context,
+        scope const LogSinkEvent* event,
+    )
+    {
+        ChunkCounter* counter = cast(ChunkCounter*) context;
+        if (counter is null || event is null)
+            return false;
+        if (event.kind != LogSinkEventKind.messageChunk)
+            return true;
+
+        const index = counter.calls++;
+        counter.bytes += event.bytes.length;
+        counter.source = event.bytes.ptr;
+        return index != counter.rejectAt;
+    }
+
+    private bool messageCaptureSink(
+        void* context,
+        scope const LogSinkEvent* event,
+    )
+    {
+        MessageCapture* capture = cast(MessageCapture*) context;
+        if (capture is null || event is null)
+            return false;
+        if (event.kind != LogSinkEventKind.messageChunk)
+            return true;
+        if (event.bytes.length > capture.bytes.length - capture.length)
+            return false;
+
+        foreach (index; 0 .. event.bytes.length)
+            capture.bytes[capture.length + index] = event.bytes[index];
+        capture.length += event.bytes.length;
+        ++capture.chunks;
+        if (event.bytes.length > capture.maxChunk)
+            capture.maxChunk = event.bytes.length;
+        return true;
+    }
+
     private bool rejectFlush(void*)
     {
         return false;
@@ -93,6 +157,44 @@ version (unittest)
         size_t calls;
         bool accepted = true;
         AnsiStyle style;
+    }
+
+    private struct StreamProducerProbe
+    {
+        size_t* calls;
+
+        @disable this(this);
+
+        void opCall(scope ref LogMessageWriter writer) nothrow @nogc
+        {
+            ++*calls;
+            writer.write("non-copyable producer");
+        }
+    }
+
+    private struct StreamFormatProbe
+    {
+        int value;
+
+        void formatTo(ref Writer writer) nothrow @nogc
+        {
+            writer.put("probe(");
+            writer.value(value);
+            writer.put(')');
+        }
+    }
+
+    private struct PrettyStreamProbe
+    {
+        String payload;
+
+        void prettyFormatTo(
+            ref Writer writer,
+            scope const ref PrettyPrintOptions,
+        ) const nothrow @nogc
+        {
+            writer.put(payload);
+        }
     }
 
     private bool prefixProbe(void* context, LogPrefixWriter* output)
@@ -411,6 +513,378 @@ unittest
     assertEvent(capture, 9, LogSinkEventKind.endRecord);
 }
 
+// The public sink contract treats chunks as transport fragments, not message
+// boundaries. Decorators preserve zero-length and multiple safe chunks without
+// combining them or assuming the first chunk is special.
+unittest
+{
+    const style = AnsiStyle.foreground(AnsiColor.brightBlack);
+    PrefixProbe probe;
+    Capture first;
+    Capture second;
+    TeeLogSink tee = TeeLogSink.create(
+        LogSinkRef.create(&captureSink, &first),
+        LogSinkRef.create(&captureSink, &second),
+    );
+    PrefixLogSink prefixed = PrefixLogSink.create(
+        tee.sinkRef(),
+        LogPrefixRef.create(&prefixProbe, &probe),
+    );
+    LogSinkRef sink = prefixed.sinkRef();
+
+    assert(submit(sink, LogSinkEvent.beginRecord()));
+    assert(submit(sink, LogSinkEvent.beginMessage(style)));
+    assert(submit(sink, LogSinkEvent.messageChunk("a", style)));
+    assert(submit(sink, LogSinkEvent.messageChunk("", style)));
+    assert(submit(sink, LogSinkEvent.messageChunk("bc", style)));
+    assert(submit(sink, LogSinkEvent.endMessage()));
+    assert(submit(sink, LogSinkEvent.endRecord()));
+
+    assert(probe.calls == 1);
+    assertSameEvents(first, second);
+    foreach (capture; [&first, &second])
+    {
+        assert(capture.count == 9);
+        assertEvent(*capture, 0, LogSinkEventKind.beginRecord);
+        assertEvent(*capture, 1, LogSinkEventKind.text, "prefix");
+        assertEvent(*capture, 2, LogSinkEventKind.text, " ");
+        assertEvent(*capture, 3, LogSinkEventKind.beginMessage);
+        assert(capture.events[3].style == style);
+        assertEvent(*capture, 4, LogSinkEventKind.messageChunk, "a");
+        assert(capture.events[4].style == style);
+        assertEvent(*capture, 5, LogSinkEventKind.messageChunk, "");
+        assert(capture.events[5].style == style);
+        assertEvent(*capture, 6, LogSinkEventKind.messageChunk, "bc");
+        assert(capture.events[6].style == style);
+        assertEvent(*capture, 7, LogSinkEventKind.endMessage);
+        assertEvent(*capture, 8, LogSinkEventKind.endRecord);
+    }
+}
+
+// LogMessageWriter coalesces ordinary fragments and exposes a direct borrowed
+// slice path for large input without changing the sink's message lifecycle.
+unittest
+{
+    const style = AnsiStyle.foreground(AnsiColor.brightBlack);
+    Capture capture;
+    char[8] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        staging[],
+        style,
+    );
+
+    writer.write("ab");
+    writer.write("cd");
+    assert(capture.count == 0);
+    assert(writer.flush());
+    assert(capture.count == 1);
+    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "abcd");
+    assert(capture.events[0].style == style);
+    assert(writer.written == 4);
+
+    // Separate writes that exactly fill staging are emitted automatically.
+    writer.write("abc");
+    writer.write("defgh");
+    assert(capture.count == 2);
+    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "abcdefgh");
+
+    const large = "0123456789abcdef";
+    writer.write(large);
+    assert(capture.count == 3);
+    assertEvent(capture, 2, LogSinkEventKind.messageChunk, large);
+    assert(capture.events[2].source is large.ptr);
+    assert(writer.written == 12 + large.length);
+    assert(writer.finish());
+    assert(!writer.failed);
+}
+
+// A large borrowed write does not get copied merely to fill unused staging
+// capacity. Existing staged bytes are emitted first and the large slice keeps
+// its original address in the following chunk.
+unittest
+{
+    Capture capture;
+    char[8] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        staging[],
+    );
+
+    writer.write("ab");
+    const large = "0123456789";
+    writer.write(large);
+
+    assert(capture.count == 2);
+    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "ab");
+    assertEvent(capture, 1, LogSinkEventKind.messageChunk, large);
+    assert(capture.events[1].source is large.ptr);
+    assert(writer.finish());
+}
+
+// Streaming remains useful with no staging storage: complete borrowed text is
+// submitted directly, while an SGR sequence split by producer writes is held
+// until it can be emitted as one safe transport chunk.
+unittest
+{
+    Capture capture;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        null,
+    );
+
+    writer.write("body");
+    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "body");
+
+    writer.write("\x1b[3");
+    assert(capture.count == 1);
+    assert(writer.flush());
+    assert(capture.count == 1);
+
+    writer.write("1mred");
+    assert(capture.count == 3);
+    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "\x1b[31m");
+    assertEvent(capture, 2, LogSinkEventKind.messageChunk, "red");
+    assert(writer.finish());
+}
+
+// Buffer flushes also preserve SGR sequences when the artificial staging
+// boundary lands inside one. A literal incomplete suffix is emitted only when
+// finishing the logical message, where no later chunk can complete it.
+unittest
+{
+    Capture capture;
+    char[4] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        staging[],
+    );
+
+    writer.write("\x1b[3");
+    assert(writer.flush());
+    assert(capture.count == 0);
+    writer.write("1mX");
+    assert(capture.count == 1);
+    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "\x1b[31m");
+    assert(writer.finish());
+    assert(capture.count == 2);
+    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "X");
+
+    capture.clear();
+    auto finalWriter = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        staging[],
+    );
+    finalWriter.write("A\x1b[");
+    assert(finalWriter.finish());
+    assert(capture.count == 2);
+    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "A");
+    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "\x1b[");
+}
+
+// Empty writes and empty messages do not manufacture transport chunks. The
+// zero-state writer is invalid and fails without invoking anything.
+unittest
+{
+    Capture capture;
+    char[4] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        staging[],
+    );
+    writer.write("");
+    assert(writer.finish());
+    assert(writer.written == 0);
+    assert(capture.count == 0);
+
+    LogMessageWriter invalid;
+    assert(invalid.failed);
+    invalid.write("ignored");
+    assert(!invalid.flush());
+    assert(capture.count == 0);
+}
+
+// Sink rejection is sticky. Bytes from the rejected callback are not counted
+// as written and later producer operations do not touch the sink again.
+unittest
+{
+    Capture capture;
+    capture.rejectAt = 1;
+    char[8] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        staging[],
+    );
+
+    const first = "012345678";
+    writer.write(first);
+    assert(!writer.failed);
+    assert(writer.written == first.length);
+
+    writer.write("abcdefgh");
+    assert(writer.failed);
+    assert(writer.written == first.length);
+    assert(capture.count == 2);
+
+    writer.write("ignored");
+    assert(!writer.flush());
+    assert(!writer.finish());
+    assert(capture.count == 2);
+}
+
+// Streaming formatting uses the ordinary XTB print semantics while the outer
+// message writer still owns chunk coalescing. Primitive values formatted in
+// separate calls therefore accumulate in the same message staging buffer.
+unittest
+{
+    Capture capture;
+    char[64] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&captureSink, &capture),
+        staging[],
+    );
+
+    writer.format(-42);
+    writer.write(" ");
+    writer.format(true);
+    writer.write(" ");
+    writer.format('X');
+    writer.write(" ");
+    writer.format(1.25);
+    writer.write(" ");
+    writer.format(StreamFormatProbe(7));
+
+    assert(capture.count == 0);
+    assert(writer.finish());
+    assert(capture.count == 1);
+    assertEvent(
+        capture,
+        0,
+        LogSinkEventKind.messageChunk,
+        "-42 true X 1.25 probe(7)",
+    );
+}
+
+// `format` is an adapter over the already-streaming core print Writer rather
+// than another value-formatting implementation. Large borrowed strings retain
+// their source pointer through both writers and require no complete temporary
+// representation.
+unittest
+{
+    ChunkCounter counter;
+    char[8] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&chunkCounterSink, &counter),
+        staging[],
+    );
+
+    char[600] large;
+    foreach (ref character; large)
+        character = 'x';
+    const String borrowed = cast(String) large[];
+    writer.format(borrowed);
+
+    assert(!writer.failed);
+    assert(counter.calls == 1);
+    assert(counter.bytes == borrowed.length);
+    assert(counter.source is borrowed.ptr);
+    assert(writer.written == borrowed.length);
+    assert(writer.finish());
+}
+
+// A rejection reached through the print adapter becomes the same sticky writer
+// failure as a raw `write`, and later formatting does not call the sink again.
+unittest
+{
+    ChunkCounter counter;
+    counter.rejectAt = 0;
+    char[8] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&chunkCounterSink, &counter),
+        staging[],
+    );
+
+    char[600] large;
+    foreach (ref character; large)
+        character = 'x';
+    writer.format(cast(String) large[]);
+    assert(writer.failed);
+    assert(counter.calls == 1);
+    assert(writer.written == 0);
+
+    writer.format(42);
+    writer.write("ignored");
+    assert(counter.calls == 1);
+    assert(!writer.finish());
+}
+
+// Pretty printing needs no logging-specific formatter. `PrettyValue.formatTo`
+// already targets the core streaming Writer, so passing a pretty wrapper to
+// `LogMessageWriter.format` preserves exact pretty output across many chunks.
+unittest
+{
+    int[96] values;
+    foreach (index, ref value; values)
+        value = cast(int) index;
+
+    PrettyPrintOptions options = PrettyPrintOptions.defaults()
+        .withoutColors()
+        .withLayout(PrettyPrintLayout.expanded);
+    options.maxItems = cast(uint) values.length;
+
+    char[8192] expectedStorage;
+    const expected = writeBuffer(expectedStorage[], values.pretty(options));
+    assert(expected.ok);
+    assert(!expected.truncated);
+
+    MessageCapture capture;
+    char[13] staging;
+    Logger logger = Logger.create(
+        LogSinkRef.create(&messageCaptureSink, &capture),
+        staging[],
+        LogLevel.debug_,
+    );
+    const result = logger.stream(
+        LogLevel.debug_,
+        (scope ref LogMessageWriter output) { output.format(values.pretty(options)); },
+    );
+
+    assert(result.delivered);
+    assert(result.written == expected.written);
+    assert(result.required == expected.written);
+    assert(capture.chunks > 1);
+    assert(capture.maxChunk < expected.written);
+    assert(capture.text == expectedStorage[0 .. expected.written]);
+}
+
+// A low-level pretty hook that emits one large borrowed slice keeps the same
+// zero-copy path as ordinary `format`: the pretty wrapper does not materialize
+// an intermediate representation before the log sink sees the bytes.
+unittest
+{
+    char[600] large;
+    foreach (ref character; large)
+        character = 'p';
+    const String payload = cast(String) large[];
+    PrettyStreamProbe probe = PrettyStreamProbe(payload);
+    const options = PrettyPrintOptions.defaults().withoutColors();
+
+    ChunkCounter counter;
+    char[8] staging;
+    auto writer = createLogMessageWriter(
+        LogSinkRef.create(&chunkCounterSink, &counter),
+        staging[],
+    );
+    writer.format(probe.pretty(options));
+
+    assert(writer.finish());
+    assert(!writer.failed);
+    assert(counter.calls == 1);
+    assert(counter.bytes == payload.length);
+    assert(counter.source is payload.ptr);
+    assert(writer.written == payload.length);
+}
+
 unittest
 {
     import core.stdc.stdio : fclose, tmpfile;
@@ -485,6 +959,187 @@ unittest
         defaults.info.label,
         defaults.info.message,
     );
+
+    // Streaming uses the same record framing while allowing many message
+    // chunks to be produced from storage much smaller than the full message.
+    Capture streamCapture;
+    char[4] streamBuffer;
+    Logger streamLogger = Logger.create(
+        LogSinkRef.create(&captureSink, &streamCapture),
+        streamBuffer[],
+    );
+    size_t streamProducerCalls;
+    result = streamLogger.stream(LogLevel.error, (scope ref LogMessageWriter writer) {
+        ++streamProducerCalls;
+        writer.write("ab");
+        writer.write("cd");
+        writer.write("ef");
+    });
+    assert(result.status == LogStatus.delivered);
+    assert(result.written == 6 && result.required == 6);
+    assert(streamProducerCalls == 1);
+    assert(streamCapture.count == 9);
+    assertEvent(streamCapture, 0, LogSinkEventKind.beginRecord);
+    assertEvent(streamCapture, 1, LogSinkEventKind.text, "[error]");
+    assertEvent(streamCapture, 2, LogSinkEventKind.text, " ");
+    assertEvent(streamCapture, 3, LogSinkEventKind.beginMessage);
+    assertEvent(streamCapture, 4, LogSinkEventKind.messageChunk, "abcd");
+    assertEvent(streamCapture, 5, LogSinkEventKind.messageChunk, "ef");
+    assertEvent(streamCapture, 6, LogSinkEventKind.endMessage);
+    assertEvent(streamCapture, 7, LogSinkEventKind.text, "\n");
+    assertEvent(streamCapture, 8, LogSinkEventKind.endRecord);
+
+    // `scope auto ref` keeps stateful/non-copyable producers usable without
+    // manufacturing an extra callable copy.
+    streamCapture.clear();
+    size_t probeCalls;
+    StreamProducerProbe streamProbe;
+    streamProbe.calls = &probeCalls;
+    result = streamLogger.stream(LogLevel.info, streamProbe);
+    assert(result.status == LogStatus.delivered);
+    assert(probeCalls == 1);
+    streamCapture.assertSuccessfulRecord(
+        "[info]",
+        "non-copyable producer",
+        defaults.info.label,
+        defaults.info.message,
+    );
+
+    streamCapture.clear();
+    streamLogger.setMinimumLevel(LogLevel.critical);
+    result = streamLogger.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
+        ++streamProducerCalls;
+        writer.write("must not run");
+    });
+    assert(result.status == LogStatus.filtered);
+    assert(streamProducerCalls == 1);
+    assert(streamCapture.count == 0);
+
+    Logger invalidStreamLogger;
+    result = invalidStreamLogger.stream(LogLevel.error, (scope ref LogMessageWriter writer) {
+        ++streamProducerCalls;
+        writer.write("must not run");
+    });
+    assert(result.status == LogStatus.invalidLogger);
+    assert(streamProducerCalls == 1);
+
+    // Every logger-owned lifecycle failure is finalized the same way as the
+    // ordinary delivery path. The producer only runs after beginMessage is
+    // accepted, and `written` reports the successfully submitted stream prefix.
+    foreach (rejectAt; 0 .. 9)
+    {
+        Capture failedStream;
+        failedStream.rejectAt = rejectAt;
+        char[4] failedBuffer;
+        Logger failedLogger = Logger.create(
+            LogSinkRef.create(&captureSink, &failedStream),
+            failedBuffer[],
+        );
+        size_t producerCalls;
+        const failedResult = failedLogger.stream(
+            LogLevel.error,
+            (scope ref LogMessageWriter writer) {
+            ++producerCalls;
+            writer.write("ab");
+            writer.write("cd");
+            writer.write("ef");
+        },
+        );
+
+        if (rejectAt < 9)
+            assert(failedResult.status == LogStatus.sinkFailed);
+        else
+            assert(failedResult.status == LogStatus.delivered);
+        assert(producerCalls == (rejectAt >= 4 ? 1 : 0));
+        const expectedWritten = rejectAt <= 4 ? 0 : rejectAt == 5 ? 4 : 6;
+        assert(failedResult.written == expectedWritten);
+        assert(failedResult.required == expectedWritten);
+        assertEvent(failedStream, 0, LogSinkEventKind.beginRecord);
+        if (rejectAt == 0)
+            assert(failedStream.count == 1);
+        else
+            assert(failedStream.events[failedStream.count - 1].kind ==
+                    LogSinkEventKind.endRecord);
+        if (rejectAt >= 3)
+        {
+            bool sawEndMessage;
+            foreach (captured; failedStream.events[0 .. failedStream.count])
+                sawEndMessage = sawEndMessage ||
+                    captured.kind == LogSinkEventKind.endMessage;
+            assert(sawEndMessage);
+        }
+    }
+
+    // A streaming producer executes under the same recursion guard, and the
+    // sink reference is frozen for the whole record even if the logger is
+    // reconfigured from inside the producer.
+    Capture guardedCapture;
+    char[8] guardedBuffer;
+    Logger guardedLogger = Logger.create(
+        LogSinkRef.create(&captureSink, &guardedCapture),
+        guardedBuffer[],
+    );
+    LogStatus nestedStatus;
+    result = guardedLogger.stream(LogLevel.error, (scope ref LogMessageWriter writer) {
+        nestedStatus = guardedLogger.info("nested").status;
+        writer.write("outer");
+    });
+    assert(result.status == LogStatus.delivered);
+    assert(nestedStatus == LogStatus.recursive);
+    guardedCapture.assertSuccessfulRecord(
+        "[error]",
+        "outer",
+        defaults.error.label,
+        defaults.error.message,
+    );
+
+    Capture replacementStreamCapture;
+    guardedCapture.clear();
+    result = guardedLogger.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
+        guardedLogger.setSink(LogSinkRef.create(&captureSink, &replacementStreamCapture));
+        writer.write("current");
+    });
+    assert(result.status == LogStatus.delivered);
+    guardedCapture.assertSuccessfulRecord(
+        "[info]",
+        "current",
+        defaults.info.label,
+        defaults.info.message,
+    );
+    assert(replacementStreamCapture.count == 0);
+    assert(guardedLogger.info("next").delivered);
+    replacementStreamCapture.assertSuccessfulRecord(
+        "[info]",
+        "next",
+        defaults.info.label,
+        defaults.info.message,
+    );
+
+    // Tee branch failure remains deferred until endRecord, so the writer keeps
+    // streaming every later chunk to the healthy peer before reporting failure.
+    Capture failedBranch;
+    failedBranch.rejectAt = 4;
+    Capture healthyBranch;
+    TeeLogSink streamTee = TeeLogSink.create(
+        LogSinkRef.create(&captureSink, &failedBranch),
+        LogSinkRef.create(&captureSink, &healthyBranch),
+    );
+    char[4] teeStreamBuffer;
+    Logger teeStreamLogger = Logger.create(streamTee.sinkRef(), teeStreamBuffer[]);
+    result = teeStreamLogger.stream(LogLevel.warning, (scope ref LogMessageWriter writer) {
+        writer.write("ab");
+        writer.write("cd");
+        writer.write("ef");
+    });
+    assert(result.status == LogStatus.sinkFailed);
+    assert(result.written == 6 && result.required == 6);
+    assert(healthyBranch.count == 9);
+    assertEvent(healthyBranch, 4, LogSinkEventKind.messageChunk, "abcd");
+    assertEvent(healthyBranch, 5, LogSinkEventKind.messageChunk, "ef");
+    assertEvent(healthyBranch, 6, LogSinkEventKind.endMessage);
+    assertEvent(healthyBranch, 7, LogSinkEventKind.text, "\n");
+    assertEvent(healthyBranch, 8, LogSinkEventKind.endRecord);
+    assertEvent(failedBranch, failedBranch.count - 1, LogSinkEventKind.endRecord);
 
     logger.setMinimumLevel(LogLevel.trace);
 
@@ -713,6 +1368,55 @@ unittest
         assert(fclose(file) == 0);
     }
 
+    // Streaming integration through both presentation sinks proves that the
+    // writer's safe transport boundaries are sufficient for stateless SGR
+    // preservation/stripping even when the producer splits an escape sequence.
+    {
+        FILE* file = tmpfile();
+        assert(file !is null);
+        char[4] fileMessage;
+        Logger plain = fileLogger(
+            file,
+            fileMessage[],
+            LogLevel.info,
+            LogStyle.plain,
+        );
+        assert(plain.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
+                writer.write("\x1b[3");
+                writer.write("1mred");
+                writer.write("\x1b[0m!");
+            }).delivered);
+        assert(plain.flush());
+        char[64] output;
+        const length = readFileContents(file, output[]);
+        assert(output[0 .. length].equal("[info] red!\n"));
+        assert(fclose(file) == 0);
+    }
+
+    {
+        FILE* file = tmpfile();
+        assert(file !is null);
+        char[4] fileMessage;
+        Logger colored = fileLogger(
+            file,
+            fileMessage[],
+            LogLevel.info,
+            LogStyle.ansi,
+        );
+        assert(colored.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
+                writer.write("\x1b[3");
+                writer.write("1mred");
+                writer.write("\x1b[0m!");
+            }).delivered);
+        assert(colored.flush());
+        char[96] output;
+        const length = readFileContents(file, output[]);
+        assert(output[0 .. length].equal(
+                "\x1b[32m[info]\x1b[0m \x1b[31mred\x1b[0m!\x1b[0m\n",
+        ));
+        assert(fclose(file) == 0);
+    }
+
     {
         LogPalette custom = LogPalette.defaults();
         assert(custom.trace.label.enabled && custom.debug_.label.enabled &&
@@ -768,8 +1472,8 @@ unittest
         assert(fclose(file) == 0);
     }
 
-    // Supported SGR parsing and the bounded suffix rule are deliberately
-    // independent of presentation mode.
+    // Supported SGR parsing and the bounded suffix rule define the producer-side
+    // safe chunk boundary used to keep presentation sinks stateless.
     {
         const complete = "\x1b[38;2;255;100;20m";
         const completeResult = parseSgrPrefix(complete);

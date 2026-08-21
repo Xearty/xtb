@@ -7,6 +7,7 @@ import xtb.core.logging.palette : LogPalette, LogPalettePreset;
 import xtb.core.logging.result : LogResult, LogStatus;
 import xtb.core.logging.sgr : safeSgrPrefixLength;
 import xtb.core.logging.sink : LogFlush, LogSink, LogSinkEvent, LogSinkRef, submit;
+import xtb.core.logging.writer : LogMessageWriter, createLogMessageWriter;
 import xtb.core.print : BufferWriteResult, formatBuffer, writeBuffer;
 import xtb.core.string : String;
 
@@ -22,6 +23,11 @@ nothrow @nogc:
 
     @disable this(this);
 
+    /// Creates a logger borrowing both `sink` and `messageBuffer`.
+    ///
+    /// `messageBuffer` bounds the complete message produced by `log` / `logf`
+    /// and their level-specific wrappers. `stream` instead reuses it only as
+    /// staging storage, so a streamed message is not size-limited by the buffer.
     static Logger create(
         LogSinkRef sink,
         return scope char[] messageBuffer,
@@ -186,6 +192,99 @@ private LogResult deliver(
     );
 }
 
+/// Explicitly emits one unbounded synchronous message incrementally.
+///
+/// Unlike `log` / `logf`, the complete message does not need to fit in
+/// `messageBuffer`. Use this path when unbounded diagnostic output is deliberate;
+/// ordinary logging remains bounded by the logger buffer.
+///
+/// `producer` is invoked exactly once after the sink has accepted the record
+/// framing and message begin event. It receives a borrowed `LogMessageWriter`
+/// that reuses this logger's message buffer as staging storage and is valid only
+/// for the duration of the call. Filtering, an invalid logger, recursion, or a
+/// sink failure before the message begins prevent the producer from running.
+/// The record lifecycle stays open while `producer` executes, so a sink that
+/// serializes records may hold its record lock for the producer's full duration.
+///
+/// On success, `written` and `required` both report the message bytes accepted
+/// by the sink. On sink failure they report the successfully accepted streamed
+/// prefix; unlike bounded formatting, a stream has no separately knowable full
+/// required length after output has stopped.
+LogResult stream(Producer)(
+    ref Logger logger,
+    LogLevel level,
+    scope auto ref Producer producer,
+)
+{
+    if (!logger.valid)
+        return LogResult(LogStatus.invalidLogger, 0, 0);
+    if (level < logger.minimumLevel_)
+        return LogResult(LogStatus.filtered, 0, 0);
+    if (logger.delivering_)
+        return LogResult(LogStatus.recursive, 0, 0);
+
+    LogSinkRef sink = logger.sink_;
+    const levelStyle = logger.palette_.styleFor(level);
+    logger.delivering_ = true;
+
+    bool accepted = submit(sink, LogSinkEvent.beginRecord());
+    if (!accepted)
+    {
+        logger.delivering_ = false;
+        return LogResult(LogStatus.sinkFailed, 0, 0);
+    }
+
+    bool payloadAccepted = submit(sink, LogSinkEvent.text(
+            levelLabel(level),
+            levelStyle.label,
+    ));
+    if (payloadAccepted)
+        payloadAccepted = submit(sink, LogSinkEvent.text(" "));
+
+    bool messageBegan;
+    if (payloadAccepted)
+    {
+        messageBegan = true;
+        payloadAccepted = submit(sink, LogSinkEvent.beginMessage(levelStyle.message));
+    }
+
+    size_t written;
+    if (payloadAccepted)
+    {
+        auto writer = createLogMessageWriter(
+            sink,
+            logger.messageBuffer_,
+            levelStyle.message,
+        );
+        producer(writer);
+        payloadAccepted = writer.finish();
+        written = writer.written;
+    }
+
+    if (messageBegan)
+    {
+        const endedMessage = submit(sink, LogSinkEvent.endMessage());
+        payloadAccepted = endedMessage && payloadAccepted;
+    }
+    if (payloadAccepted)
+        payloadAccepted = submit(sink, LogSinkEvent.text("\n"));
+
+    const endedRecord = submit(sink, LogSinkEvent.endRecord());
+    accepted = payloadAccepted && endedRecord;
+    logger.delivering_ = false;
+
+    return LogResult(
+        accepted ? LogStatus.delivered : LogStatus.sinkFailed,
+        written,
+        written,
+    );
+}
+
+/// Emits one bounded message.
+///
+/// Formatting completes into `messageBuffer` before the sink record begins. If
+/// the representation does not fit, the delivered prefix is reported as
+/// `LogStatus.truncated`. Use `stream` for deliberate unbounded output.
 LogResult log(Args...)(
     ref Logger logger,
     LogLevel level,
@@ -202,6 +301,11 @@ LogResult log(Args...)(
     return logger.deliver(level, formatted);
 }
 
+/// Formats and emits one bounded message.
+///
+/// Formatting completes into `messageBuffer` before the sink record begins. If
+/// the representation does not fit, the delivered prefix is reported as
+/// `LogStatus.truncated`. Use `stream` for deliberate unbounded output.
 LogResult logf(string pattern, Args...)(
     ref Logger logger,
     LogLevel level,

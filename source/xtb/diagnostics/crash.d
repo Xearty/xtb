@@ -117,6 +117,7 @@ private void tracePanic(String message, void*)
     StackTrace trace = globalState.context.capture(frames[], text[], 2);
     char[32 * 1024] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &globalState.style);
+    writer.put('\n');
     cast(void) writer.finish();
     globalState.panicTraceWritten = 1;
 }

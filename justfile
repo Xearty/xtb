@@ -1,9 +1,10 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 set script-interpreter := ["bash", "-eu", "-o", "pipefail"]
 
-d_files := `find source tests examples -type f -name '*.d' -print | sort | tr '\n' ' '`
+d_files := `find source tests examples benchmarks -type f -name '*.d' -print | sort | tr '\n' ' '`
 library_subpackages := `for recipe in source/xtb/*/dub.sdl; do basename "$(dirname "$recipe")"; done | sort | tr '\n' ' '`
 example_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' examples/dub.sdl | tr '\n' ' '`
+benchmark_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' benchmarks/dub.sdl | tr '\n' ' '`
 test_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' tests/dub.sdl | tr '\n' ' '`
 library_output_dir := env_var_or_default("XTB_LIBRARY_OUTPUT_DIR", "build")
 consumer_project_dir := invocation_directory()
@@ -62,6 +63,25 @@ run kind name *tail:
     just --justfile "{{ justfile() }}" --working-directory "{{ consumer_project_dir }}" \
         _dispatch run "$kind" "$name" "$mode" -- "$@"
 
+# Run an opt-in release-fast microbenchmark. Benchmarks are deliberately not
+# part of `check` or `run-examples`.
+#
+# Example:
+#   just benchmark logging 500000
+[script]
+[positional-arguments]
+benchmark name="logging" iterations="200000":
+    name="$1"
+    iterations="$2"
+    case " {{ benchmark_configurations }} " in
+        *" $name "*) ;;
+        *)
+            echo "unknown benchmark: $name" >&2
+            exit 2
+            ;;
+    esac
+    dub run :benchmarks {{ dub_options }} --build=release-nobounds --config="$name" -- "$iterations"
+
 # Run or compile the complete test suite in one supported mode.
 # Release-fast compiles the test runners but does not execute stripped tests.
 test mode="debug": (_test mode)
@@ -90,6 +110,11 @@ targets:
     EOF
     for config in {{ example_configurations }}; do
         printf '  %s\n' "${config%-demo}"
+    done
+    echo
+    echo "Benchmarks:"
+    for config in {{ benchmark_configurations }}; do
+        printf '  %s\n' "$config"
     done
 
 # Remove DUB state and generated build outputs.
@@ -120,6 +145,9 @@ lint:
     dub build {{ dub_options }} --build=syntax --d-version=XTB_Checked --config=library
     for config in {{ example_configurations }}; do
         dub build :examples {{ dub_options }} --build=syntax --d-version=XTB_Checked --config="$config"
+    done
+    for config in {{ benchmark_configurations }}; do
+        dub build :benchmarks {{ dub_options }} --build=syntax --d-version=XTB_Checked --config="$config"
     done
     dscanner_files=()
     for file in {{ d_files }}; do

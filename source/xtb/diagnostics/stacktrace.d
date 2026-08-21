@@ -6,6 +6,10 @@ import core.stdc.string : memcpy, strlen;
 import xtb.diagnostics.demangle : tryDemangleD;
 import xtb.core.ansi : AnsiColor, beginAnsi, endAnsi;
 import xtb.core.print : Writer, hexadecimal;
+import xtb.core.logging.level : LogLevel;
+import xtb.core.logging.logger : Logger, stream;
+import xtb.core.logging.result : LogResult;
+import xtb.core.logging.writer : LogMessageWriter;
 import xtb.core.string;
 import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
     StackTraceTheme, SignatureFormat, writeSignature;
@@ -310,6 +314,11 @@ private void endColor(
     writer.endAnsi(color);
 }
 
+/// Renders a stack trace without appending a trailing newline.
+///
+/// Callers that write the trace as standalone output are responsible for their
+/// own record/line terminator. This keeps the formatter composable with logger
+/// records and other writer destinations.
 void writeStackTrace(
     ref Writer writer,
     scope const StackTrace* trace,
@@ -325,18 +334,29 @@ void writeStackTrace(
     if (trace is null)
     {
         beginColor(writer, colors.warning);
-        writer.put("<null stack trace>\n");
+        writer.put("<null stack trace>");
         endColor(writer, colors, colors.warning);
         return;
     }
+
+    bool lineWritten;
+    void startLine()
+    {
+        if (lineWritten)
+            writer.put('\n');
+        lineWritten = true;
+    }
+
+    startLine();
     beginColor(writer, colors.decoration);
     writer.put("Stack trace");
     endColor(writer, colors, colors.decoration);
-    writer.put(" (most recent call first):\n");
+    writer.put(" (most recent call first):");
     const indexWidth = trace.frames.length == 0
         ? 1 : decimalDigits(trace.frames.length - 1);
     foreach (index, frame; trace.frames)
     {
+        startLine();
         writer.repeat(' ', indexWidth - decimalDigits(index));
         beginColor(writer, colors.decoration);
         writer.put('[');
@@ -401,26 +421,63 @@ void writeStackTrace(
                 endColor(writer, colors, colors.lineNumber);
             }
         }
-        writer.put('\n');
     }
     if (trace.framesTruncated)
     {
+        startLine();
         beginColor(writer, colors.warning);
-        writer.put("<additional frames omitted>\n");
+        writer.put("<additional frames omitted>");
         endColor(writer, colors, colors.warning);
     }
     if (trace.textTruncated)
     {
+        startLine();
         beginColor(writer, colors.warning);
-        writer.put("<some symbols omitted: text storage exhausted>\n");
+        writer.put("<some symbols omitted: text storage exhausted>");
         endColor(writer, colors, colors.warning);
     }
     if (trace.backendError && trace.frames.length == 0)
     {
+        startLine();
         beginColor(writer, colors.warning);
-        writer.put("<stack trace unavailable>\n");
+        writer.put("<stack trace unavailable>");
         endColor(writer, colors, colors.warning);
     }
+}
+
+private struct StackTraceLogValue
+{
+    const StackTrace* trace;
+    char[] signatureStorage;
+    const StackTraceStyle* style;
+
+    void formatTo(ref Writer writer) nothrow @nogc
+    {
+        writer.writeStackTrace(trace, signatureStorage, style);
+    }
+}
+
+/// Streams one stack trace as a single logger record.
+///
+/// The stack trace is rendered incrementally through the logger's streaming
+/// writer, so the complete textual trace does not need to fit in the logger's
+/// message buffer. `signatureStorage` remains caller-owned scratch used only
+/// while demangling frame names during this call. `writeStackTrace` is
+/// newline-neutral; the logger supplies the record terminator.
+LogResult logStackTrace(
+    ref Logger logger,
+    scope const StackTrace* trace,
+    return scope char[] signatureStorage,
+    LogLevel level = LogLevel.error,
+    scope const StackTraceStyle* requestedStyle = null,
+)
+{
+    StackTraceLogValue value = StackTraceLogValue(
+        trace,
+        signatureStorage,
+        requestedStyle,
+    );
+    return logger.stream(level, (scope ref LogMessageWriter output) { output.format(value); });
 }
 
 unittest
@@ -438,6 +495,55 @@ unittest
 
 version (unittest)
 {
+    import xtb.core.logging.palette : LogPalette;
+    import xtb.core.logging.sink : LogSinkEvent, LogSinkEventKind;
+
+    private struct LoggedTraceCapture
+    {
+    nothrow @nogc:
+
+        char[16 * 1024] bytes;
+        size_t length;
+        size_t messageChunks;
+        size_t records;
+    }
+
+    private bool loggedTraceSink(
+        void* context,
+        scope const LogSinkEvent* event,
+    )
+    {
+        LoggedTraceCapture* capture = cast(LoggedTraceCapture*) context;
+        if (capture is null || event is null)
+            return false;
+
+        final switch (event.kind)
+        {
+            case LogSinkEventKind.beginRecord:
+                break;
+            case LogSinkEventKind.text:
+            case LogSinkEventKind.messageChunk:
+                if (event.bytes.length > capture.bytes.length - capture.length)
+                    return false;
+                memcpy(
+                    capture.bytes.ptr + capture.length,
+                    event.bytes.ptr,
+                    event.bytes.length,
+                );
+                capture.length += event.bytes.length;
+                if (event.kind == LogSinkEventKind.messageChunk)
+                    ++capture.messageChunks;
+                break;
+            case LogSinkEventKind.beginMessage:
+            case LogSinkEventKind.endMessage:
+                break;
+            case LogSinkEventKind.endRecord:
+                ++capture.records;
+                break;
+        }
+        return true;
+    }
+
     private struct TraceCapture
     {
     nothrow @nogc:
@@ -482,8 +588,54 @@ unittest
     assert(capture.bytes[0 .. capture.length].equal(
             "Stack trace (most recent call first):\n" ~
             "[0] run(int)\n" ~
-            "    ↳ main.d:9\n",
+            "    ↳ main.d:9",
     ));
+}
+
+unittest
+{
+    StackFrame[24] frames;
+    foreach (index; 0 .. frames.length)
+    {
+        frames[index] = StackFrame(
+            0x1000 + index,
+            "source/application/render_pipeline/very_long_module_name.d",
+            "_D3app3runFiZi",
+            cast(uint) index + 10,
+        );
+    }
+    StackTrace trace;
+    trace.frames = frames[];
+
+    LoggedTraceCapture capture;
+    char[8] logStorage;
+    Logger logger = Logger.create(
+        &loggedTraceSink,
+        &capture,
+        logStorage[],
+        LogLevel.trace,
+        null,
+        LogPalette.init,
+    );
+    StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.plain);
+    char[256] signatureStorage;
+
+    const result = logger.logStackTrace(
+        &trace,
+        signatureStorage[],
+        LogLevel.error,
+        &style,
+    );
+
+    assert(result.delivered);
+    assert(result.written > logStorage.length);
+    assert(result.required == result.written);
+    assert(capture.records == 1);
+    assert(capture.messageChunks > 1);
+    assert(capture.length > result.written);
+    assert(capture.bytes[0 .. 8].equal("[error] "));
+    assert(capture.bytes[capture.length - 1] == '\n');
+    assert(capture.bytes[capture.length - 2] != '\n');
 }
 
 version (linux) unittest
