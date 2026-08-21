@@ -24,5 +24,4 @@ public import xtb.core.string_hash_set;
 public import xtb.core.print;
 public import xtb.core.ansi;
 public import xtb.core.pretty_print;
-public import xtb.core.logger;
-public import xtb.core.thread_logger;
+public import xtb.core.logging;

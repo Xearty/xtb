@@ -10,7 +10,7 @@ Maintain this document with the implementation whenever the public API, lifecycl
 
 ## Decision summary
 
-- Add a generic `PrefixLogSink` in `xtb.core.logger`.
+- Add a generic `PrefixLogSink` in `xtb.core.logging`.
 - Prefix insertion is driven by explicit `beginRecord`; there is no first-chunk inference.
 - A prefix provider writes only styled `text` events through a restricted `LogPrefixWriter`.
 - Prefix providers may use stack storage because delivery is synchronous; the prefix sink does not allocate or own prefix text.

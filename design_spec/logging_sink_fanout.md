@@ -8,7 +8,7 @@ This document is the maintained design contract for composable logging output,
 ANSI-aware terminal presentation, plain-file fan-out, and future chunked logger
 delivery in `xtb.core`.
 
-It is based on the current `source/xtb/core/logger.d` implementation and the
+It is based on the current `source/xtb/core/logging/` implementation and the
 supplied BetterC toolchain. Update this document in the same change whenever the
 logging protocol, public names, palette model, ANSI guarantees, fan-out
 semantics, implementation status, or tests change.

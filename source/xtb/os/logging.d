@@ -3,9 +3,9 @@ module xtb.os.logging;
 nothrow @nogc:
 
 import xtb.core.ansi : AnsiColor, AnsiStyle;
-import xtb.core.logger : LogPrefixRef, LogPrefixWriter;
+import xtb.core.logging.prefix : LogPrefixRef, LogPrefixWriter;
 
-version (unittest) import xtb.core.logger : LogSinkEvent, LogSinkEventKind;
+version (unittest) import xtb.core.logging.sink : LogSinkEvent, LogSinkEventKind;
 import xtb.core.string : String;
 import xtb.core.types : i64;
 import xtb.os.error : OsError;
@@ -253,8 +253,8 @@ version (unittest)
 
 unittest
 {
-    import xtb.core.logger : LogSinkEvent, LogSinkEventKind, LogSinkRef,
-        PrefixLogSink;
+    import xtb.core.logging.prefix : PrefixLogSink;
+    import xtb.core.logging.sink : LogSinkEvent, LogSinkEventKind, LogSinkRef;
     import xtb.core.string;
     import xtb.os.error : OsErrorKind;
 
@@ -378,8 +378,11 @@ unittest
 unittest
 {
     import core.stdc.stdio : FILE, fclose, fread, rewind, tmpfile;
-    import xtb.core.logger : Logger, LogLevel, PrefixLogSink, TeeLogSink,
-        ansiFileLogSink, flush, info, plainFileLogSink;
+    import xtb.core.logging.file : ansiFileLogSink, plainFileLogSink;
+    import xtb.core.logging.level : LogLevel;
+    import xtb.core.logging.logger : Logger, flush, info;
+    import xtb.core.logging.prefix : PrefixLogSink;
+    import xtb.core.logging.tee : TeeLogSink;
     import xtb.core.string;
 
     size_t readFile(FILE* file, char[] destination) @system

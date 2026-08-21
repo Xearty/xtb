@@ -161,7 +161,7 @@ switches between them directly. The core logger remains explicit and defaults
 to plain output. Applications importing `xtb.os` can select `LogStyle.ansi` when
 `shouldUseAnsi(stderr)` succeeds. Automatic policy uses the destination,
 `TERM`, and `NO_COLOR`; there is deliberately no separate terminal logger or
-hidden environment lookup in `xtb.core.logger`.
+hidden environment lookup in `xtb.core.logging`.
 
 `FlagSet!E` treats enum values as bit positions and chooses the smallest
 fitting unsigned storage type by default. Specify its storage type explicitly

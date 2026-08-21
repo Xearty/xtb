@@ -1,9 +1,12 @@
-module xtb.core.thread_logger;
+module xtb.core.logging.thread;
 
 nothrow @nogc:
 
-import explicitLogger = xtb.core.logger;
-import xtb.core.logger : Logger, LogLevel, LogResult, LogStatus;
+import explicitLogger = xtb.core.logging.logger;
+import explicitSink = xtb.core.logging.sink;
+import xtb.core.logging.level : LogLevel;
+import xtb.core.logging.logger : Logger;
+import xtb.core.logging.result : LogResult, LogStatus;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.thread_context : ThreadContext, currentThreadContext;
@@ -189,11 +192,11 @@ version (unittest)
 
     private bool captureSink(
         void* context,
-        scope const explicitLogger.LogSinkEvent* event,
+        scope const explicitSink.LogSinkEvent* event,
     )
     {
         Capture* capture = cast(Capture*) context;
-        if (event.kind == explicitLogger.LogSinkEventKind.messageChunk)
+        if (event.kind == explicitSink.LogSinkEventKind.messageChunk)
         {
             if (event.bytes.length > capture.bytes.length - capture.length)
                 return false;
@@ -201,7 +204,7 @@ version (unittest)
                 capture.bytes[capture.length + index] = value;
             capture.length += event.bytes.length;
         }
-        else if (event.kind == explicitLogger.LogSinkEventKind.text &&
+        else if (event.kind == explicitSink.LogSinkEventKind.text &&
             event.bytes.length >= 2 && event.bytes[0] == '[')
         {
             if (event.bytes.length > capture.label.length)
