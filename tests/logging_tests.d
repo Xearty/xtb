@@ -4,6 +4,8 @@ import core.stdc.stdio : FILE, fclose, fread, rewind, tmpfile;
 import xtb.core;
 
 static assert(__traits(isCopyable, LogSinkRef));
+static assert(__traits(isCopyable, LogPrefixRef));
+static assert(!__traits(isCopyable, PrefixLogSink));
 static assert(!__traits(isCopyable, TeeLogSink));
 static assert(!__traits(isCopyable, Logger));
 
@@ -16,6 +18,19 @@ private struct FormatProbe
         ++*calls;
         writer.put("formatted-once");
     }
+}
+
+private struct FixedPrefix
+{
+    String text;
+    AnsiStyle style;
+}
+
+private bool writeFixedPrefix(void* context, LogPrefixWriter* output) nothrow @nogc
+{
+    FixedPrefix* prefix = cast(FixedPrefix*) context;
+    return prefix !is null && output !is null &&
+        output.write(prefix.text, prefix.style);
 }
 
 private size_t readFile(FILE* file, char[] destination) nothrow @system @nogc
@@ -52,20 +67,33 @@ extern (C) int main() nothrow @nogc
     scope (exit)
         assert(fclose(secondFile) == 0);
 
-    TeeLogSink plainFiles = TeeLogSink.create(
+    FixedPrefix filePrefix = FixedPrefix("file-only ");
+    PrefixLogSink prefixedFile = PrefixLogSink.create(
         plainFileLogSink(firstFile),
+        LogPrefixRef.create(&writeFixedPrefix, &filePrefix),
+    );
+    TeeLogSink plainFiles = TeeLogSink.create(
+        prefixedFile.sinkRef(),
         plainFileLogSink(secondFile),
     );
     TeeLogSink outputs = TeeLogSink.create(
         ansiFileLogSink(terminal),
         plainFiles.sinkRef(),
     );
+    FixedPrefix sharedPrefix = FixedPrefix(
+        "shared ",
+        AnsiStyle.foreground(AnsiColor.brightBlack).dim,
+    );
+    PrefixLogSink sharedOutput = PrefixLogSink.create(
+        outputs.sinkRef(),
+        LogPrefixRef.create(&writeFixedPrefix, &sharedPrefix),
+    );
 
     LogPalette palette = LogPalette.preset(LogPalettePreset.trueColor);
 
     char[2_048] storage;
     Logger logger = Logger.create(
-        outputs.sinkRef(),
+        sharedOutput.sinkRef(),
         storage[],
         LogLevel.trace,
         palette,
@@ -98,15 +126,19 @@ extern (C) int main() nothrow @nogc
     const firstText = cast(String) firstBytes[0 .. firstLength];
     const secondText = cast(String) secondBytes[0 .. secondLength];
 
-    if (!containsEscape(terminalText) || containsEscape(firstText))
+    if (!containsEscape(terminalText) || containsEscape(firstText) ||
+        containsEscape(secondText))
         return 1;
-    if (firstLength != secondLength || !firstText.equal(secondText))
+    if (!terminalText.contains("shared ") || !terminalText.contains("[warning]") ||
+        terminalText.contains("file-only "))
         return 1;
-    if (!firstText.startsWith("[warning] prefix "))
+    if (!firstText.startsWith("file-only shared [warning] prefix ") ||
+        !secondText.startsWith("shared [warning] prefix "))
         return 1;
-    if (!firstText.endsWith(" formatted-once suffix\n"))
+    if (!firstText.endsWith(" formatted-once suffix\n") ||
+        !secondText.endsWith(" formatted-once suffix\n"))
         return 1;
-    if (!firstText.contains(longText[]))
+    if (!firstText.contains(longText[]) || !secondText.contains(longText[]))
         return 1;
 
     return 0;

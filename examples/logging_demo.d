@@ -2,7 +2,7 @@ module examples.logging_demo;
 
 import core.stdc.stdio : FILE, fclose, stderr, tmpfile;
 import xtb.core;
-import xtb.os : shouldUseAnsi;
+import xtb.os : TimestampLogPrefix, shouldUseAnsi;
 
 private struct RequestId
 {
@@ -73,7 +73,9 @@ extern (C) int main() nothrow @nogc
     if (!plain.info("plain logger: application starting").delivered || !plain.flush())
         return 1;
 
-    // Tee one formatting pass to terminal presentation and a plain file branch.
+    // Tee one formatting pass to terminal presentation and a timestamped plain
+    // file branch. The timestamp provider's style is ignored by the plain sink,
+    // so the logfile contains no ANSI bytes and the terminal has no timestamp.
     // `tmpfile` keeps the example self-cleaning; a real application would pass
     // its long-lived logfile `FILE*` here instead.
     FILE* logFile = tmpfile();
@@ -84,8 +86,12 @@ extern (C) int main() nothrow @nogc
 
     LogSinkRef terminal = terminalSupportsAnsi
         ? ansiFileLogSink(cast(FILE*) stderr) : plainFileLogSink(cast(FILE*) stderr);
-    LogSinkRef logfile = plainFileLogSink(logFile);
-    TeeLogSink tee = TeeLogSink.create(terminal, logfile);
+    TimestampLogPrefix timestamp = TimestampLogPrefix.create();
+    PrefixLogSink timestampedFile = PrefixLogSink.create(
+        plainFileLogSink(logFile),
+        timestamp.prefixRef(),
+    );
+    TeeLogSink tee = TeeLogSink.create(terminal, timestampedFile.sinkRef());
 
     char[512] messageStorage;
     Logger logger = Logger.create(

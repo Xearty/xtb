@@ -445,8 +445,19 @@ formatting. The explicit `logger.log(...)`, `logger.logf!pattern(...)`, and
 The logger owns textual framing. It emits the level label (`[warning]`, etc.),
 the separating space, message boundaries, and the final newline as sink events.
 A sink may style or ignore those bytes, but it does not choose their spelling.
-Future timestamps or other logger metadata can therefore be added as ordinary
-styled `text` events without teaching sinks about timestamp semantics.
+Destination-specific metadata is composed below the logger. `PrefixLogSink`
+borrows one child plus a `LogPrefixRef`, runs the provider after the child
+accepts `beginRecord`, and injects only ordinary styled `text` events. This
+keeps level framing in `Logger` while allowing one tee branch to gain a prefix
+without affecting its peers. Prefix failure is deferred until `endRecord` so
+an already-begun child still receives the actual record and matching cleanup.
+
+`xtb.os.logging.TimestampLogPrefix` is the first provider. It reads the wall
+clock in the OS layer, formats a fixed local or UTC date/time without
+allocation, and attaches a configurable `AnsiStyle` (subdued gray by default).
+ANSI presentation renders that style; plain presentation ignores it. Wrapping
+only the logfile branch therefore adds a plain timestamp to the file without
+changing terminal output, while wrapping a tee timestamps both destinations.
 
 `LogPalette` contains one `LogLevelStyle` per severity. `label` styles the
 logger-generated level label; `message` is an optional base style for the
@@ -515,6 +526,23 @@ Logger logger = Logger.create(tee.sinkRef(), storage[]);
 borrowed destination must remain valid while `sinkRef()` is in use. Distinct
 thread-confined loggers/tees may share file presentation sinks because the file
 callbacks serialize the complete logical record.
+
+A destination-specific timestamp composes without changing `Logger` or the tee:
+
+```d
+TimestampLogPrefix timestamp = TimestampLogPrefix.create();
+PrefixLogSink timestampedFile = PrefixLogSink.create(
+    plainFileLogSink(file),
+    timestamp.prefixRef(),
+);
+TeeLogSink tee = TeeLogSink.create(
+    ansiFileLogSink(stderr),
+    timestampedFile.sinkRef(),
+);
+```
+
+The prefix provider and decorator are stateful borrowed objects and must remain
+at stable addresses for as long as their derived references are in use.
 
 Normal call sites should use the level-specific convenience functions instead
 of spelling `LogLevel` repeatedly. The plain family forwards to `log`, and the
