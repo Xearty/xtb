@@ -389,15 +389,25 @@ void writeSignature(
     SignatureFormat format = SignatureFormat.init,
 )
 {
+    if (signature.length == 0)
+        return;
+
     StackTraceColors plain;
     const StackTraceColors* activeColors = colors is null ? &plain : colors;
+    const parameters = outerParameterList(signature);
+    if (!parameters.found)
+    {
+        writer.beginAnsi(activeColors.functionName);
+        writer.put(signature);
+        writer.endAnsi(activeColors.functionName);
+        return;
+    }
+
     size_t offset;
     bool suppressSeparator;
     bool suppressSpace;
-    const parameters = outerParameterList(signature);
     const multiline = format.layout == SignatureLayout.multiline &&
-        format.maxColumns != 0 && parameters.found &&
-        parameters.close > parameters.open + 1 &&
+        format.maxColumns != 0 && parameters.close > parameters.open + 1 &&
         visibleWidth(signature, moduleDisplay) > format.maxColumns;
     bool insideParameters;
     size_t nestedParentheses;
@@ -538,6 +548,31 @@ unittest
     assert(rgbStorage[0 .. rgbOutput.written].equal(
             "\x1b[38;2;1;2;3mcall\x1b[0m(int)",
     ));
+
+    char[128] bareStorage;
+    TestSink bareOutput = TestSink(bareStorage[]);
+    Writer bareWriter = Writer.fromSink(&testSink, &bareOutput);
+    bareWriter.writeSignature("main", &rgbColors);
+    assert(bareWriter.finish().ok);
+    assert(bareStorage[0 .. bareOutput.written].equal(
+            "\x1b[38;2;1;2;3mmain\x1b[0m",
+    ));
+
+    char[128] cStorage;
+    TestSink cOutput = TestSink(cStorage[]);
+    Writer cWriter = Writer.fromSink(&testSink, &cOutput);
+    cWriter.writeSignature("__libc_start_main", &rgbColors);
+    assert(cWriter.finish().ok);
+    assert(cStorage[0 .. cOutput.written].equal(
+            "\x1b[38;2;1;2;3m__libc_start_main\x1b[0m",
+    ));
+
+    char[1] emptyStorage;
+    TestSink emptyOutput = TestSink(emptyStorage[]);
+    Writer emptyWriter = Writer.fromSink(&testSink, &emptyOutput);
+    emptyWriter.writeSignature("", &rgbColors);
+    assert(emptyWriter.finish().ok);
+    assert(emptyOutput.written == 0);
 
     char[128] plainStorage;
     TestSink plainOutput = TestSink(plainStorage[]);
