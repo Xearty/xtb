@@ -13,7 +13,7 @@ import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray, tryAlloca
 import xtb.core.option : Option;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.string;
 import xtb.core.string_hash_map;
 import xtb.core.types : String;
@@ -78,7 +78,6 @@ SerdeError writeJson(T)(
     encoder.writer = &writer;
     encoder.options = options;
     encodeValue(encoder, value, 0);
-    writer.flush();
     if (!encoder.error.ok)
         return encoder.error;
     return writer.ok ? success() : simpleError(SerdeErrorKind.outputFailure);

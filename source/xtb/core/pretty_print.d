@@ -24,7 +24,7 @@ version (unittest)
     import xtb.core.string_hash_map;
     import xtb.core.string_hash_set;
 }
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.types : String;
 
 /// Controls how aggregate values are laid out.

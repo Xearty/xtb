@@ -514,29 +514,32 @@ the logger is invalid, filtered, recursive, or the sink rejects framing before
 `beginMessage`. The logger keeps its sink snapshot and recursion guard for the
 entire producer call.
 
-`LogMessageWriter.format(values...)` adapts the existing streaming
-`xtb.core.print.Writer` into the message rather than implementing a second
-value formatter. Primitive values and normal `formatRepresentation()` /
+`LogMessageWriter.writer()` exposes the message as an immediate generic
+`xtb.core.writer.Writer`. Primitive values and normal `formatRepresentation()` /
 `formatTo(ref Writer)` customizations therefore keep exactly the ordinary XTB
-print semantics without materializing a complete formatted string. The core
-print writer already emits incrementally; sufficiently large borrowed strings
-can pass through both layers without an intermediate copy.
+formatting semantics without materializing a complete formatted string. The
+generic writer owns no staging buffer: it feeds the `LogMessageWriter`
+synchronously, so logging-specific staging and SGR-safe chunk boundaries remain
+owned by exactly one layer. Sufficiently large borrowed strings can still pass
+through both layers without an intermediate copy.
 
-Pretty printing composes through the same API rather than adding a
+Pretty printing composes through the same Writer rather than adding a
 logging-specific pretty formatter. `PrettyValue` and `OwnedPrettyValue` already
 implement `formatTo(ref Writer)`, and the pretty printer itself renders directly
-to that writer. Passing `value.pretty(options)` to `output.format(...)` therefore
-streams nested, multiline, or otherwise large representations through bounded
-storage. Automatic layout may measure a value before rendering it, but it does
-not materialize the full representation.
+to that writer. Writing `value.pretty(options)` through the message's Writer
+therefore streams nested, multiline, or otherwise large representations through
+bounded logging storage. Automatic layout may measure a value before rendering
+it, but it does not materialize the full representation.
 
 ```d
 const result = logger.stream(LogLevel.error,
-    (scope ref LogMessageWriter output)
+    (scope ref LogMessageWriter message)
     {
-        output.write("allocation failed: attempt=");
-        output.format(attempt);
-        output.write("\ndiagnostic details continue without a message-size limit");
+        Writer output = message.writer();
+        output.write(
+            "allocation failed: attempt=", attempt,
+            "\ndiagnostic details continue without a message-size limit",
+        );
     });
 ```
 
@@ -572,9 +575,9 @@ On the development x86-64 release-fast run used to validate this design, the two
 message-boundary callbacks added roughly 3--4 ns per record to a null sink. That
 is intentionally treated as a machine-specific order-of-magnitude result, not a
 performance guarantee. The same run measured ordinary small null-sink logging at
-roughly 75--90 ns per record and real `FILE*` presentation at a higher cost, so
-the dormant lifecycle overhead is small relative to formatting and destination
-work.
+roughly 40--55 ns per record after the immediate-Writer refactor, with real
+`FILE*` presentation at a higher cost, so the dormant lifecycle overhead remains
+small relative to formatting and destination work.
 
 The active benchmark also demonstrates the reason to keep the protocol: a large
 borrowed slice can be submitted by the streaming writer without first copying
@@ -1178,7 +1181,7 @@ formatting:
 
 ```d
 writeln(i"loaded $(count) records from $(path)");
-buffer.formatTo(i"address=$(hexadecimal(address)), ratio=$(fixed(ratio, 3))");
+buffer.format(i"address=$(hexadecimal(address)), ratio=$(fixed(ratio, 3))");
 StringBuf owned = formatString(allocator, i"$(name): $(value)");
 ```
 
@@ -1193,9 +1196,9 @@ and interpolation itself requires neither a runtime format parser nor an
 allocation.
 
 `write`, `writeln`, `ewrite`, `ewriteln`, `writeFile`, `writelnFile`,
-`StringBuf.writeTo`, and `writeBuffer` accept interpolated sequences directly.
-The `format`, `formatln`, `StringBuf.formatTo`, `formatBuffer`, `formatString`,
-and `tryFormatString` overloads do as well. A fixed-buffer result reports the
+`StringBuf.write`, and `writeBuffer` accept interpolated sequences directly.
+The `format`, `formatln`, `StringBuf.format`, `formatBuffer`, `formatString`, and
+`tryFormatString` overloads do as well. A fixed-buffer result reports the
 same written, required, and truncation values regardless of whether its input
 uses interpolation or ordinary arguments. An owned result always requires an
 explicit allocator.
@@ -1204,11 +1207,12 @@ Formatting policy stays explicit in expressions. Use wrappers such as
 `hexadecimal(value)`, `.digits(width)`, and `fixed(value, precision)`. A type
 whose ordinary display is already represented by another value should define
 `formatRepresentation()` and return that value; the printer recursively applies
-normal formatting to the result. This is the preferred path for semantic
-wrappers such as `OwnedString` and `StringBuf`, because those types can delegate
-to their `String` view without learning about writers or shadowing the existing
-UFCS `buffer.formatTo(...)` formatting API. A type needing genuinely custom
-normal syntax may instead define `void formatTo(ref Writer)`. A representation
+normal formatting to the result. This remains the preferred path for semantic
+wrappers such as `OwnedString` and `StringBuf`, because their ordinary value
+representation is simply their borrowed `String` view. Independently,
+`StringBuf` is also a Writer destination with real `write`, `writeln`, and
+`format` members plus `writer()` for generic renderers. A type needing genuinely
+custom normal syntax may instead define `void formatTo(ref Writer)`. A representation
 is observational and never transfers ownership to the printer: a by-value
 result must be cleanup-free, while a `ref` result is a borrow that must remain
 valid for the recursive formatting call. Pointer and slice results are likewise

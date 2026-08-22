@@ -136,8 +136,8 @@ Future general-purpose additions are ranked separately in
 
 ### Printing and logging
 
-- allocation-free buffered `Writer` over explicit byte sinks;
-- stdout, stderr, file, `StringBuf`, and fixed-buffer destinations;
+- allocation-free immediate `Writer` views over explicit byte sinks;
+- stdout, stderr, file, `StringBuf`, logging, and fixed-buffer destinations;
 - checked short-write handling and required/truncated counts;
 - integers, arbitrary radix, binary/hex wrappers, floating-point modes,
   pointers, strings, and opt-in custom `formatTo` values;

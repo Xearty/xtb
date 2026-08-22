@@ -226,7 +226,7 @@ version (unittest)
 
 unittest
 {
-    import xtb.core.print : Writer;
+    import xtb.core.writer : Writer;
     import xtb.core.string;
     import xtb.core.thread_context : ThreadContextScope;
 

@@ -6,7 +6,7 @@ import xtb.core.ansi : AnsiStyle;
 import xtb.core.logging.sgr : SgrParseKind, maxSupportedSgrLength,
     parseSgrPrefix, safeSgrPrefixLength;
 import xtb.core.logging.sink : LogSinkEvent, LogSinkRef;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.string : String;
 import xtb.core.types : u8;
 
@@ -65,32 +65,18 @@ nothrow @nogc:
         }
     }
 
-    /// Formats one or more ordinary XTB printable values into this message.
+    /// Returns an immediate generic `Writer` view over this message.
     ///
-    /// Formatting reuses `xtb.core.print.Writer` as a streaming producer, so a
-    /// value's `formatRepresentation()` / `formatTo(ref Writer)` hooks keep the
-    /// same semantics as the ordinary print APIs without materializing a
-    /// complete intermediate string. Pretty-print wrappers are ordinary
-    /// `formatTo` values too, so `output.format(value.pretty(options))` streams
-    /// the pretty representation through this same path. The print writer feeds
-    /// this writer synchronously; large borrowed strings can therefore retain
-    /// the direct zero-copy chunk path.
-    void format(Values...)(scope auto ref Values values) if (Values.length != 0)
+    /// The returned writer borrows this `LogMessageWriter` and is valid only
+    /// during the surrounding synchronous logger producer. Generic formatting
+    /// reaches this writer immediately; this type remains responsible for
+    /// staging and SGR-safe message chunk boundaries.
+    Writer writer() return @trusted
     {
-        if (failed)
-            return;
-
-        Writer formatter = Writer.fromSink(
-            &logMessageFormatSink,
+        return Writer.fromSink(
+            &logMessageWriterSink,
             cast(void*)&this,
         );
-        static foreach (index; 0 .. Values.length)
-        {
-            if (formatter.ok)
-                formatter.value(values[index]);
-        }
-        if (!formatter.finish().ok)
-            failed_ = true;
     }
 
     /// Emits every currently safe staged prefix.
@@ -254,7 +240,7 @@ nothrow @nogc:
     }
 }
 
-private size_t logMessageFormatSink(
+private size_t logMessageWriterSink(
     void* context,
     scope const(u8)[] bytes,
 )

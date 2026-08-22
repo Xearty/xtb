@@ -42,7 +42,7 @@ extern (C) int main() nothrow @nogc
     writeln(text);
 
     StringBuf builder = StringBuf.create(mallocAllocator());
-    builder.formatTo(i"builder output: $(Point(-2, 8))");
+    builder.format(i"builder output: $(Point(-2, 8))");
     writeln(builder);
 
     char[24] storage;

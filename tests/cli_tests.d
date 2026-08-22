@@ -9,7 +9,7 @@ import xtb.core.array : Array;
 import xtb.core.lifetime : moveAssign;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.types : String;
 
 enum BuildMode
@@ -1751,8 +1751,8 @@ private void testFlattenedArguments()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 2);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(contains(errors.text, "required option '--toolchain' was not provided"));
     }
 
@@ -1760,7 +1760,7 @@ private void testFlattenedArguments()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!FlattenArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text,
                 "Usage: tool --toolchain <TOOLCHAIN> --output <OUTPUT> [OPTIONS]"));
@@ -1794,7 +1794,7 @@ private void testFlattenedArguments()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!FlattenPositionalArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(contains(output.text, "Usage: tool [OPTIONS] <PREFIX> <SOURCE> <DESTINATION>"));
     }
 
@@ -1815,7 +1815,7 @@ private void testFlattenedArguments()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(FlattenGlobalRootArgs, FlattenGlobalChildArgs)(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(contains(output.text, "Optional global options:"));
         assert(contains(output.text, "--verbose"));
         assert(contains(output.text, "--workers <WORKERS>"));
@@ -1853,7 +1853,7 @@ private void testFlattenedArguments()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!FlattenRequiredChoiceArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(contains(output.text, "Usage: tool (--color|--no-color) [OPTIONS]"));
         assert(contains(output.text, "Required options:"));
     }
@@ -1869,7 +1869,7 @@ private void testFlattenedArguments()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!FlattenOverrideDefaultArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(contains(output.text, "default: 9"));
     }
 
@@ -1966,7 +1966,7 @@ private void testRequirednessAndDefaults()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!RequirednessDefaultArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "Usage: tool --required <REQUIRED> [OPTIONS]"));
         assert(contains(output.text, "Required options:"));
@@ -1987,7 +1987,7 @@ private void testRequirednessAndDefaults()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!HiddenInputDefaultArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(contains(output.text, "--port <PORT>"));
         assert(!contains(output.text, "default:"));
     }
@@ -2004,7 +2004,7 @@ private void testRequirednessAndDefaults()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!HiddenSemanticDefaultArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(!contains(output.text, "internal"));
         assert(!contains(output.text, "default:"));
     }
@@ -2013,7 +2013,7 @@ private void testRequirednessAndDefaults()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!HiddenPositionalArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(!contains(output.text, "INTERNAL"));
     }
 
@@ -2231,8 +2231,8 @@ private void testHelpOnMissingSubcommand()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 0);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(errors.text.length == 0);
         assert(contains(output.text, "Choose a command"));
         assert(contains(output.text, "Usage: tool --config <CONFIG> <COMMAND>"));
@@ -2285,8 +2285,8 @@ private void testHelpOnMissingSubcommand()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 0);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(errors.text.length == 0);
         assert(contains(output.text, "Choose a group command"));
         assert(contains(output.text,
@@ -2554,7 +2554,7 @@ private void testNegatableBooleans()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!RequiredNegatableArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "Usage: tool (--color|--no-color) [OPTIONS]"));
         assert(contains(output.text, "Required options:"));
@@ -2566,7 +2566,7 @@ private void testNegatableBooleans()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!NegatableArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "-c, --color"));
         assert(contains(output.text, "Use colored output"));
@@ -2589,7 +2589,7 @@ private void testPublicGeneratedHelp()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!RequiredOnlyHelpArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "Usage: tool --output <OUTPUT>"));
         assert(!contains(output.text, "[OPTIONS]"));
@@ -2601,7 +2601,7 @@ private void testPublicGeneratedHelp()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(RequiredGlobalRootArgs, RequiredGlobalChildArgs)(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text,
                 "Usage: tool child --workspace <WORKSPACE> [OPTIONS]"));
@@ -2617,7 +2617,7 @@ private void testPublicGeneratedHelp()
             writer,
             "/usr/local/bin/tool",
         );
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "Add a dependency"));
         assert(contains(output.text, "Usage: tool dependency [OPTIONS] add [OPTIONS] <PACKAGE>"));
@@ -2639,8 +2639,8 @@ private void testPublicGeneratedHelp()
         Writer builtinWriter = Writer.fromSink(&textSink, &builtinOutput);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(builtinWriter, errorWriter, result) == 0);
-        assert(builtinWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(builtinWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(errors.text.length == 0);
         assert(output.text == builtinOutput.text);
     }
@@ -2649,7 +2649,7 @@ private void testPublicGeneratedHelp()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(CustomHelpRootArgs, CustomHelpChildArgs)(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "Usage: tool [OPTIONS] child [OPTIONS]"));
         assert(contains(output.text, "-h, --help"));
@@ -2660,7 +2660,7 @@ private void testPublicGeneratedHelp()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(RootArgs, BuildArgs)(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "Usage: tool build --output <PATH> [OPTIONS]"));
         assert(contains(output.text, "Required options:"));
@@ -2681,7 +2681,7 @@ private void testPublicGeneratedHelp()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!OverrideBuiltInValueArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "--jobs <JOBS>"));
         assert(contains(output.text, "aliases: --parallelism"));
@@ -2699,7 +2699,7 @@ private void testPublicGeneratedHelp()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(AliasRootArgs)(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "remove"));
         assert(contains(output.text, "Remove an item"));
@@ -2727,7 +2727,7 @@ private void testPublicGeneratedHelp()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(AliasRootArgs, AliasRemoveArgs)(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
 
         assert(contains(output.text, "Usage: tool [OPTIONS] remove --target <TARGET> [OPTIONS]"));
         assert(contains(output.text, "-f, --force"));
@@ -2744,13 +2744,13 @@ private void testAnsiRendering()
         TextSink plain;
         Writer plainWriter = Writer.fromSink(&textSink, &plain);
         writeHelp!OverrideBuiltInValueArgs(plainWriter, "tool");
-        assert(plainWriter.finish().ok);
+        assert(plainWriter.result.ok);
         assert(!contains(plain.text, "\x1b["));
 
         TextSink styled;
         Writer styledWriter = Writer.fromSink(&textSink, &styled);
         writeHelp!OverrideBuiltInValueArgs(styledWriter, "tool", true);
-        assert(styledWriter.finish().ok);
+        assert(styledWriter.result.ok);
         assert(contains(styled.text, "\x1b[1mUsage:\x1b[0m"));
         assert(contains(styled.text, "\x1b[2maliases:\x1b[0m"));
         assert(contains(styled.text, "\x1b[93mauto\x1b[0m"));
@@ -2767,8 +2767,8 @@ private void testAnsiRendering()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result, true, false) == 0);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(contains(output.text, "\x1b["));
         assert(errors.text.length == 0);
     }
@@ -2784,8 +2784,8 @@ private void testAnsiRendering()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result, false, true) == 2);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(output.text.length == 0);
         assert(contains(errors.text, "\x1b[1;91merror:\x1b[0m"));
         assert(contains(errors.text, "\x1b[93mwat\x1b[0m"));
@@ -2807,8 +2807,8 @@ private void testGeneratedHelpAndVersion()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 0);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(errors.text.length == 0);
         assert(contains(output.text, "Add a dependency"));
         assert(contains(output.text, "Usage: tool dependency [OPTIONS] add [OPTIONS] <PACKAGE>"));
@@ -2831,8 +2831,6 @@ private void testGeneratedHelpAndVersion()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 0);
-        outputWriter.finish();
-        errorWriter.finish();
         assert(output.text == "tool 2.4.1\n");
         assert(errors.text.length == 0);
     }
@@ -2850,8 +2848,6 @@ private void testGeneratedErrorResponse()
     Writer outputWriter = Writer.fromSink(&textSink, &output);
     Writer errorWriter = Writer.fromSink(&textSink, &errors);
     assert(writeCliResult(outputWriter, errorWriter, result) == 2);
-    outputWriter.finish();
-    errorWriter.finish();
 
     assert(output.text.length == 0);
     assert(contains(errors.text, "error: unknown command 'wat'"));
@@ -2917,8 +2913,6 @@ private void testDisabledBuiltinHelp()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 2);
-        outputWriter.finish();
-        errorWriter.finish();
         assert(!contains(errors.text, "--help"));
     }
 }
@@ -2959,8 +2953,6 @@ private void testDisabledBuiltinVersion()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 0);
-        outputWriter.finish();
-        errorWriter.finish();
         assert(contains(output.text, "--version <VERSION>"));
         assert(!contains(output.text, "Show the application version"));
     }
@@ -3101,8 +3093,8 @@ private void testCustomValueParserErrors()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 2);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(contains(errors.text,
                 "invalid value 'wat' for --port: expected a numeric port"));
     }
@@ -3120,8 +3112,8 @@ private void testCustomValueParserErrors()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 2);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(contains(errors.text,
                 "value '70000' for --port is out of range: port must be between 0 and 65535"));
     }
@@ -3138,8 +3130,8 @@ private void testCustomValueParserErrors()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) == 2);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(contains(errors.text, "invalid value 'silent' for --port"));
         assert(!contains(errors.text, "--port:"));
     }
@@ -3618,7 +3610,7 @@ private void testParentPositionalsBeforeSubcommands()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!ParentPositionalRootArgs(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(contains(output.text, "Usage: tool [OPTIONS] <WORKSPACE> <COMMAND>"));
         assert(contains(output.text, "Arguments:"));
         assert(contains(output.text, "<WORKSPACE>"));
@@ -3630,7 +3622,7 @@ private void testParentPositionalsBeforeSubcommands()
         TextSink output;
         Writer writer = Writer.fromSink(&textSink, &output);
         writeHelp!(ParentPositionalRootArgs, ParentPositionalBuildArgs)(writer, "tool");
-        assert(writer.finish().ok);
+        assert(writer.result.ok);
         assert(contains(output.text,
                 "Usage: tool <WORKSPACE> build --output <OUTPUT> [OPTIONS] <TARGET>"));
     }
@@ -3648,8 +3640,8 @@ private void testParentPositionalsBeforeSubcommands()
         Writer outputWriter = Writer.fromSink(&textSink, &output);
         Writer errorWriter = Writer.fromSink(&textSink, &errors);
         assert(writeCliResult(outputWriter, errorWriter, result) != 0);
-        assert(outputWriter.finish().ok);
-        assert(errorWriter.finish().ok);
+        assert(outputWriter.result.ok);
+        assert(errorWriter.result.ok);
         assert(contains(errors.text, "Usage: tool [OPTIONS] <WORKSPACE> <COMMAND>"));
     }
 }

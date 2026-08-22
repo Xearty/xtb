@@ -8,7 +8,7 @@ import xtb.core.memory : Allocator;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, some;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.string;
 import xtb.core.string_hash_map;
 import xtb.core.string_hash_set : StringHashSet;

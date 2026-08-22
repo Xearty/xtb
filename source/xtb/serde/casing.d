@@ -2,7 +2,7 @@ module xtb.serde.casing;
 
 nothrow @nogc:
 
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.types : String;
 import xtb.serde.attributes : KeyCase;
 

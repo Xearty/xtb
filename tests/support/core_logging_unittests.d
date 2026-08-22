@@ -14,7 +14,8 @@ import xtb.core.string;
 version (unittest)
 {
     import xtb.core.pretty_print : PrettyPrintLayout, PrettyPrintOptions, pretty;
-    import xtb.core.print : Writer, writeBuffer;
+    import xtb.core.writer : Writer;
+    import xtb.core.print : writeBuffer;
 
     private struct CapturedEvent
     {
@@ -744,15 +745,16 @@ unittest
         staging[],
     );
 
-    writer.format(-42);
+    Writer formatter = writer.writer();
+    formatter.write(-42);
     writer.write(" ");
-    writer.format(true);
+    formatter.write(true);
     writer.write(" ");
-    writer.format('X');
+    formatter.write('X');
     writer.write(" ");
-    writer.format(1.25);
+    formatter.write(1.25);
     writer.write(" ");
-    writer.format(StreamFormatProbe(7));
+    formatter.write(StreamFormatProbe(7));
 
     assert(capture.count == 0);
     assert(writer.finish());
@@ -765,10 +767,9 @@ unittest
     );
 }
 
-// `format` is an adapter over the already-streaming core print Writer rather
-// than another value-formatting implementation. Large borrowed strings retain
-// their source pointer through both writers and require no complete temporary
-// representation.
+// `LogMessageWriter.writer` adapts the message to the generic immediate Writer.
+// Large borrowed strings retain their source pointer through both layers and
+// require no complete temporary representation.
 unittest
 {
     ChunkCounter counter;
@@ -782,8 +783,10 @@ unittest
     foreach (ref character; large)
         character = 'x';
     const String borrowed = cast(String) large[];
-    writer.format(borrowed);
+    Writer formatter = writer.writer();
+    formatter.write(borrowed);
 
+    assert(formatter.ok);
     assert(!writer.failed);
     assert(counter.calls == 1);
     assert(counter.bytes == borrowed.length);
@@ -793,7 +796,7 @@ unittest
 }
 
 // A rejection reached through the print adapter becomes the same sticky writer
-// failure as a raw `write`, and later formatting does not call the sink again.
+// failure as a raw `write`, and later generic writes do not call the sink again.
 unittest
 {
     ChunkCounter counter;
@@ -807,20 +810,22 @@ unittest
     char[600] large;
     foreach (ref character; large)
         character = 'x';
-    writer.format(cast(String) large[]);
+    Writer formatter = writer.writer();
+    formatter.write(cast(String) large[]);
+    assert(!formatter.ok);
     assert(writer.failed);
     assert(counter.calls == 1);
     assert(writer.written == 0);
 
-    writer.format(42);
+    formatter.write(42);
     writer.write("ignored");
     assert(counter.calls == 1);
     assert(!writer.finish());
 }
 
 // Pretty printing needs no logging-specific formatter. `PrettyValue.formatTo`
-// already targets the core streaming Writer, so passing a pretty wrapper to
-// `LogMessageWriter.format` preserves exact pretty output across many chunks.
+// already targets the generic Writer returned by `LogMessageWriter.writer`, so
+// pretty output streams exactly across many message chunks.
 unittest
 {
     int[96] values;
@@ -846,7 +851,10 @@ unittest
     );
     const result = logger.stream(
         LogLevel.debug_,
-        (scope ref LogMessageWriter output) { output.format(values.pretty(options)); },
+        (scope ref LogMessageWriter output) {
+        Writer formatter = output.writer();
+        formatter.write(values.pretty(options));
+    },
     );
 
     assert(result.delivered);
@@ -858,7 +866,7 @@ unittest
 }
 
 // A low-level pretty hook that emits one large borrowed slice keeps the same
-// zero-copy path as ordinary `format`: the pretty wrapper does not materialize
+// zero-copy path as ordinary generic writing: the pretty wrapper does not materialize
 // an intermediate representation before the log sink sees the bytes.
 unittest
 {
@@ -875,8 +883,10 @@ unittest
         LogSinkRef.create(&chunkCounterSink, &counter),
         staging[],
     );
-    writer.format(probe.pretty(options));
+    Writer formatter = writer.writer();
+    formatter.write(probe.pretty(options));
 
+    assert(formatter.ok);
     assert(writer.finish());
     assert(!writer.failed);
     assert(counter.calls == 1);

@@ -8,7 +8,7 @@ import xtb.core.array : Array;
 import xtb.core.lifetime : hasDDestructor, needsFinalization;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.types : String;
 
 private alias AliasSeq(T...) = T;

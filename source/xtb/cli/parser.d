@@ -13,7 +13,8 @@ import xtb.core.array : Array;
 import xtb.core.lifetime : deinitValue = deinit, move, moveAssign, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
+import xtb.core.print : fileWriter;
 import xtb.core.string : baseName;
 import xtb.core.types : String;
 import xtb.core.utf8 : isValidUtf8;
@@ -1357,8 +1358,8 @@ int handleCliResult(T)(
     bool errorAnsi = false,
 ) @system
 {
-    Writer output = Writer.fromFile(cast(typeof(stdout)) stdout);
-    Writer errorOutput = Writer.fromFile(cast(typeof(stderr)) stderr);
+    Writer output = fileWriter(cast(typeof(stdout)) stdout);
+    Writer errorOutput = fileWriter(cast(typeof(stderr)) stderr);
     const exitCode = writeCliResult(
         output,
         errorOutput,
@@ -1366,8 +1367,6 @@ int handleCliResult(T)(
         outputAnsi,
         errorAnsi,
     );
-    output.finish();
-    errorOutput.finish();
     return exitCode;
 }
 

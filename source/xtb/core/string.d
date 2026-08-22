@@ -6,6 +6,7 @@ public import xtb.core.types : String;
 public import xtb.core.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
     asString;
 
+import core.interpolation : InterpolationFooter, InterpolationHeader;
 import xtb.core.lifetime : move, moveEmplace;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
@@ -14,6 +15,7 @@ import xtb.core.allocators.arena : Arena;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.hash : hashValue;
 import xtb.core.panic : panic;
+import xtb.core.writer : Writer;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.released_storage : ReleasedStorage;
@@ -1345,6 +1347,149 @@ public:
         return storage_.tryAppend(allocator_, value);
     }
 
+    /// Returns an immediate fallible `Writer` view over this buffer.
+    ///
+    /// The writer borrows this buffer and must not outlive it or be used after
+    /// the buffer is moved or destroyed. Allocation failure becomes sticky
+    /// writer failure; no explicit flush or finalization is required.
+    Writer writer() return @trusted
+    {
+        return Writer.fromSink(&stringBufWriterSink, &this);
+    }
+
+    /// Writes ordinary XTB printable values transactionally.
+    ///
+    /// On failure the visible contents are restored to their original length.
+    /// Capacity growth and formatter side effects are not rolled back.
+    bool tryWrite(Args...)(auto ref Args args) @trusted
+    {
+        const checkpoint = byteLength;
+        Writer output = writer();
+        output.write(args);
+        if (output.ok)
+            return true;
+        truncateBytes(checkpoint);
+        return false;
+    }
+
+    /// Panicking counterpart to `tryWrite`.
+    void write(Args...)(auto ref Args args) @trusted
+    {
+        if (!tryWrite(args))
+            panic("StringBuf write failed");
+    }
+
+    /// Writes ordinary values followed by one newline transactionally.
+    bool tryWriteln(Args...)(auto ref Args args) @trusted
+    {
+        const checkpoint = byteLength;
+        Writer output = writer();
+        output.writeln(args);
+        if (output.ok)
+            return true;
+        truncateBytes(checkpoint);
+        return false;
+    }
+
+    /// Panicking counterpart to `tryWriteln`.
+    void writeln(Args...)(auto ref Args args) @trusted
+    {
+        if (!tryWriteln(args))
+            panic("StringBuf write failed");
+    }
+
+    /// Applies compile-time `{}` formatting transactionally.
+    bool tryFormat(string pattern, Args...)(auto ref Args args) @trusted
+    {
+        const checkpoint = byteLength;
+        Writer output = writer();
+        output.format!pattern(args);
+        if (output.ok)
+            return true;
+        truncateBytes(checkpoint);
+        return false;
+    }
+
+    /// Panicking counterpart to `tryFormat`.
+    void format(string pattern, Args...)(auto ref Args args) @trusted
+    {
+        if (!tryFormat!pattern(args))
+            panic("StringBuf formatting failed");
+    }
+
+    /// Applies compile-time `{}` formatting and appends one newline transactionally.
+    bool tryFormatln(string pattern, Args...)(auto ref Args args) @trusted
+    {
+        const checkpoint = byteLength;
+        Writer output = writer();
+        output.formatln!pattern(args);
+        if (output.ok)
+            return true;
+        truncateBytes(checkpoint);
+        return false;
+    }
+
+    /// Panicking counterpart to `tryFormatln`.
+    void formatln(string pattern, Args...)(auto ref Args args) @trusted
+    {
+        if (!tryFormatln!pattern(args))
+            panic("StringBuf formatting failed");
+    }
+
+    /// Writes a D interpolated string transactionally.
+    bool tryFormat(Sequence...)(
+        InterpolationHeader header,
+        auto ref Sequence sequence,
+        InterpolationFooter footer,
+    ) @trusted
+    {
+        const checkpoint = byteLength;
+        Writer output = writer();
+        output.format(header, sequence, footer);
+        if (output.ok)
+            return true;
+        truncateBytes(checkpoint);
+        return false;
+    }
+
+    /// Panicking counterpart for interpolated-string formatting.
+    void format(Sequence...)(
+        InterpolationHeader header,
+        auto ref Sequence sequence,
+        InterpolationFooter footer,
+    ) @trusted
+    {
+        if (!tryFormat(header, sequence, footer))
+            panic("StringBuf formatting failed");
+    }
+
+    /// Writes a D interpolated string followed by one newline transactionally.
+    bool tryFormatln(Sequence...)(
+        InterpolationHeader header,
+        auto ref Sequence sequence,
+        InterpolationFooter footer,
+    ) @trusted
+    {
+        const checkpoint = byteLength;
+        Writer output = writer();
+        output.formatln(header, sequence, footer);
+        if (output.ok)
+            return true;
+        truncateBytes(checkpoint);
+        return false;
+    }
+
+    /// Panicking counterpart for interpolated-string formatting with a newline.
+    void formatln(Sequence...)(
+        InterpolationHeader header,
+        auto ref Sequence sequence,
+        InterpolationFooter footer,
+    ) @trusted
+    {
+        if (!tryFormatln(header, sequence, footer))
+            panic("StringBuf formatting failed");
+    }
+
     void appendAssumeCapacity(Value)(scope auto ref Value value) @trusted if (isStringBufArgument!value)
     {
         storage_.appendAssumeCapacity(stringBufInput(value));
@@ -1845,6 +1990,18 @@ private void requireValidStringBufAllocator(Allocator* allocator) @trusted
     version (XTB_Checked)
         require(allocator !is null && *allocator !is null,
             "StringBuf requires a valid allocator");
+}
+
+private size_t stringBufWriterSink(
+    void* context,
+    scope const(u8)[] bytes,
+)
+@trusted
+{
+    StringBuf* buffer = cast(StringBuf*) context;
+    if (buffer is null || buffer.allocator_ is null)
+        return 0;
+    return buffer.tryAppend(cast(String) bytes) ? bytes.length : 0;
 }
 
 unittest

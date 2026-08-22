@@ -151,12 +151,13 @@ extern (C) int main() nothrow @nogc
     const streamed = streaming.stream(
         LogLevel.info,
         (scope ref LogMessageWriter output) {
-            output.write("streamed diagnostic: ");
-            output.format(RequestId(0x2a), " attempt=", 3, ": ");
-            output.write("this message is much larger than eight bytes");
-            output.write("\nattempt history: ");
-            output.format(attemptHistory.pretty(diagnosticPretty));
-        },
+        Writer formatter = output.writer();
+        output.write("streamed diagnostic: ");
+        formatter.write(RequestId(0x2a), " attempt=", 3, ": ");
+        output.write("this message is much larger than eight bytes");
+        output.write("\nattempt history: ");
+        formatter.write(attemptHistory.pretty(diagnosticPretty));
+    },
     );
     if (!streamed.delivered)
         return 1;

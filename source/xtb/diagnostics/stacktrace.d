@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.stdc.string : memcpy, strlen;
 import xtb.diagnostics.demangle : tryDemangleD;
 import xtb.core.ansi : AnsiColor, beginAnsi, endAnsi;
-import xtb.core.print : Writer, hexadecimal;
+import xtb.core.writer : Writer, hexadecimal;
 import xtb.core.logging.level : LogLevel;
 import xtb.core.logging.logger : Logger, stream;
 import xtb.core.logging.result : LogResult;
@@ -477,7 +477,10 @@ LogResult logStackTrace(
         signatureStorage,
         requestedStyle,
     );
-    return logger.stream(level, (scope ref LogMessageWriter output) { output.format(value); });
+    return logger.stream(level, (scope ref LogMessageWriter output) {
+        Writer writer = output.writer();
+        writer.write(value);
+    });
 }
 
 unittest
@@ -584,7 +587,7 @@ unittest
     Writer writer = Writer.fromSink(&traceCaptureSink, &capture);
     char[256] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &style);
-    assert(writer.finish().ok);
+    assert(writer.result.ok);
     assert(capture.bytes[0 .. capture.length].equal(
             "Stack trace (most recent call first):\n" ~
             "[0] run(int)\n" ~

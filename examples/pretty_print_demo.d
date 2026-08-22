@@ -9,7 +9,8 @@ import xtb.core.lifetime : taggedBy, taggedCase;
 import xtb.core.option : Option;
 import xtb.core.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
     PrettyPrintOptions, pretty, writePretty;
-import xtb.core.print : Writer, writeln;
+import xtb.core.writer : Writer;
+import xtb.core.print : writeln;
 import xtb.core.string;
 
 enum Permission : ubyte

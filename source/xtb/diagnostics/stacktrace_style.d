@@ -7,7 +7,7 @@ public import xtb.core.ansi : AnsiColor;
 import xtb.core.ansi : beginAnsi, endAnsi;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
 import xtb.core.string;
 
 enum StackTraceTheme
@@ -533,7 +533,7 @@ unittest
         "xtb.core.Array!(const(char)[]).append(ref String)",
         &colors,
     );
-    const result = writer.finish();
+    const result = writer.result;
     assert(result.ok);
     assert(output.written != 0);
     assert(storage[0] == '\x1b');
@@ -544,7 +544,7 @@ unittest
     StackTraceColors rgbColors;
     rgbColors.functionName = AnsiColor.rgb(1, 2, 3);
     rgbWriter.writeSignature("call(int)", &rgbColors);
-    assert(rgbWriter.finish().ok);
+    assert(rgbWriter.result.ok);
     assert(rgbStorage[0 .. rgbOutput.written].equal(
             "\x1b[38;2;1;2;3mcall\x1b[0m(int)",
     ));
@@ -553,7 +553,7 @@ unittest
     TestSink bareOutput = TestSink(bareStorage[]);
     Writer bareWriter = Writer.fromSink(&testSink, &bareOutput);
     bareWriter.writeSignature("main", &rgbColors);
-    assert(bareWriter.finish().ok);
+    assert(bareWriter.result.ok);
     assert(bareStorage[0 .. bareOutput.written].equal(
             "\x1b[38;2;1;2;3mmain\x1b[0m",
     ));
@@ -562,7 +562,7 @@ unittest
     TestSink cOutput = TestSink(cStorage[]);
     Writer cWriter = Writer.fromSink(&testSink, &cOutput);
     cWriter.writeSignature("__libc_start_main", &rgbColors);
-    assert(cWriter.finish().ok);
+    assert(cWriter.result.ok);
     assert(cStorage[0 .. cOutput.written].equal(
             "\x1b[38;2;1;2;3m__libc_start_main\x1b[0m",
     ));
@@ -571,7 +571,7 @@ unittest
     TestSink emptyOutput = TestSink(emptyStorage[]);
     Writer emptyWriter = Writer.fromSink(&testSink, &emptyOutput);
     emptyWriter.writeSignature("", &rgbColors);
-    assert(emptyWriter.finish().ok);
+    assert(emptyWriter.result.ok);
     assert(emptyOutput.written == 0);
 
     char[128] plainStorage;
@@ -579,14 +579,14 @@ unittest
     Writer plainWriter = Writer.fromSink(&testSink, &plainOutput);
     const plain = StackTraceColors.fromTheme(StackTraceTheme.plain);
     plainWriter.writeSignature("pkg.module.call(int)", &plain);
-    assert(plainWriter.finish().ok);
+    assert(plainWriter.result.ok);
     assert(plainStorage[0 .. plainOutput.written].equal("call(int)"));
 
     char[128] fullStorage;
     TestSink fullOutput = TestSink(fullStorage[]);
     Writer fullWriter = Writer.fromSink(&testSink, &fullOutput);
     fullWriter.writeSignature("pkg.module.Type.call(int)", &plain, ModuleDisplay.full);
-    assert(fullWriter.finish().ok);
+    assert(fullWriter.result.ok);
     assert(fullStorage[0 .. fullOutput.written].equal("pkg.module.Type.call(int)"));
 
     char[256] multilineStorage;
@@ -598,7 +598,7 @@ unittest
         ModuleDisplay.omitted,
         SignatureFormat(SignatureLayout.multiline, 30, 4),
     );
-    assert(multilineWriter.finish().ok);
+    assert(multilineWriter.result.ok);
     assert(multilineStorage[0 .. multilineOutput.written].equal(
             "render(\n        int,\n        delegate(int, long) -> void,\n" ~
             "        const(char)[]\n    ) -> bool nothrow",
@@ -613,7 +613,7 @@ unittest
         ModuleDisplay.omitted,
         SignatureFormat(SignatureLayout.singleLine, 1, 4),
     );
-    assert(singleWriter.finish().ok);
+    assert(singleWriter.result.ok);
     assert(singleStorage[0 .. singleOutput.written].equal(
             "call(int, const(char)[], long)",
     ));
@@ -632,6 +632,6 @@ unittest
             4,
     ),
     );
-    assert(boundaryWriter.finish().ok);
+    assert(boundaryWriter.result.ok);
     assert(boundaryStorage[0 .. boundaryOutput.written].equal(boundarySignature));
 }

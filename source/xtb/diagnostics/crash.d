@@ -8,7 +8,8 @@ import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.core.panic : PanicHook, panic, setPanicHandler;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
+import xtb.core.print : fileWriter;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
@@ -110,7 +111,7 @@ private void tracePanic(String message, void*)
             message,
             globalState.previousPanic.context,
         );
-    Writer writer = Writer.fromFile(cast(FILE*) stderr);
+    Writer writer = fileWriter(cast(FILE*) stderr);
     writer.put('\n');
     StackFrame[64] frames;
     char[16 * 1024] text;
@@ -118,7 +119,6 @@ private void tracePanic(String message, void*)
     char[32 * 1024] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &globalState.style);
     writer.put('\n');
-    cast(void) writer.finish();
     globalState.panicTraceWritten = 1;
 }
 

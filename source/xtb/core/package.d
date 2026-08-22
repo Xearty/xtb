@@ -21,6 +21,7 @@ public import xtb.core.utf8;
 public import xtb.core.string;
 public import xtb.core.string_hash_map;
 public import xtb.core.string_hash_set;
+public import xtb.core.writer;
 public import xtb.core.print;
 public import xtb.core.ansi;
 public import xtb.core.pretty_print;

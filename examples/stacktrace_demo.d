@@ -3,7 +3,8 @@ module examples.stacktrace_demo;
 import core.stdc.stdio : FILE, stdout;
 import xtb.diagnostics.crash : CrashHandlerScope;
 import xtb.diagnostics.demangle : SignatureDetail;
-import xtb.core.print : Writer;
+import xtb.core.writer : Writer;
+import xtb.core.print : fileWriter;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;
@@ -88,13 +89,13 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
     char[64 * 1024] text;
     StackTrace trace = context.capture(frames[], text[], 1);
 
-    Writer writer = Writer.fromFile(cast(FILE*) stdout);
+    Writer writer = fileWriter(cast(FILE*) stdout);
     StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
     style.signatureDetail = SignatureDetail.overloadIdentityAndReturn;
     char[64 * 1024] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &style);
     writer.put('\n');
-    return writer.finish().ok ? 0 : 1;
+    return writer.result.ok ? 0 : 1;
 }
 
 pragma(inline, false)

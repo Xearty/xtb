@@ -212,9 +212,10 @@ String tests enforce the type boundary as well as textual behavior:
   (`buffer.append(value)`) so definition navigation does not depend on UFCS
   overload reconstruction.
 
-Printer sinks consume `const(u8)[]` stream fragments because flushes and short
-writes may split a scalar; a sink callback must not treat each fragment as an
-independently valid `String`. Printer tests cover interpolated expression sequences through direct output,
+Writer sinks consume `const(u8)[]` stream fragments because short writes and
+independent formatting operations may split a scalar; a sink callback must not
+treat each fragment as an independently valid `String`. Printer tests cover
+interpolated expression sequences through direct output,
 `StringBuf`, fixed-buffer, and allocator-owned sinks. Include empty and nested
 sequences, expressions with side effects, custom `formatRepresentation` and
 `formatTo` values, numeric format wrappers, mixed ordinary/interpolated

@@ -19,7 +19,7 @@ extern (C) int main() nothrow @nogc
         numbers.append(number);
 
     StringBuf message = StringBuf.create(scratch.allocator);
-    message.formatTo!"{} {}"("core values:", numbers.length);
+    message.format!"{} {}"("core values:", numbers.length);
     writeln(message);
 
     StringBuf path = StringBuf.fromString(scratch.allocator, "assets");

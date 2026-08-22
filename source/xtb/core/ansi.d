@@ -3,7 +3,7 @@ module xtb.core.ansi;
 nothrow @nogc:
 
 import xtb.core.flag_set : FlagSet, enable;
-import xtb.core.print : WriteResult, Writer;
+import xtb.core.writer : Writer;
 import xtb.core.string;
 
 version (XTB_Checked) import xtb.core.panic : require;
@@ -318,16 +318,6 @@ nothrow @nogc:
         writer_.repeat(value, count);
     }
 
-    void flush()
-    {
-        writer_.flush();
-    }
-
-    WriteResult finish()
-    {
-        return writer_.finish();
-    }
-
     void value(T)(auto ref T value)
     {
         writer_.value(value);
@@ -509,7 +499,7 @@ version (unittest) private size_t ansiWriterTestSink(
 
 unittest
 {
-    import xtb.core.print : hexadecimal;
+    import xtb.core.writer : hexadecimal;
 
     AnsiWriterTestSinkState state;
     Writer output = Writer.fromSink(&ansiWriterTestSink, &state);
@@ -530,12 +520,11 @@ unittest
         " value=",
         hexadecimal(42),
     );
-    assert(state.length == 0);
-    plain.flush();
+    assert(state.length != 0);
     assert(plain.written == state.length);
     assert(state.storage[0 .. state.length].equal("ABcc value=0x2a"));
 
-    const plainResult = plain.finish();
+    const plainResult = output.result;
     assert(plainResult.ok);
     assert(plainResult.written == state.length);
 
@@ -546,7 +535,7 @@ unittest
 
     const style = AnsiStyle.foreground(AnsiColor.brightRed).bold;
     styled.styled(style, "value=", 42, '!');
-    const styledResult = styled.finish();
+    const styledResult = output.result;
     assert(styledResult.ok);
     assert(styledResult.written == state.length);
     assert(state.storage[0 .. state.length].equal(

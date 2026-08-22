@@ -6,7 +6,8 @@ import xtb.core.memory : Allocator;
 import xtb.core.lifetime : deinitValue = deinit, move;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, OptionReturns, andThen, map, none, orElse, some;
-import xtb.core.print : Writer, writeln;
+import xtb.core.writer : Writer;
+import xtb.core.print : writeln;
 import xtb.core.string;
 import xtb.core.types : u8;
 import xtb.serde : KeyCase, SerdeError, serdeFieldCase, readJson, readToml,
