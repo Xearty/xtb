@@ -13,7 +13,7 @@ import xtb.core.array : Array;
 import xtb.core.lifetime : deinitValue = deinit, move, moveAssign, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
-import xtb.core.writer : Writer;
+import xtb.core.writer : BufferedWriter, Writer;
 import xtb.core.print : fileWriter;
 import xtb.core.string : baseName;
 import xtb.core.types : String;
@@ -1358,8 +1358,26 @@ int handleCliResult(T)(
     bool errorAnsi = false,
 ) @system
 {
-    Writer output = fileWriter(cast(typeof(stdout)) stdout);
-    Writer errorOutput = fileWriter(cast(typeof(stderr)) stderr);
+    Writer outputDestination = fileWriter(cast(typeof(stdout)) stdout);
+    Writer errorDestination = fileWriter(cast(typeof(stderr)) stderr);
+
+    // Generated help and diagnostics are assembled from many short fragments.
+    // Buffer only this file-backed convenience path: caller-provided Writers in
+    // writeCliResult remain immediate, and large/general file writes keep their
+    // zero-copy behavior through fileWriter.
+    char[1024] outputStorage;
+    char[1024] errorStorage;
+    BufferedWriter bufferedOutput = BufferedWriter.create(
+        &outputDestination,
+        outputStorage[],
+    );
+    BufferedWriter bufferedError = BufferedWriter.create(
+        &errorDestination,
+        errorStorage[],
+    );
+    Writer output = bufferedOutput.writer();
+    Writer errorOutput = bufferedError.writer();
+
     const exitCode = writeCliResult(
         output,
         errorOutput,
@@ -1367,6 +1385,8 @@ int handleCliResult(T)(
         outputAnsi,
         errorAnsi,
     );
+    cast(void) bufferedOutput.flush();
+    cast(void) bufferedError.flush();
     return exitCode;
 }
 
