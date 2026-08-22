@@ -1361,10 +1361,8 @@ int handleCliResult(T)(
     Writer outputDestination = fileWriter(cast(typeof(stdout)) stdout);
     Writer errorDestination = fileWriter(cast(typeof(stderr)) stderr);
 
-    // Generated help and diagnostics are assembled from many short fragments.
-    // Buffer only this file-backed convenience path: caller-provided Writers in
-    // writeCliResult remain immediate, and large/general file writes keep their
-    // zero-copy behavior through fileWriter.
+    // CLI help and diagnostics emit many small fragments, so coalesce them for
+    // this stdout/stderr convenience path. Keep writeCliResult destination-neutral.
     char[1024] outputStorage;
     char[1024] errorStorage;
     BufferedWriter bufferedOutput = BufferedWriter.create(

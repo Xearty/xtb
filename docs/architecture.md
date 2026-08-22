@@ -1216,7 +1216,10 @@ immediate and owns no staging. When a destination specifically benefits from
 coalescing callback traffic, `BufferedWriter` may explicitly wrap an existing
 `Writer*` with caller-owned storage; it must be flushed explicitly and is never
 automatically inserted in front of `StringBuf`, logging, fixed buffers, or
-`FILE*`. A type needing genuinely custom normal syntax may instead define
+`FILE*`. `handleCliResult` is one deliberate use: it buffers its known
+stdout/stderr destinations because generated CLI output is highly fragmented,
+while `writeCliResult` remains destination-neutral. A type needing genuinely
+custom normal syntax may instead define
 `void formatTo(ref Writer)`. A representation
 is observational and never transfers ownership to the printer: a by-value
 result must be cleanup-free, while a `ref` result is a borrow that must remain

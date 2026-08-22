@@ -238,9 +238,10 @@ nothrow @nogc:
 /// Explicit caller-buffered decorator over an immediate `Writer`.
 ///
 /// Small fragments are copied into caller-owned staging storage and emitted to
-/// the destination when that storage must be drained or `flush` is called. A
-/// large fragment bypasses empty staging and is forwarded directly without an
-/// intermediate copy. Zero-length staging therefore acts as a direct pass-through.
+/// the destination when that storage must be drained or `flush` is called. Once
+/// pending bytes are drained, a fragment at least as large as the staging capacity
+/// bypasses staging and is forwarded directly without an intermediate copy.
+/// Zero-length staging therefore acts as a direct pass-through.
 ///
 /// The decorator borrows both the destination writer and staging storage. Neither
 /// may be moved, destroyed, or reused while this object or a writer returned by
@@ -905,6 +906,25 @@ unittest
     assert(state.firstPointer == cast(const(u8)*) large.ptr);
     assert(state.firstLength == large.length);
     assert(state.storage[0 .. state.length] == large);
+}
+
+unittest
+{
+    WriterTestSinkState state;
+    Writer destination = Writer.fromSink(&writerTestSink, &state);
+    char[4] staging;
+    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
+    Writer output = buffered.writer();
+    String exactCapacity = "abcd";
+
+    output.put(exactCapacity);
+    assert(output.ok);
+    assert(buffered.pending == 0);
+    assert(destination.written == exactCapacity.length);
+    assert(state.calls == 1);
+    assert(state.firstPointer == cast(const(u8)*) exactCapacity.ptr);
+    assert(state.firstLength == exactCapacity.length);
+    assert(state.storage[0 .. state.length] == exactCapacity);
 }
 
 unittest
