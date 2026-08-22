@@ -1,8 +1,14 @@
 # Logging sink fan-out implementation plan
 
+> **Protocol note (2026-08-22):** The repeated whole-graph `LogSinkEvent`
+> dispatch described here has been superseded by the record-resolution model in
+> `design_spec/logging_record_resolution.md`. This document remains useful as
+> historical rationale for the fan-out/prefix behavior it introduced.
+
+
 ## Status
 
-**Status: complete. Steps 1–4 are implemented and verified.**
+**Status: historical. Steps 1–4 were completed before record resolution superseded the whole-graph protocol.**
 
 This is the execution plan for `design_spec/logging_sink_fanout.md`. The design
 specification remains authoritative for semantics; this document defines the

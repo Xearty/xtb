@@ -73,9 +73,27 @@ extern (C) int main() nothrow @nogc
     if (!plain.info("plain logger: application starting").delivered || !plain.flush())
         return 1;
 
+    // Callsite capture keeps the level next to the message and appends source
+    // context as subdued terminal metadata:
+    //   [info] terminal callsite example  (examples.logging_demo.main:...)
+    //   [error] terminal callsite example  (examples.logging_demo.main:...)
+    // ANSI-capable terminals render the trailing source with dim-only styling.
+    char[256] callsiteStorage;
+    Logger callsiteTerminal = stderrLogger(
+        callsiteStorage[],
+        LogLevel.info,
+        terminalSupportsAnsi ? LogStyle.ansi : LogStyle.plain,
+    );
+    callsiteTerminal.setCallsitesEnabled(true);
+    if (!callsiteTerminal.info("terminal callsite example").delivered ||
+        !callsiteTerminal.error("terminal callsite example").delivered ||
+        !callsiteTerminal.flush())
+        return 1;
+
     // Tee one formatting pass to terminal presentation and a timestamped plain
-    // file branch. The timestamp provider's style is ignored by the plain sink,
-    // so the logfile contains no ANSI bytes and the terminal has no timestamp.
+    // file branch. Prefix output goes through the resolved presentation path:
+    // the plain sink ignores the timestamp's semantic style and strips supported
+    // embedded SGR, so the logfile contains no ANSI and the terminal has no timestamp.
     // `tmpfile` keeps the example self-cleaning; a real application would pass
     // its long-lived logfile `FILE*` here instead.
     FILE* logFile = tmpfile();
@@ -84,14 +102,15 @@ extern (C) int main() nothrow @nogc
     scope (exit)
         fclose(logFile);
 
-    LogSinkRef terminal = terminalSupportsAnsi
+    LogSinkRef terminalPresentation = terminalSupportsAnsi
         ? ansiFileLogSink(cast(FILE*) stderr) : plainFileLogSink(cast(FILE*) stderr);
+    WithoutCallsiteLogSink terminal = WithoutCallsiteLogSink.create(terminalPresentation);
     TimestampLogPrefix timestamp = TimestampLogPrefix.create();
     PrefixLogSink timestampedFile = PrefixLogSink.create(
         plainFileLogSink(logFile),
         timestamp.prefixRef(),
     );
-    TeeLogSink tee = TeeLogSink.create(terminal, timestampedFile.sinkRef());
+    TeeLogSink tee = TeeLogSink.create(terminal.sinkRef(), timestampedFile.sinkRef());
 
     char[512] messageStorage;
     Logger logger = Logger.create(
@@ -99,6 +118,9 @@ extern (C) int main() nothrow @nogc
         messageStorage[],
         LogLevel.trace,
     );
+    // Capture source context once at the logger, but remove it from the terminal
+    // branch during record setup. The logfile keeps `(function:line)`.
+    logger.setCallsitesEnabled(true);
 
     // `basic` is the default and uses only the terminal's configurable 4-bit
     // colors. It leaves message text at the terminal default.
@@ -142,6 +164,7 @@ extern (C) int main() nothrow @nogc
         streamStorage[],
         LogLevel.info,
     );
+    streaming.setCallsitesEnabled(true);
     int[12] attemptHistory;
     foreach (index, ref attemptNumber; attemptHistory)
         attemptNumber = cast(int) index + 1;

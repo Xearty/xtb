@@ -152,6 +152,18 @@ current thread logger. `examples/logging_demo.d` demonstrates the complete
 setup, filtering behavior, custom values, nested installation, runtime levels,
 automatic terminal detection, and palette customization.
 
+Callsite context is opt-in per logger. `logger.setCallsitesEnabled(true)` keeps
+ordinary variadic calls unchanged while appending the originating function and
+line to each record, for example `[error] failed  (my.app.load:42)`. ANSI
+presentation renders this trailing context with a neutral dim-only style so the
+level stays visually attached to its message. Capture is off by default and can
+be disabled again with `setCallsitesEnabled(false)`. The source
+name is compiler-emitted static data; capture performs no allocation, stack walk,
+or symbol lookup. Wrap an individual destination with `WithoutCallsiteLogSink`
+when the logger should keep source metadata for other branches but omit it from
+that destination. The decorator acts only during record resolution and is not in
+the repeated message-write path.
+
 Terminal styling is allocation-free and shared by logging and stack traces.
 Build styles from named, indexed, or RGB `AnsiColor` values and combine text
 attributes through `AnsiStyle`. Logger colors are configurable with

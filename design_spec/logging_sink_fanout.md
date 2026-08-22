@@ -1,20 +1,24 @@
 # Logging sink fan-out and ANSI presentation design specification
 
+> **Protocol note (2026-08-22):** The repeated whole-graph `LogSinkEvent`
+> dispatch described here has been superseded by the record-resolution model in
+> `design_spec/logging_record_resolution.md`. This document remains useful as
+> historical rationale for the fan-out/prefix behavior it introduced.
+
+
 ## Status and maintenance
 
-**Status: complete. Steps 1–4 are implemented and verified.**
+**Status: historical. The original Steps 1–4 were implemented and verified,
+then the whole-graph delivery protocol was superseded by record resolution.**
 
-This document is the maintained design contract for composable logging output,
-ANSI-aware terminal presentation, plain-file fan-out, and future chunked logger
-delivery in `xtb.core`.
+This document records the rationale and contracts established by the original
+sink-fanout work. It is no longer the authoritative description of the current
+delivery protocol; use `design_spec/logging_record_resolution.md` and
+`docs/architecture.md` for that. Sections below intentionally retain the old
+protocol vocabulary so the design history remains reviewable.
 
-It is based on the current `source/xtb/core/logging/` implementation and the
-supplied BetterC toolchain. Update this document in the same change whenever the
-logging protocol, public names, palette model, ANSI guarantees, fan-out
-semantics, implementation status, or tests change.
-
-The design intentionally evolves the earlier record-at-once sink proposal. The
-important current decisions are:
+The design evolved the earlier record-at-once sink proposal. Its key decisions
+at that stage were:
 
 - there is no `TeeLogger` containing multiple `Logger` values;
 - fan-out remains a sink/output-composition concern;

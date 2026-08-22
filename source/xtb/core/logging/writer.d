@@ -2,10 +2,9 @@ module xtb.core.logging.writer;
 
 nothrow @nogc:
 
-import xtb.core.ansi : AnsiStyle;
 import xtb.core.logging.sgr : SgrParseKind, maxSupportedSgrLength,
     parseSgrPrefix, safeSgrPrefixLength;
-import xtb.core.logging.sink : LogSinkEvent, LogSinkRef;
+import xtb.core.logging.sink : LogRecordRef;
 import xtb.core.writer : Writer;
 import xtb.core.string : String;
 import xtb.core.types : u8;
@@ -19,27 +18,26 @@ import xtb.core.types : u8;
 /// across writes and ordinary flushes until it is completed or the message is
 /// explicitly finished.
 ///
-/// The writer owns neither its sink nor its staging storage. A valid writer is
-/// created by the logging package for the duration of a synchronous message
+/// The writer owns neither its resolved record nor its staging storage. A valid
+/// writer is created by the logging package for the duration of a synchronous message
 /// producer and must not escape that producer.
 struct LogMessageWriter
 {
 nothrow @nogc:
 
-    private LogSinkRef sink_;
+    private LogRecordRef* record_;
     private char[] staging_;
     private char[maxSupportedSgrLength] sgrCarry_;
     private size_t staged_;
     private size_t sgrCarryLength_;
     private size_t written_;
-    private AnsiStyle baseStyle_;
     private bool failed_;
 
     @disable this(this);
 
     bool failed() const pure @safe
     {
-        return failed_ || !sink_.valid;
+        return failed_ || record_ is null || !(*record_).valid;
     }
 
     /// Appends borrowed message bytes synchronously.
@@ -230,8 +228,7 @@ nothrow @nogc:
             return;
         }
 
-        LogSinkEvent event = LogSinkEvent.messageChunk(bytes, baseStyle_);
-        if (!sink_.submit(&event))
+        if (!(*record_).messageChunk(bytes))
         {
             failed_ = true;
             return;
@@ -255,15 +252,13 @@ private size_t logMessageWriterSink(
 }
 
 package LogMessageWriter createLogMessageWriter(
-    LogSinkRef sink,
+    LogRecordRef* record,
     return scope char[] staging,
-    AnsiStyle baseStyle = AnsiStyle.init,
 )
 {
     LogMessageWriter result;
-    result.sink_ = sink;
+    result.record_ = record;
     result.staging_ = staging;
-    result.baseStyle_ = baseStyle;
-    result.failed_ = !sink.valid;
+    result.failed_ = record is null || !(*record).valid;
     return result;
 }

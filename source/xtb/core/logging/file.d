@@ -33,7 +33,7 @@ private size_t findEscape(scope String bytes, size_t start = 0)
         ? bytes.length : cast(const(char)*) found - bytes.ptr;
 }
 
-private bool writePlainMessage(FILE* file, scope String bytes)
+private bool writePlainText(FILE* file, scope String bytes)
 {
     size_t plainStart;
     size_t searchStart;
@@ -58,7 +58,7 @@ private bool writePlainMessage(FILE* file, scope String bytes)
     return writeAll(file, bytes[plainStart .. $]);
 }
 
-private bool writeAnsiMessage(FILE* file, scope String bytes, AnsiStyle baseStyle)
+private bool writeAnsiText(FILE* file, scope String bytes, AnsiStyle baseStyle)
 {
     if (!baseStyle.enabled)
         return writeAll(file, bytes);
@@ -105,9 +105,10 @@ private bool plainFileSinkCallback(void* context, scope const LogSinkEvent* even
             lockFile(file);
             return true;
         case LogSinkEventKind.text:
-            return writeAll(file, event.bytes);
+            return event.mayContainAnsi
+                ? writePlainText(file, event.bytes) : writeAll(file, event.bytes);
         case LogSinkEventKind.messageChunk:
-            return writePlainMessage(file, event.bytes);
+            return writePlainText(file, event.bytes);
         case LogSinkEventKind.beginMessage:
         case LogSinkEventKind.endMessage:
             return true;
@@ -135,8 +136,11 @@ private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event
             bool accepted = true;
             if (!opening.empty)
                 accepted = writeAll(file, opening.view) && accepted;
-            accepted = writeAll(file, event.bytes) && accepted;
-            if (!opening.empty)
+            if (event.mayContainAnsi)
+                accepted = writeAnsiText(file, event.bytes, event.style) && accepted;
+            else
+                accepted = writeAll(file, event.bytes) && accepted;
+            if (!opening.empty || event.mayContainAnsi)
                 accepted = writeAll(file, reset.view) && accepted;
             return accepted;
         }
@@ -146,7 +150,7 @@ private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event
             return opening.empty || writeAll(file, opening.view);
         }
         case LogSinkEventKind.messageChunk:
-            return writeAnsiMessage(file, event.bytes, event.style);
+            return writeAnsiText(file, event.bytes, event.style);
         case LogSinkEventKind.endMessage:
             return writeAll(file, reset.view);
         case LogSinkEventKind.endRecord:
@@ -183,9 +187,10 @@ package bool fileFlush(void* context)
 
 /// Creates a borrowed plain file presentation sink.
 ///
-/// Logger-generated styles are ignored and supported embedded SGR sequences
-/// are removed from message chunks. `file` must remain valid while the returned
-/// sink reference is used.
+/// Logger-generated styles are ignored. Supported embedded SGR sequences are
+/// removed from arbitrary setup text such as prefixes and from message chunks;
+/// known ANSI-free logger framing takes the direct-write path. `file` must
+/// remain valid while the returned sink reference is used.
 LogSinkRef plainFileLogSink(FILE* file)
 {
     return LogSinkRef.create(
@@ -197,10 +202,10 @@ LogSinkRef plainFileLogSink(FILE* file)
 
 /// Creates a borrowed ANSI file/terminal presentation sink.
 ///
-/// Logger-generated styles and supported embedded message SGR are preserved.
-/// Complete full resets inside a message restore the repeated base message
-/// style; an empty base style takes the direct-write path.
-/// `file` must remain valid while the returned sink reference is used.
+/// Logger-generated styles and supported embedded SGR in arbitrary setup text
+/// or message chunks are preserved. Complete full resets restore the active
+/// semantic style for that span; known ANSI-free logger framing avoids the SGR
+/// scan. `file` must remain valid while the returned sink reference is used.
 LogSinkRef ansiFileLogSink(FILE* file)
 {
     return LogSinkRef.create(

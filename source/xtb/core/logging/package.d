@@ -7,6 +7,7 @@ public import xtb.core.logging.sink;
 public import xtb.core.logging.writer;
 public import xtb.core.logging.logger;
 public import xtb.core.logging.prefix;
+public import xtb.core.logging.callsite;
 public import xtb.core.logging.tee;
 public import xtb.core.logging.file;
 public import xtb.core.logging.thread;

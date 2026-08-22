@@ -400,12 +400,26 @@ so callers that nest styles must explicitly reapply the outer style.
 ### Diagnostics and fatal crashes
 
 Logging has an explicit foundation and an optional per-thread convenience
-layer. `Logger` owns no sink or message storage: it borrows a `LogSinkRef` and a
+layer. The current record-resolution, prefix, and per-branch source-context design
+is documented in `design_spec/logging_record_resolution.md`.
+
+`Logger` owns no sink or message storage: it borrows a `LogSinkRef` and a
 caller-provided formatting buffer. `LogSinkRef` is a copyable, non-owning
-callback/context/flush descriptor. Custom sinks consume an explicit lifecycle
-protocol (`beginRecord`, styled logger `text`, `beginMessage`, verbatim
-`messageChunk`, `endMessage`, and `endRecord`) rather than one complete
-`LogRecord`. Sinks never infer a first chunk.
+description of either a direct sink callback or a compositional record resolver.
+At the start of each logical record it resolves once into a short-lived
+`LogRecordRef`. Repeated message chunks use that resolved handle rather than
+walking the original sink/decorator graph again.
+
+Direct sinks remain simple: `LogSinkRef.create(LogSink, context, flush)` still
+uses the existing `LogSinkEvent` callback. Resolution delivers `beginRecord`
+once, then the returned `LogRecordRef` delivers styled `text`, `beginMessage`,
+verbatim `messageChunk`, `endMessage`, and `endRecord` events directly to that
+callback. `LogRecordRef.writeText` is the fast ANSI-free setup/framing path;
+`writeAnsiText` is the explicit path for setup bytes that may contain supported
+embedded SGR. Plain/ANSI file sinks therefore avoid SGR scans for ordinary
+level/separator/newline bytes and for semantic-style-only prefixes. Composite
+sinks use the `LogRecordResolver` overload and return the minimal path needed
+for the active record.
 
 Library code that accepts more than one independent log destination, exposes
 logging as a dependency, or may run without a `ThreadContext` should accept and
@@ -442,22 +456,66 @@ write to stderr or manufacture persistent storage. Filtering happens before
 formatting. The explicit `logger.log(...)`, `logger.logf!pattern(...)`, and
 `logger.flush()` APIs do not consult TLS.
 
-The logger owns textual framing. It emits the level label (`[warning]`, etc.),
-the separating space, message boundaries, and the final newline as sink events.
-A sink may style or ignore those bytes, but it does not choose their spelling.
-Destination-specific metadata is composed below the logger. `PrefixLogSink`
-borrows one child plus a `LogPrefixRef`, runs the provider after the child
-accepts `beginRecord`, and injects only ordinary styled `text` events. This
-keeps level framing in `Logger` while allowing one tee branch to gain a prefix
-without affecting its peers. Prefix failure is deferred until `endRecord` so
-an already-begun child still receives the actual record and matching cleanup.
+Callsite context is optional logger-owned record metadata. Capture is disabled by
+default; `logger.setCallsitesEnabled(true)` enables it for subsequent records and
+`setCallsitesEnabled(false)` removes it again. Ordinary call syntax does not
+change:
+
+```d
+logger.setCallsitesEnabled(true);
+logger.error("invalid configuration");
+// [error] invalid configuration  (my.app.loadConfig:42)
+```
+
+The public bounded, formatted, streaming, level-specific, and current-thread
+logging entry points capture `LogSourceLocation(__FUNCTION__, __LINE__)` through
+a trailing default parameter. Forwarding layers route that value through an
+internal fixed-position source parameter before the variadic message pack; this
+is important for zero-argument logs because source metadata must never be
+re-deduced as printable message data. The function name is static compiler data
+and the line is an integer, so capture performs no allocation, stack walk,
+symbol lookup, or runtime reflection. Callsite framing is outside
+`LogResult.written` / `required`, which continue to describe message bytes only.
+
+The logger owns the spelling and level/message styling inputs for standard
+framing. `LogRecordInfo` contains the level label (`[warning]`, etc.) and its
+styles, while the optional borrowed `LogSourceLocation*` is passed separately
+during `beginRecord`. A direct resolved record begins with `[level] `, presents
+the message, ends the message style, and only then appends
+`  (function:line)` when source metadata is present. ANSI presentation uses the
+terminal's current/default foreground with the `dim` attribute for this trailing
+context, independent of severity; plain presentation ignores that semantic
+style. Keeping the effective callsite as one separate borrowed pointer lets
+setup-only decorators remove it for a branch without copying the rest of the
+framing description or remaining in later message writes.
+
+`PrefixLogSink` is setup-only under this model. It resolves its child once, lets
+the provider write arbitrary styled `text` through the resolved child record
+before standard level framing begins, and then returns that child record
+unchanged. `LogPrefixWriter.write` is the fast semantic-style path for ANSI-free
+prefix bytes; `writeAnsi` is the explicit path for bytes that may contain
+supported embedded SGR. ANSI presentation preserves that SGR and restores the
+active semantic prefix style after complete resets; plain presentation strips
+the supported SGR. Prefix failure is attached to the returned record and deferred
+until `endRecord`, so an already-begun child still receives the actual record
+and matching cleanup. No prefix callback or wrapper dispatch remains in later
+message chunks.
+
+`WithoutCallsiteLogSink` is another setup-only decorator. It resolves its child
+with a null effective callsite and returns the child `LogRecordRef` unchanged.
+This makes callsite suppression branch-local: a terminal branch can omit source
+context while a sibling logfile keeps it. Because suppression happens in
+resolution, the decorator contributes no callback or conditional to later
+message writes. Wrapping a tee suppresses all of that tee's descendants;
+wrapping one tee branch suppresses only that branch.
 
 `xtb.os.logging.TimestampLogPrefix` is the first provider. It reads the wall
 clock in the OS layer, formats a fixed local or UTC date/time without
 allocation, and attaches a configurable `AnsiStyle` (subdued gray by default).
-ANSI presentation renders that style; plain presentation ignores it. Wrapping
-only the logfile branch therefore adds a plain timestamp to the file without
-changing terminal output, while wrapping a tee timestamps both destinations.
+ANSI presentation renders that style; plain presentation ignores the semantic
+style and strips supported embedded SGR from prefix bytes. Wrapping only the
+logfile branch therefore adds a plain timestamp to the file without changing
+terminal output, while wrapping a tee timestamps both destinations.
 
 `LogPalette` contains one `LogLevelStyle` per severity. `label` styles the
 logger-generated level label; `message` is an optional base style for the
@@ -563,13 +621,13 @@ the active streaming paths:
 just benchmark logging 500000
 ```
 
-It compares the current eight-event normal record against a benchmark-only
-six-event sequence with `beginMessage` / `endMessage` removed, then measures
-normal and streaming delivery through a null sink, plain and ANSI `FILE*` sinks
-targeting `/dev/null`, and a two-way null tee. It also compares a 64 KiB borrowed
-message copied through a correspondingly large normal logger buffer against the
-streaming writer's direct borrowed-slice path, plus an incrementally generated
-~64 KiB message that exercises staging and repeated chunks.
+It measures the resolved direct-record protocol independently of formatting,
+then measures normal and streaming delivery through a null sink, plain and ANSI
+`FILE*` sinks targeting `/dev/null`, a two-way null tee, and a prefix wrapped
+around that tee. It also compares a 64 KiB borrowed message copied through a
+correspondingly large normal logger buffer against the streaming writer's direct
+borrowed-slice path, plus an incrementally generated ~64 KiB message that
+exercises staging and repeated chunks.
 
 On the development x86-64 release-fast run used to validate this design, the two
 message-boundary callbacks added roughly 3--4 ns per record to a null sink. That
@@ -587,29 +645,36 @@ the complete 64 KiB copy. Incrementally generated output remains proportional
 to bytes generated and chunk count, which is the intended bounded-memory
 tradeoff rather than a claim that streaming is universally faster.
 
-The final design decision is therefore to keep the single
-`beginMessage` / `messageChunk*` / `endMessage` protocol. The measured dormant
-cost is small, and maintaining one protocol avoids duplicating every sink and
-decorator with separate complete-message and streaming-message paths. Re-run the
-benchmark when changing logger framing, writer buffering, presentation sinks, or
-tee dispatch; benchmark numbers are diagnostics, not API contracts.
+The final design still keeps one `beginMessage` / `messageChunk*` /
+`endMessage` lifecycle for both bounded and streaming logging, but composition
+is resolved before that lifecycle begins. This avoids duplicating sink APIs while
+preventing setup-only decorators from multiplying the cost of every formatter
+fragment. Re-run the benchmark when changing logger framing, record resolution,
+writer buffering, presentation sinks, or tee dispatch; benchmark numbers are
+diagnostics, not API contracts.
 
 For composition, `plainFileLogSink(file)` and `ansiFileLogSink(file)` expose the
 built-in file presentation paths directly as borrowed `LogSinkRef` values.
-Their `FILE*` must outlive the sink reference. The base message style is repeated
-on each `messageChunk` event so these presentation callbacks remain stateless;
-this is logger presentation data, not formatter ANSI metadata.
+Their `FILE*` must outlive the sink reference. A direct file sink receives the
+record once, locks the file for that logical record, and then becomes the direct
+callback behind its `LogRecordRef`.
 
 `TeeLogSink` is the allocation-free two-way fan-out combinator. It borrows two
 `LogSinkRef` children and exposes another `LogSinkRef`, so tees may be nested.
-The tee forwards protocol events first child then second child and has no logging
-or presentation policy of its own. A child failure does not stop a healthy peer
-from receiving the remainder of the record. Failure is reported at `endRecord`
-after required cleanup has been attempted. In particular, once `beginMessage`
-has been delivered to a child, `endMessage` is still attempted even when that
-`beginMessage` call itself reports failure; this preserves the same cleanup
-contract as direct logger delivery. A child that rejects `beginRecord` receives
-no later events for that record.
+At record setup it resolves the first child and then the second child once and
+retains those two active record handles in its stable object. The resolved tee
+remains in the later path only because duplicating each framing/message write is
+real per-write work; child decorators that were setup-only have already
+disappeared.
+
+A child failure does not stop a healthy peer from receiving the remainder of
+the record. Failure is reported at `endRecord` after required cleanup has been
+attempted. Once a child has actually begun a message, `endMessage` is still
+attempted even if its begin callback reported failure. A child that rejects
+record setup receives no later record operations. Setup resolution is
+deterministic first-child then second-child; later fan-out operations are also
+deterministic, while a child's own one-time framing may complete before the next
+child enters its message lifecycle.
 
 ```d
 LogSinkRef terminal = ansiFileLogSink(stderr);
@@ -638,8 +703,10 @@ TeeLogSink tee = TeeLogSink.create(
 );
 ```
 
-The prefix provider and decorator are stateful borrowed objects and must remain
-at stable addresses for as long as their derived references are in use.
+The prefix provider and decorator are borrowed objects and must remain at stable
+addresses for as long as their derived references are in use. `PrefixLogSink`
+keeps no active-record state after resolution; the returned `LogRecordRef` owns
+the deferred setup-failure bit if the provider failed.
 
 Normal call sites should use the level-specific convenience functions instead
 of spelling `LogLevel` repeatedly. The plain family forwards to `log`, and the

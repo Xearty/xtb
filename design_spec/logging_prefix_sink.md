@@ -1,5 +1,11 @@
 # Logging record-prefix sink and OS timestamp design specification
 
+> **Protocol note (2026-08-22):** Prefix delivery now uses the record-resolution
+> model in `design_spec/logging_record_resolution.md`. This document retains the
+> prefix/timestamp rationale and is updated here where the current semantics
+> differ from the original whole-graph event implementation.
+
+
 ## Status
 
 **Status: implemented.**
@@ -12,10 +18,10 @@ Maintain this document with the implementation whenever the public API, lifecycl
 
 - Add a generic `PrefixLogSink` in `xtb.core.logging`.
 - Prefix insertion is driven by explicit `beginRecord`; there is no first-chunk inference.
-- A prefix provider writes only styled `text` events through a restricted `LogPrefixWriter`.
+- A prefix provider writes styled setup text through a restricted `LogPrefixWriter` and the already-resolved child record.
 - Prefix providers may use stack storage because delivery is synchronous; the prefix sink does not allocate or own prefix text.
-- Prefix style is an out-of-band `AnsiStyle`, never embedded SGR bytes.
-- ANSI sinks render prefix style; plain sinks ignore it.
+- `LogPrefixWriter.write` accepts ANSI-free bytes plus out-of-band `AnsiStyle`; `writeAnsi` explicitly accepts bytes that may contain supported embedded SGR.
+- ANSI sinks render/preserve prefix styling; plain sinks ignore semantic style and strip supported embedded SGR.
 - The first provider is a wall-clock timestamp implementation in `xtb.os.logging`.
 - Timestamp color/style is configurable. The default is subdued gray; `AnsiStyle.init` disables styling.
 - Prefix placement determines scope: wrapping one tee branch affects only that destination; wrapping the tee affects all branches.
@@ -69,27 +75,20 @@ The initial design does not add:
 - dynamically allocated prefix strings;
 - arbitrary `strftime`-style format strings;
 - asynchronous prefix formatting; or
-- embedded ANSI bytes in timestamp text.
+- timestamp-specific embedded ANSI generation (the generic prefix writer permits embedded supported SGR).
 
-## Existing logging contract
+## Current logging contract
 
-The design builds on the current event protocol:
+`LogSinkRef.beginRecord(info)` resolves the sink graph once into a short-lived
+`LogRecordRef`. `PrefixLogSink` resolves its child, emits its prefix through that
+resolved record, then returns the child record unchanged. It therefore performs
+no work on later message chunks.
 
-```d
-enum LogSinkEventKind : ubyte
-{
-    beginRecord,
-    text,
-    beginMessage,
-    messageChunk,
-    endMessage,
-    endRecord,
-}
-```
-
-`Logger` already owns textual level labels, spaces, message boundaries, newline placement, and logger-wide styles. `TeeLogSink` already forwards lifecycle events. ANSI presentation sinks already render `AnsiStyle`, while plain presentation sinks ignore out-of-band styles.
-
-That is enough to add a prefix without changing `Logger`, `TeeLogSink`, or the presentation sinks.
+`LogRecordRef.writeText(bytes, style)` is the ANSI-free fast path used by normal
+framing and semantic-style-only prefixes. `writeAnsiText` explicitly marks setup
+bytes as potentially containing supported embedded SGR. Plain presentation strips
+that SGR; ANSI presentation preserves it and restores the supplied semantic style
+after complete resets.
 
 ## Core design
 
@@ -104,10 +103,15 @@ struct LogPrefixWriter
         return scope String bytes,
         AnsiStyle style = AnsiStyle.init,
     );
+
+    bool writeAnsi(
+        return scope String bytes,
+        AnsiStyle style = AnsiStyle.init,
+    );
 }
 ```
 
-`write` synchronously submits one ordinary `LogSinkEvent.text(bytes, style)` to a child record that has already accepted `beginRecord`.
+`write` synchronously submits ANSI-free setup text to a child record that has already accepted `beginRecord`; its color/style is carried out-of-band. `writeAnsi` is the explicit variant for bytes that may contain supported embedded SGR. Each ANSI span is terminated with a full reset by ANSI presentation so style cannot leak into later prefix/logger framing. One supported SGR sequence must not be split across two `writeAnsi` calls.
 
 The writer exposes no record/message lifecycle operations. A prefix callback therefore cannot accidentally begin a second record, open a message, or finalize the child.
 
@@ -162,7 +166,7 @@ struct PrefixLogSink
 }
 ```
 
-`PrefixLogSink` is stateful and non-copyable because it must remember whether a record began and whether a prefix failure must be surfaced at record completion.
+`PrefixLogSink` is non-copyable because `sinkRef()` borrows its stable address. It does not remain in the active message path: deferred prefix failure is attached to the resolved child record before that record is returned.
 
 It borrows both the child sink and prefix provider. After `sinkRef()` is taken, the wrapper must remain at a stable address and outlive all derived sink references.
 
@@ -330,7 +334,7 @@ or no style at all:
 options.style = AnsiStyle.init;
 ```
 
-The provider never generates SGR escape bytes itself.
+The timestamp provider itself uses semantic `AnsiStyle` rather than generating SGR bytes, although generic prefix providers may emit supported embedded SGR when useful.
 
 ### ANSI destination
 
@@ -344,7 +348,7 @@ and renders the style using the existing styled-text path.
 
 ### Plain destination
 
-A plain sink receives the same text event but ignores its style:
+A plain sink receives the same prefix bytes but ignores semantic style and strips supported embedded SGR:
 
 ```text
 2026-08-21 02:17:03
@@ -462,7 +466,7 @@ This is an important composability property: destination-specific metadata requi
 
 ## Threading and file atomicity
 
-`PrefixLogSink` is stateful/thread-confined, like `TeeLogSink`.
+`PrefixLogSink` keeps no per-record state after resolution. Its address must still remain stable because `sinkRef()` borrows it; provider and child thread-safety requirements continue to apply.
 
 Separate thread-confined prefix/tee/logger objects may still share a synchronized file destination.
 
@@ -510,10 +514,10 @@ A timestamped record adds only:
 
 There is no heap allocation, message copy, or message reformatting.
 
-Timestamp color adds no ANSI scan:
-
-- ANSI sinks already know how to render styled `text` events;
-- plain sinks ignore their styles directly.
+Timestamp color itself adds no ANSI scan: the timestamp provider uses the
+ANSI-free `write(..., style)` path. ANSI sinks render the semantic style and
+plain sinks ignore it directly. Only a provider that explicitly calls
+`writeAnsi` pays the supported-SGR scan required for preservation/stripping.
 
 ## Required tests
 

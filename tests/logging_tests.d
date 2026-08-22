@@ -6,6 +6,7 @@ import xtb.core;
 static assert(__traits(isCopyable, LogSinkRef));
 static assert(__traits(isCopyable, LogPrefixRef));
 static assert(!__traits(isCopyable, PrefixLogSink));
+static assert(!__traits(isCopyable, WithoutCallsiteLogSink));
 static assert(!__traits(isCopyable, TeeLogSink));
 static assert(!__traits(isCopyable, Logger));
 
@@ -139,6 +140,55 @@ extern (C) int main() nothrow @nogc
         !secondText.endsWith(" formatted-once suffix\n"))
         return 1;
     if (!firstText.contains(longText[]) || !secondText.contains(longText[]))
+        return 1;
+
+    FILE* sourceTerminal = tmpfile();
+    if (sourceTerminal is null)
+        return 1;
+    scope (exit)
+        assert(fclose(sourceTerminal) == 0);
+
+    FILE* sourceFile = tmpfile();
+    if (sourceFile is null)
+        return 1;
+    scope (exit)
+        assert(fclose(sourceFile) == 0);
+
+    WithoutCallsiteLogSink terminalWithoutCallsite = WithoutCallsiteLogSink.create(
+        ansiFileLogSink(sourceTerminal),
+    );
+    TeeLogSink sourceOutputs = TeeLogSink.create(
+        terminalWithoutCallsite.sinkRef(),
+        plainFileLogSink(sourceFile),
+    );
+    char[256] sourceStorage;
+    Logger sourceLogger = Logger.create(sourceOutputs.sinkRef(), sourceStorage[]);
+    sourceLogger.setCallsitesEnabled(true);
+    const sourceFunction = cast(String) __FUNCTION__;
+    const sourceLine = __LINE__ + 1;
+    if (!sourceLogger.error("callsite routing").delivered || !sourceLogger.flush())
+        return 1;
+
+    char[1_024] sourceTerminalBytes;
+    char[1_024] sourceFileBytes;
+    const sourceTerminalLength = readFile(sourceTerminal, sourceTerminalBytes[]);
+    const sourceFileLength = readFile(sourceFile, sourceFileBytes[]);
+    const sourceTerminalText = cast(String) sourceTerminalBytes[0 .. sourceTerminalLength];
+    const sourceFileText = cast(String) sourceFileBytes[0 .. sourceFileLength];
+    if (!sourceTerminalText.contains("[error]") ||
+        !sourceTerminalText.contains(
+            "callsite routing") ||
+        sourceTerminalText.contains(sourceFunction))
+        return 1;
+
+    char[512] expectedSourceStorage;
+    const expectedSource = formatBuffer!"[error] callsite routing  ({}:{})\n"(
+        expectedSourceStorage[],
+        sourceFunction,
+        sourceLine,
+    );
+    if (expectedSource.truncated ||
+        !sourceFileText.equal(expectedSourceStorage[0 .. expectedSource.written]))
         return 1;
 
     return 0;

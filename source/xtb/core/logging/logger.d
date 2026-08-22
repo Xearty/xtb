@@ -6,7 +6,8 @@ import xtb.core.logging.level : LogLevel;
 import xtb.core.logging.palette : LogPalette, LogPalettePreset;
 import xtb.core.logging.result : LogResult, LogStatus;
 import xtb.core.logging.sgr : safeSgrPrefixLength;
-import xtb.core.logging.sink : LogFlush, LogSink, LogSinkEvent, LogSinkRef, submit;
+import xtb.core.logging.sink : LogFlush, LogRecordInfo, LogRecordRef, LogSink, LogSinkRef,
+    LogSourceLocation;
 import xtb.core.logging.writer : LogMessageWriter, createLogMessageWriter;
 import xtb.core.print : BufferWriteResult, formatBuffer, writeBuffer;
 import xtb.core.string : String;
@@ -19,6 +20,7 @@ nothrow @nogc:
     private char[] messageBuffer_;
     private LogLevel minimumLevel_;
     private LogPalette palette_;
+    private bool callsitesEnabled_;
     private bool delivering_;
 
     @disable this(this);
@@ -70,6 +72,12 @@ nothrow @nogc:
     {
         return minimumLevel_;
     }
+
+    /// Returns whether new records include the public caller's function/line.
+    bool callsitesEnabled() const pure @safe
+    {
+        return callsitesEnabled_;
+    }
 }
 
 private String levelLabel(LogLevel level) pure @safe
@@ -113,6 +121,15 @@ void setPalette(ref Logger logger, LogPalettePreset preset)
     logger.setPalette(LogPalette.preset(preset));
 }
 
+/// Enables or disables source-location capture for subsequently emitted records.
+///
+/// Capture is disabled by default. Enabling it adds static `__FUNCTION__` data
+/// and `__LINE__` to record setup; it performs no allocation or stack walk.
+void setCallsitesEnabled(ref Logger logger, bool enabled)
+{
+    logger.callsitesEnabled_ = enabled;
+}
+
 void setSink(ref Logger logger, LogSinkRef sink)
 {
     logger.sink_ = sink;
@@ -128,59 +145,57 @@ void setSink(
     logger.setSink(LogSinkRef.create(sink, context, flush));
 }
 
+private LogRecordInfo recordInfo(ref const Logger logger, LogLevel level)
+pure @safe
+{
+    const style = logger.palette_.styleFor(level);
+    return LogRecordInfo(
+        level,
+        levelLabel(level),
+        style.label,
+        style.message,
+    );
+}
+
 private LogResult deliver(
     ref Logger logger,
     LogLevel level,
     BufferWriteResult formatted,
+    LogSourceLocation callsite,
 )
 {
     if (logger.delivering_)
         return LogResult(LogStatus.recursive, 0, formatted.required);
 
     LogSinkRef sink = logger.sink_;
-    const levelStyle = logger.palette_.styleFor(level);
+    const info = recordInfo(logger, level);
+    const callsitePtr = logger.callsitesEnabled_ ? &callsite : null;
     const formattedMessage = cast(String) logger.messageBuffer_[0 .. formatted.written];
     const safeWritten = formatted.truncated
         ? safeSgrPrefixLength(formattedMessage) : formatted.written;
     logger.delivering_ = true;
-    bool accepted = submit(sink, LogSinkEvent.beginRecord());
-    if (!accepted)
+
+    LogRecordRef record = sink.beginRecord(info, callsitePtr);
+    if (!record.valid)
     {
         logger.delivering_ = false;
         return LogResult(LogStatus.sinkFailed, safeWritten, formatted.required);
     }
 
-    bool payloadAccepted = submit(sink, LogSinkEvent.text(
-            levelLabel(level),
-            levelStyle.label,
-    ));
-    if (payloadAccepted)
-        payloadAccepted = submit(sink, LogSinkEvent.text(" "));
-
-    bool messageBegan;
-    if (payloadAccepted)
-    {
-        messageBegan = true;
-        payloadAccepted = submit(sink, LogSinkEvent.beginMessage(levelStyle.message));
-    }
+    bool payloadAccepted = record.beginMessage();
     if (payloadAccepted && safeWritten != 0)
-    {
-        payloadAccepted = submit(sink, LogSinkEvent.messageChunk(
-                logger.messageBuffer_[0 .. safeWritten],
-                levelStyle.message,
-        ));
-    }
+        payloadAccepted = record.messageChunk(logger.messageBuffer_[0 .. safeWritten]);
 
-    if (messageBegan)
+    if (record.messageOpen)
     {
-        const endedMessage = submit(sink, LogSinkEvent.endMessage());
+        const endedMessage = record.endMessage();
         payloadAccepted = endedMessage && payloadAccepted;
     }
     if (payloadAccepted)
-        payloadAccepted = submit(sink, LogSinkEvent.text("\n"));
+        payloadAccepted = record.writeText("\n");
 
-    const endedRecord = submit(sink, LogSinkEvent.endRecord());
-    accepted = payloadAccepted && endedRecord;
+    const endedRecord = record.endRecord();
+    const accepted = payloadAccepted && endedRecord;
     logger.delivering_ = false;
 
     if (!accepted)
@@ -214,6 +229,7 @@ LogResult stream(Producer)(
     ref Logger logger,
     LogLevel level,
     scope auto ref Producer producer,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
 )
 {
     if (!logger.valid)
@@ -224,53 +240,40 @@ LogResult stream(Producer)(
         return LogResult(LogStatus.recursive, 0, 0);
 
     LogSinkRef sink = logger.sink_;
-    const levelStyle = logger.palette_.styleFor(level);
+    const info = recordInfo(logger, level);
+    const callsitePtr = logger.callsitesEnabled_ ? &callsite : null;
     logger.delivering_ = true;
 
-    bool accepted = submit(sink, LogSinkEvent.beginRecord());
-    if (!accepted)
+    LogRecordRef record = sink.beginRecord(info, callsitePtr);
+    if (!record.valid)
     {
         logger.delivering_ = false;
         return LogResult(LogStatus.sinkFailed, 0, 0);
     }
 
-    bool payloadAccepted = submit(sink, LogSinkEvent.text(
-            levelLabel(level),
-            levelStyle.label,
-    ));
-    if (payloadAccepted)
-        payloadAccepted = submit(sink, LogSinkEvent.text(" "));
-
-    bool messageBegan;
-    if (payloadAccepted)
-    {
-        messageBegan = true;
-        payloadAccepted = submit(sink, LogSinkEvent.beginMessage(levelStyle.message));
-    }
-
+    bool payloadAccepted = record.beginMessage();
     size_t written;
     if (payloadAccepted)
     {
         auto writer = createLogMessageWriter(
-            sink,
+            &record,
             logger.messageBuffer_,
-            levelStyle.message,
         );
         producer(writer);
         payloadAccepted = writer.finish();
         written = writer.written;
     }
 
-    if (messageBegan)
+    if (record.messageOpen)
     {
-        const endedMessage = submit(sink, LogSinkEvent.endMessage());
+        const endedMessage = record.endMessage();
         payloadAccepted = endedMessage && payloadAccepted;
     }
     if (payloadAccepted)
-        payloadAccepted = submit(sink, LogSinkEvent.text("\n"));
+        payloadAccepted = record.writeText("\n");
 
-    const endedRecord = submit(sink, LogSinkEvent.endRecord());
-    accepted = payloadAccepted && endedRecord;
+    const endedRecord = record.endRecord();
+    const accepted = payloadAccepted && endedRecord;
     logger.delivering_ = false;
 
     return LogResult(
@@ -284,10 +287,43 @@ LogResult stream(Producer)(
 ///
 /// Formatting completes into `messageBuffer` before the sink record begins. If
 /// the representation does not fit, the delivered prefix is reported as
-/// `LogStatus.truncated`. Use `stream` for deliberate unbounded output.
+/// `LogStatus.truncated`. Use `stream` for deliberate unbounded output. The
+/// trailing default source argument captures this public call site and is only
+/// rendered when callsites are enabled on the logger.
 LogResult log(Args...)(
     ref Logger logger,
     LogLevel level,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
+{
+    return logAt!Args(logger, level, callsite, args);
+}
+
+/// Formats and emits one bounded message.
+///
+/// Formatting completes into `messageBuffer` before the sink record begins. If
+/// the representation does not fit, the delivered prefix is reported as
+/// `LogStatus.truncated`. Use `stream` for deliberate unbounded output. The
+/// trailing default source argument captures this public call site and is only
+/// rendered when callsites are enabled on the logger.
+LogResult logf(string pattern, Args...)(
+    ref Logger logger,
+    LogLevel level,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
+{
+    return logfAt!(pattern, Args)(logger, level, callsite, args);
+}
+
+// Forwarding layers use a fixed callsite parameter before the variadic message
+// arguments. This keeps an empty Args tuple unambiguous: a forwarded
+// LogSourceLocation can never be re-deduced as message data.
+package LogResult logAt(Args...)(
+    ref Logger logger,
+    LogLevel level,
+    LogSourceLocation callsite,
     auto ref Args args,
 )
 {
@@ -298,17 +334,13 @@ LogResult log(Args...)(
     if (logger.delivering_)
         return LogResult(LogStatus.recursive, 0, 0);
     const formatted = writeBuffer(logger.messageBuffer_, args);
-    return logger.deliver(level, formatted);
+    return logger.deliver(level, formatted, callsite);
 }
 
-/// Formats and emits one bounded message.
-///
-/// Formatting completes into `messageBuffer` before the sink record begins. If
-/// the representation does not fit, the delivered prefix is reported as
-/// `LogStatus.truncated`. Use `stream` for deliberate unbounded output.
-LogResult logf(string pattern, Args...)(
+package LogResult logfAt(string pattern, Args...)(
     ref Logger logger,
     LogLevel level,
+    LogSourceLocation callsite,
     auto ref Args args,
 )
 {
@@ -319,67 +351,115 @@ LogResult logf(string pattern, Args...)(
     if (logger.delivering_)
         return LogResult(LogStatus.recursive, 0, 0);
     const formatted = formatBuffer!pattern(logger.messageBuffer_, args);
-    return logger.deliver(level, formatted);
+    return logger.deliver(level, formatted, callsite);
 }
 
-LogResult trace(Args...)(ref Logger logger, auto ref Args args)
+LogResult trace(Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.log(LogLevel.trace, args);
+    return logAt!Args(logger, LogLevel.trace, callsite, args);
 }
 
-LogResult tracef(string pattern, Args...)(ref Logger logger, auto ref Args args)
+LogResult tracef(string pattern, Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.logf!pattern(LogLevel.trace, args);
+    return logfAt!(pattern, Args)(logger, LogLevel.trace, callsite, args);
 }
 
-LogResult debug_(Args...)(ref Logger logger, auto ref Args args)
+LogResult debug_(Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.log(LogLevel.debug_, args);
+    return logAt!Args(logger, LogLevel.debug_, callsite, args);
 }
 
-LogResult debugf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+LogResult debugf(string pattern, Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.logf!pattern(LogLevel.debug_, args);
+    return logfAt!(pattern, Args)(logger, LogLevel.debug_, callsite, args);
 }
 
-LogResult info(Args...)(ref Logger logger, auto ref Args args)
+LogResult info(Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.log(LogLevel.info, args);
+    return logAt!Args(logger, LogLevel.info, callsite, args);
 }
 
-LogResult infof(string pattern, Args...)(ref Logger logger, auto ref Args args)
+LogResult infof(string pattern, Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.logf!pattern(LogLevel.info, args);
+    return logfAt!(pattern, Args)(logger, LogLevel.info, callsite, args);
 }
 
-LogResult warning(Args...)(ref Logger logger, auto ref Args args)
+LogResult warning(Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.log(LogLevel.warning, args);
+    return logAt!Args(logger, LogLevel.warning, callsite, args);
 }
 
-LogResult warningf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+LogResult warningf(string pattern, Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.logf!pattern(LogLevel.warning, args);
+    return logfAt!(pattern, Args)(logger, LogLevel.warning, callsite, args);
 }
 
-LogResult error(Args...)(ref Logger logger, auto ref Args args)
+LogResult error(Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.log(LogLevel.error, args);
+    return logAt!Args(logger, LogLevel.error, callsite, args);
 }
 
-LogResult errorf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+LogResult errorf(string pattern, Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.logf!pattern(LogLevel.error, args);
+    return logfAt!(pattern, Args)(logger, LogLevel.error, callsite, args);
 }
 
-LogResult critical(Args...)(ref Logger logger, auto ref Args args)
+LogResult critical(Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.log(LogLevel.critical, args);
+    return logAt!Args(logger, LogLevel.critical, callsite, args);
 }
 
-LogResult criticalf(string pattern, Args...)(ref Logger logger, auto ref Args args)
+LogResult criticalf(string pattern, Args...)(
+    ref Logger logger,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
 {
-    return logger.logf!pattern(LogLevel.critical, args);
+    return logfAt!(pattern, Args)(logger, LogLevel.critical, callsite, args);
 }
 
 bool flush(ref Logger logger)

@@ -35,6 +35,11 @@ private bool nullSink(void* context, scope const LogSinkEvent* event)
     return true;
 }
 
+private bool benchmarkPrefix(void*, LogPrefixWriter* output)
+{
+    return output !is null && output.write("prefix ");
+}
+
 private u64 monotonicNanoseconds()
 {
     timespec now;
@@ -79,49 +84,36 @@ private void printTiming(
     printf("%-38s %10.2f ns/op\n", name, nsPerOperation);
 }
 
-private u64 benchmarkCurrentProtocol(LogSinkRef sink, size_t iterations)
+private LogRecordInfo benchmarkRecordInfo()
 {
-    LogSinkEvent[8] events = [
-        LogSinkEvent.beginRecord(),
-        LogSinkEvent.text("[info]"),
-        LogSinkEvent.text(" "),
-        LogSinkEvent.beginMessage(),
-        LogSinkEvent.messageChunk(smallMessage),
-        LogSinkEvent.endMessage(),
-        LogSinkEvent.text("\n"),
-        LogSinkEvent.endRecord(),
-    ];
-
-    const started = monotonicNanoseconds();
-    foreach (_; 0 .. iterations)
-    {
-        foreach (ref event; events)
-            if (!sink.submit(&event))
-                return 0;
-    }
-    return monotonicNanoseconds() - started;
+    const style = LogPalette.defaults().info;
+    return LogRecordInfo(
+        LogLevel.info,
+        "[info]",
+        style.label,
+        style.message,
+    );
 }
 
-private u64 benchmarkProtocolWithoutMessageBoundaries(
-    LogSinkRef sink,
-    size_t iterations,
-)
+private u64 benchmarkResolvedProtocol(LogSinkRef sink, size_t iterations)
 {
-    LogSinkEvent[6] events = [
-        LogSinkEvent.beginRecord(),
-        LogSinkEvent.text("[info]"),
-        LogSinkEvent.text(" "),
-        LogSinkEvent.messageChunk(smallMessage),
-        LogSinkEvent.text("\n"),
-        LogSinkEvent.endRecord(),
-    ];
-
+    const info = benchmarkRecordInfo();
     const started = monotonicNanoseconds();
     foreach (_; 0 .. iterations)
     {
-        foreach (ref event; events)
-            if (!sink.submit(&event))
-                return 0;
+        LogRecordRef record = sink.beginRecord(info);
+        if (!record.valid)
+            return 0;
+        if (!record.beginMessage())
+            return 0;
+        if (!record.messageChunk(smallMessage))
+            return 0;
+        if (!record.endMessage())
+            return 0;
+        if (!record.writeText("\n"))
+            return 0;
+        if (!record.endRecord())
+            return 0;
     }
     return monotonicNanoseconds() - started;
 }
@@ -235,20 +227,15 @@ extern (C) int main(int argc, char** argv)
         cast(ulong) fragmentedIterations,
     );
 
-    // Isolate the dormant cost of the two message-lifecycle callbacks from
-    // formatting and I/O. The second case is deliberately hypothetical: it is
-    // not a valid sink record, only the same event sequence with begin/end
-    // message removed for comparison.
+    // Isolate the resolved record protocol from formatting and I/O. A direct
+    // null sink still receives the same eight semantic events, but setup now
+    // resolves the reusable sink graph once before message delivery begins.
     SinkProbe protocolProbe;
     LogSinkRef protocolSink = LogSinkRef.create(&nullSink, &protocolProbe);
-    benchmarkCurrentProtocol(protocolSink, iterations / 20 + 1);
+    benchmarkResolvedProtocol(protocolSink, iterations / 20 + 1);
     protocolProbe = SinkProbe.init;
-    auto elapsed = benchmarkCurrentProtocol(protocolSink, iterations);
-    printResult("protocol: current 8 events", elapsed, iterations, protocolProbe);
-
-    protocolProbe = SinkProbe.init;
-    elapsed = benchmarkProtocolWithoutMessageBoundaries(protocolSink, iterations);
-    printResult("protocol: hypothetical 6 events", elapsed, iterations, protocolProbe);
+    auto elapsed = benchmarkResolvedProtocol(protocolSink, iterations);
+    printResult("protocol: resolved direct record", elapsed, iterations, protocolProbe);
 
     printf("\nNull sink\n");
     SinkProbe nullProbe;
@@ -260,6 +247,13 @@ extern (C) int main(int argc, char** argv)
 
     elapsed = benchmarkNormalSmall(nullLogger, iterations);
     printResult("normal small", elapsed, iterations, nullProbe);
+
+    nullLogger.setCallsitesEnabled(true);
+    warmUp(nullLogger, iterations / 20 + 1);
+    nullProbe = SinkProbe.init;
+    elapsed = benchmarkNormalSmall(nullLogger, iterations);
+    printResult("normal small + callsite", elapsed, iterations, nullProbe);
+    nullLogger.setCallsitesEnabled(false);
 
     nullProbe = SinkProbe.init;
     elapsed = benchmarkStreamSmall(nullLogger, iterations);
@@ -329,6 +323,38 @@ extern (C) int main(int argc, char** argv)
     firstProbe = SinkProbe.init;
     secondProbe = SinkProbe.init;
     elapsed = benchmarkStreamLargeBorrowed(teeLogger, payload, largeIterations);
+    printResult("stream 64 KiB borrowed", elapsed, largeIterations, firstProbe);
+
+    printf("\nCallsite -> tee without-callsite + null\n");
+    WithoutCallsiteLogSink firstWithoutCallsite = WithoutCallsiteLogSink.create(first);
+    TeeLogSink callsiteTee = TeeLogSink.create(firstWithoutCallsite.sinkRef(), second);
+    char[1024] callsiteTeeBuffer;
+    Logger callsiteTeeLogger = Logger.create(callsiteTee.sinkRef(), callsiteTeeBuffer[]);
+    callsiteTeeLogger.setCallsitesEnabled(true);
+    warmUp(callsiteTeeLogger, iterations / 20 + 1);
+    firstProbe = SinkProbe.init;
+    secondProbe = SinkProbe.init;
+    elapsed = benchmarkNormalSmall(callsiteTeeLogger, iterations);
+    printResult("normal small, suppressed branch", elapsed, iterations, firstProbe);
+    if (firstProbe.events != cast(u64) iterations * 8 ||
+        secondProbe.events != cast(u64) iterations * 11)
+        return 1;
+
+    printf("\nPrefix -> tee null + null\n");
+    PrefixLogSink prefixedTee = PrefixLogSink.create(
+        tee.sinkRef(),
+        LogPrefixRef.create(&benchmarkPrefix, null),
+    );
+    char[1024] prefixBuffer;
+    Logger prefixLogger = Logger.create(prefixedTee.sinkRef(), prefixBuffer[]);
+    warmUp(prefixLogger, iterations / 20 + 1);
+    firstProbe = SinkProbe.init;
+    secondProbe = SinkProbe.init;
+    elapsed = benchmarkNormalSmall(prefixLogger, iterations);
+    printResult("normal small", elapsed, iterations, firstProbe);
+    firstProbe = SinkProbe.init;
+    secondProbe = SinkProbe.init;
+    elapsed = benchmarkStreamLargeBorrowed(prefixLogger, payload, largeIterations);
     printResult("stream 64 KiB borrowed", elapsed, largeIterations, firstProbe);
 
     return 0;

@@ -7,6 +7,7 @@ import explicitSink = xtb.core.logging.sink;
 import xtb.core.logging.level : LogLevel;
 import xtb.core.logging.logger : Logger;
 import xtb.core.logging.result : LogResult, LogStatus;
+import xtb.core.logging.sink : LogSourceLocation;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.thread_context : ThreadContext, currentThreadContext;
@@ -88,80 +89,142 @@ bool enabled(LogLevel level)
     return logger !is null && explicitLogger.enabled(*logger, level);
 }
 
-LogResult log(Args...)(LogLevel level, auto ref Args args)
+LogResult log(Args...)(
+    LogLevel level,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
+{
+    return logAt!Args(level, callsite, args);
+}
+
+LogResult logf(string pattern, Args...)(
+    LogLevel level,
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+)
+{
+    return logfAt!(pattern, Args)(level, callsite, args);
+}
+
+private LogResult logAt(Args...)(
+    LogLevel level,
+    LogSourceLocation callsite,
+    auto ref Args args,
+)
 {
     Logger* logger = currentLogger();
     if (logger is null)
         return LogResult(LogStatus.invalidLogger, 0, 0);
-    return explicitLogger.log(*logger, level, args);
+    return explicitLogger.logAt!Args(*logger, level, callsite, args);
 }
 
-LogResult logf(string pattern, Args...)(LogLevel level, auto ref Args args)
+private LogResult logfAt(string pattern, Args...)(
+    LogLevel level,
+    LogSourceLocation callsite,
+    auto ref Args args,
+)
 {
     Logger* logger = currentLogger();
     if (logger is null)
         return LogResult(LogStatus.invalidLogger, 0, 0);
-    return explicitLogger.logf!pattern(*logger, level, args);
+    return explicitLogger.logfAt!(pattern, Args)(*logger, level, callsite, args);
 }
 
-LogResult trace(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult trace(Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return log(LogLevel.trace, args);
+    return logAt!Args(LogLevel.trace, callsite, args);
 }
 
-LogResult tracef(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult tracef(string pattern, Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return logf!pattern(LogLevel.trace, args);
+    return logfAt!(pattern, Args)(LogLevel.trace, callsite, args);
 }
 
-LogResult debug_(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult debug_(Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return log(LogLevel.debug_, args);
+    return logAt!Args(LogLevel.debug_, callsite, args);
 }
 
-LogResult debugf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult debugf(string pattern, Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return logf!pattern(LogLevel.debug_, args);
+    return logfAt!(pattern, Args)(LogLevel.debug_, callsite, args);
 }
 
-LogResult info(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult info(Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return log(LogLevel.info, args);
+    return logAt!Args(LogLevel.info, callsite, args);
 }
 
-LogResult infof(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult infof(string pattern, Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return logf!pattern(LogLevel.info, args);
+    return logfAt!(pattern, Args)(LogLevel.info, callsite, args);
 }
 
-LogResult warning(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult warning(Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return log(LogLevel.warning, args);
+    return logAt!Args(LogLevel.warning, callsite, args);
 }
 
-LogResult warningf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult warningf(string pattern, Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return logf!pattern(LogLevel.warning, args);
+    return logfAt!(pattern, Args)(LogLevel.warning, callsite, args);
 }
 
-LogResult error(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult error(Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return log(LogLevel.error, args);
+    return logAt!Args(LogLevel.error, callsite, args);
 }
 
-LogResult errorf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult errorf(string pattern, Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return logf!pattern(LogLevel.error, args);
+    return logfAt!(pattern, Args)(LogLevel.error, callsite, args);
 }
 
-LogResult critical(Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult critical(Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return log(LogLevel.critical, args);
+    return logAt!Args(LogLevel.critical, callsite, args);
 }
 
-LogResult criticalf(string pattern, Args...)(auto ref Args args) if (!StartsWithLogger!Args)
+LogResult criticalf(string pattern, Args...)(
+    auto ref Args args,
+    LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
+) if (!StartsWithLogger!Args)
 {
-    return logf!pattern(LogLevel.critical, args);
+    return logfAt!(pattern, Args)(LogLevel.critical, callsite, args);
 }
 
 bool flushLogger()
@@ -221,6 +284,48 @@ version (unittest)
         Capture* capture = cast(Capture*) context;
         ++capture.flushCount;
         return true;
+    }
+
+    private struct SourceCapture
+    {
+    nothrow @nogc:
+
+        char[128] functionName;
+        size_t functionNameLength;
+        size_t line;
+
+        String functionText() const return @trusted
+        {
+            return functionName[0 .. functionNameLength];
+        }
+    }
+
+    private bool acceptAllSink(
+        void*,
+        scope const explicitSink.LogSinkEvent* event,
+    )
+    {
+        return event !is null;
+    }
+
+    private explicitSink.LogRecordRef captureSourceResolver(
+        void* context,
+        scope return const ref explicitSink.LogRecordInfo info,
+        scope return const(explicitSink.LogSourceLocation)* callsite,
+    )
+    {
+        SourceCapture* capture = cast(SourceCapture*) context;
+        if (capture is null || callsite is null ||
+            callsite.functionName.length > capture.functionName.length)
+            return explicitSink.LogRecordRef.init;
+
+        capture.functionNameLength = callsite.functionName.length;
+        foreach (index, value; callsite.functionName)
+            capture.functionName[index] = value;
+        capture.line = callsite.line;
+
+        auto child = explicitSink.LogSinkRef.create(&acceptAllSink, null);
+        return child.beginRecord(info, callsite);
     }
 }
 
@@ -297,6 +402,54 @@ unittest
         assert(criticalf!"{}"("criticalf").delivered &&
                 outerCapture.labelText.equal("[critical]"));
         outerCapture.length = 0;
+
+        // TLS helpers preserve the application caller through both the thread
+        // wrapper and the explicit logger wrapper when callsites are enabled.
+        SourceCapture sourceCapture;
+        char[32] sourceStorage;
+        Logger sourceLogger = Logger.create(
+            explicitSink.LogSinkRef.create(&captureSourceResolver, &sourceCapture),
+            sourceStorage[],
+            LogLevel.trace,
+        );
+        explicitLogger.setCallsitesEnabled(sourceLogger, true);
+        {
+            ThreadLoggerScope sourceScope = ThreadLoggerScope.install(&sourceLogger);
+            const sourceFunction = cast(String) __FUNCTION__;
+
+            const directLine = __LINE__ + 1;
+            assert(log(LogLevel.info, "direct").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(sourceCapture.line == directLine);
+
+            assert(logf!"{}"(LogLevel.info, "formatted").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(trace("trace").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(tracef!"{}"("tracef").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(debug_("debug").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(debugf!"{}"("debugf").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(info("info").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(infof!"{}"("infof").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(warning("warning").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(warningf!"{}"("warningf").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(error("error").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(errorf!"{}"("errorf").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(critical("critical").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(criticalf!"{}"("criticalf").delivered);
+            assert(sourceCapture.functionText.equal(sourceFunction));
+        }
+        assert(currentLogger() is &outer);
 
         Capture nestedCapture;
         char[32] nestedStorage;

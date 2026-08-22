@@ -5,7 +5,11 @@ nothrow @nogc:
 import xtb.core.ansi : AnsiColor, AnsiStyle;
 import xtb.core.logging.prefix : LogPrefixRef, LogPrefixWriter;
 
-version (unittest) import xtb.core.logging.sink : LogSinkEvent, LogSinkEventKind;
+version (unittest)
+{
+    import xtb.core.logging.level : LogLevel;
+    import xtb.core.logging.sink : LogRecordInfo, LogRecordRef, LogSinkEvent, LogSinkEventKind;
+}
 import xtb.core.string : String;
 import xtb.core.types : i64;
 import xtb.os.error : OsError;
@@ -286,11 +290,11 @@ unittest
         timestamp.prefixRef(),
     );
 
-    LogSinkEvent begin = LogSinkEvent.beginRecord();
-    LogSinkEvent end = LogSinkEvent.endRecord();
+    const recordInfo = LogRecordInfo(LogLevel.info);
     LogSinkRef sink = prefixed.sinkRef();
-    assert(sink.submit(&begin));
-    assert(sink.submit(&end));
+    LogRecordRef record = sink.beginRecord(recordInfo);
+    assert(record.valid);
+    assert(record.endRecord());
     assert(clock.calls == 1);
     assert(cast(String) capture.bytes[0 .. capture.length] ==
             "2024-02-29T12:34:56.789Z | ");
@@ -351,8 +355,9 @@ unittest
         unstyled.prefixRef(),
     );
     LogSinkRef unstyledRef = unstyledSink.sinkRef();
-    assert(unstyledRef.submit(&begin));
-    assert(unstyledRef.submit(&end));
+    LogRecordRef unstyledRecord = unstyledRef.beginRecord(recordInfo);
+    assert(unstyledRecord.valid);
+    assert(unstyledRecord.endRecord());
     assert(unstyledCapture.writes == 1);
     assert(!unstyledCapture.style.enabled);
 
@@ -369,8 +374,9 @@ unittest
         failing.prefixRef(),
     );
     LogSinkRef failureRef = failureSink.sinkRef();
-    assert(failureRef.submit(&begin));
-    assert(!failureRef.submit(&end));
+    LogRecordRef failureRecord = failureRef.beginRecord(recordInfo);
+    assert(failureRecord.valid);
+    assert(!failureRecord.endRecord());
     assert(failingClock.calls == 1);
     assert(failureCapture.length == 0);
 }
