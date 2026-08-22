@@ -35,7 +35,7 @@ nothrow @nogc:
     LogLevelStyle info;
     LogLevelStyle warning;
     LogLevelStyle error;
-    LogLevelStyle critical;
+    LogLevelStyle fatal;
 
     /// Returns one of the built-in palettes.
     static LogPalette preset(LogPalettePreset preset)
@@ -61,7 +61,7 @@ nothrow @nogc:
         result.info.label = AnsiStyle.foreground(AnsiColor.green);
         result.warning.label = AnsiStyle.foreground(AnsiColor.yellow);
         result.error.label = AnsiStyle.foreground(AnsiColor.brightRed);
-        result.critical.label = AnsiStyle.foreground(AnsiColor.brightRed).bold;
+        result.fatal.label = AnsiStyle.foreground(AnsiColor.brightRed).bold;
         return result;
     }
 
@@ -89,7 +89,7 @@ nothrow @nogc:
             AnsiStyle.foreground(AnsiColor.indexed(203)),
             AnsiStyle.foreground(AnsiColor.indexed(250)),
         );
-        result.critical = LogLevelStyle(
+        result.fatal = LogLevelStyle(
             AnsiStyle.foreground(AnsiColor.indexed(231))
                 .withBackground(AnsiColor.indexed(160))
                 .bold,
@@ -122,7 +122,7 @@ nothrow @nogc:
             AnsiStyle.foreground(AnsiColor.rgb(255, 95, 95)),
             AnsiStyle.foreground(AnsiColor.rgb(205, 210, 220)),
         );
-        result.critical = LogLevelStyle(
+        result.fatal = LogLevelStyle(
             AnsiStyle.foreground(AnsiColor.rgb(255, 255, 255))
                 .withBackground(AnsiColor.rgb(190, 48, 48))
                 .bold,
@@ -153,8 +153,8 @@ nothrow @nogc:
                 return warning;
             case LogLevel.error:
                 return error;
-            case LogLevel.critical:
-                return critical;
+            case LogLevel.fatal:
+                return fatal;
         }
     }
 }
@@ -168,13 +168,13 @@ unittest
     assert(ansiSequence(basic.info.label).view.equal("\x1b[32m"));
     assert(ansiSequence(basic.warning.label).view.equal("\x1b[33m"));
     assert(ansiSequence(basic.error.label).view.equal("\x1b[91m"));
-    assert(ansiSequence(basic.critical.label).view.equal("\x1b[1;91m"));
+    assert(ansiSequence(basic.fatal.label).view.equal("\x1b[1;91m"));
     assert(!basic.trace.message.enabled);
     assert(!basic.debug_.message.enabled);
     assert(!basic.info.message.enabled);
     assert(!basic.warning.message.enabled);
     assert(!basic.error.message.enabled);
-    assert(!basic.critical.message.enabled);
+    assert(!basic.fatal.message.enabled);
 
     const extended = LogPalette.preset(LogPalettePreset.extended);
     assert(ansiSequence(extended.trace.label).view.equal("\x1b[2;38;5;244m"));
@@ -182,7 +182,7 @@ unittest
     assert(ansiSequence(extended.info.label).view.equal("\x1b[38;5;42m"));
     assert(ansiSequence(extended.warning.label).view.equal("\x1b[1;38;5;214m"));
     assert(ansiSequence(extended.error.label).view.equal("\x1b[38;5;203m"));
-    assert(ansiSequence(extended.critical.label).view.equal(
+    assert(ansiSequence(extended.fatal.label).view.equal(
             "\x1b[1;38;5;231;48;5;160m",
     ));
     assert(ansiSequence(extended.trace.message).view.equal("\x1b[38;5;242m"));
@@ -190,7 +190,7 @@ unittest
     assert(ansiSequence(extended.info.message).view.equal("\x1b[38;5;246m"));
     assert(ansiSequence(extended.warning.message).view.equal("\x1b[38;5;248m"));
     assert(ansiSequence(extended.error.message).view.equal("\x1b[38;5;250m"));
-    assert(ansiSequence(extended.critical.message).view.equal("\x1b[38;5;255m"));
+    assert(ansiSequence(extended.fatal.message).view.equal("\x1b[38;5;255m"));
 
     const trueColor = LogPalette.preset(LogPalettePreset.trueColor);
     assert(ansiSequence(trueColor.trace.label).view.equal("\x1b[2;38;2;128;128;128m"));
@@ -198,7 +198,7 @@ unittest
     assert(ansiSequence(trueColor.info.label).view.equal("\x1b[38;2;86;182;194m"));
     assert(ansiSequence(trueColor.warning.label).view.equal("\x1b[1;38;2;255;175;0m"));
     assert(ansiSequence(trueColor.error.label).view.equal("\x1b[38;2;255;95;95m"));
-    assert(ansiSequence(trueColor.critical.label).view.equal(
+    assert(ansiSequence(trueColor.fatal.label).view.equal(
             "\x1b[1;38;2;255;255;255;48;2;190;48;48m",
     ));
     assert(ansiSequence(trueColor.trace.message).view.equal("\x1b[38;2;105;110;120m"));
@@ -206,5 +206,5 @@ unittest
     assert(ansiSequence(trueColor.info.message).view.equal("\x1b[38;2;150;155;165m"));
     assert(ansiSequence(trueColor.warning.message).view.equal("\x1b[38;2;175;180;190m"));
     assert(ansiSequence(trueColor.error.message).view.equal("\x1b[38;2;205;210;220m"));
-    assert(ansiSequence(trueColor.critical.message).view.equal("\x1b[38;2;238;240;245m"));
+    assert(ansiSequence(trueColor.fatal.message).view.equal("\x1b[38;2;238;240;245m"));
 }

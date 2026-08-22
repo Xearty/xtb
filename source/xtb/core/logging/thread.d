@@ -211,20 +211,20 @@ LogResult errorf(string pattern, Args...)(
     return logfAt!(pattern, Args)(LogLevel.error, callsite, args);
 }
 
-LogResult critical(Args...)(
+LogResult fatal(Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
 ) if (!StartsWithLogger!Args)
 {
-    return logAt!Args(LogLevel.critical, callsite, args);
+    return logAt!Args(LogLevel.fatal, callsite, args);
 }
 
-LogResult criticalf(string pattern, Args...)(
+LogResult fatalf(string pattern, Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
 ) if (!StartsWithLogger!Args)
 {
-    return logfAt!(pattern, Args)(LogLevel.critical, callsite, args);
+    return logfAt!(pattern, Args)(LogLevel.fatal, callsite, args);
 }
 
 bool flushLogger()
@@ -397,10 +397,10 @@ unittest
         assert(error("error").delivered && outerCapture.labelText.equal("[error]"));
         assert(errorf!"{}"("errorf").delivered &&
                 outerCapture.labelText.equal("[error]"));
-        assert(critical("critical").delivered &&
-                outerCapture.labelText.equal("[critical]"));
-        assert(criticalf!"{}"("criticalf").delivered &&
-                outerCapture.labelText.equal("[critical]"));
+        assert(fatal("fatal").delivered &&
+                outerCapture.labelText.equal("[fatal]"));
+        assert(fatalf!"{}"("fatalf").delivered &&
+                outerCapture.labelText.equal("[fatal]"));
         outerCapture.length = 0;
 
         // TLS helpers preserve the application caller through both the thread
@@ -444,9 +444,9 @@ unittest
             assert(sourceCapture.functionText.equal(sourceFunction));
             assert(errorf!"{}"("errorf").delivered);
             assert(sourceCapture.functionText.equal(sourceFunction));
-            assert(critical("critical").delivered);
+            assert(fatal("fatal").delivered);
             assert(sourceCapture.functionText.equal(sourceFunction));
-            assert(criticalf!"{}"("criticalf").delivered);
+            assert(fatalf!"{}"("fatalf").delivered);
             assert(sourceCapture.functionText.equal(sourceFunction));
         }
         assert(currentLogger() is &outer);

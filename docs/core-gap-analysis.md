@@ -154,7 +154,7 @@ Future general-purpose additions are ranked separately in
 - filtered, delivered, truncated, failed, recursive, and invalid logger status;
 - stdout/stderr/file factories, plain/ANSI protocol consumers, threshold
   mutation, sink replacement, and flush;
-- serialized POSIX file records and non-terminating `critical` severity;
+- serialized POSIX file records and non-terminating `fatal` severity;
 - no mutable process-global logger.
 
 ### Panic and contracts

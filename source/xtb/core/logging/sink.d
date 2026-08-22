@@ -117,7 +117,7 @@ struct LogRecordInfo
     String levelLabel;
     AnsiStyle labelStyle;
     AnsiStyle messageStyle;
-    String messageSeparator = " ";
+    size_t messagePadding = 1;
 }
 
 private String callsiteSuffix(size_t line, return scope char[] storage)
@@ -213,6 +213,20 @@ nothrow @nogc:
         return sink_ !is null && info_ !is null;
     }
 
+    private bool writePadding(size_t count)
+    {
+        enum String spaces =
+            "                                                                ";
+        while (count != 0)
+        {
+            const chunkLength = count < spaces.length ? count : spaces.length;
+            if (!writeText(spaces[0 .. chunkLength]))
+                return false;
+            count -= chunkLength;
+        }
+        return true;
+    }
+
     /// Emits ANSI-free setup/framing text through this resolved output path.
     /// Use `writeAnsiText` when `bytes` may contain embedded ANSI SGR.
     bool writeText(return scope String bytes, AnsiStyle style = AnsiStyle.init)
@@ -244,7 +258,7 @@ nothrow @nogc:
         {
             if (!writeText(info_.levelLabel, info_.labelStyle))
                 return false;
-            if (!writeText(info_.messageSeparator))
+            if (!writePadding(info_.messagePadding))
                 return false;
         }
 

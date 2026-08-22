@@ -333,13 +333,17 @@ version (unittest)
         }
     }
 
-    private String expectedMessageSeparator(scope String label, bool aligned = true)
-    pure @safe
+    private String expectedMessageSeparator(
+        scope String label,
+        bool aligned = true,
+        size_t maximumLabelWidth = "[warning]".length,
+    ) pure @safe
     {
         if (!aligned)
             return " ";
-        enum String spaces = "     ";
-        return spaces[0 .. "[critical]".length - label.length + 1];
+        enum String spaces =
+            "                                                                ";
+        return spaces[0 .. maximumLabelWidth - label.length + 1];
     }
 
     private void assertSuccessfulRecord(
@@ -349,6 +353,7 @@ version (unittest)
         AnsiStyle labelStyle,
         AnsiStyle messageStyle,
         bool aligned = true,
+        size_t maximumLabelWidth = "[warning]".length,
     )
     {
         const expectedCount = message.length == 0 ? 7 : 8;
@@ -360,7 +365,7 @@ version (unittest)
             capture,
             2,
             LogSinkEventKind.text,
-            expectedMessageSeparator(label, aligned),
+            expectedMessageSeparator(label, aligned, maximumLabelWidth),
         );
         assert(!capture.events[2].style.enabled);
         assertEvent(capture, 3, LogSinkEventKind.beginMessage);
@@ -1193,13 +1198,13 @@ unittest
     // space without changing the rest of the record framing.
     assert(logger.messageAlignmentEnabled);
     capture.clear();
-    result = logger.critical("aligned");
+    result = logger.fatal("aligned");
     assert(result.delivered);
     capture.assertSuccessfulRecord(
-        "[critical]",
+        "[fatal]",
         "aligned",
-        defaults.critical.label,
-        defaults.critical.message,
+        defaults.fatal.label,
+        defaults.fatal.message,
     );
 
     logger.setMessageAlignmentEnabled(false);
@@ -1215,6 +1220,75 @@ unittest
         false,
     );
     logger.setMessageAlignmentEnabled(true);
+
+    // Label spelling is independent from severity styling and alignment. The
+    // built-in three-letter set needs no alignment padding beyond one space.
+    assert(logger.levelLabels == LogLevelLabels.defaults());
+    logger.setLevelLabels(LogLevelLabelPreset.threeLetter);
+    assert(logger.levelLabels == LogLevelLabels.preset(LogLevelLabelPreset.threeLetter));
+    capture.clear();
+    result = logger.info("compact label");
+    assert(result.delivered);
+    capture.assertSuccessfulRecord(
+        "[INF]",
+        "compact label",
+        defaults.info.label,
+        defaults.info.message,
+        true,
+        "[INF]".length,
+    );
+
+    // Custom labels are complete presentation tokens. Alignment width is
+    // recomputed when the set is installed, so arbitrary widths do not add a
+    // per-record scan or require a fixed-width separator buffer.
+    LogLevelLabels customLabels = LogLevelLabels.defaults();
+    customLabels.trace = "<T>";
+    customLabels.debug_ = "<DEBUG-WIDE>";
+    customLabels.info = "<I>";
+    customLabels.warning = "<W>";
+    customLabels.error = "<E>";
+    customLabels.fatal = "<F>";
+    logger.setLevelLabels(customLabels);
+    assert(logger.levelLabels == customLabels);
+    capture.clear();
+    result = logger.info("custom label");
+    assert(result.delivered);
+    capture.assertSuccessfulRecord(
+        "<I>",
+        "custom label",
+        defaults.info.label,
+        defaults.info.message,
+        true,
+        customLabels.maximumWidth,
+    );
+
+    // Padding is not capped by the static block used for each framing write.
+    // Wider custom labels simply emit multiple space chunks during setup.
+    char[80] wideLabelStorage;
+    foreach (ref value; wideLabelStorage)
+        value = 'D';
+    LogLevelLabels wideLabels = LogLevelLabels.defaults();
+    wideLabels.debug_ = wideLabelStorage[];
+    wideLabels.info = "[I]";
+    logger.setLevelLabels(wideLabels);
+    capture.clear();
+    result = logger.info("wide padding");
+    assert(result.delivered);
+    assert(capture.count == 9);
+    assertEvent(capture, 1, LogSinkEventKind.text, "[I]");
+    assert(capture.events[2].kind == LogSinkEventKind.text);
+    assert(capture.events[2].length == 64);
+    foreach (value; capture.events[2].text)
+        assert(value == ' ');
+    assert(capture.events[3].kind == LogSinkEventKind.text);
+    assert(capture.events[3].length == 14);
+    foreach (value; capture.events[3].text)
+        assert(value == ' ');
+    assertEvent(capture, 4, LogSinkEventKind.beginMessage);
+    assertEvent(capture, 5, LogSinkEventKind.messageChunk, "wide padding");
+
+    logger.setLevelLabels(LogLevelLabelPreset.full);
+    assert(logger.levelLabels == LogLevelLabels.defaults());
 
     // Callsite capture is opt-in at the logger. Public variadic wrappers keep
     // the original caller metadata by explicitly forwarding the already-deduced
@@ -1286,10 +1360,10 @@ unittest
     assert(logger.errorf!"{}"("errorf").delivered);
     assertEvent(capture, 7, LogSinkEventKind.text, wrapperFunction);
     capture.clear();
-    assert(logger.critical("critical").delivered);
+    assert(logger.fatal("fatal").delivered);
     assertEvent(capture, 7, LogSinkEventKind.text, wrapperFunction);
     capture.clear();
-    assert(logger.criticalf!"{}"("criticalf").delivered);
+    assert(logger.fatalf!"{}"("fatalf").delivered);
     assertEvent(capture, 7, LogSinkEventKind.text, wrapperFunction);
 
     // Callsite suppression is branch-local setup. A suppressed branch resolves
@@ -1541,7 +1615,7 @@ unittest
     );
 
     streamCapture.clear();
-    streamLogger.setMinimumLevel(LogLevel.critical);
+    streamLogger.setMinimumLevel(LogLevel.fatal);
     result = streamLogger.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
         ++streamProducerCalls;
         writer.write("must not run");
@@ -1729,13 +1803,13 @@ unittest
     assert(logger.errorf!"{}"("errorf").delivered);
     capture.assertSuccessfulRecord("[error]", "errorf", defaults.error.label, defaults.error.message);
     capture.clear();
-    assert(logger.critical("critical").delivered);
-    capture.assertSuccessfulRecord("[critical]", "critical", defaults.critical.label, defaults
-            .critical.message);
+    assert(logger.fatal("fatal").delivered);
+    capture.assertSuccessfulRecord("[fatal]", "fatal", defaults.fatal.label, defaults
+            .fatal.message);
     capture.clear();
-    assert(logger.criticalf!"{}"("criticalf").delivered);
-    capture.assertSuccessfulRecord("[critical]", "criticalf", defaults.critical.label, defaults
-            .critical.message);
+    assert(logger.fatalf!"{}"("fatalf").delivered);
+    capture.assertSuccessfulRecord("[fatal]", "fatalf", defaults.fatal.label, defaults
+            .fatal.message);
 
     LogPalette palette = defaults;
     palette.warning.label = AnsiStyle.foreground(AnsiColor.rgb(1, 20, 255)).underline;
@@ -1896,7 +1970,7 @@ unittest
         assert(plain.flush());
         char[64] output;
         const length = readFileContents(file, output[]);
-        assert(output[0 .. length].equal("[info]     plain message\n"));
+        assert(output[0 .. length].equal("[info]    plain message\n"));
         assert(fclose(file) == 0);
     }
 
@@ -1925,7 +1999,7 @@ unittest
         char[256] output;
         const length = readFileContents(file, output[]);
         char[256] expectedStorage;
-        const expected = formatBuffer!"prefix [info]     plain callsite  ({}:{})\n"(
+        const expected = formatBuffer!"prefix [info]    plain callsite  ({}:{})\n"(
             expectedStorage[],
             callsiteFunction,
             callsiteLine,
@@ -2006,7 +2080,7 @@ unittest
         assert(plain.flush());
         char[64] output;
         const length = readFileContents(file, output[]);
-        assert(output[0 .. length].equal("[info]     red!\n"));
+        assert(output[0 .. length].equal("[info]    red!\n"));
         assert(fclose(file) == 0);
     }
 
@@ -2038,11 +2112,11 @@ unittest
         LogPalette custom = LogPalette.defaults();
         assert(custom.trace.label.enabled && custom.debug_.label.enabled &&
                 custom.info.label.enabled && custom.warning.label.enabled &&
-                custom.error.label.enabled && custom.critical.label.enabled);
+                custom.error.label.enabled && custom.fatal.label.enabled);
         assert(!custom.trace.message.enabled && !custom.debug_.message.enabled &&
                 !custom.info.message.enabled && !custom.warning.message.enabled &&
-                !custom.error.message.enabled && !custom.critical.message.enabled);
-        assert(custom.critical.label.has(AnsiAttribute.bold));
+                !custom.error.message.enabled && !custom.fatal.message.enabled);
+        assert(custom.fatal.label.has(AnsiAttribute.bold));
         custom.warning.label = AnsiStyle.foreground(AnsiColor.rgb(1, 20, 255))
             .underline;
         custom.warning.message = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
@@ -2085,7 +2159,7 @@ unittest
         assert(plain.flush());
         char[64] output;
         const length = readFileContents(file, output[]);
-        assert(output[0 .. length].equal("[error]    plain ignores styles\n"));
+        assert(output[0 .. length].equal("[error]   plain ignores styles\n"));
         assert(fclose(file) == 0);
     }
 
@@ -2126,7 +2200,7 @@ unittest
         char[96] plainOutput;
         const plainLength = readFileContents(plainFile, plainOutput[]);
         assert(plainOutput[0 .. plainLength].equal(
-                "base red base tail [info]     body\n",
+                "base red base tail [info]    body\n",
         ));
 
         assert(fclose(ansiFile) == 0);
@@ -2206,7 +2280,7 @@ unittest
         char[128] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
-                "[info]     ordinary styled ordinary green\n",
+                "[info]    ordinary styled ordinary green\n",
         ));
         assert(fclose(file) == 0);
     }
@@ -2334,7 +2408,7 @@ unittest
         custom.info.label = AnsiStyle.foreground(AnsiColor.yellow);
         custom.warning.label = AnsiStyle.foreground(AnsiColor.blue);
         custom.error.label = AnsiStyle.foreground(AnsiColor.magenta);
-        custom.critical.label = AnsiStyle.foreground(AnsiColor.cyan);
+        custom.fatal.label = AnsiStyle.foreground(AnsiColor.cyan);
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
@@ -2349,7 +2423,7 @@ unittest
         assert(ansi.info().delivered);
         assert(ansi.warning().delivered);
         assert(ansi.error().delivered);
-        assert(ansi.critical().delivered);
+        assert(ansi.fatal().delivered);
         assert(ansi.flush());
         char[256] output;
         const length = readFileContents(file, output[]);
@@ -2359,7 +2433,7 @@ unittest
                 "\x1b[33m[info]\x1b[0m \x1b[0m\n" ~
                 "\x1b[34m[warning]\x1b[0m \x1b[0m\n" ~
                 "\x1b[35m[error]\x1b[0m \x1b[0m\n" ~
-                "\x1b[36m[critical]\x1b[0m \x1b[0m\n",
+                "\x1b[36m[fatal]\x1b[0m \x1b[0m\n",
         ));
         assert(fclose(file) == 0);
     }
@@ -2387,9 +2461,9 @@ unittest
 
         char[1100] output;
         const length = readFileContents(file, output[]);
-        assert(length == "[info]     ".length + message.length + 1);
-        assert(output[0 .. "[info]     ".length].equal("[info]     "));
-        assert(output["[info]     ".length .. "[info]     ".length + message.length]
+        assert(length == "[info]    ".length + message.length + 1);
+        assert(output[0 .. "[info]    ".length].equal("[info]    "));
+        assert(output["[info]    ".length .. "[info]    ".length + message.length]
                 .equal(message[]));
         assert(output[length - 1] == '\n');
         assert(fclose(file) == 0);
@@ -2770,8 +2844,8 @@ unittest
         const opening = ansiSequence(palette.info.message);
         const reset = ansiResetSequence();
         size_t offset;
-        assert(output[offset .. offset + "[info]     ".length].equal("[info]     "));
-        offset += "[info]     ".length;
+        assert(output[offset .. offset + "[info]    ".length].equal("[info]    "));
+        offset += "[info]    ".length;
         assert(output[offset .. offset + opening.view.length].equal(opening.view));
         offset += opening.view.length;
         assert(output[offset .. offset + reset.view.length].equal(reset.view));
@@ -3031,7 +3105,7 @@ unittest
         char[128] fileOutput;
         const fileLength = readFileContents(logfile, fileOutput[]);
         assert(fileOutput[0 .. fileLength].equal(
-                "[warning]  base green base\n",
+                "[warning] base green base\n",
         ));
         assert(fclose(terminal) == 0);
         assert(fclose(logfile) == 0);
@@ -3109,15 +3183,15 @@ unittest
 
             char[32_768] output;
             const length = readFileContents(file, output[]);
-            const lineLength = "[info]     ".length + 64 + 1;
+            const lineLength = "[info]    ".length + 64 + 1;
             assert(length == 2 * iterations * lineLength);
             foreach (lineIndex; 0 .. 2 * iterations)
             {
                 const line = output[lineIndex * lineLength .. (lineIndex + 1) * lineLength];
-                assert(line[0 .. "[info]     ".length].equal("[info]     "));
-                const marker = line["[info]     ".length];
+                assert(line[0 .. "[info]    ".length].equal("[info]    "));
+                const marker = line["[info]    ".length];
                 assert(marker == 'A' || marker == 'B');
-                foreach (value; line["[info]     ".length .. $ - 1])
+                foreach (value; line["[info]    ".length .. $ - 1])
                     assert(value == marker);
                 assert(line[$ - 1] == '\n');
             }

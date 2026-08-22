@@ -147,16 +147,26 @@ install a caller-owned logger with `ThreadLoggerScope` and use
 `ThreadContextScope`, is nestable, and restores the previous logger on scope
 exit. Level-specific calls avoid repeating `LogLevel`: use `trace`/`tracef`,
 `debug_`/`debugf`, `info`/`infof`, `warning`/`warningf`, `error`/`errorf`, and
-`critical`/`criticalf`, either as explicit logger UFCS calls or against the
+`fatal`/`fatalf`, either as explicit logger UFCS calls or against the
 current thread logger. `examples/logging_demo.d` demonstrates the complete
 setup, filtering behavior, custom values, nested installation, runtime levels,
 automatic terminal detection, message alignment, and palette customization.
 
-Level labels keep their natural spellings while messages align to one column by
-default. Padding is inserted only after the closing `]`, using `[critical]` as
-the widest built-in label: `[info]     message`, `[warning]  message`,
-`[critical] message`. Call `logger.setMessageAlignmentEnabled(false)` for the
-compact single-space form and re-enable it with `true`.
+Level labels use the full-name preset by default and messages align to one column.
+The highest severity is `fatal`, so the ordinary level helpers are
+`trace`, `debug_`, `info`, `warning`, `error`, and `fatal` (plus their `f`
+variants). `fatal` is a severity only; logging at that level does not terminate
+the process. With the full labels, `[warning]` is widest: `[info]    message`,
+`[warning] message`, `[fatal]   message`.
+
+Label spelling is independently configurable.
+`logger.setLevelLabels(LogLevelLabelPreset.threeLetter)` selects equal-width
+`[TRC]`, `[DBG]`, `[INF]`, `[WRN]`, `[ERR]`, and `[FTL]` labels. A
+`LogLevelLabels` value can replace any complete emitted token, including the
+brackets; custom label bytes are borrowed and must outlive the logger. Alignment
+width is cached when the set is installed, so changing labels adds no per-record
+width scan. `logger.setMessageAlignmentEnabled(false)` independently restores
+the compact single-space separator.
 
 Callsite context is opt-in per logger. `logger.setCallsitesEnabled(true)` keeps
 ordinary variadic calls unchanged while appending the originating function and

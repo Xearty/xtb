@@ -382,7 +382,7 @@ struct LogPalette
     LogLevelStyle info;
     LogLevelStyle warning;
     LogLevelStyle error;
-    LogLevelStyle critical;
+    LogLevelStyle fatal;
 }
 ```
 
@@ -994,7 +994,7 @@ struct LogPalette
     LogLevelStyle info;
     LogLevelStyle warning;
     LogLevelStyle error;
-    LogLevelStyle critical;
+    LogLevelStyle fatal;
 }
 
 enum LogSinkEventKind : ubyte

@@ -9,5 +9,5 @@ enum LogLevel : ubyte
     info,
     warning,
     error,
-    critical,
+    fatal,
 }

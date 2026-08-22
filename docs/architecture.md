@@ -477,17 +477,25 @@ and the line is an integer, so capture performs no allocation, stack walk,
 symbol lookup, or runtime reflection. Callsite framing is outside
 `LogResult.written` / `required`, which continue to describe message bytes only.
 
-The logger owns the spelling, message separator, and level/message styling inputs
-for standard framing. `LogRecordInfo` contains the level label (`[warning]`,
-etc.), its separator, and its styles, while the optional borrowed
-`LogSourceLocation*` is passed separately during `beginRecord`. Message alignment
-is enabled by default: labels retain their natural spelling and the separator
-pads only after `]` so the message starts at the column following the widest
-built-in label, `[critical]`. `logger.setMessageAlignmentEnabled(false)` reduces
-the separator to one space without changing any label. A direct resolved record
-begins with the label and configured separator, presents the message, ends the
-message style, and only then appends `  (function:line)` when source metadata is
-present. ANSI presentation uses the
+The logger owns the selected level spelling, alignment padding, and
+level/message styling inputs for standard framing. `LogRecordInfo` contains the
+complete level label (`[warning]`, etc.), a padding count, and its styles, while
+the optional borrowed `LogSourceLocation*` is passed separately during
+`beginRecord`. `LogLevelLabels` supplies one complete presentation token per
+severity. `LogLevelLabelPreset.full` is the default;
+`LogLevelLabelPreset.threeLetter` selects `[TRC]`, `[DBG]`, `[INF]`, `[WRN]`,
+`[ERR]`, and `[FTL]`. Custom labels may replace or omit the brackets entirely;
+their bytes are borrowed and must outlive the logger. `setLevelLabels` computes
+the widest configured token once and caches that width in the logger.
+
+Message alignment is enabled independently by default. The record setup padding
+is `maximumLabelWidth - currentLabel.length + 1`, so message text begins in one
+column without padding inside the label. `logger.setMessageAlignmentEnabled(false)`
+reduces the padding to one space. A direct resolved record writes the padding
+from a static space block during framing, so arbitrary custom label widths need
+no allocation or fixed separator-size limit. It then presents the message, ends
+the message style, and only then appends `  (function:line)` when source metadata
+is present. ANSI presentation uses the
 terminal's current/default foreground with the `dim` attribute for this trailing
 context, independent of severity; plain presentation ignores that semantic
 style. Keeping the effective callsite as one separate borrowed pointer lets
@@ -724,7 +732,7 @@ of spelling `LogLevel` repeatedly. The plain family forwards to `log`, and the
 | info | `info(...)` | `infof!pattern(...)` |
 | warning | `warning(...)` | `warningf!pattern(...)` |
 | error | `error(...)` | `errorf!pattern(...)` |
-| critical | `critical(...)` | `criticalf!pattern(...)` |
+| fatal | `fatal(...)` | `fatalf!pattern(...)` |
 
 Every function has both an explicit UFCS form and a current-thread form:
 

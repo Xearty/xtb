@@ -1,6 +1,7 @@
 module xtb.core.logging;
 
 public import xtb.core.logging.level;
+public import xtb.core.logging.labels;
 public import xtb.core.logging.result;
 public import xtb.core.logging.palette;
 public import xtb.core.logging.sink;

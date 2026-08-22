@@ -3,6 +3,7 @@ module xtb.core.logging.logger;
 nothrow @nogc:
 
 import xtb.core.logging.level : LogLevel;
+import xtb.core.logging.labels : LogLevelLabelPreset, LogLevelLabels;
 import xtb.core.logging.palette : LogPalette, LogPalettePreset;
 import xtb.core.logging.result : LogResult, LogStatus;
 import xtb.core.logging.sgr : safeSgrPrefixLength;
@@ -20,6 +21,8 @@ nothrow @nogc:
     private char[] messageBuffer_;
     private LogLevel minimumLevel_;
     private LogPalette palette_;
+    private LogLevelLabels levelLabels_;
+    private size_t maximumLevelLabelWidth_;
     private bool callsitesEnabled_;
     private bool messageAlignmentEnabled_;
     private bool delivering_;
@@ -43,6 +46,8 @@ nothrow @nogc:
         result.messageBuffer_ = messageBuffer;
         result.minimumLevel_ = minimumLevel;
         result.palette_ = palette;
+        result.levelLabels_ = LogLevelLabels.defaults();
+        result.maximumLevelLabelWidth_ = result.levelLabels_.maximumWidth;
         result.messageAlignmentEnabled_ = true;
         return result;
     }
@@ -75,6 +80,12 @@ nothrow @nogc:
         return minimumLevel_;
     }
 
+    /// Returns the configured complete presentation labels.
+    LogLevelLabels levelLabels() const pure @safe
+    {
+        return levelLabels_;
+    }
+
     /// Returns whether new records include the public caller's function/line.
     bool callsitesEnabled() const pure @safe
     {
@@ -88,34 +99,16 @@ nothrow @nogc:
     }
 }
 
-private String levelLabel(LogLevel level) pure @safe
-{
-    final switch (level)
-    {
-        case LogLevel.trace:
-            return "[trace]";
-        case LogLevel.debug_:
-            return "[debug]";
-        case LogLevel.info:
-            return "[info]";
-        case LogLevel.warning:
-            return "[warning]";
-        case LogLevel.error:
-            return "[error]";
-        case LogLevel.critical:
-            return "[critical]";
-    }
-}
-
-private String messageSeparator(String label, bool aligned) pure @safe
+private size_t messagePadding(
+    String label,
+    size_t maximumLabelWidth,
+    bool aligned,
+) pure @safe
 {
     if (!aligned)
-        return " ";
-
-    enum size_t maxLevelLabelLength = "[critical]".length;
-    enum String spaces = "     ";
-    const width = maxLevelLabelLength - label.length + 1;
-    return spaces[0 .. width];
+        return 1;
+    return maximumLabelWidth >= label.length
+        ? maximumLabelWidth - label.length + 1 : 1;
 }
 
 bool enabled(ref const Logger logger, LogLevel level)
@@ -140,6 +133,22 @@ void setPalette(ref Logger logger, LogPalettePreset preset)
     logger.setPalette(LogPalette.preset(preset));
 }
 
+/// Selects the complete presentation labels used for subsequent records.
+///
+/// Custom label bytes are borrowed and must outlive this logger. Alignment width
+/// is recomputed once here rather than for every emitted record.
+void setLevelLabels(ref Logger logger, LogLevelLabels labels)
+{
+    logger.levelLabels_ = labels;
+    logger.maximumLevelLabelWidth_ = labels.maximumWidth;
+}
+
+/// Selects a built-in level-label set.
+void setLevelLabels(ref Logger logger, LogLevelLabelPreset preset)
+{
+    logger.setLevelLabels(LogLevelLabels.preset(preset));
+}
+
 /// Enables or disables source-location capture for subsequently emitted records.
 ///
 /// Capture is disabled by default. Enabling it adds static `__FUNCTION__` data
@@ -151,8 +160,8 @@ void setCallsitesEnabled(ref Logger logger, bool enabled)
 
 /// Enables or disables padding after level labels so messages share one column.
 ///
-/// Alignment is enabled by default. Padding is emitted after the closing `]`;
-/// level labels themselves are never padded or renamed.
+/// Alignment is enabled by default. Padding is emitted after the complete
+/// configured label; the label bytes themselves are never internally padded.
 void setMessageAlignmentEnabled(ref Logger logger, bool enabled)
 {
     logger.messageAlignmentEnabled_ = enabled;
@@ -177,13 +186,17 @@ private LogRecordInfo recordInfo(ref const Logger logger, LogLevel level)
 pure @safe
 {
     const style = logger.palette_.styleFor(level);
-    const label = levelLabel(level);
+    const label = logger.levelLabels_.labelFor(level);
     return LogRecordInfo(
         level,
         label,
         style.label,
         style.message,
-        messageSeparator(label, logger.messageAlignmentEnabled_),
+        messagePadding(
+            label,
+            logger.maximumLevelLabelWidth_,
+            logger.messageAlignmentEnabled_,
+    ),
     );
 }
 
@@ -474,22 +487,22 @@ LogResult errorf(string pattern, Args...)(
     return logfAt!(pattern, Args)(logger, LogLevel.error, callsite, args);
 }
 
-LogResult critical(Args...)(
+LogResult fatal(Args...)(
     ref Logger logger,
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
 )
 {
-    return logAt!Args(logger, LogLevel.critical, callsite, args);
+    return logAt!Args(logger, LogLevel.fatal, callsite, args);
 }
 
-LogResult criticalf(string pattern, Args...)(
+LogResult fatalf(string pattern, Args...)(
     ref Logger logger,
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
 )
 {
-    return logfAt!(pattern, Args)(logger, LogLevel.critical, callsite, args);
+    return logfAt!(pattern, Args)(logger, LogLevel.fatal, callsite, args);
 }
 
 bool flush(ref Logger logger)

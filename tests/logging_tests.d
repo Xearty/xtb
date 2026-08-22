@@ -133,8 +133,8 @@ extern (C) int main() nothrow @nogc
     if (!terminalText.contains("shared ") || !terminalText.contains("[warning]") ||
         terminalText.contains("file-only "))
         return 1;
-    if (!firstText.startsWith("file-only shared [warning]  prefix ") ||
-        !secondText.startsWith("shared [warning]  prefix "))
+    if (!firstText.startsWith("file-only shared [warning] prefix ") ||
+        !secondText.startsWith("shared [warning] prefix "))
         return 1;
     if (!firstText.endsWith(" formatted-once suffix\n") ||
         !secondText.endsWith(" formatted-once suffix\n"))
@@ -182,7 +182,7 @@ extern (C) int main() nothrow @nogc
         return 1;
 
     char[512] expectedSourceStorage;
-    const expectedSource = formatBuffer!"[error]    callsite routing  ({}:{})\n"(
+    const expectedSource = formatBuffer!"[error]   callsite routing  ({}:{})\n"(
         expectedSourceStorage[],
         sourceFunction,
         sourceLine,

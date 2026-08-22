@@ -443,7 +443,7 @@ unittest
     const plainText = cast(String) plainBytes[0 .. plainLength];
     assert(ansiText.contains("2024-01-01T00:00:00Z"));
     assert(ansiText.contains("\x1b[2;38;2;90;100;110m"));
-    assert(plainText.equal("2024-01-01T00:00:00Z [info]     started\n"));
+    assert(plainText.equal("2024-01-01T00:00:00Z [info]    started\n"));
     foreach (value; plainText)
         assert(value != '\x1b');
 
@@ -483,7 +483,7 @@ unittest
     char[128] logBytes;
     const terminalLength = readFile(terminal, terminalBytes[]);
     const logLength = readFile(logfile, logBytes[]);
-    assert(cast(String) terminalBytes[0 .. terminalLength] == "[info]     file only\n");
+    assert(cast(String) terminalBytes[0 .. terminalLength] == "[info]    file only\n");
     assert(cast(String) logBytes[0 .. logLength] ==
-            "2024-01-01T00:00:00Z [info]     file only\n");
+            "2024-01-01T00:00:00Z [info]    file only\n");
 }

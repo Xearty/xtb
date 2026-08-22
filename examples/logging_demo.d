@@ -93,7 +93,7 @@ nothrow @nogc
         ansiReset,
         " failed",
     ).delivered && delivered;
-    delivered = logger.criticalf!"{}: subsystem {} is unavailable"(
+    delivered = logger.fatalf!"{}: subsystem {} is unavailable"(
         paletteName,
         "storage",
     ).delivered && delivered;
@@ -178,15 +178,37 @@ extern (C) int main() nothrow @nogc
     if (!terminal.info("aligned message").delivered ||
         !terminal.warning("aligned message")
             .delivered ||
-            !terminal.critical("aligned message").delivered)
+            !terminal.fatal("aligned message").delivered)
         return 1;
     terminal.setMessageAlignmentEnabled(false);
     if (!terminal.info("unaligned message").delivered ||
         !terminal.warning("unaligned message")
             .delivered ||
-            !terminal.critical("unaligned message").delivered)
+            !terminal.fatal("unaligned message").delivered)
         return 1;
     terminal.setMessageAlignmentEnabled(true);
+
+    // Level spelling is independent from severity colors and message alignment.
+    // The compact preset uses equal-width three-letter labels, while custom
+    // labels are complete presentation tokens and may use arbitrary spellings.
+    if (!terminalSection(terminalFile, "level label presets and customization"))
+        return 1;
+    terminal.setLevelLabels(LogLevelLabelPreset.threeLetter);
+    if (!terminal.logEveryLevel("three-letter labels"))
+        return 1;
+
+    LogLevelLabels customLabels = LogLevelLabels.defaults();
+    customLabels.trace = "{trace}";
+    customLabels.debug_ = "{debug}";
+    customLabels.info = "{i}";
+    customLabels.warning = "{warning}";
+    customLabels.error = "{error}";
+    customLabels.fatal = "{FATAL}";
+    terminal.setLevelLabels(customLabels);
+    if (!terminal.logEveryLevel("custom labels"))
+        return 1;
+
+    terminal.setLevelLabels(LogLevelLabelPreset.full);
     terminal.setCallsitesEnabled(true);
 
     // Enhanced palettes style both the level and message. Presets are normal
