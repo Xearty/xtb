@@ -170,6 +170,25 @@ extern (C) int main() nothrow @nogc
     if (!terminal.logEveryLevel("basic preset"))
         return 1;
 
+    // Messages align after the natural closing level bracket by default. The
+    // option can be disabled when compact, unpadded output is preferred.
+    if (!terminalSection(terminalFile, "message alignment"))
+        return 1;
+    terminal.setCallsitesEnabled(false);
+    if (!terminal.info("aligned message").delivered ||
+        !terminal.warning("aligned message")
+            .delivered ||
+            !terminal.critical("aligned message").delivered)
+        return 1;
+    terminal.setMessageAlignmentEnabled(false);
+    if (!terminal.info("unaligned message").delivered ||
+        !terminal.warning("unaligned message")
+            .delivered ||
+            !terminal.critical("unaligned message").delivered)
+        return 1;
+    terminal.setMessageAlignmentEnabled(true);
+    terminal.setCallsitesEnabled(true);
+
     // Enhanced palettes style both the level and message. Presets are normal
     // values, so callers can customize individual severities before use.
     if (!terminalSection(terminalFile, "palette presets"))

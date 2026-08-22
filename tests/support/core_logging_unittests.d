@@ -333,12 +333,22 @@ version (unittest)
         }
     }
 
+    private String expectedMessageSeparator(scope String label, bool aligned = true)
+    pure @safe
+    {
+        if (!aligned)
+            return " ";
+        enum String spaces = "     ";
+        return spaces[0 .. "[critical]".length - label.length + 1];
+    }
+
     private void assertSuccessfulRecord(
         scope const ref Capture capture,
         scope String label,
         scope String message,
         AnsiStyle labelStyle,
         AnsiStyle messageStyle,
+        bool aligned = true,
     )
     {
         const expectedCount = message.length == 0 ? 7 : 8;
@@ -346,7 +356,12 @@ version (unittest)
         assertEvent(capture, 0, LogSinkEventKind.beginRecord);
         assertEvent(capture, 1, LogSinkEventKind.text, label);
         assert(capture.events[1].style == labelStyle);
-        assertEvent(capture, 2, LogSinkEventKind.text, " ");
+        assertEvent(
+            capture,
+            2,
+            LogSinkEventKind.text,
+            expectedMessageSeparator(label, aligned),
+        );
         assert(!capture.events[2].style.enabled);
         assertEvent(capture, 3, LogSinkEventKind.beginMessage);
         assert(capture.events[3].style == messageStyle);
@@ -370,6 +385,7 @@ version (unittest)
         AnsiStyle messageStyle,
         scope String functionName,
         size_t line,
+        bool aligned = true,
     )
     {
         const expectedCount = message.length == 0 ? 10 : 11;
@@ -377,7 +393,12 @@ version (unittest)
         assertEvent(capture, 0, LogSinkEventKind.beginRecord);
         assertEvent(capture, 1, LogSinkEventKind.text, label);
         assert(capture.events[1].style == labelStyle);
-        assertEvent(capture, 2, LogSinkEventKind.text, " ");
+        assertEvent(
+            capture,
+            2,
+            LogSinkEventKind.text,
+            expectedMessageSeparator(label, aligned),
+        );
         assert(!capture.events[2].style.enabled);
         assertEvent(capture, 3, LogSinkEventKind.beginMessage);
         assert(capture.events[3].style == messageStyle);
@@ -1167,6 +1188,34 @@ unittest
         defaults.info.message,
     );
 
+    // Messages align after the closing level bracket by default. The labels
+    // keep their natural spellings; disabling alignment restores one separator
+    // space without changing the rest of the record framing.
+    assert(logger.messageAlignmentEnabled);
+    capture.clear();
+    result = logger.critical("aligned");
+    assert(result.delivered);
+    capture.assertSuccessfulRecord(
+        "[critical]",
+        "aligned",
+        defaults.critical.label,
+        defaults.critical.message,
+    );
+
+    logger.setMessageAlignmentEnabled(false);
+    assert(!logger.messageAlignmentEnabled);
+    capture.clear();
+    result = logger.info("unaligned");
+    assert(result.delivered);
+    capture.assertSuccessfulRecord(
+        "[info]",
+        "unaligned",
+        defaults.info.label,
+        defaults.info.message,
+        false,
+    );
+    logger.setMessageAlignmentEnabled(true);
+
     // Callsite capture is opt-in at the logger. Public variadic wrappers keep
     // the original caller metadata by explicitly forwarding the already-deduced
     // message Args tuple rather than allowing the source location to become one
@@ -1847,7 +1896,7 @@ unittest
         assert(plain.flush());
         char[64] output;
         const length = readFileContents(file, output[]);
-        assert(output[0 .. length].equal("[info] plain message\n"));
+        assert(output[0 .. length].equal("[info]     plain message\n"));
         assert(fclose(file) == 0);
     }
 
@@ -1876,7 +1925,7 @@ unittest
         char[256] output;
         const length = readFileContents(file, output[]);
         char[256] expectedStorage;
-        const expected = formatBuffer!"prefix [info] plain callsite  ({}:{})\n"(
+        const expected = formatBuffer!"prefix [info]     plain callsite  ({}:{})\n"(
             expectedStorage[],
             callsiteFunction,
             callsiteLine,
@@ -1957,7 +2006,7 @@ unittest
         assert(plain.flush());
         char[64] output;
         const length = readFileContents(file, output[]);
-        assert(output[0 .. length].equal("[info] red!\n"));
+        assert(output[0 .. length].equal("[info]     red!\n"));
         assert(fclose(file) == 0);
     }
 
@@ -2036,7 +2085,7 @@ unittest
         assert(plain.flush());
         char[64] output;
         const length = readFileContents(file, output[]);
-        assert(output[0 .. length].equal("[error] plain ignores styles\n"));
+        assert(output[0 .. length].equal("[error]    plain ignores styles\n"));
         assert(fclose(file) == 0);
     }
 
@@ -2077,7 +2126,7 @@ unittest
         char[96] plainOutput;
         const plainLength = readFileContents(plainFile, plainOutput[]);
         assert(plainOutput[0 .. plainLength].equal(
-                "base red base tail [info] body\n",
+                "base red base tail [info]     body\n",
         ));
 
         assert(fclose(ansiFile) == 0);
@@ -2157,7 +2206,7 @@ unittest
         char[128] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
-                "[info] ordinary styled ordinary green\n",
+                "[info]     ordinary styled ordinary green\n",
         ));
         assert(fclose(file) == 0);
     }
@@ -2338,9 +2387,9 @@ unittest
 
         char[1100] output;
         const length = readFileContents(file, output[]);
-        assert(length == "[info] ".length + message.length + 1);
-        assert(output[0 .. "[info] ".length].equal("[info] "));
-        assert(output["[info] ".length .. "[info] ".length + message.length]
+        assert(length == "[info]     ".length + message.length + 1);
+        assert(output[0 .. "[info]     ".length].equal("[info]     "));
+        assert(output["[info]     ".length .. "[info]     ".length + message.length]
                 .equal(message[]));
         assert(output[length - 1] == '\n');
         assert(fclose(file) == 0);
@@ -2721,8 +2770,8 @@ unittest
         const opening = ansiSequence(palette.info.message);
         const reset = ansiResetSequence();
         size_t offset;
-        assert(output[offset .. offset + "[info] ".length].equal("[info] "));
-        offset += "[info] ".length;
+        assert(output[offset .. offset + "[info]     ".length].equal("[info]     "));
+        offset += "[info]     ".length;
         assert(output[offset .. offset + opening.view.length].equal(opening.view));
         offset += opening.view.length;
         assert(output[offset .. offset + reset.view.length].equal(reset.view));
@@ -2982,7 +3031,7 @@ unittest
         char[128] fileOutput;
         const fileLength = readFileContents(logfile, fileOutput[]);
         assert(fileOutput[0 .. fileLength].equal(
-                "[warning] base green base\n",
+                "[warning]  base green base\n",
         ));
         assert(fclose(terminal) == 0);
         assert(fclose(logfile) == 0);
@@ -3060,15 +3109,15 @@ unittest
 
             char[32_768] output;
             const length = readFileContents(file, output[]);
-            const lineLength = "[info] ".length + 64 + 1;
+            const lineLength = "[info]     ".length + 64 + 1;
             assert(length == 2 * iterations * lineLength);
             foreach (lineIndex; 0 .. 2 * iterations)
             {
                 const line = output[lineIndex * lineLength .. (lineIndex + 1) * lineLength];
-                assert(line[0 .. "[info] ".length].equal("[info] "));
-                const marker = line["[info] ".length];
+                assert(line[0 .. "[info]     ".length].equal("[info]     "));
+                const marker = line["[info]     ".length];
                 assert(marker == 'A' || marker == 'B');
-                foreach (value; line["[info] ".length .. $ - 1])
+                foreach (value; line["[info]     ".length .. $ - 1])
                     assert(value == marker);
                 assert(line[$ - 1] == '\n');
             }

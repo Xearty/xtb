@@ -21,6 +21,7 @@ nothrow @nogc:
     private LogLevel minimumLevel_;
     private LogPalette palette_;
     private bool callsitesEnabled_;
+    private bool messageAlignmentEnabled_;
     private bool delivering_;
 
     @disable this(this);
@@ -42,6 +43,7 @@ nothrow @nogc:
         result.messageBuffer_ = messageBuffer;
         result.minimumLevel_ = minimumLevel;
         result.palette_ = palette;
+        result.messageAlignmentEnabled_ = true;
         return result;
     }
 
@@ -78,6 +80,12 @@ nothrow @nogc:
     {
         return callsitesEnabled_;
     }
+
+    /// Returns whether level labels pad the following message into one column.
+    bool messageAlignmentEnabled() const pure @safe
+    {
+        return messageAlignmentEnabled_;
+    }
 }
 
 private String levelLabel(LogLevel level) pure @safe
@@ -97,6 +105,17 @@ private String levelLabel(LogLevel level) pure @safe
         case LogLevel.critical:
             return "[critical]";
     }
+}
+
+private String messageSeparator(String label, bool aligned) pure @safe
+{
+    if (!aligned)
+        return " ";
+
+    enum size_t maxLevelLabelLength = "[critical]".length;
+    enum String spaces = "     ";
+    const width = maxLevelLabelLength - label.length + 1;
+    return spaces[0 .. width];
 }
 
 bool enabled(ref const Logger logger, LogLevel level)
@@ -130,6 +149,15 @@ void setCallsitesEnabled(ref Logger logger, bool enabled)
     logger.callsitesEnabled_ = enabled;
 }
 
+/// Enables or disables padding after level labels so messages share one column.
+///
+/// Alignment is enabled by default. Padding is emitted after the closing `]`;
+/// level labels themselves are never padded or renamed.
+void setMessageAlignmentEnabled(ref Logger logger, bool enabled)
+{
+    logger.messageAlignmentEnabled_ = enabled;
+}
+
 void setSink(ref Logger logger, LogSinkRef sink)
 {
     logger.sink_ = sink;
@@ -149,11 +177,13 @@ private LogRecordInfo recordInfo(ref const Logger logger, LogLevel level)
 pure @safe
 {
     const style = logger.palette_.styleFor(level);
+    const label = levelLabel(level);
     return LogRecordInfo(
         level,
-        levelLabel(level),
+        label,
         style.label,
         style.message,
+        messageSeparator(label, logger.messageAlignmentEnabled_),
     );
 }
 

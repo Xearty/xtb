@@ -117,6 +117,7 @@ struct LogRecordInfo
     String levelLabel;
     AnsiStyle labelStyle;
     AnsiStyle messageStyle;
+    String messageSeparator = " ";
 }
 
 private String callsiteSuffix(size_t line, return scope char[] storage)
@@ -243,7 +244,7 @@ nothrow @nogc:
         {
             if (!writeText(info_.levelLabel, info_.labelStyle))
                 return false;
-            if (!writeText(" "))
+            if (!writeText(info_.messageSeparator))
                 return false;
         }
 

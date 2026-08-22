@@ -477,12 +477,17 @@ and the line is an integer, so capture performs no allocation, stack walk,
 symbol lookup, or runtime reflection. Callsite framing is outside
 `LogResult.written` / `required`, which continue to describe message bytes only.
 
-The logger owns the spelling and level/message styling inputs for standard
-framing. `LogRecordInfo` contains the level label (`[warning]`, etc.) and its
-styles, while the optional borrowed `LogSourceLocation*` is passed separately
-during `beginRecord`. A direct resolved record begins with `[level] `, presents
-the message, ends the message style, and only then appends
-`  (function:line)` when source metadata is present. ANSI presentation uses the
+The logger owns the spelling, message separator, and level/message styling inputs
+for standard framing. `LogRecordInfo` contains the level label (`[warning]`,
+etc.), its separator, and its styles, while the optional borrowed
+`LogSourceLocation*` is passed separately during `beginRecord`. Message alignment
+is enabled by default: labels retain their natural spelling and the separator
+pads only after `]` so the message starts at the column following the widest
+built-in label, `[critical]`. `logger.setMessageAlignmentEnabled(false)` reduces
+the separator to one space without changing any label. A direct resolved record
+begins with the label and configured separator, presents the message, ends the
+message style, and only then appends `  (function:line)` when source metadata is
+present. ANSI presentation uses the
 terminal's current/default foreground with the `dim` attribute for this trailing
 context, independent of severity; plain presentation ignores that semantic
 style. Keeping the effective callsite as one separate borrowed pointer lets

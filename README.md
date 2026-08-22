@@ -150,7 +150,13 @@ exit. Level-specific calls avoid repeating `LogLevel`: use `trace`/`tracef`,
 `critical`/`criticalf`, either as explicit logger UFCS calls or against the
 current thread logger. `examples/logging_demo.d` demonstrates the complete
 setup, filtering behavior, custom values, nested installation, runtime levels,
-automatic terminal detection, and palette customization.
+automatic terminal detection, message alignment, and palette customization.
+
+Level labels keep their natural spellings while messages align to one column by
+default. Padding is inserted only after the closing `]`, using `[critical]` as
+the widest built-in label: `[info]     message`, `[warning]  message`,
+`[critical] message`. Call `logger.setMessageAlignmentEnabled(false)` for the
+compact single-space form and re-enable it with `true`.
 
 Callsite context is opt-in per logger. `logger.setCallsitesEnabled(true)` keeps
 ordinary variadic calls unchanged while appending the originating function and
