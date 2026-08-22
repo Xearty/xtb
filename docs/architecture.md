@@ -1211,8 +1211,13 @@ normal formatting to the result. This remains the preferred path for semantic
 wrappers such as `OwnedString` and `StringBuf`, because their ordinary value
 representation is simply their borrowed `String` view. Independently,
 `StringBuf` is also a Writer destination with real `write`, `writeln`, and
-`format` members plus `writer()` for generic renderers. A type needing genuinely
-custom normal syntax may instead define `void formatTo(ref Writer)`. A representation
+`format` members plus `writer()` for generic renderers. `Writer` itself remains
+immediate and owns no staging. When a destination specifically benefits from
+coalescing callback traffic, `BufferedWriter` may explicitly wrap an existing
+`Writer*` with caller-owned storage; it must be flushed explicitly and is never
+automatically inserted in front of `StringBuf`, logging, fixed buffers, or
+`FILE*`. A type needing genuinely custom normal syntax may instead define
+`void formatTo(ref Writer)`. A representation
 is observational and never transfers ownership to the printer: a by-value
 result must be cleanup-free, while a `ref` result is a borrow that must remain
 valid for the recursive formatting call. Pointer and slice results are likewise

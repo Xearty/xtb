@@ -214,7 +214,11 @@ String tests enforce the type boundary as well as textual behavior:
 
 Writer sinks consume `const(u8)[]` stream fragments because short writes and
 independent formatting operations may split a scalar; a sink callback must not
-treat each fragment as an independently valid `String`. Printer tests cover
+treat each fragment as an independently valid `String`. `BufferedWriter` tests
+cover small-fragment coalescing, explicit flush, ordering when a pending prefix
+precedes a large direct fragment, zero-length pass-through staging, downstream
+short writes, partial failure with the undelivered suffix retained, and the
+absence of destructor-side flushing. Printer tests cover
 interpolated expression sequences through direct output,
 `StringBuf`, fixed-buffer, and allocator-owned sinks. Include empty and nested
 sequences, expressions with side effects, custom `formatRepresentation` and

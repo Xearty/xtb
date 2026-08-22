@@ -95,6 +95,46 @@ A sink may short-write. `Writer` retries the remaining bytes synchronously.
 Sink fragments remain raw byte fragments and are not independently guaranteed
 to be UTF-8 code-point aligned after a short write.
 
+## Optional BufferedWriter decorator
+
+`Writer` stays immediate by default. Destinations that benefit from coalescing
+small fragments may opt into `BufferedWriter`, which borrows an existing
+`Writer*` plus caller-owned staging storage:
+
+```d
+Writer destination = fileWriter(file);
+char[1024] staging;
+BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
+Writer output = buffered.writer();
+render(output);
+if (!buffered.flush()) { ... }
+```
+
+The decorator owns no allocation and never flushes implicitly. `flush()` is
+therefore a real buffering-policy operation rather than a generic Writer
+operation. The destination writer and staging slice must outlive the decorator,
+and callers must not write directly through the destination while bytes are
+pending because that would reorder output.
+
+Small fragments accumulate until a later write needs the space or the caller
+flushes. Once earlier pending bytes are drained, a fragment at least as large as
+the staging capacity bypasses staging and is forwarded directly. A zero-length
+staging slice is a direct pass-through. This keeps large borrowed slices
+zero-copy through the decorator.
+
+The `Writer` returned by `BufferedWriter.writer()` reports bytes accepted by the
+buffering layer. A later explicit flush can still expose downstream failure, so
+`BufferedWriter.flush()` / `BufferedWriter.ok` are authoritative for final
+delivery of pending bytes. If the destination accepts only a prefix before
+failing, that delivered prefix is removed from staging and the undelivered suffix
+remains observable through `pending()`. Failure is sticky.
+
+`BufferedWriter` is not automatically inserted in front of `StringBuf`,
+`LogMessageWriter`, fixed buffers, or `FILE*`. `StringBuf` and fixed buffers
+already own storage, `LogMessageWriter` already performs transport-specific
+staging, and libc `FILE*` already has buffering. The decorator exists for
+callers and future destinations where callback coalescing is measurably useful.
+
 ## StringBuf as a writer destination
 
 A managed `StringBuf` exposes:
@@ -272,6 +312,8 @@ The implementation must cover:
 - converting StringBuf to Writer and passing it through `ref Writer` renderers;
 - no finalization call required for Writer visibility;
 - sticky sink failure and short-write accounting;
+- BufferedWriter coalescing, explicit flush, large-slice direct forwarding,
+  zero-length staging, downstream short writes, partial failure, and no implicit flush;
 - transactional StringBuf rollback under injected allocator failure;
 - fixed-buffer UTF-8 truncation and exact required-byte accounting;
 - LogMessageWriter value/pretty formatting through its Writer view;
