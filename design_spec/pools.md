@@ -2,7 +2,7 @@
 
 ## Status
 
-**Approved design — implementation in progress. Step 1 is implemented and verified.**
+**Approved design — implementation in progress. Steps 1–2 are implemented and verified.**
 
 Maintain this document together with `design_spec/pools_implementation_plan.md`. If implementation reveals a materially simpler, safer, or faster representation, update the design in the same step rather than preserving incidental details from the original proposal.
 
@@ -252,15 +252,26 @@ static VirtualArray create(
 );
 ```
 
-The implementation must:
+The implemented storage core:
 
-- detect `capacity * T.sizeof` overflow;
-- account for `T.alignof`;
-- when `T.alignof` exceeds the VM page size, over-reserve enough address space to choose an interior base aligned to `T.alignof` while retaining the original reservation base for release;
-- ensure every independently committed/decommitted region boundary is page-aligned;
-- validate/round commit granularity to VM page requirements;
-- leave `output` untouched on failure;
-- support capacity `0` as a valid empty owner.
+- detects `capacity * T.sizeof` overflow;
+- computes an address alignment compatible with both `T.alignof` and the native
+  VM page size;
+- when that alignment exceeds reservation alignment, over-reserves only the
+  alignment slack needed to choose an interior typed base while retaining the
+  original reservation base for release;
+- keeps the typed region page-bounded so all later commit/decommit operations
+  stay isolated;
+- rounds commit granularity up to native pages and clamps the final commit to
+  the page-rounded typed region;
+- leaves `output` untouched on failure;
+- supports capacity `0` as the inert, valid empty owner even when VM support is
+  unavailable.
+
+The raw storage primitive `tryEnsureAccessible(elementCount)` is package-only.
+It may commit pages but does not construct `T` and does not advance logical
+`length`. This distinction prevents accessible bytes from being mistaken for
+live D values.
 
 ## 4.3 Logical length and accessible storage
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress. Step 1 of 8 is complete and verified.**
+**Implementation in progress. Steps 1–2 of 8 are complete and verified.**
 
 This is the execution plan for `design_spec/pools.md`. The design document is
 authoritative for semantics; this document defines implementation order,
@@ -48,39 +48,52 @@ Acceptance coverage:
 
 Commit target: `refactor(core): add bounded virtual memory regions`.
 
-## Step 2 — `VirtualArray!T` ownership and storage core
+## Step 2 — `VirtualArray!T` ownership and storage core — COMPLETE
 
-Introduce the public move-only owner while keeping the initial API deliberately
-small.
+Added public `xtb.core.virtual_array.VirtualArray!T` as a move-only owner over one
+fixed virtual reservation.
 
-Implement:
+Implemented contract:
 
-- `VirtualArray!T.tryCreate/create` with a fixed maximum capacity;
-- valid `.init` and explicit `deinit`;
-- stable typed base pointer;
-- `capacity`, `length`, indexing, and logical-prefix slicing;
-- checked byte-size/element-count arithmetic;
-- no relocation after successful creation;
-- internal prefix provisioning/commit bookkeeping;
-- configurable/default commit granularity;
-- capacity zero;
-- arbitrary `T.alignof`, including alignments larger than the OS page size.
+- `tryCreate/create` reserve a fixed maximum typed capacity and never relocate;
+- capacity zero succeeds as the inert state without requiring VM support;
+- the complete typed capacity starts inaccessible and is committed lazily;
+- `ptr` is stable for every nonzero-capacity owner and may point into an
+  inaccessible tail, so it is `@system`;
+- `slice` and indexing expose only logical `[0 .. length)`, which remains empty
+  until lifetime-aware operations arrive in Step 3;
+- package-internal `tryEnsureAccessible(elementCount)` commits raw typed storage
+  without constructing `T` or changing logical length;
+- commitment grows in a normalized page-multiple granularity and clamps the
+  final growth to the page-rounded typed region;
+- `capacity * T.sizeof`, page rounding, commit-granularity rounding, alignment
+  geometry, and address arithmetic are overflow checked;
+- when `T.alignof` exceeds native page alignment, creation over-reserves enough
+  address space to choose an interior base aligned to both the page size and
+  `T.alignof`; the original reservation remains the release owner;
+- failed creation leaves an inert output unchanged;
+- move/moveAssign preserve the mapped address and reconstruct the source to the
+  valid inert state;
+- `deinit` is shallow, repeatable, and releases the whole reservation.
 
-The implementation must over-reserve/choose an aligned typed base when native
-reservation alignment is insufficient for `T.alignof`; it must not assume a
-page-aligned reservation is automatically aligned for every D type.
+Implementation refinement:
 
-Acceptance gate:
+Step 2 intentionally does **not** publish raw-provisioning as logical array
+growth. A committed page does not establish a D `T` lifetime. `length` therefore
+remains independent of committed storage, and Step 3 will be the only public
+layer that advances it through lifetime-aware resize/append operations.
 
-- creation/failure leaves outputs transactionally valid;
-- repeated growth keeps `ptr` stable;
-- exact capacity and one-past-capacity behavior;
-- multiplication/alignment overflow;
-- page and commit-granularity crossings;
-- moves/moveAssign where supported by XTB lifetime rules;
-- zero state and repeated deinit;
-- over-aligned element types;
-- BetterC attributes and public safety boundaries.
+Acceptance coverage:
+
+- zero capacity and repeated deinit;
+- reservation/element-count overflow;
+- non-page commit granularity normalization;
+- repeated provisioning across granularity boundaries with a stable pointer;
+- exact capacity and one-past-capacity rejection;
+- move and moveAssign;
+- element alignment larger than the native page size;
+- BetterC `nothrow @nogc` attribute compilation;
+- full debug-suite regression coverage.
 
 Commit target: `feat(core): add fixed-capacity virtual array storage`.
 
