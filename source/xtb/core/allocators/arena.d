@@ -85,11 +85,14 @@ nothrow @nogc:
     size_t chunkCount;
 }
 
-private int tlsThreadMarker;
-
-private void* currentThreadToken()
+version (XTB_Checked)
 {
-    return &tlsThreadMarker;
+    private int tlsThreadMarker;
+
+    private void* currentThreadToken()
+    {
+        return &tlsThreadMarker;
+    }
 }
 
 struct Arena
@@ -102,8 +105,11 @@ nothrow @nogc:
     private size_t usedBytes_;
     private size_t peakUsedBytes_;
     private size_t retentionLimit = size_t.max;
-    private size_t generation_ = 1;
-    private bool poisonRewoundMemory_;
+    version (XTB_Checked)
+    {
+        private size_t generation_ = 1;
+        private bool poisonRewoundMemory_;
+    }
 
     @disable this(this);
     @disable ref Arena opAssign(Arena source) return;
@@ -405,7 +411,8 @@ nothrow @nogc:
         }
 
         usedBytes_ = 0;
-        ++generation_;
+        version (XTB_Checked)
+            ++generation_;
     }
 
     void deinit()
@@ -423,8 +430,11 @@ nothrow @nogc:
         usedBytes_ = 0;
         peakUsedBytes_ = 0;
         retentionLimit = size_t.max;
-        poisonRewoundMemory_ = false;
-        ++generation_;
+        version (XTB_Checked)
+        {
+            poisonRewoundMemory_ = false;
+            ++generation_;
+        }
     }
 
     ArenaStats stats() const pure @trusted
@@ -463,7 +473,8 @@ nothrow @nogc:
 
     void setRewindPoisoning(bool enabled)
     {
-        poisonRewoundMemory_ = enabled;
+        version (XTB_Checked)
+            poisonRewoundMemory_ = enabled;
     }
 
     void trim()
@@ -855,10 +866,13 @@ nothrow @nogc:
     private Arena* arena_;
     private ArenaChunk* chunk_;
     private size_t offset_;
-    private size_t depth_;
     private size_t usedBytes_;
-    private size_t generation_;
-    private void* threadToken_;
+    version (XTB_Checked)
+    {
+        private size_t depth_;
+        private size_t generation_;
+        private void* threadToken_;
+    }
     private bool active_;
 
     @disable this(this);
@@ -900,10 +914,14 @@ TempArena push(Arena* arena)
             result.offset_ = arena.storage_.data.virtualMemory.offset;
             break;
     }
-    result.depth_ = ++arena.scopeDepth;
+    ++arena.scopeDepth;
     result.usedBytes_ = arena.usedBytes_;
-    result.generation_ = arena.generation_;
-    result.threadToken_ = currentThreadToken();
+    version (XTB_Checked)
+    {
+        result.depth_ = arena.scopeDepth;
+        result.generation_ = arena.generation_;
+        result.threadToken_ = currentThreadToken();
+    }
     result.active_ = true;
     return result;
 }
@@ -923,36 +941,39 @@ void pop(ref TempArena temporary)
         require(arena.scopeDepth == temporary.depth_, "temporary arenas must pop in LIFO order");
     }
 
-    if (arena.poisonRewoundMemory_)
+    version (XTB_Checked)
     {
-        final switch (arena.storage_.kind)
+        if (arena.poisonRewoundMemory_)
         {
-            case ArenaStorageKind.none:
-                break;
-            case ArenaStorageKind.chunked:
+            final switch (arena.storage_.kind)
             {
-                ArenaChunk* chunk = temporary.chunk_ is null
-                    ? arena.storage_.data.chunked.firstChunk : temporary.chunk_;
-                bool first = true;
-                for (; chunk !is null; chunk = chunk.next)
+                case ArenaStorageKind.none:
+                    break;
+                case ArenaStorageKind.chunked:
                 {
-                    const begin = first && temporary.chunk_ !is null
-                        ? temporary.offset_ : 0;
-                    if (chunk.offset > begin)
-                        memset(chunk.data + begin, 0xDD, chunk.offset - begin);
-                    first = false;
+                    ArenaChunk* chunk = temporary.chunk_ is null
+                        ? arena.storage_.data.chunked.firstChunk : temporary.chunk_;
+                    bool first = true;
+                    for (; chunk !is null; chunk = chunk.next)
+                    {
+                        const begin = first && temporary.chunk_ !is null
+                            ? temporary.offset_ : 0;
+                        if (chunk.offset > begin)
+                            memset(chunk.data + begin, 0xDD, chunk.offset - begin);
+                        first = false;
+                    }
+                    break;
                 }
-                break;
+                case ArenaStorageKind.virtualMemory:
+                    if (arena.storage_.data.virtualMemory.offset > temporary.offset_)
+                        memset(
+                            cast(ubyte*) arena.storage_.data.virtualMemory.reservation.base +
+                                temporary.offset_,
+                            0xDD,
+                            arena.storage_.data.virtualMemory.offset - temporary.offset_,
+                        );
+                    break;
             }
-            case ArenaStorageKind.virtualMemory:
-                if (arena.storage_.data.virtualMemory.offset > temporary.offset_)
-                    memset(
-                        cast(ubyte*) arena.storage_.data.virtualMemory.reservation.base +
-                            temporary.offset_,
-                        0xDD,
-                        arena.storage_.data.virtualMemory.offset - temporary.offset_,
-                    );
-                break;
         }
     }
 
@@ -988,10 +1009,13 @@ void pop(ref TempArena temporary)
     temporary.arena_ = null;
     temporary.chunk_ = null;
     temporary.offset_ = 0;
-    temporary.depth_ = 0;
     temporary.usedBytes_ = 0;
-    temporary.generation_ = 0;
-    temporary.threadToken_ = null;
+    version (XTB_Checked)
+    {
+        temporary.depth_ = 0;
+        temporary.generation_ = 0;
+        temporary.threadToken_ = null;
+    }
     temporary.active_ = false;
 }
 
@@ -999,6 +1023,23 @@ unittest
 {
     import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.lifetime : move, moveAssign;
+
+    version (XTB_Checked)
+    {
+        static assert(__traits(hasMember, Arena, "generation_"));
+        static assert(__traits(hasMember, Arena, "poisonRewoundMemory_"));
+        static assert(__traits(hasMember, TempArena, "depth_"));
+        static assert(__traits(hasMember, TempArena, "generation_"));
+        static assert(__traits(hasMember, TempArena, "threadToken_"));
+    }
+    else
+    {
+        static assert(!__traits(hasMember, Arena, "generation_"));
+        static assert(!__traits(hasMember, Arena, "poisonRewoundMemory_"));
+        static assert(!__traits(hasMember, TempArena, "depth_"));
+        static assert(!__traits(hasMember, TempArena, "generation_"));
+        static assert(!__traits(hasMember, TempArena, "threadToken_"));
+    }
 
     Arena arena = Arena.create(mallocAllocator(), 64);
     assert(arena.storage_.kind == ArenaStorageKind.chunked);
