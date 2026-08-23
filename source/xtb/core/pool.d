@@ -12,9 +12,9 @@ import xtb.core.lifetime : canFinalizeWithoutContext, finalize, move, moveEmplac
     needsDeinit, needsFinalization;
 import xtb.core.numeric : addOverflows;
 import xtb.core.panic : panic;
-import xtb.core.virtual_array : defaultVirtualCommitGranularity,
-    tryAlignAddressUp, tryVirtualArrayRegionGeometry, VirtualArrayRegionGeometry,
-    VirtualArrayView;
+import xtb.core.pool_storage : IndexedPoolStorageLayout,
+    tryIndexedPoolStorageLayout, tryIndexedPoolStorageRegions;
+import xtb.core.virtual_array : defaultVirtualCommitGranularity, VirtualArrayView;
 
 version (XTB_Checked) import xtb.core.panic : require;
 
@@ -75,7 +75,7 @@ public:
         if (pageSize == 0)
             return false;
 
-        PoolLayout layout;
+        IndexedPoolStorageLayout layout;
         if (!tryPoolLayout!T(capacity, pageSize, &layout))
             return false;
 
@@ -88,7 +88,7 @@ public:
         VirtualMemoryRegion valuesRegion;
         VirtualMemoryRegion occupiedRegion;
         VirtualMemoryRegion freeRegion;
-        if (!tryPoolRegions(
+        if (!tryIndexedPoolStorageRegions(
                 reservation,
                 layout,
                 &valuesRegion,
@@ -111,7 +111,7 @@ public:
         VirtualArrayView!size_t occupiedWords;
         if (!VirtualArrayView!size_t.tryCreate(
                 occupiedRegion,
-                layout.occupiedWordCount,
+                layout.stateCapacity,
                 defaultVirtualCommitGranularity,
                 &occupiedWords,
             ))
@@ -1074,20 +1074,10 @@ version (XTB_Checked) private void requirePoolViewValid(T)(
 
 static assert(needsDeinit!(Pool!ubyte));
 
-private struct PoolLayout
-{
-    VirtualArrayRegionGeometry values;
-    VirtualArrayRegionGeometry occupiedWords;
-    VirtualArrayRegionGeometry freeIndices;
-    size_t valueCapacity;
-    size_t occupiedWordCount;
-    size_t reservationBytes;
-}
-
 private bool tryPoolLayout(T)(
     uint capacity,
     size_t pageSize,
-    scope PoolLayout* output,
+    scope IndexedPoolStorageLayout* output,
 ) pure @safe
 {
     if (output is null || capacity == 0 || pageSize == 0)
@@ -1102,123 +1092,12 @@ private bool tryPoolLayout(T)(
     if (valueCapacity % occupiedBitsPerWord != 0)
         ++occupiedWordCount;
 
-    PoolLayout result;
-    result.valueCapacity = valueCapacity;
-    result.occupiedWordCount = occupiedWordCount;
-    if (!tryVirtualArrayRegionGeometry!T(
-            valueCapacity,
-            pageSize,
-            &result.values,
-        ))
-        return false;
-    if (!tryVirtualArrayRegionGeometry!size_t(
-            occupiedWordCount,
-            pageSize,
-            &result.occupiedWords,
-        ))
-        return false;
-    if (!tryVirtualArrayRegionGeometry!uint(
-            capacityAsSize,
-            pageSize,
-            &result.freeIndices,
-        ))
-        return false;
-
-    size_t total;
-    if (!tryAddRegionBytes(total, result.values) ||
-        !tryAddRegionBytes(total, result.occupiedWords) ||
-        !tryAddRegionBytes(total, result.freeIndices))
-        return false;
-    result.reservationBytes = total;
-    *output = result;
-    return true;
-}
-
-private bool tryAddRegionBytes(
-    ref size_t total,
-    scope const VirtualArrayRegionGeometry geometry,
-) pure @safe
-{
-    if (addOverflows(total, geometry.alignmentSlack))
-        return false;
-    total += geometry.alignmentSlack;
-    if (addOverflows(total, geometry.regionBytes))
-        return false;
-    total += geometry.regionBytes;
-    return true;
-}
-
-private bool tryPoolRegions(
-    ref VirtualMemoryReservation reservation,
-    scope const PoolLayout layout,
-    scope VirtualMemoryRegion* values,
-    scope VirtualMemoryRegion* occupiedWords,
-    scope VirtualMemoryRegion* freeIndices,
-) @system
-{
-    if (values is null || occupiedWords is null || freeIndices is null)
-        return false;
-
-    const reservationBase = cast(size_t) reservation.base;
-    size_t cursor = reservationBase;
-
-    void* valuesBase;
-    if (!tryAlignAddressUp(
-            cast(void*) cursor,
-            layout.values.baseAlignment,
-            &valuesBase,
-        ))
-        return false;
-    const valuesAddress = cast(size_t) valuesBase;
-    if (valuesAddress < reservationBase)
-        return false;
-    const valuesOffset = valuesAddress - reservationBase;
-    if (!reservation.tryRegion(valuesOffset, layout.values.regionBytes, values))
-        return false;
-    if (addOverflows(valuesAddress, layout.values.regionBytes))
-        return false;
-    cursor = valuesAddress + layout.values.regionBytes;
-
-    void* occupiedBase;
-    if (!tryAlignAddressUp(
-            cast(void*) cursor,
-            layout.occupiedWords.baseAlignment,
-            &occupiedBase,
-        ))
-        return false;
-    const occupiedAddress = cast(size_t) occupiedBase;
-    if (occupiedAddress < reservationBase)
-        return false;
-    const occupiedOffset = occupiedAddress - reservationBase;
-    if (!reservation.tryRegion(
-            occupiedOffset,
-            layout.occupiedWords.regionBytes,
-            occupiedWords,
-        ))
-        return false;
-    if (addOverflows(occupiedAddress, layout.occupiedWords.regionBytes))
-        return false;
-    cursor = occupiedAddress + layout.occupiedWords.regionBytes;
-
-    void* freeBase;
-    if (!tryAlignAddressUp(
-            cast(void*) cursor,
-            layout.freeIndices.baseAlignment,
-            &freeBase,
-        ))
-        return false;
-    const freeAddress = cast(size_t) freeBase;
-    if (freeAddress < reservationBase)
-        return false;
-    const freeOffset = freeAddress - reservationBase;
-    if (!reservation.tryRegion(
-            freeOffset,
-            layout.freeIndices.regionBytes,
-            freeIndices,
-        ))
-        return false;
-
-    return true;
+    return tryIndexedPoolStorageLayout!(T, size_t)(
+        capacity,
+        occupiedWordCount,
+        pageSize,
+        output,
+    );
 }
 
 private size_t occupiedWordIndex(uint index) pure @safe

@@ -13,6 +13,7 @@ public import xtb.core.thread_context;
 public import xtb.core.array;
 public import xtb.core.virtual_array;
 public import xtb.core.pool;
+public import xtb.core.generational_pool;
 public import xtb.core.option;
 public import xtb.core.result;
 public import xtb.core.flag_set;

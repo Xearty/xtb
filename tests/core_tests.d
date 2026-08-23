@@ -15,6 +15,7 @@ import xtb.core.allocators.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
 import xtb.core.pool;
+import xtb.core.generational_pool;
 import xtb.core.option;
 import xtb.core.result;
 import xtb.core.flag_set;
@@ -143,6 +144,22 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         Array!int.withCapacity(null, 0);
     if (cStringEqual(name, "owned-string-null-pointer"))
         (cast(OwnedString*) null).deinit();
+    if (cStringEqual(name, "generational-pool-stale-handle"))
+    {
+        GenerationalPool!int pool = GenerationalPool!int.create(1);
+        scope (exit)
+            pool.deinit();
+        auto handle = pool.allocateInit();
+        pool.deallocate(handle);
+        pool.deallocate(handle);
+    }
+    if (cStringEqual(name, "generational-pool-null-handle"))
+    {
+        GenerationalPool!int pool = GenerationalPool!int.create(1);
+        scope (exit)
+            pool.deinit();
+        pool.deallocate(GenerationalPool!int.Handle.init);
+    }
     version (XTB_Checked)
     {
         if (cStringEqual(name, "pool-double-free"))
@@ -600,6 +617,8 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "managed-null-fallible-factory");
         expectDeath(arguments[0], "managed-null-returning-factory");
         expectDeath(arguments[0], "owned-string-null-pointer");
+        expectDeath(arguments[0], "generational-pool-stale-handle");
+        expectDeath(arguments[0], "generational-pool-null-handle");
         version (XTB_Checked)
         {
             expectDeath(arguments[0], "pool-double-free");

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Approved design — implementation in progress. Steps 1–2 are implemented and verified.**
+**Approved design — implementation in progress. Steps 1–7 are implemented and verified.**
 
 Maintain this document together with `design_spec/pools_implementation_plan.md`. If implementation reveals a materially simpler, safer, or faster representation, update the design in the same step rather than preserving incidental details from the original proposal.
 
@@ -729,15 +729,25 @@ An explicit future operation that intentionally discards inactive representation
 
 `GenerationalPool!T` adds stale-handle detection while retaining the same stable values and free-index architecture.
 
+The plain and generational pools share package-private `pool_storage.d` geometry
+and reservation-partition helpers. Neither public container is layered on the
+other.
+
 ## 8.1 Handle
 
 ```d
-struct Handle
+struct GenerationalPool(T)
 {
-    uint index;
-    uint generation;
+    struct Handle
+    {
+        uint index;
+        uint generation;
+    }
 }
 ```
+
+The handle type is nested in `GenerationalPool!T`, so handles for different
+element types are distinct at compile time without adding runtime metadata.
 
 Rules:
 
@@ -1224,6 +1234,7 @@ Recommended layout:
 ```text
 source/xtb/core/
     virtual_array.d
+    pool_storage.d
     pool.d
     generational_pool.d
 
@@ -1430,8 +1441,8 @@ Current progress:
 3. **Complete** — complete and harden `VirtualArray!T`.
 4. **Complete** — internal `VirtualArrayView!T`.
 5. **Complete** — fixed-capacity `Pool!T`.
-6. Pending — Pool ranges.
-7. Pending — `GenerationalPool!T`.
+6. **Complete** — Pool ranges.
+7. **Complete** — `GenerationalPool!T`.
 8. Pending — generational ranges, documentation, benchmarks, and final audit.
 
 ---

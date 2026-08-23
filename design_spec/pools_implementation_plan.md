@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress. Steps 1–6 of 8 are complete and verified.**
+**Implementation in progress. Steps 1–7 of 8 are complete and verified.**
 
 This is the execution plan for `design_spec/pools.md`. The design document is
 authoritative for semantics; this document defines implementation order,
@@ -349,10 +349,12 @@ Acceptance coverage:
 
 Commit target: `feat(core): add pool slot and item ranges`.
 
-## Step 7 — `GenerationalPool!T`
+## Step 7 — `GenerationalPool!T` — COMPLETE
 
-Implement a distinct generational container over the same region/view
-foundation rather than layering it on `Pool!T`.
+Implemented a distinct generational container over the same VM/view foundation
+as plain Pool. Shared three-region geometry and partitioning now live in the
+package-private `xtb.core.pool_storage` module so neither public container is
+layered on the other.
 
 Layout:
 
@@ -369,41 +371,58 @@ bit 31      active
 bits 0..30  generation
 ```
 
-Generation zero is valid. Index zero remains invalid so `Handle.init` is
-naturally invalid.
+Generation zero is valid. Index zero remains invalid, so
+`GenerationalPool!T.Handle.init` is naturally invalid. `Handle` is nested in the
+`GenerationalPool!T` instantiation, which prevents cross-element-type handle
+mixing at compile time without runtime metadata.
 
-Handle:
+Implemented API:
 
-```d
-struct Handle
-{
-    uint index;
-    uint generation;
-}
-```
+- `tryCreate/create`;
+- handle-oriented `tryAllocate/allocate`;
+- `tryAllocateInit/allocateInit`;
+- `tryConstruct/construct`;
+- `get/contains`;
+- `tryDeallocate/deallocate`;
+- context-free `tryDispose/dispose`;
+- shallow `clear/deinit`;
+- `capacity`, `liveCount`, and `empty`.
 
-A handle identifies one specific live incarnation of one stable slot. It does
-not provide storage-independent logical identity.
+State encoding is isolated behind inlinable helpers. Deactivation explicitly
+extracts and increments only the low 31 generation bits, so generation wrap from
+`0x7fff_ffff` to zero cannot carry into the active bit.
 
-Never increment the packed state value directly. Isolate active-bit and
-generation arithmetic behind small helpers so generation wrap cannot carry into
-the active bit. Explicitly define/test generation wrap from `0x7fff_ffff` to
-zero.
+Stale/null/out-of-range/inactive handle rejection is semantic in every build
+mode. Fallible lookup/deallocation returns null/false; infallible deallocation
+and disposal panic through the always-active panic path. `clear()` advances the
+generation of every live provisioned slot before resetting the sequential
+frontier, invalidating every previously live handle while retaining preserved
+`T` representations.
 
-Stale-handle rejection is semantic and remains enabled in release-fast.
-`clear()` must invalidate every live handle by advancing each live slot's
-generation before marking it inactive.
+As with plain Pool, virgin publication provisions value, state, and future
+free-index storage before advancing the frontier. Successful deallocation and
+recycled allocation therefore perform no VM commit/allocation.
 
-Acceptance gate:
+Acceptance coverage:
 
-- valid/stale/null handles;
-- same index reused with a new generation;
-- generation wrap;
-- clear invalidation;
-- packed-state correctness in all build modes;
-- no deallocation VM calls;
-- preserved inactive `T` representation;
-- ASan/full debug/release-fast validation.
+- null, valid, stale, out-of-capacity, and reused handles;
+- compile-time separation of handles for different `T`;
+- same index reused with incremented generation;
+- packed-state active/generation helpers and explicit generation wrap;
+- clear invalidation with generation retention;
+- fixed-capacity failure preserving output;
+- no value/state/free-stack commitment changes during deallocation/reuse;
+- free-index commit-boundary provisioning;
+- preserved inactive `T` bytes across deallocation and clear;
+- context-free explicit cleanup and destructor cleanup;
+- shallow clear/deinit lifetime semantics;
+- over-aligned values;
+- move/moveAssign;
+- checked-only future range-generation state absent in unchecked builds;
+- always-on stale/null-handle death cases, including direct execution in an
+  unchecked release-fast binary;
+- full debug suite, focused ASan core, release-safe/release-fast library builds,
+  formatter/linter/diff checks.
 
 Commit target: `feat(core): add generational pool`.
 
