@@ -453,8 +453,19 @@ always active independently of range diagnostics.
 
 Benchmark/review results:
 
-- added the opt-in `just benchmark pools` target;
-- plain Pool dense/sparse iteration and public index scanning are measured;
+- added the opt-in `just benchmark pools` target; scan cases use aligned tables
+  and report occupancy, ns/live item, ns/provisioned slot, and us/full scan from
+  one centralized normalization helper so dense/sparse results cannot silently
+  use different denominators; scan timings warm up each case and report the
+  median of five longer samples rather than one sub-millisecond measurement;
+  ANSI-capable terminals color section/header
+  structure while `NO_COLOR`, `TERM=dumb`, and redirected output stay plain;
+- plain Pool dense/sparse iteration and public index scanning are measured; the
+  sparse fixtures distinguish an interleaved 1/8-live layout where all actual
+  Pool occupancy words are nonzero from an equal-live-count clustered layout
+  that keeps actual bitmap words 0, 8, ..., 64 and leaves 56 whole words zero;
+  the benchmark accounts for reserved index 0 (65 words at capacity 4096) and
+  validates the derived fixture statistics before timing;
 - Pool and GenerationalPool recycle cycles are measured;
 - GenerationalPool handle lookup and dense/sparse state iteration are measured;
 - a 10-million-slot reservation with 16 live values exercises the

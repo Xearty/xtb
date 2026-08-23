@@ -234,10 +234,42 @@ are committed.
 
 `just benchmark pools` runs opt-in microbenchmarks for dense/sparse iteration,
 index scanning, recycling, generational handle lookup, state scanning, and a
-large-reservation/small-live-set case. The benchmark is intended to guide
-representation changes; the current design deliberately avoids a second
-GenerationalPool occupancy bitmap until workload measurements justify the
-additional duplicated state invariant.
+large-reservation/small-live-set case. Output is grouped into aligned scan and
+operation tables; when stdout is an ANSI-capable terminal, section/header
+colors aid visual parsing while `NO_COLOR`, `TERM=dumb`, and redirected output
+remain plain. Scan benchmarks report occupancy plus three normalizations
+together: nanoseconds per yielded live item, nanoseconds per deliberately
+provisioned slot, and microseconds per complete scan. The first describes
+useful-item cost, the second isolates raw traversal cost, and the third gives
+the wall-clock cost of traversing the whole pool. Reporting all three avoids
+making sparse pools look slower merely because scan overhead is amortized
+across fewer live values.
+
+Scan timings use a warm-up followed by five substantially longer timed samples
+and report the median sample. The benchmark prints the scans-per-sample, sample
+count, and warm-up count in its header. This avoids interpreting sub-millisecond
+scheduler/preemption noise as a property of an iterator layout.
+
+Plain `Pool` also reports nonzero and zero occupancy-bitmap word counts and
+benchmarks two 12.5%-occupied layouts with the same 512 live slots. The
+benchmark deliberately mirrors Pool's real bitmap coordinates: index `0` is
+reserved, so capacity 4096 covers bitmap indices `0..4096`, requiring **65**
+64-bit words, and slot `index` belongs to word `index / 64`. The benchmark
+prints this geometry before the table and derives the displayed nonzero-word
+counts from the live indices that were actually created.
+
+The **interleaved** layout keeps every eighth slot live. This leaves at least
+one live bit in every one of the 65 bitmap words, so **65/65 words are
+nonzero** and `items()` cannot skip a whole occupancy word. The **clustered**
+layout instead keeps the actual bitmap words `0, 8, 16, ..., 64` live and
+clears the seven words between them. It still has exactly 512 live slots, but
+only **9/65 words are nonzero** and **56 whole words are zero/skippable**. The
+fixture validates these invariants at runtime before timing begins, so a future
+capacity/layout change cannot silently make the benchmark labels false.
+
+The benchmark is intended to guide representation changes; the current design
+deliberately avoids a second GenerationalPool occupancy bitmap until workload
+measurements justify the additional duplicated state invariant.
 
 The containers are not synchronized. Concurrent access requires external
 synchronization.
