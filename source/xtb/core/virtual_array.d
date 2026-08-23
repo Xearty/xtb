@@ -2,6 +2,8 @@ module xtb.core.virtual_array;
 
 nothrow @nogc:
 
+import core.lifetime : emplace;
+import core.stdc.string : memmove;
 import xtb.core.allocators.internal.virtual_memory : VirtualMemoryRegion,
     VirtualMemoryReservation, tryReserveVirtualMemory, virtualMemoryPageSize,
     virtualMemorySupported;
@@ -12,6 +14,11 @@ import xtb.core.panic : panic;
 version (XTB_Checked) import xtb.core.panic : require;
 
 private enum size_t defaultCommitGranularity = 64 * 1024;
+
+private template supportsDefaultInitialization(T)
+{
+    enum supportsDefaultInitialization = __traits(compiles, () { T value; });
+}
 
 /// Fixed-capacity contiguous storage backed by one virtual-memory reservation.
 ///
@@ -193,6 +200,166 @@ public:
         return data_[0 .. length_];
     }
 
+    static if (supportsDefaultInitialization!T)
+    {
+        /// Resizes the logical array, default-initializing newly added values.
+        /// Shrinking is shallow and retains committed pages.
+        bool tryResize(size_t requested) @trusted
+        {
+            if (requested <= length_)
+            {
+                length_ = requested;
+                return true;
+            }
+            if (!tryEnsureAccessible(requested))
+                return false;
+            while (length_ < requested)
+            {
+                constructInitial(data_ + length_);
+                ++length_;
+            }
+            return true;
+        }
+
+        /// Resizes the logical array or panics when fixed capacity or virtual
+        /// backing cannot satisfy the requested length.
+        void resize(size_t requested) @trusted
+        {
+            if (!tryResize(requested))
+                panic("VirtualArray capacity or commitment exceeded");
+        }
+    }
+
+    /// Attempts to append by moving from `*value` only after backing storage
+    /// for the new element is accessible. Failure leaves both operands
+    /// unchanged.
+    bool tryAppend(scope T* value) @system
+    {
+        version (XTB_Checked)
+            require(value !is null, "VirtualArray append value pointer is null");
+        if (value is null || length_ >= capacity_)
+            return false;
+        if (!tryEnsureAccessible(length_ + 1))
+            return false;
+        constructMove(data_ + length_, *value);
+        ++length_;
+        return true;
+    }
+
+    /// Appends by move or panics when fixed capacity or virtual backing is
+    /// exhausted.
+    void append(T value) @trusted
+    {
+        if (!tryAppend(&value))
+            panic("VirtualArray capacity or commitment exceeded");
+    }
+
+    static if (__traits(isCopyable, T))
+    {
+        /// Attempts to append a copy of every value. Failure leaves logical
+        /// contents unchanged. The source may alias the current array.
+        bool tryAppend(scope const(T)[] values) @trusted
+        {
+            if (values.length > capacity_ - length_)
+                return false;
+            if (values.length == 0)
+                return true;
+
+            const oldLength = length_;
+            const newLength = oldLength + values.length;
+            if (!tryEnsureAccessible(newLength))
+                return false;
+
+            static if (__traits(isPOD, T))
+            {
+                memmove(
+                    data_ + oldLength,
+                    values.ptr,
+                    values.length * T.sizeof,
+                );
+                length_ = newLength;
+            }
+            else
+            {
+                foreach (ref value; values)
+                {
+                    constructCopy(data_ + length_, value);
+                    ++length_;
+                }
+            }
+            return true;
+        }
+
+        /// Appends copied values or panics when fixed capacity or virtual
+        /// backing is exhausted.
+        void append(scope const(T)[] values) @trusted
+        {
+            if (!tryAppend(values))
+                panic("VirtualArray capacity or commitment exceeded");
+        }
+    }
+
+    /// Returns a reference to the last logical element.
+    ref T back() return @system
+    {
+        version (XTB_Checked)
+            require(length_ != 0, "cannot access back of empty VirtualArray");
+        return data_[length_ - 1];
+    }
+
+    ref const(T) back() const return @system
+    {
+        version (XTB_Checked)
+            require(length_ != 0, "cannot access back of empty VirtualArray");
+        return data_[length_ - 1];
+    }
+
+    /// Removes and transfers the last logical element without finalizing it.
+    T pop() @trusted
+    {
+        version (XTB_Checked)
+            require(length_ != 0, "cannot pop an empty VirtualArray");
+        --length_;
+        T result = void;
+        static if (__traits(isPOD, T) && !needsDeinit!T)
+            result = data_[length_];
+        else
+            moveEmplace(data_[length_], result);
+        return result;
+    }
+
+    /// Discards all logical elements without finalizing them and retains all
+    /// currently committed pages.
+    void clear() @safe
+    {
+        length_ = 0;
+    }
+
+    /// Decommits whole pages that lie entirely beyond the logical array. The
+    /// fixed virtual capacity and stable base address are unchanged.
+    void trim() @trusted
+    {
+        if (committedBytes_ == 0)
+            return;
+
+        const pageSize = virtualMemoryPageSize();
+        if (pageSize == 0)
+            panic("VirtualArray page size unavailable");
+
+        const liveBytes = length_ * T.sizeof;
+        size_t targetCommitted;
+        if (!tryRoundUpToMultiple(liveBytes, pageSize, &targetCommitted) ||
+            targetCommitted > region_.bytes)
+            targetCommitted = region_.bytes;
+        if (targetCommitted >= committedBytes_)
+            return;
+
+        const decommitBytes = committedBytes_ - targetCommitted;
+        if (!region_.tryDecommit(targetCommitted, decommitBytes))
+            panic("VirtualArray decommit failed");
+        committedBytes_ = targetCommitted;
+    }
+
     ref T opIndex(size_t index) return @system
     {
         version (XTB_Checked)
@@ -334,9 +501,73 @@ private bool tryAlignAddressUp(
     return true;
 }
 
+private void constructInitial(T)(T* destination) @system
+{
+    static if (__traits(isPOD, T))
+        *destination = T.init;
+    else
+        emplace(destination);
+}
+
+private void constructMove(T)(T* destination, ref T source) @system
+{
+    static if (__traits(isPOD, T) && !needsDeinit!T)
+        *destination = source;
+    else
+        moveEmplace(source, *destination);
+}
+
+private void constructCopy(T, U)(T* destination, ref U source) @system
+{
+    static if (__traits(isPOD, T))
+        *destination = source;
+    else
+        emplace(destination, source);
+}
+
 unittest
 {
-    import xtb.core.lifetime : moveAssign;
+    import xtb.core.lifetime : deinitValue = deinit, moveAssign;
+
+    struct ExplicitOwner
+    {
+    nothrow @nogc:
+
+        size_t* deinits;
+        bool active;
+
+        @disable this(this);
+
+        this(size_t* deinits)
+        {
+            this.deinits = deinits;
+            active = true;
+        }
+
+        void deinit()
+        {
+            if (!active)
+                return;
+            active = false;
+            ++*deinits;
+        }
+    }
+
+    struct DestructorOnly
+    {
+        size_t* destructions;
+        bool armed;
+
+        @disable this(this);
+
+        ~this() nothrow @nogc
+        {
+            if (!armed)
+                return;
+            armed = false;
+            ++*destructions;
+        }
+    }
 
     static assert(!__traits(isCopyable, VirtualArray!int));
     static assert(needsDeinit!(VirtualArray!int));
@@ -355,6 +586,12 @@ unittest
             cast(void) value.length;
             cast(void) value.capacity;
             cast(void) value.empty;
+            cast(void) value.tryResize(0);
+            value.resize(0);
+            value.append(1);
+            cast(void) value.pop();
+            value.clear();
+            value.trim();
         }));
     static assert(!__traits(compiles, () nothrow @nogc @safe {
             VirtualArray!int value;
@@ -370,6 +607,8 @@ unittest
     assert(zero.slice.length == 0);
     assert(zero.tryEnsureAccessible(0));
     assert(!zero.tryEnsureAccessible(1));
+    assert(zero.tryResize(0));
+    assert(!zero.tryResize(1));
     zero.deinit();
     zero.deinit();
 
@@ -377,6 +616,114 @@ unittest
     {
         const pageSize = virtualMemoryPageSize();
         assert(pageSize != 0);
+
+        VirtualArray!int values = VirtualArray!int.create(8, pageSize);
+        scope (exit)
+            values.deinit();
+        int* valuesBase = values.ptr;
+        assert(values.tryResize(3));
+        assert(values.length == 3);
+        assert(values[0] == 0 && values[1] == 0 && values[2] == 0);
+        values[0] = 10;
+        values[1] = 20;
+        values[2] = 30;
+        assert(&values[0] is valuesBase);
+
+        int candidate = 40;
+        assert(values.tryAppend(&candidate));
+        assert(values.length == 4);
+        assert(values.back == 40);
+        assert(values.ptr is valuesBase);
+
+        values.append(values.slice[0 .. 2]);
+        assert(values.length == 6);
+        assert(values[4] == 10 && values[5] == 20);
+        assert(values.ptr is valuesBase);
+
+        int popped = values.pop();
+        assert(popped == 20);
+        assert(values.length == 5);
+        assert(values.back == 10);
+
+        assert(!values.tryResize(values.capacity + 1));
+        assert(values.length == 5);
+        assert(values[0] == 10 && values[4] == 10);
+        values.resize(2);
+        assert(values.length == 2);
+        assert(values[0] == 10 && values[1] == 20);
+        assert(values.ptr is valuesBase);
+
+        values.resize(values.capacity);
+        assert(values.ptr is valuesBase);
+        int overflowCandidate = 77;
+        assert(!values.tryAppend(&overflowCandidate));
+        assert(overflowCandidate == 77);
+        assert(values.length == values.capacity);
+
+        const retainedCommit = values.committedBytes_;
+        values.clear();
+        assert(values.empty);
+        assert(values.committedBytes_ == retainedCommit);
+        values.trim();
+        assert(values.committedBytes_ == 0);
+        assert(values.ptr is valuesBase);
+
+        // Trimming decommits pages outside the logical prefix. Recommitting raw
+        // storage must expose fresh zero-filled pages without relocating data.
+        VirtualArray!ubyte trimmed = VirtualArray!ubyte.create(pageSize * 3, pageSize);
+        scope (exit)
+            trimmed.deinit();
+        ubyte* trimmedBase = trimmed.ptr;
+        trimmed.resize(pageSize);
+        assert(trimmed.tryEnsureAccessible(pageSize * 3));
+        trimmed.ptr[pageSize * 2] = 0xa5;
+        assert(trimmed.committedBytes_ == pageSize * 3);
+        trimmed.trim();
+        assert(trimmed.committedBytes_ == pageSize);
+        assert(trimmed.ptr is trimmedBase);
+        assert(trimmed.tryEnsureAccessible(pageSize * 3));
+        assert(trimmed.ptr is trimmedBase);
+        assert(trimmed.ptr[pageSize * 2] == 0);
+
+        size_t explicitDeinits;
+        VirtualArray!ExplicitOwner owners = VirtualArray!ExplicitOwner.create(2, pageSize);
+        ExplicitOwner owner = ExplicitOwner(&explicitDeinits);
+        assert(owners.tryAppend(&owner));
+        assert(!owner.active);
+        assert(owners.length == 1);
+        owners.clear();
+        assert(explicitDeinits == 0);
+        owners.deinit();
+        assert(explicitDeinits == 0);
+
+        VirtualArray!ExplicitOwner transferred = VirtualArray!ExplicitOwner.create(1, pageSize);
+        ExplicitOwner transferredSource = ExplicitOwner(&explicitDeinits);
+        assert(transferred.tryAppend(&transferredSource));
+        ExplicitOwner rejected = ExplicitOwner(&explicitDeinits);
+        assert(!transferred.tryAppend(&rejected));
+        assert(rejected.active);
+        deinitValue(rejected);
+        assert(explicitDeinits == 1);
+        ExplicitOwner transferredValue = transferred.pop();
+        assert(transferred.empty);
+        assert(transferredValue.active);
+        deinitValue(transferredValue);
+        assert(explicitDeinits == 2);
+        transferred.deinit();
+
+        size_t destructions;
+        VirtualArray!DestructorOnly destructorValues =
+            VirtualArray!DestructorOnly.create(1, pageSize);
+        DestructorOnly destructorSource;
+        destructorSource.destructions = &destructions;
+        destructorSource.armed = true;
+        assert(destructorValues.tryAppend(&destructorSource));
+        assert(!destructorSource.armed);
+        DestructorOnly destructorValue = destructorValues.pop();
+        assert(destructorValue.armed);
+        destroy(destructorValue);
+        assert(destructions == 1);
+        destructorValues.deinit();
 
         VirtualArray!ubyte overflow;
         assert(!VirtualArray!ubyte.tryCreate(
@@ -460,10 +807,10 @@ unittest
             aligned.deinit();
         assert(aligned.ptr !is null);
         assert(cast(size_t) aligned.ptr % OverAligned.alignof == 0);
-        assert(aligned.tryEnsureAccessible(3));
+        assert(aligned.tryResize(3));
         OverAligned* alignedBase = aligned.ptr;
-        aligned.ptr[0].value = 1;
-        aligned.ptr[2].value = 3;
+        aligned[0].value = 1;
+        aligned[2].value = 3;
         assert(aligned.ptr is alignedBase);
         assert(aligned.ptr[0].value == 1);
         assert(aligned.ptr[2].value == 3);

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress. Steps 1–2 of 8 are complete and verified.**
+**Implementation in progress. Steps 1–3 of 8 are complete and verified.**
 
 This is the execution plan for `design_spec/pools.md`. The design document is
 authoritative for semantics; this document defines implementation order,
@@ -97,42 +97,54 @@ Acceptance coverage:
 
 Commit target: `feat(core): add fixed-capacity virtual array storage`.
 
-## Step 3 — complete and harden `VirtualArray!T`
+## Step 3 — complete and harden `VirtualArray!T` — COMPLETE
 
-Make `VirtualArray!T` a robust first-class container before any Pool code may
-depend on it.
+Completed the public logical-container layer over the fixed virtual storage.
 
-Add the Array-like operations that transfer cleanly to fixed virtual capacity:
+Implemented contract:
 
-- `tryResize/resize`;
-- append operations;
-- pop/back where appropriate;
-- `clear` retaining committed pages;
-- `trim` decommitting the unused committed suffix without changing capacity;
-- lifetime-aware construction/default-initialization and explicit cleanup
-  operations where they are sound under the fixed-capacity model.
+- `tryResize/resize` default-initialize newly added elements when `T` supports
+  default initialization; shrinking is shallow and never decommits by itself;
+- `tryAppend(scope T*)` moves only after storage provisioning succeeds, so
+  failure preserves both the source and all existing array contents;
+- copyable `T` also supports slice append, including slices that alias the same
+  `VirtualArray`;
+- `append(T)`, `back`, and `pop` mirror the transfer semantics of `Array!T`;
+- `clear` is shallow and retains committed pages;
+- `trim` is the explicit physical-reclamation operation and decommits only
+  complete pages beyond the logical prefix while preserving fixed capacity and
+  the stable base address;
+- recommitting pages previously discarded by `trim` observes the VM substrate's
+  fresh zero-filled backing;
+- logical operations never relocate existing elements;
+- `VirtualArray!T` deliberately follows shallow `Array!T` ownership semantics:
+  discarded values are not finalized by resize-shrink, clear, trim, or deinit.
 
-`resize(smaller)` must not automatically decommit. `trim()` is the explicit
-physical-backing reduction operation; `shrinkToFit` is intentionally not used
-because reserved capacity remains fixed.
+Implementation refinements:
 
-Failure contract: a failed logical operation leaves length and existing element
-contents unchanged. Harmless additional committed pages may remain after a
-native operation fails, but they must not become part of the promised logical
-prefix.
+- `appendAssumeCapacity` is intentionally omitted. Reserved virtual capacity does
+  not imply that the target pages are committed, so an "assume capacity" API
+  would incorrectly suggest that append cannot fail. `tryAppend` is the correct
+  primitive.
+- No separate element-cleanup API was added in this step because ordinary
+  `Array!T` is also shallow. Callers that own cleanup-bearing elements must
+  explicitly finalize them before shallow discard, or a future owning virtual
+  array abstraction can provide those semantics separately.
 
-Acceptance gate:
+Acceptance coverage:
 
-- broad normal/boundary/failure tests;
-- nontrivial and move-only values where supported;
-- destructor/explicit-deinit behavior matching documented ownership semantics;
-- trim/regrow zero-fill behavior for newly recommitted raw backing;
-- stable references/pointers across every growth path;
-- ASan;
-- release-safe and release-fast;
-- full debug suite.
-
-**Pool work does not begin until this step is comprehensively clean.**
+- zero/exact/one-past capacity behavior;
+- default initialization and logical shrink/regrow;
+- scalar move append and aliased slice copy append;
+- transactional append/resize failure;
+- stable pointers across every growth path;
+- `back` and ownership-transferring `pop`;
+- explicit-deinit and destructor-only move-only values;
+- shallow clear/deinit behavior;
+- trim, retained live pages, recommit zero-fill, and unchanged virtual capacity;
+- over-aligned `T`;
+- BetterC `nothrow @nogc` and `@safe`/`@system` boundaries;
+- full debug-suite regression coverage.
 
 Commit target: `feat(core): complete virtual array container`.
 

@@ -304,12 +304,35 @@ Committing extra pages before a later failure is acceptable as an internal optim
 
 For types that support default initialization, growing `resize` constructs the newly added logical elements according to the same lifetime conventions as `Array!T`.
 
-Operations such as `append`, `appendAssumeCapacity`, `pop`, `clear`, indexing, and slicing should mirror `Array!T` where their semantics transfer cleanly.
+The completed public container layer provides:
+
+```d
+bool tryResize(size_t requested);
+void resize(size_t requested);
+
+bool tryAppend(scope T* value);
+void append(T value);
+
+// Copyable T only.
+bool tryAppend(scope const(T)[] values);
+void append(scope const(T)[] values);
+
+ref T back();
+T pop();
+void clear();
+void trim();
+```
+
+All successful growth paths preserve `ptr`. Pointer-based move append performs VM provisioning before consuming the source, so failure is transactional at the logical and ownership levels.
+
+Operations such as `append`, `pop`, `back`, `clear`, indexing, and slicing mirror `Array!T` where their semantics transfer cleanly.
+
+`appendAssumeCapacity` is deliberately omitted: fixed reserved capacity does not imply that the target pages are committed, so append can still fail at the VM commitment boundary. `tryAppend` remains the explicit fallible primitive.
 
 The fixed-capacity nature means:
 
 ```d
-array.tryAppend(value)
+array.tryAppend(&value)
 ```
 
 fails when `length == capacity` rather than reallocating.
@@ -340,7 +363,7 @@ array.trim();
 
 `clear()` and `deinit()` do not recursively finalize logical elements.
 
-Where XTB's normal `Array!T` exposes explicit range cleanup/finalization operations, `VirtualArray!T` should provide matching operations unless the fixed virtual representation makes one meaningless.
+Like `Array!T`, `VirtualArray!T` owns backing storage but is shallow with respect to element cleanup. Growing operations establish real `T` lifetimes through default construction, move construction, or copy construction, but shrinking, `clear()`, `trim()`, and `deinit()` never finalize discarded elements. Cleanup-bearing values must therefore be finalized explicitly by the caller before shallow discard; an owning virtual-array variant should be introduced separately if that semantic is needed.
 
 ## 4.7 Stable addresses
 
