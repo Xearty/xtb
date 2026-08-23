@@ -133,3 +133,11 @@ configuration "cli-nested-demo" {
     mainSourceFile "cli_nested_demo.d"
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d" "../source/xtb/cli/*.d"
 }
+
+configuration "entity-component-system-demo" {
+    targetType "executable"
+    targetName "entity_component_system_demo"
+    targetPath "../build/examples"
+    mainSourceFile "entity_component_system_demo.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+}

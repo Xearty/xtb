@@ -202,6 +202,22 @@ Checked builds diagnose use after allocation, deallocation, clear, move, or
 deinit. The diagnostic generation/base snapshots compile out when
 `XTB_Checked` is disabled.
 
+## Entity-component-system example
+
+`examples/entity_component_system_demo.d` builds a small ECS directly from the
+virtual containers. Entity identity comes from `GenerationalPool!Entity`; each
+component type uses a sparse `Pool` plus a `VirtualArray!uint` entity-index map.
+Systems join component stores by iterating only present components and doing
+O(1) lookup into the other store. The example also demonstrates stale-handle
+rejection after entity-index reuse, two-phase destruction while Pool ranges are
+active, and `occupiedSlots()` when the stable component-pool index is needed.
+
+Run it with:
+
+```text
+just run example entity-component-system
+```
+
 ## Lifetime and ownership rules
 
 The containers are explicit owners and are non-copyable. Transfer ownership
