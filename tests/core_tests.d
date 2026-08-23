@@ -14,6 +14,7 @@ import xtb.core.allocators;
 import xtb.core.allocators.arena;
 import xtb.core.thread_context;
 import xtb.core.array;
+import xtb.core.pool;
 import xtb.core.option;
 import xtb.core.result;
 import xtb.core.flag_set;
@@ -142,6 +143,34 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         Array!int.withCapacity(null, 0);
     if (cStringEqual(name, "owned-string-null-pointer"))
         (cast(OwnedString*) null).deinit();
+    version (XTB_Checked)
+    {
+        if (cStringEqual(name, "pool-double-free"))
+        {
+            Pool!int pool = Pool!int.create(2);
+            scope (exit)
+                pool.deinit();
+            int* value = pool.allocateInit();
+            pool.deallocate(value);
+            pool.deallocate(value);
+        }
+        if (cStringEqual(name, "pool-foreign-free"))
+        {
+            Pool!int pool = Pool!int.create(2);
+            scope (exit)
+                pool.deinit();
+            int foreign;
+            pool.deallocate(&foreign);
+        }
+        if (cStringEqual(name, "pool-misaligned-free"))
+        {
+            Pool!ulong pool = Pool!ulong.create(2);
+            scope (exit)
+                pool.deinit();
+            ulong* value = pool.allocateInit();
+            pool.deallocate(cast(ulong*)(cast(ubyte*) value + 1));
+        }
+    }
     if (cStringEqual(name, "string-split-slice"))
         "é".sliceBytes(1, 2);
     if (cStringEqual(name, "string-split-insert"))
@@ -529,6 +558,12 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "managed-null-fallible-factory");
         expectDeath(arguments[0], "managed-null-returning-factory");
         expectDeath(arguments[0], "owned-string-null-pointer");
+        version (XTB_Checked)
+        {
+            expectDeath(arguments[0], "pool-double-free");
+            expectDeath(arguments[0], "pool-foreign-free");
+            expectDeath(arguments[0], "pool-misaligned-free");
+        }
         expectDeath(arguments[0], "string-split-slice");
         expectDeath(arguments[0], "string-split-insert");
         expectDeath(arguments[0], "string-split-truncate");

@@ -507,7 +507,11 @@ All size/offset calculations must use checked overflow helpers before reserving 
 
 # 7. `Pool!T`
 
+**Implementation status: Step 5 complete.**
+
 `Pool!T` is a fixed-capacity, stable-index, stable-address typed pool with no generational handles.
+
+The implementation additionally reuses `VirtualArray`'s package-internal typed-region geometry helper for page rounding, overflow checks, and over-aligned base selection. Pool therefore does not maintain a second copy of the virtual-array alignment arithmetic. The three regions still live in one reservation and each begins at an address compatible with both native page boundaries and its element alignment.
 
 ## 7.1 Representation
 
@@ -532,7 +536,7 @@ struct Pool(T)
 }
 ```
 
-`nextIndex_` starts at `1`.
+`nextIndex_` starts at `1`. Creation reserves the complete address-space layout but commits **zero** value, occupancy, or free-index pages.
 
 Index `0` is never occupied and its occupancy bit remains clear.
 
@@ -592,7 +596,7 @@ Only after all three requirements succeed may the pool publish index `i` as acti
 
 If commitment fails, Pool logical state remains unchanged. Any pages committed before the failure may remain committed and be reused by a retry.
 
-This means `deallocate()` never calls `tryEnsureAccessible()`.
+This means `deallocate()` never calls `tryEnsureAccessible()`. The implementation tests this invariant by recording all three view commit counters before deallocation and recycled allocation and requiring them to remain unchanged, including across a free-index commit-boundary provisioning test.
 
 ## 7.5 Allocation
 
@@ -1412,7 +1416,7 @@ Current progress:
 2. **Complete** — `VirtualArray!T` ownership/storage core.
 3. **Complete** — complete and harden `VirtualArray!T`.
 4. **Complete** — internal `VirtualArrayView!T`.
-5. Pending — fixed-capacity `Pool!T`.
+5. **Complete** — fixed-capacity `Pool!T`.
 6. Pending — Pool ranges.
 7. Pending — `GenerationalPool!T`.
 8. Pending — generational ranges, documentation, benchmarks, and final audit.

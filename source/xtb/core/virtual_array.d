@@ -13,7 +13,7 @@ import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
 
-private enum size_t defaultCommitGranularity = 64 * 1024;
+package(xtb) enum size_t defaultVirtualCommitGranularity = 64 * 1024;
 
 private template supportsDefaultInitialization(T)
 {
@@ -55,7 +55,7 @@ public:
         scope Self* output,
     ) @system
     {
-        return tryCreate(capacity, defaultCommitGranularity, output);
+        return tryCreate(capacity, defaultVirtualCommitGranularity, output);
     }
 
     /// Attempts to create an empty fixed-capacity array with explicit commit
@@ -79,7 +79,7 @@ public:
             return false;
         if (capacity == 0)
             return true;
-        if (!virtualMemorySupported || multiplyOverflows(capacity, T.sizeof))
+        if (!virtualMemorySupported)
             return false;
 
         const pageSize = virtualMemoryPageSize();
@@ -94,22 +94,12 @@ public:
             ))
             return false;
 
-        const dataBytes = capacity * T.sizeof;
-        size_t regionBytes;
-        if (!tryRoundUpToMultiple(dataBytes, pageSize, &regionBytes))
+        VirtualArrayRegionGeometry geometry;
+        if (!tryVirtualArrayRegionGeometry!T(capacity, pageSize, &geometry))
             return false;
-
-        size_t baseAlignment;
-        if (!tryLeastCommonMultiple(pageSize, T.alignof, &baseAlignment))
+        if (addOverflows(geometry.regionBytes, geometry.alignmentSlack))
             return false;
-
-        // A page-aligned reservation base needs at most
-        // `baseAlignment - pageSize` extra bytes to reach a boundary aligned to
-        // both the VM page size and T.alignof.
-        const alignmentSlack = baseAlignment - pageSize;
-        if (addOverflows(regionBytes, alignmentSlack))
-            return false;
-        const reservationBytes = regionBytes + alignmentSlack;
+        const reservationBytes = geometry.regionBytes + geometry.alignmentSlack;
 
         VirtualMemoryReservation reservation;
         if (!tryReserveVirtualMemory(reservationBytes, &reservation))
@@ -118,7 +108,7 @@ public:
             reservation.deinit();
 
         void* alignedBase;
-        if (!tryAlignAddressUp(reservation.base, baseAlignment, &alignedBase))
+        if (!tryAlignAddressUp(reservation.base, geometry.baseAlignment, &alignedBase))
             return false;
 
         const reservationAddress = cast(size_t) reservation.base;
@@ -126,7 +116,7 @@ public:
         const regionOffset = alignedAddress - reservationAddress;
 
         VirtualMemoryRegion region;
-        if (!reservation.tryRegion(regionOffset, regionBytes, &region))
+        if (!reservation.tryRegion(regionOffset, geometry.regionBytes, &region))
             return false;
 
         Self result;
@@ -143,7 +133,7 @@ public:
     /// fails.
     static Self create(
         size_t capacity,
-        size_t commitGranularity = defaultCommitGranularity,
+        size_t commitGranularity = defaultVirtualCommitGranularity,
     ) @system
     {
         Self result;
@@ -512,6 +502,11 @@ public:
         return data_;
     }
 
+    const(T)* ptr() const return @system
+    {
+        return data_;
+    }
+
     size_t capacity() const pure @safe
     {
         return capacity_;
@@ -588,6 +583,45 @@ public:
 }
 
 static assert(needsDeinit!(VirtualArrayView!ubyte));
+
+/// Page-bounded geometry for one fixed-capacity typed virtual-array region.
+///
+/// This is shared by owning arrays and internal multi-region containers such
+/// as Pool so alignment/overflow rules cannot drift between representations.
+package(xtb) struct VirtualArrayRegionGeometry
+{
+    size_t regionBytes;
+    size_t baseAlignment;
+    size_t alignmentSlack;
+}
+
+package(xtb) bool tryVirtualArrayRegionGeometry(T)(
+    size_t capacity,
+    size_t pageSize,
+    scope VirtualArrayRegionGeometry* output,
+) pure @safe
+{
+    if (output is null || pageSize == 0 || multiplyOverflows(capacity, T.sizeof))
+        return false;
+
+    const dataBytes = capacity * T.sizeof;
+    size_t regionBytes;
+    if (!tryRoundUpToMultiple(dataBytes, pageSize, &regionBytes))
+        return false;
+
+    size_t baseAlignment;
+    if (!tryLeastCommonMultiple(pageSize, T.alignof, &baseAlignment))
+        return false;
+
+    VirtualArrayRegionGeometry result;
+    result.regionBytes = regionBytes;
+    result.baseAlignment = baseAlignment;
+    // A page-aligned base needs at most this much slack to reach an address
+    // aligned to both the native page size and T.alignof.
+    result.alignmentSlack = baseAlignment - pageSize;
+    *output = result;
+    return true;
+}
 
 private bool tryEnsureCommittedPrefix(
     VirtualMemoryRegion region,
@@ -696,7 +730,7 @@ private bool tryLeastCommonMultiple(
     return true;
 }
 
-private bool tryAlignAddressUp(
+package(xtb) bool tryAlignAddressUp(
     void* address,
     size_t alignment,
     scope void** output,

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress. Steps 1–4 of 8 are complete and verified.**
+**Implementation in progress. Steps 1–5 of 8 are complete and verified.**
 
 This is the execution plan for `design_spec/pools.md`. The design document is
 authoritative for semantics; this document defines implementation order,
@@ -208,12 +208,12 @@ Acceptance coverage:
 
 Commit target: `feat(core): add internal virtual array views`.
 
-## Step 5 — fixed-capacity `Pool!T`
+## Step 5 — fixed-capacity `Pool!T` — COMPLETE
 
-Implement plain Pool directly over one virtual reservation; do not depend on
-Arena.
+Added public `xtb.core.pool.Pool!T` directly over one fixed virtual reservation;
+Pool has no Arena or backing allocator dependency.
 
-Reservation layout:
+Implemented layout:
 
 ```text
 T values[capacity + 1]             // index 0 invalid
@@ -221,45 +221,67 @@ occupancy bitmap                   // machine-word bits
 uint freeIndices[capacity]
 ```
 
-All three regions are page-separated so one view can trim/decommit without
-changing another region.
+All three regions are page-bounded and independently provisioned through
+`VirtualArrayView`. Creation reserves the complete address-space layout while
+committing zero pages.
 
-Virgin-index publication is transactional. Before index `i` can become visible,
-Pool must provision:
+Implemented contract:
 
-1. value storage through `i`;
-2. the occupancy word containing `i`;
-3. free-index storage sufficient to recycle `i` later.
+- fixed maximum `uint` capacity with index zero permanently invalid;
+- stable indices and stable `T*` addresses for the Pool lifetime;
+- raw `tryAllocate/allocate`, initialized `tryAllocateInit/allocateInit`, and
+  `tryConstruct/construct`;
+- virgin allocation provisions value storage, the containing occupancy word,
+  and enough free-index stack storage for that index before publishing it;
+- any partial VM provisioning failure leaves Pool logical state unchanged;
+- recycled allocation pops a compact LIFO integer index and performs no VM
+  operation;
+- `deallocate` clears occupancy and pushes the index without committing,
+  allocating, finalizing, or writing `T`;
+- `dispose` is available only when `T` can be finalized without external
+  cleanup context;
+- `get`, `contains`, `indexOf`, capacity/live-count/empty queries;
+- shallow `clear` resets logical occupancy/frontiers but preserves value bytes
+  and all provisioned/committed storage;
+- shallow repeatable `deinit` releases the one reservation without walking live
+  values;
+- move/moveAssign preserve the reservation and reconstruct the source to the
+  inert state;
+- checked builds diagnose double-free, foreign-pointer free, and misaligned
+  pointer free.
 
-Only then may Pool advance its virgin frontier and mark the slot occupied. This
-is the core invariant that makes `deallocate()` infallible and prevents it from
-ever allocating or committing memory.
+Implementation refinements:
 
-Implement:
+- `VirtualArray` now exposes package-internal `VirtualArrayRegionGeometry`, the
+  default VM commit granularity, and address-alignment helper. Owning
+  `VirtualArray` and Pool therefore share the exact same typed-capacity
+  overflow/page/alignment geometry instead of duplicating it.
+- `VirtualArrayView` gained a const `ptr` overload so const Pool lookup can use
+  the same bounded raw-storage view without casting away const.
+- Pool does not carry range-invalidation generation yet; that checked-only
+  field belongs with the ranges that consume it in Step 6.
 
-- fixed maximum capacity and index zero invalid;
-- raw allocate / initialized allocate / typed construction;
-- `deallocate` preserving every byte of inactive `T` storage;
-- `dispose` finalizing then recycling where context-free cleanup is valid;
-- `get`, occupancy/index queries, counts, clear, move, deinit;
-- checked misuse diagnostics that disappear where they are not semantic.
+Acceptance coverage:
 
-`clear` is shallow: it does not finalize values and does not overwrite preserved
-inactive representations.
-
-Acceptance gate:
-
-- tiny and over-aligned `T`;
-- exact/full capacity and failure paths;
-- recycled allocation without VM calls;
-- deallocation proven not to commit/allocate;
-- representation preservation after deallocation and clear;
-- explicit-deinit and D-destructor cases;
+- capacity zero and exact/full capacity;
+- sequential indices beginning at one and bitmap traversal across multiple
+  occupancy words;
+- LIFO recycled reuse;
+- a free-index 64 KiB commit-boundary case proving publication provisions the
+  next recycle slot before exposure;
+- commit counters unchanged by deallocation and recycled allocation;
+- tiny and 32 KiB-over-aligned `T`;
+- byte-for-byte inactive representation preservation after deallocation and
+  shallow clear;
+- explicit-deinit and D-destructor disposal;
+- shallow clear/deinit do not finalize values;
+- context-requiring finalizers do not expose `dispose`;
 - moves and zero-state cleanup;
-- ASan and full debug suite.
+- checked double-free/foreign/misaligned-pointer death tests;
+- full debug suite, focused ASan core/integration, release-safe and
+  release-fast library builds, formatter/linter/diff checks.
 
-Commit target: `refactor(core): add fixed virtual pool storage` (or a more
-accurate `feat` message if no public Pool exists in the implementation baseline).
+Commit target: `feat(core): add fixed-capacity virtual pool`.
 
 ## Step 6 — Pool ranges
 
