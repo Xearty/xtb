@@ -90,7 +90,10 @@ serde / codec / os / threading
           C ABI / libc
 ```
 
-- `core` depends only on language features and selected `core.stdc` bindings.
+- `core` depends only on language features and selected druntime C/platform
+  bindings. Native platform dependencies inside core stay behind narrow internal
+  backends required to implement a core primitive; core never depends upward on
+  another XTB component.
 - `diagnostics` depends on `core` plus its explicitly selected platform
   unwinder. Core must never import diagnostics or require libbacktrace.
 - `math` depends on `core` only when it needs shared primitive/result types.
@@ -147,13 +150,20 @@ structural `deinit` visits only the active member without rewriting the tag or
 payload storage. Serde may reuse this relationship later, but wire layout and
 deserialization policy remain serde concerns.
 `xtb.core.allocators.arena.Arena` is an ordinary explicit owner, not an RAII
-object. Call `deinit(arena)` (or its member customization internally) to release
-its chunks. `clear` and `deinit` reclaim arena storage without walking allocated
-objects, invoking their explicit `deinit` functions, or running D destructors.
-Typed initialization/construction (`allocateInit*` and `create`) is nevertheless
-allowed for destructor-bearing values: the caller is responsible for explicitly
-running any required destruction before the allocation is abandoned (for example
-with `destroy`, or with generic `dispose` through the arena's `Allocator*`). Arena
+object. The normal `Arena.create` path grows through allocator-owned chunks;
+`Arena.createVirtual` instead reserves one fixed contiguous virtual-address range
+and commits a page-rounded prefix as allocation advances. Both are the same public
+`Arena` type and provide the same region-lifetime contract, so APIs continue to
+accept `Arena*` without caring about the backing strategy. Backend-specific state
+is stored in a tagged union keyed by the active strategy; only bookkeeping shared
+by every arena remains outside that payload. Call `deinit(arena)`
+(or its member customization internally) to release the backing storage. `clear`
+and `deinit` reclaim arena storage without walking allocated objects, invoking
+their explicit `deinit` functions, or running D destructors. Typed
+initialization/construction (`allocateInit*` and `create`) is nevertheless allowed
+for destructor-bearing values: the caller is responsible for explicitly running
+any required destruction before the allocation is abandoned (for example with
+`destroy`, or with generic `dispose` through the arena's `Allocator*`). Arena
 assignment is disabled, so ownership transfer uses the lifetime move primitives.
 
 `xtb.core.memory` owns the type-erased `Allocator` callback contract and generic
@@ -161,8 +171,14 @@ allocation/reallocation/disposal helpers, delegating typed finalization to the
 lifetime layer. Concrete allocator implementations are grouped under
 `xtb.core.allocators.*`: `malloc` provides the libc-backed allocator, `arena`
 provides arena allocation, and `instrumented` provides deterministic
-allocation tracking/failure injection. This lets APIs depend on the allocator
-contract without importing a concrete allocation policy. Generic scalar and
+allocation tracking/failure injection. The allocator package also owns a narrow
+internal virtual-memory substrate for core implementations that need stable
+contiguous address reservations: Linux uses `mmap`/`mprotect`/`munmap`, while
+unsupported targets keep a buildable failing backend. The VM layer is internal
+to XTB and is not part of the public allocator aggregate; a richer public
+`xtb.os` virtual-memory wrapper may build on the same substrate without making
+core depend upward on `os`. This lets APIs depend on the allocator contract
+without importing a concrete allocation policy. Generic scalar and
 checked-arithmetic operations live in `xtb.core.numeric`; that module may use
 the panic contract layer without forcing panic to depend on containers or
 builders. `xtb.core` publicly imports the allocator aggregate for convenience,
@@ -975,6 +991,17 @@ destruction, using `destroy` directly or generic `dispose`/`disposeArray` throug
 generic disposal finalizes the value without individually reclaiming arena
 storage.
 
+Virtual arenas reserve their complete maximum address range up front but commit
+nothing initially. Allocation commits a prefix in configurable page-rounded
+growth increments. `clear` and ordinary temporary-scope rewind retain committed
+pages for reuse, matching chunk retention; `trim` decommits the unused suffix,
+and the existing retention limit bounds the committed prefix after outermost
+temporary-scope rewind. `ArenaStats.reservedBytes` reports the complete virtual
+reservation, `committedBytes` reports its currently accessible prefix, and
+`chunkCount` remains zero for this backend. For chunk-backed arenas,
+`committedBytes == reservedBytes`. Linux currently provides the native virtual
+backend; `Arena.tryCreateVirtual` returns false on unsupported targets.
+
 Use these representations consistently:
 
 - `T[]`/`const(T)[]`: borrowed slice; document lifetime and mutability.
@@ -1536,12 +1563,13 @@ out of order violates checked scope-lifetime preconditions. Requesting scratch
 without an installed context follows the unconditional scratch-acquisition
 fatal path. This keeps thread initialization explicit.
 
-Arena growth belongs to the thread context and uses its explicitly configured
-backing allocator. Rewind should normally retain chunks for reuse, subject to a
-documented high-water or trimming policy; it must not make an ordinary scratch
-scope pay heap allocation on every invocation. Alignment is honored for every
-request, size arithmetic is overflow-checked, and allocation failure is
-reported through the allocator contract. An opt-in diagnostic build may poison
+Chunk-backed scratch-arena growth belongs to the thread context and uses its
+explicitly configured backing allocator. Rewind should normally retain backing
+storage for reuse, subject to a documented high-water or trimming policy; it
+must not make an ordinary scratch scope pay backing allocation/commit work on
+every invocation. Alignment is honored for every request, size arithmetic is
+overflow-checked, and allocation failure is reported through the allocator
+contract. An opt-in diagnostic build may poison
 rewound bytes and tag checkpoints/generations to help expose use-after-rewind,
 double-end, non-LIFO release, and a scratch scope used from the wrong thread;
 these diagnostics are not required behavior of an ordinary debug build.

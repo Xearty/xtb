@@ -4,13 +4,22 @@ nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, forward;
-import xtb.core.lifetime : moveEmplace, needsDeinit;
 import core.stdc.string : memcpy, memset;
+import xtb.core.allocators.internal.virtual_memory : VirtualMemoryReservation,
+    tryReserveVirtualMemory, virtualMemoryPageSize, virtualMemorySupported;
+import xtb.core.lifetime : moveEmplace, needsDeinit, structuralDeinit = deinit, taggedBy;
 import xtb.core.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.core.panic : panic;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.numeric : addOverflows, multiplyOverflows;
+
+private enum ArenaStorageKind : ubyte
+{
+    none,
+    chunked,
+    virtualMemory,
+}
 
 private struct ArenaChunk
 {
@@ -21,13 +30,58 @@ private struct ArenaChunk
     ubyte* data;
 }
 
+private struct ChunkedArenaStorage
+{
+    Allocator* backingAllocator;
+    ArenaChunk* firstChunk;
+    ArenaChunk* currentChunk;
+    size_t defaultChunkSize;
+}
+
+private struct VirtualArenaStorage
+{
+    VirtualMemoryReservation reservation;
+    size_t offset;
+    size_t committedBytes;
+    size_t commitGranularity;
+    size_t pageSize;
+}
+
+private union ArenaStorage
+{
+    ChunkedArenaStorage chunked;
+    VirtualArenaStorage virtualMemory;
+}
+
+/// Tagged backend state. Exactly one union member is live when `kind` is active.
+private struct ArenaStorageState
+{
+    @disable this(this);
+    @disable ref ArenaStorageState opAssign(ArenaStorageState source) return;
+
+    ArenaStorageKind kind;
+    @taggedBy("kind", ArenaStorageKind.none)
+    ArenaStorage data;
+}
+
+static assert(needsDeinit!ArenaStorageState);
+
 struct ArenaStats
 {
 nothrow @nogc:
 
+    /// Bytes occupied by the current bump-allocation prefix, including
+    /// alignment padding.
     size_t usedBytes;
+    /// Chunk payload capacity or the complete virtual-address reservation.
     size_t reservedBytes;
+    /// Reusable chunk payload capacity or the accessible virtual-memory
+    /// prefix.
+    size_t committedBytes;
+    /// Highest `usedBytes` observed since creation.
     size_t peakUsedBytes;
+    /// Number of allocator-backed chunks; zero for a virtual-memory-backed
+    /// arena.
     size_t chunkCount;
 }
 
@@ -43,10 +97,7 @@ struct Arena
 nothrow @nogc:
 
     private Allocator allocator_;
-    private Allocator* backingAllocator;
-    private ArenaChunk* firstChunk;
-    private ArenaChunk* currentChunk;
-    private size_t defaultChunkSize;
+    private ArenaStorageState storage_;
     private size_t scopeDepth;
     private size_t usedBytes_;
     private size_t peakUsedBytes_;
@@ -70,9 +121,90 @@ nothrow @nogc:
         }
 
         Arena result;
-        result.allocator_ = &arenaAllocatorProcedure;
-        result.backingAllocator = backingAllocator;
-        result.defaultChunkSize = defaultChunkSize;
+        emplace(&result.storage_.data.chunked);
+        result.storage_.data.chunked.backingAllocator = backingAllocator;
+        result.storage_.data.chunked.defaultChunkSize = defaultChunkSize;
+        result.storage_.kind = ArenaStorageKind.chunked;
+        result.allocator_ = &chunkedArenaAllocatorProcedure;
+        return result;
+    }
+
+    /// Attempts to create an arena backed by one contiguous virtual-address
+    /// reservation. The reservation is the fixed maximum storage capacity, is
+    /// inaccessible initially, and becomes readable/writable in
+    /// `commitGranularity` increments as allocation grows. The reservation size
+    /// and commit granularity are rounded up to native page boundaries.
+    /// `tryAllocate` returns null once the fixed reservation is exhausted.
+    static bool tryCreateVirtual(
+        size_t reservationBytes,
+        scope Arena* output,
+    ) @system
+    {
+        return tryCreateVirtual(
+            reservationBytes,
+            64 * 1024,
+            output,
+        );
+    }
+
+    /// Attempts to create a virtual-memory-backed arena with an explicit commit
+    /// growth granularity. Expected reservation/commit setup failures return
+    /// false and leave `output` unchanged.
+    static bool tryCreateVirtual(
+        size_t reservationBytes,
+        size_t commitGranularity,
+        scope Arena* output,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "Arena output pointer is null");
+            require(output.allocator_ is null, "Arena output is already initialized");
+            require(reservationBytes != 0, "virtual arena reservation size must be nonzero");
+            require(commitGranularity != 0, "virtual arena commit granularity must be nonzero");
+        }
+
+        if (output is null || reservationBytes == 0 || commitGranularity == 0 ||
+            !virtualMemorySupported)
+            return false;
+
+        const pageSize = virtualMemoryPageSize();
+        size_t normalizedCommitGranularity;
+        if (pageSize == 0 ||
+            !roundUpToMultiple(
+                commitGranularity,
+                pageSize,
+                &normalizedCommitGranularity,
+            ))
+            return false;
+
+        VirtualMemoryReservation reservation;
+        if (!tryReserveVirtualMemory(reservationBytes, &reservation))
+            return false;
+
+        emplace(&output.storage_.data.virtualMemory);
+        output.storage_.data.virtualMemory.commitGranularity = normalizedCommitGranularity;
+        output.storage_.data.virtualMemory.pageSize = pageSize;
+        moveEmplace(reservation, output.storage_.data.virtualMemory.reservation);
+        output.storage_.kind = ArenaStorageKind.virtualMemory;
+        output.allocator_ = &virtualArenaAllocatorProcedure;
+        return true;
+    }
+
+    /// Creates an arena backed by one contiguous virtual-address reservation.
+    /// Panics when the reservation cannot be established.
+    static Arena createVirtual(
+        size_t reservationBytes,
+        size_t commitGranularity = 64 * 1024,
+    ) @system
+    {
+        Arena result;
+        if (!tryCreateVirtual(
+                reservationBytes,
+                commitGranularity,
+                &result,
+            ))
+            panic("virtual arena reservation failed");
         return result;
     }
 
@@ -99,27 +231,15 @@ nothrow @nogc:
             require(isPowerOfTwo(alignment),
                 "arena alignment must be a power of two");
 
-        ArenaChunk* chunk = currentChunk;
-        size_t alignedOffset;
-        if (chunk is null ||
-            !alignedOffsetFor(chunk, alignment, &alignedOffset) ||
-            alignedOffset > chunk.capacity ||
-            size > chunk.capacity - alignedOffset)
+        final switch (storage_.kind)
         {
-            chunk = obtainChunk(size, alignment);
-            if (chunk is null)
+            case ArenaStorageKind.none:
                 return null;
-            if (!alignedOffsetFor(chunk, alignment, &alignedOffset))
-                return null;
+            case ArenaStorageKind.chunked:
+                return tryAllocateChunked(size, alignment);
+            case ArenaStorageKind.virtualMemory:
+                return tryAllocateVirtual(size, alignment);
         }
-
-        void* result = chunk.data + alignedOffset;
-        const occupied = alignedOffset + size - chunk.offset;
-        chunk.offset = alignedOffset + size;
-        usedBytes_ += occupied;
-        if (usedBytes_ > peakUsedBytes_)
-            peakUsedBytes_ = usedBytes_;
-        return result;
     }
 
     T* tryAllocate(T)()
@@ -268,9 +388,22 @@ nothrow @nogc:
     {
         version (XTB_Checked)
             require(scopeDepth == 0, "cannot clear arena with active temporary scopes");
-        for (ArenaChunk* chunk = firstChunk; chunk !is null; chunk = chunk.next)
-            chunk.offset = 0;
-        currentChunk = firstChunk;
+
+        final switch (storage_.kind)
+        {
+            case ArenaStorageKind.none:
+                break;
+            case ArenaStorageKind.chunked:
+                for (ArenaChunk* chunk = storage_.data.chunked.firstChunk; chunk !is null; chunk = chunk
+                    .next)
+                    chunk.offset = 0;
+                storage_.data.chunked.currentChunk = storage_.data.chunked.firstChunk;
+                break;
+            case ArenaStorageKind.virtualMemory:
+                storage_.data.virtualMemory.offset = 0;
+                break;
+        }
+
         usedBytes_ = 0;
         ++generation_;
     }
@@ -279,39 +412,44 @@ nothrow @nogc:
     {
         version (XTB_Checked)
             require(scopeDepth == 0, "cannot destroy arena with active temporary scopes");
-        ArenaChunk* chunk = firstChunk;
-        while (chunk !is null)
-        {
-            ArenaChunk* next = chunk.next;
-            backingAllocator.deallocate(
-                chunk,
-                chunk.allocationSize,
-                ArenaChunk.alignof,
-            );
-            chunk = next;
-        }
+
+        if (storage_.kind == ArenaStorageKind.chunked)
+            releaseChunks(storage_.data.chunked.firstChunk);
+        structuralDeinit(storage_);
+        emplace(&storage_);
 
         allocator_ = null;
-        backingAllocator = null;
-        firstChunk = null;
-        currentChunk = null;
-        defaultChunkSize = 0;
         scopeDepth = 0;
         usedBytes_ = 0;
         peakUsedBytes_ = 0;
         retentionLimit = size_t.max;
+        poisonRewoundMemory_ = false;
         ++generation_;
     }
 
-    ArenaStats stats() const pure @safe
+    ArenaStats stats() const pure @trusted
     {
         ArenaStats result;
         result.usedBytes = usedBytes_;
         result.peakUsedBytes = peakUsedBytes_;
-        for (const(ArenaChunk)* chunk = firstChunk; chunk !is null; chunk = chunk.next)
+
+        final switch (storage_.kind)
         {
-            result.reservedBytes += chunk.capacity;
-            ++result.chunkCount;
+            case ArenaStorageKind.none:
+                break;
+            case ArenaStorageKind.chunked:
+                for (const(ArenaChunk)* chunk = storage_.data.chunked.firstChunk; chunk !is null; chunk = chunk
+                    .next)
+                {
+                    result.reservedBytes += chunk.capacity;
+                    result.committedBytes += chunk.capacity;
+                    ++result.chunkCount;
+                }
+                break;
+            case ArenaStorageKind.virtualMemory:
+                result.reservedBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+                result.committedBytes = storage_.data.virtualMemory.committedBytes;
+                break;
         }
         return result;
     }
@@ -332,25 +470,55 @@ nothrow @nogc:
     {
         version (XTB_Checked)
             require(scopeDepth == 0, "cannot trim arena with active temporary scopes");
-        ArenaChunk* keep = currentChunk;
-        if (keep is null)
+
+        final switch (storage_.kind)
         {
-            releaseChunks(firstChunk);
-            firstChunk = null;
-            return;
+            case ArenaStorageKind.none:
+                return;
+            case ArenaStorageKind.chunked:
+            {
+                ArenaChunk* keep = storage_.data.chunked.currentChunk;
+                if (keep is null)
+                {
+                    releaseChunks(storage_.data.chunked.firstChunk);
+                    storage_.data.chunked.firstChunk = null;
+                    return;
+                }
+                releaseChunks(keep.next);
+                keep.next = null;
+                return;
+            }
+            case ArenaStorageKind.virtualMemory:
+                trimVirtualTo(storage_.data.virtualMemory.offset);
+                return;
         }
-        releaseChunks(keep.next);
-        keep.next = null;
     }
 
     private void trimToRetentionLimit()
     {
+        if (storage_.kind == ArenaStorageKind.virtualMemory)
+        {
+            if (retentionLimit >= storage_.data.virtualMemory.committedBytes)
+                return;
+
+            size_t retainBytes = retentionLimit;
+            if (retainBytes < storage_.data.virtualMemory.offset)
+                retainBytes = storage_.data.virtualMemory.offset;
+            if (retainBytes > storage_.data.virtualMemory.reservation.reservedBytes)
+                retainBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+            trimVirtualTo(retainBytes);
+            return;
+        }
+
+        if (storage_.kind != ArenaStorageKind.chunked)
+            return;
+
         size_t reserved;
         ArenaChunk* previous;
-        ArenaChunk* chunk = firstChunk;
+        ArenaChunk* chunk = storage_.data.chunked.firstChunk;
         while (chunk !is null)
         {
-            if (chunk is currentChunk)
+            if (chunk is storage_.data.chunked.currentChunk)
                 previous = chunk;
             reserved += chunk.capacity;
             chunk = chunk.next;
@@ -363,7 +531,7 @@ nothrow @nogc:
         {
             ArenaChunk* next = chunk.next;
             reserved -= chunk.capacity;
-            backingAllocator.deallocate(
+            storage_.data.chunked.backingAllocator.deallocate(
                 chunk,
                 chunk.allocationSize,
                 ArenaChunk.alignof,
@@ -379,7 +547,7 @@ nothrow @nogc:
         while (chunk !is null)
         {
             ArenaChunk* next = chunk.next;
-            backingAllocator.deallocate(
+            storage_.data.chunked.backingAllocator.deallocate(
                 chunk,
                 chunk.allocationSize,
                 ArenaChunk.alignof,
@@ -388,12 +556,120 @@ nothrow @nogc:
         }
     }
 
+    private void* tryAllocateChunked(size_t size, size_t alignment)
+    {
+        ArenaChunk* chunk = storage_.data.chunked.currentChunk;
+        size_t alignedOffset;
+        if (chunk is null ||
+            !alignedOffsetFor(chunk, alignment, &alignedOffset) ||
+            alignedOffset > chunk.capacity ||
+            size > chunk.capacity - alignedOffset)
+        {
+            chunk = obtainChunk(size, alignment);
+            if (chunk is null)
+                return null;
+            if (!alignedOffsetFor(chunk, alignment, &alignedOffset))
+                return null;
+        }
+
+        void* result = chunk.data + alignedOffset;
+        const occupied = alignedOffset + size - chunk.offset;
+        chunk.offset = alignedOffset + size;
+        usedBytes_ += occupied;
+        if (usedBytes_ > peakUsedBytes_)
+            peakUsedBytes_ = usedBytes_;
+        return result;
+    }
+
+    private void* tryAllocateVirtual(size_t size, size_t alignment) @system
+    {
+        void* basePointer = storage_.data.virtualMemory.reservation.base;
+        if (basePointer is null)
+            return null;
+
+        const baseAddress = cast(size_t) basePointer;
+        if (storage_.data.virtualMemory.offset > size_t.max - baseAddress)
+            return null;
+
+        size_t alignedAddress;
+        if (!alignUp(baseAddress + storage_.data.virtualMemory.offset, alignment, &alignedAddress))
+            return null;
+        const alignedOffset = alignedAddress - baseAddress;
+        const reservedBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+        if (alignedOffset > reservedBytes || size > reservedBytes - alignedOffset)
+            return null;
+
+        const endOffset = alignedOffset + size;
+        if (!ensureVirtualCommitted(endOffset))
+            return null;
+
+        void* result = cast(ubyte*) basePointer + alignedOffset;
+        const occupied = endOffset - storage_.data.virtualMemory.offset;
+        storage_.data.virtualMemory.offset = endOffset;
+        usedBytes_ += occupied;
+        if (usedBytes_ > peakUsedBytes_)
+            peakUsedBytes_ = usedBytes_;
+        return result;
+    }
+
+    private bool ensureVirtualCommitted(size_t requiredBytes) @system
+    {
+        if (requiredBytes <= storage_.data.virtualMemory.committedBytes)
+            return true;
+
+        size_t targetBytes;
+        if (!roundUpToMultiple(
+                requiredBytes,
+                storage_.data.virtualMemory.commitGranularity,
+                &targetBytes,
+            ) ||
+            targetBytes > storage_.data.virtualMemory.reservation.reservedBytes)
+            targetBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+
+        if (targetBytes < requiredBytes ||
+            targetBytes <= storage_.data.virtualMemory.committedBytes)
+            return false;
+
+        const bytes = targetBytes - storage_.data.virtualMemory.committedBytes;
+        if (!storage_.data.virtualMemory.reservation.tryCommit(
+                storage_.data.virtualMemory.committedBytes,
+                bytes,
+            ))
+            return false;
+
+        storage_.data.virtualMemory.committedBytes = targetBytes;
+        return true;
+    }
+
+    private void trimVirtualTo(size_t keepBytes) @system
+    {
+        if (!storage_.data.virtualMemory.reservation.active ||
+            storage_.data.virtualMemory.committedBytes == 0 ||
+            keepBytes >= storage_.data.virtualMemory.committedBytes)
+            return;
+
+        if (storage_.data.virtualMemory.pageSize == 0)
+            panic("virtual arena page size unavailable");
+
+        size_t targetBytes;
+        if (!roundUpToMultiple(keepBytes, storage_.data.virtualMemory.pageSize, &targetBytes) ||
+            targetBytes > storage_.data.virtualMemory.reservation.reservedBytes)
+            targetBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+        if (targetBytes >= storage_.data.virtualMemory.committedBytes)
+            return;
+
+        const bytes = storage_.data.virtualMemory.committedBytes - targetBytes;
+        if (!storage_.data.virtualMemory.reservation.tryDecommit(targetBytes, bytes))
+            panic("virtual arena decommit failed");
+        storage_.data.virtualMemory.committedBytes = targetBytes;
+    }
+
     private ArenaChunk* obtainChunk(size_t size, size_t alignment)
 
     {
-        ArenaChunk* tail = currentChunk;
-        ArenaChunk* candidate = currentChunk is null
-            ? firstChunk : currentChunk.next;
+        ArenaChunk* tail = storage_.data.chunked.currentChunk;
+        ArenaChunk* candidate = storage_.data.chunked.currentChunk is null
+            ? storage_.data.chunked.firstChunk : storage_.data.chunked.currentChunk.next;
 
         while (candidate !is null)
         {
@@ -402,22 +678,23 @@ nothrow @nogc:
                 offset <= candidate.capacity &&
                 size <= candidate.capacity - offset)
             {
-                currentChunk = candidate;
+                storage_.data.chunked.currentChunk = candidate;
                 return candidate;
             }
             tail = candidate;
             candidate = candidate.next;
         }
 
-        const capacity = size > defaultChunkSize ? size : defaultChunkSize;
+        const capacity = size > storage_.data.chunked.defaultChunkSize
+            ? size : storage_.data.chunked.defaultChunkSize;
         ArenaChunk* created = createChunk(capacity, alignment);
         if (created is null)
             return null;
-        if (firstChunk is null)
-            firstChunk = created;
+        if (storage_.data.chunked.firstChunk is null)
+            storage_.data.chunked.firstChunk = created;
         else
             tail.next = created;
-        currentChunk = created;
+        storage_.data.chunked.currentChunk = created;
         return created;
     }
 
@@ -430,7 +707,7 @@ nothrow @nogc:
             return null;
 
         const allocationSize = ArenaChunk.sizeof + padding + capacity;
-        ArenaChunk* chunk = cast(ArenaChunk*) backingAllocator.tryAllocate(
+        ArenaChunk* chunk = cast(ArenaChunk*) storage_.data.chunked.backingAllocator.tryAllocate(
             allocationSize,
             ArenaChunk.alignof,
         );
@@ -444,7 +721,7 @@ nothrow @nogc:
         size_t alignedStart;
         if (!alignUp(start, alignment, &alignedStart))
         {
-            backingAllocator.deallocate(
+            storage_.data.chunked.backingAllocator.deallocate(
                 chunk,
                 allocationSize,
                 ArenaChunk.alignof,
@@ -473,6 +750,28 @@ pure @safe
     return true;
 }
 
+private bool roundUpToMultiple(
+    size_t value,
+    size_t multiple,
+    size_t* result,
+) pure @safe
+{
+    if (multiple == 0)
+        return false;
+    const remainder = value % multiple;
+    if (remainder == 0)
+    {
+        *result = value;
+        return true;
+    }
+
+    const increment = multiple - remainder;
+    if (value > size_t.max - increment)
+        return false;
+    *result = value + increment;
+    return true;
+}
+
 private bool alignedOffsetFor(
     ArenaChunk* chunk,
     size_t alignment,
@@ -489,7 +788,7 @@ private bool alignedOffsetFor(
     return true;
 }
 
-private extern (C) void* arenaAllocatorProcedure(
+private extern (C) void* chunkedArenaAllocatorProcedure(
     void* allocator,
     size_t newSize,
     void* oldPointer,
@@ -500,8 +799,45 @@ private extern (C) void* arenaAllocatorProcedure(
     Arena* arena = cast(Arena*) allocator;
     if (newSize == 0)
         return null;
+    version (XTB_Checked)
+    {
+        require(arena.storage_.kind == ArenaStorageKind.chunked,
+            "chunked arena allocator procedure used with a different backing");
+        require(isPowerOfTwo(alignment),
+            "arena alignment must be a power of two");
+    }
 
-    void* replacement = arena.tryAllocate(newSize, alignment);
+    void* replacement = arena.tryAllocateChunked(newSize, alignment);
+    if (replacement is null)
+        return null;
+    if (oldPointer !is null && oldSize != 0)
+    {
+        const amount = oldSize < newSize ? oldSize : newSize;
+        memcpy(replacement, oldPointer, amount);
+    }
+    return replacement;
+}
+
+private extern (C) void* virtualArenaAllocatorProcedure(
+    void* allocator,
+    size_t newSize,
+    void* oldPointer,
+    size_t oldSize,
+    size_t alignment,
+)
+{
+    Arena* arena = cast(Arena*) allocator;
+    if (newSize == 0)
+        return null;
+    version (XTB_Checked)
+    {
+        require(arena.storage_.kind == ArenaStorageKind.virtualMemory,
+            "virtual arena allocator procedure used with a different backing");
+        require(isPowerOfTwo(alignment),
+            "arena alignment must be a power of two");
+    }
+
+    void* replacement = arena.tryAllocateVirtual(newSize, alignment);
     if (replacement is null)
         return null;
     if (oldPointer !is null && oldSize != 0)
@@ -549,10 +885,21 @@ TempArena push(Arena* arena)
 {
     version (XTB_Checked)
         require(arena !is null, "cannot push a null arena");
+
     TempArena result;
     result.arena_ = arena;
-    result.chunk_ = arena.currentChunk;
-    result.offset_ = arena.currentChunk is null ? 0 : arena.currentChunk.offset;
+    final switch (arena.storage_.kind)
+    {
+        case ArenaStorageKind.none:
+            break;
+        case ArenaStorageKind.chunked:
+            result.chunk_ = arena.storage_.data.chunked.currentChunk;
+            result.offset_ = result.chunk_ is null ? 0 : result.chunk_.offset;
+            break;
+        case ArenaStorageKind.virtualMemory:
+            result.offset_ = arena.storage_.data.virtualMemory.offset;
+            break;
+    }
     result.depth_ = ++arena.scopeDepth;
     result.usedBytes_ = arena.usedBytes_;
     result.generation_ = arena.generation_;
@@ -578,31 +925,60 @@ void pop(ref TempArena temporary)
 
     if (arena.poisonRewoundMemory_)
     {
-        ArenaChunk* chunk = temporary.chunk_ is null
-            ? arena.firstChunk : temporary.chunk_;
-        bool first = true;
-        for (; chunk !is null; chunk = chunk.next)
+        final switch (arena.storage_.kind)
         {
-            const begin = first && temporary.chunk_ !is null
-                ? temporary.offset_ : 0;
-            if (chunk.offset > begin)
-                memset(chunk.data + begin, 0xDD, chunk.offset - begin);
-            first = false;
+            case ArenaStorageKind.none:
+                break;
+            case ArenaStorageKind.chunked:
+            {
+                ArenaChunk* chunk = temporary.chunk_ is null
+                    ? arena.storage_.data.chunked.firstChunk : temporary.chunk_;
+                bool first = true;
+                for (; chunk !is null; chunk = chunk.next)
+                {
+                    const begin = first && temporary.chunk_ !is null
+                        ? temporary.offset_ : 0;
+                    if (chunk.offset > begin)
+                        memset(chunk.data + begin, 0xDD, chunk.offset - begin);
+                    first = false;
+                }
+                break;
+            }
+            case ArenaStorageKind.virtualMemory:
+                if (arena.storage_.data.virtualMemory.offset > temporary.offset_)
+                    memset(
+                        cast(ubyte*) arena.storage_.data.virtualMemory.reservation.base +
+                            temporary.offset_,
+                        0xDD,
+                        arena.storage_.data.virtualMemory.offset - temporary.offset_,
+                    );
+                break;
         }
     }
 
-    if (temporary.chunk_ is null)
+    final switch (arena.storage_.kind)
     {
-        for (ArenaChunk* chunk = arena.firstChunk; chunk !is null; chunk = chunk.next)
-            chunk.offset = 0;
-        arena.currentChunk = arena.firstChunk;
-    }
-    else
-    {
-        temporary.chunk_.offset = temporary.offset_;
-        for (ArenaChunk* chunk = temporary.chunk_.next; chunk !is null; chunk = chunk.next)
-            chunk.offset = 0;
-        arena.currentChunk = temporary.chunk_;
+        case ArenaStorageKind.none:
+            break;
+        case ArenaStorageKind.chunked:
+            if (temporary.chunk_ is null)
+            {
+                for (ArenaChunk* chunk = arena.storage_.data.chunked.firstChunk; chunk !is null; chunk = chunk
+                    .next)
+                    chunk.offset = 0;
+                arena.storage_.data.chunked.currentChunk = arena.storage_.data.chunked.firstChunk;
+            }
+            else
+            {
+                temporary.chunk_.offset = temporary.offset_;
+                for (ArenaChunk* chunk = temporary.chunk_.next; chunk !is null; chunk = chunk.next)
+                    chunk.offset = 0;
+                arena.storage_.data.chunked.currentChunk = temporary.chunk_;
+            }
+            break;
+        case ArenaStorageKind.virtualMemory:
+            arena.storage_.data.virtualMemory.offset = temporary.offset_;
+            break;
     }
 
     --arena.scopeDepth;
@@ -622,8 +998,11 @@ void pop(ref TempArena temporary)
 unittest
 {
     import xtb.core.allocators.malloc : mallocAllocator;
+    import xtb.core.lifetime : move, moveAssign;
 
     Arena arena = Arena.create(mallocAllocator(), 64);
+    assert(arena.storage_.kind == ArenaStorageKind.chunked);
+    assert(*arena.allocator == &chunkedArenaAllocatorProcedure);
     int* persistent = arena.allocate!int();
     *persistent = 42;
 
@@ -638,6 +1017,7 @@ unittest
     assert(arena.stats.usedBytes >= int.sizeof);
     assert(arena.stats.peakUsedBytes >= arena.stats.usedBytes);
     assert(arena.stats.chunkCount >= 1);
+    assert(arena.stats.committedBytes == arena.stats.reservedBytes);
 
     int* typed = arena.allocate!int();
     *typed = 17;
@@ -679,11 +1059,22 @@ unittest
     Constructed* constructed = arena.create!Constructed(91);
     assert(constructed.value == 91);
 
-    import xtb.core.memory : allocateInit;
+    import xtb.core.memory : allocateInit, reallocate;
 
     Allocator* arenaAllocator = arena.allocator;
     int* throughAllocator = arenaAllocator.allocateInit!int();
     assert(*throughAllocator == int.init);
+    ubyte* allocatorBytes = cast(ubyte*) arenaAllocator.allocate(4, 1);
+    allocatorBytes[0] = 0x12;
+    allocatorBytes[3] = 0x34;
+    ubyte* reallocatedBytes = cast(ubyte*) arenaAllocator.reallocate(
+        8,
+        allocatorBytes,
+        4,
+        1,
+    );
+    assert(reallocatedBytes[0] == 0x12);
+    assert(reallocatedBytes[3] == 0x34);
 
     arena.setRewindPoisoning(true);
     TempArena poisoned = (&arena).push();
@@ -694,6 +1085,162 @@ unittest
     arena.setRetentionLimit(64);
     arena.trim();
     arena.deinit();
+    assert(arena.storage_.kind == ArenaStorageKind.none);
+
+    version (linux)
+    {
+        const pageSize = virtualMemoryPageSize();
+        assert(pageSize != 0);
+
+        Arena virtualArena = Arena.createVirtual(
+            pageSize * 8,
+            pageSize * 2,
+        );
+        assert(virtualArena.storage_.kind == ArenaStorageKind.virtualMemory);
+        assert(*virtualArena.allocator == &virtualArenaAllocatorProcedure);
+        ArenaStats initialVirtualStats = virtualArena.stats;
+        assert(initialVirtualStats.usedBytes == 0);
+        assert(initialVirtualStats.reservedBytes == pageSize * 8);
+        assert(initialVirtualStats.committedBytes == 0);
+        assert(initialVirtualStats.chunkCount == 0);
+
+        ubyte* firstVirtual = cast(ubyte*) virtualArena.allocate(1, 1);
+        assert(firstVirtual !is null);
+        *firstVirtual = 0x7B;
+        assert(virtualArena.stats.committedBytes == pageSize * 2);
+
+        TempArena virtualTemporary = (&virtualArena).push();
+        ubyte* temporaryBytes = cast(ubyte*) virtualArena.allocate(
+            pageSize * 2,
+            1,
+        );
+        temporaryBytes[0] = 0x42;
+        const committedHighWater = virtualArena.stats.committedBytes;
+        virtualTemporary.pop();
+        assert(*firstVirtual == 0x7B);
+        assert(virtualArena.stats.committedBytes == committedHighWater);
+
+        ubyte* reusedTemporary = cast(ubyte*) virtualArena.allocate(
+            pageSize * 2,
+            1,
+        );
+        assert(reusedTemporary is temporaryBytes);
+
+        virtualArena.setRewindPoisoning(true);
+        TempArena poisonedVirtual = (&virtualArena).push();
+        ubyte* poisonedVirtualBytes = cast(ubyte*) virtualArena.allocate(8, 1);
+        poisonedVirtualBytes[0] = 1;
+        poisonedVirtual.pop();
+        assert(poisonedVirtualBytes[0] == 0xDD);
+        virtualArena.setRewindPoisoning(false);
+
+        virtualArena.clear();
+        assert(virtualArena.stats.usedBytes == 0);
+        assert(virtualArena.stats.committedBytes == committedHighWater);
+        virtualArena.setRetentionLimit(pageSize);
+        assert(virtualArena.stats.committedBytes == pageSize);
+
+        TempArena retainedVirtual = (&virtualArena).push();
+        assert(virtualArena.allocate(pageSize * 3, 1) !is null);
+        assert(virtualArena.stats.committedBytes > pageSize);
+        retainedVirtual.pop();
+        assert(virtualArena.stats.usedBytes == 0);
+        assert(virtualArena.stats.committedBytes == pageSize);
+
+        ubyte* beforeTrim = cast(ubyte*) virtualArena.allocate(1, 1);
+        beforeTrim[0] = 0xA5;
+        virtualArena.clear();
+        virtualArena.trim();
+        assert(virtualArena.stats.committedBytes == 0);
+        ubyte* afterTrim = cast(ubyte*) virtualArena.allocate(1, 1);
+        assert(afterTrim is beforeTrim);
+        assert(afterTrim[0] == 0);
+
+        Allocator* virtualAllocator = virtualArena.allocator;
+        int* throughVirtualAllocator = virtualAllocator.allocateInit!int();
+        assert(*throughVirtualAllocator == int.init);
+        ubyte* virtualAllocatorBytes = cast(ubyte*) virtualAllocator.allocate(4, 1);
+        virtualAllocatorBytes[0] = 0x56;
+        virtualAllocatorBytes[3] = 0x78;
+        ubyte* virtualReallocatedBytes = cast(ubyte*) virtualAllocator.reallocate(
+            8,
+            virtualAllocatorBytes,
+            4,
+            1,
+        );
+        assert(virtualReallocatedBytes[0] == 0x56);
+        assert(virtualReallocatedBytes[3] == 0x78);
+
+        virtualArena.deinit();
+        assert(virtualArena.storage_.kind == ArenaStorageKind.none);
+        assert(virtualArena.stats.reservedBytes == 0);
+        assert(virtualArena.stats.committedBytes == 0);
+        virtualArena.deinit();
+
+        Arena tinyVirtual;
+        assert(Arena.tryCreateVirtual(
+                pageSize * 2,
+                pageSize,
+                &tinyVirtual,
+        ));
+        assert(tinyVirtual.tryAllocate(pageSize * 2, 1) !is null);
+        const fullStats = tinyVirtual.stats;
+        assert(fullStats.usedBytes == pageSize * 2);
+        assert(fullStats.committedBytes == pageSize * 2);
+        assert(tinyVirtual.tryAllocate(1, 1) is null);
+        assert(tinyVirtual.stats.usedBytes == fullStats.usedBytes);
+        tinyVirtual.deinit();
+
+        Arena roundedVirtual = Arena.createVirtual(
+            pageSize * 4 + 1,
+            pageSize + 1,
+        );
+        assert(roundedVirtual.stats.reservedBytes == pageSize * 5);
+        assert(roundedVirtual.allocate(1, 1) !is null);
+        assert(roundedVirtual.stats.committedBytes == pageSize * 2);
+        roundedVirtual.deinit();
+
+        Arena failedVirtual;
+        assert(!Arena.tryCreateVirtual(size_t.max, &failedVirtual));
+        assert(failedVirtual.stats.reservedBytes == 0);
+        failedVirtual.deinit();
+
+        Arena movingVirtual = Arena.createVirtual(pageSize * 2, pageSize);
+        int* movedValue = movingVirtual.allocate!int();
+        *movedValue = 77;
+        Arena movedVirtual = move(movingVirtual);
+        assert(movingVirtual.storage_.kind == ArenaStorageKind.none);
+        assert(*movingVirtual.allocator is null);
+        assert(movedVirtual.storage_.kind == ArenaStorageKind.virtualMemory);
+        assert(*movedVirtual.allocator == &virtualArenaAllocatorProcedure);
+        assert(movingVirtual.stats.reservedBytes == 0);
+        assert(*movedValue == 77);
+        movingVirtual.deinit();
+        movedVirtual.deinit();
+
+        Arena replacementTarget = Arena.create(mallocAllocator(), 64);
+        assert(*replacementTarget.allocator == &chunkedArenaAllocatorProcedure);
+        replacementTarget.allocate(8, 8);
+        Arena replacementSource = Arena.createVirtual(pageSize * 2, pageSize);
+        int* replacementValue = replacementSource.allocate!int();
+        *replacementValue = 23;
+        moveAssign(replacementSource, replacementTarget);
+        assert(replacementSource.stats.reservedBytes == 0);
+        assert(*replacementSource.allocator is null);
+        assert(*replacementTarget.allocator == &virtualArenaAllocatorProcedure);
+        assert(replacementTarget.stats.chunkCount == 0);
+        assert(replacementTarget.stats.reservedBytes == pageSize * 2);
+        assert(*replacementValue == 23);
+        replacementSource.deinit();
+        replacementTarget.deinit();
+    }
+    else
+    {
+        Arena unavailableVirtual;
+        assert(!Arena.tryCreateVirtual(4096, &unavailableVirtual));
+        assert(unavailableVirtual.stats.reservedBytes == 0);
+        unavailableVirtual.deinit();
+    }
 
     struct ArenaConstructed
     {
@@ -759,6 +1306,26 @@ unittest
     assert(destructorCalls == 8);
     destructorArena.deinit();
 
+    version (linux)
+    {
+        int virtualDestructorCalls;
+        const virtualDestructorPageSize = virtualMemoryPageSize();
+        Arena virtualDestructorArena = Arena.createVirtual(
+            virtualDestructorPageSize * 2,
+            virtualDestructorPageSize,
+        );
+        virtualDestructorArena.create!ArenaConstructed(
+            &virtualDestructorCalls,
+        );
+        virtualDestructorArena.clear();
+        assert(virtualDestructorCalls == 0);
+        virtualDestructorArena.create!ArenaConstructed(
+            &virtualDestructorCalls,
+        );
+        virtualDestructorArena.deinit();
+        assert(virtualDestructorCalls == 0);
+    }
+
     static assert(hasElaborateDestructor!ArenaConstructed);
     static assert(__traits(compiles, (ref Arena value) {
             value.create!ArenaConstructed(cast(int*) null);
@@ -770,6 +1337,7 @@ unittest
 
     static assert(!hasElaborateDestructor!Arena);
     static assert(needsDeinit!Arena);
+    static assert(__traits(compiles, (ref Arena value) @safe { ArenaStats snapshot = value.stats(); }));
     static assert(!__traits(compiles, (ref Arena left, ref Arena right) { left = right; }));
 
     int explicitDeinits;
