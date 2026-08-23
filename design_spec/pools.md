@@ -938,6 +938,11 @@ Reasons:
 
 No heap allocation, GC, runtime polymorphism, or virtual dispatch is required.
 
+Both mutable and const Pools expose the same three names. Const ranges yield
+`ref const(T)` or const slot proxies. The ranges themselves are small copyable
+input-range values; copying a range copies cursor state and creates an independent
+traversal position.
+
 ## 9.1 `items()`
 
 The common hot path.
@@ -989,10 +994,10 @@ This range yields only live slots while exposing identity metadata.
 Plain Pool proxy:
 
 ```d
-struct OccupiedPoolSlot(T)
+struct PoolOccupiedSlot(T)
 {
     uint index() const;
-    ref T value() return;
+    ref T value() @system return;
 }
 ```
 
@@ -1038,7 +1043,7 @@ struct PoolSlot(T)
     uint index() const;
     bool occupied() const;
 
-    ref T value() return;       // requires occupied
+    ref T value() @system return;   // checked: requires occupied
     ref T storage() @system return;
 }
 ```
@@ -1091,7 +1096,15 @@ Structural Pool mutations invalidate outstanding ranges:
 
 Mutating a live `T` through a yielded `ref` does not invalidate the range.
 
-In `XTB_Checked`, Pool may maintain a checked-only mutation generation captured by ranges to diagnose use after structural mutation. This state must compile out of unchecked/release-fast builds.
+In `XTB_Checked`, Pool maintains a checked-only mutation generation captured by
+ranges and slot proxies. Validation also snapshots the value-region base. The
+generation catches occupancy/provisioning changes, while the base snapshot catches
+owner move/deinit or move-assignment. All of this diagnostic state compiles out of
+unchecked/release-fast builds.
+
+A slot proxy's occupancy is a snapshot from `front`; structural mutation invalidates
+the proxy just as it invalidates the parent range. Checked access to `occupied`,
+`value`, or `storage` diagnoses that invalidation. `index` remains plain metadata.
 
 ---
 

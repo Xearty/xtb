@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress. Steps 1–5 of 8 are complete and verified.**
+**Implementation in progress. Steps 1–6 of 8 are complete and verified.**
 
 This is the execution plan for `design_spec/pools.md`. The design document is
 authoritative for semantics; this document defines implementation order,
@@ -283,9 +283,9 @@ Acceptance coverage:
 
 Commit target: `feat(core): add fixed-capacity virtual pool`.
 
-## Step 6 — Pool ranges
+## Step 6 — Pool ranges — COMPLETE
 
-Add three allocation-free range APIs:
+Added three allocation-free range APIs with mutable and const overloads:
 
 ```d
 pool.items()
@@ -293,33 +293,59 @@ pool.occupiedSlots()
 pool.slots()
 ```
 
-`items()` is the hottest path and yields `ref T` directly.
+Implemented contract:
 
-`items()` and `occupiedSlots()` share optimized bitmap traversal: load a machine
-word, skip zero words, use trailing-zero/set-bit removal to visit only live
-indices.
+- `items()` is the hottest path and yields `ref T` directly (or
+  `ref const(T)` from a const Pool), with no item proxy;
+- `items()` and `occupiedSlots()` share one bitmap cursor that loads a machine
+  word, skips zero words, finds the next live index with `bsf`, and clears the
+  visited bit from the cursor copy with `bits &= bits - 1`;
+- `occupiedSlots()` yields a lightweight slot proxy exposing the stable index
+  and live value by reference;
+- `slots()` walks `[1 .. values.provisionedLength)`, not maximum capacity and
+  not `nextIndex`, so it includes inactive preserved representations after
+  deallocation/clear without touching the inaccessible capacity tail;
+- slot proxies expose `index`, `occupied`, checked live `value`, and raw
+  `storage`; `value`/`storage` are `@system` because callers must respect the
+  value-lifetime contract;
+- ranges are ordinary copyable input ranges, so independent cursors can be
+  paused/copied without allocation or hidden ownership;
+- allocation, deallocation/disposal, clear, and deinit invalidate ranges;
+- checked builds carry a Pool mutation generation and range/proxy owner/base
+  snapshots, diagnosing structural mutation as well as owner move/deinit;
+- the mutation generation and all range/proxy invalidation fields compile out
+  when `XTB_Checked` is absent; value mutation through yielded refs does not
+  invalidate traversal.
 
-`occupiedSlots()` yields a lightweight proxy exposing index plus `ref T`.
+Implementation refinement:
 
-`slots()` walks every deliberately provisioned slot, including inactive slots,
-and exposes index, occupancy, checked live `value`, and raw representation
-`storage` access. It must not scan the full maximum capacity when only a small
-prefix has ever been provisioned.
+The checked validity token uses both a mutation generation and the captured
+value-region base. The generation catches in-place structural mutation; the
+base snapshot additionally catches owner move/deinit and move-assignment even
+when two independently created Pools happen to have the same generation value.
+No equivalent state exists in release-fast.
 
-Checked builds should diagnose structural invalidation of an active range if a
-small checked-only mutation generation is sufficient; no such bookkeeping
-belongs in release-fast unless required for semantics.
+Acceptance coverage:
 
-Acceptance gate:
-
-- empty/dense/sparse traversal;
-- stable order;
-- mutation through returned refs;
-- inactive slot representation access;
-- early termination/manual range use;
-- multiple independent ranges;
-- optimized-code comparison/benchmark against the equivalent handwritten bitmap
-  loop to ensure the range abstraction disappears.
+- empty, dense, sparse, and multiple-word traversal;
+- an entirely empty bitmap word between live values, proving zero-word skip;
+- stable ascending index order;
+- mutation through `items()` and occupied-slot value refs;
+- inactive representation access through `slots().storage`;
+- `slots()` stopping at provisioned high-water rather than fixed capacity;
+- behavior after shallow `clear`;
+- manual `empty/front/popFront` use and multiple independent ranges;
+- mutable and const range overloads;
+- checked death tests for structural mutation, owner move, escaped occupied-slot
+  proxy invalidation, and inactive `slot.value`;
+- release-fast core unittest compilation proving checked generation state is
+  absent;
+- optimized LDC code-generation comparison: a `foreach` over `pool.items()`
+  fully inlines range operations and emits the same `bsf` plus `bits &= bits-1`
+  inner loop as an equivalent handwritten bitmap traversal, with no range-method
+  call in the hot loop;
+- full debug suite, focused ASan core, release-safe/release-fast library builds,
+  formatter/linter/diff checks.
 
 Commit target: `feat(core): add pool slot and item ranges`.
 

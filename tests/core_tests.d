@@ -170,6 +170,48 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             ulong* value = pool.allocateInit();
             pool.deallocate(cast(ulong*)(cast(ubyte*) value + 1));
         }
+        if (cStringEqual(name, "pool-range-invalidated"))
+        {
+            Pool!int pool = Pool!int.create(3);
+            scope (exit)
+                pool.deinit();
+            pool.allocateInit();
+            auto range = pool.items();
+            pool.allocateInit();
+            cast(void) range.empty;
+        }
+        if (cStringEqual(name, "pool-range-moved"))
+        {
+            Pool!int pool = Pool!int.create(2);
+            pool.allocateInit();
+            auto range = pool.items();
+            Pool!int moved = move(pool);
+            scope (exit)
+                moved.deinit();
+            cast(void) range.empty;
+        }
+        if (cStringEqual(name, "pool-slot-invalidated"))
+        {
+            Pool!int pool = Pool!int.create(2);
+            scope (exit)
+                pool.deinit();
+            int* value = pool.allocateInit();
+            auto range = pool.occupiedSlots();
+            auto slot = range.front;
+            pool.deallocate(value);
+            cast(void) slot.value;
+        }
+        if (cStringEqual(name, "pool-inactive-slot-value"))
+        {
+            Pool!int pool = Pool!int.create(2);
+            scope (exit)
+                pool.deinit();
+            int* value = pool.allocateInit();
+            pool.deallocate(value);
+            auto range = pool.slots();
+            auto slot = range.front;
+            cast(void) slot.value;
+        }
     }
     if (cStringEqual(name, "string-split-slice"))
         "é".sliceBytes(1, 2);
@@ -563,6 +605,10 @@ extern (C) int main(int argumentCount, char** arguments)
             expectDeath(arguments[0], "pool-double-free");
             expectDeath(arguments[0], "pool-foreign-free");
             expectDeath(arguments[0], "pool-misaligned-free");
+            expectDeath(arguments[0], "pool-range-invalidated");
+            expectDeath(arguments[0], "pool-range-moved");
+            expectDeath(arguments[0], "pool-slot-invalidated");
+            expectDeath(arguments[0], "pool-inactive-slot-value");
         }
         expectDeath(arguments[0], "string-split-slice");
         expectDeath(arguments[0], "string-split-insert");
