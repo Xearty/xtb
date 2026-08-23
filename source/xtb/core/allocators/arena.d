@@ -32,18 +32,54 @@ private struct ArenaChunk
 
 private struct ChunkedArenaStorage
 {
+nothrow @nogc:
+
     Allocator* backingAllocator;
     ArenaChunk* firstChunk;
     ArenaChunk* currentChunk;
     size_t defaultChunkSize;
+
+    void deinit()
+    {
+        releaseChunks(firstChunk);
+        backingAllocator = null;
+        firstChunk = null;
+        currentChunk = null;
+        defaultChunkSize = 0;
+    }
+
+    void releaseChunks(ArenaChunk* first)
+    {
+        ArenaChunk* chunk = first;
+        while (chunk !is null)
+        {
+            ArenaChunk* next = chunk.next;
+            backingAllocator.deallocate(
+                chunk,
+                chunk.allocationSize,
+                ArenaChunk.alignof,
+            );
+            chunk = next;
+        }
+    }
 }
 
 private struct VirtualArenaStorage
 {
+nothrow @nogc:
+
     VirtualMemoryReservation reservation;
     size_t committedBytes;
     size_t commitGranularity;
     size_t pageSize;
+
+    void deinit() @system
+    {
+        structuralDeinit(reservation);
+        committedBytes = 0;
+        commitGranularity = 0;
+        pageSize = 0;
+    }
 }
 
 private union ArenaStorage
@@ -63,6 +99,8 @@ private struct ArenaStorageState
     ArenaStorage data;
 }
 
+static assert(needsDeinit!ChunkedArenaStorage);
+static assert(needsDeinit!VirtualArenaStorage);
 static assert(needsDeinit!ArenaStorageState);
 
 struct ArenaStats
@@ -418,8 +456,6 @@ nothrow @nogc:
         version (XTB_Checked)
             require(scopeDepth == 0, "cannot destroy arena with active temporary scopes");
 
-        if (storage_.kind == ArenaStorageKind.chunked)
-            releaseChunks(storage_.data.chunked.firstChunk);
         structuralDeinit(storage_);
         emplace(&storage_);
 
@@ -489,11 +525,11 @@ nothrow @nogc:
                 ArenaChunk* keep = storage_.data.chunked.currentChunk;
                 if (keep is null)
                 {
-                    releaseChunks(storage_.data.chunked.firstChunk);
+                    storage_.data.chunked.releaseChunks(storage_.data.chunked.firstChunk);
                     storage_.data.chunked.firstChunk = null;
                     return;
                 }
-                releaseChunks(keep.next);
+                storage_.data.chunked.releaseChunks(keep.next);
                 keep.next = null;
                 return;
             }
@@ -548,21 +584,6 @@ nothrow @nogc:
             chunk = next;
         }
         previous.next = chunk;
-    }
-
-    private void releaseChunks(ArenaChunk* first)
-    {
-        ArenaChunk* chunk = first;
-        while (chunk !is null)
-        {
-            ArenaChunk* next = chunk.next;
-            storage_.data.chunked.backingAllocator.deallocate(
-                chunk,
-                chunk.allocationSize,
-                ArenaChunk.alignof,
-            );
-            chunk = next;
-        }
     }
 
     private void* tryAllocateChunked(size_t size, size_t alignment)
