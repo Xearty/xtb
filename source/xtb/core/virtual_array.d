@@ -159,7 +159,7 @@ public:
     ///
     /// Only elements in `[0 .. length)` may be dereferenced by public callers;
     /// the remaining reserved tail may still be inaccessible.
-    T* ptr() return @system
+    inout(T)* ptr() inout return @system
     {
         return data_;
     }
@@ -180,12 +180,7 @@ public:
     }
 
     /// Returns only the logical, committed prefix.
-    T[] slice() return @system
-    {
-        return data_[0 .. length_];
-    }
-
-    const(T)[] slice() const return @system
+    inout(T)[] slice() inout return @system
     {
         return data_[0 .. length_];
     }
@@ -290,14 +285,7 @@ public:
     }
 
     /// Returns a reference to the last logical element.
-    ref T back() return @system
-    {
-        version (XTB_Checked)
-            require(length_ != 0, "cannot access back of empty VirtualArray");
-        return data_[length_ - 1];
-    }
-
-    ref const(T) back() const return @system
+    ref inout(T) back() inout return @system
     {
         version (XTB_Checked)
             require(length_ != 0, "cannot access back of empty VirtualArray");
@@ -346,14 +334,7 @@ public:
             panic("VirtualArray decommit failed");
     }
 
-    ref T opIndex(size_t index) return @system
-    {
-        version (XTB_Checked)
-            require(index < length_, "VirtualArray index out of bounds");
-        return data_[index];
-    }
-
-    ref const(T) opIndex(size_t index) const return @system
+    ref inout(T) opIndex(size_t index) inout return @system
     {
         version (XTB_Checked)
             require(index < length_, "VirtualArray index out of bounds");
@@ -497,7 +478,7 @@ public:
     /// Only `[0 .. provisionedLength)` is promised by the view to have
     /// accessible storage. Extra elements may happen to fit in page-rounded
     /// committed bytes but are not provisioned by that fact alone.
-    T* ptr() return @system
+    inout(T)* ptr() inout return @system
     {
         return data_;
     }
@@ -520,6 +501,15 @@ public:
     size_t committedBytes() const pure @safe
     {
         return committedBytes_;
+    }
+
+    /// Accesses one deliberately provisioned raw-storage element.
+    ref inout(T) opIndex(size_t index) inout return @system
+    {
+        version (XTB_Checked)
+            require(index < provisionedLength_,
+                "VirtualArrayView index out of bounds");
+        return data_[index];
     }
 
     bool inert() const pure @safe
@@ -850,6 +840,17 @@ unittest
             VirtualArray!int value;
             cast(void) value.ptr;
         }));
+    static assert(__traits(compiles, (ref const(VirtualArray!int) value)
+            nothrow @nogc @system {
+            const(int)* pointer = value.ptr;
+            const(int)[] values = value.slice;
+            ref const(int) back = value.back();
+            ref const(int) indexed = value[0];
+            cast(void) pointer;
+            cast(void) values;
+            cast(void) back;
+            cast(void) indexed;
+        }));
 
     VirtualArray!int zero;
     assert(VirtualArray!int.tryCreate(0, &zero));
@@ -1086,6 +1087,13 @@ unittest
             VirtualArrayView!int view;
             cast(void) view.ptr;
         }));
+    static assert(__traits(compiles, (ref const(VirtualArrayView!int) view)
+            nothrow @nogc @system {
+            const(int)* pointer = view.ptr;
+            ref const(int) indexed = view[0];
+            cast(void) pointer;
+            cast(void) indexed;
+        }));
 
     VirtualArrayView!int zero;
     assert(VirtualArrayView!int.tryCreate(
@@ -1156,13 +1164,13 @@ unittest
         first.ptr[pageSize] = 0xa5;
         assert(first.tryEnsureAccessible(pageSize + 1));
         assert(first.provisionedLength == pageSize + 1);
-        assert(first.ptr[pageSize] == 0xa5);
+        assert(first[pageSize] == 0xa5);
 
         assert(second.tryEnsureAccessible(pageSize + 1));
         assert(second.provisionedLength == pageSize + 1);
         assert(second.committedBytes == pageSize * 2);
-        second.ptr[0] = 0x22;
-        assert(first.ptr[0] == 0);
+        second[0] = 0x22;
+        assert(first[0] == 0);
 
         // A separate view can trim its committed suffix without changing the
         // adjacent region or its own provisioned element high-water.
@@ -1179,9 +1187,9 @@ unittest
         trimming.trim();
         assert(trimming.provisionedLength == 1);
         assert(trimming.committedBytes == pageSize);
-        assert(second.ptr[0] == 0x22);
+        assert(second[0] == 0x22);
         assert(trimming.tryEnsureAccessible(pageSize + 1));
-        assert(trimming.ptr[pageSize] == 0);
+        assert(trimming[pageSize] == 0);
 
         // Moving the reservation owner does not invalidate borrowed views;
         // the region stores the stable mapped address rather than owner state.
@@ -1282,8 +1290,8 @@ unittest
             alignedView.deinit();
         assert(cast(size_t) alignedView.ptr % OverAlignedViewValue.alignof == 0);
         assert(alignedView.tryEnsureAccessible(1));
-        alignedView.ptr[0].value = 9;
-        assert(alignedView.ptr[0].value == 9);
+        alignedView[0].value = 9;
+        assert(alignedView[0].value == 9);
 
         if (alignedOffset + pageSize + alignedRegionBytes <=
             alignedReservation.reservedBytes)

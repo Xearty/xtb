@@ -162,7 +162,7 @@ public:
         if (freeCount_ != 0)
         {
             const stackIndex = freeCount_ - 1;
-            index = freeIndices_.ptr[stackIndex];
+            index = freeIndices_[stackIndex];
             --freeCount_;
 
             version (XTB_Checked)
@@ -262,7 +262,7 @@ public:
         }
 
         setOccupied(index, false);
-        freeIndices_.ptr[freeCount_] = index;
+        freeIndices_[freeCount_] = index;
         ++freeCount_;
         --liveCount_;
         version (XTB_Checked)
@@ -434,7 +434,7 @@ private:
         if (wordIndex >= occupiedWords_.provisionedLength)
             return false;
 
-        return (occupiedWords_.ptr[wordIndex] & occupiedBit(index)) != 0;
+        return (occupiedWords_[wordIndex] & occupiedBit(index)) != 0;
     }
 
     void setOccupied(uint index, bool value) @trusted
@@ -442,9 +442,9 @@ private:
         const wordIndex = occupiedWordIndex(index);
         const bit = occupiedBit(index);
         if (value)
-            occupiedWords_.ptr[wordIndex] |= bit;
+            occupiedWords_[wordIndex] |= bit;
         else
-            occupiedWords_.ptr[wordIndex] &= ~bit;
+            occupiedWords_[wordIndex] &= ~bit;
     }
 
     uint physicalIndex(scope const T* value) const @trusted

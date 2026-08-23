@@ -187,7 +187,7 @@ public:
         if (freeCount_ != 0)
         {
             const stackIndex = freeCount_ - 1;
-            index = freeIndices_.ptr[stackIndex];
+            index = freeIndices_[stackIndex];
             --freeCount_;
 
             version (XTB_Checked)
@@ -196,7 +196,7 @@ public:
                     "GenerationalPool free-index stack is corrupt");
                 require(index < states_.provisionedLength,
                     "GenerationalPool free-index stack exceeds provisioned state");
-                require(!stateActive(states_.ptr[index]),
+                require(!stateActive(states_[index]),
                     "GenerationalPool free-index stack contains an active slot");
             }
         }
@@ -211,8 +211,8 @@ public:
             ++nextIndex_;
         }
 
-        const activeState = activateState(states_.ptr[index]);
-        states_.ptr[index] = activeState;
+        const activeState = activateState(states_[index]);
+        states_[index] = activeState;
         ++liveCount_;
         version (XTB_Checked)
             ++mutationGeneration_;
@@ -351,8 +351,8 @@ public:
             return false;
 
         const index = handle.index;
-        states_.ptr[index] = deactivateAndAdvance(states_.ptr[index]);
-        freeIndices_.ptr[freeCount_] = index;
+        states_[index] = deactivateAndAdvance(states_[index]);
+        freeIndices_[freeCount_] = index;
         ++freeCount_;
         --liveCount_;
         version (XTB_Checked)
@@ -396,9 +396,9 @@ public:
         const provisioned = states_.provisionedLength;
         foreach (index; 1 .. provisioned)
         {
-            const state = states_.ptr[index];
+            const state = states_[index];
             if (stateActive(state))
-                states_.ptr[index] = deactivateAndAdvance(state);
+                states_[index] = deactivateAndAdvance(state);
         }
 
         freeCount_ = 0;
@@ -465,7 +465,7 @@ private:
         if (index >= states_.provisionedLength)
             return false;
 
-        const state = states_.ptr[index];
+        const state = states_[index];
         return stateActive(state) && stateGeneration(state) == handle.generation;
     }
 
@@ -1308,10 +1308,10 @@ unittest
     assert(sentinel == IntHandle(77, 88));
 
     // Exercise generation wrap through the public deallocation path.
-    pool.states_.ptr[recycled.index] = activeBit | generationMask;
+    pool.states_[recycled.index] = activeBit | generationMask;
     IntHandle wrapHandle = IntHandle(recycled.index, generationMask);
     assert(pool.tryDeallocate(wrapHandle));
-    assert(pool.states_.ptr[wrapHandle.index] == 0);
+    assert(pool.states_[wrapHandle.index] == 0);
     IntHandle wrapped = pool.allocate();
     assert(wrapped.index == wrapHandle.index);
     assert(wrapped.generation == 0);
