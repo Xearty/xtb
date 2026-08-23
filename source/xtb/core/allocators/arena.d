@@ -41,7 +41,6 @@ private struct ChunkedArenaStorage
 private struct VirtualArenaStorage
 {
     VirtualMemoryReservation reservation;
-    size_t offset;
     size_t committedBytes;
     size_t commitGranularity;
     size_t pageSize;
@@ -406,7 +405,6 @@ nothrow @nogc:
                 storage_.data.chunked.currentChunk = storage_.data.chunked.firstChunk;
                 break;
             case ArenaStorageKind.virtualMemory:
-                storage_.data.virtualMemory.offset = 0;
                 break;
         }
 
@@ -500,7 +498,7 @@ nothrow @nogc:
                 return;
             }
             case ArenaStorageKind.virtualMemory:
-                trimVirtualTo(storage_.data.virtualMemory.offset);
+                trimVirtualTo(usedBytes_);
                 return;
         }
     }
@@ -513,8 +511,8 @@ nothrow @nogc:
                 return;
 
             size_t retainBytes = retentionLimit;
-            if (retainBytes < storage_.data.virtualMemory.offset)
-                retainBytes = storage_.data.virtualMemory.offset;
+            if (retainBytes < usedBytes_)
+                retainBytes = usedBytes_;
             if (retainBytes > storage_.data.virtualMemory.reservation.reservedBytes)
                 retainBytes = storage_.data.virtualMemory.reservation.reservedBytes;
             trimVirtualTo(retainBytes);
@@ -599,11 +597,11 @@ nothrow @nogc:
             return null;
 
         const baseAddress = cast(size_t) basePointer;
-        if (storage_.data.virtualMemory.offset > size_t.max - baseAddress)
+        if (usedBytes_ > size_t.max - baseAddress)
             return null;
 
         size_t alignedAddress;
-        if (!alignUp(baseAddress + storage_.data.virtualMemory.offset, alignment, &alignedAddress))
+        if (!alignUp(baseAddress + usedBytes_, alignment, &alignedAddress))
             return null;
         const alignedOffset = alignedAddress - baseAddress;
         const reservedBytes = storage_.data.virtualMemory.reservation.reservedBytes;
@@ -615,9 +613,7 @@ nothrow @nogc:
             return null;
 
         void* result = cast(ubyte*) basePointer + alignedOffset;
-        const occupied = endOffset - storage_.data.virtualMemory.offset;
-        storage_.data.virtualMemory.offset = endOffset;
-        usedBytes_ += occupied;
+        usedBytes_ = endOffset;
         if (usedBytes_ > peakUsedBytes_)
             peakUsedBytes_ = usedBytes_;
         return result;
@@ -865,7 +861,7 @@ nothrow @nogc:
 
     private Arena* arena_;
     private ArenaChunk* chunk_;
-    private size_t offset_;
+    private size_t chunkOffset_;
     private size_t usedBytes_;
     version (XTB_Checked)
     {
@@ -908,10 +904,9 @@ TempArena push(Arena* arena)
             break;
         case ArenaStorageKind.chunked:
             result.chunk_ = arena.storage_.data.chunked.currentChunk;
-            result.offset_ = result.chunk_ is null ? 0 : result.chunk_.offset;
+            result.chunkOffset_ = result.chunk_ is null ? 0 : result.chunk_.offset;
             break;
         case ArenaStorageKind.virtualMemory:
-            result.offset_ = arena.storage_.data.virtualMemory.offset;
             break;
     }
     ++arena.scopeDepth;
@@ -957,7 +952,7 @@ void pop(ref TempArena temporary)
                     for (; chunk !is null; chunk = chunk.next)
                     {
                         const begin = first && temporary.chunk_ !is null
-                            ? temporary.offset_ : 0;
+                            ? temporary.chunkOffset_ : 0;
                         if (chunk.offset > begin)
                             memset(chunk.data + begin, 0xDD, chunk.offset - begin);
                         first = false;
@@ -965,12 +960,12 @@ void pop(ref TempArena temporary)
                     break;
                 }
                 case ArenaStorageKind.virtualMemory:
-                    if (arena.storage_.data.virtualMemory.offset > temporary.offset_)
+                    if (arena.usedBytes_ > temporary.usedBytes_)
                         memset(
                             cast(ubyte*) arena.storage_.data.virtualMemory.reservation.base +
-                                temporary.offset_,
+                                temporary.usedBytes_,
                             0xDD,
-                            arena.storage_.data.virtualMemory.offset - temporary.offset_,
+                            arena.usedBytes_ - temporary.usedBytes_,
                         );
                     break;
             }
@@ -991,14 +986,13 @@ void pop(ref TempArena temporary)
             }
             else
             {
-                temporary.chunk_.offset = temporary.offset_;
+                temporary.chunk_.offset = temporary.chunkOffset_;
                 for (ArenaChunk* chunk = temporary.chunk_.next; chunk !is null; chunk = chunk.next)
                     chunk.offset = 0;
                 arena.storage_.data.chunked.currentChunk = temporary.chunk_;
             }
             break;
         case ArenaStorageKind.virtualMemory:
-            arena.storage_.data.virtualMemory.offset = temporary.offset_;
             break;
     }
 
@@ -1008,7 +1002,7 @@ void pop(ref TempArena temporary)
         arena.trimToRetentionLimit();
     temporary.arena_ = null;
     temporary.chunk_ = null;
-    temporary.offset_ = 0;
+    temporary.chunkOffset_ = 0;
     temporary.usedBytes_ = 0;
     version (XTB_Checked)
     {
@@ -1023,6 +1017,10 @@ unittest
 {
     import xtb.core.allocators.malloc : mallocAllocator;
     import xtb.core.lifetime : move, moveAssign;
+
+    static assert(!__traits(hasMember, VirtualArenaStorage, "offset"));
+    static assert(!__traits(hasMember, TempArena, "offset_"));
+    static assert(__traits(hasMember, TempArena, "chunkOffset_"));
 
     version (XTB_Checked)
     {
