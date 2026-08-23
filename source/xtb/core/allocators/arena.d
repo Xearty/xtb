@@ -586,6 +586,39 @@ nothrow @nogc:
         previous.next = chunk;
     }
 
+    private void* tryResizeLastChunked(
+        void* oldPointer,
+        size_t oldSize,
+        size_t newSize,
+        size_t alignment,
+    ) @system
+    {
+        ArenaChunk* chunk = storage_.data.chunked.currentChunk;
+        if (chunk is null || oldPointer is null || oldSize == 0 ||
+            (cast(size_t) oldPointer & (alignment - 1)) != 0)
+            return null;
+
+        const baseAddress = cast(size_t) chunk.data;
+        const oldAddress = cast(size_t) oldPointer;
+        if (oldAddress < baseAddress)
+            return null;
+        const oldOffset = oldAddress - baseAddress;
+        if (oldOffset > chunk.offset || oldSize != chunk.offset - oldOffset)
+            return null;
+        if (oldOffset > chunk.capacity || newSize > chunk.capacity - oldOffset)
+            return null;
+
+        const newOffset = oldOffset + newSize;
+        if (newSize >= oldSize)
+            usedBytes_ += newSize - oldSize;
+        else
+            usedBytes_ -= oldSize - newSize;
+        chunk.offset = newOffset;
+        if (usedBytes_ > peakUsedBytes_)
+            peakUsedBytes_ = usedBytes_;
+        return oldPointer;
+    }
+
     private void* tryAllocateChunked(size_t size, size_t alignment)
     {
         ArenaChunk* chunk = storage_.data.chunked.currentChunk;
@@ -609,6 +642,39 @@ nothrow @nogc:
         if (usedBytes_ > peakUsedBytes_)
             peakUsedBytes_ = usedBytes_;
         return result;
+    }
+
+    private void* tryResizeLastVirtual(
+        void* oldPointer,
+        size_t oldSize,
+        size_t newSize,
+        size_t alignment,
+    ) @system
+    {
+        void* basePointer = storage_.data.virtualMemory.reservation.base;
+        if (basePointer is null || oldPointer is null || oldSize == 0 ||
+            (cast(size_t) oldPointer & (alignment - 1)) != 0)
+            return null;
+
+        const baseAddress = cast(size_t) basePointer;
+        const oldAddress = cast(size_t) oldPointer;
+        if (oldAddress < baseAddress)
+            return null;
+        const oldOffset = oldAddress - baseAddress;
+        if (oldOffset > usedBytes_ || oldSize != usedBytes_ - oldOffset)
+            return null;
+
+        const reservedBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+        if (oldOffset > reservedBytes || newSize > reservedBytes - oldOffset)
+            return null;
+        const newEndOffset = oldOffset + newSize;
+        if (newEndOffset > usedBytes_ && !ensureVirtualCommitted(newEndOffset))
+            return null;
+
+        usedBytes_ = newEndOffset;
+        if (usedBytes_ > peakUsedBytes_)
+            peakUsedBytes_ = usedBytes_;
+        return oldPointer;
     }
 
     private void* tryAllocateVirtual(size_t size, size_t alignment) @system
@@ -835,6 +901,18 @@ private extern (C) void* chunkedArenaAllocatorProcedure(
             "arena alignment must be a power of two");
     }
 
+    if (oldPointer !is null && oldSize != 0)
+    {
+        void* resized = arena.tryResizeLastChunked(
+            oldPointer,
+            oldSize,
+            newSize,
+            alignment,
+        );
+        if (resized !is null)
+            return resized;
+    }
+
     void* replacement = arena.tryAllocateChunked(newSize, alignment);
     if (replacement is null)
         return null;
@@ -863,6 +941,18 @@ private extern (C) void* virtualArenaAllocatorProcedure(
             "virtual arena allocator procedure used with a different backing");
         require(isPowerOfTwo(alignment),
             "arena alignment must be a power of two");
+    }
+
+    if (oldPointer !is null && oldSize != 0)
+    {
+        void* resized = arena.tryResizeLastVirtual(
+            oldPointer,
+            oldSize,
+            newSize,
+            alignment,
+        );
+        if (resized !is null)
+            return resized;
     }
 
     void* replacement = arena.tryAllocateVirtual(newSize, alignment);
@@ -1133,8 +1223,54 @@ unittest
         4,
         1,
     );
+    assert(reallocatedBytes is allocatorBytes);
     assert(reallocatedBytes[0] == 0x12);
     assert(reallocatedBytes[3] == 0x34);
+
+    Arena reallocArena = Arena.create(mallocAllocator(), 64);
+    Allocator* reallocAllocator = reallocArena.allocator;
+    const chunkedUsedBefore = reallocArena.stats.usedBytes;
+    ubyte* chunkedTail = cast(ubyte*) reallocAllocator.allocate(8, 1);
+    chunkedTail[0] = 0xA1;
+    chunkedTail[7] = 0xB2;
+    ubyte* grownChunkedTail = cast(ubyte*) reallocAllocator.reallocate(
+        16,
+        chunkedTail,
+        8,
+        1,
+    );
+    assert(grownChunkedTail is chunkedTail);
+    assert(grownChunkedTail[0] == 0xA1);
+    assert(grownChunkedTail[7] == 0xB2);
+    assert(reallocArena.stats.usedBytes == chunkedUsedBefore + 16);
+    ubyte* shrunkChunkedTail = cast(ubyte*) reallocAllocator.reallocate(
+        4,
+        grownChunkedTail,
+        16,
+        1,
+    );
+    assert(shrunkChunkedTail is chunkedTail);
+    assert(reallocArena.stats.usedBytes == chunkedUsedBefore + 4);
+    assert(reallocAllocator.allocate(1, 1) == shrunkChunkedTail + 4);
+
+    ubyte* nonLastChunked = cast(ubyte*) reallocAllocator.allocate(4, 1);
+    nonLastChunked[0] = 0xC3;
+    cast(void) reallocAllocator.allocate(4, 1);
+    ubyte* movedChunked = cast(ubyte*) reallocAllocator.reallocate(
+        8,
+        nonLastChunked,
+        4,
+        1,
+    );
+    assert(movedChunked !is nonLastChunked);
+    assert(movedChunked[0] == 0xC3);
+
+    ubyte* deallocatedChunked = cast(ubyte*) reallocAllocator.allocate(4, 1);
+    const chunkedUsedBeforeDeallocate = reallocArena.stats.usedBytes;
+    reallocAllocator.deallocate(deallocatedChunked, 4, 1);
+    assert(reallocArena.stats.usedBytes == chunkedUsedBeforeDeallocate);
+    assert(reallocAllocator.allocate(1, 1) == deallocatedChunked + 4);
+    reallocArena.deinit();
 
     arena.setRewindPoisoning(true);
     TempArena poisoned = (&arena).push();
@@ -1228,8 +1364,57 @@ unittest
             4,
             1,
         );
+        assert(virtualReallocatedBytes is virtualAllocatorBytes);
         assert(virtualReallocatedBytes[0] == 0x56);
         assert(virtualReallocatedBytes[3] == 0x78);
+
+        Arena virtualReallocArena = Arena.createVirtual(pageSize * 4, pageSize);
+        Allocator* virtualReallocAllocator = virtualReallocArena.allocator;
+        ubyte* virtualTail = cast(ubyte*) virtualReallocAllocator.allocate(
+            pageSize - 8,
+            1,
+        );
+        virtualTail[0] = 0xD4;
+        assert(virtualReallocArena.stats.committedBytes == pageSize);
+        ubyte* grownVirtualTail = cast(ubyte*) virtualReallocAllocator.reallocate(
+            pageSize + 8,
+            virtualTail,
+            pageSize - 8,
+            1,
+        );
+        assert(grownVirtualTail is virtualTail);
+        assert(grownVirtualTail[0] == 0xD4);
+        assert(virtualReallocArena.stats.usedBytes == pageSize + 8);
+        assert(virtualReallocArena.stats.committedBytes == pageSize * 2);
+        ubyte* shrunkVirtualTail = cast(ubyte*) virtualReallocAllocator.reallocate(
+            4,
+            grownVirtualTail,
+            pageSize + 8,
+            1,
+        );
+        assert(shrunkVirtualTail is virtualTail);
+        assert(virtualReallocArena.stats.usedBytes == 4);
+        assert(virtualReallocArena.stats.committedBytes == pageSize * 2);
+        assert(virtualReallocAllocator.allocate(1, 1) == shrunkVirtualTail + 4);
+
+        ubyte* nonLastVirtual = cast(ubyte*) virtualReallocAllocator.allocate(4, 1);
+        nonLastVirtual[0] = 0xE5;
+        cast(void) virtualReallocAllocator.allocate(4, 1);
+        ubyte* relocatedVirtual = cast(ubyte*) virtualReallocAllocator.reallocate(
+            8,
+            nonLastVirtual,
+            4,
+            1,
+        );
+        assert(relocatedVirtual !is nonLastVirtual);
+        assert(relocatedVirtual[0] == 0xE5);
+
+        ubyte* deallocatedVirtual = cast(ubyte*) virtualReallocAllocator.allocate(4, 1);
+        const virtualUsedBeforeDeallocate = virtualReallocArena.stats.usedBytes;
+        virtualReallocAllocator.deallocate(deallocatedVirtual, 4, 1);
+        assert(virtualReallocArena.stats.usedBytes == virtualUsedBeforeDeallocate);
+        assert(virtualReallocAllocator.allocate(1, 1) == deallocatedVirtual + 4);
+        virtualReallocArena.deinit();
 
         virtualArena.deinit();
         assert(virtualArena.storage_.kind == ArenaStorageKind.none);
