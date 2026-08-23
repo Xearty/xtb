@@ -174,8 +174,13 @@ provides arena allocation, and `instrumented` provides deterministic
 allocation tracking/failure injection. The allocator package also owns a narrow
 internal virtual-memory substrate for core implementations that need stable
 contiguous address reservations: Linux uses `mmap`/`mprotect`/`munmap`, while
-unsupported targets keep a buildable failing backend. The VM layer is internal
-to XTB and is not part of the public allocator aggregate; a richer public
+unsupported targets keep a buildable failing backend. Reservations are explicit
+non-copyable mapping owners; copyable `VirtualMemoryRegion` values borrow
+page-bounded subranges and constrain commit/decommit to those bounds without
+storing pointers back to movable owners. Mutable commitment/provision policy
+belongs in higher internal storage objects rather than in the borrowed region.
+The VM layer is internal to XTB and is not part of the public allocator
+aggregate; a richer public
 `xtb.os` virtual-memory wrapper may build on the same substrate without making
 core depend upward on `os`. This lets APIs depend on the allocator contract
 without importing a concrete allocation policy. Generic scalar and
