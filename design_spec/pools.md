@@ -421,9 +421,11 @@ package(xtb) struct VirtualArrayView(T)
 }
 ```
 
-The view should be non-copyable because two mutable copies could disagree about commitment state.
+The view is non-copyable because two mutable copies could disagree about commitment state.
 
-Moving it is safe because it stores stable mapping addresses, not a pointer to the reservation owner.
+It has a local `deinit()` that resets only the borrow/bookkeeping and never releases or decommits the parent mapping. This gives the bookkeeping a single explicit lifetime and lets XTB's move machinery reconstruct moved-from views to the inert state.
+
+Moving it is safe because it stores stable mapping addresses, not a pointer to the reservation owner. Moving the reservation owner itself also leaves existing views valid until that owner is actually deinitialized.
 
 ## 5.3 Raw storage semantics
 
@@ -442,9 +444,14 @@ rather than public array `resize()`.
 - checks `elementCount <= capacity`;
 - commits enough pages for the requested prefix;
 - advances `provisionedLength_` only to the requested element high-water, even when page rounding makes additional trailing element storage physically accessible;
-- does not default-construct `T`;
+- does not default-construct, move, copy, initialize, or finalize `T`;
 - leaves existing bytes untouched;
-- may leave extra pages committed on failure without changing its promised logical accessible prefix.
+- is monotonic in its provisioned high-water;
+- changes bookkeeping only after successful commitment.
+
+`trim()` may decommit whole pages beyond the provisioned prefix. It does not reduce `provisionedLength_`, because that high-water records which slot representations the owning Pool has deliberately made part of its storage model.
+
+The owning `VirtualArray!T` and internal view share the same private prefix-commit and prefix-trim helpers so their page/granularity behavior cannot drift.
 
 This raw distinction is important for Pool value storage, where inactive `T` bytes are intentionally retained without claiming every accessible slot is a live D object.
 
@@ -1402,9 +1409,9 @@ The authoritative staged plan lives in `design_spec/pools_implementation_plan.md
 Current progress:
 
 1. **Complete** — bounded non-owning `VirtualMemoryRegion`.
-2. Pending — `VirtualArray!T` ownership/storage core.
-3. Pending — complete and harden `VirtualArray!T`.
-4. Pending — internal `VirtualArrayView!T`.
+2. **Complete** — `VirtualArray!T` ownership/storage core.
+3. **Complete** — complete and harden `VirtualArray!T`.
+4. **Complete** — internal `VirtualArrayView!T`.
 5. Pending — fixed-capacity `Pool!T`.
 6. Pending — Pool ranges.
 7. Pending — `GenerationalPool!T`.

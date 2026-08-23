@@ -347,17 +347,13 @@ public:
             panic("VirtualArray page size unavailable");
 
         const liveBytes = length_ * T.sizeof;
-        size_t targetCommitted;
-        if (!tryRoundUpToMultiple(liveBytes, pageSize, &targetCommitted) ||
-            targetCommitted > region_.bytes)
-            targetCommitted = region_.bytes;
-        if (targetCommitted >= committedBytes_)
-            return;
-
-        const decommitBytes = committedBytes_ - targetCommitted;
-        if (!region_.tryDecommit(targetCommitted, decommitBytes))
+        if (!tryTrimCommittedPrefix(
+                region_,
+                liveBytes,
+                pageSize,
+                &committedBytes_,
+            ))
             panic("VirtualArray decommit failed");
-        committedBytes_ = targetCommitted;
     }
 
     ref T opIndex(size_t index) return @system
@@ -378,9 +374,9 @@ package(xtb):
     /// Makes the raw typed prefix `[0 .. elementCount)` accessible without
     /// constructing elements or changing logical length.
     ///
-    /// This is the storage primitive used by the container operations added in
-    /// the next implementation step. Failure leaves commitment bookkeeping and
-    /// logical state unchanged.
+    /// Container operations use this storage primitive before establishing
+    /// any new `T` lifetimes. Failure leaves commitment bookkeeping and logical
+    /// state unchanged.
     bool tryEnsureAccessible(size_t elementCount) @system
     {
         if (elementCount > capacity_)
@@ -389,26 +385,12 @@ package(xtb):
             return true;
 
         const requiredBytes = elementCount * T.sizeof;
-        if (requiredBytes <= committedBytes_)
-            return true;
-
-        size_t targetCommitted;
-        if (!tryRoundUpToMultiple(
-                requiredBytes,
-                commitGranularity_,
-                &targetCommitted,
-            ) || targetCommitted > region_.bytes)
-            targetCommitted = region_.bytes;
-
-        if (targetCommitted < requiredBytes || targetCommitted < committedBytes_)
-            return false;
-
-        const additionalBytes = targetCommitted - committedBytes_;
-        if (!region_.tryCommit(committedBytes_, additionalBytes))
-            return false;
-
-        committedBytes_ = targetCommitted;
-        return true;
+        return tryEnsureCommittedPrefix(
+            region_,
+            requiredBytes,
+            commitGranularity_,
+            &committedBytes_,
+        );
     }
 
 private:
@@ -425,6 +407,243 @@ private:
 }
 
 static assert(needsDeinit!(VirtualArray!ubyte));
+
+/// Non-owning fixed-capacity typed storage over one bounded virtual-memory
+/// region.
+///
+/// A view never releases its underlying mapping and never constructs or
+/// finalizes `T`. It owns only its local provision/commit bookkeeping, so it is
+/// deliberately non-copyable. `deinit` ends that local borrow and resets the
+/// view without touching the parent reservation.
+package(xtb) struct VirtualArrayView(T)
+{
+nothrow @nogc:
+
+    alias Self = VirtualArrayView!T;
+
+private:
+    VirtualMemoryRegion region_;
+    T* data_;
+    size_t capacity_;
+    size_t provisionedLength_;
+    size_t committedBytes_;
+    size_t commitGranularity_;
+
+public:
+    @disable this(this);
+    @disable ref Self opAssign(Self source) return;
+
+    /// Attempts to bind an inert view to `region`.
+    ///
+    /// `region` must be page-bounded, large enough for `capacity` elements,
+    /// and aligned for `T`. Capacity zero requires an empty region. The output
+    /// is modified only on success. No pages are committed by creation.
+    static bool tryCreate(
+        VirtualMemoryRegion region,
+        size_t capacity,
+        size_t commitGranularity,
+        scope Self* output,
+    ) @system
+    {
+        version (XTB_Checked)
+        {
+            require(output !is null, "VirtualArrayView output pointer is null");
+            require(output is null || output.inert,
+                "VirtualArrayView output is already initialized");
+            require(commitGranularity != 0,
+                "VirtualArrayView commit granularity must be nonzero");
+        }
+
+        if (output is null || !output.inert || commitGranularity == 0)
+            return false;
+        if (capacity == 0)
+            return region.empty;
+        if (region.empty || multiplyOverflows(capacity, T.sizeof))
+            return false;
+
+        const pageSize = virtualMemoryPageSize();
+        if (pageSize == 0)
+            return false;
+
+        size_t normalizedCommitGranularity;
+        if (!tryRoundUpToMultiple(
+                commitGranularity,
+                pageSize,
+                &normalizedCommitGranularity,
+            ))
+            return false;
+
+        const dataBytes = capacity * T.sizeof;
+        if (dataBytes > region.bytes)
+            return false;
+
+        void* base = region.base;
+        if (base is null || cast(size_t) base % T.alignof != 0)
+            return false;
+
+        Self result;
+        result.region_ = region;
+        result.data_ = cast(T*) base;
+        result.capacity_ = capacity;
+        result.commitGranularity_ = normalizedCommitGranularity;
+        moveEmplace(result, *output);
+        return true;
+    }
+
+    /// Ends this view's local borrow. The underlying virtual-memory mapping and
+    /// all committed pages remain owned by and attached to the parent.
+    void deinit() @safe
+    {
+        region_ = VirtualMemoryRegion.init;
+        data_ = null;
+        capacity_ = 0;
+        provisionedLength_ = 0;
+        committedBytes_ = 0;
+        commitGranularity_ = 0;
+    }
+
+    /// Stable typed base of this region, or null for the inert state.
+    ///
+    /// Only `[0 .. provisionedLength)` is promised by the view to have
+    /// accessible storage. Extra elements may happen to fit in page-rounded
+    /// committed bytes but are not provisioned by that fact alone.
+    T* ptr() return @system
+    {
+        return data_;
+    }
+
+    size_t capacity() const pure @safe
+    {
+        return capacity_;
+    }
+
+    size_t provisionedLength() const pure @safe
+    {
+        return provisionedLength_;
+    }
+
+    size_t committedBytes() const pure @safe
+    {
+        return committedBytes_;
+    }
+
+    bool inert() const pure @safe
+    {
+        return region_.empty &&
+            data_ is null &&
+            capacity_ == 0 &&
+            provisionedLength_ == 0 &&
+            committedBytes_ == 0 &&
+            commitGranularity_ == 0;
+    }
+
+    /// Makes raw storage for `[0 .. elementCount)` accessible without
+    /// constructing `T` values.
+    ///
+    /// Provisioning is monotonic. Page/granularity rounding may commit bytes
+    /// covering more elements, but `provisionedLength` advances only to the
+    /// explicitly requested high-water. Failure leaves all bookkeeping
+    /// unchanged (native commitment may conservatively remain larger only if a
+    /// backend can partially commit before reporting failure).
+    bool tryEnsureAccessible(size_t elementCount) @system
+    {
+        if (elementCount > capacity_)
+            return false;
+        if (elementCount <= provisionedLength_)
+            return true;
+
+        const requiredBytes = elementCount * T.sizeof;
+        if (!tryEnsureCommittedPrefix(
+                region_,
+                requiredBytes,
+                commitGranularity_,
+                &committedBytes_,
+            ))
+            return false;
+
+        provisionedLength_ = elementCount;
+        return true;
+    }
+
+    /// Decommits whole pages that are not needed by the provisioned prefix.
+    /// The provisioned element high-water and fixed capacity are unchanged.
+    void trim() @trusted
+    {
+        if (committedBytes_ == 0)
+            return;
+
+        const pageSize = virtualMemoryPageSize();
+        if (pageSize == 0)
+            panic("VirtualArrayView page size unavailable");
+
+        const provisionedBytes = provisionedLength_ * T.sizeof;
+        if (!tryTrimCommittedPrefix(
+                region_,
+                provisionedBytes,
+                pageSize,
+                &committedBytes_,
+            ))
+            panic("VirtualArrayView decommit failed");
+    }
+}
+
+static assert(needsDeinit!(VirtualArrayView!ubyte));
+
+private bool tryEnsureCommittedPrefix(
+    VirtualMemoryRegion region,
+    size_t requiredBytes,
+    size_t commitGranularity,
+    scope size_t* committedBytes,
+) @system
+{
+    if (committedBytes is null || requiredBytes > region.bytes)
+        return false;
+    if (requiredBytes <= *committedBytes)
+        return true;
+
+    size_t targetCommitted;
+    if (!tryRoundUpToMultiple(
+            requiredBytes,
+            commitGranularity,
+            &targetCommitted,
+        ) || targetCommitted > region.bytes)
+        targetCommitted = region.bytes;
+
+    if (targetCommitted < requiredBytes || targetCommitted < *committedBytes)
+        return false;
+
+    const additionalBytes = targetCommitted - *committedBytes;
+    if (!region.tryCommit(*committedBytes, additionalBytes))
+        return false;
+
+    *committedBytes = targetCommitted;
+    return true;
+}
+
+private bool tryTrimCommittedPrefix(
+    VirtualMemoryRegion region,
+    size_t retainedBytes,
+    size_t pageSize,
+    scope size_t* committedBytes,
+) @system
+{
+    if (committedBytes is null || retainedBytes > region.bytes)
+        return false;
+
+    size_t targetCommitted;
+    if (!tryRoundUpToMultiple(retainedBytes, pageSize, &targetCommitted) ||
+        targetCommitted > region.bytes)
+        targetCommitted = region.bytes;
+    if (targetCommitted >= *committedBytes)
+        return true;
+
+    const decommitBytes = *committedBytes - targetCommitted;
+    if (!region.tryDecommit(targetCommitted, decommitBytes))
+        return false;
+
+    *committedBytes = targetCommitted;
+    return true;
+}
 
 private bool tryRoundUpToMultiple(
     size_t value,
@@ -814,5 +1033,241 @@ unittest
         assert(aligned.ptr is alignedBase);
         assert(aligned.ptr[0].value == 1);
         assert(aligned.ptr[2].value == 3);
+    }
+}
+
+unittest
+{
+    static assert(!__traits(isCopyable, VirtualArrayView!int));
+    static assert(needsDeinit!(VirtualArrayView!int));
+    static assert(__traits(compiles, () nothrow @nogc @safe {
+            VirtualArrayView!int view;
+            cast(void) view.capacity;
+            cast(void) view.provisionedLength;
+            cast(void) view.committedBytes;
+            cast(void) view.inert;
+            view.deinit();
+        }));
+    static assert(!__traits(compiles, () nothrow @nogc @safe {
+            VirtualArrayView!int view;
+            cast(void) view.ptr;
+        }));
+
+    VirtualArrayView!int zero;
+    assert(VirtualArrayView!int.tryCreate(
+            VirtualMemoryRegion.init,
+            0,
+            1,
+            &zero,
+    ));
+    assert(zero.inert);
+    assert(zero.tryEnsureAccessible(0));
+    assert(!zero.tryEnsureAccessible(1));
+    zero.trim();
+    zero.deinit();
+
+    version (linux)
+    {
+        const pageSize = virtualMemoryPageSize();
+        assert(pageSize != 0);
+
+        VirtualMemoryReservation reservation;
+        assert(tryReserveVirtualMemory(pageSize * 6, &reservation));
+        scope (exit)
+            reservation.deinit();
+
+        VirtualMemoryRegion firstRegion;
+        VirtualMemoryRegion secondRegion;
+        VirtualMemoryRegion moveRegion;
+        assert(reservation.tryRegion(0, pageSize * 2, &firstRegion));
+        assert(reservation.tryRegion(pageSize * 2, pageSize * 2, &secondRegion));
+        assert(reservation.tryRegion(pageSize * 4, pageSize * 2, &moveRegion));
+
+        VirtualArrayView!ubyte first;
+        VirtualArrayView!ubyte second;
+        assert(VirtualArrayView!ubyte.tryCreate(
+                firstRegion,
+                pageSize * 2,
+                pageSize * 2,
+                &first,
+        ));
+        assert(VirtualArrayView!ubyte.tryCreate(
+                secondRegion,
+                pageSize * 2,
+                pageSize,
+                &second,
+        ));
+        scope (exit)
+        {
+            first.deinit();
+            second.deinit();
+        }
+
+        assert(first.capacity == pageSize * 2);
+        assert(first.provisionedLength == 0);
+        assert(first.committedBytes == 0);
+        assert(second.committedBytes == 0);
+
+        // Provisioning one byte commits according to granularity but does not
+        // claim the trailing elements covered by those pages.
+        assert(first.tryEnsureAccessible(1));
+        assert(first.provisionedLength == 1);
+        assert(first.committedBytes == pageSize * 2);
+        assert(second.provisionedLength == 0);
+        assert(second.committedBytes == 0);
+
+        // Raw provisioning never initializes newly promised element storage.
+        // This byte is physically accessible because of page rounding, but it
+        // is deliberately outside the current provisioned high-water.
+        first.ptr[pageSize] = 0xa5;
+        assert(first.tryEnsureAccessible(pageSize + 1));
+        assert(first.provisionedLength == pageSize + 1);
+        assert(first.ptr[pageSize] == 0xa5);
+
+        assert(second.tryEnsureAccessible(pageSize + 1));
+        assert(second.provisionedLength == pageSize + 1);
+        assert(second.committedBytes == pageSize * 2);
+        second.ptr[0] = 0x22;
+        assert(first.ptr[0] == 0);
+
+        // A separate view can trim its committed suffix without changing the
+        // adjacent region or its own provisioned element high-water.
+        VirtualArrayView!ubyte trimming;
+        assert(VirtualArrayView!ubyte.tryCreate(
+                moveRegion,
+                pageSize * 2,
+                pageSize * 2,
+                &trimming,
+        ));
+        assert(trimming.tryEnsureAccessible(1));
+        assert(trimming.committedBytes == pageSize * 2);
+        trimming.ptr[pageSize] = 0x7b;
+        trimming.trim();
+        assert(trimming.provisionedLength == 1);
+        assert(trimming.committedBytes == pageSize);
+        assert(second.ptr[0] == 0x22);
+        assert(trimming.tryEnsureAccessible(pageSize + 1));
+        assert(trimming.ptr[pageSize] == 0);
+
+        // Moving the reservation owner does not invalidate borrowed views;
+        // the region stores the stable mapped address rather than owner state.
+        VirtualMemoryReservation movedReservation = move(reservation);
+        assert(!reservation.active);
+        assert(movedReservation.active);
+        ubyte* trimmingBase = trimming.ptr;
+        assert(trimming.tryEnsureAccessible(pageSize * 2));
+        assert(trimming.ptr is trimmingBase);
+
+        VirtualArrayView!ubyte movedView = move(trimming);
+        assert(trimming.inert);
+        assert(movedView.ptr is trimmingBase);
+        assert(movedView.provisionedLength == pageSize * 2);
+        movedView.deinit();
+        assert(movedView.inert);
+
+        // Ending views does not release the parent reservation.
+        first.deinit();
+        second.deinit();
+        assert(movedReservation.active);
+        VirtualMemoryRegion stillBorrowable;
+        assert(movedReservation.tryRegion(0, pageSize, &stillBorrowable));
+        assert(stillBorrowable.tryCommit(0, pageSize));
+        (cast(ubyte*) stillBorrowable.base)[0] = 0x44;
+        assert((cast(ubyte*) stillBorrowable.base)[0] == 0x44);
+        movedReservation.deinit();
+
+        // Capacity/size failure is transactional.
+        VirtualMemoryReservation smallReservation;
+        assert(tryReserveVirtualMemory(pageSize, &smallReservation));
+        scope (exit)
+            smallReservation.deinit();
+        VirtualMemoryRegion smallRegion;
+        assert(smallReservation.tryRegion(0, pageSize, &smallRegion));
+
+        VirtualArrayView!ulong overflow;
+        assert(!VirtualArrayView!ulong.tryCreate(
+                smallRegion,
+                size_t.max / ulong.sizeof + 1,
+                pageSize,
+                &overflow,
+        ));
+        assert(overflow.inert);
+
+        VirtualArrayView!ubyte tooLarge;
+        assert(!VirtualArrayView!ubyte.tryCreate(
+                smallRegion,
+                pageSize + 1,
+                pageSize,
+                &tooLarge,
+        ));
+        assert(tooLarge.inert);
+
+        // Over-aligned views are accepted when the supplied page-bounded
+        // region starts at an address satisfying T.alignof, and rejected when
+        // the same region is deliberately shifted by one page.
+        align(32_768) struct OverAlignedViewValue
+        {
+            ubyte value;
+        }
+
+        assert(OverAlignedViewValue.alignof > pageSize);
+        const alignedRegionBytes = OverAlignedViewValue.sizeof;
+        const alignedReservationBytes = OverAlignedViewValue.alignof +
+            alignedRegionBytes + pageSize;
+        VirtualMemoryReservation alignedReservation;
+        assert(tryReserveVirtualMemory(
+                alignedReservationBytes,
+                &alignedReservation,
+        ));
+        scope (exit)
+            alignedReservation.deinit();
+
+        void* alignedBase;
+        assert(tryAlignAddressUp(
+                alignedReservation.base,
+                OverAlignedViewValue.alignof,
+                &alignedBase,
+        ));
+        const alignedOffset = cast(size_t) alignedBase -
+            cast(size_t) alignedReservation.base;
+        VirtualMemoryRegion alignedRegion;
+        assert(alignedReservation.tryRegion(
+                alignedOffset,
+                alignedRegionBytes,
+                &alignedRegion,
+        ));
+
+        VirtualArrayView!OverAlignedViewValue alignedView;
+        assert(VirtualArrayView!OverAlignedViewValue.tryCreate(
+                alignedRegion,
+                1,
+                pageSize,
+                &alignedView,
+        ));
+        scope (exit)
+            alignedView.deinit();
+        assert(cast(size_t) alignedView.ptr % OverAlignedViewValue.alignof == 0);
+        assert(alignedView.tryEnsureAccessible(1));
+        alignedView.ptr[0].value = 9;
+        assert(alignedView.ptr[0].value == 9);
+
+        if (alignedOffset + pageSize + alignedRegionBytes <=
+            alignedReservation.reservedBytes)
+        {
+            VirtualMemoryRegion misalignedRegion;
+            assert(alignedReservation.tryRegion(
+                    alignedOffset + pageSize,
+                    alignedRegionBytes,
+                    &misalignedRegion,
+            ));
+            VirtualArrayView!OverAlignedViewValue misalignedView;
+            assert(!VirtualArrayView!OverAlignedViewValue.tryCreate(
+                    misalignedRegion,
+                    1,
+                    pageSize,
+                    &misalignedView,
+            ));
+            assert(misalignedView.inert);
+        }
     }
 }

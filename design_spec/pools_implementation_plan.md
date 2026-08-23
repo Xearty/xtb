@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress. Steps 1–3 of 8 are complete and verified.**
+**Implementation in progress. Steps 1–4 of 8 are complete and verified.**
 
 This is the execution plan for `design_spec/pools.md`. The design document is
 authoritative for semantics; this document defines implementation order,
@@ -148,43 +148,63 @@ Acceptance coverage:
 
 Commit target: `feat(core): complete virtual array container`.
 
-## Step 4 — internal `VirtualArrayView!T`
+## Step 4 — internal `VirtualArrayView!T` — COMPLETE
 
-Add the raw non-owning storage view used to partition one reservation.
+Added the raw non-owning storage view used to partition one reservation.
 
-Representation owns local bookkeeping, not mapping lifetime:
+Implemented representation and contract:
 
-- `VirtualMemoryRegion region_`;
+- `VirtualMemoryRegion region_` owns the bounded borrow, never mapping lifetime;
 - typed stable data pointer;
 - fixed capacity;
-- provisioned element high-water;
+- monotonic provisioned element high-water;
 - committed byte prefix;
-- commit granularity.
+- normalized commit granularity;
+- the view is non-copyable because mutable bookkeeping must have one source of
+  truth;
+- local `deinit` ends/reset the borrow without releasing or decommitting the
+  parent mapping, and makes XTB moves reconstruct the source to the inert state;
+- moving the reservation owner does not invalidate the view because no owner
+  field address is stored;
+- capacity zero accepts only an empty region;
+- nonzero creation validates `capacity * T.sizeof`, region bounds, and `T`
+  alignment without committing pages.
 
-The view is non-copyable because two mutable copies could disagree about
-provision/commit state. Moving it is safe because the region stores the mapped
-address directly rather than an owner pointer.
-
-Central operation: `tryEnsureAccessible(elementCount)`.
-
-It:
+Central operation `tryEnsureAccessible(elementCount)`:
 
 - commits enough pages for the requested typed prefix;
-- never constructs `T`;
+- never constructs, initializes, moves, copies, or finalizes `T`;
 - advances `provisionedLength_` only to the explicitly requested element
   high-water;
-- does not claim extra elements merely because page rounding made their bytes
-  accessible;
+- does not claim extra elements merely because page/granularity rounding made
+  their bytes accessible;
+- is monotonic and transactional in its bookkeeping;
 - never releases the parent reservation.
 
-Acceptance gate:
+`trim()` may decommit only whole pages beyond the provisioned prefix. It does not
+reduce the provisioned element high-water or fixed capacity.
+
+Implementation refinement:
+
+The owning `VirtualArray` and borrowed `VirtualArrayView` now share private
+prefix-commit and prefix-trim helpers. This keeps page rounding, granularity
+clamping, and decommit behavior identical instead of maintaining two subtly
+different VM-growth implementations.
+
+Acceptance coverage:
 
 - adjacent typed views in one reservation;
 - independent commit/decommit boundaries;
-- moves;
+- moved reservation owner with live views;
+- moved view reconstructs source to inert state;
 - no owner-pointer dependency;
-- over-aligned layouts;
-- provisioned-element high-water distinct from page-rounded committed storage.
+- over-aligned region acceptance and deliberate misalignment rejection;
+- capacity/multiplication failure leaves output inert;
+- provisioned-element high-water remains distinct from page-rounded committed
+  storage;
+- bytes already present in newly provisioned raw storage are not initialized;
+- view `deinit` does not release the parent reservation;
+- BetterC `nothrow @nogc` and `@safe`/`@system` boundary compilation.
 
 Commit target: `feat(core): add internal virtual array views`.
 
