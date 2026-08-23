@@ -162,6 +162,48 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     }
     version (XTB_Checked)
     {
+        if (cStringEqual(name, "generational-pool-range-invalidated"))
+        {
+            GenerationalPool!int pool = GenerationalPool!int.create(3);
+            scope (exit)
+                pool.deinit();
+            pool.allocateInit();
+            auto range = pool.items();
+            pool.allocateInit();
+            cast(void) range.empty;
+        }
+        if (cStringEqual(name, "generational-pool-range-moved"))
+        {
+            GenerationalPool!int pool = GenerationalPool!int.create(2);
+            pool.allocateInit();
+            auto range = pool.items();
+            GenerationalPool!int moved = move(pool);
+            scope (exit)
+                moved.deinit();
+            cast(void) range.empty;
+        }
+        if (cStringEqual(name, "generational-pool-slot-invalidated"))
+        {
+            GenerationalPool!int pool = GenerationalPool!int.create(2);
+            scope (exit)
+                pool.deinit();
+            auto handle = pool.allocateInit();
+            auto range = pool.occupiedSlots();
+            auto slot = range.front;
+            pool.deallocate(handle);
+            cast(void) slot.value;
+        }
+        if (cStringEqual(name, "generational-pool-inactive-slot-value"))
+        {
+            GenerationalPool!int pool = GenerationalPool!int.create(2);
+            scope (exit)
+                pool.deinit();
+            auto handle = pool.allocateInit();
+            pool.deallocate(handle);
+            auto range = pool.slots();
+            auto slot = range.front;
+            cast(void) slot.value;
+        }
         if (cStringEqual(name, "pool-double-free"))
         {
             Pool!int pool = Pool!int.create(2);
@@ -621,6 +663,10 @@ extern (C) int main(int argumentCount, char** arguments)
         expectDeath(arguments[0], "generational-pool-null-handle");
         version (XTB_Checked)
         {
+            expectDeath(arguments[0], "generational-pool-range-invalidated");
+            expectDeath(arguments[0], "generational-pool-range-moved");
+            expectDeath(arguments[0], "generational-pool-slot-invalidated");
+            expectDeath(arguments[0], "generational-pool-inactive-slot-value");
             expectDeath(arguments[0], "pool-double-free");
             expectDeath(arguments[0], "pool-foreign-free");
             expectDeath(arguments[0], "pool-misaligned-free");

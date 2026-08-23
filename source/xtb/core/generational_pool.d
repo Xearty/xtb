@@ -299,6 +299,46 @@ public:
         return validHandle(handle);
     }
 
+    /// Returns an input range over live values in stable index order.
+    ///
+    /// Structural Pool mutation invalidates the range. Checked builds diagnose
+    /// use after invalidation; unchecked builds carry no mutation-generation
+    /// bookkeeping.
+    GenerationalPoolItemsRange!T items() return @trusted
+    {
+        return GenerationalPoolItemsRange!T.create(&this);
+    }
+
+    ConstGenerationalPoolItemsRange!T items() const return @trusted
+    {
+        return ConstGenerationalPoolItemsRange!T.create(&this);
+    }
+
+    /// Returns an input range over live slots in stable index order. Each slot
+    /// exposes its index, generation, handle, and live value by reference.
+    GenerationalPoolOccupiedSlotsRange!T occupiedSlots() return @trusted
+    {
+        return GenerationalPoolOccupiedSlotsRange!T.create(&this);
+    }
+
+    ConstGenerationalPoolOccupiedSlotsRange!T occupiedSlots() const return @trusted
+    {
+        return ConstGenerationalPoolOccupiedSlotsRange!T.create(&this);
+    }
+
+    /// Returns an input range over every deliberately provisioned slot,
+    /// including inactive slots whose preserved representation may be inspected.
+    /// The range never walks the untouched tail of maximum capacity.
+    GenerationalPoolSlotsRange!T slots() return @trusted
+    {
+        return GenerationalPoolSlotsRange!T.create(&this);
+    }
+
+    ConstGenerationalPoolSlotsRange!T slots() const return @trusted
+    {
+        return ConstGenerationalPoolSlotsRange!T.create(&this);
+    }
+
     /// Attempts to recycle the slot identified by `handle` without finalizing
     /// or overwriting `T`.
     ///
@@ -442,6 +482,668 @@ private:
     }
 }
 
+/// Mutable live-slot view returned by `GenerationalPool.occupiedSlots`.
+///
+/// The view borrows Pool storage. Structural Pool mutation invalidates it.
+struct GenerationalPoolOccupiedSlot(T)
+{
+nothrow @nogc:
+
+    alias Handle = GenerationalPool!T.Handle;
+
+private:
+    T* value_;
+    uint index_;
+    uint generation_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+public:
+    uint index() const pure @safe
+    {
+        return index_;
+    }
+
+    uint generation() const pure @safe
+    {
+        return generation_;
+    }
+
+    Handle handle() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return Handle(index_, generation_);
+    }
+
+    ref T value() return @system
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return *value_;
+    }
+}
+
+/// Read-only live-slot view returned by a const GenerationalPool.
+struct ConstGenerationalPoolOccupiedSlot(T)
+{
+nothrow @nogc:
+
+    alias Handle = GenerationalPool!T.Handle;
+
+private:
+    const(T)* value_;
+    uint index_;
+    uint generation_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+public:
+    uint index() const pure @safe
+    {
+        return index_;
+    }
+
+    uint generation() const pure @safe
+    {
+        return generation_;
+    }
+
+    Handle handle() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return Handle(index_, generation_);
+    }
+
+    ref const(T) value() const return @system
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return *value_;
+    }
+}
+
+/// Mutable view of one deliberately provisioned GenerationalPool slot.
+///
+/// `storage` exposes preserved representation even while inactive and is
+/// therefore deliberately `@system`. `value` additionally requires occupancy.
+struct GenerationalPoolSlot(T)
+{
+nothrow @nogc:
+
+    alias Handle = GenerationalPool!T.Handle;
+
+private:
+    T* storage_;
+    uint index_;
+    uint generation_;
+    bool occupied_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+public:
+    uint index() const pure @safe
+    {
+        return index_;
+    }
+
+    uint generation() const pure @safe
+    {
+        return generation_;
+    }
+
+    bool occupied() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return occupied_;
+    }
+
+    /// Returns the live handle for this slot, or `Handle.init` while inactive.
+    Handle handle() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return occupied_ ? Handle(index_, generation_) : Handle.init;
+    }
+
+    ref T value() return @system
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(occupied_, "inactive GenerationalPool slot has no live value");
+        }
+        return *storage_;
+    }
+
+    ref T storage() return @system
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return *storage_;
+    }
+}
+
+/// Read-only view of one deliberately provisioned GenerationalPool slot.
+struct ConstGenerationalPoolSlot(T)
+{
+nothrow @nogc:
+
+    alias Handle = GenerationalPool!T.Handle;
+
+private:
+    const(T)* storage_;
+    uint index_;
+    uint generation_;
+    bool occupied_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+public:
+    uint index() const pure @safe
+    {
+        return index_;
+    }
+
+    uint generation() const pure @safe
+    {
+        return generation_;
+    }
+
+    bool occupied() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return occupied_;
+    }
+
+    Handle handle() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return occupied_ ? Handle(index_, generation_) : Handle.init;
+    }
+
+    ref const(T) value() const return @system
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(occupied_, "inactive GenerationalPool slot has no live value");
+        }
+        return *storage_;
+    }
+
+    ref const(T) storage() const return @system
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return *storage_;
+    }
+}
+
+/// Input range yielding live GenerationalPool values directly by reference.
+struct GenerationalPoolItemsRange(T)
+{
+nothrow @nogc:
+
+private:
+    GenerationalPoolOccupiedCursor!T cursor_;
+    T* values_;
+
+    static GenerationalPoolItemsRange create(GenerationalPool!T* pool) @trusted
+    {
+        GenerationalPoolItemsRange result;
+        result.cursor_ = GenerationalPoolOccupiedCursor!T.create(pool);
+        result.values_ = pool.values_.ptr;
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        return cursor_.empty;
+    }
+
+    ref T front() return @system
+    {
+        return values_[cursor_.index];
+    }
+
+    void popFront() @trusted
+    {
+        cursor_.popFront();
+    }
+}
+
+/// Read-only input range yielding live GenerationalPool values by const reference.
+struct ConstGenerationalPoolItemsRange(T)
+{
+nothrow @nogc:
+
+private:
+    GenerationalPoolOccupiedCursor!T cursor_;
+    const(T)* values_;
+
+    static ConstGenerationalPoolItemsRange create(const(GenerationalPool!T)* pool) @trusted
+    {
+        ConstGenerationalPoolItemsRange result;
+        result.cursor_ = GenerationalPoolOccupiedCursor!T.create(pool);
+        result.values_ = pool.values_.ptr;
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        return cursor_.empty;
+    }
+
+    ref const(T) front() const return @system
+    {
+        return values_[cursor_.index];
+    }
+
+    void popFront() @trusted
+    {
+        cursor_.popFront();
+    }
+}
+
+/// Input range yielding live slots with stable identity metadata.
+struct GenerationalPoolOccupiedSlotsRange(T)
+{
+nothrow @nogc:
+
+private:
+    GenerationalPoolOccupiedCursor!T cursor_;
+    T* values_;
+    const(uint)* states_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+    static GenerationalPoolOccupiedSlotsRange create(GenerationalPool!T* pool) @trusted
+    {
+        GenerationalPoolOccupiedSlotsRange result;
+        result.cursor_ = GenerationalPoolOccupiedCursor!T.create(pool);
+        result.values_ = pool.values_.ptr;
+        result.states_ = pool.states_.ptr;
+        version (XTB_Checked)
+        {
+            result.owner_ = pool;
+            result.mutationGeneration_ = pool.mutationGeneration_;
+            result.valuesBase_ = pool.values_.ptr;
+            result.statesBase_ = pool.states_.ptr;
+        }
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        return cursor_.empty;
+    }
+
+    GenerationalPoolOccupiedSlot!T front() return @system
+    {
+        const index = cursor_.index;
+        const state = states_[index];
+        GenerationalPoolOccupiedSlot!T result;
+        result.value_ = values_ + index;
+        result.index_ = index;
+        result.generation_ = stateGeneration(state);
+        version (XTB_Checked)
+        {
+            result.owner_ = owner_;
+            result.mutationGeneration_ = mutationGeneration_;
+            result.valuesBase_ = valuesBase_;
+            result.statesBase_ = statesBase_;
+        }
+        return result;
+    }
+
+    void popFront() @trusted
+    {
+        cursor_.popFront();
+    }
+}
+
+/// Read-only live-slot range for a const GenerationalPool.
+struct ConstGenerationalPoolOccupiedSlotsRange(T)
+{
+nothrow @nogc:
+
+private:
+    GenerationalPoolOccupiedCursor!T cursor_;
+    const(T)* values_;
+    const(uint)* states_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+    static ConstGenerationalPoolOccupiedSlotsRange create(const(GenerationalPool!T)* pool) @trusted
+    {
+        ConstGenerationalPoolOccupiedSlotsRange result;
+        result.cursor_ = GenerationalPoolOccupiedCursor!T.create(pool);
+        result.values_ = pool.values_.ptr;
+        result.states_ = pool.states_.ptr;
+        version (XTB_Checked)
+        {
+            result.owner_ = pool;
+            result.mutationGeneration_ = pool.mutationGeneration_;
+            result.valuesBase_ = pool.values_.ptr;
+            result.statesBase_ = pool.states_.ptr;
+        }
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        return cursor_.empty;
+    }
+
+    ConstGenerationalPoolOccupiedSlot!T front() const return @system
+    {
+        const index = cursor_.index;
+        const state = states_[index];
+        ConstGenerationalPoolOccupiedSlot!T result;
+        result.value_ = values_ + index;
+        result.index_ = index;
+        result.generation_ = stateGeneration(state);
+        version (XTB_Checked)
+        {
+            result.owner_ = owner_;
+            result.mutationGeneration_ = mutationGeneration_;
+            result.valuesBase_ = valuesBase_;
+            result.statesBase_ = statesBase_;
+        }
+        return result;
+    }
+
+    void popFront() @trusted
+    {
+        cursor_.popFront();
+    }
+}
+
+/// Sequential input range over all deliberately provisioned GenerationalPool slots.
+struct GenerationalPoolSlotsRange(T)
+{
+nothrow @nogc:
+
+private:
+    T* values_;
+    const(uint)* states_;
+    size_t index_;
+    size_t endIndex_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+    static GenerationalPoolSlotsRange create(GenerationalPool!T* pool) @trusted
+    {
+        GenerationalPoolSlotsRange result;
+        result.values_ = pool.values_.ptr;
+        result.states_ = pool.states_.ptr;
+        result.index_ = 1;
+        result.endIndex_ = pool.states_.provisionedLength;
+        version (XTB_Checked)
+        {
+            result.owner_ = pool;
+            result.mutationGeneration_ = pool.mutationGeneration_;
+            result.valuesBase_ = pool.values_.ptr;
+            result.statesBase_ = pool.states_.ptr;
+        }
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return index_ >= endIndex_;
+    }
+
+    GenerationalPoolSlot!T front() return @system
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(index_ < endIndex_, "front of empty GenerationalPool slots range");
+        }
+
+        const index = cast(uint) index_;
+        const state = states_[index];
+        GenerationalPoolSlot!T result;
+        result.storage_ = values_ + index;
+        result.index_ = index;
+        result.generation_ = stateGeneration(state);
+        result.occupied_ = stateActive(state);
+        version (XTB_Checked)
+        {
+            result.owner_ = owner_;
+            result.mutationGeneration_ = mutationGeneration_;
+            result.valuesBase_ = valuesBase_;
+            result.statesBase_ = statesBase_;
+        }
+        return result;
+    }
+
+    void popFront() @trusted
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(index_ < endIndex_, "popFront of empty GenerationalPool slots range");
+        }
+        ++index_;
+    }
+}
+
+/// Read-only sequential range over all deliberately provisioned GenerationalPool slots.
+struct ConstGenerationalPoolSlotsRange(T)
+{
+nothrow @nogc:
+
+private:
+    const(T)* values_;
+    const(uint)* states_;
+    size_t index_;
+    size_t endIndex_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+    static ConstGenerationalPoolSlotsRange create(const(GenerationalPool!T)* pool) @trusted
+    {
+        ConstGenerationalPoolSlotsRange result;
+        result.values_ = pool.values_.ptr;
+        result.states_ = pool.states_.ptr;
+        result.index_ = 1;
+        result.endIndex_ = pool.states_.provisionedLength;
+        version (XTB_Checked)
+        {
+            result.owner_ = pool;
+            result.mutationGeneration_ = pool.mutationGeneration_;
+            result.valuesBase_ = pool.values_.ptr;
+            result.statesBase_ = pool.states_.ptr;
+        }
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return index_ >= endIndex_;
+    }
+
+    ConstGenerationalPoolSlot!T front() const return @system
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(index_ < endIndex_, "front of empty GenerationalPool slots range");
+        }
+
+        const index = cast(uint) index_;
+        const state = states_[index];
+        ConstGenerationalPoolSlot!T result;
+        result.storage_ = values_ + index;
+        result.index_ = index;
+        result.generation_ = stateGeneration(state);
+        result.occupied_ = stateActive(state);
+        version (XTB_Checked)
+        {
+            result.owner_ = owner_;
+            result.mutationGeneration_ = mutationGeneration_;
+            result.valuesBase_ = valuesBase_;
+            result.statesBase_ = statesBase_;
+        }
+        return result;
+    }
+
+    void popFront() @trusted
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(index_ < endIndex_, "popFront of empty GenerationalPool slots range");
+        }
+        ++index_;
+    }
+}
+
+private struct GenerationalPoolOccupiedCursor(T)
+{
+nothrow @nogc:
+
+private:
+    const(uint)* states_;
+    size_t index_;
+    size_t endIndex_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+    static GenerationalPoolOccupiedCursor create(const(GenerationalPool!T)* pool) @trusted
+    {
+        GenerationalPoolOccupiedCursor result;
+        result.states_ = pool.states_.ptr;
+        result.index_ = 1;
+        result.endIndex_ = pool.states_.provisionedLength;
+        version (XTB_Checked)
+        {
+            result.owner_ = pool;
+            result.mutationGeneration_ = pool.mutationGeneration_;
+            result.valuesBase_ = pool.values_.ptr;
+            result.statesBase_ = pool.states_.ptr;
+        }
+        result.seekOccupied();
+        return result;
+    }
+
+public:
+    pragma(inline, true)
+    bool empty() const @trusted
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return index_ >= endIndex_;
+    }
+
+    pragma(inline, true)
+    uint index() const @trusted
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(index_ < endIndex_, "front of empty GenerationalPool occupied range");
+        }
+        return cast(uint) index_;
+    }
+
+    pragma(inline, true)
+    void popFront() @trusted
+    {
+        version (XTB_Checked)
+        {
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+            require(index_ < endIndex_, "popFront of empty GenerationalPool occupied range");
+        }
+        ++index_;
+        seekOccupied();
+    }
+
+private:
+    pragma(inline, true)
+    void seekOccupied() @trusted
+    {
+        while (index_ < endIndex_ && !stateActive(states_[index_]))
+            ++index_;
+    }
+}
+
+version (XTB_Checked) private void requireGenerationalPoolViewValid(T)(
+    scope const GenerationalPool!T* owner,
+    size_t mutationGeneration,
+    scope const T* valuesBase,
+    scope const uint* statesBase,
+) @trusted
+{
+    require(owner !is null, "GenerationalPool range has no owner");
+    require(owner.mutationGeneration_ == mutationGeneration,
+        "GenerationalPool range was invalidated by structural mutation");
+    require(owner.values_.ptr is valuesBase && owner.states_.ptr is statesBase,
+        "GenerationalPool range was invalidated by move or deinit");
+}
+
 pragma(inline, true)
 private bool stateActive(uint state) pure @safe
 {
@@ -490,6 +1192,12 @@ unittest
             const auto isEmpty = pool.empty;
             const auto present = pool.contains(handle);
             const int* value = pool.get(handle);
+            auto items = pool.items();
+            auto occupiedSlots = pool.occupiedSlots();
+            auto slots = pool.slots();
+            cast(void) items;
+            cast(void) occupiedSlots;
+            cast(void) slots;
             cast(void) capacity;
             cast(void) count;
             cast(void) isEmpty;
@@ -498,9 +1206,15 @@ unittest
         }));
 
     version (XTB_Checked)
+    {
         static assert(__traits(hasMember, IntPool, "mutationGeneration_"));
+        static assert(__traits(hasMember, GenerationalPoolSlot!int, "owner_"));
+    }
     else
+    {
         static assert(!__traits(hasMember, IntPool, "mutationGeneration_"));
+        static assert(!__traits(hasMember, GenerationalPoolSlot!int, "owner_"));
+    }
 
     assert(!stateActive(0));
     assert(stateGeneration(0) == 0);
@@ -649,6 +1363,149 @@ unittest
     assert(afterClearSecond.index == 2);
     assert(afterClearFirst.generation == representationReused.generation + 1);
     assert(afterClearSecond.generation == otherHandle.generation + 1);
+
+    IntPool ranges = IntPool.create(6);
+    scope (exit)
+        ranges.deinit();
+    IntHandle rangeOne = ranges.allocateInit();
+    IntHandle rangeTwo = ranges.allocateInit();
+    IntHandle rangeThree = ranges.allocateInit();
+    IntHandle rangeFour = ranges.allocateInit();
+    *ranges.get(rangeOne) = 10;
+    *ranges.get(rangeTwo) = 20;
+    *ranges.get(rangeThree) = 30;
+    *ranges.get(rangeFour) = 40;
+    ranges.deallocate(rangeTwo);
+    ranges.deallocate(rangeFour);
+
+    size_t itemCount;
+    foreach (ref item; ranges.items())
+    {
+        item += 100;
+        ++itemCount;
+    }
+    assert(itemCount == 2);
+    assert(*ranges.get(rangeOne) == 110);
+    assert(*ranges.get(rangeThree) == 130);
+
+    uint[2] occupiedIndices;
+    uint[2] occupiedGenerations;
+    size_t occupiedCount;
+    foreach (slot; ranges.occupiedSlots())
+    {
+        occupiedIndices[occupiedCount] = slot.index;
+        occupiedGenerations[occupiedCount] = slot.generation;
+        assert(slot.handle.index == slot.index);
+        assert(slot.handle.generation == slot.generation);
+        assert(ranges.get(slot.handle) is &slot.value());
+        slot.value += 1;
+        ++occupiedCount;
+    }
+    assert(occupiedCount == 2);
+    assert(occupiedIndices == [1, 3]);
+    assert(occupiedGenerations == [0, 0]);
+    assert(*ranges.get(rangeOne) == 111);
+    assert(*ranges.get(rangeThree) == 131);
+
+    uint[4] slotIndices;
+    uint[4] slotGenerations;
+    bool[4] slotOccupancy;
+    int[4] slotRepresentations;
+    size_t slotCount;
+    foreach (slot; ranges.slots())
+    {
+        slotIndices[slotCount] = slot.index;
+        slotGenerations[slotCount] = slot.generation;
+        slotOccupancy[slotCount] = slot.occupied;
+        slotRepresentations[slotCount] = slot.storage;
+        if (slot.occupied)
+            assert(slot.handle.index == slot.index);
+        else
+            assert(slot.handle == IntHandle.init);
+        ++slotCount;
+    }
+    assert(slotCount == 4);
+    assert(slotIndices == [1, 2, 3, 4]);
+    assert(slotGenerations == [0, 1, 0, 1]);
+    assert(slotOccupancy == [true, false, true, false]);
+    assert(slotRepresentations == [111, 20, 131, 40]);
+
+    auto manual = ranges.items();
+    assert(!manual.empty);
+    assert(&manual.front() is ranges.get(rangeOne));
+    manual.popFront();
+    assert(!manual.empty);
+    assert(&manual.front() is ranges.get(rangeThree));
+    manual.popFront();
+    assert(manual.empty);
+
+    auto independentLeft = ranges.occupiedSlots();
+    auto independentRight = ranges.occupiedSlots();
+    independentLeft.popFront();
+    assert(independentLeft.front.index == 3);
+    assert(independentRight.front.index == 1);
+
+    const(IntPool)* constRanges = &ranges;
+    size_t constItemCount;
+    foreach (ref const item; constRanges.items())
+    {
+        assert(item == 111 || item == 131);
+        ++constItemCount;
+    }
+    assert(constItemCount == 2);
+
+    size_t constOccupiedCount;
+    foreach (slot; constRanges.occupiedSlots())
+    {
+        assert(slot.index == 1 || slot.index == 3);
+        assert(slot.generation == 0);
+        assert(constRanges.get(slot.handle) is &slot.value());
+        ++constOccupiedCount;
+    }
+    assert(constOccupiedCount == 2);
+
+    size_t constSlotCount;
+    foreach (slot; constRanges.slots())
+    {
+        assert(slot.index >= 1 && slot.index <= 4);
+        cast(void) slot.storage;
+        ++constSlotCount;
+    }
+    assert(constSlotCount == 4);
+
+    ranges.clear();
+    size_t clearedSlotCount;
+    foreach (slot; ranges.slots())
+    {
+        assert(!slot.occupied);
+        assert(slot.generation == 1);
+        assert(slot.handle == IntHandle.init);
+        ++clearedSlotCount;
+    }
+    assert(clearedSlotCount == 4);
+    assert(ranges.items().empty);
+    assert(ranges.occupiedSlots().empty);
+
+    enum uint sparseRangeCapacity = 130;
+    IntPool sparseRanges = IntPool.create(sparseRangeCapacity);
+    scope (exit)
+        sparseRanges.deinit();
+    IntHandle[sparseRangeCapacity] sparseHandles;
+    foreach (offset; 0 .. sparseRangeCapacity)
+    {
+        const handle = sparseRanges.allocateInit();
+        *sparseRanges.get(handle) = cast(int) handle.index;
+        sparseHandles[offset] = handle;
+    }
+    foreach (index; 2 .. sparseRangeCapacity)
+        sparseRanges.deallocate(sparseHandles[index - 1]);
+
+    uint[2] sparseLiveIndices;
+    size_t sparseLiveCount;
+    foreach (slot; sparseRanges.occupiedSlots())
+        sparseLiveIndices[sparseLiveCount++] = slot.index;
+    assert(sparseLiveCount == 2);
+    assert(sparseLiveIndices == [1, sparseRangeCapacity]);
 
     struct ExplicitOwner
     {

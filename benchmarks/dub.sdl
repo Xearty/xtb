@@ -14,3 +14,11 @@ configuration "logging" {
     mainSourceFile "logging.d"
     sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
 }
+
+configuration "pools" {
+    targetType "executable"
+    targetName "pools_benchmark"
+    targetPath "../build/benchmarks"
+    mainSourceFile "pools.d"
+    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+}

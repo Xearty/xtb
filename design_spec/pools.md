@@ -995,7 +995,7 @@ rather than the number of provisioned slots.
 
 The states are `uint` rather than a bitset. Initial implementation may scan state entries sequentially and test `activeBit`.
 
-A later summary bitmap can be added only if profiling shows it is worthwhile. Do not duplicate occupancy metadata preemptively.
+A later summary bitmap can be added only if profiling shows it is worthwhile. Do not duplicate occupancy metadata preemptively. The Step 8 microbenchmark keeps this decision measurable: on the supplied LDC 1.42.0/Linux environment, dense state scanning was within roughly 30% of plain Pool bitmap iteration, while a 1/8-occupied generational pool cost roughly 4.4 ns per live item versus about 0.6 ns for the bitmap-backed Pool. The state scan still consumed only about half a nanosecond per provisioned slot, so the first implementation keeps the single authoritative packed state array rather than adding a second occupancy invariant.
 
 ## 9.2 `occupiedSlots()`
 
@@ -1021,7 +1021,7 @@ foreach (slot; pool.occupiedSlots())
 Generational proxy:
 
 ```d
-struct OccupiedGenerationalPoolSlot(T)
+struct GenerationalPoolOccupiedSlot(T)
 {
     uint index() const;
     uint generation() const;
@@ -1067,7 +1067,7 @@ struct GenerationalPoolSlot(T)
     bool occupied() const;
     uint generation() const;
 
-    Handle handle() const;      // requires occupied
+    Handle handle() const;      // live handle, or Handle.init when inactive
     ref T value() return;       // requires occupied
     ref T storage() @system return;
 }
@@ -1428,6 +1428,8 @@ Useful benchmarks:
 
 Do not add summary bitmaps, SIMD traversal, or other secondary indexes until profiling demonstrates a real need.
 
+The repository now includes `just benchmark pools`. Its current benchmark set covers dense/sparse Pool iteration, direct index scanning, dense/sparse GenerationalPool state scanning, recycled allocation/deallocation, generational handle lookup, and a 10-million-slot reservation with only 16 live values. The benchmark intentionally remains opt-in and reports workload-specific timings rather than defining ABI/API guarantees. An optimized LDC code-generation probe also confirms that `GenerationalPool.items()` is fully inlined: the active high bit lowers directly to a signed-state test and no range-method call remains in the loop.
+
 ---
 
 # 17. Implementation plan
@@ -1443,7 +1445,7 @@ Current progress:
 5. **Complete** — fixed-capacity `Pool!T`.
 6. **Complete** — Pool ranges.
 7. **Complete** — `GenerationalPool!T`.
-8. Pending — generational ranges, documentation, benchmarks, and final audit.
+8. **Complete** — generational ranges, documentation, benchmarks, and final audit.
 
 ---
 

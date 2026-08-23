@@ -418,7 +418,7 @@ Acceptance coverage:
 - shallow clear/deinit lifetime semantics;
 - over-aligned values;
 - move/moveAssign;
-- checked-only future range-generation state absent in unchecked builds;
+- checked-only range-generation state absent in unchecked builds;
 - always-on stale/null-handle death cases, including direct execution in an
   unchecked release-fast binary;
 - full debug suite, focused ASan core, release-safe/release-fast library builds,
@@ -426,37 +426,58 @@ Acceptance coverage:
 
 Commit target: `feat(core): add generational pool`.
 
-## Step 8 — generational ranges, benchmarks, docs, and final audit
+## Step 8 — generational ranges, benchmarks, docs, and final audit — COMPLETE
 
-Give `GenerationalPool!T` the same range vocabulary:
+`GenerationalPool!T` now exposes the same three mutable/const range names as
+plain Pool:
 
 ```d
-items()          // ref T
+items()          // ref T / ref const(T)
 occupiedSlots()  // index + generation + handle + ref T
-slots()          // all provisioned slots + state/storage metadata
+slots()          // every provisioned slot + state/storage metadata
 ```
 
-Initially scan the packed state array directly. Do not add a second occupancy
-bitmap or other summary index unless benchmarks demonstrate a real need.
+The live ranges share a direct packed-state cursor. It scans the provisioned
+`uint` state prefix in ascending index order and tests the active bit; `slots()`
+walks the same provisioned high-water sequentially. The all-slot proxy exposes
+its current generation and returns `Handle.init` from `handle` while inactive.
+Raw inactive `storage` remains available through an `@system` ref exactly like
+plain Pool. Mutable and const variants preserve direct ref access without
+copying `T`.
 
-Benchmark/review:
+Checked builds use the existing mutation generation plus captured value/state
+base addresses to diagnose range/proxy invalidation after allocation,
+deallocation, clear, move/moveAssign, or deinit. This diagnostic state still
+compiles out without `XTB_Checked`; stale-handle validation remains semantic and
+always active independently of range diagnostics.
 
-- dense and sparse plain Pool iteration;
-- range versus handwritten bitmap loop;
-- recycled allocation/deallocation;
-- generational handle lookup;
-- generational state scanning;
-- large reserved capacity with a small live set;
-- page-boundary growth and physical backing;
-- metadata/cache footprint.
+Benchmark/review results:
 
-Final repository audit covers lifetime correctness, stale handles, overflow,
-alignment, range invalidation, move correctness, unchecked overhead, naming,
-documentation/examples, and public aggregate exports.
+- added the opt-in `just benchmark pools` target;
+- plain Pool dense/sparse iteration and public index scanning are measured;
+- Pool and GenerationalPool recycle cycles are measured;
+- GenerationalPool handle lookup and dense/sparse state iteration are measured;
+- a 10-million-slot reservation with 16 live values exercises the
+  large-reservation/small-live-set path;
+- on the supplied LDC 1.42.0/Linux environment, dense generational `items()` was
+  close to plain Pool, while 1/8 occupancy cost about 4.4 ns/live item versus
+  about 0.6 ns/live item for the bitmap-backed Pool. Because the direct state
+  scan remains about half a nanosecond per provisioned slot and a second bitmap
+  would duplicate authoritative lifetime state, no summary bitmap was added.
+  The benchmark remains in-tree so real workloads can revisit that tradeoff;
+- an `-O3 -release` code-generation probe confirms `GenerationalPool.items()`
+  fully inlines. The active-bit check lowers to a direct sign test on the packed
+  state and no range-method calls remain in the emitted loop.
 
-Commit target: documentation may stay with feature commits; use a final docs
-commit only for genuinely cross-cutting material that could not accurately land
-earlier.
+Documentation now includes `docs/pools.md`, README discoverability, updated
+architecture notes, and this design/plan. The final audit covers lifetime
+correctness, stale/null handles, generation wrap, overflow/alignment,
+range/proxy invalidation, move correctness, unchecked diagnostic overhead,
+public aggregate exports, formatting/lint, optimized builds, ASan, examples,
+and cumulative-series replay.
+
+Commit target: `feat(core): complete generational pool ranges` (with benchmark
+and documentation changes included because they finalize the same feature set).
 
 ## Validation policy
 

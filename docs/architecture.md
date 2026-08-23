@@ -182,7 +182,16 @@ belongs in higher internal storage objects rather than in the borrowed region.
 The VM layer is internal to XTB and is not part of the public allocator
 aggregate; a richer public
 `xtb.os` virtual-memory wrapper may build on the same substrate without making
-core depend upward on `os`. This lets APIs depend on the allocator contract
+core depend upward on `os`. Public `VirtualArray!T` builds a fixed-capacity,
+stable-address typed container over one reservation. Internal
+`VirtualArrayView!T` values partition a reservation into independently
+provisioned typed regions without owning the mapping. `Pool!T` uses those views
+for stable values, an occupancy bitmap, and recycled indices;
+`GenerationalPool!T` substitutes packed active/generation state and exposes
+stale-checked `{index, generation}` handles. Both pool types reserve index zero
+as invalid and keep allocator metadata outside `T`, so inactive representations
+remain untouched. See `docs/pools.md` for the public contracts and range model.
+This lets APIs depend on the allocator contract
 without importing a concrete allocation policy. Generic scalar and
 checked-arithmetic operations live in `xtb.core.numeric`; that module may use
 the panic contract layer without forcing panic to depend on containers or
