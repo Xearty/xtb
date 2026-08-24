@@ -267,8 +267,9 @@ Import `xtb.core` for the fixed-capacity virtual containers as well.
 `VirtualArray!T` reserves stable contiguous capacity and commits pages lazily;
 `Pool!T` adds stable indexed recycling with preserved inactive representations;
 `GenerationalPool!T` adds stale-handle detection. Both pool families expose
-`items()`, `occupiedSlots()`, and `slots()` ranges for value-only, live-slot,
-and all-provisioned-slot traversal respectively. See `docs/pools.md`.
+`items()`, `indexedItems()`, `occupiedSlots()`, and `slots()` ranges for
+value-only, indexed-live-item, full live-slot, and all-provisioned-slot traversal
+respectively. See `docs/pools.md`.
 
 Import `xtb.os` for platform services. Threads making path-based OS calls must
 install `ThreadContextScope`, which supplies temporary C-string storage.

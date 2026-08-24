@@ -335,6 +335,20 @@ public:
         return ConstPoolItemsRange!T.create(&this);
     }
 
+    /// Returns occupied values together with their stable indices.
+    ///
+    /// This uses the same occupied-slot cursor as `items()` and
+    /// `occupiedSlots()` and performs no second bitmap scan.
+    PoolOccupiedSlotsRange!T indexedItems() return @trusted
+    {
+        return PoolOccupiedSlotsRange!T.create(&this);
+    }
+
+    ConstPoolOccupiedSlotsRange!T indexedItems() const return @trusted
+    {
+        return ConstPoolOccupiedSlotsRange!T.create(&this);
+    }
+
     /// Returns an input range over occupied slots in stable index order.
     /// Each slot exposes its index and live value by reference.
     PoolOccupiedSlotsRange!T occupiedSlots() return @trusted
@@ -1119,9 +1133,17 @@ unittest
             const auto capacity = pool.capacity;
             const auto count = pool.liveCount;
             const auto isEmpty = pool.empty;
+            auto items = pool.items();
+            auto indexedItems = pool.indexedItems();
+            auto occupiedSlots = pool.occupiedSlots();
+            auto slots = pool.slots();
             cast(void) capacity;
             cast(void) count;
             cast(void) isEmpty;
+            cast(void) items;
+            cast(void) indexedItems;
+            cast(void) occupiedSlots;
+            cast(void) slots;
         }));
 
     version (XTB_Checked)
@@ -1318,6 +1340,18 @@ unittest
     assert(*rangeTwo == 20);
     assert(*rangeFour == 40);
 
+    uint[2] indexedIndices;
+    size_t indexedCount;
+    foreach (item; ranges.indexedItems())
+    {
+        indexedIndices[indexedCount++] = item.index;
+        item.value += 1;
+    }
+    assert(indexedCount == 2);
+    assert(indexedIndices == [1, 3]);
+    assert(*rangeOne == 111);
+    assert(*rangeThree == 131);
+
     uint[2] occupiedIndices;
     size_t occupiedCount;
     foreach (slot; ranges.occupiedSlots())
@@ -1327,8 +1361,8 @@ unittest
     }
     assert(occupiedCount == 2);
     assert(occupiedIndices == [1, 3]);
-    assert(*rangeOne == 111);
-    assert(*rangeThree == 131);
+    assert(*rangeOne == 112);
+    assert(*rangeThree == 132);
 
     uint[4] slotIndices;
     bool[4] slotOccupancy;
@@ -1344,7 +1378,7 @@ unittest
     assert(slotCount == 4);
     assert(slotIndices == [1, 2, 3, 4]);
     assert(slotOccupancy == [true, false, true, false]);
-    assert(slotRepresentations == [111, 20, 131, 40]);
+    assert(slotRepresentations == [112, 20, 132, 40]);
 
     auto manual = ranges.items();
     assert(!manual.empty);
@@ -1365,16 +1399,25 @@ unittest
     size_t constItemCount;
     foreach (ref const item; constRanges.items())
     {
-        assert(item == 111 || item == 131);
+        assert(item == 112 || item == 132);
         ++constItemCount;
     }
     assert(constItemCount == 2);
+
+    size_t constIndexedCount;
+    foreach (item; constRanges.indexedItems())
+    {
+        assert(item.index == 1 || item.index == 3);
+        assert(item.value == 112 || item.value == 132);
+        ++constIndexedCount;
+    }
+    assert(constIndexedCount == 2);
 
     size_t constOccupiedCount;
     foreach (slot; constRanges.occupiedSlots())
     {
         assert(slot.index == 1 || slot.index == 3);
-        assert(slot.value == 111 || slot.value == 131);
+        assert(slot.value == 112 || slot.value == 132);
         ++constOccupiedCount;
     }
     assert(constOccupiedCount == 2);

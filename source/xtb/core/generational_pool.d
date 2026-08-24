@@ -39,6 +39,16 @@ nothrow @nogc:
     {
         uint index;
         uint generation;
+
+        /// Whether this is a non-null handle representation.
+        ///
+        /// A non-null handle may still be stale, out of range, or belong to a
+        /// different pool instance. Use `GenerationalPool.contains` when
+        /// current pool membership matters.
+        bool valid() const pure @safe
+        {
+            return index != 0;
+        }
     }
 
 private:
@@ -312,6 +322,21 @@ public:
     ConstGenerationalPoolItemsRange!T items() const return @trusted
     {
         return ConstGenerationalPoolItemsRange!T.create(&this);
+    }
+
+    /// Returns live values together with their stable indices.
+    ///
+    /// This uses the same live-item cursor as `items()` and performs no second
+    /// state scan. It deliberately omits generation/handle materialization; use
+    /// `occupiedSlots()` when that additional identity metadata is needed.
+    GenerationalPoolIndexedItemsRange!T indexedItems() return @trusted
+    {
+        return GenerationalPoolIndexedItemsRange!T.create(&this);
+    }
+
+    ConstGenerationalPoolIndexedItemsRange!T indexedItems() const return @trusted
+    {
+        return ConstGenerationalPoolIndexedItemsRange!T.create(&this);
     }
 
     /// Returns an input range over live slots in stable index order. Each slot
@@ -704,6 +729,66 @@ public:
     }
 }
 
+/// Mutable live-item view returned by `GenerationalPool.indexedItems`.
+struct GenerationalPoolIndexedItem(T)
+{
+nothrow @nogc:
+
+private:
+    T* value_;
+    uint index_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+public:
+    uint index() const pure @safe
+    {
+        return index_;
+    }
+
+    ref T value() return @system
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return *value_;
+    }
+}
+
+/// Read-only live-item view returned by a const `GenerationalPool.indexedItems`.
+struct ConstGenerationalPoolIndexedItem(T)
+{
+nothrow @nogc:
+
+private:
+    const(T)* value_;
+    uint index_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+public:
+    uint index() const pure @safe
+    {
+        return index_;
+    }
+
+    ref const(T) value() const return @system
+    {
+        version (XTB_Checked)
+            requireGenerationalPoolViewValid(owner_, mutationGeneration_, valuesBase_, statesBase_);
+        return *value_;
+    }
+}
+
 /// Input range yielding live GenerationalPool values directly by reference.
 struct GenerationalPoolItemsRange(T)
 {
@@ -764,6 +849,124 @@ public:
     ref const(T) front() const return @system
     {
         return values_[cursor_.index];
+    }
+
+    void popFront() @trusted
+    {
+        cursor_.popFront();
+    }
+}
+
+/// Input range yielding live values with stable indices.
+struct GenerationalPoolIndexedItemsRange(T)
+{
+nothrow @nogc:
+
+private:
+    GenerationalPoolOccupiedCursor!T cursor_;
+    T* values_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+    static GenerationalPoolIndexedItemsRange create(GenerationalPool!T* pool) @trusted
+    {
+        GenerationalPoolIndexedItemsRange result;
+        result.cursor_ = GenerationalPoolOccupiedCursor!T.create(pool);
+        result.values_ = pool.values_.ptr;
+        version (XTB_Checked)
+        {
+            result.owner_ = pool;
+            result.mutationGeneration_ = pool.mutationGeneration_;
+            result.valuesBase_ = pool.values_.ptr;
+            result.statesBase_ = pool.states_.ptr;
+        }
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        return cursor_.empty;
+    }
+
+    GenerationalPoolIndexedItem!T front() return @system
+    {
+        GenerationalPoolIndexedItem!T result;
+        result.value_ = values_ + cursor_.index;
+        result.index_ = cursor_.index;
+        version (XTB_Checked)
+        {
+            result.owner_ = owner_;
+            result.mutationGeneration_ = mutationGeneration_;
+            result.valuesBase_ = valuesBase_;
+            result.statesBase_ = statesBase_;
+        }
+        return result;
+    }
+
+    void popFront() @trusted
+    {
+        cursor_.popFront();
+    }
+}
+
+/// Read-only input range yielding live values with stable indices.
+struct ConstGenerationalPoolIndexedItemsRange(T)
+{
+nothrow @nogc:
+
+private:
+    GenerationalPoolOccupiedCursor!T cursor_;
+    const(T)* values_;
+    version (XTB_Checked)
+    {
+        const(GenerationalPool!T)* owner_;
+        size_t mutationGeneration_;
+        const(T)* valuesBase_;
+        const(uint)* statesBase_;
+    }
+
+    static ConstGenerationalPoolIndexedItemsRange create(
+        const(GenerationalPool!T)* pool,
+    ) @trusted
+    {
+        ConstGenerationalPoolIndexedItemsRange result;
+        result.cursor_ = GenerationalPoolOccupiedCursor!T.create(pool);
+        result.values_ = pool.values_.ptr;
+        version (XTB_Checked)
+        {
+            result.owner_ = pool;
+            result.mutationGeneration_ = pool.mutationGeneration_;
+            result.valuesBase_ = pool.values_.ptr;
+            result.statesBase_ = pool.states_.ptr;
+        }
+        return result;
+    }
+
+public:
+    bool empty() const @trusted
+    {
+        return cursor_.empty;
+    }
+
+    ConstGenerationalPoolIndexedItem!T front() const return @system
+    {
+        ConstGenerationalPoolIndexedItem!T result;
+        result.value_ = values_ + cursor_.index;
+        result.index_ = cursor_.index;
+        version (XTB_Checked)
+        {
+            result.owner_ = owner_;
+            result.mutationGeneration_ = mutationGeneration_;
+            result.valuesBase_ = valuesBase_;
+            result.statesBase_ = statesBase_;
+        }
+        return result;
     }
 
     void popFront() @trusted
@@ -1182,6 +1385,7 @@ unittest
 
     static assert(IntHandle.init.index == 0);
     static assert(IntHandle.init.generation == 0);
+    static assert(!IntHandle.init.valid);
     static assert(!__traits(compiles,
             (ref IntPool intPool, GenerationalPool!uint.Handle otherHandle) {
             intPool.get(otherHandle);
@@ -1193,9 +1397,11 @@ unittest
             const auto present = pool.contains(handle);
             const int* value = pool.get(handle);
             auto items = pool.items();
+            auto indexedItems = pool.indexedItems();
             auto occupiedSlots = pool.occupiedSlots();
             auto slots = pool.slots();
             cast(void) items;
+            cast(void) indexedItems;
             cast(void) occupiedSlots;
             cast(void) slots;
             cast(void) capacity;
@@ -1256,6 +1462,8 @@ unittest
     *pool.get(second) = 22;
     assert(first.index == 1 && first.generation == 0);
     assert(second.index == 2 && second.generation == 0);
+    assert(first.valid);
+    assert(second.valid);
     assert(pool.contains(first));
     assert(pool.contains(second));
     assert(*pool.get(first) == 11);
@@ -1266,6 +1474,7 @@ unittest
     const stateCommitted = pool.states_.committedBytes;
     const freeCommitted = pool.freeIndices_.committedBytes;
     assert(pool.tryDeallocate(first));
+    assert(first.valid); // non-null representation; pool-relative membership is stale
     assert(!pool.contains(first));
     assert(pool.get(first) is null);
     assert(!pool.tryDeallocate(first));
@@ -1371,6 +1580,7 @@ unittest
     IntHandle rangeTwo = ranges.allocateInit();
     IntHandle rangeThree = ranges.allocateInit();
     IntHandle rangeFour = ranges.allocateInit();
+    assert(rangeOne.valid);
     *ranges.get(rangeOne) = 10;
     *ranges.get(rangeTwo) = 20;
     *ranges.get(rangeThree) = 30;
@@ -1387,6 +1597,16 @@ unittest
     assert(itemCount == 2);
     assert(*ranges.get(rangeOne) == 110);
     assert(*ranges.get(rangeThree) == 130);
+
+    uint[2] indexedIndices;
+    size_t indexedCount;
+    foreach (item; ranges.indexedItems())
+    {
+        indexedIndices[indexedCount++] = item.index;
+        assert(item.value == 110 || item.value == 130);
+    }
+    assert(indexedCount == 2);
+    assert(indexedIndices == [1, 3]);
 
     uint[2] occupiedIndices;
     uint[2] occupiedGenerations;
@@ -1453,6 +1673,15 @@ unittest
         ++constItemCount;
     }
     assert(constItemCount == 2);
+
+    size_t constIndexedCount;
+    foreach (item; constRanges.indexedItems())
+    {
+        assert(item.index == 1 || item.index == 3);
+        assert(item.value == 111 || item.value == 131);
+        ++constIndexedCount;
+    }
+    assert(constIndexedCount == 2);
 
     size_t constOccupiedCount;
     foreach (slot; constRanges.occupiedSlots())

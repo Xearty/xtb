@@ -928,10 +928,11 @@ The value region remains untouched.
 
 # 9. Iteration model
 
-Both pools expose three distinct range APIs:
+Both pools expose four distinct range APIs:
 
 ```d
 pool.items()
+pool.indexedItems()
 pool.occupiedSlots()
 pool.slots()
 ```
@@ -948,8 +949,8 @@ Reasons:
 
 No heap allocation, GC, runtime polymorphism, or virtual dispatch is required.
 
-Both mutable and const Pools expose the same three names. Const ranges yield
-`ref const(T)` or const slot proxies. The ranges themselves are small copyable
+Both mutable and const Pools expose the same four names. Const ranges yield
+`ref const(T)` or const item/slot proxies. The ranges themselves are small copyable
 input-range values; copying a range copies cursor state and creates an independent
 traversal position.
 
@@ -997,9 +998,24 @@ The states are `uint` rather than a bitset. Initial implementation may scan stat
 
 A later summary bitmap can be added only if profiling shows it is worthwhile. Do not duplicate occupancy metadata preemptively. The Step 8 microbenchmark keeps this decision measurable: on the supplied LDC 1.42.0/Linux environment, dense state scanning was within roughly 30% of plain Pool bitmap iteration, while a 1/8-occupied generational pool cost roughly 4.4 ns per live item versus about 0.6 ns for the bitmap-backed Pool. The state scan still consumed only about half a nanosecond per provisioned slot, so the first implementation keeps the single authoritative packed state array rather than adding a second occupancy invariant.
 
-## 9.2 `occupiedSlots()`
+## 9.2 `indexedItems()`
 
-This range yields only live slots while exposing identity metadata.
+This is the live-item path for callers that also need the stable slot index:
+
+```d
+foreach (item; pool.indexedItems())
+    process(item.index, item.value);
+```
+
+The proxy contains only `{ index, value }`. It reuses the same live-item cursor
+as `items()` and performs no second occupancy/state scan. In particular, the
+generational form does not materialize generation or handle metadata; callers
+that need those use `occupiedSlots()`. This keeps `items()` unchanged as the
+minimum-overhead direct-`ref T` range.
+
+## 9.3 `occupiedSlots()`
+
+This range yields only live slots while exposing full identity metadata.
 
 Plain Pool proxy:
 
@@ -1037,9 +1053,9 @@ foreach (slot; pool.occupiedSlots())
     process(slot.handle, slot.value);
 ```
 
-`items()` and `occupiedSlots()` should share the same underlying live-slot cursor logic where practical. They differ only in what `front` exposes.
+`items()`, `indexedItems()`, and `occupiedSlots()` should share the same underlying live-slot cursor logic where practical. They differ only in what `front` exposes.
 
-## 9.3 `slots()`
+## 9.4 `slots()`
 
 `slots()` walks every **provisioned** slot, live or inactive.
 
@@ -1353,7 +1369,7 @@ Required coverage:
 
 ### Range tests
 
-For `items`, `occupiedSlots`, and `slots`:
+For `items`, `indexedItems`, `occupiedSlots`, and `slots`:
 
 - empty Pool;
 - one element;
@@ -1385,6 +1401,7 @@ All applicable Pool tests plus:
 - generation wrapping from `generationMask` to `0` via test-only/internal state setup;
 - clear invalidates every previously live handle;
 - inactive generations survive clear/reuse correctly;
+- indexed-item range reports the stable index without requiring generation/handle materialization;
 - occupied slot range reports matching handle/generation;
 - plain `items()` still yields only `ref T` with no proxy requirement.
 
@@ -1508,6 +1525,9 @@ Iteration remains explicit and purpose-specific:
 ```d
 foreach (ref value; pool.items())
     ...;
+
+foreach (item; pool.indexedItems())
+    ... item.index ... item.value ...;
 
 foreach (slot; pool.occupiedSlots())
     ... slot.index ... slot.value ...;

@@ -117,9 +117,12 @@ assert(pool.get(handle) is null); // stale
 A recycled slot retains its index and advances its generation. Handles are
 relative to the `GenerationalPool!T` instance that created them; they do not
 carry a global Pool identity and must not be mixed between two pools of the same
-`T`. `get` and `contains` reject null, inactive, out-of-range, and stale handles
-in every build mode. `tryDeallocate`/`tryDispose` report stale handles as ordinary failure;
-their infallible counterparts panic on invalid or stale handles.
+`T`. `Handle.valid` only reports whether the handle is non-null (`index != 0`);
+a non-null handle may still be stale or foreign. `get` and `contains` perform
+the pool-relative check and reject null, inactive, out-of-range, and stale
+handles in every build mode. `tryDeallocate`/`tryDispose` report stale handles
+as ordinary failure; their infallible counterparts panic on invalid or stale
+handles.
 
 `clear()` advances the generation of every live slot before resetting the
 allocation frontier, so every previously live handle becomes stale while value
@@ -147,9 +150,25 @@ foreach (ref entity; pool.items())
 Plain Pool walks its occupancy bitmap word-wise and skips empty words.
 GenerationalPool scans its packed state prefix and tests the active bit.
 
+### `indexedItems()`
+
+Use this when the common live-item traversal also needs the stable index. It
+uses the same occupancy cursor as the other live ranges and performs no second
+bitmap/state scan:
+
+```d
+foreach (item; pool.indexedItems())
+    formatln!"slot {}: {}"(item.index, item.value);
+```
+
+The entry intentionally contains only the stable index and live value. For a
+`GenerationalPool`, use `occupiedSlots()` when the generation or complete handle
+is also needed. Existing `items()` remains the minimum-overhead direct-`ref T`
+range.
+
 ### `occupiedSlots()`
 
-Use this when live values and identity metadata are both needed.
+Use this when live values and the full slot identity view are both needed.
 
 Plain Pool slots expose:
 
@@ -216,6 +235,31 @@ Run it with:
 
 ```text
 just run example entity-component-system
+```
+
+## Pool world example
+
+`examples/pool_world_demo.d` builds a small game-world-style object graph from
+generational pools. An `Entity` owns typed handles to independently pooled
+position, health, render, and optional attack state; systems traverse the pools
+that contain the data they operate on and resolve cross-pool relationships by
+generational handle.
+
+The movement system deliberately uses `slots()` and updates every provisioned
+`Position` representation without an occupancy branch. Fresh virtual pages are
+zero-filled, Pool recycling does not overwrite `T`, and construction replaces a
+reused slot before it becomes semantically live, so inactive numerical position
+state can be updated harmlessly. Other systems use live-item iteration when
+liveness matters. The multi-tick simulation also demonstrates destruction,
+immediate slot reuse with a new generation, a stale attack target being rejected,
+and explicit retargeting.
+
+This is object composition over pools rather than an entity-component system.
+
+Run it with:
+
+```text
+just run example pool-world
 ```
 
 ## Lifetime and ownership rules

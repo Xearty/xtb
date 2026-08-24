@@ -89,6 +89,18 @@ nothrow @nogc pure @safe:
         return AnsiColor(AnsiColorKind.rgb, red, green, blue);
     }
 
+    /// Creates a style that uses this color as its foreground.
+    @property AnsiStyle foreground() const
+    {
+        return AnsiStyle.foreground(this);
+    }
+
+    /// Creates a style that uses this color as its background.
+    @property AnsiStyle background() const
+    {
+        return AnsiStyle.background(this);
+    }
+
     AnsiColorKind kind() const
     {
         return kind_;
@@ -566,6 +578,10 @@ unittest
             .withBackground(AnsiColor.blue),
     );
     assert(standard.view.equal("\x1b[31;44m"));
+    assert(ansiSequence(AnsiColor.brightRed.foreground.bold).view.equal(
+            "\x1b[1;91m",
+    ));
+    assert(ansiSequence(AnsiColor.blue.background).view.equal("\x1b[44m"));
     const terminalDefaults = ansiSequence(
         AnsiStyle.foreground(AnsiColor.default_)
             .withBackground(AnsiColor.default_),
