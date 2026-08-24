@@ -1325,7 +1325,20 @@ uses interpolation or ordinary arguments. An owned result always requires an
 explicit allocator.
 
 Formatting policy stays explicit in expressions. Use wrappers such as
-`hexadecimal(value)`, `.digits(width)`, and `fixed(value, precision)`. A type
+`hexadecimal(value)`, `.digits(width)`, and `fixed(value, precision)`.
+`formatted!"..."(values...)` is the generic lazy composition form: it captures
+its arguments by value, allocates nothing, and becomes one ordinary printable
+value whose `formatTo` delegates to the same compile-time `Writer.format`
+engine when it is eventually rendered. This lets formatting compose without
+materializing an intermediate string, for example
+`styled(formatted!"#{}:{}"(index, generation), idStyle)`. `styled(values...,
+style)` follows the same content-first convention and emits one ANSI style
+scope around the values' ordinary representations. `AnsiWriter.styled(values...,
+style)` uses the same ordering when conditional ANSI output is needed. Both
+ANSI helpers finish with a full SGR reset and therefore intentionally do not
+model nestable style scopes.
+
+A type
 whose ordinary display is already represented by another value should define
 `formatRepresentation()` and return that value; the printer recursively applies
 normal formatting to the result. This remains the preferred path for semantic

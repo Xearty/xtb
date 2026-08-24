@@ -1291,7 +1291,7 @@ void writeHelp(Root, Path...)(
     static if (hasVisibleGlobalsOnStaticPath!(true, Root, Path))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Required global options:");
+        writer.styled("Required global options:", cliHeadingStyle);
         writer.put('\n');
         enum columnWidth = globalsOnStaticPathHelpColumnWidth!(true, Root, Path);
         bool firstGlobal = true;
@@ -1301,7 +1301,7 @@ void writeHelp(Root, Path...)(
     static if (hasVisibleGlobalsOnStaticPath!(false, Root, Path))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Optional global options:");
+        writer.styled("Optional global options:", cliHeadingStyle);
         writer.put('\n');
         enum columnWidth = globalsOnStaticPathHelpColumnWidth!(false, Root, Path);
         bool firstGlobal = true;
@@ -1343,7 +1343,7 @@ int writeCliResult(T)(
                 styledError.put("\nTry '");
                 writeProgramPath!T(styledError, result.programName, result.invocation_);
                 styledError.put(' ');
-                styledError.styled(cliCanonicalStyle, "--help");
+                styledError.styled("--help", cliCanonicalStyle);
                 styledError.put("' for more information.\n");
             }
             return 2;
@@ -1426,7 +1426,7 @@ private void writeSelectedHelpAt(Root, T)(
     if (hasGlobalsAlongActivePath!(Root, true)(tree))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Required global options:");
+        writer.styled("Required global options:", cliHeadingStyle);
         writer.put('\n');
         const columnWidth = globalsAlongActivePathHelpColumnWidth!(Root, true)(tree);
         bool firstGlobal = true;
@@ -1436,7 +1436,7 @@ private void writeSelectedHelpAt(Root, T)(
     if (hasGlobalsAlongActivePath!(Root, false)(tree))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Optional global options:");
+        writer.styled("Optional global options:", cliHeadingStyle);
         writer.put('\n');
         const columnWidth = globalsAlongActivePathHelpColumnWidth!(Root, false)(tree);
         bool firstGlobal = true;
@@ -1459,7 +1459,7 @@ private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
     static if (hasVisiblePositionals!T)
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Arguments:");
+        writer.styled("Arguments:", cliHeadingStyle);
         writer.put('\n');
         writePositionals!T(writer, positionalHelpColumnWidth!T);
     }
@@ -1467,7 +1467,7 @@ private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
     static if (hasSubcommands!T)
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Commands:");
+        writer.styled("Commands:", cliHeadingStyle);
         writer.put('\n');
         enum commandColumnWidth = commandHelpColumnWidth!T;
         bool firstCommand = true;
@@ -1483,7 +1483,7 @@ private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
     static if (hasVisibleRequiredLocalOptions!T)
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Required options:");
+        writer.styled("Required options:", cliHeadingStyle);
         writer.put('\n');
         enum requiredColumnWidth = visibleLocalOptionHelpColumnWidth!(T, true);
         writeLocalOptions!(T, true)(writer, requiredColumnWidth);
@@ -1493,7 +1493,7 @@ private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
         (is(Unqualified!T == Unqualified!Root) && builtinVersionEnabled!Root))
     {
         writer.put('\n');
-        writer.styled(cliHeadingStyle, "Optional options:");
+        writer.styled("Optional options:", cliHeadingStyle);
         writer.put('\n');
         enum optionColumnWidth = optionalLocalOptionHelpColumnWidth!(Root, T);
         static if (hasVisibleOptionalLocalOptions!T)
@@ -1555,7 +1555,7 @@ private void writeHelpDetailPrefix(
 private void writeCommandHelpLine(T)(ref AnsiWriter writer, size_t columnWidth) @system
 {
     writer.put("  ");
-    writer.styled(cliCanonicalStyle, commandName!T);
+    writer.styled(commandName!T, cliCanonicalStyle);
     bool firstDetail = true;
     enum aboutText = typeAbout!T;
     static if (aboutText.length != 0)
@@ -1578,14 +1578,14 @@ private void writeCommandHelpLine(T)(ref AnsiWriter writer, size_t columnWidth) 
             columnWidth,
             firstDetail,
         );
-        writer.styled(cliMetadataStyle, "aliases:");
+        writer.styled("aliases:", cliMetadataStyle);
         writer.put(' ');
         bool first = true;
         static foreach (name; commandAliases!T)
         {
             if (!first)
                 writer.put(", ");
-            writer.styled(cliSecondaryStyle, name);
+            writer.styled(name, cliSecondaryStyle);
             first = false;
         }
         writer.put('\n');
@@ -1621,18 +1621,18 @@ private void writeRequiredNamedOptionUsageAt(T, size_t index, bool global)(
         static if (fieldHas!(T, index, CliNegatable))
         {
             writer.put('(');
-            writer.styled(cliCanonicalStyle, "--", fieldLongName!(T, index));
+            writer.styled("--", fieldLongName!(T, index), cliCanonicalStyle);
             writer.put('|');
-            writer.styled(cliCanonicalStyle, "--", fieldNegativeLongName!(T, index));
+            writer.styled("--", fieldNegativeLongName!(T, index), cliCanonicalStyle);
             writer.put(')');
         }
         else
         {
-            writer.styled(cliCanonicalStyle, "--", fieldLongName!(T, index));
+            writer.styled("--", fieldLongName!(T, index), cliCanonicalStyle);
             static if (cliFieldTakesValue!(T, index))
             {
                 writer.put(' ');
-                writer.styled(cliValueStyle, '<', fieldValueName!(T, index), '>');
+                writer.styled('<', fieldValueName!(T, index), '>', cliValueStyle);
             }
         }
     }
@@ -1653,7 +1653,7 @@ private void writeRequiredGlobalOptionUsage(T)(ref AnsiWriter writer) @system
 private void writeOptionalOptionsUsage(ref AnsiWriter writer) @system
 {
     writer.put(' ');
-    writer.styled(cliValueStyle, "[OPTIONS]");
+    writer.styled("[OPTIONS]", cliValueStyle);
 }
 
 private void writeStaticLocalUsagePath(Current, Path...)(ref AnsiWriter writer) @system
@@ -1666,7 +1666,7 @@ private void writeStaticLocalUsagePath(Current, Path...)(ref AnsiWriter writer) 
         writePositionalUsage!Current(writer);
         alias Child = Path[0];
         writer.put(' ');
-        writer.styled(cliCanonicalStyle, commandName!Child);
+        writer.styled(commandName!Child, cliCanonicalStyle);
         writeStaticLocalUsagePath!(Child, Path[1 .. $])(writer);
     }
 }
@@ -1678,9 +1678,9 @@ private void writeStaticUsage(Root, Path...)(
 {
     alias Target = HelpPathTarget!(Root, Path);
 
-    writer.styled(cliHeadingStyle, "Usage:");
+    writer.styled("Usage:", cliHeadingStyle);
     writer.put(' ');
-    writer.styled(cliCanonicalStyle, programName);
+    writer.styled(programName, cliCanonicalStyle);
     writeStaticLocalUsagePath!(Root, Path)(writer);
     writeRequiredGlobalsOnStaticPathUsage!(Root, Path)(writer);
     static if (hasVisibleOptionalLocalOptions!Target ||
@@ -1751,9 +1751,9 @@ private void writeSelectedUsage(T)(
     ref ParsedCommand!T root,
 ) @system
 {
-    writer.styled(cliHeadingStyle, "Usage:");
+    writer.styled("Usage:", cliHeadingStyle);
     writer.put(' ');
-    writer.styled(cliCanonicalStyle, programName);
+    writer.styled(programName, cliCanonicalStyle);
     writeActiveUsagePath!(T, T)(writer, root, root);
     writer.put('\n');
 }
@@ -1773,7 +1773,7 @@ private void writeActiveUsagePath(Root, T)(
                 writeOptionalOptionsUsage(writer);
             writePositionalUsage!T(writer);
             writer.put(' ');
-            writer.styled(cliCanonicalStyle, commandName!Child);
+            writer.styled(commandName!Child, cliCanonicalStyle);
             writeActiveUsagePath!(Root, Child)(writer, tree, *child);
             return;
         }
@@ -1809,7 +1809,7 @@ private void writeProgramPath(T)(
     ref ParsedCommand!T node,
 ) @system
 {
-    writer.styled(cliCanonicalStyle, programName);
+    writer.styled(programName, cliCanonicalStyle);
     writeChildPath!T(writer, node);
 }
 
@@ -1821,7 +1821,7 @@ private void writeChildPath(T)(ref AnsiWriter writer, ref ParsedCommand!T node)
         if (auto child = node.command!Child)
         {
             writer.put(' ');
-            writer.styled(cliCanonicalStyle, commandName!Child);
+            writer.styled(commandName!Child, cliCanonicalStyle);
             writeChildPath!Child(writer, *child);
             return;
         }
@@ -1835,9 +1835,9 @@ private void writeCommandOrPositionalUsage(T)(ref AnsiWriter writer) @system
         writePositionalUsage!T(writer);
         writer.put(' ');
         static if (subcommandIsOptional!T)
-            writer.styled(cliValueStyle, "[COMMAND]");
+            writer.styled("[COMMAND]", cliValueStyle);
         else
-            writer.styled(cliValueStyle, "<COMMAND>");
+            writer.styled("<COMMAND>", cliValueStyle);
     }
     else
         writePositionalUsage!T(writer);
@@ -1857,11 +1857,11 @@ private void writePositionalUsageAt(T, size_t index)(ref AnsiWriter writer) @sys
     {
         writer.put(' ');
         static if (fieldHas!(T, index, CliRest))
-            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), "...", ']');
+            writer.styled('[', fieldValueName!(T, index), "...", ']', cliValueStyle);
         else static if (fieldIsRequired!(T, index))
-            writer.styled(cliValueStyle, '<', fieldValueName!(T, index), '>');
+            writer.styled('<', fieldValueName!(T, index), '>', cliValueStyle);
         else
-            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), ']');
+            writer.styled('[', fieldValueName!(T, index), ']', cliValueStyle);
     }
 }
 
@@ -1937,11 +1937,11 @@ private void writePositionalLine(T, size_t index)(
     {
         writer.put("  ");
         static if (fieldHas!(T, index, CliRest))
-            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), "...", ']');
+            writer.styled('[', fieldValueName!(T, index), "...", ']', cliValueStyle);
         else static if (fieldIsRequired!(T, index))
-            writer.styled(cliValueStyle, '<', fieldValueName!(T, index), '>');
+            writer.styled('<', fieldValueName!(T, index), '>', cliValueStyle);
         else
-            writer.styled(cliValueStyle, '[', fieldValueName!(T, index), ']');
+            writer.styled('[', fieldValueName!(T, index), ']', cliValueStyle);
         writeFieldHelpBlock!(T, index)(
             writer,
             positionalHelpLabelWidth!(T, index),
@@ -2031,23 +2031,16 @@ private void writeOptionLine(T, size_t index)(
     writer.put("  ");
     enum shortName = fieldShortName!(T, index);
     static if (shortName != '\0')
-        writer.styled(
-            cliCanonicalStyle,
-            '-',
-            shortName,
-            ", ",
-            "--",
-            fieldLongName!(T, index),
-        );
+        writer.styled('-', shortName, ", ", "--", fieldLongName!(T, index), cliCanonicalStyle);
     else
     {
         writer.put("    ");
-        writer.styled(cliCanonicalStyle, "--", fieldLongName!(T, index));
+        writer.styled("--", fieldLongName!(T, index), cliCanonicalStyle);
     }
     static if (cliFieldTakesValue!(T, index))
     {
         writer.put(' ');
-        writer.styled(cliValueStyle, '<', fieldValueName!(T, index), '>');
+        writer.styled('<', fieldValueName!(T, index), '>', cliValueStyle);
     }
     writeFieldHelpBlock!(T, index)(
         writer,
@@ -2064,7 +2057,7 @@ private void writeBuiltinOptionLine(
 ) @system
 {
     writer.put("  ");
-    writer.styled(cliCanonicalStyle, label);
+    writer.styled(label, cliCanonicalStyle);
     writeHelpGap(writer, label.length, columnWidth);
     writer.put(helpText);
     writer.put('\n');
@@ -2093,21 +2086,21 @@ private void writeFieldHelpBlock(T, size_t index)(
             fieldLongAliases!(T, index).length != 0))
     {
         writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
-        writer.styled(cliMetadataStyle, "aliases:");
+        writer.styled("aliases:", cliMetadataStyle);
         writer.put(' ');
         bool firstAlias = true;
         static foreach (shortAlias; fieldShortAliases!(T, index))
         {
             if (!firstAlias)
                 writer.put(", ");
-            writer.styled(cliSecondaryStyle, '-', shortAlias);
+            writer.styled('-', shortAlias, cliSecondaryStyle);
             firstAlias = false;
         }
         static foreach (longAlias; fieldLongAliases!(T, index))
         {
             if (!firstAlias)
                 writer.put(", ");
-            writer.styled(cliSecondaryStyle, "--", longAlias);
+            writer.styled("--", longAlias, cliSecondaryStyle);
             firstAlias = false;
         }
         writer.put('\n');
@@ -2117,27 +2110,23 @@ private void writeFieldHelpBlock(T, size_t index)(
         fieldHas!(T, index, CliNegatable))
     {
         writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
-        writer.styled(cliMetadataStyle, "negatable:");
+        writer.styled("negatable:", cliMetadataStyle);
         writer.put(' ');
-        writer.styled(
-            cliSecondaryStyle,
-            "--",
-            fieldNegativeLongName!(T, index),
-        );
+        writer.styled("--", fieldNegativeLongName!(T, index), cliSecondaryStyle);
         writer.put('\n');
     }
 
     static if (possibleValues.length != 0)
     {
         writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
-        writer.styled(cliMetadataStyle, "values:");
+        writer.styled("values:", cliMetadataStyle);
         writer.put(' ');
         bool firstValue = true;
         static foreach (value; possibleValues)
         {
             if (!firstValue)
                 writer.put(", ");
-            writer.styled(cliValueStyle, value);
+            writer.styled(value, cliValueStyle);
             firstValue = false;
         }
         writer.put('\n');
@@ -2146,7 +2135,7 @@ private void writeFieldHelpBlock(T, size_t index)(
     static if (hasDefault)
     {
         writeHelpDetailPrefix(writer, labelWidth, columnWidth, firstDetail);
-        writer.styled(cliMetadataStyle, "default:");
+        writer.styled("default:", cliMetadataStyle);
         writer.put(' ');
         writeFieldHelpDefault!(T, index)(writer);
         writer.put('\n');
@@ -2172,7 +2161,7 @@ private void writeFieldHelpDefault(T, size_t index)(ref AnsiWriter writer) @syst
 {
     static assert(fieldHasHelpDefault!(T, index));
     static if (fieldHasDefaultInput!(T, index))
-        writer.styled(cliDefaultStyle, fieldDefaultInput!(T, index));
+        writer.styled(fieldDefaultInput!(T, index), cliDefaultStyle);
     else
     {
         alias Field = Unqualified!(FieldType!(T, index));
@@ -2185,21 +2174,21 @@ private void writeFieldHelpDefault(T, size_t index)(ref AnsiWriter writer) @syst
             static if (cliRepresentationHasFormatter!(Representation, Field))
             {
                 auto formatted = CliFormattedDefault!(Representation, Field)(&value);
-                writer.styled(cliDefaultStyle, formatted);
+                writer.styled(formatted, cliDefaultStyle);
             }
             else static if (is(Field == enum))
-                writer.styled(cliDefaultStyle, fieldAutomaticEnumDefaultName!(T, index));
+                writer.styled(fieldAutomaticEnumDefaultName!(T, index), cliDefaultStyle);
             else static if (is(Field == char) || is(Field == wchar) || is(Field == dchar))
-                writer.styled(cliDefaultStyle, cast(uint) value);
+                writer.styled(cast(uint) value, cliDefaultStyle);
             else
-                writer.styled(cliDefaultStyle, value);
+                writer.styled(value, cliDefaultStyle);
         }
         else static if (is(Field == enum))
-            writer.styled(cliDefaultStyle, fieldAutomaticEnumDefaultName!(T, index));
+            writer.styled(fieldAutomaticEnumDefaultName!(T, index), cliDefaultStyle);
         else static if (is(Field == char) || is(Field == wchar) || is(Field == dchar))
-            writer.styled(cliDefaultStyle, cast(uint) value);
+            writer.styled(cast(uint) value, cliDefaultStyle);
         else
-            writer.styled(cliDefaultStyle, value);
+            writer.styled(value, cliDefaultStyle);
     }
 }
 
@@ -2292,9 +2281,9 @@ private void writeGlobalsAlongActivePath(T, bool required)(
 
 private void writeVersion(T)(ref AnsiWriter writer, String programName) @system
 {
-    writer.styled(cliCanonicalStyle, programName);
+    writer.styled(programName, cliCanonicalStyle);
     writer.put(' ');
-    writer.styled(cliDefaultStyle, typeVersion!T);
+    writer.styled(typeVersion!T, cliDefaultStyle);
     writer.put('\n');
 }
 
@@ -2314,9 +2303,9 @@ private void writeErrorFieldName(T)(
             if (fieldIndex == index)
             {
                 if (valueName)
-                    writer.styled(cliValueStyle, fieldValueName!(T, index));
+                    writer.styled(fieldValueName!(T, index), cliValueStyle);
                 else
-                    writer.styled(cliCanonicalStyle, fieldLongName!(T, index));
+                    writer.styled(fieldLongName!(T, index), cliCanonicalStyle);
                 return;
             }
         }
@@ -2346,7 +2335,7 @@ private void writeError(T)(
     ref ParsedCommand!T root,
 ) @system
 {
-    writer.styled(cliErrorStyle, "error:");
+    writer.styled("error:", cliErrorStyle);
     writer.put(' ');
     final switch (error.kind)
     {
@@ -2358,12 +2347,12 @@ private void writeError(T)(
             break;
         case CliErrorKind.unknownOption:
             writer.put("unknown option '");
-            writer.styled(cliValueStyle, error.token);
+            writer.styled(error.token, cliValueStyle);
             writer.put("'");
             break;
         case CliErrorKind.unknownCommand:
             writer.put("unknown command '");
-            writer.styled(cliValueStyle, error.token);
+            writer.styled(error.token, cliValueStyle);
             writer.put("'");
             break;
         case CliErrorKind.missingOptionValue:
@@ -2375,7 +2364,7 @@ private void writeError(T)(
                 writer.put("value '");
             else
                 writer.put("invalid value '");
-            writer.styled(cliValueStyle, error.token);
+            writer.styled(error.token, cliValueStyle);
             writer.put("' for ");
             if (error.fieldIndex != size_t.max)
                 writeErrorFieldName!T(
@@ -2398,7 +2387,7 @@ private void writeError(T)(
             break;
         case CliErrorKind.invalidDefault:
             writer.put("application default '");
-            writer.styled(cliValueStyle, error.token);
+            writer.styled(error.token, cliValueStyle);
             writer.put("' for ");
             writeErrorFieldName!T(
                 writer,
@@ -2451,7 +2440,7 @@ private void writeError(T)(
             break;
         case CliErrorKind.unexpectedArgument:
             writer.put("unexpected argument '");
-            writer.styled(cliValueStyle, error.token);
+            writer.styled(error.token, cliValueStyle);
             writer.put("'");
             break;
         case CliErrorKind.allocationFailed:

@@ -2,6 +2,7 @@ module xtb.core.ansi;
 
 nothrow @nogc:
 
+import core.lifetime : forward;
 import xtb.core.flag_set : FlagSet, enable;
 import xtb.core.writer : Writer;
 import xtb.core.string;
@@ -275,6 +276,41 @@ nothrow @nogc:
 
 enum ansiReset = AnsiReset.init;
 
+/// Printable values rendered under one ANSI style scope.
+///
+/// Values are captured by value and formatted through the ordinary XTB
+/// printable-value path. Ending the style emits a full SGR reset, so styled
+/// values intentionally do not form nestable style scopes.
+struct Styled(Values...)
+{
+nothrow @nogc:
+
+    Values values;
+    AnsiStyle style;
+
+    void formatTo(ref Writer writer)
+    {
+        writer.beginAnsi(style);
+        static foreach (index; 0 .. Values.length)
+            writer.value(values[index]);
+        writer.endAnsi(style);
+    }
+
+    void formatTo(ref Writer writer) const
+    {
+        writer.beginAnsi(style);
+        static foreach (index; 0 .. Values.length)
+            writer.value(values[index]);
+        writer.endAnsi(style);
+    }
+}
+
+/// Wraps one or more printable `values` in `style` without allocating.
+auto styled(Values...)(auto ref Values values, AnsiStyle style) if (Values.length != 0)
+{
+    return Styled!Values(forward!values, style);
+}
+
 /// A non-owning view over a `Writer` that conditionally emits ANSI SGR styling.
 ///
 /// `ansiEnabled` is an explicit rendering decision made by the caller; this
@@ -335,11 +371,11 @@ nothrow @nogc:
         writer_.value(value);
     }
 
-    /// Writes one or more ordinary `Writer.value` values under `style`.
+    /// Writes one or more ordinary `Writer.value` values under trailing `style`.
     /// When ANSI is disabled, this is exactly equivalent to writing the values
     /// without styling. The emitted reset is a full SGR reset, so this helper
     /// intentionally does not expose nestable begin/end style scopes.
-    void styled(Values...)(AnsiStyle style, auto ref Values values) if (Values.length != 0)
+    void styled(Values...)(auto ref Values values, AnsiStyle style) if (Values.length != 0)
     {
         if (ansiEnabled_)
             beginAnsi(*writer_, style);
@@ -527,11 +563,8 @@ unittest
     plain.put('A');
     plain.put("B");
     plain.repeat('c', 2);
-    plain.styled(
-        AnsiStyle.foreground(AnsiColor.brightRed).bold,
-        " value=",
-        hexadecimal(42),
-    );
+    const plainStyle = AnsiStyle.foreground(AnsiColor.brightRed).bold;
+    plain.styled(" value=", hexadecimal(42), plainStyle);
     assert(state.length != 0);
     assert(plain.written == state.length);
     assert(state.storage[0 .. state.length].equal("ABcc value=0x2a"));
@@ -546,7 +579,7 @@ unittest
     assert(styled.ansiEnabled);
 
     const style = AnsiStyle.foreground(AnsiColor.brightRed).bold;
-    styled.styled(style, "value=", 42, '!');
+    styled.styled("value=", 42, '!', style);
     const styledResult = output.result;
     assert(styledResult.ok);
     assert(styledResult.written == state.length);
@@ -598,4 +631,28 @@ unittest
     assert(style.has(AnsiAttribute.bold));
     assert(style.has(AnsiAttribute.underline));
     assert(!style.has(AnsiAttribute.italic));
+
+    import xtb.core.format : formatted;
+
+    const plainStyledResult = writeBuffer(storage[], styled(42, AnsiStyle.init));
+    assert(plainStyledResult.ok);
+    assert(storage[0 .. plainStyledResult.written].equal("42"));
+
+    const groupedStyledResult = writeBuffer(
+        storage[],
+        styled("value=", 42, '!', AnsiColor.brightRed.foreground),
+    );
+    assert(groupedStyledResult.ok);
+    assert(storage[0 .. groupedStyledResult.written].equal(
+            "\x1b[91mvalue=42!\x1b[0m",
+    ));
+
+    const styledResult = writeBuffer(
+        storage[],
+        styled(formatted!"#{}:{}"(7u, 3u), AnsiColor.brightCyan.foreground.bold),
+    );
+    assert(styledResult.ok);
+    assert(storage[0 .. styledResult.written].equal(
+            "\x1b[1;96m#7:3\x1b[0m",
+    ));
 }

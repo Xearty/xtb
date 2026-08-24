@@ -82,6 +82,11 @@ private enum healthValueStyle = AnsiColor.green.foreground;
 private enum damageStyle = AnsiColor.brightRed.foreground.bold;
 private enum countStyle = AnsiColor.brightWhite.foreground;
 
+private auto poolId(Handle)(Handle handle)
+{
+    return formatted!"#{}:{}"(handle.index, handle.generation);
+}
+
 private struct World
 {
 nothrow @nogc:
@@ -144,24 +149,12 @@ private void addAttack(scope World* world, EntityId attacker, HealthId target, i
         panic("attacker already has an Attack component");
 
     entity.attack = world.attacks.construct(target, damage);
-    formatln!"  {}[attack]{} entity {}#{}:{}{} owns attack {}#{}:{}{} -> health {}#{}:{}{} (damage={}{}{})"(
-        attackStyle,
-        ansiReset,
-        entityIdStyle,
-        attacker.index,
-        attacker.generation,
-        ansiReset,
-        attackIdStyle,
-        entity.attack.index,
-        entity.attack.generation,
-        ansiReset,
-        healthIdStyle,
-        target.index,
-        target.generation,
-        ansiReset,
-        damageStyle,
-        damage,
-        ansiReset,
+    formatln!"  {} entity {} owns attack {} -> health {} (damage={})"(
+        styled("[attack]", attackStyle),
+        styled(poolId(attacker), entityIdStyle),
+        styled(poolId(entity.attack), attackIdStyle),
+        styled(poolId(target), healthIdStyle),
+        styled(damage, damageStyle),
     );
 }
 
@@ -175,17 +168,10 @@ private void retargetAttack(scope World* world, EntityId attacker, HealthId targ
     if (attack is null)
         panic("attacker has no live Attack component");
     attack.target = target;
-    formatln!"  {}[attack]{} attack {}#{}:{}{} retargeted -> health {}#{}:{}{}"(
-        attackStyle,
-        ansiReset,
-        attackIdStyle,
-        entity.attack.index,
-        entity.attack.generation,
-        ansiReset,
-        healthIdStyle,
-        target.index,
-        target.generation,
-        ansiReset,
+    formatln!"  {} attack {} retargeted -> health {}"(
+        styled("[attack]", attackStyle),
+        styled(poolId(entity.attack), attackIdStyle),
+        styled(poolId(target), healthIdStyle),
     );
 }
 
@@ -232,16 +218,10 @@ private void tickAttacks(scope AttackPool* attacks, scope HealthPool* health) @s
         Health* target = health.get(attack.target);
         if (target is null)
         {
-            formatln!"  {}[stale]{} attack slot {}{}{} -> health {}#{}:{}{} no longer resolves"(
-                staleStyle,
-                ansiReset,
-                attackIdStyle,
-                item.index,
-                ansiReset,
-                healthIdStyle,
-                attack.target.index,
-                attack.target.generation,
-                ansiReset,
+            formatln!"  {} attack slot {} -> health {} no longer resolves"(
+                styled("[stale]", staleStyle),
+                styled(item.index, attackIdStyle),
+                styled(poolId(attack.target), healthIdStyle),
             );
             continue;
         }
@@ -249,22 +229,12 @@ private void tickAttacks(scope AttackPool* attacks, scope HealthPool* health) @s
         const before = target.current;
         target.current -= attack.damage;
         const afterStyle = target.current <= 0 ? damageStyle : healthValueStyle;
-        formatln!"  {}[attack]{} attack slot {}{}{} -> health {}#{}:{}{}: {}{}{} -> {}{}{}"(
-            attackStyle,
-            ansiReset,
-            attackIdStyle,
-            item.index,
-            ansiReset,
-            healthIdStyle,
-            attack.target.index,
-            attack.target.generation,
-            ansiReset,
-            healthValueStyle,
-            before,
-            ansiReset,
-            afterStyle,
-            target.current,
-            ansiReset,
+        formatln!"  {} attack slot {} -> health {}: {} -> {}"(
+            styled("[attack]", attackStyle),
+            styled(item.index, attackIdStyle),
+            styled(poolId(attack.target), healthIdStyle),
+            styled(before, healthValueStyle),
+            styled(target.current, afterStyle),
         );
     }
 }
@@ -281,16 +251,10 @@ private size_t cullDeadEntities(scope World* world) @system
         const(Health)* health = world.health.get(entity.health);
         if (health !is null && health.current <= 0)
         {
-            formatln!"  {}[cull]{} entity {}#{}:{}{} reached hp={}{}{} and will be recycled"(
-                cullStyle,
-                ansiReset,
-                entityIdStyle,
-                slot.handle.index,
-                slot.handle.generation,
-                ansiReset,
-                damageStyle,
-                health.current,
-                ansiReset,
+            formatln!"  {} entity {} reached hp={} and will be recycled"(
+                styled("[cull]", cullStyle),
+                styled(poolId(slot.handle), entityIdStyle),
+                styled(health.current, damageStyle),
             );
             world.destroyQueue.append(slot.handle);
         }
@@ -312,40 +276,31 @@ private void renderWorld(scope const World* world) @system
         if (position is null || health is null)
             continue;
 
-        formatln!"  {}[render]{} render slot {}{}{} -> position {}#{}:{}{}={}({}, {}){}, health {}#{}:{}{}={}{}{}"(
-            renderStyle,
-            ansiReset,
-            renderIdStyle,
-            item.index,
-            ansiReset,
-            positionIdStyle,
-            render.position.index,
-            render.position.generation,
-            ansiReset,
-            positionValueStyle,
+        const positionText = formatted!"({}, {})"(
             position.value.x,
             position.value.y,
-            ansiReset,
-            healthIdStyle,
-            render.health.index,
-            render.health.generation,
-            ansiReset,
-            healthValueStyle,
-            health.current,
-            ansiReset,
+        );
+        formatln!"  {} render slot {} -> position {}={}, health {}={}"(
+            styled("[render]", renderStyle),
+            styled(item.index, renderIdStyle),
+            styled(poolId(render.position), positionIdStyle),
+            styled(positionText, positionValueStyle),
+            styled(poolId(render.health), healthIdStyle),
+            styled(health.current, healthValueStyle),
         );
     }
 }
 
 private size_t tickWorld(scope World* world, uint tick, float seconds) @system
 {
-    formatln!"{}tick{} {}{}{}"(tickStyle, ansiReset, countStyle, tick, ansiReset);
+    formatln!"{} {}"(
+        styled("tick", tickStyle),
+        styled(tick, countStyle),
+    );
 
-    formatln!"  {}[move]{} branchless update over {}every provisioned position slot{}"(
-        moveStyle,
-        ansiReset,
-        positionIdStyle,
-        ansiReset,
+    formatln!"  {} branchless update over {}"(
+        styled("[move]", moveStyle),
+        styled("every provisioned position slot", positionIdStyle),
     );
     tickPositions(&world.positions, seconds);
     tickAttacks(&world.attacks, &world.health);
@@ -353,15 +308,10 @@ private size_t tickWorld(scope World* world, uint tick, float seconds) @system
     renderWorld(world);
 
     const removedStyle = removed == 0 ? stateStyle : cullStyle;
-    formatln!"  {}[state]{} live entities={}{}{}, removed={}{}{}"(
-        stateStyle,
-        ansiReset,
-        entityIdStyle,
-        world.entities.liveCount,
-        ansiReset,
-        removedStyle,
-        removed,
-        ansiReset,
+    formatln!"  {} live entities={}, removed={}"(
+        styled("[state]", stateStyle),
+        styled(world.entities.liveCount, entityIdStyle),
+        styled(removed, removedStyle),
     );
     return removed;
 }
@@ -387,17 +337,10 @@ extern (C) int main() nothrow @nogc
         100,
     );
 
-    formatln!"  {}[spawn]{} enemy entity {}#{}:{}{}, player entity {}#{}:{}{}"(
-        spawnStyle,
-        ansiReset,
-        entityIdStyle,
-        enemy.index,
-        enemy.generation,
-        ansiReset,
-        entityIdStyle,
-        player.index,
-        player.generation,
-        ansiReset,
+    formatln!"  {} enemy entity {}, player entity {}"(
+        styled("[spawn]", spawnStyle),
+        styled(poolId(enemy), entityIdStyle),
+        styled(poolId(player), entityIdStyle),
     );
 
     const Entity* enemyEntity = world.entities.get(enemy);
@@ -437,24 +380,14 @@ extern (C) int main() nothrow @nogc
     assert(replacementEntity.render.index == oldEnemyRender.index);
     assert(replacementEntity.render.generation != oldEnemyRender.generation);
 
-    formatln!"  {}[spawn]{} replacement entity {}#{}:{}{} reused enemy slot {}#{}{} with a new generation"(
-        spawnStyle,
-        ansiReset,
-        entityIdStyle,
-        replacement.index,
-        replacement.generation,
-        ansiReset,
-        entityIdStyle,
-        enemy.index,
-        ansiReset,
+    formatln!"  {} replacement entity {} reused enemy slot {} with a new generation"(
+        styled("[spawn]", spawnStyle),
+        styled(poolId(replacement), entityIdStyle),
+        styled(enemy.index, entityIdStyle),
     );
-    formatln!"  {}[stale]{} player's attack still targets old health {}#{}:{}{}"(
-        staleStyle,
-        ansiReset,
-        healthIdStyle,
-        oldEnemyHealth.index,
-        oldEnemyHealth.generation,
-        ansiReset,
+    formatln!"  {} player's attack still targets old health {}"(
+        styled("[stale]", staleStyle),
+        styled(poolId(oldEnemyHealth), healthIdStyle),
     );
 
     cast(void) tickWorld(&world, 3, 1.0f);

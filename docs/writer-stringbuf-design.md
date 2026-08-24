@@ -63,6 +63,14 @@ xtb.core.string          xtb.core.print
 place where applications discover printing symbols while keeping the generic
 writer implementation independent from `StringBuf` and `FILE*` policy.
 
+`xtb.core.format` is a thin value-composition layer over `Writer`. Its
+`formatted!"..."(values...)` wrapper captures arguments by value and defers the
+same compile-time placeholder formatting until the wrapper itself is printed.
+It owns no output destination and performs no allocation. Keeping that wrapper
+outside `writer.d` lets the immediate writer remain the formatting engine while
+higher-level decorators such as `xtb.core.ansi.styled(value, style)` compose
+around any printable value.
+
 ## Writer API
 
 The common text-output interface is:
@@ -214,6 +222,8 @@ The distinction is intentional:
 - `writer.put(x)` is low-level text emission through a generic destination.
 - `write(values...)` renders ordinary XTB printable values sequentially.
 - `format!pattern(values...)` applies compile-time placeholder formatting.
+- `formatted!pattern(values...)` packages that formatting as one lazy printable
+  value for further composition without allocating an intermediate string.
 
 This keeps low-level string mutation cheap while making general output
 construction convenient and predictable.
