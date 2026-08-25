@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
 import core.stdc.math : floorf, fmodf;
-import xtb.core.array;
+import xtb.core.containers.array;
 import xtb.core.lifetime : move, moveEmplace, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.panic : panic;

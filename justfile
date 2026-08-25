@@ -2,7 +2,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 set script-interpreter := ["bash", "-eu", "-o", "pipefail"]
 
 d_files := `find source tests examples benchmarks -type f -name '*.d' -print | sort | tr '\n' ' '`
-library_subpackages := `for recipe in source/xtb/*/dub.sdl; do basename "$(dirname "$recipe")"; done | sort | tr '\n' ' '`
+library_subpackages := `for recipe in source/xtb/*/dub.sdl; do sed -n 's/^name "\([^"]*\)".*/\1/p' "$recipe" | head -n 1; done | sort | tr '\n' ' '`
 example_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' examples/dub.sdl | tr '\n' ' '`
 benchmark_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' benchmarks/dub.sdl | tr '\n' ' '`
 test_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' tests/dub.sdl | tr '\n' ' '`
@@ -103,7 +103,7 @@ targets:
       os
       parser
       serde
-      threading
+      threading    combined xtb.thread + xtb.sync
       all          xtb plus every component library
 
     Examples:
@@ -392,6 +392,7 @@ _dispatch action kind name mode *program_args:
             fi
             ;;
         example)
+            export XTB_LIBRARY_OUTPUT_DIR="$(absolute_output_dir "{{ library_output_dir }}/$mode")"
             if [[ "$name" == all ]]; then
                 if (( ${#program_args[@]} != 0 )); then
                     echo "cannot pass program arguments when running all examples" >&2

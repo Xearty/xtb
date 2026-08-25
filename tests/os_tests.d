@@ -1,6 +1,5 @@
 module tests.os_tests;
 
-import xtb.os : LogTimestampOptions, TimestampLogPrefix;
 import xtb.os.directory;
 import xtb.os.error;
 import xtb.os.environment;
@@ -14,7 +13,7 @@ import xtb.os.process_io;
 import xtb.os.time;
 import xtb.os.terminal;
 import core.internal.traits : hasElaborateDestructor;
-import xtb.core.array;
+import xtb.core.containers.array;
 import xtb.core.allocators.arena : Arena, TempArena, pop, push;
 import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
 import xtb.core.option : Option;
@@ -24,8 +23,6 @@ import xtb.core.string;
 import xtb.core.thread_context : ThreadContextScope, scratchArena;
 import xtb.core.types : i64, u64, u8;
 
-static assert(!__traits(isCopyable, TimestampLogPrefix));
-static assert(__traits(compiles, LogTimestampOptions.defaults()));
 static assert(!hasElaborateDestructor!DirectoryIterator);
 static assert(needsDeinit!DirectoryIterator);
 static assert(!__traits(isCopyable, DirectoryIterator));

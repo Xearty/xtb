@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.stdc.stdio : FILE, fclose, fopen, printf;
 import core.stdc.stdlib : strtoull;
 import core.sys.posix.time : CLOCK_MONOTONIC, clock_gettime, timespec;
-import xtb.core.logging;
+import xtb.log;
 import xtb.core.string : String;
 import xtb.core.types : u64;
 

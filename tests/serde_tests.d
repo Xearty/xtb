@@ -1,25 +1,26 @@
 module tests.serde_tests;
 
 import tests.serde_backend_contract : runSerdeBackendContracts;
-import xtb.core.array;
-import xtb.core.hash_map;
+import xtb.core.containers.array;
+import xtb.core.containers.hash_map;
+import xtb.core.containers.hash_set;
 import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace;
 import xtb.core.memory : Allocator;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option, some;
-import xtb.core.writer : Writer;
+import xtb.core.fmt.writer : Writer;
 import xtb.core.string;
-import xtb.core.string_hash_map;
-import xtb.core.string_hash_set : StringHashSet;
+import xtb.core.containers.string_hash_map;
+import xtb.core.containers.string_hash_set : StringHashSet;
 import xtb.core.types : u8;
 import xtb.serde.attributes;
-import xtb.serde.casing;
+import xtb.serde.internal.casing;
 import xtb.serde.error;
 import xtb.serde.json;
 import xtb.serde.ownership;
 import xtb.serde.toml;
-import xtb.serde.traits;
+import xtb.serde.internal.traits;
 
 private size_t bufferSink(void* context, scope const(u8)[] bytes) nothrow @nogc
 {

@@ -3,7 +3,7 @@ module xtb.os.directory;
 nothrow @nogc:
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.array;
+import xtb.core.containers.array;
 import xtb.core.memory : Allocator;
 import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;

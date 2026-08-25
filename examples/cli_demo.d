@@ -5,9 +5,9 @@ nothrow @nogc:
 import core.stdc.stdio : FILE, stderr, stdout;
 import xtb.cli;
 import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.array : Array;
+import xtb.core.containers.array : Array;
 import xtb.core.option : Option;
-import xtb.core.print : writeln;
+import xtb.core.fmt.print : writeln;
 import xtb.core.string : equal;
 import xtb.core.types : String;
 import xtb.os.terminal : shouldUseAnsi;

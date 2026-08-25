@@ -19,17 +19,7 @@ nothrow @nogc:
     private Arena[maxScratchArenas] arenas;
     private size_t arenaCount;
     private Allocator* ownerAllocator;
-    private void* logger;
-
-    package void* installedLogger() return
-    {
-        return logger;
-    }
-
-    package void setInstalledLogger(void* value)
-    {
-        logger = value;
-    }
+    private size_t attachmentCount;
 }
 
 private ThreadContext* tlsContext;
@@ -37,6 +27,36 @@ private ThreadContext* tlsContext;
 ThreadContext* currentThreadContext()
 {
     return tlsContext;
+}
+
+/// Registers one scoped facility that requires the current thread context.
+/// Internal XTB components must balance every successful attachment with
+/// `detachThreadContext` before the context scope ends.
+package(xtb) ThreadContext* attachThreadContext()
+{
+    ThreadContext* context = tlsContext;
+    version (XTB_Checked)
+    {
+        require(context !is null, "thread-context attachment requires an installed context");
+        require(
+            context.attachmentCount != size_t.max,
+            "thread-context attachment count overflow",
+        );
+    }
+    ++context.attachmentCount;
+    return context;
+}
+
+/// Releases one attachment previously registered on `context`.
+package(xtb) void detachThreadContext(ThreadContext* context)
+{
+    version (XTB_Checked)
+    {
+        require(context !is null, "thread-context attachment is null");
+        require(tlsContext is context, "thread-context attachment released out of context");
+        require(context.attachmentCount != 0, "thread-context attachment underflow");
+    }
+    --context.attachmentCount;
 }
 
 struct ThreadContextScope
@@ -88,8 +108,8 @@ nothrow @nogc:
         {
             require(tlsContext is context_, "thread context destroyed out of order");
             require(
-                context_.logger is null,
-                "thread context destroyed with a logger installed",
+                context_.attachmentCount == 0,
+                "thread context destroyed with attachments installed",
             );
         }
 

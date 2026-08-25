@@ -5,11 +5,11 @@ nothrow @nogc:
 import xtb.cli;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.array : Array;
+import xtb.core.containers.array : Array;
 import xtb.core.lifetime : moveAssign;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option;
-import xtb.core.writer : Writer;
+import xtb.core.fmt.writer : Writer;
 import xtb.core.types : String;
 
 enum BuildMode

@@ -126,9 +126,9 @@ safe for a read-only Nix-store source and parallel `just` execution.
 
 ## Using the library
 
-Import the stable core surface with `import xtb.core;`, the completed threading
-surface with `import xtb.threading;`, or a focused module such as
-`xtb.core.allocators.arena` or `xtb.threading.atomic`. All consuming targets must also
+Import the stable core surface with `import xtb.core;`, the thread and synchronization
+surfaces with `import xtb.thread;` and `import xtb.sync;`, or a focused module such as
+`xtb.core.allocators.arena` or `xtb.sync.atomic`. All consuming targets must also
 compile with `-betterC`. Managed containers expose handwritten member APIs colocated with
 their unmanaged storage, plus a mutable allocator member; no generated adapter
 code or UFCS forwarding layer is involved. See `docs/managed-containers.md`.
@@ -189,7 +189,7 @@ switches between them directly. The core logger remains explicit and defaults
 to plain output. Applications importing `xtb.os` can select `LogStyle.ansi` when
 `shouldUseAnsi(stderr)` succeeds. Automatic policy uses the destination,
 `TERM`, and `NO_COLOR`; there is deliberately no separate terminal logger or
-hidden environment lookup in `xtb.core.logging`.
+hidden environment lookup in `xtb.log`.
 
 `FlagSet!E` treats enum values as bit positions and chooses the smallest
 fitting unsigned storage type by default. Specify its storage type explicitly

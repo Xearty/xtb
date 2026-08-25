@@ -1,6 +1,8 @@
 module examples.print_demo;
 
-import xtb.core.print;
+import xtb.core.fmt.print;
+import xtb.core.fmt.fixed_buffer;
+import xtb.core.fmt.format;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.string;
 

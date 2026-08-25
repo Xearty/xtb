@@ -12,7 +12,8 @@ configuration "logging" {
     targetName "logging_benchmark"
     targetPath "../build/benchmarks"
     mainSourceFile "logging.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
+    dependency "xtb:log" version="*"
 }
 
 configuration "pools" {
@@ -20,5 +21,5 @@ configuration "pools" {
     targetName "pools_benchmark"
     targetPath "../build/benchmarks"
     mainSourceFile "pools.d"
-    sourceFiles "../source/xtb/core/*.d" "../source/xtb/core/allocators/*.d"
+    dependency "xtb:core" version="*"
 }

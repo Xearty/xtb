@@ -4,10 +4,10 @@ nothrow @nogc:
 
 import xtb.diagnostics.demangle : SignatureDetail;
 public import xtb.core.ansi : AnsiColor;
-import xtb.core.ansi : beginAnsi, endAnsi;
+import xtb.core.fmt.ansi : beginAnsi, endAnsi;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.writer : Writer;
+import xtb.core.fmt.writer : Writer;
 import xtb.core.string;
 
 enum StackTraceTheme

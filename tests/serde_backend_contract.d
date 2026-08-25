@@ -6,7 +6,7 @@ import xtb.core.memory : Allocator;
 
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.option : Option;
-import xtb.core.writer : Writer;
+import xtb.core.fmt.writer : Writer;
 import xtb.core.string;
 import xtb.core.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind,

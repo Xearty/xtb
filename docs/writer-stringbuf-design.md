@@ -41,7 +41,7 @@ silently diverging in failure and byte-count state.
 The output stack is split into three layers:
 
 ```text
-xtb.core.writer
+xtb.core.fmt.writer
     Writer, WriterSink, WriteResult
     generic value formatting
     pattern/interpolation formatting
@@ -49,17 +49,17 @@ xtb.core.writer
 
        /                    \
       /                      \
-xtb.core.string          xtb.core.print
+xtb.core.string          xtb.core.fmt.print
     StringBuf                FILE* adapter
     StringBuf.writer()       stdout/stderr helpers
     StringBuf.write()        fixed-buffer helpers
     StringBuf.format()       owned formatted-string helpers
 ```
 
-`xtb.core.writer` must not import `xtb.core.string`. This makes it possible for
+`xtb.core.fmt.writer` must not import `xtb.core.string`. This makes it possible for
 `StringBuf` to depend on the generic writer without a module cycle.
 
-`xtb.core.print` publicly re-exports `xtb.core.writer`, preserving the natural
+`xtb.core.fmt.print` publicly re-exports `xtb.core.fmt.writer`, preserving the natural
 place where applications discover printing symbols while keeping the generic
 writer implementation independent from `StringBuf` and `FILE*` policy.
 
@@ -256,7 +256,7 @@ SGR boundary guarantees remain owned exclusively by `LogMessageWriter`.
 
 ## FILE and fixed-buffer adapters
 
-`xtb.core.print.fileWriter(FILE*)` adapts libc output to `Writer`. libc retains
+`xtb.core.fmt.print.fileWriter(FILE*)` adapts libc output to `Writer`. libc retains
 its normal `FILE*` buffering; XTB does not add a second generic staging buffer.
 
 Integer formatting emits bounded digit slices rather than one sink callback per
@@ -294,7 +294,7 @@ The refactor deliberately removes:
 - `AnsiWriter.flush()` and `AnsiWriter.finish()` forwarding;
 - `writeTo(ref StringBuf, ...)`;
 - `formatTo(ref StringBuf, ...)`;
-- StringBuf sink adapters from `xtb.core.print`;
+- StringBuf sink adapters from `xtb.core.fmt.print`;
 - `LogMessageWriter.format(...)`;
 - serde/diagnostic flushes that existed only to drain generic Writer staging.
 

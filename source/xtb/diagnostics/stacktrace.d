@@ -4,12 +4,13 @@ nothrow @nogc:
 
 import core.stdc.string : memcpy, strlen;
 import xtb.diagnostics.demangle : tryDemangleD;
-import xtb.core.ansi : AnsiColor, beginAnsi, endAnsi;
-import xtb.core.writer : Writer, hexadecimal;
-import xtb.core.logging.level : LogLevel;
-import xtb.core.logging.logger : Logger, stream;
-import xtb.core.logging.result : LogResult;
-import xtb.core.logging.writer : LogMessageWriter;
+import xtb.core.ansi : AnsiColor;
+import xtb.core.fmt.ansi : beginAnsi, endAnsi;
+import xtb.core.fmt.writer : Writer, hexadecimal;
+import xtb.log.level : LogLevel;
+import xtb.log.logger : Logger, stream;
+import xtb.log.result : LogResult;
+import xtb.log.message_writer : LogMessageWriter;
 import xtb.core.string;
 import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
     StackTraceTheme, SignatureFormat, writeSignature;
@@ -498,8 +499,8 @@ unittest
 
 version (unittest)
 {
-    import xtb.core.logging.palette : LogPalette;
-    import xtb.core.logging.sink : LogSinkEvent, LogSinkEventKind;
+    import xtb.log.palette : LogPalette;
+    import xtb.log.sink : LogSinkEvent, LogSinkEventKind;
 
     private struct LoggedTraceCapture
     {

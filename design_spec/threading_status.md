@@ -45,7 +45,7 @@ Status values:
 
 ## Feature 1 completion record
 
-Implemented `xtb.threading.atomic` with the five-order C/C++-style memory model,
+Implemented `xtb.sync.atomic` with the five-order C/C++-style memory model,
 non-copyable scalar `Atomic!T`, `AtomicFlag`, load/store/exchange, weak and strong
 compare/exchange, integral fetch operations, and `atomicThreadFence`. Blocking
 atomic wait/notify is intentionally deferred until the parking backend exists.
@@ -60,7 +60,7 @@ Validation performed with the supplied LDC 1.42.0 toolchain:
   values, executed in checked builds and manually in release-fast;
 - eight-thread relaxed `fetchAdd` stress (800,000 total increments per run);
 - release/acquire publication between independent POSIX threads;
-- package aggregate-import coverage through `import xtb.threading;`;
+- package aggregate-import coverage through `import xtb.thread; import xtb.sync;`;
 - debug, optimized, release-safe, release-fast compile, release-fast runtime,
   and AddressSanitizer runs;
 - independent component builds in debug, release-safe, and release-nobounds;
@@ -161,7 +161,7 @@ Validation performed with the supplied LDC 1.42.0 toolchain includes:
   plus acceptance of static member workers;
 - forced unsupported-backend runtime tests with no pthread backend linked,
   including one-allocation cleanup for both raw and typed allocator-backed starts;
-- successful x86_64 Windows cross-compilation of `import xtb.threading` with raw
+- successful x86_64 Windows cross-compilation of `import xtb.thread; import xtb.sync` with raw
   and typed allocator-backed starts instantiated, proving the unsupported backend
   and allocator type dependency remain import/compile portable for that target;
 - focused D-Scanner/dfmt checks plus debug, optimized, release-safe,
@@ -179,7 +179,7 @@ for this completion record.
 
 ## Feature 3 completion record
 
-Implemented `xtb.threading.internal.parking` as the package-private blocking
+Implemented `xtb.sync.internal.parking` as the package-private blocking
 foundation for later atomic wait/notify and synchronization primitives. The v1
 wait word is exactly 32 bits. `park(address, expected)` uses the Linux futex
 compare-and-sleep operation, so a value change that races with the transition
@@ -371,7 +371,7 @@ clean.
 
 ## SpinWait completion record
 
-Implemented public `SpinWait` in `xtb.threading.spin_wait`. `SpinWait.init` is
+Implemented public `SpinWait` in `xtb.sync.spin_wait`. `SpinWait.init` is
 round zero. Successive `spin()` calls use bounded exponential `cpuRelax()`
 batches of 1, 2, 4, 8, 16, 32, and 64 hints; after that the internal round
 counter saturates and each later `spin()` calls `yieldThread()` until `reset()`
@@ -414,7 +414,7 @@ counts so ordinary threading test runtime remains short.
 
 ## CondVar completion record
 
-Implemented public allocation-free `CondVar` in `xtb.threading.cond_var` with
+Implemented public allocation-free `CondVar` in `xtb.sync.cond_var` with
 `wait(ref Mutex)`, `notifyOne`, and `notifyAll`. The final implementation does
 not use the earlier wrapping sequence or two reusable group-slot designs. Each
 `wait` owns a private stack-backed waiter record containing one wait-supported
@@ -457,7 +457,7 @@ and lint passes. No test depends on FIFO completion order.
 
 ## Semaphore completion record
 
-Implemented public allocation-free `Semaphore` in `xtb.threading.semaphore`.
+Implemented public allocation-free `Semaphore` in `xtb.sync.semaphore`.
 `Semaphore.init` has zero permits and `Semaphore(n)` supports an explicit initial
 count. The fast state is an `Atomic!size_t` count of available, unreserved
 permits. `tryAcquire` is a true non-blocking CAS-decrement path: it does not take
@@ -506,7 +506,7 @@ AArch64 Linux, RISC-V64 Linux, and x86-64 Windows.
 ## Once completion record
 
 Implemented public allocation-free `Once` and `callOnce` in
-`xtb.threading.once`. The zero-valid state uses the specified uninitialized,
+`xtb.sync.once`. The zero-valid state uses the specified uninitialized,
 initializing, and initialized atomic states. One caller wins the `0 -> 1` CAS,
 runs the selected context-free initializer synchronously, then publishes state
 2 with release ordering and wakes all waiters. Losing callers wait on the same
@@ -528,7 +528,7 @@ the non-copyable/release-representation contracts.
 ## OnceCell completion record
 
 Implemented public allocation-free `OnceCell!T` in
-`xtb.threading.once_cell`. Each cell contains the completed `Once` state machine
+`xtb.sync.once_cell`. Each cell contains the completed `Once` state machine
 and union-backed raw storage for one `T`. The winning caller constructs the
 initializer result directly into that storage before `Once` publishes
 completion; `isInitialized`, `tryGet`, and every returning `getOrInit` call
@@ -586,7 +586,7 @@ unsupported BetterC threading runners enumerate its module and internal state.
 ## Internal generation machinery completion record
 
 Implemented package-private `GenerationWaitState` in
-`xtb.threading.internal.generation_wait` as the reusable phase-change waiting
+`xtb.sync.internal.generation_wait` as the reusable phase-change waiting
 foundation for `WaitGroup` and `Barrier`. One wait-supported 32-bit atomic is
 both the phase identifier and the parking word. Completion increments it with
 release ordering and wakes all waiters; atomic compare-and-sleep prevents a
@@ -647,7 +647,7 @@ builds in all three production modes, every example runs, the public module
 cross-compiles for x86-64 Windows, and the release threading archive adds no
 allocator, TypeInfo, ModuleInfo, or D runtime dependency. Focused formatting
 passes; the repository-wide format check remains blocked only by the existing
-format mismatch in `source/xtb/threading/internal/thread_linux.d`, which this
+format mismatch in `source/xtb/thread/internal/thread_linux.d`, which this
 feature does not modify.
 
 ## Barrier completion record
@@ -689,7 +689,7 @@ the release archive adds no allocator, TypeInfo, ModuleInfo, or D runtime
 dependency.
 Focused formatting passes; the repository-wide format check remains blocked
 only by the existing mismatch in
-`source/xtb/threading/internal/thread_linux.d`, which this feature does not
+`source/xtb/thread/internal/thread_linux.d`, which this feature does not
 modify.
 
 ## RwLock completion record

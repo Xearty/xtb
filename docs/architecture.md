@@ -33,11 +33,13 @@ Use conventional D package layout:
 ```text
 xtb/
 ├── source/xtb/             # production modules
-│   ├── core/               # memory, containers, text, printing, logging
+│   ├── core/               # primitives, allocators, containers, strings, fmt
+│   ├── log/                # structured logging and sink composition
 │   ├── diagnostics/        # demangling, styled traces, crash observation
 │   ├── math/               # vectors, matrices, scalar algorithms, noise
 │   ├── os/                 # general libc and platform adapters
-│   ├── threading/          # threads, atomics, and synchronization backends
+│   ├── thread/             # thread API + shared thread/sync DUB build recipe
+│   ├── sync/               # atomics and synchronization primitives
 │   ├── serde/              # attribute-driven structured data mapping
 │   ├── codec/              # image, audio, compression, and byte formats
 │   ├── window/             # window/input abstraction
@@ -59,9 +61,12 @@ Use narrowly focused modules rather than umbrella modules with implementation.
 An optional `xtb.core` module may publicly import a deliberately small stable
 surface, but internal modules must import their precise dependencies.
 
-Each component directory under `source/xtb` owns a colocated DUB recipe that
-positively lists only its sibling production modules. Non-core components
-declare `xtb:core` as a package dependency when needed. Do not partition the
+Each independently built component under `source/xtb` owns a colocated DUB
+recipe that positively lists its production modules. `xtb.thread` and
+`xtb.sync` are the deliberate exception: they are separate public module
+families compiled together by `source/xtb/thread/dub.sdl` until an
+independent static-library boundary is useful. Non-core components declare
+`xtb:core` as a package dependency when needed. Do not partition the
 tree by starting with every source and subtracting unrelated directories with
 `excludedSourceFiles`; adding a new component must not change an existing
 component's source set. The root recipe builds the aggregate `xtb` library.
@@ -81,10 +86,10 @@ examples / applications
  /      \              |
 graphics window        |
  \      /               |
-serde / codec / os / threading
-      |          |        |
-     math        |        |
-       \        |       /
+serde / codec / os       thread + sync
+      |          |             |
+     math        |             |
+       \        |            /
              core
               |
           C ABI / libc
@@ -97,13 +102,14 @@ serde / codec / os / threading
 - `diagnostics` depends on `core` plus its explicitly selected platform
   unwinder. Core must never import diagnostics or require libbacktrace.
 - `math` depends on `core` only when it needs shared primitive/result types.
-- `threading` depends on `core` and owns the narrow native thread/parking
-  boundary required to implement its public contracts. It must not depend on
-  `os`; `os` may later depend on `threading`, so reversing that edge would risk
-  a cycle.
+- `xtb.thread` owns thread creation, lifecycle, spawning, scoped threads, and
+  the native thread backend. `xtb.sync` owns atomics and synchronization
+  primitives. They are separate public module families but are compiled by the
+  single `threading` DUB component for now, so no additional static-library
+  boundary is introduced. Neither public family depends on `os`.
 - `os` owns general operating-system and libc facilities. Other components do
   not call libc directly unless they are themselves a deliberately isolated
-  foreign/platform boundary, such as the native backend inside `threading`.
+  foreign/platform boundary, such as the native backend inside `xtb.thread`.
 - `serde` maps user-defined values to structured key-value formats. Its schema
   and ownership rules are format-neutral; JSON, TOML, and future binary
   backends provide syntax and representation policy.
@@ -479,8 +485,8 @@ violating destruction order is a programming error and panics in checked build
 modes. Release-fast assumes correct scope ordering.
 
 The overloads without a `Logger` receiver—`enabled(level)`, `log(level, ...)`,
-`logf!pattern(level, ...)`, and `flushLogger()`—consult only the calling
-thread's context. With no installed logger, `enabled` and `flushLogger` return
+`logf!pattern(level, ...)`, and `flushLogger()`—consult the log package's thread-local logger, which is valid only while the calling
+thread has an installed `ThreadContext`. With no installed logger, `enabled` and `flushLogger` return
 `false`, while logging returns `LogStatus.invalidLogger`; it does not silently
 write to stderr or manufacture persistent storage. Filtering happens before
 formatting. The explicit `logger.log(...)`, `logger.logf!pattern(...)`, and
@@ -552,7 +558,7 @@ resolution, the decorator contributes no callback or conditional to later
 message writes. Wrapping a tee suppresses all of that tee's descendants;
 wrapping one tee branch suppresses only that branch.
 
-`xtb.os.logging.TimestampLogPrefix` is the first provider. It reads the wall
+`xtb.log.timestamp_prefix.TimestampLogPrefix` is the first provider. It reads the wall
 clock in the OS layer, formats a fixed local or UTC date/time without
 allocation, and attaches a configurable `AnsiStyle` (subdued gray by default).
 ANSI presentation renders that style; plain presentation ignores the semantic
@@ -616,7 +622,7 @@ the logger is invalid, filtered, recursive, or the sink rejects framing before
 entire producer call.
 
 `LogMessageWriter.writer()` exposes the message as an immediate generic
-`xtb.core.writer.Writer`. Primitive values and normal `formatRepresentation()` /
+`xtb.core.fmt.writer.Writer`. Primitive values and normal `formatRepresentation()` /
 `formatTo(ref Writer)` customizations therefore keep exactly the ordinary XTB
 formatting semantics without materializing a complete formatted string. The
 generic writer owns no staging buffer: it feeds the `LogMessageWriter`
@@ -2064,7 +2070,8 @@ compatibility requirements.
 | --- | --- | --- |
 | allocator, arena, slices, arrays, strings | `xtb.core` | explicit allocator and ownership; no process-global allocator |
 | panic, logger, printing, stack traces, thread context | `xtb.core` | explicit sinks/storage/contexts; scratch, current logger, and panic recursion are TLS, while panic observation is process-wide |
-| threads, atomics, synchronization | `xtb.threading` | BetterC public primitives over compiler atomics and narrow per-platform thread/parking backends |
+| thread lifecycle | `xtb.thread` | BetterC thread creation, spawning, joining, and scoped threads |
+| synchronization | `xtb.sync` | Atomics, locks, condition variables, barriers, latches, once, semaphores, and wait groups |
 | file and directory operations | `xtb.os` | platform-neutral API over per-platform adapters |
 | structured serialization | `xtb.serde` | compile-time schemas, explicit ownership, JSON and TOML backends |
 | BMP and other media formats | `xtb.codec` | bounds-checked byte transforms with no reflection dependency |
@@ -2073,7 +2080,7 @@ compatibility requirements.
 | GL loading and shaders | `xtb.graphics.opengl` | generated/foreign binding isolated from safe resource wrappers |
 | camera, geometry, material, renderer | `xtb.renderer` | backend-neutral values and orchestration over `graphics` |
 
-Implement in dependency order: `core`, foundational `threading` and `math`,
+Implement in dependency order: `core`, foundational `thread`/`sync` and `math`,
 then `os`, serde/codecs, window/graphics, and finally renderer. A higher layer should not force premature abstractions into a
 lower one.
 

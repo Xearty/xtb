@@ -4,7 +4,7 @@ license "BSL-1.0"
 targetType "staticLibrary"
 targetName "xtb_core"
 targetPath "$XTB_LIBRARY_OUTPUT_DIR"
-sourceFiles "*.d" "allocators/*.d" "allocators/internal/*.d"
+sourceFiles "*.d" "allocators/*.d" "allocators/internal/*.d" "containers/*.d" "containers/internal/*.d" "fmt/*.d"
 importPaths "../.."
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
@@ -17,29 +17,24 @@ buildType "release-safe" {
 }
 
 buildType "unit-debug" {
-    sourceFiles "../../../tests/support/core_logging_unittests.d"
     buildOptions "unittests" "debugMode" "debugInfo"
 }
 
 buildType "unit-optimized" {
-    sourceFiles "../../../tests/support/core_logging_unittests.d"
     buildOptions "unittests" "optimize" "inline"
     dflags "-fno-delete-null-pointer-checks" platform="ldc"
 }
 
 buildType "unit-release-safe" {
-    sourceFiles "../../../tests/support/core_logging_unittests.d"
     buildOptions "unittests" "optimize" "inline"
     dflags "-fno-delete-null-pointer-checks" platform="ldc"
 }
 
 buildType "unit-release-fast" {
-    sourceFiles "../../../tests/support/core_logging_unittests.d"
     buildOptions "unittests" "releaseMode" "optimize" "inline"
 }
 
 buildType "unit-asan" {
-    sourceFiles "../../../tests/support/core_logging_unittests.d"
     buildOptions "unittests" "debugMode" "debugInfo"
     dflags "-fsanitize=address" platform="ldc"
 }

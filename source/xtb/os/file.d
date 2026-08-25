@@ -2,7 +2,7 @@ module xtb.os.file;
 
 nothrow @nogc:
 
-import xtb.core.array;
+import xtb.core.containers.array;
 
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.string;

@@ -3,9 +3,9 @@ module tests.pretty_print_tests;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.memory : Allocator;
 import xtb.core.string : OwnedString, OwnedStringUnmanaged;
-import xtb.core.pretty_print;
-import xtb.core.writer : Writer;
-import xtb.core.print : writeBuffer;
+import xtb.core.fmt.pretty_print;
+import xtb.core.fmt.writer : Writer;
+import xtb.core.fmt.fixed_buffer : writeBuffer;
 import xtb.core.string : StringBuf, StringBufUnmanaged;
 
 private struct FormatRepresentationTestValue

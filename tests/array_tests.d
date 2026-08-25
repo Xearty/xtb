@@ -2,7 +2,7 @@ module tests.array_tests;
 
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.array;
+import xtb.core.containers.array;
 import xtb.core.lifetime : deinit, move, moveAssign;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.string : StringBuf;

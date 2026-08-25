@@ -11,7 +11,8 @@ import xtb.core.memory : Allocator;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.panic : panic;
 import xtb.core.result : Result, ResultReturns;
-import xtb.threading;
+import xtb.sync;
+import xtb.thread;
 
 version (linux) import core.sys.linux.sched : cpu_set_t, sched_getaffinity;
 

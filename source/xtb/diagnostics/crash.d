@@ -8,8 +8,8 @@ import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.core.panic : PanicHook, panic, setPanicHandler;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.writer : Writer;
-import xtb.core.print : fileWriter;
+import xtb.core.fmt.writer : Writer;
+import xtb.core.fmt.print : fileWriter;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,

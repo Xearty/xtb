@@ -5,7 +5,12 @@ nothrow @nogc:
 version (XTB_Checked) import xtb.core.panic : require;
 import xtb.core.string;
 import xtb.core.thread_context : ScratchScope;
-import xtb.os.error : OsError, OsErrorKind, unsupported;
+import xtb.os.error : OsError, OsErrorKind;
+
+version (Posix)
+    private import backend = xtb.os.internal.posix.environment;
+else
+    private import backend = xtb.os.internal.unsupported.environment;
 
 private bool validEnvironmentName(String name) pure @safe
 {
@@ -22,15 +27,7 @@ package const(char)* rawEnvironmentVariable(const(char)* name) @system
 {
     if (name is null || name[0] == '\0')
         return null;
-
-    version (Posix)
-    {
-        import core.stdc.stdlib : getenv;
-
-        return getenv(name);
-    }
-    else
-        return null;
+    return backend.rawEnvironmentVariableImpl(name);
 }
 
 private OsError environmentVariableCString(
@@ -43,20 +40,7 @@ private OsError environmentVariableCString(
     *output = null;
     if (name is null || name[0] == '\0')
         return OsError(OsErrorKind.invalidArgument, 0);
-
-    version (Posix)
-    {
-        const value = rawEnvironmentVariable(name);
-        if (value is null)
-            return OsError(OsErrorKind.notFound, 0);
-        const checked = fromCString(value);
-        if (checked.failed)
-            return OsError(OsErrorKind.invalidData, 0);
-        *output = checked.value;
-        return OsError.init;
-    }
-    else
-        return unsupported();
+    return backend.environmentVariableCStringImpl(name, output);
 }
 
 /// Returns a process-owned view, potentially invalidated by environment changes.
@@ -67,14 +51,9 @@ OsError environmentVariable(String name, String* output) @system
     *output = null;
     if (!validEnvironmentName(name))
         return OsError(OsErrorKind.invalidArgument, 0);
-    version (Posix)
-    {
-        ScratchScope scratch = ScratchScope.acquire();
-        StringBuf native = StringBuf.fromString(scratch.allocator, name);
-        return environmentVariableCString(native.checkedCString, output);
-    }
-    else
-        return unsupported();
+    ScratchScope scratch = ScratchScope.acquire();
+    StringBuf native = StringBuf.fromString(scratch.allocator, name);
+    return environmentVariableCString(native.checkedCString, output);
 }
 
 unittest

@@ -2,7 +2,8 @@ module examples.logging_demo;
 
 import core.stdc.stdio : FILE, fclose, ferror, fread, fwrite, rewind, stderr, tmpfile;
 import xtb.core;
-import xtb.os : LogTimestampOptions, LogTimestampZone, TimestampLogPrefix, shouldUseAnsi;
+import xtb.log;
+import xtb.os : shouldUseAnsi;
 
 private struct RequestId
 {
@@ -88,10 +89,11 @@ nothrow @nogc
     delivered = logger.error(
         paletteName,
         ": ",
-        AnsiStyle.foreground(AnsiColor.brightRed),
-        RequestId(0x2a),
-        ansiReset,
-        " failed",
+        styled(
+            RequestId(0x2a),
+            AnsiStyle.foreground(AnsiColor.brightRed),
+    ),
+    " failed",
     ).delivered && delivered;
     delivered = logger.fatalf!"{}: subsystem {} is unavailable"(
         paletteName,
@@ -147,10 +149,11 @@ extern (C) int main() nothrow @nogc
     );
     if (!plain.info(
             "plain sink: ",
-            AnsiStyle.foreground(AnsiColor.brightRed).bold,
+            styled(
             "formatter ANSI is stripped",
-            ansiReset,
-            " but the text remains",
+            AnsiStyle.foreground(AnsiColor.brightRed).bold,
+        ),
+        " but the text remains",
         ).delivered || !plain.flush())
         return 1;
 
@@ -275,10 +278,12 @@ extern (C) int main() nothrow @nogc
     terminal.setPalette(LogPalettePreset.extended);
     if (!terminal.info(
             "message styling: ",
-            AnsiStyle.foreground(AnsiColor.brightMagenta).bold,
+            styled(
             "inline magenta",
-            ansiReset,
-            " then the base message style resumes",
+            AnsiStyle.foreground(AnsiColor.brightMagenta)
+            .bold,
+        ),
+        " then the base message style resumes",
         ).delivered)
         return 1;
 

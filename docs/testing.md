@@ -84,8 +84,8 @@ not execute those bodies.
 Executables in `tests/` cover integration, regression, death-test, exhaustive,
 and alternate-backend behavior. They depend on the ordinary component static
 libraries and must not invoke colocated module tests again. The unsupported
-threading-backend runner is the deliberate exception: it compiles threading
-sources with a mutually exclusive test version and explicitly invokes those
+threading-backend runner is the deliberate exception: it compiles the combined
+`xtb.thread` and `xtb.sync` sources with a mutually exclusive test version and explicitly invokes those
 backend-versioned module tests.
 
 The UTF-8 runner expands the exhaustive 1.1-million-scalar test body exported

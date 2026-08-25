@@ -1,0 +1,46 @@
+name "log"
+description "BetterC structured logging"
+license "BSL-1.0"
+targetType "staticLibrary"
+targetName "xtb_log"
+targetPath "$XTB_LIBRARY_OUTPUT_DIR"
+sourceFiles "*.d" "internal/*.d"
+importPaths "../.."
+dependency "xtb:core" version="*"
+dependency "xtb:os" version="*"
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-preview=dip1000" platform="ldc"
+
+buildType "release-safe" {
+    buildOptions "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-debug" {
+    sourceFiles "../../../tests/support/log_unittests.d"
+    buildOptions "unittests" "debugMode" "debugInfo"
+}
+
+buildType "unit-optimized" {
+    sourceFiles "../../../tests/support/log_unittests.d"
+    buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-release-safe" {
+    sourceFiles "../../../tests/support/log_unittests.d"
+    buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-release-fast" {
+    sourceFiles "../../../tests/support/log_unittests.d"
+    buildOptions "unittests" "releaseMode" "optimize" "inline"
+}
+
+buildType "unit-asan" {
+    sourceFiles "../../../tests/support/log_unittests.d"
+    buildOptions "unittests" "debugMode" "debugInfo"
+    dflags "-fsanitize=address" platform="ldc"
+}

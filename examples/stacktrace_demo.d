@@ -3,8 +3,8 @@ module examples.stacktrace_demo;
 import core.stdc.stdio : FILE, stdout;
 import xtb.diagnostics.crash : CrashHandlerScope;
 import xtb.diagnostics.demangle : SignatureDetail;
-import xtb.core.writer : Writer;
-import xtb.core.print : fileWriter;
+import xtb.core.fmt.writer : Writer;
+import xtb.core.fmt.print : fileWriter;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;

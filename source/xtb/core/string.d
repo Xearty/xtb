@@ -10,15 +10,15 @@ import core.interpolation : InterpolationFooter, InterpolationHeader;
 import xtb.core.lifetime : move, moveEmplace;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.core.types : u8;
-import xtb.core.array;
+import xtb.core.containers.array;
 import xtb.core.allocators.arena : Arena;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.hash : hashValue;
 import xtb.core.panic : panic;
-import xtb.core.writer : Writer;
+import xtb.core.fmt.writer : Writer;
 
 version (XTB_Checked) import xtb.core.panic : require;
-import xtb.core.released_storage : ReleasedStorage;
+import xtb.core.containers.released_storage : ReleasedStorage;
 import xtb.core.utf8 : ceilCodePointBoundary, encodeUtf8,
     isCodePointBoundary, validateUtf8;
 

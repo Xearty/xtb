@@ -1,16 +1,19 @@
 module examples.pretty_print_demo;
 
-import xtb.core.ansi : AnsiColor, AnsiStyle, ansiReset, beginAnsi, endAnsi;
-import xtb.core.array;
+import xtb.core.ansi : AnsiColor, AnsiStyle;
+import xtb.core.fmt.ansi : beginAnsi, endAnsi, styled;
+import xtb.core.containers.array;
 import xtb.core.flag_set : FlagSet;
-import xtb.core.hash_map;
+import xtb.core.containers.hash_map;
+import xtb.core.containers.hash_set;
 import xtb.core.allocators.malloc : mallocAllocator;
 import xtb.core.lifetime : taggedBy, taggedCase;
 import xtb.core.option : Option;
-import xtb.core.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
+import xtb.core.fmt.format : formatted;
+import xtb.core.fmt.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
     PrettyPrintOptions, pretty, writePretty;
-import xtb.core.writer : Writer;
-import xtb.core.print : writeln;
+import xtb.core.fmt.writer : Writer;
+import xtb.core.fmt.print : writeln;
 import xtb.core.string;
 
 enum Permission : ubyte
@@ -207,7 +210,7 @@ private void heading(String title)
     const style = AnsiStyle.foreground(AnsiColor.brightWhite)
         .withBackground(AnsiColor.blue)
         .bold;
-    writeln("\n", style, "  ", title, "  ", ansiReset);
+    writeln("\n", styled(formatted!"  {}  "(title), style));
 }
 
 extern (C) int main()

@@ -70,7 +70,7 @@ conversion, or additional failure modes merely because they are easy to add.
 
 ### Supported and unsupported platforms
 
-"Unsupported platforms must compile" means that importing `xtb.threading` and
+"Unsupported platforms must compile" means that importing `xtb.thread` and `xtb.sync` and
 building code that does not execute an unsupported OS-dependent operation must
 remain possible. It does **not** promise functional blocking/thread creation on a
 platform for which no backend exists.
@@ -201,30 +201,35 @@ the pool API is designed.
 Use focused public modules and private/package backend modules:
 
 ```text
-source/xtb/threading/
-├── package.d
-├── atomic.d
-├── thread.d
-├── spin_wait.d
-├── spawn.d
-├── thread_scope.d
-├── mutex.d
-├── cond_var.d
-├── semaphore.d
-├── latch.d
-├── wait_group.d
-├── barrier.d
-├── rwlock.d
-├── once.d
-├── once_cell.d
-└── internal/
-    ├── parking.d
-    ├── countdown.d
-    ├── generation_wait.d
-    ├── thread_backend.d
-    ├── thread_linux.d
-    ├── thread_windows.d
-    └── thread_unsupported.d
+source/xtb/
+├── thread/
+│   ├── dub.sdl              # shared xtb.thread + xtb.sync build component
+│   ├── package.d
+│   ├── thread.d
+│   ├── spawn.d
+│   ├── thread_scope.d
+│   └── internal/
+│       ├── thread_backend.d
+│       ├── thread_linux.d
+│       ├── thread_windows.d
+│       └── thread_unsupported.d
+└── sync/
+    ├── package.d
+    ├── atomic.d
+    ├── spin_wait.d
+    ├── mutex.d
+    ├── cond_var.d
+    ├── semaphore.d
+    ├── latch.d
+    ├── wait_group.d
+    ├── barrier.d
+    ├── rw_lock.d
+    ├── once.d
+    ├── once_cell.d
+    └── internal/
+        ├── parking.d
+        ├── countdown.d
+        └── generation_wait.d
 ```
 
 `thread.d` owns `Thread`, `ThreadId`, `ThreadStartError`, raw creation, the
@@ -241,11 +246,12 @@ on the `Once` machinery without requiring allocation.
 Do not create placeholder modules with no coherent implementation. Add each
 module when the first complete primitive belonging to it is implemented.
 
-`xtb.threading.package` should publicly re-export the completed public modules so
-`import xtb.threading;` exposes the supported foundational surface. It must not
-re-export `internal.*` modules or native backend declarations. The DUB target or
-subpackage name is `xtb_threading`; D module names remain under
-`xtb.threading.*`.
+`xtb.thread` and `xtb.sync` each publicly re-export the completed modules in
+their own family. Neither package re-exports `internal.*` modules or native
+backend declarations. For now both module families are compiled by the single
+`threading` DUB subpackage declared in `source/xtb/thread/dub.sdl`, which emits
+`libxtb_threading.a`. The shared build artifact does not reintroduce an
+`xtb.threading` D module namespace.
 
 ## Common API conventions
 

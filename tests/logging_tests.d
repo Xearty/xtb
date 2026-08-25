@@ -2,6 +2,7 @@ module tests.logging_tests;
 
 import core.stdc.stdio : FILE, fclose, fread, rewind, tmpfile;
 import xtb.core;
+import xtb.log;
 
 static assert(__traits(isCopyable, LogSinkRef));
 static assert(__traits(isCopyable, LogPrefixRef));
@@ -107,9 +108,7 @@ extern (C) int main() nothrow @nogc
     FormatProbe probe = FormatProbe(&formatCalls);
     const result = logger.warning(
         "prefix ",
-        AnsiStyle.foreground(AnsiColor.green),
-        longText[],
-        ansiReset,
+        styled(longText[], AnsiStyle.foreground(AnsiColor.green)),
         " ",
         probe,
         " suffix",

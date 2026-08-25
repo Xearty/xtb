@@ -51,6 +51,7 @@ configuration "test-core" {
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "core_tests.d"
     dependency "xtb:core" version="*"
+    dependency "xtb:log" version="*"
     dependency "xtb:diagnostics" version="*"
 }
 
@@ -60,6 +61,7 @@ configuration "test-logging" {
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "logging_tests.d"
     dependency "xtb:core" version="*"
+    dependency "xtb:log" version="*"
 }
 
 configuration "test-lifetime" {
@@ -172,8 +174,8 @@ configuration "test-threading-unsupported" {
     targetName "threading_unsupported_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "threading_unsupported_tests.d"
-    sourceFiles "../source/xtb/threading/*.d" "../source/xtb/threading/internal/*.d"
-    excludedSourceFiles "../source/xtb/threading/internal/thread_linux.d"
+    sourceFiles "../source/xtb/thread/*.d" "../source/xtb/thread/internal/*.d" "../source/xtb/sync/*.d" "../source/xtb/sync/internal/*.d"
+    excludedSourceFiles "../source/xtb/thread/internal/thread_linux.d"
     dependency "xtb:core" version="*"
     versions "XTB_TestUnsupportedThreadBackend"
 }

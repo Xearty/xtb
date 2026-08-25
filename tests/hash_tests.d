@@ -4,12 +4,13 @@ nothrow @nogc:
 
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.hash_map;
+import xtb.core.containers.hash_map;
+import xtb.core.containers.hash_set;
 import xtb.core.lifetime : deinit, move;
 import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.core.string : OwnedString, StringBuf;
-import xtb.core.string_hash_map : OwnedStringHashMap, StringHashMap;
-import xtb.core.string_hash_set : StringHashSet;
+import xtb.core.containers.string_hash_map : OwnedStringHashMap, StringHashMap;
+import xtb.core.containers.string_hash_set : StringHashSet;
 
 private struct HeapOwner
 {

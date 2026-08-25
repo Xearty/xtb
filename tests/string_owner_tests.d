@@ -6,8 +6,9 @@ import core.internal.traits : hasElaborateDestructor;
 import xtb.core.allocators.arena : Arena;
 import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.array : OwnedArray;
-import xtb.core.hash_map : AddStatus, OwnedHashMap, OwnedHashSet, SetStatus;
+import xtb.core.containers.array : OwnedArray;
+import xtb.core.containers.hash_map : AddStatus, OwnedHashMap, SetStatus;
+import xtb.core.containers.hash_set : OwnedHashSet;
 import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
 import xtb.core.memory : Allocator;
 import xtb.core.option : Option, some;
@@ -15,7 +16,7 @@ import xtb.core.result : Result;
 import xtb.core.string : OwnedString, OwnedStringUnmanaged, StringBuf,
     StringBufUnmanaged, concat, copy, escape, join, replace, tryConcat,
     tryCopy, tryEscape, tryJoin, tryReplace;
-import xtb.core.string_hash_map : OwnedStringHashMap;
+import xtb.core.containers.string_hash_map : OwnedStringHashMap;
 import xtb.core.types : String;
 
 static assert(!hasElaborateDestructor!StringBuf);
