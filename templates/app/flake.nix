@@ -15,7 +15,7 @@
   }: let
     lib = nixpkgs.lib;
     appName = "xtb-app";
-    xtbFeatures = [
+    xtbSubpackages = [
       "log"
       "math"
     ];
@@ -41,7 +41,7 @@
       makeApplication = mode: let
         xtbLibrary = xtb.lib.mkStatic {
           inherit pkgs mode;
-          features = xtbFeatures;
+          features = xtbSubpackages;
         };
         checked = mode != "release-fast";
         buildType =
@@ -117,17 +117,17 @@
       xtbDebug = xtb.lib.mkStatic {
         inherit pkgs;
         mode = "debug";
-        features = xtbFeatures;
+        features = xtbSubpackages;
       };
       xtbReleaseSafe = xtb.lib.mkStatic {
         inherit pkgs;
         mode = "release-safe";
-        features = xtbFeatures;
+        features = xtbSubpackages;
       };
       xtbReleaseFast = xtb.lib.mkStatic {
         inherit pkgs;
         mode = "release-fast";
-        features = xtbFeatures;
+        features = xtbSubpackages;
       };
       xtbLibraries = pkgs.linkFarm "xtb-selected-libraries" [
         {name = "debug"; path = "${xtbDebug}/lib";}

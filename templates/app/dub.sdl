@@ -20,7 +20,7 @@ buildType "release-safe" {
 lflags "-L$XTB_LIBRARY_PATH"
 
 // The selected XTB archive contains one object per compiled module. The
-// application links that single archive without maintaining feature-library
+// application links that single archive without maintaining per-subpackage library
 // order here.
 libs "xtb"
 libs "pthread" platform="linux"

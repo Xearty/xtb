@@ -7,13 +7,22 @@ with `-betterC`.
 
 Important directories:
 
-- `source/<feature>/xtb/`: library implementation and its colocated unit tests
+- `source/<subpackage>/README.md`: subpackage overview and documentation entry point
+- `source/<subpackage>/xtb/`: library implementation and its colocated unit tests
+- `source/<subpackage>/docs/`: detailed documentation owned by that subpackage
 - `tests/`: cross-module, integration, and regression test runners/fixtures
 - `examples/`: minimal usage examples
 - `archive/cpp/`: historical C++ implementation, retained for reference only
 
 Do not modify, import, generate from, or build `archive/cpp` as part of the D
 project. The root BetterC project must remain independent from the archive.
+
+Keep user documentation short and with its owner. Every source subpackage has a
+concise `source/<subpackage>/README.md` that explains what it provides and links
+to relevant examples or guides. Put subpackage-specific user guides in
+`source/<subpackage>/docs/` and cross-subpackage user documentation in `docs/`.
+Do not use user documentation for design plans, implementation logs, or project
+history.
 
 Before changing public APIs, inspect their existing call sites.
 
@@ -92,7 +101,7 @@ Before changing public APIs, inspect their existing call sites.
   Conditions passed to `require` must only inspect already-computed state:
   never put necessary computation, mutation,
   or output initialization inside a removable contract. See
-  `docs/managed-containers.md` and `docs/build-modes.md`.
+  `docs/build-modes.md`.
 - Re-export stable public modules from the corresponding public `package.d` so
   consumers can use short imports. Keep implementation imports focused and do
   not put implementation code in `package.d`.
@@ -132,7 +141,8 @@ A change is complete only when:
 - No unrelated files were reformatted or changed.
 - The final response summarizes modifications and commands executed.
 
-## Important documentation
+## Repository structure
 
-- Read `docs/architecture.md` before changing module boundaries.
-- Read `docs/testing.md` before adding a new test executable.
+- Treat each `source/<subpackage>` directory as an independently declared DUB subpackage.
+- Keep user-facing documentation short and colocated with the subpackage it describes.
+- Do not add design plans, implementation logs, or roadmaps to the user documentation.

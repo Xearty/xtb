@@ -24,8 +24,8 @@ default: build
 #   just build example all debug
 build kind="static" name="xtb" mode="debug": (_dispatch "build" kind name mode)
 
-# Compose a slim libxtb.a from selected features. Core is always included and
-# DUB resolves the complete transitive feature closure.
+# Compose a slim libxtb.a from selected subpackages. Core is always included and
+# DUB resolves the complete transitive subpackage closure.
 [script]
 [positional-arguments]
 compose *args:
@@ -114,7 +114,7 @@ _check-compose-diagnostics:
         --mode=release-safe \
         diagnostics)"
     if [[ "$(basename "$(dirname "$archive")")" != core+diagnostics ]]; then
-        echo "diagnostics composition has an unexpected feature closure: $archive" >&2
+        echo "diagnostics composition has an unexpected subpackage closure: $archive" >&2
         exit 1
     fi
 
@@ -147,7 +147,7 @@ _check-compose-diagnostics:
         -of="$output_dir/diagnostics_archive_consumer"
     "$output_dir/diagnostics_archive_consumer" >/dev/null
 
-# Compile every feature and its colocated unit tests using only the feature's
+# Compile every subpackage and its colocated unit tests using only the subpackage's
 # declared dependency closure. The no-op main keeps this a compile-only gate;
 # behavioral tests already run through the full development aggregate.
 [script]
@@ -171,7 +171,7 @@ _check-feature-tests:
                 ;;
         esac
 
-        echo "Compiling isolated features and unit tests ($mode)"
+        echo "Compiling isolated subpackages and unit tests ($mode)"
         for feature in "${features[@]}"; do
             test_args=(
                 ":$feature"
@@ -188,7 +188,7 @@ _check-feature-tests:
         done
     done
 
-# Verify every feature boundary in the three public modes (slow and optional).
+# Verify every subpackage boundary in the three public modes (slow and optional).
 check-features: _check-feature-tests
 
 # Print supported modes and target names.
@@ -201,9 +201,9 @@ targets:
       release-fast
 
     Static library:
-      xtb          full development library containing every feature
+      xtb          full development library containing every subpackage
 
-    Composable features:
+    Composable subpackages:
     EOF
     for feature in {{ feature_subpackages }}; do
         printf '  %s\n' "$feature"
@@ -398,7 +398,7 @@ _dispatch action kind name mode *program_args:
         local target="$1"
         if [[ "$target" != xtb && "$target" != all ]]; then
             echo "unknown static library: $target" >&2
-            echo "XTB development builds produce only libxtb.a; use 'just compose' for slim feature sets" >&2
+            echo "XTB development builds produce only libxtb.a; use 'just compose' for slim subpackage sets" >&2
             exit 2
         fi
 
@@ -562,7 +562,7 @@ _test mode:
         dub test "${unit_args[@]}"
     else
         # releaseMode removes unittest runners; compiling the full aggregate
-        # still verifies every feature in the release-fast configuration.
+        # still verifies every subpackage in the release-fast configuration.
         dub build {{ dub_options }} --parallel --build=release-nobounds
     fi
 

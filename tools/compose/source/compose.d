@@ -101,17 +101,17 @@ private string[] availableFeatures(string repositoryRoot)
 
         const feature = line[prefix.length .. $ - 1];
         if (!feature.length || baseName(feature) != feature)
-            throw new Exception("invalid feature subpackage path: " ~ line);
+            throw new Exception("invalid subpackage path: " ~ line);
         if (!isFile(buildPath(repositoryRoot, "source", feature, "dub.sdl")))
-            throw new Exception("feature subpackage is missing its recipe: " ~ feature);
+            throw new Exception("subpackage is missing its recipe: " ~ feature);
         if (features.canFind(feature))
-            throw new Exception("duplicate feature subpackage: " ~ feature);
+            throw new Exception("duplicate subpackage: " ~ feature);
         features ~= feature;
     }
 
     features.sort();
     if (!features.canFind("core"))
-        throw new Exception("the root package does not declare the core feature");
+        throw new Exception("the root package does not declare the core subpackage");
     return features;
 }
 
@@ -123,8 +123,8 @@ private void validateFeatures(
     foreach (feature; requested)
         if (!available.canFind(feature))
             throw new Exception(
-                "unknown feature: " ~ feature ~
-                    "\navailable features: " ~ available.join(", "),
+                "unknown subpackage: " ~ feature ~
+                    "\navailable subpackages: " ~ available.join(", "),
             );
 }
 
@@ -363,7 +363,7 @@ private string composeInRepository(
     const resolved = canonicalFeaturesFromDescribe(describe.output);
     validateFeatures(resolved, features);
     if (!resolved.canFind("core"))
-        throw new Exception("DUB resolved a feature closure without core");
+        throw new Exception("DUB resolved a subpackage closure without core");
     const canonical = canonicalFeatureName(resolved);
     string diagnosticsNativeArchive;
     version (linux)
