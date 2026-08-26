@@ -4,28 +4,59 @@ license "BSL-1.0"
 targetType "staticLibrary"
 targetName "xtb"
 targetPath "$XTB_LIBRARY_OUTPUT_DIR"
-sourcePaths "source"
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
 dflags "-preview=dip1000" platform="ldc"
 
-// Optimized checked build: keep language assertions and contracts enabled.
 buildType "release-safe" {
     buildOptions "optimize" "inline"
     dflags "-fno-delete-null-pointer-checks" platform="ldc"
 }
-libs "backtrace" platform="linux"
-libs "pthread" platform="linux"
 
-subPackage "source/xtb/core"
-subPackage "source/xtb/log"
-subPackage "source/xtb/cli"
-subPackage "source/xtb/diagnostics"
-subPackage "source/xtb/math"
-subPackage "source/xtb/os"
-subPackage "source/xtb/parser"
-subPackage "source/xtb/serde"
-subPackage "source/xtb/thread"
+
+buildType "unit-debug" {
+    buildOptions "unittests" "debugMode" "debugInfo"
+}
+
+buildType "unit-optimized" {
+    buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-release-safe" {
+    buildOptions "unittests" "optimize" "inline"
+    dflags "-fno-delete-null-pointer-checks" platform="ldc"
+}
+
+buildType "unit-release-fast" {
+    buildOptions "unittests" "releaseMode" "optimize" "inline"
+}
+
+buildType "unit-asan" {
+    buildOptions "unittests" "debugMode" "debugInfo"
+    dflags "-fsanitize=address" platform="ldc"
+}
+
+subPackage "source/core"
+subPackage "source/os"
+subPackage "source/log"
+subPackage "source/math"
+subPackage "source/threading"
+subPackage "source/parser"
+subPackage "source/serde"
+subPackage "source/cli"
+subPackage "source/diagnostics"
 subPackage "examples"
 subPackage "benchmarks"
 subPackage "tests"
+subPackage "tools/compose"
+
+dependency ":core" version="*"
+dependency ":os" version="*"
+dependency ":log" version="*"
+dependency ":math" version="*"
+dependency ":threading" version="*"
+dependency ":parser" version="*"
+dependency ":serde" version="*"
+dependency ":cli" version="*"
+dependency ":diagnostics" version="*"

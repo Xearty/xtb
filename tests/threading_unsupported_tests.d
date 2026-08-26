@@ -1,7 +1,7 @@
 module tests.threading_unsupported_tests;
 
 import core.stdc.stdlib : free, malloc;
-import xtb.core.memory : Allocator;
+import xtb.memory : Allocator;
 import xtb.sync;
 import xtb.thread;
 import barrierModule = xtb.sync.barrier;

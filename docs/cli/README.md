@@ -34,8 +34,8 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE, stderr, stdout;
 import xtb.cli;
-import xtb.core.option : Option;
-import xtb.core.types : String;
+import xtb.option : Option;
+import xtb.types : String;
 import xtb.os.terminal : shouldUseAnsi;
 
 @(cliVersion("1.0.0"), cliAbout("Small package tool"))

@@ -6,9 +6,9 @@ import core.stdc.stdio : fileno, printf, stdout;
 import core.stdc.stdlib : getenv, strtoull;
 import core.stdc.string : strcmp;
 import core.sys.posix.time : CLOCK_MONOTONIC, clock_gettime, timespec;
-import xtb.core.containers.generational_pool : GenerationalPool;
-import xtb.core.containers.pool : Pool;
-import xtb.core.types : u64;
+import xtb.containers.generational_pool : GenerationalPool;
+import xtb.containers.pool : Pool;
+import xtb.types : u64;
 
 private enum uint scanCapacity = 4_096;
 private enum uint largeCapacity = 10_000_000;

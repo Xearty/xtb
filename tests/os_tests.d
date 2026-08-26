@@ -13,15 +13,15 @@ import xtb.os.process_io;
 import xtb.os.time;
 import xtb.os.terminal;
 import core.internal.traits : hasElaborateDestructor;
-import xtb.core.containers.array;
-import xtb.core.allocators.arena : Arena, TempArena, pop, push;
-import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
-import xtb.core.option : Option;
-import xtb.core.result : Result;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.string;
-import xtb.core.thread_context : ThreadContextScope, scratchArena;
-import xtb.core.types : i64, u64, u8;
+import xtb.containers.array;
+import xtb.allocators.arena : Arena, TempArena, pop, push;
+import xtb.lifetime : deinit, move, moveAssign, needsDeinit;
+import xtb.option : Option;
+import xtb.result : Result;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.string;
+import xtb.thread_context : ThreadContextScope, scratchArena;
+import xtb.types : i64, u64, u8;
 
 static assert(!hasElaborateDestructor!DirectoryIterator);
 static assert(needsDeinit!DirectoryIterator);
@@ -139,7 +139,7 @@ version (linux) private void runProcessIntegration(
 ) nothrow @system @nogc
 {
     import core.stdc.signal : SIGTERM;
-    import xtb.core.duration : milliseconds;
+    import xtb.duration : milliseconds;
 
     SpawnOptions pipedOutput = SpawnOptions.init
         .withStdin(InputRoute.nullDevice())
@@ -425,7 +425,7 @@ version (linux) private void runCommunicateIntegration(
 ) nothrow @system @nogc
 {
     import core.sys.posix.signal : SIGKILL, SIGTERM;
-    import xtb.core.duration : milliseconds;
+    import xtb.duration : milliseconds;
 
     const routes = SpawnOptions.init
         .withStdin(InputRoute.piped())
@@ -655,7 +655,7 @@ version (linux) private void runPipelineIntegration(
 {
     import core.stdc.errno : ESRCH, errno;
     import core.sys.posix.signal : nativeKill = kill;
-    import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+    import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 
     {
         String[1] copyArguments = ["copy"];
@@ -890,7 +890,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(openDescriptorCount() == helperDescriptorCount);
 
     {
-        import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+        import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 
         const baseline = openDescriptorCount();
         AllocationRecord[2] records;

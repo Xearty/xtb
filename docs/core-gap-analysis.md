@@ -1,7 +1,7 @@
 # Core capability audit
 
 This document records the comparison between C++ `libs/xtb_core` and the D
-`xtb.core` package. It is a completion ledger, not a compatibility contract.
+`xtb` package. It is a completion ledger, not a compatibility contract.
 The D implementation preserves useful capabilities while rejecting unsafe
 ownership, hidden global state, and macro-oriented interfaces.
 
@@ -15,8 +15,8 @@ Future general-purpose additions are ranked separately in
 - semantic version constants and version string;
 - operating-system and architecture traits;
 - fixed-width integer and floating-point aliases;
-- dependency-free primitive aliases in `xtb.core.types` and generic numeric
-  operations in `xtb.core.numeric`;
+- dependency-free primitive aliases in `xtb.types` and generic numeric
+  operations in `xtb.numeric`;
 - `min`, `max`, always-checked `clamp`, direct geometric growth, and overflow
   helpers;
 - direct panicking KiB, MiB, GiB, and TiB conversions plus explicitly named

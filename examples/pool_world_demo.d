@@ -1,6 +1,6 @@
 module examples.pool_world_demo;
 
-import xtb.core;
+import xtb;
 
 nothrow @nogc:
 

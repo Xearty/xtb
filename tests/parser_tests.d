@@ -2,9 +2,9 @@ module tests.parser_tests;
 
 nothrow @nogc:
 
-import xtb.core.allocators.arena : Arena;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.types : String;
+import xtb.allocators.arena : Arena;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.types : String;
 import xtb.parser;
 
 private int digitSum(int left, char digit) pure @safe

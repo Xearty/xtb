@@ -1,0 +1,5 @@
+name "compose"
+description "Build a slim XTB archive from selected feature subpackages"
+license "BSL-1.0"
+targetType "executable"
+sourcePaths "source"

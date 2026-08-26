@@ -107,8 +107,8 @@ The second adapter accepts already-stable start storage. `startRawAlloc` uses on
 caller-allocator allocation for the raw function/context adapter, while typed
 `startAlloc` uses one allocation containing the backend adapter plus captures in
 the worker's declared parameter types. The allocator callback type now lives in
-the allocator contract in `xtb.core.memory`; concrete allocator implementations
-remain isolated under `xtb.core.allocators.*`, so threading can use the public
+the allocator contract in `xtb.memory`; concrete allocator implementations
+remain isolated under `xtb.allocators.*`, so threading can use the public
 allocator API without importing a concrete allocator implementation. After
 successful native creation the child moves/copies every value it needs into
 child-stack call storage, destroys

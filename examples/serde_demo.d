@@ -1,14 +1,14 @@
 module examples.serde_demo;
 
-import xtb.core.containers.array;
-import xtb.core.memory : Allocator;
-import xtb.core.lifetime : deinitValue = deinit, move, moveEmplace;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.option : Option, some;
-import xtb.core.fmt.writer : Writer;
-import xtb.core.fmt.print : writeln;
-import xtb.core.string;
-import xtb.core.types : u8;
+import xtb.containers.array;
+import xtb.memory : Allocator;
+import xtb.lifetime : deinitValue = deinit, move, moveEmplace;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.option : Option, some;
+import xtb.fmt.writer : Writer;
+import xtb.fmt.print : writeln;
+import xtb.string;
+import xtb.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind, TagLayout,
     serdeAliasName, serdeCaseOf, serdeDiscriminant, serdeFieldCase, serdeIgnore, serdeOmitDefault, serdePayload,
     readJson, readToml, serdeRename, serdeRequired, serdeTaggedUnion, serdeVariantCase, serdeWith,

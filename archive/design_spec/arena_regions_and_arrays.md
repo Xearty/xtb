@@ -471,7 +471,7 @@ nothrow @nogc:
 ```
 
 The allocation and construction vocabulary mirrors `Arena` and
-`xtb.core.memory`: raw allocation does not establish `T.init`; `allocateInit*`
+`xtb.memory`: raw allocation does not establish `T.init`; `allocateInit*`
 does; `create` constructs from arguments. None of these operations registers a
 destructor.
 
@@ -683,7 +683,7 @@ documentation, predictable diagnostics, LSP discoverability, and independent
 ownership contracts.
 
 The implementations should share private storage algorithms in
-`xtb.core.array`. A conceptual split is:
+`xtb.array`. A conceptual split is:
 
 ```d
 private struct RawArrayStorage(T)
@@ -1611,7 +1611,7 @@ No new test executable should be added without following `docs/testing.md`.
 ### Phase 1: native arena operations
 
 1. Add latest-allocation detection and in-place resize to
-   `xtb.core.allocators.arena`.
+   `xtb.allocators.arena`.
 2. Add raw reallocation with the POD/raw fallback contract.
 3. Route the arena allocator adapter through the native primitive where valid.
 4. Complete bookkeeping, overflow, checkpoint, and failure tests.

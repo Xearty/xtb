@@ -3,11 +3,11 @@ module examples.cli_nested_demo;
 nothrow @nogc:
 
 import xtb.cli;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.containers.array : Array;
-import xtb.core.option : Option;
-import xtb.core.fmt.print : writeln;
-import xtb.core.types : String;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.containers.array : Array;
+import xtb.option : Option;
+import xtb.fmt.print : writeln;
+import xtb.types : String;
 
 @(cliVersion("1.0.0"), cliAbout("Nested subcommand and repeated-argument example"), cliSubcommandOptional)
 struct RootArgs

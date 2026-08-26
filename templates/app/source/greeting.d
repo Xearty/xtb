@@ -2,7 +2,7 @@ module greeting;
 
 nothrow @nogc:
 
-import xtb.core : String, equal;
+import xtb : String, equal;
 
 String greetingSubject() pure @safe
 {

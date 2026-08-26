@@ -1,20 +1,20 @@
 module examples.pretty_print_demo;
 
-import xtb.core.ansi : AnsiColor, AnsiStyle;
-import xtb.core.fmt.ansi : beginAnsi, endAnsi, styled;
-import xtb.core.containers.array;
-import xtb.core.flag_set : FlagSet;
-import xtb.core.containers.hash_map;
-import xtb.core.containers.hash_set;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.lifetime : taggedBy, taggedCase;
-import xtb.core.option : Option;
-import xtb.core.fmt.format : formatted;
-import xtb.core.fmt.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
+import xtb.ansi : AnsiColor, AnsiStyle;
+import xtb.fmt.ansi : beginAnsi, endAnsi, styled;
+import xtb.containers.array;
+import xtb.flag_set : FlagSet;
+import xtb.containers.hash_map;
+import xtb.containers.hash_set;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.lifetime : taggedBy, taggedCase;
+import xtb.option : Option;
+import xtb.fmt.format : formatted;
+import xtb.fmt.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
     PrettyPrintOptions, pretty, writePretty;
-import xtb.core.fmt.writer : Writer;
-import xtb.core.fmt.print : writeln;
-import xtb.core.string;
+import xtb.fmt.writer : Writer;
+import xtb.fmt.print : writeln;
+import xtb.string;
 
 enum Permission : ubyte
 {

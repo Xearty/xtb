@@ -1,6 +1,6 @@
 # String API design specification
 
-This specification is implemented by `xtb.core.string` and `xtb.core.utf8`.
+This specification is implemented by `xtb.string` and `xtb.utf8`.
 
 ## Representation and invariant
 
@@ -27,7 +27,7 @@ used for one Unicode scalar value. Grapheme clusters are outside this API.
 
 ## Byte-oriented API
 
-The foundational `xtb.core.string` surface is:
+The foundational `xtb.string` surface is:
 
 ```d
 size_t byteLength(String value) pure @safe;
@@ -291,7 +291,7 @@ segmentation or normalization.
 `StringBuf` owns a growable valid UTF-8 allocation. It remains non-copyable.
 Its struct contains ownership state, static factories, D-required hooks, and
 its ordinary handwritten member API. The declarations are colocated in
-`xtb.core.string`, so language servers can navigate directly to the operation
+`xtb.string`, so language servers can navigate directly to the operation
 selected for a `StringBuf` receiver.
 
 ```d
@@ -451,11 +451,11 @@ unequal.
 
 ## Implementation requirements
 
-- Keep `String` declared only in `xtb.core.types` and publicly re-export it.
+- Keep `String` declared only in `xtb.types` and publicly re-export it.
 - Preserve literal calls such as `consume("text")`.
 - Validate every foreign byte-to-text boundary or name it unchecked.
 - Use `byteOffset`, `byteLength`, and `byteCapacity` in text APIs and locals.
 - Preserve UTF-8 across every public `StringBuf` mutation.
-- Replace duplicated validators and encoders with `xtb.core.utf8`.
+- Replace duplicated validators and encoders with `xtb.utf8`.
 - Keep all operations BetterC-compatible, allocation-free unless an explicit
   allocator or owning buffer is involved, and fully covered by sanitizer tests.

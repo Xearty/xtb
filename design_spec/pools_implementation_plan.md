@@ -50,7 +50,7 @@ Commit target: `refactor(core): add bounded virtual memory regions`.
 
 ## Step 2 — `VirtualArray!T` ownership and storage core — COMPLETE
 
-Added public `xtb.core.virtual_array.VirtualArray!T` as a move-only owner over one
+Added public `xtb.virtual_array.VirtualArray!T` as a move-only owner over one
 fixed virtual reservation.
 
 Implemented contract:
@@ -210,7 +210,7 @@ Commit target: `feat(core): add internal virtual array views`.
 
 ## Step 5 — fixed-capacity `Pool!T` — COMPLETE
 
-Added public `xtb.core.pool.Pool!T` directly over one fixed virtual reservation;
+Added public `xtb.pool.Pool!T` directly over one fixed virtual reservation;
 Pool has no Arena or backing allocator dependency.
 
 Implemented layout:
@@ -353,7 +353,7 @@ Commit target: `feat(core): add pool slot and item ranges`.
 
 Implemented a distinct generational container over the same VM/view foundation
 as plain Pool. Shared three-region geometry and partitioning now live in the
-package-private `xtb.core.pool_storage` module so neither public container is
+package-private `xtb.pool_storage` module so neither public container is
 layered on the other.
 
 Layout:

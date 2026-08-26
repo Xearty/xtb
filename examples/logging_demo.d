@@ -1,7 +1,7 @@
 module examples.logging_demo;
 
 import core.stdc.stdio : FILE, fclose, ferror, fread, fwrite, rewind, stderr, tmpfile;
-import xtb.core;
+import xtb;
 import xtb.log;
 import xtb.os : shouldUseAnsi;
 

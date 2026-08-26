@@ -10,13 +10,13 @@
 
 **Status: implemented.**
 
-This is a companion to `design_spec/logging_sink_fanout.md`. It defines a generic record-prefix decorator in `xtb.core` and an initial date/time prefix provider in `xtb.os`.
+This is a companion to `design_spec/logging_sink_fanout.md`. It defines a generic record-prefix decorator in `xtb` and an initial date/time prefix provider in `xtb.os`.
 
 Maintain this document with the implementation whenever the public API, lifecycle rules, timestamp format, style defaults, failure semantics, or composition behavior changes.
 
 ## Decision summary
 
-- Add a generic `PrefixLogSink` in `xtb.core.logging`.
+- Add a generic `PrefixLogSink` in `xtb.logging`.
 - Prefix insertion is driven by explicit `beginRecord`; there is no first-chunk inference.
 - A prefix provider writes styled setup text through a restricted `LogPrefixWriter` and the already-resolved child record.
 - Prefix providers may use stack storage because delivery is synchronous; the prefix sink does not allocate or own prefix text.
@@ -54,7 +54,7 @@ The design should:
 
 - remain `-betterC`, `nothrow`, `@nogc`, and allocation-free;
 - preserve the existing explicit sink lifecycle;
-- keep OS wall-clock access out of `xtb.core`;
+- keep OS wall-clock access out of `xtb`;
 - allow dynamic prefixes without persistent string ownership;
 - preserve logger-owned level labels and message framing;
 - keep prefix presentation independent of text generation;

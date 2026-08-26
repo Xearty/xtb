@@ -1,11 +1,11 @@
 module tests.array_tests;
 
-import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.containers.array;
-import xtb.core.lifetime : deinit, move, moveAssign;
-import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
-import xtb.core.string : StringBuf;
+import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.containers.array;
+import xtb.lifetime : deinit, move, moveAssign;
+import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.string : StringBuf;
 
 private struct PodOwner
 {

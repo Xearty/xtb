@@ -1,9 +1,9 @@
 module tests.lifetime_tests;
 
-import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.lifetime;
-import xtb.core.memory : Allocator, allocateInit, allocateInitArray,
+import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.lifetime;
+import xtb.memory : Allocator, allocateInit, allocateInitArray,
     deallocateArray, dispose, disposeArray, tryAllocateArray;
 
 private struct AllocationOwner

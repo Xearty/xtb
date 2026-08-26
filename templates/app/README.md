@@ -1,13 +1,32 @@
 # xtb application
 
 This is a BetterC application using XTB through Nix. The flake pins the XTB
-revision and exposes its modules and mode-specific static libraries without
-copying the library source into this project.
+revision, selects which XTB features are compiled into the application's
+`libxtb.a`, and exposes the complete XTB source interface to development tools.
 
 To rename the application, change `appName` in `flake.nix`, then give `name`
 and `targetName` in `dub.sdl` the same value. DUB package names must be
 lowercase; letters, digits, hyphens, and underscores are the most portable
 choice.
+
+## Select XTB features
+
+Edit the single feature list in `flake.nix`:
+
+```nix
+xtbFeatures = [
+  "log"
+  "math"
+];
+```
+
+`core` is always included. DUB resolves transitive feature dependencies, so the
+example above builds `core+log+math+os` because logging requires the OS feature.
+The application still links one library named `libxtb.a`; changing the list
+only changes which XTB feature sources are compiled into that archive.
+
+The same composition mechanism is available without Nix from an XTB checkout,
+for example `just compose log math` or `dub run :compose -- log math`.
 
 ## Develop
 
@@ -89,8 +108,8 @@ nix flake check path:. --override-input xtb path:/path/to/xtb
 
 ## Linkage
 
-The application links the installed `libxtb.a` from the directory matching its
-build mode. Each archive contains one object per module, so the linker selects
-only referenced modules while imports from `xtb.core`, `xtb.cli`,
-`xtb.diagnostics`, `xtb.math`, `xtb.os`, `xtb.parser`, `xtb.serde`, and
-`xtb.threading` remain available without editing library order in `dub.sdl`.
+The application links the selected `libxtb.a` for its build mode. The Nix dev
+shell separately exposes XTB's complete merged source interface, so serve-d can
+still discover and navigate APIs from features that are not currently selected.
+The application DUB recipe only knows that it links `xtb`; feature selection is
+owned by `flake.nix`.

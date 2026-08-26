@@ -1,10 +1,10 @@
 module examples.print_demo;
 
-import xtb.core.fmt.print;
-import xtb.core.fmt.fixed_buffer;
-import xtb.core.fmt.format;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.string;
+import xtb.fmt.print;
+import xtb.fmt.fixed_buffer;
+import xtb.fmt.format;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.string;
 
 struct Point
 {

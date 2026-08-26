@@ -3,21 +3,21 @@ module tests.string_owner_tests;
 nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
-import xtb.core.allocators.arena : Arena;
-import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.containers.array : OwnedArray;
-import xtb.core.containers.hash_map : AddStatus, OwnedHashMap, SetStatus;
-import xtb.core.containers.hash_set : OwnedHashSet;
-import xtb.core.lifetime : deinit, move, moveAssign, needsDeinit;
-import xtb.core.memory : Allocator;
-import xtb.core.option : Option, some;
-import xtb.core.result : Result;
-import xtb.core.string : OwnedString, OwnedStringUnmanaged, StringBuf,
+import xtb.allocators.arena : Arena;
+import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.containers.array : OwnedArray;
+import xtb.containers.hash_map : AddStatus, OwnedHashMap, SetStatus;
+import xtb.containers.hash_set : OwnedHashSet;
+import xtb.lifetime : deinit, move, moveAssign, needsDeinit;
+import xtb.memory : Allocator;
+import xtb.option : Option, some;
+import xtb.result : Result;
+import xtb.string : OwnedString, OwnedStringUnmanaged, StringBuf,
     StringBufUnmanaged, concat, copy, escape, join, replace, tryConcat,
     tryCopy, tryEscape, tryJoin, tryReplace;
-import xtb.core.containers.string_hash_map : OwnedStringHashMap;
-import xtb.core.types : String;
+import xtb.containers.string_hash_map : OwnedStringHashMap;
+import xtb.types : String;
 
 static assert(!hasElaborateDestructor!StringBuf);
 static assert(!hasElaborateDestructor!OwnedString);

@@ -7,7 +7,7 @@ with `-betterC`.
 
 Important directories:
 
-- `source/xtb/`: library implementation and its colocated unit tests
+- `source/<feature>/xtb/`: library implementation and its colocated unit tests
 - `tests/`: cross-module, integration, and regression test runners/fixtures
 - `examples/`: minimal usage examples
 - `archive/cpp/`: historical C++ implementation, retained for reference only
@@ -93,9 +93,9 @@ Before changing public APIs, inspect their existing call sites.
   never put necessary computation, mutation,
   or output initialization inside a removable contract. See
   `docs/managed-containers.md` and `docs/build-modes.md`.
-- Re-export stable public modules from the component `package.d` so consumers
-  can use short imports. Keep implementation imports focused and do not put
-  implementation code in `package.d`.
+- Re-export stable public modules from the corresponding public `package.d` so
+  consumers can use short imports. Keep implementation imports focused and do
+  not put implementation code in `package.d`.
 - Preserve the existing public API unless the task explicitly requires a change.
 - Keep allocator vocabulary explicit: `allocate!T()` is raw storage for one
   object, `allocateArray!T(n)` returns raw array storage as a slice,

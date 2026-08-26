@@ -1,7 +1,7 @@
 module examples.string_demo;
 
 import core.stdc.string : strlen;
-import xtb.core;
+import xtb;
 
 private struct Route
 {

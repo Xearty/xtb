@@ -2,11 +2,11 @@ module tests.arena_tests;
 
 nothrow @nogc:
 
-import xtb.core.allocators.arena;
-import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.thread_context;
-import xtb.core.thread_context : ScratchScope, ThreadContextScope;
+import xtb.allocators.arena;
+import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.thread_context;
+import xtb.thread_context : ScratchScope, ThreadContextScope;
 
 private void testArenaExplicitCleanup()
 {

@@ -4,12 +4,12 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE, stderr, stdout;
 import xtb.cli;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.containers.array : Array;
-import xtb.core.option : Option;
-import xtb.core.fmt.print : writeln;
-import xtb.core.string : equal;
-import xtb.core.types : String;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.containers.array : Array;
+import xtb.option : Option;
+import xtb.fmt.print : writeln;
+import xtb.string : equal;
+import xtb.types : String;
 import xtb.os.terminal : shouldUseAnsi;
 
 enum Profile

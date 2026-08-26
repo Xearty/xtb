@@ -2,13 +2,13 @@ module tests.serde_backend_contract;
 
 nothrow @nogc:
 
-import xtb.core.memory : Allocator;
+import xtb.memory : Allocator;
 
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.option : Option;
-import xtb.core.fmt.writer : Writer;
-import xtb.core.string;
-import xtb.core.types : u8;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.option : Option;
+import xtb.fmt.writer : Writer;
+import xtb.string;
+import xtb.types : u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind,
     serdeAliasName, serdeDefaultValue, serdeFieldCase, serdeOmitDefault, readJson, readToml,
     serdeRequired, writeJson, writeToml;

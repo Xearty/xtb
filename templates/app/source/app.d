@@ -1,7 +1,7 @@
 module app;
 
 import greeting : greetingSubject;
-import xtb.core;
+import xtb;
 
 extern (C) int main() nothrow @nogc
 {
@@ -9,7 +9,7 @@ extern (C) int main() nothrow @nogc
     ScratchScope scratch = ScratchScope.acquire();
 
     StringBuf message = StringBuf.create(scratch.allocator);
-    message.formatTo!"All your {} are belong to us."(greetingSubject);
+    message.format!"All your {} are belong to us."(greetingSubject);
 
     writeln(message);
 

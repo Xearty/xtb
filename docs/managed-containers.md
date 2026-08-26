@@ -11,9 +11,9 @@ template.
 Keep the managed type, its unmanaged storage type, and the implementation of its
 operations in the same module. A consumer should be able to open one file and
 see the representation, factories, ownership rules, and ordinary member API for
-that type. The component `package.d` re-exports the module so ordinary code can
-use a short import such as `import xtb.core;`; implementation modules still
-import focused dependencies.
+that type. The corresponding public `package.d` re-exports the module so
+ordinary code can use a short import such as `import xtb;`; implementation
+modules still import focused dependencies.
 
 ## Shape of a managed type
 
@@ -253,5 +253,5 @@ Before adding or changing a managed container, verify:
    work to release-fast.
 7. Factories, allocation failure, release/adopt, repeated cleanup, and member
    pointer syntax are covered by tests.
-8. The module is re-exported by the component `package.d` and a short-import
-   consumer compiles.
+8. The module is re-exported by the corresponding public `package.d` and a
+   short-import consumer compiles.

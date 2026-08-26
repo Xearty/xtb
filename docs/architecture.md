@@ -28,52 +28,51 @@ and test paths both compile with `-betterC` so violations are caught early.
 
 ## Repository shape
 
-Use conventional D package layout:
+Production source is partitioned by distributable feature while public module
+names remain ordinary `xtb.*` packages:
 
 ```text
 xtb/
-├── source/xtb/             # production modules
-│   ├── core/               # primitives, allocators, containers, strings, fmt
-│   ├── log/                # structured logging and sink composition
-│   ├── diagnostics/        # demangling, styled traces, crash observation
-│   ├── math/               # vectors, matrices, scalar algorithms, noise
-│   ├── os/                 # general libc and platform adapters
-│   ├── thread/             # thread API + shared thread/sync DUB build recipe
-│   ├── sync/               # atomics and synchronization primitives
-│   ├── serde/              # attribute-driven structured data mapping
-│   ├── codec/              # image, audio, compression, and byte formats
-│   ├── window/             # window/input abstraction
-│   ├── graphics/           # graphics API adapter and resources
-│   └── renderer/           # backend-independent rendering policy
-├── tests/                  # runners, fixtures, integration/regression tests
-├── examples/               # small programs using only public APIs
+├── source/
+│   ├── core/             # mandatory base; exposes xtb, xtb.fmt, containers, ...
+│   │   ├── dub.sdl       # DUB sourceLibrary
+│   │   └── xtb/
+│   ├── log/              # exposes xtb.log
+│   │   ├── dub.sdl
+│   │   └── xtb/log/
+│   ├── os/               # exposes xtb.os
+│   ├── math/             # exposes xtb.math
+│   ├── threading/        # exposes xtb.thread and xtb.sync
+│   ├── serde/
+│   ├── parser/
+│   ├── cli/
+│   └── diagnostics/
+├── tools/compose/        # DUB-based slim-library aggregator generator
+├── tests/
+├── examples/
 ├── docs/
-├── archive/cpp/            # read-only historical C++ implementation
-├── dub.sdl
+├── archive/cpp/
+├── dub.sdl               # full development libxtb.a aggregator
 ├── flake.nix
 └── justfile
 ```
 
-The initial migration may create only the directories it needs. Do not add
-empty placeholder modules. A source path maps directly to its module name; for
-example, `source/xtb/core/memory.d` declares `module xtb.core.memory;`.
-Use narrowly focused modules rather than umbrella modules with implementation.
-An optional `xtb.core` module may publicly import a deliberately small stable
-surface, but internal modules must import their precise dependencies.
+A feature directory is a distribution/build grouping, not part of the public D
+module name. For example, `source/core/xtb/memory.d` declares `module
+xtb.memory`, while `source/threading/xtb/sync/mutex.d` declares `module
+xtb.sync.mutex`.
 
-Each independently built component under `source/xtb` owns a colocated DUB
-recipe that positively lists its production modules. `xtb.thread` and
-`xtb.sync` are the deliberate exception: they are separate public module
-families compiled together by `source/xtb/thread/dub.sdl` until an
-independent static-library boundary is useful. Non-core components declare
-`xtb:core` as a package dependency when needed. Do not partition the
-tree by starting with every source and subtracting unrelated directories with
-`excludedSourceFiles`; adding a new component must not change an existing
-component's source set. The root recipe builds the aggregate `xtb` library.
-`examples/dub.sdl` selects the sources needed by each runnable example.
-Ordinary runners in `tests/dub.sdl` depend on component libraries; only a
-runner for a mutually exclusive backend may compile the affected component
-sources directly.
+Each feature is a DUB `sourceLibrary` and declares its feature dependencies in
+its own `dub.sdl`. The root package depends on every feature and therefore
+builds one full `libxtb.a` for normal development, tests, examples, and LSP
+workflows. Feature packages do not emit independent static libraries.
+
+For distribution, `dub run :compose -- <features...>` creates a transient
+static-library aggregator depending only on the requested feature subpackages.
+DUB resolves the transitive feature graph; the generated output directory is
+named from the complete sorted closure (for example `core+log+math+os`). Core
+is always included. No separate feature manifest or import checker duplicates
+the DUB dependency graph.
 
 ## Dependency direction
 
@@ -98,16 +97,16 @@ serde / codec / os       thread + sync
 - `core` depends only on language features and selected druntime C/platform
   bindings. Native platform dependencies inside core stay behind narrow internal
   backends required to implement a core primitive; core never depends upward on
-  another XTB component.
+  another XTB feature.
 - `diagnostics` depends on `core` plus its explicitly selected platform
   unwinder. Core must never import diagnostics or require libbacktrace.
 - `math` depends on `core` only when it needs shared primitive/result types.
 - `xtb.thread` owns thread creation, lifecycle, spawning, scoped threads, and
   the native thread backend. `xtb.sync` owns atomics and synchronization
   primitives. They are separate public module families but are compiled by the
-  single `threading` DUB component for now, so no additional static-library
-  boundary is introduced. Neither public family depends on `os`.
-- `os` owns general operating-system and libc facilities. Other components do
+  single `threading` DUB feature package for now, so no additional
+  static-library boundary is introduced. Neither public family depends on `os`.
+- `os` owns general operating-system and libc facilities. Other features do
   not call libc directly unless they are themselves a deliberately isolated
   foreign/platform boundary, such as the native backend inside `xtb.thread`.
 - `serde` maps user-defined values to structured key-value formats. Its schema
@@ -127,8 +126,8 @@ neutral abstraction downward rather than adding mutual imports. Foreign
 bindings live beside their adapter (for example `xtb.graphics.opengl.binding`)
 and are not treated as general-purpose core modules.
 
-Within core, `xtb.core.types` is a dependency-free leaf containing only the
-primitive aliases, including `String`. `xtb.core.lifetime` owns the explicit
+Within core, `xtb.types` is a dependency-free leaf containing only the
+primitive aliases, including `String`. `xtb.lifetime` owns the explicit
 `deinit` protocol, cleanup classification, context-free finalization, and XTB
 move/replacement primitives. `needsDeinit!T` describes only the explicit XTB
 protocol; `hasDDestructor!T` is the authoritative generic
@@ -155,7 +154,7 @@ names. The lifetime layer validates the complete mapping at compile time and
 structural `deinit` visits only the active member without rewriting the tag or
 payload storage. Serde may reuse this relationship later, but wire layout and
 deserialization policy remain serde concerns.
-`xtb.core.allocators.arena.Arena` is an ordinary explicit owner, not an RAII
+`xtb.allocators.arena.Arena` is an ordinary explicit owner, not an RAII
 object. The normal `Arena.create` path grows through allocator-owned chunks;
 `Arena.createVirtual` instead reserves one fixed contiguous virtual-address range
 and commits a page-rounded prefix as allocation advances. Both are the same public
@@ -172,10 +171,10 @@ any required destruction before the allocation is abandoned (for example with
 `destroy`, or with generic `dispose` through the arena's `Allocator*`). Arena
 assignment is disabled, so ownership transfer uses the lifetime move primitives.
 
-`xtb.core.memory` owns the type-erased `Allocator` callback contract and generic
+`xtb.memory` owns the type-erased `Allocator` callback contract and generic
 allocation/reallocation/disposal helpers, delegating typed finalization to the
 lifetime layer. Concrete allocator implementations are grouped under
-`xtb.core.allocators.*`: `malloc` provides the libc-backed allocator, `arena`
+`xtb.allocators.*`: `malloc` provides the libc-backed allocator, `arena`
 provides arena allocation, and `instrumented` provides deterministic
 allocation tracking/failure injection. The allocator package also owns a narrow
 internal virtual-memory substrate for core implementations that need stable
@@ -199,9 +198,9 @@ as invalid and keep allocator metadata outside `T`, so inactive representations
 remain untouched. See `docs/pools.md` for the public contracts and range model.
 This lets APIs depend on the allocator contract
 without importing a concrete allocation policy. Generic scalar and
-checked-arithmetic operations live in `xtb.core.numeric`; that module may use
+checked-arithmetic operations live in `xtb.numeric`; that module may use
 the panic contract layer without forcing panic to depend on containers or
-builders. `xtb.core` publicly imports the allocator aggregate for convenience,
+builders. `xtb` publicly imports the allocator aggregate for convenience,
 while implementation modules import the narrow module that owns the declaration
 they use.
 
@@ -218,7 +217,7 @@ variant with an output pointer. Their output is reset to zero on arithmetic
 failure. The multiplication helper is private; callers should not manually
 assemble a unit conversion protocol around a generic `scaleBytes` function.
 
-`xtb.core.duration` owns the platform-neutral `Duration` value. A `Duration`
+`xtb.duration` owns the platform-neutral `Duration` value. A `Duration`
 is a finite, nonnegative span stored as nanoseconds in one `u64`; it is not a
 wall-clock timestamp, monotonic instant, deadline, or representation of
 infinity. `Duration.init` is zero. Construct values with explicit unit helpers
@@ -406,7 +405,7 @@ registration.
 
 ### ANSI terminal styling
 
-`xtb.core.ansi` only encodes Select Graphic Rendition control sequences; it
+`xtb.ansi` only encodes Select Graphic Rendition control sequences; it
 does not assume that a destination is a terminal. `AnsiColor` supports the
 terminal's named 16-color palette, indexed 256-color values, RGB values, and
 the terminal's default color. `AnsiColor.init` emits nothing, which makes the
@@ -622,7 +621,7 @@ the logger is invalid, filtered, recursive, or the sink rejects framing before
 entire producer call.
 
 `LogMessageWriter.writer()` exposes the message as an immediate generic
-`xtb.core.fmt.writer.Writer`. Primitive values and normal `formatRepresentation()` /
+`xtb.fmt.writer.Writer`. Primitive values and normal `formatRepresentation()` /
 `formatTo(ref Writer)` customizations therefore keep exactly the ordinary XTB
 formatting semantics without materializing a complete formatted string. The
 generic writer owns no staging buffer: it feeds the `LogMessageWriter`
@@ -796,8 +795,8 @@ Stack traces use caller-provided frame and text storage. Symbol capture,
 demangling, signature tokenization, styling, and rendering must not allocate.
 `writeStackTrace` additionally receives a caller-owned signature workspace,
 which it reuses for every frame. It renders no trailing newline; standalone
-callers add their own terminator while `logStackTrace` lets the logger terminate
-the record. A workspace too small for one complete name
+callers decide whether to add a terminator or embed the output in another
+stream. A workspace too small for one complete name
 causes that frame to retain its mangled linkage name; it never inserts `...`.
 The D demangler implements relative identifier/type back-references, template
 types and values, qualifiers, arrays, pointers, functions, delegates, tuples,
@@ -850,7 +849,7 @@ Renderer.submit(
 `StackTraceStyle` owns no text or allocation. Its `StackTraceColors` use the
 shared core `AnsiColor`; presets contain indexed colors from `fromAnsi8`, while
 custom styles may also use named or RGB colors. Both rich rendering and the
-low-level fatal-signal path encode them through `xtb.core.ansi`. Rendering uses
+low-level fatal-signal path encode them through `xtb.ansi`. Rendering uses
 a plain theme when ANSI control sequences are inappropriate. Signature
 coloring is lexical presentation only; failure to classify a token never
 changes or discards the token's source bytes.
@@ -866,7 +865,7 @@ allowed.
 
 `StackTraceStyle.moduleDisplay` defaults to `ModuleDisplay.omitted`. Rendering
 removes lowercase package/module prefixes while retaining aggregate ownership,
-so `examples.app.SceneLoader.load(ref xtb.core.Context)` is displayed as
+so `examples.app.SceneLoader.load(ref xtb.Context)` is displayed as
 `SceneLoader.load(ref Context)`. Demangling itself always retains the complete
 qualified name. D linkage names do not encode the boundary between modules and
 enclosing aggregates, so omission deliberately follows the idiomatic D naming
@@ -1065,7 +1064,7 @@ read-only borrowed view, `StringBuf` is an owning mutable growable buffer, and
 `OwnedString` is an owning immutable exact-sized value. Do not collapse these
 roles and do not use a mutable D slice as the public string abstraction. Their
 public implementations, including the unmanaged counterparts of both owning
-types, live together in `xtb.core.string`.
+types, live together in `xtb.string`.
 
 #### `String`: read-only borrowed text
 
@@ -1076,8 +1075,8 @@ accessors in a wrapper struct:
 alias String = const(char)[];
 ```
 
-The alias is declared in the dependency-free `xtb.core.types` module and
-publicly re-exported by `xtb.core.string`. It cannot contain member functions;
+The alias is declared in the dependency-free `xtb.types` module and
+publicly re-exported by `xtb.string`. It cannot contain member functions;
 the string algorithms are free functions deliberately designed for UFCS, so
 `text.trimAscii()` retains member-like call syntax without wrapping the native
 slice or weakening literal interoperability.
@@ -2068,8 +2067,8 @@ compatibility requirements.
 
 | C++ area | D destination | Architectural treatment |
 | --- | --- | --- |
-| allocator, arena, slices, arrays, strings | `xtb.core` | explicit allocator and ownership; no process-global allocator |
-| panic, logger, printing, stack traces, thread context | `xtb.core` | explicit sinks/storage/contexts; scratch, current logger, and panic recursion are TLS, while panic observation is process-wide |
+| allocator, arena, slices, arrays, strings | `xtb` | explicit allocator and ownership; no process-global allocator |
+| panic, logger, printing, stack traces, thread context | `xtb` | explicit sinks/storage/contexts; scratch, current logger, and panic recursion are TLS, while panic observation is process-wide |
 | thread lifecycle | `xtb.thread` | BetterC thread creation, spawning, joining, and scoped threads |
 | synchronization | `xtb.sync` | Atomics, locks, condition variables, barriers, latches, once, semaphores, and wait groups |
 | file and directory operations | `xtb.os` | platform-neutral API over per-platform adapters |

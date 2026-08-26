@@ -35,7 +35,34 @@
         ]
       );
     };
+    mkStatic = {pkgs, features ? [], mode ? "release-safe"}: let
+      featureArgs = lib.concatStringsSep " " (map lib.escapeShellArg features);
+      libbacktrace = staticLibbacktrace pkgs;
+    in
+      pkgs.stdenv.mkDerivation {
+        pname = "xtb-${mode}-${if features == [] then "core" else lib.concatStringsSep "-" features}";
+        version = "0.1.0";
+        src = projectSource;
+        nativeBuildInputs = [pkgs.ldc pkgs.dub];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        XTB_DIAGNOSTICS_NATIVE_ARCHIVE =
+          lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a";
+        dontConfigure = true;
+        dontStrip = true;
+        buildPhase = ''
+          runHook preBuild
+          export DUB_HOME="$TMPDIR/dub"
+          dub run :compose --compiler=ldc2 --skip-registry=all --temp-build -- \
+            --mode=${lib.escapeShellArg mode} \
+            --output="$out/lib" \
+            ${featureArgs}
+          runHook postBuild
+        '';
+        installPhase = "true";
+      };
   in {
+    lib.mkStatic = mkStatic;
+
     templates = {
       default = self.templates.app;
 
@@ -52,19 +79,31 @@
       libbacktrace = staticLibbacktrace pkgs;
     in rec {
       default = xtb;
+      source = pkgs.runCommand "xtb-source" {src = projectSource;} ''
+        mkdir -p "$out/include/xtb"
+        cp -R "$src/source/core/xtb/." "$out/include/xtb/"
+        for feature in "$src"/source/*; do
+          if [ "$feature" = "$src/source/core" ] || [ ! -d "$feature/xtb" ]; then
+            continue
+          fi
+          cp -R "$feature/xtb/." "$out/include/xtb/"
+        done
+      '';
       xtb = pkgs.stdenv.mkDerivation {
         pname = "xtb";
         version = "0.1.0";
         src = projectSource;
         nativeBuildInputs = [pkgs.ldc pkgs.dub pkgs.just];
-        propagatedBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        XTB_DIAGNOSTICS_NATIVE_ARCHIVE =
+          lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a";
         dontConfigure = true;
         dontStrip = true;
         buildPhase = ''
           runHook preBuild
           export DUB_HOME="$TMPDIR/dub"
           for mode in debug release-safe release-fast; do
-            just build static all "$mode"
+            just build static xtb "$mode"
           done
           runHook postBuild
         '';
@@ -75,7 +114,13 @@
             mkdir -p "$out/lib/$mode"
             cp build/"$mode"/libxtb*.a "$out/lib/$mode/"
           done
-          cp -R source/xtb $out/include/
+          cp -R source/core/xtb $out/include/
+          for feature in source/*; do
+            if [ "$feature" = source/core ] || [ ! -d "$feature/xtb" ]; then
+              continue
+            fi
+            cp -R "$feature/xtb/." $out/include/xtb/
+          done
           runHook postInstall
         '';
       };
@@ -98,6 +143,8 @@
           pkgs.dformat
         ];
         buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        XTB_DIAGNOSTICS_NATIVE_ARCHIVE =
+          lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a";
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
@@ -134,6 +181,7 @@
 
         shellHook = ''
           export XTB_LIBRARY_OUTPUT_DIR=''${XTB_LIBRARY_OUTPUT_DIR:-"$PWD/build"}
+          export XTB_DIAGNOSTICS_NATIVE_ARCHIVE=${lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a"}
           echo "xtb BetterC shell: $(ldc2 --version | head -n 1)"
         '';
       };

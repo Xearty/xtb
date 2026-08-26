@@ -11,8 +11,13 @@ more clearly as an external consumer.
 All tests run with `-betterC`. A test suite that runs only with the full D
 runtime can hide forbidden dependencies and is not an acceptable substitute.
 BetterC does not emit `ModuleInfo`, so test discovery must be compile-time.
-DUB's generated BetterC runner statically imports the modules owned by a
-component and invokes their tests through `__traits(getUnitTests, module_)`.
+DUB's generated BetterC runner statically imports the modules from the full
+development aggregate and invokes their tests through
+`__traits(getUnitTests, module_)`. Feature-specific source libraries are a
+distribution concern, but the verification matrix also tests each one in
+isolation through the optional `just check-features` gate so the full aggregate
+cannot hide an undeclared feature dependency. This slower matrix is not part of
+the routine `just check` workflow.
 
 The pinned D-Scanner 0.15 parser does not understand interpolated expression
 sequence literals yet. `just lint` therefore uses DUB/LDC semantic builds for
@@ -25,8 +30,8 @@ D-Scanner can parse `i"..."`.
 
 Run contract-sensitive tests with `XTB_Checked` enabled. The Just test recipes
 define it for debug, optimized, release-safe, and AddressSanitizer runs.
-`just build static all release-fast` compiles the unchecked production
-libraries, and `just test release-fast` compiles every test runner without
+`just build static xtb release-fast` compiles the unchecked full production
+library, and `just test release-fast` compiles every test runner without
 executing assertions that `-release` removes. Together they ensure guarded
 `require` imports and calls disappear cleanly. See `docs/build-modes.md`.
 
@@ -42,7 +47,7 @@ module xtb.math.scalar;
 @safe nothrow @nogc:
 
 version (XTB_Checked)
-    import xtb.core.panic : require;
+    import xtb.panic : require;
 
 int clamp(int value, int low, int high)
 {
@@ -68,28 +73,28 @@ libc facilities are appropriate.
 
 ## BetterC test runners
 
-Run colocated module tests once per component with `dub test :component`. Each
-component's positively listed `sourceFiles` are the authoritative module
-inventory; DUB generates a BetterC-compatible compile-time runner from that
-inventory. Adding a production module to a component therefore also adds its
-colocated tests without a second handwritten list. Component unit-test build
-types preserve the debug, optimized, release-safe, release-fast, and
-AddressSanitizer policies used by `just test`.
+The full development aggregate is the primary behavioral test target. The
+optional feature-isolation gate invokes DUB once for each feature package, so
+every source library and its colocated tests compile using only the dependencies
+declared by that feature. Every mode passes
+`tests/support/compile_unittests.d` as DUB's custom no-op main: the compiler
+still receives `-unittest`, but the focused gate does not duplicate behavioral
+test execution. Optimized and AddressSanitizer behavior remains covered by the
+aggregate suite rather than repeating the feature-isolation matrix.
 
-Release-fast remains a compile-only check for unittest bodies. The test recipe
-passes `tests/support/compile_unittests.d` as DUB's custom main, which compiles
-the component with unittests and release checks stripped but deliberately does
-not execute those bodies.
+DUB generates each BetterC-compatible test runner from the selected feature's
+source inventory. Adding a production module therefore also adds its colocated
+tests without a second handwritten list.
 
 Executables in `tests/` cover integration, regression, death-test, exhaustive,
-and alternate-backend behavior. They depend on the ordinary component static
-libraries and must not invoke colocated module tests again. The unsupported
+and alternate-backend behavior. They depend on the full development aggregate
+and must not invoke colocated module tests again. The unsupported
 threading-backend runner is the deliberate exception: it compiles the combined
 `xtb.thread` and `xtb.sync` sources with a mutually exclusive test version and explicitly invokes those
 backend-versioned module tests.
 
 The UTF-8 runner expands the exhaustive 1.1-million-scalar test body exported
-by `xtb.core.utf8`. The OS runner creates a process-unique directory below
+by `xtb.utf8`. The OS runner creates a process-unique directory below
 `/tmp`, touches only paths inside it, and removes every created file and
 directory before returning. Platform runtime assertions are backend-versioned;
 the same runner remains a compile check where no native backend exists.
@@ -144,7 +149,7 @@ after partial failure. In this project pay particular attention to:
 - managed-container member calls work from values and non-null struct pointers,
   including const queries, allocation failure, release, and cleanup; checked
   builds reject a null receiver through the managed invariant;
-- the component aggregate import re-exports every public container module;
+- each public aggregate import re-exports its intended public modules;
 - integer overflow in byte/element size calculations;
 - exact-capacity and one-past-capacity allocator/container operations;
 - malformed, truncated, and adversarial serialized input;
@@ -246,7 +251,7 @@ detection, `TERM=dumb`/`NO_COLOR` policy logic, and environment-name
 validation. Core ANSI tests never depend on a terminal or process environment.
 Every level-specific plain and compile-time-pattern wrapper is exercised for
 both explicit and current-thread dispatch, including the `debug_` keyword
-workaround and overload resolution through the `xtb.core` aggregate import.
+workaround and overload resolution through the `xtb` aggregate import.
 Death tests cover null or invalid installation, installation without a thread
 context, destruction before the installed logger scope, and non-LIFO nested
 scope destruction. Logger tests use caller-owned buffers and callback/context
@@ -356,25 +361,28 @@ The Nix development shell is the canonical toolchain and provides LDC, DUB,
 ```sh
 nix develop
 just targets                              # list modes and target names
-just build                                # monolithic static xtb, debug
-just build static core release-safe
-just build static all release-fast
+just build                                # full static xtb, debug
+just build static xtb release-safe
+just build static xtb release-fast
+just compose log math                    # slim distribution archive
 just build example core release-safe
 just run example core release-safe
 just test                                 # debug test suite
 just test release-safe
 just test release-fast                    # compile only; checks are stripped
 just test-sanitize                        # AddressSanitizer suite
+just check-features                       # slow compile-only feature isolation
 just lint                                 # compiler and D-Scanner policy checks
 just format                               # format all D source files
 just format-check                         # verify formatting only
 just check                                # complete local matrix
 ```
 
-The short `justfile` is the public command interface, while DUB owns static
-libraries, examples, test executables, build modes, output names, and source
-selection. Just discovers component subpackages under `source/xtb` and the
-configurations in `examples/dub.sdl` and `tests/dub.sdl` by naming convention.
+The short `justfile` is the public command interface, while DUB owns the full
+static library, feature dependency graph, examples, test executables, build
+modes, output names, and source selection. Feature packages are discovered
+under `source/*/dub.sdl`; `examples/dub.sdl` and `tests/dub.sdl` retain their
+configuration naming conventions.
 The important default outputs are:
 
 ```text
@@ -383,16 +391,22 @@ build/test/{debug,optimized,...}/         test runners and helpers
 build/examples/                           example executables
 ```
 
-Static libraries may be redirected through `XTB_LIBRARY_OUTPUT_DIR`; the mode
-name is always appended. `just build` means `just build static xtb debug`.
-Use `all` to build the monolithic archive and every component archive:
+The full development archive may be redirected through
+`XTB_LIBRARY_OUTPUT_DIR`; `just build` means `just build static xtb debug`.
+Optional feature trimming is explicit and produces another `libxtb.a`, never a
+family of feature archives:
 
 ```sh
 just build
-just build static core release-safe
-just build static all release-fast
-XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build static serde debug
+just build static xtb release-safe
+just compose log math
+just compose release-fast threading
 ```
+
+The compose command delegates feature resolution and compilation to DUB. Core
+is implicit, transitive dependencies are included, and the complete resolved
+feature set forms the canonical cache/output name. Unknown modes and feature
+names are rejected before compose output is created.
 
 Examples accept short names, source names, or configuration names. `all`
 builds or runs every example:

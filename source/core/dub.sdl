@@ -1,0 +1,7 @@
+name "core"
+targetType "sourceLibrary"
+sourcePaths "."
+importPaths "."
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-preview=dip1000" platform="ldc"

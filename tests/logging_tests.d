@@ -1,7 +1,7 @@
 module tests.logging_tests;
 
 import core.stdc.stdio : FILE, fclose, fread, rewind, tmpfile;
-import xtb.core;
+import xtb;
 import xtb.log;
 
 static assert(__traits(isCopyable, LogSinkRef));

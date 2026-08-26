@@ -2,14 +2,14 @@ module examples.option_demo;
 
 nothrow @nogc:
 
-import xtb.core.memory : Allocator;
-import xtb.core.lifetime : deinitValue = deinit, move;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.option : Option, OptionReturns, andThen, map, none, orElse, some;
-import xtb.core.fmt.writer : Writer;
-import xtb.core.fmt.print : writeln;
-import xtb.core.string;
-import xtb.core.types : u8;
+import xtb.memory : Allocator;
+import xtb.lifetime : deinitValue = deinit, move;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.option : Option, OptionReturns, andThen, map, none, orElse, some;
+import xtb.fmt.writer : Writer;
+import xtb.fmt.print : writeln;
+import xtb.string;
+import xtb.types : u8;
 import xtb.serde : KeyCase, SerdeError, serdeFieldCase, readJson, readToml,
     serdeRequired, writeJson, writeToml;
 

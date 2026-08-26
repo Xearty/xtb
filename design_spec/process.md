@@ -272,7 +272,7 @@ and leaves every borrowed or caller-owned input untouched.
 ## Timeouts
 
 Process waiting uses the finite, nonnegative `Duration` from
-`xtb.core.duration`. Extend `xtb.os.time` with a tagged policy value whose zero
+`xtb.duration`. Extend `xtb.os.time` with a tagged policy value whose zero
 state means infinite; do not assign a sentinel meaning to `Duration.init` or
 use a `duration + infinite bool` pair:
 

@@ -33,13 +33,13 @@ The refactor has four related goals:
 The target presentation is:
 
 ```text
-prefix [error] message  (xtb.core.config.parse:87)
+prefix [error] message  (xtb.config.parse:87)
 ```
 
 With no prefix:
 
 ```text
-[error] message  (xtb.core.config.parse:87)
+[error] message  (xtb.config.parse:87)
 ```
 
 With callsite capture disabled, or removed from one sink branch:

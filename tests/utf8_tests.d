@@ -1,7 +1,7 @@
 module tests.utf8_tests;
 
-import xtb.core.types : String, u8;
-import xtb.core.utf8;
+import xtb.types : String, u8;
+import xtb.utf8;
 
 static assert(__traits(compiles,
         (return scope const(u8)[] input) => input.asString));

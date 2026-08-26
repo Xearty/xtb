@@ -201,7 +201,7 @@ to `u64` (`source/xtb/os/file.d:296`).
 
 ### Diagnostics should not be mandatory core infrastructure
 
-The `xtb.core` package publicly imports demangling, stack traces, and crash
+The `xtb` package publicly imports demangling, stack traces, and crash
 handling (`source/xtb/core/package.d`), making every build compile diagnostics
 and making Linux consumers link libbacktrace. This contradicts the intended
 foundational dependency direction and contributes to cycles such as

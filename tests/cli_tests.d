@@ -3,14 +3,14 @@ module tests.cli_tests;
 nothrow @nogc:
 
 import xtb.cli;
-import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.containers.array : Array;
-import xtb.core.lifetime : moveAssign;
-import xtb.core.memory : Allocator;
-import xtb.core.option : Option;
-import xtb.core.fmt.writer : Writer;
-import xtb.core.types : String;
+import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.containers.array : Array;
+import xtb.lifetime : moveAssign;
+import xtb.memory : Allocator;
+import xtb.option : Option;
+import xtb.fmt.writer : Writer;
+import xtb.types : String;
 
 enum BuildMode
 {

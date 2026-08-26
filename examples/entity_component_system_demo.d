@@ -1,6 +1,6 @@
 module examples.entity_component_system_demo;
 
-import xtb.core;
+import xtb;
 
 nothrow @nogc:
 

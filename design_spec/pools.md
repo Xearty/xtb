@@ -1260,7 +1260,7 @@ source/xtb/core/allocators/internal/
     virtual_memory_unsupported.d
 ```
 
-If the existing VM substrate is moved to a more general `xtb.core.internal` location for reuse by a future public `xtb.os.virtual_memory`, `VirtualArray` should depend on that internal facade rather than on OS-specific modules directly.
+If the existing VM substrate is moved to a more general `xtb.internal` location for reuse by a future public `xtb.os.virtual_memory`, `VirtualArray` should depend on that internal facade rather than on OS-specific modules directly.
 
 The pools themselves should know nothing about `mmap`, `mprotect`, page flags, or platform-specific APIs.
 

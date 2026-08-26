@@ -21,9 +21,9 @@ direnv allow
 just run
 ```
 
-The generated flake pins xtb and consumes its installed modules and monolithic
+The generated flake pins xtb and consumes its installed modules and selected
 static archive directly from the Nix store. The archive keeps one object per
-module, so unused packages are not linked into the application. The template
+module, so unused modules are not linked into the application. The template
 does not make a writable source copy. Run `nix flake update xtb` in the
 application when you want to update the library revision.
 
@@ -69,11 +69,13 @@ by default. Set `StackTraceStyle.signatureColumns` to another limit, or select
 `SignatureLayout.singleLine` through `StackTraceStyle.signatureLayout`.
 
 The archived C++ implementation remains under `archive/cpp` for historical
-reference only. The D project at the repository root is independent from it;
-public modules live under `source/xtb`, and focused unit tests are colocated
-there. DUB generates one BetterC unit-test runner per component; executables
-under `tests/` provide integration, regression, exhaustive, death-test, and
-alternate-backend coverage without rerunning ordinary module tests.
+reference only. The D project at the repository root is independent from it.
+Production source is partitioned by optional feature under `source/<feature>`;
+each feature exposes its normal public `xtb.*` modules and is a DUB
+`sourceLibrary`. The root package aggregates every feature into the full
+`libxtb.a` used for development. DUB generates one BetterC unit-test runner for
+that full aggregate; executables under `tests/` provide integration,
+regression, exhaustive, death-test, and alternate-backend coverage.
 
 ## Build and test
 
@@ -85,37 +87,45 @@ just check
 Alternatively, run `nix develop` from the repository root and then use the same
 `just` commands. The project-local `.envrc` selects the root `xtb` flake.
 
-`just check` verifies formatting, lints, builds all static targets in all
-three supported modes, runs debug, optimized, release-safe, and
-AddressSanitizer tests, then runs the examples. The primary command interface
-is target-oriented:
+`just check` verifies formatting and lint policy, builds the full static archive
+in all three supported modes, verifies diagnostics archive composition, runs
+the aggregate debug, optimized, release-safe, and AddressSanitizer tests,
+compiles the release-fast tests, and runs the examples. The primary command
+interface is target-oriented:
 
 ```sh
-just build                              # static xtb debug
-just build static core release-safe
-just build static xtb release-fast
+just build                              # full static xtb debug
+just build static xtb release-safe
+just compose log math                    # slim core+log+math+os libxtb.a
+just compose release-fast threading      # slim core+threading libxtb.a
+just check-features                      # slow, compile-only isolation matrix
 just build example serde release-safe
 just run example serde release-safe
 just run example cli -- --help
 just run-example cli release-safe -- build -r
 ```
 
-Use `just targets` to list static libraries, examples, and modes. The shorter
-`just debug`, `just release-safe`, and `just release-fast` aliases build the
-monolithic library and every component library in the selected mode. See
+Use `just targets` to list composable features, examples, and modes. The
+shorter `just debug`, `just release-safe`, and `just release-fast` aliases build
+the full development `libxtb.a` in the selected mode. `just compose` builds a
+slim archive from the requested feature set; DUB resolves transitive feature
+dependencies and the output directory uses the full canonical closure. See
 `docs/build-modes.md` for exact check semantics. Other commands include
 `just test [mode]`, `just test-sanitize`, `just format-check`, `just lint`, and
-`just clean`. A reproducible package and test derivation are also available
-through `nix build` and `nix flake check`. The Nix package installs debug,
-release-safe, and release-fast static archives under matching `lib/`
+`just clean`. The slower `just check-features` gate compiles every feature and
+its colocated unittest bodies against only its declared dependency closure in
+debug, release-safe, and release-fast; it is deliberately outside `just check`
+and `just pre-commit`. A reproducible package and test derivation are also
+available through `nix build` and `nix flake check`. The Nix package installs
+debug, release-safe, and release-fast static archives under matching `lib/`
 subdirectories so consumers can select one coherent mode.
 
 When running one example, arguments after `--` are forwarded to the example
 executable. The optional build mode still comes before `--`; if omitted, it
 defaults to `debug`. DUB owns the build manifests and Just only coordinates
-workflows. Component libraries are independent subpackages colocated under
-`source/xtb`;
-`examples/dub.sdl` owns `*-demo` configurations and `tests/dub.sdl` owns
+workflows. Feature packages are DUB `sourceLibrary` subpackages under `source/<feature>`;
+they do not produce separate archives. `examples/dub.sdl` owns `*-demo`
+configurations and `tests/dub.sdl` owns
 `test-*` and `test-helper-*`. Just discovers all three groups automatically, so
 adding one never requires editing the Justfile.
 
@@ -126,9 +136,9 @@ safe for a read-only Nix-store source and parallel `just` execution.
 
 ## Using the library
 
-Import the stable core surface with `import xtb.core;`, the thread and synchronization
+Import the stable core surface with `import xtb;`, the thread and synchronization
 surfaces with `import xtb.thread;` and `import xtb.sync;`, or a focused module such as
-`xtb.core.allocators.arena` or `xtb.sync.atomic`. All consuming targets must also
+`xtb.allocators.arena` or `xtb.sync.atomic`. All consuming targets must also
 compile with `-betterC`. Managed containers expose handwritten member APIs colocated with
 their unmanaged storage, plus a mutable allocator member; no generated adapter
 code or UFCS forwarding layer is involved. See `docs/managed-containers.md`.
@@ -216,24 +226,27 @@ violates those unchecked APIs' preconditions; arbitrary binary ownership uses
 `Array!u8`.
 
 Import `xtb.diagnostics` only in targets that need demangling, stack traces, or
-crash observation. On Linux those targets link libbacktrace; core-only, math,
-and OS targets do not.
+crash observation. Distributed Linux archives containing diagnostics embed its
+native unwinder implementation; applications still link only `xtb`.
 
-`just build` defaults to the monolithic checked-debug `libxtb.a`. Select a
-component library or mode explicitly when needed:
+`just build` defaults to the full checked-debug `libxtb.a` used during XTB
+development. Select another build mode explicitly, or compose a slim archive
+for distribution:
 
 ```sh
 just build static xtb debug
-just build static core release-safe
-just build static diagnostics release-fast
-just build static all release-safe
+just build static xtb release-safe
+just build static xtb release-fast
+just compose log math
+just compose release-fast threading
 ```
 
-`all` builds `libxtb.a` plus the independent component libraries
-`libxtb_cli.a`, `libxtb_core.a`, `libxtb_diagnostics.a`, `libxtb_math.a`,
-`libxtb_os.a`, `libxtb_parser.a`, `libxtb_serde.a`, and
-`libxtb_threading.a`. Additional component subpackages under `source/xtb` are
-discovered automatically.
+Features are DUB `sourceLibrary` subpackages under `source/<feature>`. They do
+not produce separate `libxtb_<feature>.a` archives. `just compose` generates a
+transient static-library aggregator, lets DUB resolve the complete dependency
+closure, and still produces one `libxtb.a`. Core is implicit; for example
+`log math` resolves to the canonical feature set `core+log+math+os`. The tool
+rejects unknown modes and feature names before creating compose output.
 
 Examples use the same mode names and accept short names with or without the
 `-demo` suffix:
@@ -244,15 +257,24 @@ just run example logging release-safe
 just run example all debug
 ```
 
-Static libraries are written below `build/debug`, `build/release-safe`, or
-`build/release-fast`. Pass another base destination through the environment
-when a different layout is needed:
+Full development libraries are written below `build/debug`,
+`build/release-safe`, or `build/release-fast`. Pass another base destination
+through the environment when a different layout is needed:
 
 ```sh
 XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build
-XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build static core release-safe
-XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build static all release-fast
+XTB_LIBRARY_OUTPUT_DIR=path/to/lib just build static xtb release-safe
 ```
+
+Slim composed archives live below
+`build/compose/<mode>/<full-feature-closure>/libxtb.a` unless the compose tool
+is given an explicit output directory.
+
+The composer keeps its generated DUB build root below `DUB_HOME` and treats the
+archive below `build/compose` as a published copy. Deleting only the published
+output therefore rematerializes it from DUB's persistent build state without
+recompiling unchanged modules. Source, manifest, compiler, flag, or build-mode
+changes still invalidate the corresponding DUB artifact normally.
 
 Relative destinations are resolved from the directory where Just was invoked,
 not from the library source, and the selected mode name is appended. This
@@ -263,7 +285,7 @@ Import `xtb.math` for the stable math surface. Matrices are column-major and
 multiply column vectors; transformations compose right-to-left. See
 `examples/math_demo.d` for transforms and deterministic periodic noise.
 
-Import `xtb.core` for the fixed-capacity virtual containers as well.
+Import `xtb` for the fixed-capacity virtual containers as well.
 `VirtualArray!T` reserves stable contiguous capacity and commits pages lazily;
 `Pool!T` adds stable indexed recycling with preserved inactive representations;
 `GenerationalPool!T` adds stale-handle detection. Both pool families expose

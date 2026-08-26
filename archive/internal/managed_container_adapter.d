@@ -1,11 +1,11 @@
-module xtb.core.internal.managed_container_adapter;
+module xtb.internal.managed_container_adapter;
 
 nothrow @nogc:
 
 import core.lifetime : move;
-import xtb.core.memory : Allocator;
-import xtb.core.panic : require;
-import xtb.core.released_storage : ReleasedStorage;
+import xtb.memory : Allocator;
+import xtb.panic : require;
+import xtb.released_storage : ReleasedStorage;
 
 package(xtb):
 
@@ -559,16 +559,16 @@ mixin template ManagedContainerAdapter(Managed, Storage)
 {
     import core.internal.traits : hasElaborateDestructor;
     import core.lifetime : move;
-    import xtb.core.internal.managed_container_adapter :
+    import xtb.internal.managed_container_adapter :
         AdapterParameters,
         AdapterReturnType,
         decimalString,
         generateManagedOperation,
         publicConcreteOperationCount,
         validateLifecycleOperation;
-    import xtb.core.memory : Allocator;
-    import xtb.core.panic : require;
-    import xtb.core.released_storage : ReleasedStorage;
+    import xtb.memory : Allocator;
+    import xtb.panic : require;
+    import xtb.released_storage : ReleasedStorage;
 
     static assert(is(Managed == Self),
         "ManagedContainerAdapter requires alias Self");
@@ -860,7 +860,7 @@ version (unittest)
 
 unittest
 {
-    import xtb.core.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : mallocAllocator;
 
     assert(AdapterFixture.staticUtility(5) == 12);
 

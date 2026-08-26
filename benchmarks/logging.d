@@ -6,8 +6,8 @@ import core.stdc.stdio : FILE, fclose, fopen, printf;
 import core.stdc.stdlib : strtoull;
 import core.sys.posix.time : CLOCK_MONOTONIC, clock_gettime, timespec;
 import xtb.log;
-import xtb.core.string : String;
-import xtb.core.types : u64;
+import xtb.string : String;
+import xtb.types : u64;
 
 private enum smallMessage = "small message 0123456789";
 private enum fragment = "0123456789abcdefghijklmnopqrstuvwxyz";

@@ -3,7 +3,7 @@
 ## Status and scope
 
 This document is the implementation contract for validated UTF-8 and Unicode
-scalar traversal in xtb. The implementation belongs in `xtb.core.utf8` and must
+scalar traversal in xtb. The implementation belongs in `xtb.utf8` and must
 remain compatible with BetterC.
 
 The module provides strict UTF-8 validation, checked byte-to-text conversion,
@@ -106,7 +106,7 @@ or silently replace malformed input.
 
 ## Module organization
 
-Add one focused module and re-export it from `xtb.core.package`:
+Add one focused module and re-export it from `xtb.package`:
 
 ```text
 source/xtb/core/
@@ -116,12 +116,12 @@ source/xtb/core/
 └── package.d     # stable public re-exports
 ```
 
-`xtb.core.utf8` may import `String` and integer aliases from
-`xtb.core.types`. It must not import `xtb.core.string`; this keeps the decoding
-primitive independent and prevents a module cycle. `xtb.core.string` may import
+`xtb.utf8` may import `String` and integer aliases from
+`xtb.types`. It must not import `xtb.string`; this keeps the decoding
+primitive independent and prevents a module cycle. `xtb.string` may import
 UTF-8 encoding and boundary helpers to implement safe `StringBuf` mutations.
 
-Serde, printing, and OS boundary modules consume `xtb.core.utf8`; they must not
+Serde, printing, and OS boundary modules consume `xtb.utf8`; they must not
 retain private copies of UTF-8 decoders.
 
 ## Public error model
@@ -187,12 +187,12 @@ validation and value operations are `pure @safe`; operations that enforce a
 programmer contract through the project's panic machinery cannot claim purity.
 
 ```d
-module xtb.core.utf8;
+module xtb.utf8;
 
 nothrow @nogc:
 
-public import xtb.core.types : String;
-import xtb.core.types : u8;
+public import xtb.types : String;
+import xtb.types : u8;
 
 enum Utf8ErrorKind : u8
 {
@@ -538,7 +538,7 @@ library cannot prevent this without replacing the required `String` alias.
 ### Serde
 
 JSON and TOML currently contain separate UTF-8 validators, width decoders, and
-encoders. Replace them with `xtb.core.utf8` primitives. Both parsers continue to
+encoders. Replace them with `xtb.utf8` primitives. Both parsers continue to
 map malformed text to `SerdeErrorKind.invalidUtf8` at the exact source offset.
 Escaped Unicode scalars are encoded with the shared encoder after the existing
 JSON surrogate-pair or TOML escape rules have produced a scalar value.
@@ -627,7 +627,7 @@ report whether replacements occurred.
 
 ## Testing requirements
 
-Tests live beside `xtb.core.utf8` for unit behavior, with integration cases in
+Tests live beside `xtb.utf8` for unit behavior, with integration cases in
 serde, printing, strings, and process examples where appropriate. At minimum,
 cover:
 

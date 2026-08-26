@@ -3,6 +3,7 @@ description "Opt-in XTB microbenchmarks"
 license "BSL-1.0"
 targetType "none"
 importPaths "../source"
+dependency "xtb" path=".."
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
 dflags "-preview=dip1000" platform="ldc"
@@ -12,8 +13,6 @@ configuration "logging" {
     targetName "logging_benchmark"
     targetPath "../build/benchmarks"
     mainSourceFile "logging.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:log" version="*"
 }
 
 configuration "pools" {
@@ -21,5 +20,4 @@ configuration "pools" {
     targetName "pools_benchmark"
     targetPath "../build/benchmarks"
     mainSourceFile "pools.d"
-    dependency "xtb:core" version="*"
 }

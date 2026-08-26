@@ -1214,7 +1214,7 @@ instead of treating a rejected `beginMessage` as if it had never been delivered.
 The regression suite compares every tee child failure position with direct sink
 delivery and separately verifies ANSI base-style cleanup for this case.
 
-The final logging example uses the public `xtb.core` package surface and shows a
+The final logging example uses the public `xtb` package surface and shows a
 plain logger, conditional ANSI terminal presentation, custom label/message
 styles, embedded message SGR, a tee to a plain file, thread-local installation,
 and explicit flush/lifetime ordering. A dedicated public-package integration

@@ -3,18 +3,18 @@ module xtb.log.tests;
 nothrow @nogc:
 
 import core.stdc.stdio : FILE;
-import xtb.core.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
+import xtb.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
 import xtb.log;
 import xtb.log.internal.sgr : SgrParseKind, maxSupportedSgrLength, parseSgrPrefix, safeSgrPrefixLength;
 import xtb.log.file_sink : fileFlush;
 import xtb.log.message_writer : createLogMessageWriter;
-import xtb.core.string;
+import xtb.string;
 
 version (unittest)
 {
-    import xtb.core.fmt.pretty_print : PrettyPrintLayout, PrettyPrintOptions, pretty;
-    import xtb.core.fmt.writer : Writer;
-    import xtb.core.fmt.fixed_buffer : formatBuffer, writeBuffer;
+    import xtb.fmt.pretty_print : PrettyPrintLayout, PrettyPrintOptions, pretty;
+    import xtb.fmt.writer : Writer;
+    import xtb.fmt.fixed_buffer : formatBuffer, writeBuffer;
 
     private struct CapturedEvent
     {
@@ -1116,10 +1116,10 @@ unittest
 unittest
 {
     import core.stdc.stdio : fclose, tmpfile;
-    import xtb.core.ansi : AnsiAttribute, AnsiColor, AnsiStyle;
-    import xtb.core.fmt.ansi : styled;
-    import xtb.core.utf8 : isValidUtf8;
-    import xtb.core.string;
+    import xtb.ansi : AnsiAttribute, AnsiColor, AnsiStyle;
+    import xtb.fmt.ansi : styled;
+    import xtb.utf8 : isValidUtf8;
+    import xtb.string;
 
     static assert(is(typeof(&captureSink) == LogSink));
     static assert(is(typeof(&captureFlush) == LogFlush));
@@ -2553,9 +2553,9 @@ unittest
 unittest
 {
     import core.stdc.stdio : fclose, tmpfile;
-    import xtb.core.ansi : AnsiColor, AnsiStyle;
-    import xtb.core.fmt.ansi : styled;
-    import xtb.core.string;
+    import xtb.ansi : AnsiColor, AnsiStyle;
+    import xtb.fmt.ansi : styled;
+    import xtb.string;
 
     const defaults = LogPalette.defaults();
 

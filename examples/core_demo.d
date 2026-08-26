@@ -1,6 +1,6 @@
 module examples.core_demo;
 
-import xtb.core;
+import xtb;
 
 private enum Permission
 {

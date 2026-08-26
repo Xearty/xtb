@@ -60,7 +60,7 @@ The first bootstrap implementation must not attempt to provide:
 - global forwarding functions backed by an implicit current context;
 - transparent fallback to OpenGL or another graphics API;
 - direct loading of vendor drivers while bypassing the platform Vulkan loader;
-- automatic exposure of `xtb.core.memory.Allocator` as
+- automatic exposure of `xtb.memory.Allocator` as
   `VkAllocationCallbacks`; or
 - a promise that every Vulkan extension receives a high-level wrapper.
 
@@ -595,7 +595,7 @@ candidates, extension lists, feature-query structures, queue-family lists, and
 creation arrays are setup temporaries. Selected handles, versions, capabilities,
 and queue metadata fit directly in `VulkanContext`.
 
-The existing `xtb.core.memory.Allocator` cannot be mechanically forwarded as
+The existing `xtb.memory.Allocator` cannot be mechanically forwarded as
 `VkAllocationCallbacks`. Vulkan's free and reallocation callbacks do not supply
 the old allocation size, while the xtb allocator procedure requires old size
 for deallocation and reallocation. Vulkan may also invoke allocation callbacks

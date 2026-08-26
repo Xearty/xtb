@@ -3,14 +3,14 @@ module tests.threading_tests;
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move;
 import core.stdc.stdlib : free, malloc;
-import xtb.core.lifetime : hasDDestructor,
+import xtb.lifetime : hasDDestructor,
     lifetimeDeinit = deinit,
     lifetimeMove = move,
     needsDeinit;
-import xtb.core.memory : Allocator;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.panic : panic;
-import xtb.core.result : Result, ResultReturns;
+import xtb.memory : Allocator;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.panic : panic;
+import xtb.result : Result, ResultReturns;
 import xtb.sync;
 import xtb.thread;
 

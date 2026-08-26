@@ -3,6 +3,7 @@ description "Runnable xtb examples"
 license "BSL-1.0"
 targetType "none"
 importPaths ".." "../source"
+dependency "xtb" path=".."
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
 dflags "-preview=dip1000" platform="ldc"
@@ -18,7 +19,6 @@ configuration "core-demo" {
     targetName "core_demo"
     targetPath "../build/examples"
     mainSourceFile "core_demo.d"
-    dependency "xtb:core" version="*"
 }
 
 configuration "string-demo" {
@@ -26,7 +26,6 @@ configuration "string-demo" {
     targetName "string_demo"
     targetPath "../build/examples"
     mainSourceFile "string_demo.d"
-    dependency "xtb:core" version="*"
 }
 
 configuration "print-demo" {
@@ -34,7 +33,6 @@ configuration "print-demo" {
     targetName "print_demo"
     targetPath "../build/examples"
     mainSourceFile "print_demo.d"
-    dependency "xtb:core" version="*"
 }
 
 configuration "pretty_print-demo" {
@@ -42,7 +40,6 @@ configuration "pretty_print-demo" {
     targetName "pretty_print_demo"
     targetPath "../build/examples"
     mainSourceFile "pretty_print_demo.d"
-    dependency "xtb:core" version="*"
 }
 
 configuration "stacktrace-demo" {
@@ -50,8 +47,6 @@ configuration "stacktrace-demo" {
     targetName "stacktrace_demo"
     targetPath "../build/examples"
     mainSourceFile "stacktrace_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:diagnostics" version="*"
     libs "backtrace" platform="linux"
 }
 
@@ -60,8 +55,6 @@ configuration "math-demo" {
     targetName "math_demo"
     targetPath "../build/examples"
     mainSourceFile "math_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:math" version="*"
 }
 
 configuration "os-demo" {
@@ -69,8 +62,6 @@ configuration "os-demo" {
     targetName "os_demo"
     targetPath "../build/examples"
     mainSourceFile "os_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:os" version="*"
 }
 
 configuration "logging-demo" {
@@ -78,9 +69,6 @@ configuration "logging-demo" {
     targetName "logging_demo"
     targetPath "../build/examples"
     mainSourceFile "logging_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:os" version="*"
-    dependency "xtb:log" version="*"
 }
 
 configuration "process-demo" {
@@ -88,8 +76,6 @@ configuration "process-demo" {
     targetName "process_demo"
     targetPath "../build/examples"
     mainSourceFile "process_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:os" version="*"
 }
 
 configuration "serde-demo" {
@@ -97,8 +83,6 @@ configuration "serde-demo" {
     targetName "serde_demo"
     targetPath "../build/examples"
     mainSourceFile "serde_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:serde" version="*"
 }
 
 configuration "option-demo" {
@@ -106,8 +90,6 @@ configuration "option-demo" {
     targetName "option_demo"
     targetPath "../build/examples"
     mainSourceFile "option_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:serde" version="*"
 }
 
 configuration "result-demo" {
@@ -115,7 +97,6 @@ configuration "result-demo" {
     targetName "result_demo"
     targetPath "../build/examples"
     mainSourceFile "result_demo.d"
-    dependency "xtb:core" version="*"
 }
 
 configuration "hash-demo" {
@@ -123,7 +104,6 @@ configuration "hash-demo" {
     targetName "hash_demo"
     targetPath "../build/examples"
     mainSourceFile "hash_demo.d"
-    dependency "xtb:core" version="*"
 }
 
 configuration "cli-demo" {
@@ -131,9 +111,6 @@ configuration "cli-demo" {
     targetName "cli_demo"
     targetPath "../build/examples"
     mainSourceFile "cli_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:cli" version="*"
-    dependency "xtb:os" version="*"
 }
 
 configuration "cli-nested-demo" {
@@ -141,8 +118,6 @@ configuration "cli-nested-demo" {
     targetName "cli_nested_demo"
     targetPath "../build/examples"
     mainSourceFile "cli_nested_demo.d"
-    dependency "xtb:core" version="*"
-    dependency "xtb:cli" version="*"
 }
 
 configuration "entity-component-system-demo" {
@@ -150,7 +125,6 @@ configuration "entity-component-system-demo" {
     targetName "entity_component_system_demo"
     targetPath "../build/examples"
     mainSourceFile "entity_component_system_demo.d"
-    dependency "xtb:core" version="*"
 }
 
 configuration "pool-world-demo" {
@@ -158,5 +132,4 @@ configuration "pool-world-demo" {
     targetName "pool_world_demo"
     targetPath "../build/examples"
     mainSourceFile "pool_world_demo.d"
-    dependency "xtb:core" version="*"
 }

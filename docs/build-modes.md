@@ -15,11 +15,18 @@ just run-example cli release-fast -- build -r
 
 For a single running example, put executable arguments after `--`; the optional
 build mode remains before the separator and defaults to `debug`. The `build`
-recipe defaults to `static xtb debug`. `xtb` is one monolithic static library;
-component names build independent libraries. `all` builds both
-the monolithic library and every discovered component library. The legacy
-`just debug`, `just release-safe`, and `just release-fast` aliases remain and
-build `static all` in the selected mode.
+recipe defaults to `static xtb debug`. `xtb` is the full development archive
+containing every feature; feature packages are source libraries and do not
+produce independent archives. `static all` is retained as an alias for
+`static xtb`. The `just debug`, `just release-safe`, and `just release-fast`
+aliases build that full archive in the selected mode. Use `just compose` when a
+distribution archive should contain only a selected feature closure.
+
+`just check` builds the full archive in all three modes and exercises the
+aggregate test suite. The slower `just check-features` gate separately compiles
+each feature and its unittest bodies in all three modes using only its declared
+dependency closure. It is an explicit module-boundary check, not part of
+`just check` or `just pre-commit`.
 
 ## Debug
 

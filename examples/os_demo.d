@@ -1,6 +1,6 @@
 module examples.os_demo;
 
-import xtb.core;
+import xtb;
 import xtb.os;
 
 extern (C) int main(int argumentCount, char** arguments) nothrow @nogc

@@ -1,6 +1,6 @@
 module examples.process_demo;
 
-import xtb.core;
+import xtb;
 import xtb.os;
 
 version (linux)

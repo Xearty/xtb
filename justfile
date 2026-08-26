@@ -1,8 +1,8 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 set script-interpreter := ["bash", "-eu", "-o", "pipefail"]
 
-d_files := `find source tests examples benchmarks -type f -name '*.d' -print | sort | tr '\n' ' '`
-library_subpackages := `for recipe in source/xtb/*/dub.sdl; do sed -n 's/^name "\([^"]*\)".*/\1/p' "$recipe" | head -n 1; done | sort | tr '\n' ' '`
+d_files := `find source tools tests examples benchmarks -type f -name '*.d' -print | sort | tr '\n' ' '`
+feature_subpackages := `for recipe in source/*/dub.sdl; do sed -n 's/^name "\([^"]*\)".*/\1/p' "$recipe" | head -n 1; done | sort | tr '\n' ' '`
 example_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' examples/dub.sdl | tr '\n' ' '`
 benchmark_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' benchmarks/dub.sdl | tr '\n' ' '`
 test_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' tests/dub.sdl | tr '\n' ' '`
@@ -11,19 +11,34 @@ consumer_project_dir := invocation_directory()
 d_compiler := env_var_or_default("DC", "ldc2")
 dub_options := "--quiet --skip-registry=all --compiler=" + d_compiler
 
-# `just` and `just build` both build the monolithic checked-debug library.
+# `just` and `just build` both build the full checked-debug library.
 default: build
 
 # Build a static library or example.
 #
 # Examples:
 #   just build
-#   just build static core release-safe
+#   just build static xtb release-safe
 #   just build static xtb release-fast
-#   just build static all debug
 #   just build example serde release-safe
 #   just build example all debug
 build kind="static" name="xtb" mode="debug": (_dispatch "build" kind name mode)
+
+# Compose a slim libxtb.a from selected features. Core is always included and
+# DUB resolves the complete transitive feature closure.
+[script]
+[positional-arguments]
+compose *args:
+    args=("$@")
+    mode=debug
+    features=()
+    for arg in "${args[@]}"; do
+        case "$arg" in
+            debug|release-safe|release-fast) mode="$arg" ;;
+            *) features+=("$arg") ;;
+        esac
+    done
+    dub run :compose {{ dub_options }} --temp-build -- --mode="$mode" "${features[@]}"
 
 # Run a named example, optionally selecting the build mode and forwarding
 # arguments after `--` to the executable.
@@ -86,6 +101,96 @@ benchmark name="logging" iterations="200000":
 # Release-fast compiles the test runners but does not execute stripped tests.
 test mode="debug": (_test mode)
 
+# Verify that the published diagnostics composition is self-contained: its
+# consumer links only libxtb.a and never names the private native dependency.
+[script]
+_check-compose-diagnostics:
+    if [[ "$(uname -s)" != Linux ]]; then
+        exit 0
+    fi
+
+    output_dir="$(mkdir -p build/check/compose-diagnostics && cd build/check/compose-diagnostics && pwd -P)"
+    archive="$(dub run :compose {{ dub_options }} --temp-build -- \
+        --mode=release-safe \
+        diagnostics)"
+    if [[ "$(basename "$(dirname "$archive")")" != core+diagnostics ]]; then
+        echo "diagnostics composition has an unexpected feature closure: $archive" >&2
+        exit 1
+    fi
+
+    archiver="${AR:-ar}"
+    if ! "$archiver" t "$archive" | grep -q '^xtb_diagnostics_native_'; then
+        echo "diagnostics composition does not contain its private native objects" >&2
+        exit 1
+    fi
+
+    core_output_dir="$(mkdir -p build/check/compose-core && cd build/check/compose-core && pwd -P)"
+    dub run :compose {{ dub_options }} --temp-build -- \
+        --mode=release-safe \
+        --output="$core_output_dir" \
+        core >/dev/null
+    if "$archiver" t "$core_output_dir/libxtb.a" | grep -q '^xtb_diagnostics_native_'; then
+        echo "core composition unexpectedly contains diagnostics native objects" >&2
+        exit 1
+    fi
+
+    "{{ d_compiler }}" \
+        -betterC \
+        -preview=dip1000 \
+        -boundscheck=on \
+        -Isource/core \
+        -Isource/log \
+        -Isource/os \
+        -Isource/diagnostics \
+        examples/stacktrace_demo.d \
+        "$archive" \
+        -of="$output_dir/diagnostics_archive_consumer"
+    "$output_dir/diagnostics_archive_consumer" >/dev/null
+
+# Compile every feature and its colocated unit tests using only the feature's
+# declared dependency closure. The no-op main keeps this a compile-only gate;
+# behavioral tests already run through the full development aggregate.
+[script]
+_check-feature-tests:
+    base_dflags="${DFLAGS-}"
+    features=({{ feature_subpackages }})
+
+    for mode in debug release-safe release-fast; do
+        case "$mode" in
+            debug)
+                mode_flags="-d-debug -g -unittest -boundscheck=on"
+                checked=true
+                ;;
+            release-safe)
+                mode_flags="-O -enable-inlining -fno-delete-null-pointer-checks -unittest -boundscheck=on"
+                checked=true
+                ;;
+            release-fast)
+                mode_flags="-O -enable-inlining -release -unittest -boundscheck=off"
+                checked=false
+                ;;
+        esac
+
+        echo "Compiling isolated features and unit tests ($mode)"
+        for feature in "${features[@]}"; do
+            test_args=(
+                ":$feature"
+                {{ dub_options }}
+                --parallel
+                --build=plain
+                --main-file=tests/support/compile_unittests.d
+                --temp-build
+            )
+            if [[ "$checked" == true ]]; then
+                test_args+=(--d-version=XTB_Checked)
+            fi
+            DFLAGS="${base_dflags:+$base_dflags }$mode_flags" dub test "${test_args[@]}"
+        done
+    done
+
+# Verify every feature boundary in the three public modes (slow and optional).
+check-features: _check-feature-tests
+
 # Print supported modes and target names.
 [script]
 targets:
@@ -95,16 +200,15 @@ targets:
       release-safe
       release-fast
 
-    Static libraries:
-      xtb          monolithic library containing every module
-      core
-      diagnostics
-      math
-      os
-      parser
-      serde
-      threading    combined xtb.thread + xtb.sync
-      all          xtb plus every component library
+    Static library:
+      xtb          full development library containing every feature
+
+    Composable features:
+    EOF
+    for feature in {{ feature_subpackages }}; do
+        printf '  %s\n' "$feature"
+    done
+    cat <<'EOF'
 
     Examples:
     EOF
@@ -158,9 +262,9 @@ lint:
     dscanner lint --config dscanner.ini --styleCheck "${dscanner_files[@]}"
 
 # Backward-compatible all-library mode aliases.
-debug: (_dispatch "build" "static" "all" "debug")
-release-safe: (_dispatch "build" "static" "all" "release-safe")
-release-fast: (_dispatch "build" "static" "all" "release-fast")
+debug: (_dispatch "build" "static" "xtb" "debug")
+release-safe: (_dispatch "build" "static" "xtb" "release-safe")
+release-fast: (_dispatch "build" "static" "xtb" "release-fast")
 
 # Convenience example aliases.
 build-example name mode="debug": (_dispatch "build" "example" name mode)
@@ -209,19 +313,18 @@ test-release-fast: (_test "release-fast")
 test-release: test-release-safe
 test-sanitize: (_test "asan")
 
-# Run the complete local verification matrix.
-check: format-check lint _check-build-debug _check-build-release-safe _check-build-release-fast test test-optimized test-release-safe test-release-fast test-sanitize run-examples
+# Run the routine local verification matrix.
+check: format-check lint _check-build-debug _check-build-release-safe _check-build-release-fast _check-compose-diagnostics test test-optimized test-release-safe test-release-fast test-sanitize run-examples
 
-# Run every project check and independently validate the application template
-# against the current checkout before committing.
+# Run routine checks plus application-template validation before committing.
 pre-commit: check check-template
 
 check-template:
     nix flake check path:templates/app --override-input xtb path:.
 
-_check-build-debug: (_dispatch "build" "static" "all" "debug")
-_check-build-release-safe: (_dispatch "build" "static" "all" "release-safe")
-_check-build-release-fast: (_dispatch "build" "static" "all" "release-fast")
+_check-build-debug: (_dispatch "build" "static" "xtb" "debug")
+_check-build-release-safe: (_dispatch "build" "static" "xtb" "release-safe")
+_check-build-release-fast: (_dispatch "build" "static" "xtb" "release-fast")
 
 # Shared build/run dispatcher.
 [script]
@@ -293,21 +396,18 @@ _dispatch action kind name mode *program_args:
 
     build_static() {
         local target="$1"
-        if [[ "$target" == xtb ]]; then
-            echo "Building static xtb ($mode)"
-            dub build "${dub_args[@]}"
-            return
-        fi
-
-        local libraries=({{ library_subpackages }})
-        if ! contains "$target" "${libraries[@]}"; then
+        if [[ "$target" != xtb && "$target" != all ]]; then
             echo "unknown static library: $target" >&2
-            echo "expected xtb, all, or one of: ${libraries[*]}" >&2
+            echo "XTB development builds produce only libxtb.a; use 'just compose' for slim feature sets" >&2
             exit 2
         fi
 
-        echo "Building static $target ($mode)"
-        dub build ":$target" "${dub_args[@]}"
+        echo "Building static xtb ($mode)"
+        features=({{ feature_subpackages }})
+        dub run :compose {{ dub_options }} --temp-build -- \
+            --mode="$mode" \
+            --output="$XTB_LIBRARY_OUTPUT_DIR" \
+            "${features[@]}"
     }
 
     resolve_example() {
@@ -382,14 +482,7 @@ _dispatch action kind name mode *program_args:
                 exit 2
             fi
             export XTB_LIBRARY_OUTPUT_DIR="$(absolute_output_dir "{{ library_output_dir }}/$mode")"
-            if [[ "$name" == all ]]; then
-                build_static xtb
-                for library in {{ library_subpackages }}; do
-                    build_static "$library"
-                done
-            else
-                build_static "$name"
-            fi
+            build_static "$name"
             ;;
         example)
             export XTB_LIBRARY_OUTPUT_DIR="$(absolute_output_dir "{{ library_output_dir }}/$mode")"
@@ -460,15 +553,18 @@ _test mode:
         dub_args+=(--d-version=XTB_Checked)
     fi
 
-    for package in {{ library_subpackages }}; do
-        unit_args=({{ dub_options }} --parallel --build="$unit_build_type")
-        if [[ "$checked" == true ]]; then
-            unit_args+=(--d-version=XTB_Checked)
-        else
-            unit_args+=(--main-file=tests/support/compile_unittests.d)
-        fi
-        dub test ":$package" "${unit_args[@]}"
-    done
+    unit_args=({{ dub_options }} --parallel --build="$unit_build_type")
+    if [[ "$mode" == debug ]]; then
+        dub test :compose {{ dub_options }} --temp-build
+    fi
+    if [[ "$checked" == true ]]; then
+        unit_args+=(--d-version=XTB_Checked)
+        dub test "${unit_args[@]}"
+    else
+        # releaseMode removes unittest runners; compiling the full aggregate
+        # still verifies every feature in the release-fast configuration.
+        dub build {{ dub_options }} --parallel --build=release-nobounds
+    fi
 
     for config in {{ test_configurations }}; do
         if [[ "$config" == test-helper-* ]]; then

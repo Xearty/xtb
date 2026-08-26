@@ -1,6 +1,6 @@
 module examples.hash_demo;
 
-import xtb.core;
+import xtb;
 
 static assert(is(StringViewHashMap!int == HashMap!(String, int)));
 static assert(is(StringViewHashSet == HashSet!String));

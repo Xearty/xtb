@@ -1,6 +1,6 @@
 module examples.math_demo;
 
-import xtb.core;
+import xtb;
 import xtb.math;
 
 extern (C) int main() nothrow @nogc

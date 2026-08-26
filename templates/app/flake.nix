@@ -15,6 +15,10 @@
   }: let
     lib = nixpkgs.lib;
     appName = "xtb-app";
+    xtbFeatures = [
+      "log"
+      "math"
+    ];
     supportedSystems = [
       "x86_64-linux"
       "aarch64-linux"
@@ -33,8 +37,12 @@
 
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      xtbPackage = xtb.packages.${system}.default;
+      xtbSource = xtb.packages.${system}.source;
       makeApplication = mode: let
+        xtbLibrary = xtb.lib.mkStatic {
+          inherit pkgs mode;
+          features = xtbFeatures;
+        };
         checked = mode != "release-fast";
         buildType =
           if mode == "release-fast"
@@ -51,10 +59,10 @@
           src = applicationSource;
 
           nativeBuildInputs = [pkgs.ldc pkgs.dub];
-          buildInputs = [xtbPackage];
+          buildInputs = [xtbSource xtbLibrary];
 
-          XTB_IMPORT_PATH = "${xtbPackage}/include";
-          XTB_LIBRARY_PATH = "${xtbPackage}/lib/${mode}";
+          XTB_IMPORT_PATH = "${xtbSource}/include";
+          XTB_LIBRARY_PATH = "${xtbLibrary}/lib";
 
           dontConfigure = true;
           dontStrip = mode == "debug";
@@ -105,7 +113,27 @@
 
     devShells = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
-      xtbPackage = xtb.packages.${system}.default;
+      xtbSource = xtb.packages.${system}.source;
+      xtbDebug = xtb.lib.mkStatic {
+        inherit pkgs;
+        mode = "debug";
+        features = xtbFeatures;
+      };
+      xtbReleaseSafe = xtb.lib.mkStatic {
+        inherit pkgs;
+        mode = "release-safe";
+        features = xtbFeatures;
+      };
+      xtbReleaseFast = xtb.lib.mkStatic {
+        inherit pkgs;
+        mode = "release-fast";
+        features = xtbFeatures;
+      };
+      xtbLibraries = pkgs.linkFarm "xtb-selected-libraries" [
+        {name = "debug"; path = "${xtbDebug}/lib";}
+        {name = "release-safe"; path = "${xtbReleaseSafe}/lib";}
+        {name = "release-fast"; path = "${xtbReleaseFast}/lib";}
+      ];
     in {
       default = pkgs.mkShell {
         name = appName;
@@ -118,10 +146,10 @@
           pkgs.dformat
           pkgs.just
         ];
-        buildInputs = [xtbPackage];
+        buildInputs = [xtbSource xtbLibraries];
 
-        XTB_IMPORT_PATH = "${xtbPackage}/include";
-        XTB_LIBRARY_ROOT = "${xtbPackage}/lib";
+        XTB_IMPORT_PATH = "${xtbSource}/include";
+        XTB_LIBRARY_ROOT = "${xtbLibraries}";
       };
     });
   };

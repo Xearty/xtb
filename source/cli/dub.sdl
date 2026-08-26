@@ -1,0 +1,8 @@
+name "cli"
+targetType "sourceLibrary"
+sourcePaths "."
+importPaths "."
+dependency "xtb:core" version="*"
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-preview=dip1000" platform="ldc"

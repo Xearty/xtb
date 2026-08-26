@@ -2,7 +2,7 @@ module examples.result_demo;
 
 nothrow @nogc:
 
-import xtb.core : Result, ResultReturns, andThen, map, mapError, orElse;
+import xtb : Result, ResultReturns, andThen, map, mapError, orElse;
 
 private enum DemoError
 {

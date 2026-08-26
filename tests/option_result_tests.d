@@ -4,12 +4,12 @@ nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
 
-import xtb.core.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.core.allocators.malloc : mallocAllocator;
-import xtb.core.lifetime : deinit, move, needsDeinit;
-import xtb.core.memory : Allocator, deallocateArray, tryAllocateArray;
-import xtb.core.option;
-import xtb.core.result;
+import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
+import xtb.allocators.malloc : mallocAllocator;
+import xtb.lifetime : deinit, move, needsDeinit;
+import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.option;
+import xtb.result;
 
 private struct ContextOwner
 {

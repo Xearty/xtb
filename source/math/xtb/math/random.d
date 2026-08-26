@@ -1,0 +1,96 @@
+module xtb.math.random;
+
+nothrow @safe @nogc:
+
+version (XTB_Checked) import xtb.panic : require;
+import xtb.types : u32, u64;
+import xtb.math.scalar : isFinite;
+
+/// Small deterministic PCG-XSH-RR generator. Its sequence is stable API.
+struct Random
+{
+nothrow @safe @nogc:
+
+    private u64 state_;
+    private u64 increment_;
+
+    static Random seeded(u64 seed, u64 stream = 0)
+    {
+        Random result;
+        result.increment_ = (stream << 1) | 1;
+        result.nextU32();
+        result.state_ += seed;
+        result.nextU32();
+        return result;
+    }
+
+    u32 nextU32()
+    {
+        const oldState = state_;
+        state_ = oldState * 6_364_136_223_846_793_005UL + increment_;
+        const shifted = cast(u32)(((oldState >> 18) ^ oldState) >> 27);
+        const rotation = cast(u32)(oldState >> 59);
+        return (shifted >> rotation) | (shifted << ((-rotation) & 31));
+    }
+
+    u32 below(u32 bound)
+    {
+        version (XTB_Checked)
+            require(bound != 0, "random bound must be nonzero");
+        const threshold = -bound % bound;
+        for (;;)
+        {
+            const value = nextU32();
+            if (value >= threshold)
+                return value % bound;
+        }
+    }
+
+    /// Uniform in [0, 1), using the 24 significant bits representable by float.
+    float unit()
+    {
+        return cast(float)(nextU32() >> 8) * (1.0f / 16_777_216.0f);
+    }
+
+    float between(float lower, float upper)
+    {
+        version (XTB_Checked)
+            require(lower.isFinite && upper.isFinite && lower <= upper,
+                "random range must be finite and ordered");
+        if (lower == upper)
+            return lower;
+        const t = unit();
+        if (lower < 0 && upper > 0)
+            return lower * (1 - t) + upper * t;
+        return lower + (upper - lower) * t;
+    }
+}
+
+nothrow @safe @nogc unittest
+{
+    Random a = Random.seeded(42, 54);
+    Random b = Random.seeded(42, 54);
+    const u32[5] expected = [
+        2_707_161_783U, 2_068_313_097U, 3_122_475_824U, 2_211_639_955U,
+        3_215_226_955U
+    ];
+    foreach (value; expected)
+        assert(a.nextU32() == value);
+    a = Random.seeded(42, 54);
+    foreach (_; 0 .. 32)
+        assert(a.nextU32() == b.nextU32());
+    Random range = Random.seeded(1);
+    foreach (_; 0 .. 100)
+    {
+        const value = range.below(7);
+        assert(value < 7);
+        const realValue = range.unit();
+        assert(realValue >= 0 && realValue < 1);
+    }
+    foreach (_; 0 .. 100)
+    {
+        const value = range.between(-float.max, float.max);
+        assert(value.isFinite && value >= -float.max && value <= float.max);
+    }
+    assert(range.between(7, 7) == 7);
+}
