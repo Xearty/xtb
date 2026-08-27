@@ -22,6 +22,8 @@ Standard input/output/error can be:
 - borrowed from an existing `File`/pipe endpoint;
 - for stderr, merged with stdout.
 
+`File` values used by process routes come from `xtb.fs`; raw pipe endpoints come from `xtb.os`.
+
 A `borrow(...)` route never transfers ownership. `piped()` creates a new pipe
 and transfers the **parent-side endpoint** into the resulting `ChildProcess`.
 Access it through `stdinPipe`, `stdoutPipe`, or `stderrPipe`.
