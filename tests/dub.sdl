@@ -132,7 +132,15 @@ configuration "test-os" {
     targetType "executable"
     targetName "os_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
-    mainSourceFile "os_tests.d"
+    mainSourceFile "os_layer_tests.d"
+    dependency "xtb" path=".."
+}
+
+configuration "test-system-integration" {
+    targetType "executable"
+    targetName "system_integration_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "system_integration_tests.d"
     dependency "xtb" path=".."
 }
 

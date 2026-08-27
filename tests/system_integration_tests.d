@@ -1,4 +1,4 @@
-module tests.os_tests;
+module tests.system_integration_tests;
 
 import xtb.fs.directory;
 import xtb.os.error;
@@ -851,7 +851,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     import xtb.process.environment : environmentVariable;
 
     ThreadContextScope context = ThreadContextScope.acquire();
-    enum rootPattern = "/tmp/xtb-os-XXXXXX";
+    enum rootPattern = "/tmp/xtb-system-XXXXXX";
     char[rootPattern.length + 1] rootStorage;
     rootStorage[0 .. rootPattern.length] = rootPattern;
     rootStorage[$ - 1] = '\0';
