@@ -1,4 +1,4 @@
-module xtb.os.environment;
+module xtb.os.internal.environment;
 
 nothrow @nogc:
 

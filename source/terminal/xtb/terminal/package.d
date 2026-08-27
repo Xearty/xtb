@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE;
 import core.stdc.string : strcmp;
-import xtb.os.environment : rawEnvironmentVariable;
+import xtb.os.internal.environment : rawEnvironmentVariable;
 import xtb.os.terminal : isTerminal;
 
 /// User policy for ANSI presentation selection.

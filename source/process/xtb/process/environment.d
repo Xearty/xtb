@@ -5,7 +5,7 @@ nothrow @nogc:
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
 import xtb.thread_context : ScratchScope;
-import xtb.os.environment : environmentVariableCString;
+import xtb.os.internal.environment : environmentVariableCString;
 import xtb.os.error : OsError, OsErrorKind;
 
 private bool validEnvironmentName(String name) pure @safe
