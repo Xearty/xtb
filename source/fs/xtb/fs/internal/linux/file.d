@@ -3,11 +3,10 @@ module xtb.fs.internal.linux.file;
 nothrow @nogc:
 
 import core.stdc.errno : EINTR, errno;
-import core.sys.posix.fcntl : O_APPEND, O_CLOEXEC, O_CREAT, O_EXCL,
-    O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY, nativeOpen = open;
-import core.sys.posix.sys.stat : S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
-    S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK, fstat, lstat, stat, stat_t;
-import core.sys.posix.unistd : fsync, nativeClose = close, read, write;
+import xtb.os.posix.file : O_APPEND, O_CLOEXEC, O_CREAT, O_EXCL,
+    O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY, S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
+    S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK, fstat, fsync, lstat, nativeClose = close,
+    nativeOpen = open, read, stat, stat_t, write;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.posix.error : lastError;
 import xtb.os.handle : NativeHandle;

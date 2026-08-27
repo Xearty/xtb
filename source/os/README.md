@@ -10,8 +10,8 @@ contains only mechanisms that have a useful platform-neutral contract:
 Platform interfaces are first-class low-level APIs rather than hidden backends:
 
 - `xtb.os.posix` exposes thin POSIX mechanisms such as errno translation,
-  file-descriptor adapters, environment and terminal queries, memory mapping,
-  and clocks;
+  file-descriptor adapters, file and directory primitives, environment and terminal
+  queries, memory mapping, and clocks;
 - `xtb.os.linux` exposes Linux-specific mechanisms such as `pipe2`-based pipe
   creation and I/O.
 

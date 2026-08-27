@@ -4,13 +4,9 @@ nothrow @nogc:
 
 import core.stdc.errno : errno;
 import core.stdc.stdlib : free;
-import core.stdc.stdio : nativeRename = rename;
-import core.sys.posix.dirent : DIR, DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK,
-    DT_REG, DT_SOCK, closedir, opendir, readdir;
-import core.sys.posix.stdlib : realpath;
-import core.sys.posix.sys.stat : mkdir;
-import core.sys.posix.unistd : F_OK, R_OK, W_OK, X_OK, access, getcwd,
-    readlink, rmdir, unlink;
+import xtb.os.posix.directory : DIR, DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK,
+    DT_REG, DT_SOCK, F_OK, R_OK, W_OK, X_OK, access, closedir, getcwd, mkdir,
+    nativeRename = rename, opendir, readlink, readdir, realpath, rmdir, unlink;
 import xtb.containers.array : Array;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.posix.error : lastError;
