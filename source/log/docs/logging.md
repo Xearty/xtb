@@ -31,12 +31,12 @@ is reused as staging storage.
 | `plainFileLogSink` | file output with ANSI removed |
 | `ansiFileLogSink` | ANSI-preserving terminal/file output |
 | `PrefixLogSink` | prepend a custom prefix provider |
-| `TimestampLogPrefix` | wall-clock prefix provider backed by the `os` subpackage |
+| `TimestampLogPrefix` | wall-clock prefix provider backed by the `time` subpackage |
 | `TeeLogSink` | send each record to two sinks |
 | `WithoutCallsiteLogSink` | omit callsites from one sink branch |
 
-`TimestampLogPrefix` is exposed by `xtb.log`, but it gets wall-clock time from
-the `os` subpackage; `log` therefore depends on `os`.
+`TimestampLogPrefix` reads wall-clock time through `xtb.time`; `log` therefore
+depends on `time`, while `time` delegates system clock access to `os`.
 
 A sink graph can give different destinations different presentation and
 metadata. This sends ANSI-styled output to the terminal without timestamps or

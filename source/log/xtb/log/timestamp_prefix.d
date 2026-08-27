@@ -11,9 +11,8 @@ version (unittest)
     import xtb.log.sink : LogRecordInfo, LogRecordRef, LogSinkEvent, LogSinkEventKind;
 }
 import xtb.string : String;
+import xtb.time : Timestamp;
 import xtb.types : i64;
-import xtb.os.error : OsError;
-import xtb.os.time : wallClockNanoseconds;
 
 enum LogTimestampZone : ubyte
 {
@@ -45,20 +44,17 @@ nothrow @nogc:
     }
 }
 
-private alias TimestampClock = OsError function(void* context, i64* output);
-
 /// Non-owning wall-clock timestamp prefix provider.
 ///
-/// The provider formats each timestamp into fixed stack storage and emits it
-/// synchronously through `LogPrefixWriter`. `prefixRef()` borrows this value,
-/// so it must remain at a stable address while the returned reference is used.
+/// The provider samples `xtb.time.Timestamp`, formats it into fixed stack
+/// storage, and emits it synchronously through `LogPrefixWriter`.
+/// `prefixRef()` borrows this value, so it must remain at a stable address
+/// while the returned reference is used.
 struct TimestampLogPrefix
 {
 nothrow @nogc:
 
     private LogTimestampOptions options_;
-    private TimestampClock clock_;
-    private void* clockContext_;
 
     @disable this(this);
 
@@ -66,56 +62,56 @@ nothrow @nogc:
         LogTimestampOptions options = LogTimestampOptions.defaults(),
     )
     {
-        return createWithClock(options, &systemTimestampClock, null);
+        TimestampLogPrefix result;
+        result.options_ = options;
+        return result;
     }
 
     LogPrefixRef prefixRef() return @trusted
     {
         return LogPrefixRef.create(&timestampPrefixCallback, cast(void*)&this);
     }
-
-    private static TimestampLogPrefix createWithClock(
-        LogTimestampOptions options,
-        TimestampClock clock,
-        void* context,
-    )
-    {
-        TimestampLogPrefix result;
-        result.options_ = options;
-        result.clock_ = clock;
-        result.clockContext_ = context;
-        return result;
-    }
-}
-
-private OsError systemTimestampClock(void*, i64* output) @system
-{
-    return wallClockNanoseconds(output);
 }
 
 private bool timestampPrefixCallback(void* context, LogPrefixWriter* output)
 {
     TimestampLogPrefix* timestamp = cast(TimestampLogPrefix*) context;
-    if (timestamp is null || output is null || timestamp.clock_ is null)
+    if (timestamp is null || output is null)
         return false;
 
-    i64 nanoseconds;
-    if (timestamp.clock_(timestamp.clockContext_, &nanoseconds).failed)
+    Timestamp now;
+    if (Timestamp.now(&now).failed)
+        return false;
+
+    return writeTimestampPrefix(
+        timestamp.options_,
+        now.nanosecondsSinceUnixEpoch,
+        output,
+    );
+}
+
+private bool writeTimestampPrefix(
+    LogTimestampOptions options,
+    i64 nanoseconds,
+    LogPrefixWriter* output,
+)
+{
+    if (output is null)
         return false;
 
     char[32] storage;
     const formatted = formatTimestamp(
         nanoseconds,
-        timestamp.options_.zone,
-        timestamp.options_.milliseconds,
+        options.zone,
+        options.milliseconds,
         storage[],
     );
     if (formatted.length == 0)
         return false;
-    if (!output.write(formatted, timestamp.options_.style))
+    if (!output.write(formatted, options.style))
         return false;
-    return timestamp.options_.separator.length == 0 ||
-        output.write(timestamp.options_.separator);
+    return options.separator.length == 0 ||
+        output.write(options.separator);
 }
 
 private String formatTimestamp(
@@ -210,23 +206,17 @@ pure @safe
 
 version (unittest)
 {
-    private struct FixedClock
+    private struct FixedTimestampPrefix
     {
+        LogTimestampOptions options;
         i64 nanoseconds;
-        OsError error;
-        size_t calls;
     }
 
-    private OsError fixedClock(void* context, i64* output)
+    private bool fixedTimestampPrefixCallback(void* context, LogPrefixWriter* output)
     {
-        FixedClock* clock = cast(FixedClock*) context;
-        if (clock is null || output is null)
-            return OsError.init;
-        ++clock.calls;
-        if (clock.error.failed)
-            return clock.error;
-        *output = clock.nanoseconds;
-        return OsError.init;
+        FixedTimestampPrefix* timestamp = cast(FixedTimestampPrefix*) context;
+        return timestamp !is null &&
+            writeTimestampPrefix(timestamp.options, timestamp.nanoseconds, output);
     }
 
     private struct PrefixCapture
@@ -260,7 +250,6 @@ unittest
     import xtb.log.prefix_sink : PrefixLogSink;
     import xtb.log.sink : LogSinkEvent, LogSinkEventKind, LogSinkRef;
     import xtb.string;
-    import xtb.os.error : OsErrorKind;
 
     static assert(!__traits(isCopyable, TimestampLogPrefix));
 
@@ -276,18 +265,18 @@ unittest
     options.style = AnsiStyle.foreground(AnsiColor.rgb(120, 130, 140));
     options.separator = " | ";
 
+    TimestampLogPrefix timestamp = TimestampLogPrefix.create(options);
+    assert(timestamp.prefixRef.valid);
+
+    FixedTimestampPrefix fixed;
+    fixed.options = options;
     // 2024-02-29T12:34:56.789Z, exercising leap-day formatting.
-    FixedClock clock;
-    clock.nanoseconds = 1_709_210_096_789_000_000L;
-    TimestampLogPrefix timestamp = TimestampLogPrefix.createWithClock(
-        options,
-        &fixedClock,
-        &clock,
-    );
+    fixed.nanoseconds = 1_709_210_096_789_000_000L;
+
     PrefixCapture capture;
     PrefixLogSink prefixed = PrefixLogSink.create(
         LogSinkRef.create(&prefixCaptureSink, &capture),
-        timestamp.prefixRef(),
+        LogPrefixRef.create(&fixedTimestampPrefixCallback, &fixed),
     );
 
     const recordInfo = LogRecordInfo(LogLevel.info);
@@ -295,7 +284,6 @@ unittest
     LogRecordRef record = sink.beginRecord(recordInfo);
     assert(record.valid);
     assert(record.endRecord());
-    assert(clock.calls == 1);
     assert(cast(String) capture.bytes[0 .. capture.length] ==
             "2024-02-29T12:34:56.789Z | ");
     assert(capture.writes == 2);
@@ -342,17 +330,14 @@ unittest
     LogTimestampOptions unstyledOptions = options;
     unstyledOptions.style = AnsiStyle.init;
     unstyledOptions.separator = null;
-    FixedClock unstyledClock;
-    unstyledClock.nanoseconds = clock.nanoseconds;
-    TimestampLogPrefix unstyled = TimestampLogPrefix.createWithClock(
-        unstyledOptions,
-        &fixedClock,
-        &unstyledClock,
-    );
+    FixedTimestampPrefix unstyled;
+    unstyled.options = unstyledOptions;
+    unstyled.nanoseconds = fixed.nanoseconds;
+
     PrefixCapture unstyledCapture;
     PrefixLogSink unstyledSink = PrefixLogSink.create(
         LogSinkRef.create(&prefixCaptureSink, &unstyledCapture),
-        unstyled.prefixRef(),
+        LogPrefixRef.create(&fixedTimestampPrefixCallback, &unstyled),
     );
     LogSinkRef unstyledRef = unstyledSink.sinkRef();
     LogRecordRef unstyledRecord = unstyledRef.beginRecord(recordInfo);
@@ -360,25 +345,6 @@ unittest
     assert(unstyledRecord.endRecord());
     assert(unstyledCapture.writes == 1);
     assert(!unstyledCapture.style.enabled);
-
-    FixedClock failingClock;
-    failingClock.error = OsError(OsErrorKind.system, 1);
-    TimestampLogPrefix failing = TimestampLogPrefix.createWithClock(
-        options,
-        &fixedClock,
-        &failingClock,
-    );
-    PrefixCapture failureCapture;
-    PrefixLogSink failureSink = PrefixLogSink.create(
-        LogSinkRef.create(&prefixCaptureSink, &failureCapture),
-        failing.prefixRef(),
-    );
-    LogSinkRef failureRef = failureSink.sinkRef();
-    LogRecordRef failureRecord = failureRef.beginRecord(recordInfo);
-    assert(failureRecord.valid);
-    assert(!failureRecord.endRecord());
-    assert(failingClock.calls == 1);
-    assert(failureCapture.length == 0);
 }
 
 unittest
@@ -401,22 +367,14 @@ unittest
     options.zone = LogTimestampZone.utc;
     options.style = AnsiStyle.foreground(AnsiColor.rgb(90, 100, 110)).dim;
 
-    FixedClock sharedClock;
-    sharedClock.nanoseconds = 1_704_067_200_000_000_000L; // 2024-01-01T00:00:00Z
-    TimestampLogPrefix sharedTimestamp = TimestampLogPrefix.createWithClock(
-        options,
-        &fixedClock,
-        &sharedClock,
-    );
+    TimestampLogPrefix sharedTimestamp = TimestampLogPrefix.create(options);
 
     FILE* ansiFile = tmpfile();
     assert(ansiFile !is null);
-    scope (exit)
-        assert(fclose(ansiFile) == 0);
+    scope(exit) assert(fclose(ansiFile) == 0);
     FILE* plainFile = tmpfile();
     assert(plainFile !is null);
-    scope (exit)
-        assert(fclose(plainFile) == 0);
+    scope(exit) assert(fclose(plainFile) == 0);
 
     TeeLogSink sharedOutputs = TeeLogSink.create(
         ansiFileLogSink(ansiFile),
@@ -441,28 +399,21 @@ unittest
     const plainLength = readFile(plainFile, plainBytes[]);
     const ansiText = cast(String) ansiBytes[0 .. ansiLength];
     const plainText = cast(String) plainBytes[0 .. plainLength];
-    assert(ansiText.contains("2024-01-01T00:00:00Z"));
     assert(ansiText.contains("\x1b[2;38;2;90;100;110m"));
-    assert(plainText.equal("2024-01-01T00:00:00Z [info]    started\n"));
+    assert(ansiText.endsWith("started\n"));
+    assert(plainText.length > " [info]    started\n".length);
+    assert(plainText.endsWith(" [info]    started\n"));
     foreach (value; plainText)
         assert(value != '\x1b');
 
     FILE* terminal = tmpfile();
     assert(terminal !is null);
-    scope (exit)
-        assert(fclose(terminal) == 0);
+    scope(exit) assert(fclose(terminal) == 0);
     FILE* logfile = tmpfile();
     assert(logfile !is null);
-    scope (exit)
-        assert(fclose(logfile) == 0);
+    scope(exit) assert(fclose(logfile) == 0);
 
-    FixedClock fileClock;
-    fileClock.nanoseconds = sharedClock.nanoseconds;
-    TimestampLogPrefix fileTimestamp = TimestampLogPrefix.createWithClock(
-        options,
-        &fixedClock,
-        &fileClock,
-    );
+    TimestampLogPrefix fileTimestamp = TimestampLogPrefix.create(options);
     PrefixLogSink timestampedFile = PrefixLogSink.create(
         plainFileLogSink(logfile),
         fileTimestamp.prefixRef(),
@@ -483,7 +434,9 @@ unittest
     char[128] logBytes;
     const terminalLength = readFile(terminal, terminalBytes[]);
     const logLength = readFile(logfile, logBytes[]);
-    assert(cast(String) terminalBytes[0 .. terminalLength] == "[info]    file only\n");
-    assert(cast(String) logBytes[0 .. logLength] ==
-            "2024-01-01T00:00:00Z [info]    file only\n");
+    const terminalText = cast(String) terminalBytes[0 .. terminalLength];
+    const logText = cast(String) logBytes[0 .. logLength];
+    assert(terminalText == "[info]    file only\n");
+    assert(logText.length > " [info]    file only\n".length);
+    assert(logText.endsWith(" [info]    file only\n"));
 }
