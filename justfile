@@ -113,7 +113,7 @@ _check-compose-diagnostics:
     archive="$(dub run :compose {{ dub_options }} --temp-build -- \
         --mode=release-safe \
         diagnostics)"
-    if [[ "$(basename "$(dirname "$archive")")" != core+diagnostics ]]; then
+    if [[ "$(basename "$(dirname "$archive")")" != core+diagnostics+os ]]; then
         echo "diagnostics composition has an unexpected subpackage closure: $archive" >&2
         exit 1
     fi
