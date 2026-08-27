@@ -7,6 +7,7 @@ import xtb.os.error : OsError;
 import xtb.os.posix.error : fromErrno, lastError;
 import xtb.os.handle : NativeHandle;
 import xtb.os.posix.handle : fileDescriptor, fromFileDescriptor;
+import xtb.os.linux.signal : SignalMaskOperation, signalMask;
 import xtb.types : u8;
 
 enum PipeReadState : ubyte
@@ -134,9 +135,8 @@ PipeWriteResult writeSome(
         return PipeWriteResult(OsError.init, 0, PipeWriteState.data);
 
     import core.stdc.errno : EAGAIN, EINTR, EPIPE, EWOULDBLOCK, errno;
-    import core.sys.posix.signal : SIG_BLOCK, SIG_SETMASK, SIGPIPE, sigaddset,
-        sigemptyset, sigismember, sigpending, sigprocmask, sigset_t,
-        sigtimedwait;
+    import core.sys.posix.signal : SIGPIPE, sigaddset, sigemptyset, sigismember,
+        sigpending, sigset_t, sigtimedwait;
     import core.sys.posix.time : timespec;
     import core.sys.posix.unistd : write;
 
@@ -144,9 +144,14 @@ PipeWriteResult writeSome(
     sigset_t previous;
     sigemptyset(&blocked);
     sigaddset(&blocked, SIGPIPE);
-    if (sigprocmask(SIG_BLOCK, &blocked, &previous) != 0)
+    const blockError = signalMask(
+        SignalMaskOperation.block,
+        &blocked,
+        &previous,
+    );
+    if (blockError.failed)
         return PipeWriteResult(
-            lastError(),
+            blockError,
             0,
             PipeWriteState.data,
         );
@@ -155,7 +160,7 @@ PipeWriteResult writeSome(
     if (sigpending(&pending) != 0)
     {
         const pendingError = lastError();
-        cast(void) sigprocmask(SIG_SETMASK, &previous, null);
+        cast(void) signalMask(SignalMaskOperation.setMask, &previous, null);
         return PipeWriteResult(
             pendingError,
             0,
@@ -178,9 +183,14 @@ PipeWriteResult writeSome(
         }
     }
 
-    if (sigprocmask(SIG_SETMASK, &previous, null) != 0)
+    const restoreError = signalMask(
+        SignalMaskOperation.setMask,
+        &previous,
+        null,
+    );
+    if (restoreError.failed)
         return PipeWriteResult(
-            lastError(),
+            restoreError,
             0,
             PipeWriteState.data,
         );

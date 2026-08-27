@@ -21,6 +21,7 @@ import xtb.result : Result;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.string;
 import xtb.thread_context : ThreadContextScope, scratchArena;
+import xtb.thread : Thread;
 import xtb.types : i64, u64, u8;
 
 static assert(!hasElaborateDestructor!DirectoryIterator);
@@ -66,6 +67,14 @@ private struct FileOwnerComposition
 }
 
 static assert(needsDeinit!FileOwnerComposition);
+
+version (linux) private int closedPipeWriteWorker(PipeWriter* writer) nothrow @system @nogc
+{
+    u8[1] payload = [1];
+    const result = writeSome(writer, payload[]);
+    return result.error.succeeded && result.state == PipeWriteState.peerClosed
+        ? 0 : 1;
+}
 
 version (linux) private size_t openDescriptorCount() nothrow @system @nogc
 {
@@ -850,6 +859,18 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     import xtb.process.environment : environmentVariable;
 
     ThreadContextScope context = ThreadContextScope.acquire();
+    Pipe closedPipe;
+    scope (exit)
+        closedPipe.deinit();
+    assert(createPipe(PipeOptions.init, &closedPipe).succeeded);
+    assert(close(&closedPipe.reader).succeeded);
+    auto closedPipeStarted = Thread.start!closedPipeWriteWorker(
+        &closedPipe.writer,
+    );
+    assert(closedPipeStarted.isOk);
+    Thread closedPipeThread = closedPipeStarted.unwrap();
+    assert(closedPipeThread.join() == 0);
+
     enum rootPattern = "/tmp/xtb-system-XXXXXX";
     char[rootPattern.length + 1] rootStorage;
     rootStorage[0 .. rootPattern.length] = rootPattern;
