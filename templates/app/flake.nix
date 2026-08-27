@@ -58,7 +58,7 @@
           version = "0.1.0";
           src = applicationSource;
 
-          nativeBuildInputs = [pkgs.ldc pkgs.dub];
+          nativeBuildInputs = [pkgs.ldc pkgs.dub pkgs.pkg-config];
           buildInputs = [xtbSource xtbLibrary];
 
           XTB_IMPORT_PATH = "${xtbSource}/include";
@@ -142,6 +142,7 @@
         packages = [
           pkgs.ldc
           pkgs.dub
+          pkgs.pkg-config
           pkgs.dscanner
           pkgs.dformat
           pkgs.just
