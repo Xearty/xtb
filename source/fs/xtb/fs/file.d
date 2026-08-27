@@ -6,12 +6,16 @@ import xtb.containers.array;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
-import xtb.thread_context : ScratchScope;
 import xtb.types : i64, u16, u32, u64, u8;
-import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
+import xtb.os.error : OsError, OsErrorKind;
 import xtb.fs.path : Path;
 
-version (linux) import core.sys.posix.sys.stat : NativeStat = stat_t;
+import xtb.fs.internal.file : NativeFileMetadata, NativeFileType;
+
+version (linux)
+    private import backend = xtb.fs.internal.linux.file;
+else
+    private import backend = xtb.fs.internal.unsupported.file;
 
 enum FileType : ubyte
 {
@@ -84,19 +88,9 @@ nothrow @nogc:
     {
         if (!valid)
             return OsError.init;
-        version (linux)
-        {
-            import core.sys.posix.unistd : nativeClose = close;
-
-            const descriptor = descriptor_;
-            descriptor_ = -1;
-            return nativeClose(descriptor) == 0 ? OsError.init : lastError();
-        }
-        else
-        {
-            descriptor_ = -1;
-            return unsupported();
-        }
+        const descriptor = descriptor_;
+        descriptor_ = -1;
+        return backend.closeDescriptor(descriptor);
     }
 
     /// Explicitly ends this file's lifetime.
@@ -129,14 +123,7 @@ OsError flush(File* file) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for flush");
-    version (linux)
-    {
-        import core.sys.posix.unistd : fsync;
-
-        return fsync(file.descriptor_) == 0 ? OsError.init : lastError();
-    }
-    else
-        return unsupported();
+    return backend.flushDescriptor(file.descriptor_);
 }
 
 OsError open(Path path, OpenOptions options, File* output) @system
@@ -148,32 +135,22 @@ OsError open(Path path, OpenOptions options, File* output) @system
         return cleanupError;
     if (!valid(options))
         return OsError(OsErrorKind.invalidArgument, 0);
-    version (linux)
-    {
-        import core.sys.posix.fcntl : O_APPEND, O_CLOEXEC, O_CREAT, O_EXCL,
-            O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY, open;
-
-        ScratchScope scratch = ScratchScope.acquire();
-        StringBuf native = StringBuf.fromString(scratch.allocator, path.view);
-        int flags = options.read && options.write ? O_RDWR : options.write ? O_WRONLY : O_RDONLY;
-        if (options.createMode != CreateMode.openExisting)
-            flags |= O_CREAT;
-        if (options.truncate)
-            flags |= O_TRUNC;
-        if (options.append)
-            flags |= O_APPEND;
-        if (options.createMode == CreateMode.createNew)
-            flags |= O_EXCL;
-        if (options.closeOnExec)
-            flags |= O_CLOEXEC;
-        const descriptor = open(native.checkedCString, flags, cast(uint) options.permissions);
-        if (descriptor < 0)
-            return lastError();
-        output.descriptor_ = descriptor;
-        return OsError.init;
-    }
-    else
-        return unsupported();
+    int descriptor = -1;
+    const error = backend.openFile(
+        path.view,
+        options.read,
+        options.write,
+        cast(ubyte) options.createMode,
+        options.truncate,
+        options.append,
+        options.closeOnExec,
+        options.permissions,
+        &descriptor,
+    );
+    if (error.failed)
+        return error;
+    output.descriptor_ = descriptor;
+    return OsError.init;
 }
 
 private bool valid(OpenOptions options) pure @safe
@@ -193,44 +170,16 @@ IoResult readSome(File* file, u8[] output) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for read");
-    version (linux)
-    {
-        import core.stdc.errno : EINTR, errno;
-        import core.sys.posix.unistd : read;
-
-        for (;;)
-        {
-            const amount = read(file.descriptor_, output.ptr, output.length);
-            if (amount >= 0)
-                return IoResult(OsError.init, cast(size_t) amount);
-            if (errno != EINTR)
-                return IoResult(lastError(), 0);
-        }
-    }
-    else
-        return IoResult(unsupported(), 0);
+    const result = backend.readSome(file.descriptor_, output);
+    return IoResult(result.error, result.transferred);
 }
 
 IoResult writeSome(File* file, scope const(u8)[] input) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for write");
-    version (linux)
-    {
-        import core.stdc.errno : EINTR, errno;
-        import core.sys.posix.unistd : write;
-
-        for (;;)
-        {
-            const amount = write(file.descriptor_, input.ptr, input.length);
-            if (amount >= 0)
-                return IoResult(OsError.init, cast(size_t) amount);
-            if (errno != EINTR)
-                return IoResult(lastError(), 0);
-        }
-    }
-    else
-        return IoResult(unsupported(), 0);
+    const result = backend.writeSome(file.descriptor_, input);
+    return IoResult(result.error, result.transferred);
 }
 
 IoResult readAll(File* file, u8[] output) @system
@@ -267,18 +216,12 @@ OsError metadata(File* file, FileMetadata* output) @system
         require(output !is null, "FileMetadata output pointer is null");
     }
     *output = FileMetadata.init;
-    version (linux)
-    {
-        import core.sys.posix.sys.stat : fstat, stat_t;
-
-        stat_t native;
-        if (fstat(file.descriptor_, &native) != 0)
-            return lastError();
-        return convert(native, output)
-            ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
-    }
-    else
-        return unsupported();
+    NativeFileMetadata native;
+    const error = backend.descriptorMetadata(file.descriptor_, &native);
+    if (error.failed)
+        return error;
+    *output = fromNative(native);
+    return OsError.init;
 }
 
 OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) @system
@@ -288,86 +231,55 @@ OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) @system
     *output = FileMetadata.init;
     if (cast(ubyte) symlinks > cast(ubyte) SymlinkMode.follow)
         return OsError(OsErrorKind.invalidArgument, 0);
-    version (linux)
-    {
-        import core.sys.posix.sys.stat : lstat, stat, stat_t;
 
-        ScratchScope scratch = ScratchScope.acquire();
-        StringBuf nativePath = StringBuf.fromString(scratch.allocator, path.view);
-        stat_t native;
-        const state = symlinks == SymlinkMode.follow
-            ? stat(nativePath.checkedCString, &native) : lstat(nativePath.checkedCString, &native);
-        if (state != 0)
-            return lastError();
-        return convert(native, output)
-            ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
-    }
-    else
-        return unsupported();
+    NativeFileMetadata native;
+    const error = backend.pathMetadata(
+        path.view,
+        symlinks == SymlinkMode.follow,
+        &native,
+    );
+    if (error.failed)
+        return error;
+    *output = fromNative(native);
+    return OsError.init;
 }
 
-version (linux) private bool convert(
-    ref const NativeStat native,
-    FileMetadata* output,
-) pure @system
+private FileMetadata fromNative(NativeFileMetadata native) pure @safe
 {
-    import core.sys.posix.sys.stat : S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
-        S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK;
-
     FileType type;
-    switch (native.st_mode & S_IFMT)
+    final switch (native.type)
     {
-        case S_IFREG:
-            type = FileType.regular;
-            break;
-        case S_IFDIR:
-            type = FileType.directory;
-            break;
-        case S_IFLNK:
-            type = FileType.symbolicLink;
-            break;
-        case S_IFCHR:
-            type = FileType.characterDevice;
-            break;
-        case S_IFBLK:
-            type = FileType.blockDevice;
-            break;
-        case S_IFIFO:
-            type = FileType.fifo;
-            break;
-        case S_IFSOCK:
-            type = FileType.socket;
-            break;
-        default:
+        case NativeFileType.unknown:
             type = FileType.unknown;
             break;
+        case NativeFileType.regular:
+            type = FileType.regular;
+            break;
+        case NativeFileType.directory:
+            type = FileType.directory;
+            break;
+        case NativeFileType.symbolicLink:
+            type = FileType.symbolicLink;
+            break;
+        case NativeFileType.characterDevice:
+            type = FileType.characterDevice;
+            break;
+        case NativeFileType.blockDevice:
+            type = FileType.blockDevice;
+            break;
+        case NativeFileType.fifo:
+            type = FileType.fifo;
+            break;
+        case NativeFileType.socket:
+            type = FileType.socket;
+            break;
     }
-    i64 seconds;
-    i64 nanoseconds;
-    static if (__traits(hasMember, NativeStat, "st_mtim"))
-    {
-        seconds = cast(i64) native.st_mtim.tv_sec;
-        nanoseconds = cast(i64) native.st_mtim.tv_nsec;
-    }
-    else
-    {
-        seconds = cast(i64) native.st_mtime;
-        nanoseconds = cast(i64) native.st_mtimensec;
-    }
-    if (native.st_size < 0 || nanoseconds < 0 ||
-        nanoseconds >= 1_000_000_000)
-        return false;
-    enum i64 nanosecondsPerSecond = 1_000_000_000L;
-    if (seconds < i64.min / nanosecondsPerSecond ||
-        seconds > i64.max / nanosecondsPerSecond)
-        return false;
-    *output = FileMetadata(
+    return FileMetadata(
         type,
-        cast(u64) native.st_size,
-        seconds * nanosecondsPerSecond + nanoseconds,
-        cast(u32) native.st_mode & 0xFFF,
+        native.size,
+        native.modifiedNanoseconds,
+        native.permissions,
     );
-    return true;
 }
 
 OsError readEntireFile(Path path, ref Array!u8 output) @system
@@ -440,28 +352,4 @@ OsError copyFile(
     if (error.failed)
         return error;
     return writeEntireFile(destination, buffer.slice, createMode);
-}
-
-version (linux) pure @system unittest
-{
-    import core.sys.posix.sys.stat : S_IFREG;
-
-    NativeStat native;
-    native.st_mode = S_IFREG | 0x180;
-    native.st_size = 7;
-    static if (__traits(hasMember, NativeStat, "st_mtim"))
-    {
-        native.st_mtim.tv_sec = -1;
-        native.st_mtim.tv_nsec = 500_000_000;
-    }
-    else
-    {
-        native.st_mtime = -1;
-        native.st_mtimensec = 500_000_000;
-    }
-    FileMetadata result;
-    assert(convert(native, &result));
-    assert(result.type == FileType.regular);
-    assert(result.size == 7);
-    assert(result.modifiedNanoseconds == -500_000_000);
 }
