@@ -13,7 +13,7 @@ import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
 
-package(xtb) enum size_t defaultVirtualCommitGranularity = 64 * 1024;
+package(xtb.containers) enum size_t defaultVirtualCommitGranularity = 64 * 1024;
 
 private template supportsDefaultInitialization(T)
 {
@@ -341,7 +341,7 @@ public:
         return data_[index];
     }
 
-package(xtb):
+package(xtb.containers):
     /// Makes the raw typed prefix `[0 .. elementCount)` accessible without
     /// constructing elements or changing logical length.
     ///
@@ -386,7 +386,7 @@ static assert(needsDeinit!(VirtualArray!ubyte));
 /// finalizes `T`. It owns only its local provision/commit bookkeeping, so it is
 /// deliberately non-copyable. `deinit` ends that local borrow and resets the
 /// view without touching the parent reservation.
-package(xtb) struct VirtualArrayView(T)
+package(xtb.containers) struct VirtualArrayView(T)
 {
 nothrow @nogc:
 
@@ -578,14 +578,14 @@ static assert(needsDeinit!(VirtualArrayView!ubyte));
 ///
 /// This is shared by owning arrays and internal multi-region containers such
 /// as Pool so alignment/overflow rules cannot drift between representations.
-package(xtb) struct VirtualArrayRegionGeometry
+package(xtb.containers) struct VirtualArrayRegionGeometry
 {
     size_t regionBytes;
     size_t baseAlignment;
     size_t alignmentSlack;
 }
 
-package(xtb) bool tryVirtualArrayRegionGeometry(T)(
+package(xtb.containers) bool tryVirtualArrayRegionGeometry(T)(
     size_t capacity,
     size_t pageSize,
     scope VirtualArrayRegionGeometry* output,
@@ -720,7 +720,7 @@ private bool tryLeastCommonMultiple(
     return true;
 }
 
-package(xtb) bool tryAlignAddressUp(
+package(xtb.containers) bool tryAlignAddressUp(
     void* address,
     size_t alignment,
     scope void** output,

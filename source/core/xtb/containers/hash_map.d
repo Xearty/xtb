@@ -64,7 +64,7 @@ enum AddStatus
     outOfMemory,
 }
 
-package(xtb) enum PrepareInsertStatus
+package(xtb.containers) enum PrepareInsertStatus
 {
     ready,
     alreadyPresent,
@@ -73,7 +73,7 @@ package(xtb) enum PrepareInsertStatus
 
 /// Package-private token proving that a concrete insertion slot has been
 /// prepared and that committing the entry cannot allocate.
-package(xtb) struct PreparedHashMapInsert
+package(xtb.containers) struct PreparedHashMapInsert
 {
 private:
     void* entriesIdentity_;
@@ -844,7 +844,7 @@ public:
             panic("HashMap allocation failed");
     }
 
-package(xtb):
+package(xtb.containers):
     PrepareInsertStatus prepareInsert(
         Allocator* allocator,
         scope Lookup key,
@@ -1417,7 +1417,7 @@ public:
         return allocator_;
     }
 
-package(xtb):
+package(xtb.containers):
     static Self adoptUnmanaged(
         Allocator* allocator,
         scope Storage* storage,

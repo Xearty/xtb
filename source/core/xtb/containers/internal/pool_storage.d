@@ -13,7 +13,7 @@ import xtb.containers.virtual_array : tryAlignAddressUp,
 /// The regions are, in order: stable `T` values, caller-selected per-index
 /// state, and a `uint` recycling stack. This module is package-private storage
 /// machinery shared by `Pool!T` and `GenerationalPool!T`.
-package(xtb) struct IndexedPoolStorageLayout
+package(xtb.containers) struct IndexedPoolStorageLayout
 {
     VirtualArrayRegionGeometry values;
     VirtualArrayRegionGeometry states;
@@ -23,7 +23,7 @@ package(xtb) struct IndexedPoolStorageLayout
     size_t reservationBytes;
 }
 
-package(xtb) bool tryIndexedPoolStorageLayout(T, State)(
+package(xtb.containers) bool tryIndexedPoolStorageLayout(T, State)(
     uint capacity,
     size_t stateCapacity,
     size_t pageSize,
@@ -69,7 +69,7 @@ package(xtb) bool tryIndexedPoolStorageLayout(T, State)(
     return true;
 }
 
-package(xtb) bool tryIndexedPoolStorageRegions(
+package(xtb.containers) bool tryIndexedPoolStorageRegions(
     ref VirtualMemoryReservation reservation,
     scope const IndexedPoolStorageLayout layout,
     scope VirtualMemoryRegion* values,

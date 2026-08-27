@@ -304,7 +304,7 @@ String trimAscii(return scope String value) pure @safe
     return value.trimAsciiStart().trimAsciiEnd();
 }
 
-package(xtb) char escapedCharacter(char value) pure @safe
+private char escapedCharacter(char value) pure @safe
 {
     switch (value)
     {
@@ -580,7 +580,7 @@ public:
         return true;
     }
 
-package(xtb):
+private:
     static StringBufUnmanaged adopt(
         char* data,
         size_t length,
@@ -593,6 +593,7 @@ package(xtb):
         return result;
     }
 
+package(xtb):
     /// Detaches storage whose allocation size is exactly the logical length.
     /// The returned token owns the allocation but carries no allocator.
     RawArrayStorage!char releaseExactStorage() @system

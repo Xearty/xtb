@@ -1013,7 +1013,7 @@ public:
         return allocator_;
     }
 
-package(xtb):
+package(xtb.containers):
     static if (!ownsValues)
     {
         static Self adoptUnmanaged(

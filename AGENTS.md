@@ -105,6 +105,11 @@ Before changing public APIs, inspect their existing call sites.
 - Re-export stable public modules from the corresponding public `package.d` so
   consumers can use short imports. Keep implementation imports focused and do
   not put implementation code in `package.d`.
+- Use the narrowest D protection boundary that fits an internal API. Prefer
+  `private` for same-module implementation details and `package(xtb.<domain>)`
+  for helpers shared only within one namespace. Reserve `package(xtb)` for
+  intentional XTB-internal bridges that must cross sibling namespaces; do not
+  use it as a default friend mechanism.
 - Preserve the existing public API unless the task explicitly requires a change.
 - Keep allocator vocabulary explicit: `allocate!T()` is raw storage for one
   object, `allocateArray!T(n)` returns raw array storage as a slice,

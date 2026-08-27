@@ -494,7 +494,7 @@ public:
         return allocator_;
     }
 
-package(xtb):
+package(xtb.containers):
     static Self adoptUnmanaged(Allocator* allocator, scope Storage* storage) @system
     {
         requireValidHashAllocator(allocator);
