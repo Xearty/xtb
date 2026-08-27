@@ -79,10 +79,7 @@ private bool timestampPrefixCallback(void* context, LogPrefixWriter* output)
     if (timestamp is null || output is null)
         return false;
 
-    Timestamp now;
-    if (Timestamp.now(&now).failed)
-        return false;
-
+    const now = Timestamp.now();
     return writeTimestampPrefix(
         timestamp.options_,
         now.nanosecondsSinceUnixEpoch,

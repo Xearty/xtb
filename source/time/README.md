@@ -4,15 +4,13 @@
 measurement.
 
 ```d
-Timestamp timestamp;
-if (Timestamp.now(&timestamp).failed)
-    return 1;
-
-Instant started;
-if (Instant.now(&started).failed)
-    return 1;
+const timestamp = Timestamp.now();
+const started = Instant.now();
+// ... work ...
+const elapsed = Instant.now().since(started);
 ```
 
 `Timestamp` is wall-clock time relative to the Unix epoch and can move when the
 system clock changes. `Instant` uses the system monotonic clock and is intended
-for measuring elapsed time.
+for measuring elapsed time. Clock sampling is infallible at this API level; an
+unexpected platform clock failure panics.

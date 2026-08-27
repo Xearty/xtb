@@ -2,9 +2,9 @@ module xtb.time;
 
 nothrow @nogc:
 
+import xtb.panic : panic;
 version (XTB_Checked) import xtb.panic : require;
 import xtb.duration : Duration, durationNanoseconds = nanoseconds;
-import xtb.os.error : OsError;
 import xtb.os.time : monotonicNanoseconds, wallClockNanoseconds;
 import xtb.types : i64, u64;
 
@@ -18,19 +18,15 @@ nothrow @nogc:
 
     private i64 nanoseconds_;
 
-    static OsError now(Timestamp* output) @system
+    /// Samples the system wall clock.
+    ///
+    /// Panics if the platform clock unexpectedly cannot be read.
+    static Timestamp now() @trusted
     {
-        version (XTB_Checked)
-            require(output !is null, "timestamp output pointer is null");
-
-        *output = Timestamp.init;
         i64 value;
-        const error = wallClockNanoseconds(&value);
-        if (error.failed)
-            return error;
-
-        output.nanoseconds_ = value;
-        return OsError.init;
+        if (wallClockNanoseconds(&value).failed)
+            panic("failed to read wall clock");
+        return Timestamp(value);
     }
 
     i64 nanosecondsSinceUnixEpoch() const pure @safe
@@ -55,19 +51,15 @@ nothrow @nogc:
 
     private u64 nanoseconds_;
 
-    static OsError now(Instant* output) @system
+    /// Samples the system monotonic clock.
+    ///
+    /// Panics if the platform clock unexpectedly cannot be read.
+    static Instant now() @trusted
     {
-        version (XTB_Checked)
-            require(output !is null, "instant output pointer is null");
-
-        *output = Instant.init;
         u64 value;
-        const error = monotonicNanoseconds(&value);
-        if (error.failed)
-            return error;
-
-        output.nanoseconds_ = value;
-        return OsError.init;
+        if (monotonicNanoseconds(&value).failed)
+            panic("failed to read monotonic clock");
+        return Instant(value);
     }
 
     u64 nanoseconds() const pure @safe
@@ -98,15 +90,12 @@ unittest
 {
     import xtb.os.time : sleepNanoseconds;
 
-    Timestamp timestamp;
-    assert(Timestamp.now(&timestamp).succeeded);
+    const timestamp = Timestamp.now();
     assert(timestamp.nanosecondsSinceUnixEpoch != 0);
 
-    Instant before;
-    Instant after;
-    assert(Instant.now(&before).succeeded);
+    const before = Instant.now();
     assert(sleepNanoseconds(1_000_000).succeeded);
-    assert(Instant.now(&after).succeeded);
+    const after = Instant.now();
     assert(after >= before);
     assert(after.since(before).totalNanoseconds <= after.nanoseconds);
 }
