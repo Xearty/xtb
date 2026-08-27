@@ -368,10 +368,12 @@ unittest
 
     FILE* ansiFile = tmpfile();
     assert(ansiFile !is null);
-    scope(exit) assert(fclose(ansiFile) == 0);
+    scope (exit)
+        assert(fclose(ansiFile) == 0);
     FILE* plainFile = tmpfile();
     assert(plainFile !is null);
-    scope(exit) assert(fclose(plainFile) == 0);
+    scope (exit)
+        assert(fclose(plainFile) == 0);
 
     TeeLogSink sharedOutputs = TeeLogSink.create(
         ansiFileLogSink(ansiFile),
@@ -397,7 +399,7 @@ unittest
     const ansiText = cast(String) ansiBytes[0 .. ansiLength];
     const plainText = cast(String) plainBytes[0 .. plainLength];
     assert(ansiText.contains("\x1b[2;38;2;90;100;110m"));
-    assert(ansiText.endsWith("started\n"));
+    assert(ansiText.endsWith("started\x1b[0m\n"));
     assert(plainText.length > " [info]    started\n".length);
     assert(plainText.endsWith(" [info]    started\n"));
     foreach (value; plainText)
@@ -405,10 +407,12 @@ unittest
 
     FILE* terminal = tmpfile();
     assert(terminal !is null);
-    scope(exit) assert(fclose(terminal) == 0);
+    scope (exit)
+        assert(fclose(terminal) == 0);
     FILE* logfile = tmpfile();
     assert(logfile !is null);
-    scope(exit) assert(fclose(logfile) == 0);
+    scope (exit)
+        assert(fclose(logfile) == 0);
 
     TimestampLogPrefix fileTimestamp = TimestampLogPrefix.create(options);
     PrefixLogSink timestampedFile = PrefixLogSink.create(
