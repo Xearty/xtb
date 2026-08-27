@@ -1,7 +1,8 @@
 module examples.process_demo;
 
 import xtb;
-import xtb.os;
+import xtb.os : PipeReadState, PipeReader, readSome;
+import xtb.process;
 
 version (linux)
 {

@@ -1,4 +1,4 @@
-module xtb.os.pipeline;
+module xtb.process.pipeline;
 
 nothrow @nogc:
 
@@ -13,7 +13,7 @@ import xtb.types : u8;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.pipe : Pipe, PipeOptions, PipeReader, PipeWriter, close,
     createPipe;
-import xtb.os.process : ChildProcess, Command, ErrorRoute, ExitStatus,
+import xtb.process.process : ChildProcess, Command, ErrorRoute, ExitStatus,
     InputRoute, OutputRoute, ProcessError, ProcessIsolation, ProcessOperation,
     ProcessId, SignalMaskPolicy, SpawnOptions, WaitState, childKill = kill,
     childRequestTermination = requestTermination, rollbackSpawnedProcess, spawn,

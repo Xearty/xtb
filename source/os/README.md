@@ -1,10 +1,8 @@
 # os
 
-`import xtb.os;` exposes files, paths, directories, memory maps, environment
-access, low-level time primitives, ANSI output capability detection, pipes, child processes, and
-linear pipelines. Resources use explicit ownership and expected failures are
-returned as typed status/error values.
+`import xtb.os;` exposes low-level operating-system mechanisms and error
+translation used by higher-level XTB domains. It currently includes files and
+paths pending extraction, environment access, clock primitives, terminal
+capability queries, memory mapping, and pipes.
 
-See [processes and pipelines](docs/processes.md),
-[`os_demo.d`](../../examples/os_demo.d), and
-[`process_demo.d`](../../examples/process_demo.d).
+See [`os_demo.d`](../../examples/os_demo.d).

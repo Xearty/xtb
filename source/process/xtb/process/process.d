@@ -1,4 +1,4 @@
-module xtb.os.process;
+module xtb.process.process;
 
 nothrow @nogc:
 
@@ -1505,7 +1505,7 @@ version (linux) private ProcessError signalLinux(
         ? ProcessError.init : ProcessError(lastError(), operation);
 }
 
-package(xtb.os) void rollbackSpawnedProcess(ChildProcess* child) @system
+package(xtb.process) void rollbackSpawnedProcess(ChildProcess* child) @system
 {
     if (child is null || !child.ownsProcess)
         return;

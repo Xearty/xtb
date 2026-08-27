@@ -1,4 +1,4 @@
-module xtb.os.process_io;
+module xtb.process.io;
 
 nothrow @nogc:
 
@@ -10,7 +10,7 @@ import xtb.types : u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
 import xtb.os.pipe : PipeReadState, PipeReader, PipeWriteState, PipeWriter,
     close, readSome, writeSome;
-import xtb.os.process : ChildProcess, ExitStatus, ProcessError,
+import xtb.process.process : ChildProcess, ExitStatus, ProcessError,
     ProcessOperation, WaitState, kill, requestTermination, tryWait;
 import xtb.os.time : Timeout, TimeoutKind, monotonicNanoseconds,
     sleepNanoseconds;
