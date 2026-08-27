@@ -13,7 +13,7 @@ int main(string[] args)
             "mode", &options.mode,
             "output", &options.outputDirectory,
         );
-        options.features = args[1 .. $];
+        options.subpackages = args[1 .. $];
         const library = compose(options, ".");
         writeln(library);
         return 0;

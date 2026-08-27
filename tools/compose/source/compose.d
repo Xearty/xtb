@@ -15,28 +15,28 @@ struct ComposeOptions
 {
     string mode = "debug";
     string outputDirectory;
-    string[] features;
+    string[] subpackages;
 }
 
-string[] canonicalFeaturesFromDescribe(scope const(char)[] jsonText)
+string[] canonicalSubpackagesFromDescribe(scope const(char)[] jsonText)
 {
     auto document = parseJSON(jsonText);
-    string[] features;
+    string[] subpackages;
 
     foreach (packageValue; document["packages"].array)
     {
         const name = packageValue["name"].str;
         if (name.startsWith("xtb:"))
-            features ~= name[4 .. $];
+            subpackages ~= name[4 .. $];
     }
 
-    features.sort();
-    return features.uniq.array;
+    subpackages.sort();
+    return subpackages.uniq.array;
 }
 
-string canonicalFeatureName(scope const(string)[] features)
+string canonicalSubpackageSetName(scope const(string)[] subpackages)
 {
-    auto copy = features.dup;
+    auto copy = subpackages.dup;
     copy.sort();
     return copy.uniq.array.join("+");
 }
@@ -88,10 +88,10 @@ private string composeCacheDirectory(string repositoryRoot)
     );
 }
 
-private string[] availableFeatures(string repositoryRoot)
+private string[] availableSubpackages(string repositoryRoot)
 {
     enum prefix = `subPackage "source/`;
-    string[] features;
+    string[] subpackages;
 
     foreach (rawLine; readText(buildPath(repositoryRoot, "dub.sdl")).splitLines())
     {
@@ -99,31 +99,31 @@ private string[] availableFeatures(string repositoryRoot)
         if (!line.startsWith(prefix) || !line.endsWith(`"`))
             continue;
 
-        const feature = line[prefix.length .. $ - 1];
-        if (!feature.length || baseName(feature) != feature)
+        const subpackage = line[prefix.length .. $ - 1];
+        if (!subpackage.length || baseName(subpackage) != subpackage)
             throw new Exception("invalid subpackage path: " ~ line);
-        if (!isFile(buildPath(repositoryRoot, "source", feature, "dub.sdl")))
-            throw new Exception("subpackage is missing its recipe: " ~ feature);
-        if (features.canFind(feature))
-            throw new Exception("duplicate subpackage: " ~ feature);
-        features ~= feature;
+        if (!isFile(buildPath(repositoryRoot, "source", subpackage, "dub.sdl")))
+            throw new Exception("subpackage is missing its recipe: " ~ subpackage);
+        if (subpackages.canFind(subpackage))
+            throw new Exception("duplicate subpackage: " ~ subpackage);
+        subpackages ~= subpackage;
     }
 
-    features.sort();
-    if (!features.canFind("core"))
+    subpackages.sort();
+    if (!subpackages.canFind("core"))
         throw new Exception("the root package does not declare the core subpackage");
-    return features;
+    return subpackages;
 }
 
-private void validateFeatures(
+private void validateSubpackages(
     scope const(string)[] requested,
     scope const(string)[] available,
 )
 {
-    foreach (feature; requested)
-        if (!available.canFind(feature))
+    foreach (subpackage; requested)
+        if (!available.canFind(subpackage))
             throw new Exception(
-                "unknown subpackage: " ~ feature ~
+                "unknown subpackage: " ~ subpackage ~
                     "\navailable subpackages: " ~ available.join(", "),
             );
 }
@@ -179,8 +179,8 @@ SDL";
     auto roots = requested.dup;
     roots ~= "core";
     roots.sort();
-    foreach (feature; roots.uniq)
-        result ~= "dependency \"xtb:" ~ feature ~ "\" path=" ~ quoteSdl(repositoryRoot) ~ "\n";
+    foreach (subpackage; roots.uniq)
+        result ~= "dependency \"xtb:" ~ subpackage ~ "\" path=" ~ quoteSdl(repositoryRoot) ~ "\n";
     return result;
 }
 
@@ -338,15 +338,15 @@ private string composeInRepository(
 )
 {
     const buildType = dubBuildType(options.mode);
-    const features = availableFeatures(repositoryRoot);
-    validateFeatures(options.features, features);
+    const subpackages = availableSubpackages(repositoryRoot);
+    validateSubpackages(options.subpackages, subpackages);
     const compiler = environment.get("DC", "ldc2");
-    const requestedKey = canonicalFeatureName(options.features.length ? options.features : ["core"]);
+    const requestedKey = canonicalSubpackageSetName(options.subpackages.length ? options.subpackages : ["core"]);
     const modeRoot = buildPath(repositoryRoot, "build", "compose", options.mode);
     const resolveRoot = buildPath(cacheRoot, options.mode, requestedKey);
     mkdirRecurse(resolveRoot);
 
-    const recipe = aggregatorRecipe(repositoryRoot, options.features);
+    const recipe = aggregatorRecipe(repositoryRoot, options.subpackages);
     writeIfChanged(buildPath(resolveRoot, "dub.sdl"), recipe);
     writeIfChanged(buildPath(resolveRoot, "anchor.d"), "module xtb_compose_anchor;\n");
     writeIfChanged(buildPath(resolveRoot, "dub.selections.json"), "{\n\t\"fileVersion\": 1,\n\t\"versions\": {}\n}\n");
@@ -360,11 +360,11 @@ private string composeInRepository(
     if (describe.status != 0)
         throw new Exception("DUB dependency resolution failed:\n" ~ describe.output);
 
-    const resolved = canonicalFeaturesFromDescribe(describe.output);
-    validateFeatures(resolved, features);
+    const resolved = canonicalSubpackagesFromDescribe(describe.output);
+    validateSubpackages(resolved, subpackages);
     if (!resolved.canFind("core"))
         throw new Exception("DUB resolved a subpackage closure without core");
-    const canonical = canonicalFeatureName(resolved);
+    const canonical = canonicalSubpackageSetName(resolved);
     string diagnosticsNativeArchive;
     version (linux)
     {
@@ -416,13 +416,13 @@ private string composeInRepository(
 
 unittest
 {
-    assert(canonicalFeatureName(["math", "core", "log", "core"]) == "core+log+math");
+    assert(canonicalSubpackageSetName(["math", "core", "log", "core"]) == "core+log+math");
 }
 
 unittest
 {
     const json = `{"packages":[{"name":"xtb-compose"},{"name":"xtb:os"},{"name":"xtb:core"},{"name":"xtb:log"}]}`;
-    assert(canonicalFeatureName(canonicalFeaturesFromDescribe(json)) == "core+log+os");
+    assert(canonicalSubpackageSetName(canonicalSubpackagesFromDescribe(json)) == "core+log+os");
 }
 
 unittest
@@ -454,19 +454,19 @@ unittest
     expectRejected(invalidMode);
     assert(!exists(buildPath(root, "escaped-mode")));
 
-    ComposeOptions traversalFeature;
-    traversalFeature.features = ["../../escaped-feature"];
-    expectRejected(traversalFeature);
+    ComposeOptions traversalSubpackage;
+    traversalSubpackage.subpackages = ["../../escaped-subpackage"];
+    expectRejected(traversalSubpackage);
 
-    const absoluteFeature = buildPath(root, "escaped-absolute-feature");
-    ComposeOptions absoluteFeatureOptions;
-    absoluteFeatureOptions.features = [absoluteFeature];
-    expectRejected(absoluteFeatureOptions);
-    assert(!exists(absoluteFeature));
+    const absoluteSubpackage = buildPath(root, "escaped-absolute-subpackage");
+    ComposeOptions absoluteSubpackageOptions;
+    absoluteSubpackageOptions.subpackages = [absoluteSubpackage];
+    expectRejected(absoluteSubpackageOptions);
+    assert(!exists(absoluteSubpackage));
 
-    ComposeOptions unknownFeature;
-    unknownFeature.features = ["unknown"];
-    expectRejected(unknownFeature);
+    ComposeOptions unknownSubpackage;
+    unknownSubpackage.subpackages = ["unknown"];
+    expectRejected(unknownSubpackage);
 }
 
 unittest
@@ -507,7 +507,7 @@ D");
 
     ComposeOptions options;
     options.mode = "release-safe";
-    options.features = ["core"];
+    options.subpackages = ["core"];
     const firstOutput = composeInRepository(options, root, cacheRoot);
     assert(isFile(firstOutput));
 

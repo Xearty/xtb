@@ -2,7 +2,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 set script-interpreter := ["bash", "-eu", "-o", "pipefail"]
 
 d_files := `find source tools tests examples benchmarks -type f -name '*.d' -print | sort | tr '\n' ' '`
-feature_subpackages := `for recipe in source/*/dub.sdl; do sed -n 's/^name "\([^"]*\)".*/\1/p' "$recipe" | head -n 1; done | sort | tr '\n' ' '`
+subpackages := `for recipe in source/*/dub.sdl; do sed -n 's/^name "\([^"]*\)".*/\1/p' "$recipe" | head -n 1; done | sort | tr '\n' ' '`
 example_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' examples/dub.sdl | tr '\n' ' '`
 benchmark_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' benchmarks/dub.sdl | tr '\n' ' '`
 test_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' tests/dub.sdl | tr '\n' ' '`
@@ -31,14 +31,14 @@ build kind="static" name="xtb" mode="debug": (_dispatch "build" kind name mode)
 compose *args:
     args=("$@")
     mode=debug
-    features=()
+    subpackages=()
     for arg in "${args[@]}"; do
         case "$arg" in
             debug|release-safe|release-fast) mode="$arg" ;;
-            *) features+=("$arg") ;;
+            *) subpackages+=("$arg") ;;
         esac
     done
-    dub run :compose {{ dub_options }} --temp-build -- --mode="$mode" "${features[@]}"
+    dub run :compose {{ dub_options }} --temp-build -- --mode="$mode" "${subpackages[@]}"
 
 # Run a named example, optionally selecting the build mode and forwarding
 # arguments after `--` to the executable.
@@ -151,9 +151,9 @@ _check-compose-diagnostics:
 # declared dependency closure. The no-op main keeps this a compile-only gate;
 # behavioral tests already run through the full development aggregate.
 [script]
-_check-feature-tests:
+_check-subpackage-tests:
     base_dflags="${DFLAGS-}"
-    features=({{ feature_subpackages }})
+    selected_subpackages=({{ subpackages }})
 
     for mode in debug release-safe release-fast; do
         case "$mode" in
@@ -172,9 +172,9 @@ _check-feature-tests:
         esac
 
         echo "Compiling isolated subpackages and unit tests ($mode)"
-        for feature in "${features[@]}"; do
+        for subpackage in "${selected_subpackages[@]}"; do
             test_args=(
-                ":$feature"
+                ":$subpackage"
                 {{ dub_options }}
                 --parallel
                 --build=plain
@@ -189,7 +189,7 @@ _check-feature-tests:
     done
 
 # Verify every subpackage boundary in the three public modes (slow and optional).
-check-features: _check-feature-tests
+check-subpackages: _check-subpackage-tests
 
 # Print supported modes and target names.
 [script]
@@ -205,8 +205,8 @@ targets:
 
     Composable subpackages:
     EOF
-    for feature in {{ feature_subpackages }}; do
-        printf '  %s\n' "$feature"
+    for subpackage in {{ subpackages }}; do
+        printf '  %s\n' "$subpackage"
     done
     cat <<'EOF'
 
@@ -403,11 +403,11 @@ _dispatch action kind name mode *program_args:
         fi
 
         echo "Building static xtb ($mode)"
-        features=({{ feature_subpackages }})
+        selected_subpackages=({{ subpackages }})
         dub run :compose {{ dub_options }} --temp-build -- \
             --mode="$mode" \
             --output="$XTB_LIBRARY_OUTPUT_DIR" \
-            "${features[@]}"
+            "${selected_subpackages[@]}"
     }
 
     resolve_example() {
