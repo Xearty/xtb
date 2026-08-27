@@ -44,9 +44,9 @@
         version = "0.1.0";
         src = projectSource;
         nativeBuildInputs = [pkgs.ldc pkgs.dub];
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
         XTB_DIAGNOSTICS_NATIVE_ARCHIVE =
-          lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a";
+          lib.optionalString pkgs.stdenv.hostPlatform.isLinux "${libbacktrace}/lib/libbacktrace.a";
         dontConfigure = true;
         dontStrip = true;
         buildPhase = ''
@@ -94,9 +94,9 @@
         version = "0.1.0";
         src = projectSource;
         nativeBuildInputs = [pkgs.ldc pkgs.dub pkgs.just];
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
         XTB_DIAGNOSTICS_NATIVE_ARCHIVE =
-          lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a";
+          lib.optionalString pkgs.stdenv.hostPlatform.isLinux "${libbacktrace}/lib/libbacktrace.a";
         dontConfigure = true;
         dontStrip = true;
         buildPhase = ''
@@ -142,9 +142,9 @@
           pkgs.dscanner
           pkgs.dformat
         ];
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
         XTB_DIAGNOSTICS_NATIVE_ARCHIVE =
-          lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a";
+          lib.optionalString pkgs.stdenv.hostPlatform.isLinux "${libbacktrace}/lib/libbacktrace.a";
         dontConfigure = true;
         buildPhase = ''
           runHook preBuild
@@ -177,11 +177,11 @@
           clang-tools
           lldb
         ];
-        buildInputs = lib.optionals pkgs.stdenv.isLinux [libbacktrace];
+        buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
 
         shellHook = ''
           export XTB_LIBRARY_OUTPUT_DIR=''${XTB_LIBRARY_OUTPUT_DIR:-"$PWD/build"}
-          export XTB_DIAGNOSTICS_NATIVE_ARCHIVE=${lib.optionalString pkgs.stdenv.isLinux "${libbacktrace}/lib/libbacktrace.a"}
+          export XTB_DIAGNOSTICS_NATIVE_ARCHIVE=${lib.optionalString pkgs.stdenv.hostPlatform.isLinux "${libbacktrace}/lib/libbacktrace.a"}
           echo "xtb BetterC shell: $(ldc2 --version | head -n 1)"
         '';
       };
