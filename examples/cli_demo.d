@@ -10,7 +10,7 @@ import xtb.option : Option;
 import xtb.fmt.print : writeln;
 import xtb.string : equal;
 import xtb.types : String;
-import xtb.os.terminal : shouldUseAnsi;
+import xtb.terminal : shouldUseAnsi;
 
 enum Profile
 {

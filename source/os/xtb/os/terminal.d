@@ -9,30 +9,13 @@ version (Posix)
 else
     private import backend = xtb.os.internal.unsupported.terminal;
 
-/// User policy for OS-aware ANSI capability selection.
-enum AnsiMode : ubyte
+/// Returns whether `file` refers to a native terminal device.
+///
+/// This is a low-level capability query only. Environment-based color policy
+/// belongs to the terminal domain above the OS boundary.
+bool isTerminal(FILE* file) @system
 {
-    automatic,
-    always,
-    never,
-}
-
-/**
- * Resolves whether ANSI styling should be used for `file`.
- *
- * Automatic mode is conservative: on POSIX it requires a terminal file
- * descriptor, rejects `TERM=dumb`, and honors a non-empty `NO_COLOR` value.
- * Platforms without a locally implemented detector return `false`. `always`
- * and `never` are explicit application overrides.
- */
-bool shouldUseAnsi(FILE* file, AnsiMode mode = AnsiMode.automatic) @system
-{
-    if (file is null || mode == AnsiMode.never)
-        return false;
-    if (mode == AnsiMode.always)
-        return true;
-
-    return backend.terminalSupportsAnsi(file);
+    return file !is null && backend.isTerminal(file);
 }
 
 unittest
@@ -41,9 +24,7 @@ unittest
 
     FILE* file = tmpfile();
     assert(file !is null);
-    assert(!shouldUseAnsi(file, AnsiMode.never));
-    assert(shouldUseAnsi(file, AnsiMode.always));
-    assert(!shouldUseAnsi(file, AnsiMode.automatic));
+    assert(!isTerminal(file));
     assert(fclose(file) == 0);
-    assert(!shouldUseAnsi(null, AnsiMode.always));
+    assert(!isTerminal(null));
 }

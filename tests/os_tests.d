@@ -2,7 +2,7 @@ module tests.os_tests;
 
 import xtb.fs.directory;
 import xtb.os.error;
-import xtb.os.environment;
+import xtb.process.environment;
 import xtb.fs.file;
 import xtb.fs.memory_map;
 import xtb.fs.path;
@@ -848,7 +848,7 @@ version (linux) private void runPipelineIntegration(
 version (linux) private void runLinuxIntegration() nothrow @system @nogc
 {
     import core.sys.posix.stdlib : mkdtemp;
-    import xtb.os.environment : environmentVariable;
+    import xtb.process.environment : environmentVariable;
 
     ThreadContextScope context = ThreadContextScope.acquire();
     enum rootPattern = "/tmp/xtb-os-XXXXXX";

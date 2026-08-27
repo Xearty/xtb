@@ -7,3 +7,6 @@ values.
 
 See [processes and pipelines](docs/guide.md) and
 [`process_demo.d`](../../examples/process_demo.d).
+
+The package also owns current-process environment lookup; the OS package only
+provides the native environment mechanism used underneath.

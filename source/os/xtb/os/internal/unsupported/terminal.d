@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE;
 
-package(xtb.os) bool terminalSupportsAnsi(FILE*) @system
+package(xtb.os) bool isTerminal(FILE*) @system
 {
     return false;
 }

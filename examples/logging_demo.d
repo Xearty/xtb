@@ -3,7 +3,7 @@ module examples.logging_demo;
 import core.stdc.stdio : FILE, fclose, ferror, fread, fwrite, rewind, stderr, tmpfile;
 import xtb;
 import xtb.log;
-import xtb.os : shouldUseAnsi;
+import xtb.terminal : shouldUseAnsi;
 
 private struct RequestId
 {
