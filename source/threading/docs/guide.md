@@ -33,5 +33,13 @@ without a higher-level lock. Thread start/join and synchronization primitives
 provide their documented ordering; unrelated non-atomic shared memory still
 requires synchronization.
 
+## Component boundary
+
+`xtb.thread` and `xtb.sync` are separate public namespaces inside one
+`xtb:threading` subpackage. This is deliberate: thread implementation can use
+synchronization primitives, and synchronization implementation can use
+current-thread operations, without turning that implementation relationship
+into a cycle between separately composable packages.
+
 The native threading backend is platform-specific. Check returned start/spawn
 errors rather than assuming thread creation succeeds.
