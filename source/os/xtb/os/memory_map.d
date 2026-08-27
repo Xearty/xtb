@@ -3,7 +3,6 @@ module xtb.os.memory_map;
 nothrow @nogc:
 
 version (XTB_Checked) import xtb.panic : require;
-import xtb.string : String;
 import xtb.types : u8;
 import xtb.os.error : OsError;
 
@@ -58,17 +57,25 @@ OsError unmap(MemoryMapping* mapping) @system
     return backend.unmapImpl(address, length);
 }
 
-OsError mapFileReadOnly(String path, MemoryMapping* output) @system
+/// Maps `length` bytes from an already-open native file descriptor read-only.
+///
+/// The descriptor remains borrowed and may be closed after this call returns.
+/// Path lookup, file opening, metadata queries, and descriptor ownership belong
+/// to the filesystem layer above this mechanism.
+OsError mapReadOnly(
+    int descriptor,
+    size_t length,
+    MemoryMapping* output,
+) @system
 {
     version (XTB_Checked)
         require(output !is null, "MemoryMapping output pointer is null");
     const cleanupError = unmap(output);
-    if (cleanupError.failed)
+    if (cleanupError.failed || length == 0)
         return cleanupError;
 
     void* address;
-    size_t length;
-    const error = backend.mapReadOnlyImpl(path, &address, &length);
+    const error = backend.mapReadOnlyImpl(descriptor, length, &address);
     if (error.failed)
         return error;
     output.address_ = address;
