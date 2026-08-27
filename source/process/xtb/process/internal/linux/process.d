@@ -2,26 +2,26 @@ module xtb.process.internal.linux.process;
 
 nothrow @nogc:
 
-import core.stdc.errno : EINVAL, EINTR, ENOSYS, EPERM, errno;
-import core.stdc.signal : SIG_IGN;
-import core.sys.posix.fcntl : O_RDONLY, O_WRONLY, fcntl;
-import core.sys.posix.poll : POLLIN, POLLNVAL, POLLOUT, pollfd;
-import core.sys.posix.signal : SA_NOCLDWAIT, SIGCHLD, SIGKILL, SIGTERM,
+import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.handle : NativeHandle;
+import xtb.os.linux.file : duplicateFileDescriptorCloseOnExec;
+import xtb.os.linux.poll : ppoll, timespec;
+import xtb.os.linux.process : pidfdOpen, spawnFileActionsAddChdir,
+    spawnFileActionsAddCloseFrom;
+import xtb.os.posix.environment : processEnvironment;
+import xtb.os.posix.error : EINVAL, ENOSYS, EPERM, fromErrno, lastError;
+import xtb.os.posix.file : O_RDONLY, O_WRONLY, nativeClose = close;
+import xtb.os.posix.handle : fileDescriptor, fromFileDescriptor;
+import xtb.os.posix.poll : POLLIN, POLLNVAL, POLLOUT, pollfd;
+import xtb.os.posix.signal : SA_NOCLDWAIT, SIG_IGN, SIGCHLD, SIGKILL, SIGTERM,
     kill, sigaction, sigaction_t, sigemptyset, sigset_t;
-import core.sys.posix.spawn : POSIX_SPAWN_SETPGROUP, POSIX_SPAWN_SETSIGMASK,
+import xtb.os.posix.spawn : POSIX_SPAWN_SETPGROUP, POSIX_SPAWN_SETSIGMASK,
     posix_spawn, posix_spawn_file_actions_adddup2,
     posix_spawn_file_actions_addopen, posix_spawn_file_actions_destroy,
     posix_spawn_file_actions_init, posix_spawn_file_actions_t,
     posix_spawnattr_destroy, posix_spawnattr_init, posix_spawnattr_setflags,
     posix_spawnattr_setpgroup, posix_spawnattr_setsigmask, posix_spawnattr_t;
-import core.sys.posix.sys.types : pid_t;
-import core.sys.posix.sys.wait : WNOHANG, waitpid;
-import core.sys.posix.time : timespec;
-import core.sys.posix.unistd : nativeClose = close, environ;
-import xtb.os.error : OsError, OsErrorKind;
-import xtb.os.posix.error : fromErrno, lastError;
-import xtb.os.handle : NativeHandle;
-import xtb.os.posix.handle : fileDescriptor, fromFileDescriptor;
+import xtb.os.posix.wait : WNOHANG, pid_t, waitpid;
 import xtb.process.internal.process_backend : NativeActivityHandles,
     NativeProcessId, NativeProcessWatchResult, NativeProcessWatchState,
     NativeRoute, NativeRouteKind, NativeSignal, NativeSpawnOptions,
@@ -30,7 +30,7 @@ import xtb.types : u32, u64;
 
 package(xtb.process) const(char)** currentEnvironment() @system
 {
-    return cast(const(char)**) environ;
+    return processEnvironment();
 }
 
 package(xtb.process) OsError validateChildReapingPolicy() @system
@@ -122,11 +122,11 @@ nothrow @nogc:
 
         if (options.workingDirectory !is null)
         {
-            code = addChdir(&actions, options.workingDirectory);
+            code = spawnFileActionsAddChdir(&actions, options.workingDirectory);
             if (code != 0)
                 return fromErrno(code);
         }
-        code = addCloseFrom(&actions, 3);
+        code = spawnFileActionsAddCloseFrom(&actions, 3);
         return code == 0 ? OsError.init : fromErrno(code);
     }
 
@@ -195,20 +195,13 @@ nothrow @nogc:
 
     private int addDescriptor(int descriptor, int target, size_t index) @system
     {
-        enum F_DUPFD_CLOEXEC = 1030;
-        const staged = fcntl(descriptor, F_DUPFD_CLOEXEC, 3);
+        const staged = duplicateFileDescriptorCloseOnExec(descriptor, 3);
         if (staged < 0)
             return lastError().nativeCode;
         stagedDescriptors[index] = staged;
         return posix_spawn_file_actions_adddup2(&actions, staged, target);
     }
 }
-
-private extern (C) pragma(mangle, "posix_spawn_file_actions_addchdir_np")
-int addChdir(void* actions, const(char)* path);
-
-private extern (C) pragma(mangle, "posix_spawn_file_actions_addclosefrom_np")
-int addCloseFrom(void* actions, int from);
 
 package(xtb.process) NativeWaitResult waitProcess(
     NativeProcessId processId,
@@ -217,11 +210,15 @@ package(xtb.process) NativeWaitResult waitProcess(
 {
     int nativeStatus;
     int result;
-    do
+    for (;;)
+    {
         result = waitpid(toProcessId(processId), &nativeStatus, nonBlocking ? WNOHANG : 0);
-    while (result < 0 && errno == EINTR);
-    if (result < 0)
-        return NativeWaitResult(lastError(), NativeWaitState.running, 0, false);
+        if (result >= 0)
+            break;
+        const error = lastError();
+        if (error.kind != OsErrorKind.interrupted)
+            return NativeWaitResult(error, NativeWaitState.running, 0, false);
+    }
     if (result == 0)
         return NativeWaitResult(OsError.init, NativeWaitState.running, 0, false);
 
@@ -272,7 +269,7 @@ package(xtb.process) NativeProcessWatchResult openProcessWatch(
     NativeProcessId processId,
 ) @system
 {
-    const descriptor = nativePidfdOpen(cast(int) processId.nativeValue, 0);
+    const descriptor = pidfdOpen(cast(int) processId.nativeValue, 0);
     if (descriptor >= 0)
         return NativeProcessWatchResult(
             OsError.init,
@@ -316,12 +313,14 @@ package(xtb.process) NativeWatchWaitResult waitProcessWatch(
     timeout.tv_nsec = cast(typeof(timeout.tv_nsec))(
         timeoutNanoseconds % 1_000_000_000UL
     );
-    const result = nativePpoll(&event, 1, &timeout, null);
+    const result = ppoll(&event, 1, &timeout, null);
     if (result > 0)
         return NativeWatchWaitResult(OsError.init, true);
-    if (result == 0 || errno == EINTR)
+    if (result == 0)
         return NativeWatchWaitResult(OsError.init, false);
-    return NativeWatchWaitResult(lastError(), false);
+    const error = lastError();
+    return error.kind == OsErrorKind.interrupted
+        ? NativeWatchWaitResult(OsError.init, false) : NativeWatchWaitResult(error, false);
 }
 
 package(xtb.process) OsError waitForActivity(
@@ -370,9 +369,12 @@ package(xtb.process) OsError waitForActivity(
         timeout.tv_nsec = cast(typeof(timeout.tv_nsec))(wait % 1_000_000_000UL);
         timeoutPointer = &timeout;
     }
-    const result = nativePpoll(items.ptr, count, timeoutPointer, null);
+    const result = ppoll(items.ptr, count, timeoutPointer, null);
     if (result < 0)
-        return errno == EINTR ? OsError.init : lastError();
+    {
+        const error = lastError();
+        return error.kind == OsErrorKind.interrupted ? OsError.init : error;
+    }
     foreach (item; items[0 .. count])
     {
         if ((item.revents & POLLNVAL) != 0)
@@ -421,10 +423,3 @@ private pid_t toProcessId(NativeProcessId processId) pure @safe
 {
     return cast(pid_t) processId.nativeValue;
 }
-
-private extern (C) pragma(mangle, "pidfd_open")
-int nativePidfdOpen(int processId, uint flags);
-
-private extern (C) pragma(mangle, "ppoll")
-int nativePpoll(void* descriptors, size_t count, const(void)* timeout,
-    const(void)* signalMask);

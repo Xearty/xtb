@@ -11,9 +11,9 @@ Platform interfaces are first-class low-level APIs rather than hidden backends:
 
 - `xtb.os.posix` exposes thin POSIX mechanisms such as errno translation,
   file-descriptor adapters, file and directory primitives, environment and terminal
-  queries, memory mapping, and clocks;
+  queries, memory mapping, clocks, process spawning/waiting, signals, and polling;
 - `xtb.os.linux` exposes Linux-specific mechanisms such as `pipe2`-based pipe
-  creation and I/O.
+  creation and I/O, pidfds, `ppoll`, and non-portable spawn/file-descriptor helpers.
 
 Higher-level domains own portability and semantics. `xtb.time` selects the
 platform clock mechanism, `xtb.fs` owns file-backed mapping lifetime and

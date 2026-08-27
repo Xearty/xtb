@@ -2,6 +2,7 @@ module xtb.os.posix.error;
 
 nothrow @nogc:
 
+public import core.stdc.errno : EINVAL, ENOSYS, EPERM;
 import xtb.os.error : OsError, OsErrorKind;
 
 /// Converts a POSIX errno value to XTB's low-level OS error vocabulary.

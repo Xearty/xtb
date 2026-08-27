@@ -4,7 +4,14 @@ nothrow @nogc:
 
 version (XTB_Checked) import xtb.panic : require;
 import core.stdc.stdlib : getenv;
+import core.sys.posix.unistd : environ;
 import xtb.os.error : OsError, OsErrorKind;
+
+/// Returns the native POSIX process environment vector.
+const(char)** processEnvironment() @system
+{
+    return cast(const(char)**) environ;
+}
 
 /// Looks up a process-environment entry using a permanent native C string.
 ///
