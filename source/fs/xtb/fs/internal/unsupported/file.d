@@ -38,7 +38,10 @@ package(xtb.fs) NativeIoResult readSome(NativeHandle, u8[]) pure @safe
     return NativeIoResult(unsupported(), 0);
 }
 
-package(xtb.fs) NativeIoResult writeSome(int, scope const(u8)[]) pure @safe
+package(xtb.fs) NativeIoResult writeSome(
+    NativeHandle,
+    scope const(u8)[],
+) pure @safe
 {
     return NativeIoResult(unsupported(), 0);
 }
