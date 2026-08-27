@@ -5,7 +5,8 @@ shared by higher-level XTB domains:
 
 - `OsError` and native error translation;
 - raw wall-clock, monotonic-clock, and sleep primitives;
-- descriptor-backed memory mapping;
+- opaque native handles for cross-domain resource exchange;
+- handle-backed memory mapping;
 - raw pipe endpoints and I/O.
 
 Precise low-level modules may expose additional native capability queries, such

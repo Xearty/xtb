@@ -9,19 +9,20 @@ import core.sys.posix.sys.stat : S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
     S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK, fstat, lstat, stat, stat_t;
 import core.sys.posix.unistd : fsync, nativeClose = close, read, write;
 import xtb.os.error : OsError, OsErrorKind, lastError;
+import xtb.os.handle : NativeHandle;
 import xtb.string : String, StringBuf;
 import xtb.thread_context : ScratchScope;
 import xtb.types : i64, u32, u64, u8;
 import xtb.fs.internal.file : NativeFileMetadata, NativeFileType, NativeIoResult;
 
-package(xtb.fs) OsError closeDescriptor(int descriptor) @system
+package(xtb.fs) OsError closeHandle(NativeHandle handle) @system
 {
-    return nativeClose(descriptor) == 0 ? OsError.init : lastError();
+    return nativeClose(toDescriptor(handle)) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError flushDescriptor(int descriptor) @system
+package(xtb.fs) OsError flushHandle(NativeHandle handle) @system
 {
-    return fsync(descriptor) == 0 ? OsError.init : lastError();
+    return fsync(toDescriptor(handle)) == 0 ? OsError.init : lastError();
 }
 
 package(xtb.fs) OsError openFile(
@@ -33,7 +34,7 @@ package(xtb.fs) OsError openFile(
     bool append,
     bool closeOnExec,
     ushort permissions,
-    int* output,
+    NativeHandle* output,
 ) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
@@ -52,15 +53,18 @@ package(xtb.fs) OsError openFile(
     const descriptor = nativeOpen(native.checkedCString, flags, cast(uint) permissions);
     if (descriptor < 0)
         return lastError();
-    *output = descriptor;
+    *output = fromDescriptor(descriptor);
     return OsError.init;
 }
 
-package(xtb.fs) NativeIoResult readSome(int descriptor, u8[] output) @system
+package(xtb.fs) NativeIoResult readSome(
+    NativeHandle handle,
+    u8[] output,
+) @system
 {
     for (;;)
     {
-        const amount = read(descriptor, output.ptr, output.length);
+        const amount = read(toDescriptor(handle), output.ptr, output.length);
         if (amount >= 0)
             return NativeIoResult(OsError.init, cast(size_t) amount);
         if (errno != EINTR)
@@ -69,13 +73,13 @@ package(xtb.fs) NativeIoResult readSome(int descriptor, u8[] output) @system
 }
 
 package(xtb.fs) NativeIoResult writeSome(
-    int descriptor,
+    NativeHandle handle,
     scope const(u8)[] input,
 ) @system
 {
     for (;;)
     {
-        const amount = write(descriptor, input.ptr, input.length);
+        const amount = write(toDescriptor(handle), input.ptr, input.length);
         if (amount >= 0)
             return NativeIoResult(OsError.init, cast(size_t) amount);
         if (errno != EINTR)
@@ -83,16 +87,26 @@ package(xtb.fs) NativeIoResult writeSome(
     }
 }
 
-package(xtb.fs) OsError descriptorMetadata(
-    int descriptor,
+package(xtb.fs) OsError handleMetadata(
+    NativeHandle handle,
     NativeFileMetadata* output,
 ) @system
 {
     stat_t native;
-    if (fstat(descriptor, &native) != 0)
+    if (fstat(toDescriptor(handle), &native) != 0)
         return lastError();
     return convert(native, output)
         ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
+}
+
+private NativeHandle fromDescriptor(int descriptor) pure @safe
+{
+    return NativeHandle.fromFileDescriptor(descriptor);
+}
+
+private int toDescriptor(NativeHandle handle) pure @safe
+{
+    return handle.fileDescriptor;
 }
 
 package(xtb.fs) OsError pathMetadata(

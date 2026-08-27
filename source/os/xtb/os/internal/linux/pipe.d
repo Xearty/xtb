@@ -3,6 +3,7 @@ module xtb.os.internal.linux.pipe;
 nothrow @nogc:
 
 import xtb.os.error : OsError, fromErrno, lastError;
+import xtb.os.handle : NativeHandle;
 import xtb.os.internal.pipe : NativePipeReadResult, NativePipeReadState,
     NativePipeWriteResult, NativePipeWriteState;
 import xtb.types : u8;
@@ -10,8 +11,8 @@ import xtb.types : u8;
 package(xtb.os) OsError createPipeImpl(
     bool readerNonBlocking,
     bool writerNonBlocking,
-    int* readerDescriptor,
-    int* writerDescriptor,
+    NativeHandle* readerHandle,
+    NativeHandle* writerHandle,
 ) @system
 {
     import core.sys.posix.fcntl : O_CLOEXEC;
@@ -27,25 +28,23 @@ package(xtb.os) OsError createPipeImpl(
         error = setNonBlocking(descriptors[1]);
     if (error.failed)
     {
-        cast(void) closeDescriptorImpl(descriptors[0]);
-        cast(void) closeDescriptorImpl(descriptors[1]);
+        cast(void) closeDescriptor(descriptors[0]);
+        cast(void) closeDescriptor(descriptors[1]);
         return error;
     }
 
-    *readerDescriptor = descriptors[0];
-    *writerDescriptor = descriptors[1];
+    *readerHandle = fromDescriptor(descriptors[0]);
+    *writerHandle = fromDescriptor(descriptors[1]);
     return OsError.init;
 }
 
-package(xtb.os) OsError closeDescriptorImpl(int descriptor) @system
+package(xtb.os) OsError closeHandleImpl(NativeHandle handle) @system
 {
-    import core.sys.posix.unistd : nativeClose = close;
-
-    return nativeClose(descriptor) == 0 ? OsError.init : lastError();
+    return closeDescriptor(toDescriptor(handle));
 }
 
 package(xtb.os) NativePipeReadResult readSomeImpl(
-    int descriptor,
+    NativeHandle handle,
     u8[] output,
 ) @system
 {
@@ -54,7 +53,7 @@ package(xtb.os) NativePipeReadResult readSomeImpl(
 
     for (;;)
     {
-        const amount = read(descriptor, output.ptr, output.length);
+        const amount = read(toDescriptor(handle), output.ptr, output.length);
         if (amount > 0)
             return NativePipeReadResult(
                 OsError.init,
@@ -80,7 +79,7 @@ package(xtb.os) NativePipeReadResult readSomeImpl(
 }
 
 package(xtb.os) NativePipeWriteResult writeSomeImpl(
-    int descriptor,
+    NativeHandle handle,
     scope const(u8)[] input,
 ) @system
 {
@@ -118,7 +117,7 @@ package(xtb.os) NativePipeWriteResult writeSomeImpl(
 
     long amount;
     do
-        amount = write(descriptor, input.ptr, input.length);
+        amount = write(toDescriptor(handle), input.ptr, input.length);
     while (amount < 0 && errno == EINTR);
     const writeError = amount < 0 ? errno : 0;
 
@@ -160,6 +159,23 @@ package(xtb.os) NativePipeWriteResult writeSomeImpl(
         0,
         NativePipeWriteState.data,
     );
+}
+
+private NativeHandle fromDescriptor(int descriptor) pure @safe
+{
+    return NativeHandle.fromFileDescriptor(descriptor);
+}
+
+private int toDescriptor(NativeHandle handle) pure @safe
+{
+    return handle.fileDescriptor;
+}
+
+private OsError closeDescriptor(int descriptor) @system
+{
+    import core.sys.posix.unistd : nativeClose = close;
+
+    return nativeClose(descriptor) == 0 ? OsError.init : lastError();
 }
 
 private extern (C) pragma(mangle, "pipe2")

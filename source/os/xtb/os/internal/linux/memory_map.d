@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import core.sys.posix.sys.mman : MAP_FAILED, MAP_PRIVATE, PROT_READ, mmap, munmap;
 import xtb.os.error : OsError, lastError;
+import xtb.os.handle : NativeHandle;
 
 package(xtb.os) OsError unmapImpl(void* address, size_t length) @system
 {
@@ -11,12 +12,12 @@ package(xtb.os) OsError unmapImpl(void* address, size_t length) @system
 }
 
 package(xtb.os) OsError mapReadOnlyImpl(
-    int descriptor,
+    NativeHandle handle,
     size_t length,
     void** outputAddress,
 ) @system
 {
-    void* address = mmap(null, length, PROT_READ, MAP_PRIVATE, descriptor, 0);
+    void* address = mmap(null, length, PROT_READ, MAP_PRIVATE, handle.fileDescriptor, 0);
     if (address == MAP_FAILED)
         return lastError();
     *outputAddress = address;

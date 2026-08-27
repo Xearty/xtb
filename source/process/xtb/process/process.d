@@ -12,15 +12,16 @@ import xtb.string;
 import xtb.thread_context : ScratchScope;
 import xtb.types : u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.handle : NativeHandle;
 import xtb.fs.file : File;
 import xtb.fs.path : Path;
 import xtb.os.pipe : Pipe, PipeMode, PipeOptions, PipeReader, PipeWriter,
     close, createPipe;
 import xtb.os.time : monotonicNanoseconds, sleepNanoseconds;
 import xtb.time : Timeout, TimeoutKind;
-import xtb.process.internal.process_backend : NativeProcessWatchState,
-    NativeRoute, NativeRouteKind, NativeSignal, NativeSpawnOptions,
-    NativeWaitState;
+import xtb.process.internal.process_backend : NativeProcessId,
+    NativeProcessWatchState, NativeRoute, NativeRouteKind, NativeSignal,
+    NativeSpawnOptions, NativeWaitState;
 
 version (linux)
     private import backend = xtb.process.internal.linux.process;
@@ -445,7 +446,7 @@ struct ChildProcess
 {
 nothrow @nogc:
 
-    private int processId_ = -1;
+    private NativeProcessId processId_;
     private ProcessIsolation isolation_;
     private PipeWriter stdinPipe_;
     private PipeReader stdoutPipe_;
@@ -456,7 +457,7 @@ nothrow @nogc:
 
     bool ownsProcess() const pure @safe
     {
-        return processId_ > 0;
+        return processId_.valid;
     }
 
     bool empty() const pure @safe
@@ -469,7 +470,12 @@ nothrow @nogc:
     {
         version (XTB_Checked)
             require(ownsProcess, "empty ChildProcess has no id");
-        return ProcessId(cast(u64) processId_);
+        return ProcessId(processId_.nativeValue);
+    }
+
+    package(xtb.process) NativeProcessId nativeProcessId() const pure @safe
+    {
+        return processId_;
     }
 
     bool hasStdinPipe() const pure @safe
@@ -555,9 +561,9 @@ ProcessError spawn(
         childOutput.deinit();
         childError.deinit();
     }
-    int stdinDescriptor = routeDescriptor(options.stdin);
-    int stdoutDescriptor = routeDescriptor(options.stdout);
-    int stderrDescriptor = routeDescriptor(options.stderr);
+    NativeHandle stdinHandle = routeHandle(options.stdin);
+    NativeHandle stdoutHandle = routeHandle(options.stdout);
+    NativeHandle stderrHandle = routeHandle(options.stderr);
 
     if (options.stdin.kind_ == RouteKind.piped)
     {
@@ -566,7 +572,7 @@ ProcessError spawn(
         const pipeError = createPipe(pipeOptions, &childInput);
         if (pipeError.failed)
             return ProcessError(pipeError, ProcessOperation.createPipe);
-        stdinDescriptor = childInput.reader.nativeDescriptor;
+        stdinHandle = childInput.reader.nativeHandle;
     }
     if (options.stdout.kind_ == RouteKind.piped)
     {
@@ -575,7 +581,7 @@ ProcessError spawn(
         const pipeError = createPipe(pipeOptions, &childOutput);
         if (pipeError.failed)
             return ProcessError(pipeError, ProcessOperation.createPipe);
-        stdoutDescriptor = childOutput.writer.nativeDescriptor;
+        stdoutHandle = childOutput.writer.nativeHandle;
     }
     if (options.stderr.kind_ == RouteKind.piped)
     {
@@ -584,16 +590,16 @@ ProcessError spawn(
         const pipeError = createPipe(pipeOptions, &childError);
         if (pipeError.failed)
             return ProcessError(pipeError, ProcessOperation.createPipe);
-        stderrDescriptor = childError.writer.nativeDescriptor;
+        stderrHandle = childError.writer.nativeHandle;
     }
 
-    int processId;
+    NativeProcessId processId;
     error = spawnPlatform(
         command,
         options,
-        stdinDescriptor,
-        stdoutDescriptor,
-        stderrDescriptor,
+        stdinHandle,
+        stdoutHandle,
+        stderrHandle,
         &processId,
     );
     if (error.failed)
@@ -787,27 +793,27 @@ private bool validErrorRoute(scope const(ErrorRoute) route) @system
     return validOutputRoute(OutputRoute(route.kind_, cast(void*) route.owner_));
 }
 
-private int routeDescriptor(scope const(InputRoute) route) @system
+private NativeHandle routeHandle(scope const(InputRoute) route) @system
 {
     if (route.kind_ == RouteKind.file)
-        return (cast(File*) route.owner_).nativeDescriptor;
+        return (cast(File*) route.owner_).nativeHandle;
     if (route.kind_ == RouteKind.pipe)
-        return (cast(PipeReader*) route.owner_).nativeDescriptor;
-    return -1;
+        return (cast(PipeReader*) route.owner_).nativeHandle;
+    return NativeHandle.init;
 }
 
-private int routeDescriptor(scope const(OutputRoute) route) @system
+private NativeHandle routeHandle(scope const(OutputRoute) route) @system
 {
     if (route.kind_ == RouteKind.file)
-        return (cast(File*) route.owner_).nativeDescriptor;
+        return (cast(File*) route.owner_).nativeHandle;
     if (route.kind_ == RouteKind.pipe)
-        return (cast(PipeWriter*) route.owner_).nativeDescriptor;
-    return -1;
+        return (cast(PipeWriter*) route.owner_).nativeHandle;
+    return NativeHandle.init;
 }
 
-private int routeDescriptor(scope const(ErrorRoute) route) @system
+private NativeHandle routeHandle(scope const(ErrorRoute) route) @system
 {
-    return routeDescriptor(OutputRoute(route.kind_, cast(void*) route.owner_));
+    return routeHandle(OutputRoute(route.kind_, cast(void*) route.owner_));
 }
 
 private ProcessError invalidProcessError(ProcessOperation operation) pure @safe
@@ -818,15 +824,15 @@ private ProcessError invalidProcessError(ProcessOperation operation) pure @safe
 private ProcessError spawnPlatform(
     scope const(Command) command,
     scope const(SpawnOptions) options,
-    int stdinDescriptor,
-    int stdoutDescriptor,
-    int stderrDescriptor,
-    int* output,
+    NativeHandle stdinHandle,
+    NativeHandle stdoutHandle,
+    NativeHandle stderrHandle,
+    NativeProcessId* output,
 ) @system
 {
     version (XTB_Checked)
         require(output !is null, "native process id output pointer is null");
-    *output = -1;
+    *output = NativeProcessId.init;
     const policyError = backend.validateChildReapingPolicy();
     if (policyError.failed)
         return ProcessError(policyError, ProcessOperation.spawn);
@@ -863,9 +869,9 @@ private ProcessError spawnPlatform(
         );
 
     NativeSpawnOptions nativeOptions;
-    nativeOptions.stdin = toNativeRoute(options.stdin.kind_, stdinDescriptor);
-    nativeOptions.stdout = toNativeRoute(options.stdout.kind_, stdoutDescriptor);
-    nativeOptions.stderr = toNativeRoute(options.stderr.kind_, stderrDescriptor);
+    nativeOptions.stdin = toNativeRoute(options.stdin.kind_, stdinHandle);
+    nativeOptions.stdout = toNativeRoute(options.stdout.kind_, stdoutHandle);
+    nativeOptions.stderr = toNativeRoute(options.stderr.kind_, stderrHandle);
     nativeOptions.isolatedTree = options.isolation == ProcessIsolation.isolatedTree;
     nativeOptions.clearSignalMask = options.signalMask == SignalMaskPolicy.clear;
     nativeOptions.workingDirectory = workingDirectory;
@@ -877,7 +883,7 @@ private ProcessError spawnPlatform(
     if (error.failed)
         return ProcessError(error, ProcessOperation.spawn);
 
-    int processId;
+    NativeProcessId processId;
     if (command.lookup_ == ExecutableLookup.searchPath &&
         !command.executable_.containsCodeUnit('/'))
         error = spawnSearchPath(
@@ -896,22 +902,28 @@ private ProcessError spawnPlatform(
     return ProcessError.init;
 }
 
-private NativeRoute toNativeRoute(RouteKind kind, int descriptor) pure @safe
+private NativeRoute toNativeRoute(
+    RouteKind kind,
+    NativeHandle handle,
+) pure @safe
 {
     switch (kind)
     {
         case RouteKind.inherited:
-            return NativeRoute(NativeRouteKind.inherited, -1);
+            return NativeRoute(NativeRouteKind.inherited, NativeHandle.init);
         case RouteKind.nullDevice:
-            return NativeRoute(NativeRouteKind.nullDevice, -1);
+            return NativeRoute(NativeRouteKind.nullDevice, NativeHandle.init);
         case RouteKind.piped:
         case RouteKind.file:
         case RouteKind.pipe:
-            return NativeRoute(NativeRouteKind.descriptor, descriptor);
+            return NativeRoute(NativeRouteKind.handle, handle);
         case RouteKind.mergeWithStdout:
-            return NativeRoute(NativeRouteKind.mergeWithStdout, -1);
+            return NativeRoute(
+                NativeRouteKind.mergeWithStdout,
+                NativeHandle.init,
+            );
         default:
-            return NativeRoute(NativeRouteKind.inherited, -1);
+            return NativeRoute(NativeRouteKind.inherited, NativeHandle.init);
     }
 }
 
@@ -921,7 +933,7 @@ private OsError spawnSearchPath(
     const(char)** argv,
     const(char)** environment,
     Allocator* allocator,
-    int* output,
+    NativeProcessId* output,
 ) @system
 {
     String path;
@@ -1110,7 +1122,7 @@ private WaitResult waitPlatform(ChildProcess* child, bool nonBlocking) @system
     if (native.state == NativeWaitState.running)
         return WaitResult(ProcessError.init, WaitState.running, ExitStatus.init);
 
-    child.processId_ = -1;
+    child.processId_ = NativeProcessId.init;
     ExitStatus status;
     final switch (native.state)
     {
@@ -1140,8 +1152,8 @@ private WaitResult waitForPlatform(ChildProcess* child, Timeout timeout) @system
         return waitError(watch.error);
     if (watch.state == NativeProcessWatchState.opened)
     {
-        const result = waitOnProcessWatch(child, watch.descriptor, deadline);
-        backend.closeProcessWatch(watch.descriptor);
+        const result = waitOnProcessWatch(child, watch.handle, deadline);
+        backend.closeProcessWatch(watch.handle);
         return result;
     }
     return waitByObservation(child, deadline);
@@ -1149,7 +1161,7 @@ private WaitResult waitForPlatform(ChildProcess* child, Timeout timeout) @system
 
 private WaitResult waitOnProcessWatch(
     ChildProcess* child,
-    int descriptor,
+    NativeHandle handle,
     u64 deadline,
 ) @system
 {
@@ -1162,7 +1174,7 @@ private WaitResult waitOnProcessWatch(
         if (now >= deadline)
             return tryWait(child);
 
-        const result = backend.waitProcessWatch(descriptor, deadline - now);
+        const result = backend.waitProcessWatch(handle, deadline - now);
         if (result.error.failed)
             return waitError(result.error);
         if (result.ready)
@@ -1233,7 +1245,7 @@ private void forceSignal(ChildProcess* child) @system
 private void reapIgnoringErrors(ChildProcess* child) @system
 {
     cast(void) waitPlatform(child, false);
-    child.processId_ = -1;
+    child.processId_ = NativeProcessId.init;
 }
 
 unittest

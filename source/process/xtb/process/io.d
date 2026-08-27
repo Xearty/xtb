@@ -8,13 +8,14 @@ import xtb.option : Option, some;
 version (XTB_Checked) import xtb.panic : require;
 import xtb.types : u64, u8;
 import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.handle : NativeHandle;
 import xtb.os.pipe : PipeReadState, PipeReader, PipeWriteState, PipeWriter,
     close, readSome, writeSome;
 import xtb.process.process : ChildProcess, ExitStatus, ProcessError,
     ProcessOperation, WaitState, kill, requestTermination, tryWait;
 import xtb.os.time : monotonicNanoseconds, sleepNanoseconds;
 import xtb.time : Timeout, TimeoutKind;
-import xtb.process.internal.process_backend : NativeActivityDescriptors,
+import xtb.process.internal.process_backend : NativeActivityHandles,
     NativeProcessWatchState;
 
 version (linux)
@@ -519,24 +520,24 @@ private struct ProcessWatch
 {
 nothrow @nogc:
 
-    int descriptor = -1;
+    NativeHandle handle;
 
     @disable this(this);
     @disable ref ProcessWatch opAssign(ProcessWatch source) return;
 
     void deinit() @system
     {
-        backend.closeProcessWatch(descriptor);
-        descriptor = -1;
+        backend.closeProcessWatch(handle);
+        handle = NativeHandle.init;
     }
 
     OsError open(scope const(ChildProcess)* child) @system
     {
-        const result = backend.openProcessWatch(cast(int) child.id.value);
+        const result = backend.openProcessWatch(child.nativeProcessId);
         if (result.error.failed)
             return result.error;
-        descriptor = result.state == NativeProcessWatchState.opened
-            ? result.descriptor : -1;
+        handle = result.state == NativeProcessWatchState.opened
+            ? result.handle : NativeHandle.init;
         return OsError.init;
     }
 }
@@ -548,16 +549,16 @@ private OsError waitForActivity(
     u64 remaining,
 ) @system
 {
-    NativeActivityDescriptors descriptors;
+    NativeActivityHandles handles;
     if (child.stdinPipe !is null)
-        descriptors.stdinDescriptor = child.stdinPipe.nativeDescriptor;
+        handles.stdin = child.stdinPipe.nativeHandle;
     if (child.stdoutPipe !is null)
-        descriptors.stdoutDescriptor = child.stdoutPipe.nativeDescriptor;
+        handles.stdout = child.stdoutPipe.nativeHandle;
     if (child.stderrPipe !is null)
-        descriptors.stderrDescriptor = child.stderrPipe.nativeDescriptor;
-    if (watch.descriptor >= 0 && child.ownsProcess)
-        descriptors.processDescriptor = watch.descriptor;
-    return backend.waitForActivity(descriptors, finite, remaining);
+        handles.stderr = child.stderrPipe.nativeHandle;
+    if (watch.handle.valid && child.ownsProcess)
+        handles.process = watch.handle;
+    return backend.waitForActivity(handles, finite, remaining);
 }
 
 unittest

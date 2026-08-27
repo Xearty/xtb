@@ -4,6 +4,7 @@ import core.internal.traits : hasElaborateDestructor;
 import core.stdc.stdio : FILE, fclose, fflush, fwrite, tmpfile;
 import xtb.lifetime : needsDeinit;
 import xtb.os.error : OsErrorKind;
+import xtb.os.handle : NativeHandle;
 import xtb.os.memory_map : MemoryMapping, mapReadOnly, unmap;
 import xtb.os.pipe : Pipe, PipeMode, PipeOptions, PipeReadState, PipeReader,
     PipeWriteState, PipeWriter, close, createPipe, readSome, writeSome;
@@ -73,7 +74,11 @@ extern (C) int main()
         assert(fflush(file) == 0);
 
         MemoryMapping mapping;
-        assert(mapReadOnly(fileno(file), contents.length, &mapping).succeeded);
+        assert(mapReadOnly(
+                NativeHandle.fromFileDescriptor(fileno(file)),
+                contents.length,
+                &mapping,
+        ).succeeded);
         assert(mapping.bytes == contents[]);
         assert(fclose(file) == 0);
         assert(unmap(&mapping).succeeded);

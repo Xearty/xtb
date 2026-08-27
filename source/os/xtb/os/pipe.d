@@ -4,6 +4,7 @@ nothrow @nogc:
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.handle : NativeHandle;
 import xtb.os.internal.pipe : NativePipeReadState, NativePipeWriteState;
 import xtb.types : u8;
 
@@ -56,7 +57,7 @@ struct PipeReader
 {
 nothrow @nogc:
 
-    private int descriptor_ = -1;
+    private NativeHandle handle_;
 
     @disable this(this);
     @disable ref PipeReader opAssign(PipeReader source) return;
@@ -71,12 +72,12 @@ nothrow @nogc:
 
     bool valid() const pure @safe
     {
-        return descriptor_ >= 0;
+        return handle_.valid;
     }
 
-    package(xtb) int nativeDescriptor() const pure @safe
+    package(xtb) NativeHandle nativeHandle() const pure @safe
     {
-        return descriptor_;
+        return handle_;
     }
 }
 
@@ -84,7 +85,7 @@ struct PipeWriter
 {
 nothrow @nogc:
 
-    private int descriptor_ = -1;
+    private NativeHandle handle_;
 
     @disable this(this);
     @disable ref PipeWriter opAssign(PipeWriter source) return;
@@ -99,12 +100,12 @@ nothrow @nogc:
 
     bool valid() const pure @safe
     {
-        return descriptor_ >= 0;
+        return handle_.valid;
     }
 
-    package(xtb) int nativeDescriptor() const pure @safe
+    package(xtb) NativeHandle nativeHandle() const pure @safe
     {
-        return descriptor_;
+        return handle_;
     }
 }
 
@@ -141,19 +142,19 @@ OsError createPipe(PipeOptions options, Pipe* output) @system
     if (!valid(options.readerMode) || !valid(options.writerMode))
         return OsError(OsErrorKind.invalidArgument, 0);
 
-    int readerDescriptor = -1;
-    int writerDescriptor = -1;
+    NativeHandle readerHandle;
+    NativeHandle writerHandle;
     const error = backend.createPipeImpl(
         options.readerMode == PipeMode.nonBlocking,
         options.writerMode == PipeMode.nonBlocking,
-        &readerDescriptor,
-        &writerDescriptor,
+        &readerHandle,
+        &writerHandle,
     );
     if (error.failed)
         return error;
 
-    output.reader.descriptor_ = readerDescriptor;
-    output.writer.descriptor_ = writerDescriptor;
+    output.reader.handle_ = readerHandle;
+    output.writer.handle_ = writerHandle;
     return OsError.init;
 }
 
@@ -161,14 +162,14 @@ OsError close(PipeReader* reader) @system
 {
     version (XTB_Checked)
         require(reader !is null, "PipeReader pointer is null");
-    return closeOwnedDescriptor(&reader.descriptor_);
+    return closeOwnedHandle(&reader.handle_);
 }
 
 OsError close(PipeWriter* writer) @system
 {
     version (XTB_Checked)
         require(writer !is null, "PipeWriter pointer is null");
-    return closeOwnedDescriptor(&writer.descriptor_);
+    return closeOwnedHandle(&writer.handle_);
 }
 
 PipeReadResult readSome(PipeReader* reader, u8[] output) @system
@@ -178,7 +179,7 @@ PipeReadResult readSome(PipeReader* reader, u8[] output) @system
     if (output.length == 0)
         return PipeReadResult(OsError.init, 0, PipeReadState.data);
 
-    const result = backend.readSomeImpl(reader.descriptor_, output);
+    const result = backend.readSomeImpl(reader.handle_, output);
     return PipeReadResult(
         result.error,
         result.transferred,
@@ -193,7 +194,7 @@ PipeWriteResult writeSome(PipeWriter* writer, scope const(u8)[] input) @system
     if (input.length == 0)
         return PipeWriteResult(OsError.init, 0, PipeWriteState.data);
 
-    const result = backend.writeSomeImpl(writer.descriptor_, input);
+    const result = backend.writeSomeImpl(writer.handle_, input);
     return PipeWriteResult(
         result.error,
         result.transferred,
@@ -206,13 +207,13 @@ private bool valid(PipeMode mode) pure @safe
     return cast(u8) mode <= cast(u8) PipeMode.nonBlocking;
 }
 
-private OsError closeOwnedDescriptor(int* descriptor) @system
+private OsError closeOwnedHandle(NativeHandle* handle) @system
 {
-    if (*descriptor < 0)
+    if (!handle.valid)
         return OsError.init;
-    const owned = *descriptor;
-    *descriptor = -1;
-    return backend.closeDescriptorImpl(owned);
+    const owned = *handle;
+    *handle = NativeHandle.init;
+    return backend.closeHandleImpl(owned);
 }
 
 private PipeReadState toPublic(NativePipeReadState state) pure @safe

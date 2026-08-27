@@ -5,6 +5,7 @@ nothrow @nogc:
 version (XTB_Checked) import xtb.panic : require;
 import xtb.types : u8;
 import xtb.os.error : OsError;
+import xtb.os.handle : NativeHandle;
 
 version (linux)
     private import backend = xtb.os.internal.linux.memory_map;
@@ -57,13 +58,13 @@ OsError unmap(MemoryMapping* mapping) @system
     return backend.unmapImpl(address, length);
 }
 
-/// Maps `length` bytes from an already-open native file descriptor read-only.
+/// Maps `length` bytes from an already-open native handle read-only.
 ///
-/// The descriptor remains borrowed and may be closed after this call returns.
-/// Path lookup, file opening, metadata queries, and descriptor ownership belong
-/// to the filesystem layer above this mechanism.
+/// The handle remains borrowed and may be closed after this call returns. Path
+/// lookup, file opening, metadata queries, and handle ownership belong to the
+/// filesystem layer above this mechanism.
 OsError mapReadOnly(
-    int descriptor,
+    NativeHandle handle,
     size_t length,
     MemoryMapping* output,
 ) @system
@@ -75,7 +76,7 @@ OsError mapReadOnly(
         return cleanupError;
 
     void* address;
-    const error = backend.mapReadOnlyImpl(descriptor, length, &address);
+    const error = backend.mapReadOnlyImpl(handle, length, &address);
     if (error.failed)
         return error;
     output.address_ = address;

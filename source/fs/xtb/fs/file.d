@@ -8,6 +8,7 @@ version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
 import xtb.types : i64, u16, u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.handle : NativeHandle;
 import xtb.fs.path : Path;
 
 import xtb.fs.internal.file : NativeFileMetadata, NativeFileType;
@@ -78,7 +79,7 @@ struct File
 {
 nothrow @nogc:
 
-    private int descriptor_ = -1;
+    private NativeHandle handle_;
 
     @disable this(this);
     @disable ref File opAssign(File source) return;
@@ -88,9 +89,9 @@ nothrow @nogc:
     {
         if (!valid)
             return OsError.init;
-        const descriptor = descriptor_;
-        descriptor_ = -1;
-        return backend.closeDescriptor(descriptor);
+        const handle = handle_;
+        handle_ = NativeHandle.init;
+        return backend.closeHandle(handle);
     }
 
     /// Explicitly ends this file's lifetime.
@@ -103,12 +104,12 @@ nothrow @nogc:
 
     bool valid() const pure @safe
     {
-        return descriptor_ >= 0;
+        return handle_.valid;
     }
 
-    package(xtb) int nativeDescriptor() const pure @safe
+    package(xtb) NativeHandle nativeHandle() const pure @safe
     {
-        return descriptor_;
+        return handle_;
     }
 }
 
@@ -123,7 +124,7 @@ OsError flush(File* file) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for flush");
-    return backend.flushDescriptor(file.descriptor_);
+    return backend.flushHandle(file.handle_);
 }
 
 OsError open(Path path, OpenOptions options, File* output) @system
@@ -135,7 +136,7 @@ OsError open(Path path, OpenOptions options, File* output) @system
         return cleanupError;
     if (!valid(options))
         return OsError(OsErrorKind.invalidArgument, 0);
-    int descriptor = -1;
+    NativeHandle handle;
     const error = backend.openFile(
         path.view,
         options.read,
@@ -145,11 +146,11 @@ OsError open(Path path, OpenOptions options, File* output) @system
         options.append,
         options.closeOnExec,
         options.permissions,
-        &descriptor,
+        &handle,
     );
     if (error.failed)
         return error;
-    output.descriptor_ = descriptor;
+    output.handle_ = handle;
     return OsError.init;
 }
 
@@ -170,7 +171,7 @@ IoResult readSome(File* file, u8[] output) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for read");
-    const result = backend.readSome(file.descriptor_, output);
+    const result = backend.readSome(file.handle_, output);
     return IoResult(result.error, result.transferred);
 }
 
@@ -178,7 +179,7 @@ IoResult writeSome(File* file, scope const(u8)[] input) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for write");
-    const result = backend.writeSome(file.descriptor_, input);
+    const result = backend.writeSome(file.handle_, input);
     return IoResult(result.error, result.transferred);
 }
 
@@ -217,7 +218,7 @@ OsError metadata(File* file, FileMetadata* output) @system
     }
     *output = FileMetadata.init;
     NativeFileMetadata native;
-    const error = backend.descriptorMetadata(file.descriptor_, &native);
+    const error = backend.handleMetadata(file.handle_, &native);
     if (error.failed)
         return error;
     *output = fromNative(native);

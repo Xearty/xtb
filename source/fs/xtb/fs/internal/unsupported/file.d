@@ -3,16 +3,17 @@ module xtb.fs.internal.unsupported.file;
 nothrow @nogc:
 
 import xtb.os.error : OsError, unsupported;
+import xtb.os.handle : NativeHandle;
 import xtb.string : String;
 import xtb.types : u8;
 import xtb.fs.internal.file : NativeFileMetadata, NativeIoResult;
 
-package(xtb.fs) OsError closeDescriptor(int) pure @safe
+package(xtb.fs) OsError closeHandle(NativeHandle) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError flushDescriptor(int) pure @safe
+package(xtb.fs) OsError flushHandle(NativeHandle) pure @safe
 {
     return unsupported();
 }
@@ -26,13 +27,13 @@ package(xtb.fs) OsError openFile(
     bool,
     bool,
     ushort,
-    int*,
+    NativeHandle*,
 ) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) NativeIoResult readSome(int, u8[]) pure @safe
+package(xtb.fs) NativeIoResult readSome(NativeHandle, u8[]) pure @safe
 {
     return NativeIoResult(unsupported(), 0);
 }
@@ -42,7 +43,10 @@ package(xtb.fs) NativeIoResult writeSome(int, scope const(u8)[]) pure @safe
     return NativeIoResult(unsupported(), 0);
 }
 
-package(xtb.fs) OsError descriptorMetadata(int, NativeFileMetadata*) pure @safe
+package(xtb.fs) OsError handleMetadata(
+    NativeHandle,
+    NativeFileMetadata*,
+) pure @safe
 {
     return unsupported();
 }

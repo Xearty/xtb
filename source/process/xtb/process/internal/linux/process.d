@@ -19,10 +19,11 @@ import core.sys.posix.sys.wait : WNOHANG, waitpid;
 import core.sys.posix.time : timespec;
 import core.sys.posix.unistd : nativeClose = close, environ;
 import xtb.os.error : OsError, OsErrorKind, fromErrno, lastError;
-import xtb.process.internal.process_backend : NativeActivityDescriptors,
-    NativeProcessWatchResult, NativeProcessWatchState, NativeRoute, NativeRouteKind,
-    NativeSignal, NativeSpawnOptions, NativeWaitResult, NativeWaitState,
-    NativeWatchWaitResult;
+import xtb.os.handle : NativeHandle;
+import xtb.process.internal.process_backend : NativeActivityHandles,
+    NativeProcessId, NativeProcessWatchResult, NativeProcessWatchState,
+    NativeRoute, NativeRouteKind, NativeSignal, NativeSpawnOptions,
+    NativeWaitResult, NativeWaitState, NativeWatchWaitResult;
 import xtb.types : u32, u64;
 
 package(xtb.process) const(char)** currentEnvironment() @system
@@ -131,7 +132,7 @@ nothrow @nogc:
         const(char)* executable,
         const(char)** argv,
         const(char)** environment,
-        int* output,
+        NativeProcessId* output,
     ) @system
     {
         pid_t processId;
@@ -145,7 +146,7 @@ nothrow @nogc:
         );
         if (code != 0)
             return fromErrno(code);
-        *output = cast(int) processId;
+        *output = fromProcessId(processId);
         return OsError.init;
     }
 
@@ -159,8 +160,8 @@ nothrow @nogc:
                 return posix_spawn_file_actions_addopen(
                     &actions, 0, "/dev/null".ptr, O_RDONLY, 0,
                 );
-            case NativeRouteKind.descriptor:
-                return addDescriptor(route.descriptor, 0, 0);
+            case NativeRouteKind.handle:
+                return addDescriptor(toDescriptor(route.handle), 0, 0);
             case NativeRouteKind.mergeWithStdout:
                 return EINVAL;
         }
@@ -176,8 +177,8 @@ nothrow @nogc:
                 return posix_spawn_file_actions_addopen(
                     &actions, target, "/dev/null".ptr, O_WRONLY, 0,
                 );
-            case NativeRouteKind.descriptor:
-                return addDescriptor(route.descriptor, target, index);
+            case NativeRouteKind.handle:
+                return addDescriptor(toDescriptor(route.handle), target, index);
             case NativeRouteKind.mergeWithStdout:
                 return EINVAL;
         }
@@ -208,14 +209,14 @@ private extern (C) pragma(mangle, "posix_spawn_file_actions_addclosefrom_np")
 int addCloseFrom(void* actions, int from);
 
 package(xtb.process) NativeWaitResult waitProcess(
-    int processId,
+    NativeProcessId processId,
     bool nonBlocking,
 ) @system
 {
     int nativeStatus;
     int result;
     do
-        result = waitpid(processId, &nativeStatus, nonBlocking ? WNOHANG : 0);
+        result = waitpid(toProcessId(processId), &nativeStatus, nonBlocking ? WNOHANG : 0);
     while (result < 0 && errno == EINTR);
     if (result < 0)
         return NativeWaitResult(lastError(), NativeWaitState.running, 0, false);
@@ -265,14 +266,16 @@ private int nativeTerminationSignal(int status) pure @safe
     return status & 0x7f;
 }
 
-package(xtb.process) NativeProcessWatchResult openProcessWatch(int processId) @system
+package(xtb.process) NativeProcessWatchResult openProcessWatch(
+    NativeProcessId processId,
+) @system
 {
-    const descriptor = nativePidfdOpen(processId, 0);
+    const descriptor = nativePidfdOpen(cast(int) processId.nativeValue, 0);
     if (descriptor >= 0)
         return NativeProcessWatchResult(
             OsError.init,
             NativeProcessWatchState.opened,
-            descriptor,
+            fromDescriptor(descriptor),
         );
     const error = lastError();
     if (error.nativeCode == ENOSYS || error.nativeCode == EINVAL ||
@@ -280,24 +283,28 @@ package(xtb.process) NativeProcessWatchResult openProcessWatch(int processId) @s
         return NativeProcessWatchResult(
             OsError.init,
             NativeProcessWatchState.unavailable,
-            -1,
+            NativeHandle.init,
         );
-    return NativeProcessWatchResult(error, NativeProcessWatchState.unavailable, -1);
+    return NativeProcessWatchResult(
+        error,
+        NativeProcessWatchState.unavailable,
+        NativeHandle.init,
+    );
 }
 
-package(xtb.process) void closeProcessWatch(int descriptor) @system
+package(xtb.process) void closeProcessWatch(NativeHandle handle) @system
 {
-    if (descriptor >= 0)
-        cast(void) nativeClose(descriptor);
+    if (handle.valid)
+        cast(void) nativeClose(toDescriptor(handle));
 }
 
 package(xtb.process) NativeWatchWaitResult waitProcessWatch(
-    int descriptor,
+    NativeHandle handle,
     u64 timeoutNanoseconds,
 ) @system
 {
     pollfd event;
-    event.fd = descriptor;
+    event.fd = toDescriptor(handle);
     event.events = POLLIN;
 
     timespec timeout;
@@ -316,46 +323,46 @@ package(xtb.process) NativeWatchWaitResult waitProcessWatch(
 }
 
 package(xtb.process) OsError waitForActivity(
-    NativeActivityDescriptors descriptors,
+    NativeActivityHandles handles,
     bool finite,
     u64 remaining,
 ) @system
 {
     pollfd[4] items;
     size_t count;
-    if (descriptors.stdinDescriptor >= 0)
+    if (handles.stdin.valid)
     {
-        items[count].fd = descriptors.stdinDescriptor;
+        items[count].fd = toDescriptor(handles.stdin);
         items[count].events = POLLOUT;
         ++count;
     }
-    if (descriptors.stdoutDescriptor >= 0)
+    if (handles.stdout.valid)
     {
-        items[count].fd = descriptors.stdoutDescriptor;
+        items[count].fd = toDescriptor(handles.stdout);
         items[count].events = POLLIN;
         ++count;
     }
-    if (descriptors.stderrDescriptor >= 0)
+    if (handles.stderr.valid)
     {
-        items[count].fd = descriptors.stderrDescriptor;
+        items[count].fd = toDescriptor(handles.stderr);
         items[count].events = POLLIN;
         ++count;
     }
-    if (descriptors.processDescriptor >= 0)
+    if (handles.process.valid)
     {
-        items[count].fd = descriptors.processDescriptor;
+        items[count].fd = toDescriptor(handles.process);
         items[count].events = POLLIN;
         ++count;
     }
 
     enum u64 fallbackObservation = 64_000_000;
     u64 wait = remaining;
-    if (descriptors.processDescriptor < 0 && (!finite || wait > fallbackObservation))
+    if (!handles.process.valid && (!finite || wait > fallbackObservation))
         wait = fallbackObservation;
 
     timespec timeout;
     const(timespec)* timeoutPointer;
-    if (finite || descriptors.processDescriptor < 0)
+    if (finite || !handles.process.valid)
     {
         timeout.tv_sec = cast(typeof(timeout.tv_sec))(wait / 1_000_000_000UL);
         timeout.tv_nsec = cast(typeof(timeout.tv_nsec))(wait % 1_000_000_000UL);
@@ -373,12 +380,13 @@ package(xtb.process) OsError waitForActivity(
 }
 
 package(xtb.process) OsError signalProcess(
-    int processId,
+    NativeProcessId processId,
     bool processGroup,
     NativeSignal signal,
 ) @system
 {
-    const target = processGroup ? -processId : processId;
+    const nativeId = toProcessId(processId);
+    const target = processGroup ? -nativeId : nativeId;
     int nativeSignal;
     final switch (signal)
     {
@@ -390,6 +398,26 @@ package(xtb.process) OsError signalProcess(
             break;
     }
     return kill(target, nativeSignal) == 0 ? OsError.init : lastError();
+}
+
+private NativeHandle fromDescriptor(int descriptor) pure @safe
+{
+    return NativeHandle.fromFileDescriptor(descriptor);
+}
+
+private int toDescriptor(NativeHandle handle) pure @safe
+{
+    return handle.fileDescriptor;
+}
+
+private NativeProcessId fromProcessId(pid_t processId) pure @safe
+{
+    return NativeProcessId.fromNativeValue(cast(ulong) processId);
+}
+
+private pid_t toProcessId(NativeProcessId processId) pure @safe
+{
+    return cast(pid_t) processId.nativeValue;
 }
 
 private extern (C) pragma(mangle, "pidfd_open")

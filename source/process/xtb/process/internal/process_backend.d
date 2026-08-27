@@ -3,20 +3,45 @@ module xtb.process.internal.process_backend;
 nothrow @nogc:
 
 import xtb.os.error : OsError;
+import xtb.os.handle : NativeHandle;
 import xtb.types : u32, u64;
+
+struct NativeProcessId
+{
+nothrow @nogc:
+
+    private u64 value_;
+
+    bool valid() const pure @safe
+    {
+        return value_ != 0;
+    }
+
+    package(xtb.process) static NativeProcessId fromNativeValue(
+        u64 value,
+    ) pure @safe
+    {
+        return NativeProcessId(value);
+    }
+
+    package(xtb.process) u64 nativeValue() const pure @safe
+    {
+        return value_;
+    }
+}
 
 enum NativeRouteKind : ubyte
 {
     inherited,
     nullDevice,
-    descriptor,
+    handle,
     mergeWithStdout,
 }
 
 struct NativeRoute
 {
     NativeRouteKind kind;
-    int descriptor = -1;
+    NativeHandle handle;
 }
 
 struct NativeSpawnOptions
@@ -60,7 +85,7 @@ struct NativeProcessWatchResult
 {
     OsError error;
     NativeProcessWatchState state;
-    int descriptor = -1;
+    NativeHandle handle;
 }
 
 struct NativeWatchWaitResult
@@ -69,10 +94,10 @@ struct NativeWatchWaitResult
     bool ready;
 }
 
-struct NativeActivityDescriptors
+struct NativeActivityHandles
 {
-    int stdinDescriptor = -1;
-    int stdoutDescriptor = -1;
-    int stderrDescriptor = -1;
-    int processDescriptor = -1;
+    NativeHandle stdin;
+    NativeHandle stdout;
+    NativeHandle stderr;
+    NativeHandle process;
 }

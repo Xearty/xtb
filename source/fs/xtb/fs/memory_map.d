@@ -31,7 +31,7 @@ OsError mapReadOnly(Path path, MappedFile* output) @system
         return OsError(OsErrorKind.invalidArgument, 0);
 
     return osMapReadOnly(
-        file.nativeDescriptor,
+        file.nativeHandle,
         cast(size_t) information.size,
         output,
     );
