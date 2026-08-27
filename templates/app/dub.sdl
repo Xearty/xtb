@@ -18,6 +18,7 @@ buildType "release-safe" {
     dflags "-fno-delete-null-pointer-checks" platform="ldc"
 }
 lflags "-L$XTB_LIBRARY_PATH"
+lflags "--as-needed" platform="linux"
 
 // The selected XTB archive contains one object per compiled module. The
 // application links that single archive without maintaining per-subpackage library
