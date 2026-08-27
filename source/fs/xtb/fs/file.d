@@ -1,4 +1,4 @@
-module xtb.os.file;
+module xtb.fs.file;
 
 nothrow @nogc:
 
@@ -9,7 +9,7 @@ import xtb.string;
 import xtb.thread_context : ScratchScope;
 import xtb.types : i64, u16, u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
-import xtb.os.path : Path;
+import xtb.fs.path : Path;
 
 version (linux) import core.sys.posix.sys.stat : NativeStat = stat_t;
 

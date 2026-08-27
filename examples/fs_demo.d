@@ -1,7 +1,8 @@
-module examples.os_demo;
+module examples.fs_demo;
 
 import xtb;
-import xtb.os;
+import xtb.fs;
+import xtb.os.error : OsError;
 
 extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
 {

@@ -1,4 +1,4 @@
-module xtb.os.path;
+module xtb.fs.path;
 
 nothrow @nogc:
 

@@ -3,16 +3,16 @@ module xtb.os.memory_map;
 nothrow @nogc:
 
 version (XTB_Checked) import xtb.panic : require;
+import xtb.string : String;
 import xtb.types : u8;
 import xtb.os.error : OsError;
-import xtb.os.path : Path;
 
 version (linux)
     private import backend = xtb.os.internal.linux.memory_map;
 else
     private import backend = xtb.os.internal.unsupported.memory_map;
 
-struct MappedFile
+struct MemoryMapping
 {
 nothrow @nogc:
 
@@ -20,7 +20,7 @@ nothrow @nogc:
     private size_t length_;
 
     @disable this(this);
-    @disable ref MappedFile opAssign(MappedFile source) return;
+    @disable ref MemoryMapping opAssign(MemoryMapping source) return;
 
     /// Explicitly ends this mapping's owning lifetime.
     ///
@@ -41,10 +41,10 @@ nothrow @nogc:
     }
 }
 
-OsError unmap(MappedFile* mapping) @system
+OsError unmap(MemoryMapping* mapping) @system
 {
     version (XTB_Checked)
-        require(mapping !is null, "MappedFile pointer is null");
+        require(mapping !is null, "MemoryMapping pointer is null");
     if (mapping.address_ is null)
     {
         mapping.length_ = 0;
@@ -58,10 +58,10 @@ OsError unmap(MappedFile* mapping) @system
     return backend.unmapImpl(address, length);
 }
 
-OsError mapReadOnly(Path path, MappedFile* output) @system
+OsError mapFileReadOnly(String path, MemoryMapping* output) @system
 {
     version (XTB_Checked)
-        require(output !is null, "MappedFile output pointer is null");
+        require(output !is null, "MemoryMapping output pointer is null");
     const cleanupError = unmap(output);
     if (cleanupError.failed)
         return cleanupError;

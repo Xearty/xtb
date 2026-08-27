@@ -57,11 +57,11 @@ configuration "math-demo" {
     mainSourceFile "math_demo.d"
 }
 
-configuration "os-demo" {
+configuration "fs-demo" {
     targetType "executable"
-    targetName "os_demo"
+    targetName "fs_demo"
     targetPath "../build/examples"
-    mainSourceFile "os_demo.d"
+    mainSourceFile "fs_demo.d"
 }
 
 configuration "logging-demo" {

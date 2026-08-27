@@ -1,4 +1,4 @@
-module xtb.os.directory;
+module xtb.fs.directory;
 
 nothrow @nogc:
 
@@ -9,8 +9,8 @@ import xtb.string;
 import xtb.thread_context : ScratchScope;
 import xtb.types : u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
-import xtb.os.file : FileMetadata, FileType, SymlinkMode, metadata;
-import xtb.os.path : Path, appendComponent;
+import xtb.fs.file : FileMetadata, FileType, SymlinkMode, metadata;
+import xtb.fs.path : Path, appendComponent;
 
 enum Access : ubyte
 {

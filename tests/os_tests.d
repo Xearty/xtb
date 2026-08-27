@@ -1,11 +1,11 @@
 module tests.os_tests;
 
-import xtb.os.directory;
+import xtb.fs.directory;
 import xtb.os.error;
 import xtb.os.environment;
-import xtb.os.file;
-import xtb.os.memory_map;
-import xtb.os.path;
+import xtb.fs.file;
+import xtb.fs.memory_map;
+import xtb.fs.path;
 import xtb.process.pipeline;
 import xtb.os.pipe;
 import xtb.process.process;

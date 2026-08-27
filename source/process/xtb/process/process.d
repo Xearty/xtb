@@ -12,8 +12,8 @@ import xtb.string;
 import xtb.thread_context : ScratchScope;
 import xtb.types : u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
-import xtb.os.file : File;
-import xtb.os.path : Path;
+import xtb.fs.file : File;
+import xtb.fs.path : Path;
 import xtb.os.pipe : Pipe, PipeMode, PipeOptions, PipeReader, PipeWriter,
     close, createPipe;
 import xtb.os.time : Timeout, TimeoutKind, monotonicNanoseconds,
