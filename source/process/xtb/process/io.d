@@ -7,13 +7,20 @@ import xtb.option : Option, some;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.types : u64, u8;
-import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
+import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.pipe : PipeReadState, PipeReader, PipeWriteState, PipeWriter,
     close, readSome, writeSome;
 import xtb.process.process : ChildProcess, ExitStatus, ProcessError,
     ProcessOperation, WaitState, kill, requestTermination, tryWait;
 import xtb.os.time : monotonicNanoseconds, sleepNanoseconds;
 import xtb.time : Timeout, TimeoutKind;
+import xtb.process.internal.process_backend : NativeActivityDescriptors,
+    NativeProcessWatchState;
+
+version (linux)
+    private import backend = xtb.process.internal.linux.process;
+else
+    private import backend = xtb.process.internal.unsupported.process;
 
 struct CaptureBuffer
 {
@@ -519,37 +526,18 @@ nothrow @nogc:
 
     void deinit() @system
     {
-        version (linux)
-        {
-            if (descriptor >= 0)
-            {
-                import core.sys.posix.unistd : nativeClose = close;
-
-                cast(void) nativeClose(descriptor);
-                descriptor = -1;
-            }
-        }
-        else
-            descriptor = -1;
+        backend.closeProcessWatch(descriptor);
+        descriptor = -1;
     }
 
     OsError open(scope const(ChildProcess)* child) @system
     {
-        version (linux)
-        {
-            import core.stdc.errno : EINVAL, ENOSYS, EPERM;
-
-            descriptor = nativePidfdOpen(cast(int) child.id.value, 0);
-            if (descriptor >= 0)
-                return OsError.init;
-            const error = lastError();
-            if (error.nativeCode == ENOSYS || error.nativeCode == EINVAL ||
-                error.nativeCode == EPERM || error.kind == OsErrorKind.notFound)
-                return OsError.init;
-            return error;
-        }
-        else
-            return unsupported();
+        const result = backend.openProcessWatch(cast(int) child.id.value);
+        if (result.error.failed)
+            return result.error;
+        descriptor = result.state == NativeProcessWatchState.opened
+            ? result.descriptor : -1;
+        return OsError.init;
     }
 }
 
@@ -560,82 +548,17 @@ private OsError waitForActivity(
     u64 remaining,
 ) @system
 {
-    version (linux)
-    {
-        import core.stdc.errno : EINTR, errno;
-        import core.sys.posix.poll : POLLIN, POLLNVAL, POLLOUT, pollfd;
-        import core.sys.posix.time : timespec;
-
-        pollfd[4] items;
-        size_t count;
-        if (child.stdinPipe !is null)
-        {
-            items[count].fd = child.stdinPipe.nativeDescriptor;
-            items[count].events = POLLOUT;
-            ++count;
-        }
-        if (child.stdoutPipe !is null)
-        {
-            items[count].fd = child.stdoutPipe.nativeDescriptor;
-            items[count].events = POLLIN;
-            ++count;
-        }
-        if (child.stderrPipe !is null)
-        {
-            items[count].fd = child.stderrPipe.nativeDescriptor;
-            items[count].events = POLLIN;
-            ++count;
-        }
-        if (watch.descriptor >= 0 && child.ownsProcess)
-        {
-            items[count].fd = watch.descriptor;
-            items[count].events = POLLIN;
-            ++count;
-        }
-
-        enum u64 fallbackObservation = 64_000_000;
-        u64 wait = remaining;
-        if (watch.descriptor < 0 && (!finite || wait > fallbackObservation))
-            wait = fallbackObservation;
-
-        timespec timeout;
-        const(timespec)* timeoutPointer;
-        if (finite || watch.descriptor < 0)
-        {
-            timeout.tv_sec = cast(typeof(timeout.tv_sec))(
-                wait / 1_000_000_000UL
-            );
-            timeout.tv_nsec = cast(typeof(timeout.tv_nsec))(
-                wait % 1_000_000_000UL
-            );
-            timeoutPointer = &timeout;
-        }
-        const result = nativePpoll(items.ptr, count, timeoutPointer, null);
-        if (result < 0)
-            return errno == EINTR ? OsError.init : lastError();
-        foreach (item; items[0 .. count])
-        {
-            if ((item.revents & POLLNVAL) != 0)
-                return OsError(OsErrorKind.system, 0);
-        }
-        return OsError.init;
-    }
-    else
-    {
-        cast(void) child;
-        cast(void) watch;
-        cast(void) finite;
-        cast(void) remaining;
-        return unsupported();
-    }
+    NativeActivityDescriptors descriptors;
+    if (child.stdinPipe !is null)
+        descriptors.stdinDescriptor = child.stdinPipe.nativeDescriptor;
+    if (child.stdoutPipe !is null)
+        descriptors.stdoutDescriptor = child.stdoutPipe.nativeDescriptor;
+    if (child.stderrPipe !is null)
+        descriptors.stderrDescriptor = child.stderrPipe.nativeDescriptor;
+    if (watch.descriptor >= 0 && child.ownsProcess)
+        descriptors.processDescriptor = watch.descriptor;
+    return backend.waitForActivity(descriptors, finite, remaining);
 }
-
-version (linux) private extern (C) pragma(mangle, "pidfd_open")
-int nativePidfdOpen(int processId, uint flags);
-
-version (linux) private extern (C) pragma(mangle, "ppoll")
-int nativePpoll(void* descriptors, size_t count, const(void)* timeout,
-    const(void)* signalMask);
 
 unittest
 {

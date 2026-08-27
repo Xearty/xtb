@@ -11,15 +11,23 @@ version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
 import xtb.thread_context : ScratchScope;
 import xtb.types : u32, u64, u8;
-import xtb.os.error : OsError, OsErrorKind, lastError, unsupported;
+import xtb.os.error : OsError, OsErrorKind;
 import xtb.fs.file : File;
 import xtb.fs.path : Path;
 import xtb.os.pipe : Pipe, PipeMode, PipeOptions, PipeReader, PipeWriter,
     close, createPipe;
 import xtb.os.time : monotonicNanoseconds, sleepNanoseconds;
 import xtb.time : Timeout, TimeoutKind;
+import xtb.process.internal.process_backend : NativeProcessWatchState,
+    NativeRoute, NativeRouteKind, NativeSignal, NativeSpawnOptions,
+    NativeWaitState;
 
-version (linux) import xtb.os.error : fromErrno;
+version (linux)
+    private import backend = xtb.process.internal.linux.process;
+else
+    private import backend = xtb.process.internal.unsupported.process;
+
+private alias NativeSpawn = backend.NativeSpawn;
 
 enum ProcessOperation : ubyte
 {
@@ -580,17 +588,14 @@ ProcessError spawn(
     }
 
     int processId;
-    version (linux)
-        error = spawnLinux(
-            command,
-            options,
-            stdinDescriptor,
-            stdoutDescriptor,
-            stderrDescriptor,
-            &processId,
-        );
-    else
-        error = ProcessError(unsupported(), ProcessOperation.spawn);
+    error = spawnPlatform(
+        command,
+        options,
+        stdinDescriptor,
+        stdoutDescriptor,
+        stderrDescriptor,
+        &processId,
+    );
     if (error.failed)
         return error;
 
@@ -613,14 +618,7 @@ WaitResult tryWait(ChildProcess* child) @system
     version (XTB_Checked)
         require(child !is null && child.ownsProcess,
             "invalid ChildProcess for tryWait");
-    version (linux)
-        return waitLinux(child, true);
-    else
-        return WaitResult(
-            ProcessError(unsupported(), ProcessOperation.wait),
-            WaitState.running,
-            ExitStatus.init,
-        );
+    return waitPlatform(child, true);
 }
 
 WaitResult waitFor(ChildProcess* child, Timeout timeout) @system
@@ -636,18 +634,9 @@ WaitResult waitFor(ChildProcess* child, Timeout timeout) @system
         );
     if (timeout.isImmediate)
         return tryWait(child);
-    version (linux)
-    {
-        if (timeout.isInfinite)
-            return waitLinux(child, false);
-        return waitForLinux(child, timeout);
-    }
-    else
-        return WaitResult(
-            ProcessError(unsupported(), ProcessOperation.wait),
-            WaitState.running,
-            ExitStatus.init,
-        );
+    if (timeout.isInfinite)
+        return waitPlatform(child, false);
+    return waitForPlatform(child, timeout);
 }
 
 ProcessError wait(ChildProcess* child, ExitStatus* output) @system
@@ -659,15 +648,10 @@ ProcessError wait(ChildProcess* child, ExitStatus* output) @system
         require(output !is null, "ExitStatus output pointer is null");
     }
     *output = ExitStatus.init;
-    version (linux)
-    {
-        const result = waitLinux(child, false);
-        if (result.error.succeeded)
-            *output = result.status;
-        return result.error;
-    }
-    else
-        return ProcessError(unsupported(), ProcessOperation.wait);
+    const result = waitPlatform(child, false);
+    if (result.error.succeeded)
+        *output = result.status;
+    return result.error;
 }
 
 ProcessError requestTermination(scope const(ChildProcess)* child) @system
@@ -675,14 +659,11 @@ ProcessError requestTermination(scope const(ChildProcess)* child) @system
     version (XTB_Checked)
         require(child !is null && child.ownsProcess,
             "invalid ChildProcess for termination");
-    version (linux)
-    {
-        import core.stdc.signal : SIGTERM;
-
-        return signalLinux(child, SIGTERM, ProcessOperation.requestTermination);
-    }
-    else
-        return ProcessError(unsupported(), ProcessOperation.requestTermination);
+    return signalPlatform(
+        child,
+        NativeSignal.terminate,
+        ProcessOperation.requestTermination,
+    );
 }
 
 ProcessError kill(scope const(ChildProcess)* child) @system
@@ -690,14 +671,7 @@ ProcessError kill(scope const(ChildProcess)* child) @system
     version (XTB_Checked)
         require(child !is null && child.ownsProcess,
             "invalid ChildProcess for kill");
-    version (linux)
-    {
-        import core.sys.posix.signal : SIGKILL;
-
-        return signalLinux(child, SIGKILL, ProcessOperation.kill);
-    }
-    else
-        return ProcessError(unsupported(), ProcessOperation.kill);
+    return signalPlatform(child, NativeSignal.kill, ProcessOperation.kill);
 }
 
 ProcessError terminateAndWait(ChildProcess* child, ExitStatus* output) @system
@@ -841,7 +815,7 @@ private ProcessError invalidProcessError(ProcessOperation operation) pure @safe
     return ProcessError(OsError(OsErrorKind.invalidArgument, 0), operation);
 }
 
-version (linux) private ProcessError spawnLinux(
+private ProcessError spawnPlatform(
     scope const(Command) command,
     scope const(SpawnOptions) options,
     int stdinDescriptor,
@@ -850,12 +824,10 @@ version (linux) private ProcessError spawnLinux(
     int* output,
 ) @system
 {
-    import core.sys.posix.unistd : environ;
-
     version (XTB_Checked)
         require(output !is null, "native process id output pointer is null");
     *output = -1;
-    const policyError = validateSigchldPolicy();
+    const policyError = backend.validateChildReapingPolicy();
     if (policyError.failed)
         return ProcessError(policyError, ProcessOperation.spawn);
 
@@ -877,7 +849,7 @@ version (linux) private ProcessError spawnLinux(
     const environmentError = buildEnvironment(
         command.environment_,
         scratch.allocator,
-        cast(const(char)**) environ,
+        backend.currentEnvironment(),
         &environment,
     );
     if (environmentError.failed)
@@ -890,16 +862,18 @@ version (linux) private ProcessError spawnLinux(
             scratch.allocator,
         );
 
+    NativeSpawnOptions nativeOptions;
+    nativeOptions.stdin = toNativeRoute(options.stdin.kind_, stdinDescriptor);
+    nativeOptions.stdout = toNativeRoute(options.stdout.kind_, stdoutDescriptor);
+    nativeOptions.stderr = toNativeRoute(options.stderr.kind_, stderrDescriptor);
+    nativeOptions.isolatedTree = options.isolation == ProcessIsolation.isolatedTree;
+    nativeOptions.clearSignalMask = options.signalMask == SignalMaskPolicy.clear;
+    nativeOptions.workingDirectory = workingDirectory;
+
     NativeSpawn spawnState;
     scope (exit)
         spawnState.deinit();
-    OsError error = spawnState.prepare(
-        options,
-        stdinDescriptor,
-        stdoutDescriptor,
-        stderrDescriptor,
-        workingDirectory,
-    );
+    OsError error = spawnState.prepare(nativeOptions);
     if (error.failed)
         return ProcessError(error, ProcessOperation.spawn);
 
@@ -922,181 +896,26 @@ version (linux) private ProcessError spawnLinux(
     return ProcessError.init;
 }
 
-version (linux) private struct NativeSpawn
+private NativeRoute toNativeRoute(RouteKind kind, int descriptor) pure @safe
 {
-nothrow @nogc:
-
-    import core.sys.posix.spawn : posix_spawn_file_actions_t,
-        posix_spawnattr_t;
-
-    private posix_spawn_file_actions_t actions;
-    private posix_spawnattr_t attributes;
-    private bool actionsActive;
-    private bool attributesActive;
-    private int[3] stagedDescriptors = [-1, -1, -1];
-
-    @disable this(this);
-    @disable ref NativeSpawn opAssign(NativeSpawn source) return;
-
-    void deinit() @system
+    switch (kind)
     {
-        import core.sys.posix.spawn : posix_spawn_file_actions_destroy,
-            posix_spawnattr_destroy;
-        import core.sys.posix.unistd : nativeClose = close;
-
-        foreach (ref descriptor; stagedDescriptors)
-        {
-            if (descriptor >= 0)
-            {
-                cast(void) nativeClose(descriptor);
-                descriptor = -1;
-            }
-        }
-        if (actionsActive)
-        {
-            cast(void) posix_spawn_file_actions_destroy(&actions);
-            actionsActive = false;
-        }
-        if (attributesActive)
-        {
-            cast(void) posix_spawnattr_destroy(&attributes);
-            attributesActive = false;
-        }
-    }
-
-    OsError prepare(
-        scope const(SpawnOptions) options,
-        int stdinDescriptor,
-        int stdoutDescriptor,
-        int stderrDescriptor,
-        const(char)* workingDirectory,
-    ) @system
-    {
-        import core.sys.posix.fcntl : O_RDONLY, O_WRONLY;
-        import core.sys.posix.signal : sigemptyset, sigset_t;
-        import core.sys.posix.spawn : POSIX_SPAWN_SETPGROUP,
-            POSIX_SPAWN_SETSIGMASK, posix_spawn_file_actions_adddup2,
-            posix_spawn_file_actions_addopen, posix_spawn_file_actions_init,
-            posix_spawnattr_init, posix_spawnattr_setflags,
-            posix_spawnattr_setpgroup, posix_spawnattr_setsigmask;
-
-        int code = posix_spawn_file_actions_init(&actions);
-        if (code != 0)
-            return fromErrno(code);
-        actionsActive = true;
-        code = posix_spawnattr_init(&attributes);
-        if (code != 0)
-            return fromErrno(code);
-        attributesActive = true;
-
-        short flags;
-        if (options.signalMask == SignalMaskPolicy.clear)
-        {
-            sigset_t emptyMask;
-            sigemptyset(&emptyMask);
-            code = posix_spawnattr_setsigmask(&attributes, &emptyMask);
-            if (code != 0)
-                return fromErrno(code);
-            flags |= POSIX_SPAWN_SETSIGMASK;
-        }
-        if (options.isolation == ProcessIsolation.isolatedTree)
-        {
-            code = posix_spawnattr_setpgroup(&attributes, 0);
-            if (code != 0)
-                return fromErrno(code);
-            flags |= POSIX_SPAWN_SETPGROUP;
-        }
-        code = posix_spawnattr_setflags(&attributes, flags);
-        if (code != 0)
-            return fromErrno(code);
-
-        if (options.stdin.kind_ == RouteKind.nullDevice)
-            code = posix_spawn_file_actions_addopen(
-                &actions, 0, "/dev/null".ptr, O_RDONLY, 0,
-            );
-        else if (stdinDescriptor >= 0)
-            code = addDescriptor(stdinDescriptor, 0, 0);
-        if (code != 0)
-            return fromErrno(code);
-
-        if (options.stdout.kind_ == RouteKind.nullDevice)
-            code = posix_spawn_file_actions_addopen(
-                &actions, 1, "/dev/null".ptr, O_WRONLY, 0,
-            );
-        else if (stdoutDescriptor >= 0)
-            code = addDescriptor(stdoutDescriptor, 1, 1);
-        if (code != 0)
-            return fromErrno(code);
-
-        if (options.stderr.kind_ == RouteKind.nullDevice)
-            code = posix_spawn_file_actions_addopen(
-                &actions, 2, "/dev/null".ptr, O_WRONLY, 0,
-            );
-        else if (options.stderr.kind_ == RouteKind.mergeWithStdout)
-            code = posix_spawn_file_actions_adddup2(&actions, 1, 2);
-        else if (stderrDescriptor >= 0)
-            code = addDescriptor(stderrDescriptor, 2, 2);
-        if (code != 0)
-            return fromErrno(code);
-
-        if (workingDirectory !is null)
-        {
-            code = addChdir(&actions, workingDirectory);
-            if (code != 0)
-                return fromErrno(code);
-        }
-        code = addCloseFrom(&actions, 3);
-        return code == 0 ? OsError.init : fromErrno(code);
-    }
-
-    OsError execute(
-        const(char)* executable,
-        const(char)** argv,
-        const(char)** environment,
-        int* output,
-    ) @system
-    {
-        import core.sys.posix.spawn : posix_spawn;
-        import core.sys.posix.sys.types : pid_t;
-
-        pid_t processId;
-        const code = posix_spawn(
-            &processId,
-            executable,
-            &actions,
-            &attributes,
-            argv,
-            environment,
-        );
-        if (code != 0)
-            return fromErrno(code);
-        *output = cast(int) processId;
-        return OsError.init;
-    }
-
-    private int addDescriptor(int descriptor, int target, size_t index) @system
-    {
-        import core.sys.posix.fcntl : fcntl;
-        import core.sys.posix.spawn : posix_spawn_file_actions_adddup2;
-
-        enum F_DUPFD_CLOEXEC = 1030;
-        const staged = fcntl(descriptor, F_DUPFD_CLOEXEC, 3);
-        if (staged < 0)
-            return lastError().nativeCode;
-        stagedDescriptors[index] = staged;
-        return posix_spawn_file_actions_adddup2(&actions, staged, target);
+        case RouteKind.inherited:
+            return NativeRoute(NativeRouteKind.inherited, -1);
+        case RouteKind.nullDevice:
+            return NativeRoute(NativeRouteKind.nullDevice, -1);
+        case RouteKind.piped:
+        case RouteKind.file:
+        case RouteKind.pipe:
+            return NativeRoute(NativeRouteKind.descriptor, descriptor);
+        case RouteKind.mergeWithStdout:
+            return NativeRoute(NativeRouteKind.mergeWithStdout, -1);
+        default:
+            return NativeRoute(NativeRouteKind.inherited, -1);
     }
 }
 
-version (linux) private extern (C) pragma(mangle,
-    "posix_spawn_file_actions_addchdir_np")
-int addChdir(void* actions, const(char)* path);
-
-version (linux) private extern (C) pragma(mangle,
-    "posix_spawn_file_actions_addclosefrom_np")
-int addCloseFrom(void* actions, int from);
-
-version (linux) private OsError spawnSearchPath(
+private OsError spawnSearchPath(
     NativeSpawn* spawnState,
     String executable,
     const(char)** argv,
@@ -1150,7 +969,7 @@ version (linux) private OsError spawnSearchPath(
         ? accessError : OsError(OsErrorKind.notFound, 0);
 }
 
-version (linux) private OsError buildEnvironment(
+private OsError buildEnvironment(
     scope const(Environment) environment,
     Allocator* allocator,
     const(char)** inherited,
@@ -1206,7 +1025,7 @@ version (linux) private OsError buildEnvironment(
     return OsError.init;
 }
 
-version (linux) private const(char)* makeEnvironmentEntry(
+private const(char)* makeEnvironmentEntry(
     scope const(EnvironmentEntry) entry,
     Allocator* allocator,
 ) @system
@@ -1225,7 +1044,7 @@ version (linux) private const(char)* makeEnvironmentEntry(
     return result;
 }
 
-version (linux) private size_t findEnvironmentEntry(
+private size_t findEnvironmentEntry(
     scope const(EnvironmentEntry)[] entries,
     String name,
 ) @system
@@ -1238,7 +1057,7 @@ version (linux) private size_t findEnvironmentEntry(
     return size_t.max;
 }
 
-version (linux) private String environmentEntryName(String entry) @safe
+private String environmentEntryName(String entry) @safe
 {
     size_t length;
     while (length < entry.length && entry[length] != '=')
@@ -1246,7 +1065,7 @@ version (linux) private String environmentEntryName(String entry) @safe
     return entry[0 .. length];
 }
 
-version (linux) private OsError environmentValue(
+private OsError environmentValue(
     const(char)** environment,
     String name,
     String* output,
@@ -1271,7 +1090,7 @@ version (linux) private OsError environmentValue(
     return OsError.init;
 }
 
-version (linux) private const(char)* copyCString(
+private const(char)* copyCString(
     String source,
     Allocator* allocator,
 ) @system
@@ -1283,137 +1102,57 @@ version (linux) private const(char)* copyCString(
     return result;
 }
 
-version (linux) private OsError validateSigchldPolicy() @system
+private WaitResult waitPlatform(ChildProcess* child, bool nonBlocking) @system
 {
-    import core.stdc.signal : SIG_IGN;
-    import core.sys.posix.signal : SA_NOCLDWAIT, SIGCHLD, sigaction,
-        sigaction_t;
-
-    sigaction_t current;
-    if (sigaction(SIGCHLD, null, &current) != 0)
-        return lastError();
-    if (current.sa_handler is SIG_IGN ||
-        (current.sa_flags & SA_NOCLDWAIT) != 0)
-        return OsError(OsErrorKind.invalidArgument, 0);
-    return OsError.init;
-}
-
-version (linux) private WaitResult waitLinux(
-    ChildProcess* child,
-    bool nonBlocking,
-) @system
-{
-    import core.stdc.errno : EINTR, errno;
-    import core.sys.posix.sys.wait : WNOHANG, waitpid;
-
-    int nativeStatus;
-    int result;
-    do
-        result = waitpid(child.processId_, &nativeStatus,
-            nonBlocking ? WNOHANG : 0);
-    while (result < 0 && errno == EINTR);
-    if (result < 0)
-        return WaitResult(
-            ProcessError(lastError(), ProcessOperation.wait),
-            WaitState.running,
-            ExitStatus.init,
-        );
-    if (result == 0)
-        return WaitResult(ProcessError.init, WaitState.running,
-            ExitStatus.init);
+    const native = backend.waitProcess(child.processId_, nonBlocking);
+    if (native.error.failed)
+        return waitError(native.error);
+    if (native.state == NativeWaitState.running)
+        return WaitResult(ProcessError.init, WaitState.running, ExitStatus.init);
 
     child.processId_ = -1;
     ExitStatus status;
-    if (nativeExited(nativeStatus))
-        status = ExitStatus(
-            ExitKind.exited,
-            cast(u32) nativeExitCode(nativeStatus),
-            false,
-        );
-    else if (nativeSignaled(nativeStatus))
-        status = ExitStatus(
-            ExitKind.signaled,
-            cast(u32) nativeTerminationSignal(nativeStatus),
-            (nativeStatus & 0x80) != 0,
-        );
-    else
-        return WaitResult(
-            ProcessError(
-                OsError(OsErrorKind.system, 0),
-                ProcessOperation.wait,
-        ),
-        WaitState.running,
-        ExitStatus.init,
-        );
+    final switch (native.state)
+    {
+        case NativeWaitState.running:
+            return WaitResult(ProcessError.init, WaitState.running, ExitStatus.init);
+        case NativeWaitState.exited:
+            status = ExitStatus(ExitKind.exited, native.code, false);
+            break;
+        case NativeWaitState.signaled:
+            status = ExitStatus(ExitKind.signaled, native.code, native.coreDumped);
+            break;
+    }
     return WaitResult(ProcessError.init, WaitState.exited, status);
 }
 
-// Linux exposes these as C preprocessor macros. Repeating the stable waitpid
-// status encoding here avoids depending on runtime helper symbols in BetterC.
-version (linux) private bool nativeExited(int status) pure @safe
+private WaitResult waitForPlatform(ChildProcess* child, Timeout timeout) @system
 {
-    return (status & 0x7f) == 0;
-}
-
-version (linux) private bool nativeSignaled(int status) pure @safe
-{
-    const signal = status & 0x7f;
-    return signal != 0 && signal != 0x7f;
-}
-
-version (linux) private int nativeExitCode(int status) pure @safe
-{
-    return (status >> 8) & 0xff;
-}
-
-version (linux) private int nativeTerminationSignal(int status) pure @safe
-{
-    return status & 0x7f;
-}
-
-version (linux) private WaitResult waitForLinux(
-    ChildProcess* child,
-    Timeout timeout,
-) @system
-{
-    import core.stdc.errno : EINVAL, ENOSYS, EPERM;
-
     u64 started;
     OsError error = monotonicNanoseconds(&started);
     if (error.failed)
         return waitError(error);
     const duration = timeout.duration.totalNanoseconds;
-    const deadline = duration > u64.max - started
-        ? u64.max : started + duration;
+    const deadline = duration > u64.max - started ? u64.max : started + duration;
 
-    const descriptor = nativePidfdOpen(child.processId_, 0);
-    if (descriptor >= 0)
+    const watch = backend.openProcessWatch(child.processId_);
+    if (watch.error.failed)
+        return waitError(watch.error);
+    if (watch.state == NativeProcessWatchState.opened)
     {
-        const result = waitOnPidfd(child, descriptor, deadline);
-        closeNativeDescriptor(descriptor);
+        const result = waitOnProcessWatch(child, watch.descriptor, deadline);
+        backend.closeProcessWatch(watch.descriptor);
         return result;
     }
-
-    error = lastError();
-    if (error.nativeCode != ENOSYS && error.nativeCode != EINVAL &&
-        error.nativeCode != EPERM)
-        return waitError(error);
     return waitByObservation(child, deadline);
 }
 
-version (linux) private WaitResult waitOnPidfd(
+private WaitResult waitOnProcessWatch(
     ChildProcess* child,
     int descriptor,
     u64 deadline,
 ) @system
 {
-    import core.stdc.errno : EINTR, errno;
-    import core.sys.posix.poll : POLLIN, pollfd;
-    import core.sys.posix.time : timespec;
-
-    pollfd event;
-    event.fd = descriptor;
-    event.events = POLLIN;
     for (;;)
     {
         u64 now;
@@ -1423,28 +1162,15 @@ version (linux) private WaitResult waitOnPidfd(
         if (now >= deadline)
             return tryWait(child);
 
-        const remaining = deadline - now;
-        timespec nativeTimeout;
-        nativeTimeout.tv_sec = cast(typeof(nativeTimeout.tv_sec))(
-            remaining / 1_000_000_000UL
-        );
-        nativeTimeout.tv_nsec = cast(typeof(nativeTimeout.tv_nsec))(
-            remaining % 1_000_000_000UL
-        );
-        const result = nativePpoll(&event, 1, &nativeTimeout, null);
-        if (result > 0)
-            return waitLinux(child, false);
-        if (result == 0)
-            continue;
-        if (errno != EINTR)
-            return waitError(lastError());
+        const result = backend.waitProcessWatch(descriptor, deadline - now);
+        if (result.error.failed)
+            return waitError(result.error);
+        if (result.ready)
+            return waitPlatform(child, false);
     }
 }
 
-version (linux) private WaitResult waitByObservation(
-    ChildProcess* child,
-    u64 deadline,
-) @system
+private WaitResult waitByObservation(ChildProcess* child, u64 deadline) @system
 {
     enum u64 maximumPause = 10_000_000;
     for (;;)
@@ -1468,7 +1194,7 @@ version (linux) private WaitResult waitByObservation(
     }
 }
 
-version (linux) private WaitResult waitError(OsError error) pure @safe
+private WaitResult waitError(OsError error) pure @safe
 {
     return WaitResult(
         ProcessError(error, ProcessOperation.wait),
@@ -1477,32 +1203,18 @@ version (linux) private WaitResult waitError(OsError error) pure @safe
     );
 }
 
-version (linux) private extern (C) pragma(mangle, "pidfd_open")
-int nativePidfdOpen(int processId, uint flags);
-
-version (linux) private extern (C) pragma(mangle, "ppoll")
-int nativePpoll(void* descriptors, size_t count, const(void)* timeout,
-    const(void)* signalMask);
-
-version (linux) private void closeNativeDescriptor(int descriptor) @system
-{
-    import core.sys.posix.unistd : nativeClose = close;
-
-    nativeClose(descriptor);
-}
-
-version (linux) private ProcessError signalLinux(
+private ProcessError signalPlatform(
     scope const(ChildProcess)* child,
-    int signal,
+    NativeSignal signal,
     ProcessOperation operation,
 ) @system
 {
-    import core.sys.posix.signal : nativeKill = kill;
-
-    const target = child.isolation_ == ProcessIsolation.isolatedTree
-        ? -child.processId_ : child.processId_;
-    return nativeKill(target, signal) == 0
-        ? ProcessError.init : ProcessError(lastError(), operation);
+    const error = backend.signalProcess(
+        child.processId_,
+        child.isolation_ == ProcessIsolation.isolatedTree,
+        signal,
+    );
+    return error.succeeded ? ProcessError.init : ProcessError(error, operation);
 }
 
 package(xtb.process) void rollbackSpawnedProcess(ChildProcess* child) @system
@@ -1515,23 +1227,13 @@ package(xtb.process) void rollbackSpawnedProcess(ChildProcess* child) @system
 
 private void forceSignal(ChildProcess* child) @system
 {
-    version (linux)
-    {
-        import core.sys.posix.signal : SIGKILL;
-
-        cast(void) signalLinux(child, SIGKILL, ProcessOperation.kill);
-    }
+    cast(void) signalPlatform(child, NativeSignal.kill, ProcessOperation.kill);
 }
 
 private void reapIgnoringErrors(ChildProcess* child) @system
 {
-    version (linux)
-    {
-        cast(void) waitLinux(child, false);
-        child.processId_ = -1;
-    }
-    else
-        child.processId_ = -1;
+    cast(void) waitPlatform(child, false);
+    child.processId_ = -1;
 }
 
 unittest
