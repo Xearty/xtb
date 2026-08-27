@@ -3,10 +3,81 @@ module xtb.time;
 nothrow @nogc:
 
 import xtb.panic : panic;
+
 version (XTB_Checked) import xtb.panic : require;
 import xtb.duration : Duration, durationNanoseconds = nanoseconds;
 import xtb.os.time : monotonicNanoseconds, wallClockNanoseconds;
 import xtb.types : i64, u64;
+
+enum TimeoutKind : ubyte
+{
+    infinite,
+    immediate,
+    finite,
+}
+
+/// A wait policy that is infinite, immediate, or bounded by a duration.
+struct Timeout
+{
+nothrow @nogc:
+
+    private TimeoutKind kind_;
+    private Duration duration_;
+
+    static Timeout infinite() pure @safe
+    {
+        return Timeout.init;
+    }
+
+    static Timeout immediate() pure @safe
+    {
+        return Timeout(TimeoutKind.immediate, Duration.init);
+    }
+
+    static Timeout after(Duration duration) pure @safe
+    {
+        return duration.isZero
+            ? immediate() : Timeout(TimeoutKind.finite, duration);
+    }
+
+    TimeoutKind kind() const pure @safe
+    {
+        return kind_;
+    }
+
+    bool isInfinite() const pure @safe
+    {
+        return kind_ == TimeoutKind.infinite;
+    }
+
+    bool isImmediate() const pure @safe
+    {
+        return kind_ == TimeoutKind.immediate;
+    }
+
+    bool isFinite() const pure @safe
+    {
+        return kind_ == TimeoutKind.finite;
+    }
+
+    Duration duration() const @safe
+    {
+        version (XTB_Checked)
+            require(isFinite, "non-finite Timeout has no duration");
+        return duration_;
+    }
+}
+
+/// Suspends the current thread for at least `duration`.
+///
+/// Panics if the platform unexpectedly cannot perform the sleep.
+void sleep(Duration duration) @trusted
+{
+    import xtb.os.time : sleepNanoseconds;
+
+    if (sleepNanoseconds(duration.totalNanoseconds).failed)
+        panic("failed to sleep");
+}
 
 /// A wall-clock timestamp represented as nanoseconds since the Unix epoch.
 ///
@@ -88,13 +159,20 @@ static assert(__traits(isPOD, Instant));
 
 unittest
 {
-    import xtb.os.time : sleepNanoseconds;
+    import xtb.duration : milliseconds;
+
+    assert(Timeout.init.isInfinite);
+    assert(Timeout.infinite.isInfinite);
+    assert(Timeout.immediate.isImmediate);
+    assert(Timeout.after(Duration.init).isImmediate);
+    const finite = Timeout.after(milliseconds(250));
+    assert(finite.isFinite && finite.duration == milliseconds(250));
 
     const timestamp = Timestamp.now();
     assert(timestamp.nanosecondsSinceUnixEpoch != 0);
 
     const before = Instant.now();
-    assert(sleepNanoseconds(1_000_000).succeeded);
+    sleep(milliseconds(1));
     const after = Instant.now();
     assert(after >= before);
     assert(after.since(before).totalNanoseconds <= after.nanoseconds);

@@ -16,8 +16,8 @@ import xtb.fs.file : File;
 import xtb.fs.path : Path;
 import xtb.os.pipe : Pipe, PipeMode, PipeOptions, PipeReader, PipeWriter,
     close, createPipe;
-import xtb.os.time : Timeout, TimeoutKind, monotonicNanoseconds,
-    sleepNanoseconds;
+import xtb.os.time : monotonicNanoseconds, sleepNanoseconds;
+import xtb.time : Timeout, TimeoutKind;
 
 version (linux) import xtb.os.error : fromErrno;
 
