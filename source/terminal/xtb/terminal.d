@@ -9,7 +9,13 @@ import xtb.os.error : OsError, unsupported;
 version (Posix)
 {
     private import xtb.os.posix.environment : osEnvironmentVariable = environmentVariable;
+    private import xtb.os.posix.stdio : fileHandle;
     private import xtb.os.posix.terminal : isTerminal;
+
+    private bool fileIsTerminal(FILE* file) @system
+    {
+        return isTerminal(fileHandle(file));
+    }
 }
 else
 {
@@ -23,7 +29,7 @@ else
         return unsupported();
     }
 
-    private bool isTerminal(FILE*) pure @safe
+    private bool fileIsTerminal(FILE*) pure @safe
     {
         return false;
     }
@@ -74,7 +80,7 @@ bool shouldUseAnsi(FILE* file, AnsiMode mode = AnsiMode.automatic) @system
         return true;
 
     return automaticAnsiAllowed(
-        isTerminal(file),
+        fileIsTerminal(file),
         environmentValue("NO_COLOR".ptr),
         environmentValue("CLICOLOR_FORCE".ptr),
         environmentValue("TERM".ptr),

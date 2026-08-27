@@ -10,6 +10,7 @@ public import xtb.os.posix.poll;
 public import xtb.os.posix.process;
 public import xtb.os.posix.signal;
 public import xtb.os.posix.spawn;
+public import xtb.os.posix.stdio;
 public import xtb.os.posix.terminal;
 public import xtb.os.posix.time;
 public import xtb.os.posix.ucontext;

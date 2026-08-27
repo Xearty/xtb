@@ -9,7 +9,6 @@ import xtb.types : i64, u64, u8;
 
 version (Posix)
 {
-    import core.sys.posix.stdio : fileno;
     import posix = xtb.os.posix;
 }
 
@@ -62,14 +61,14 @@ extern (C) int main()
 
         FILE* file = tmpfile();
         assert(file !is null);
-        assert(!posix.isTerminal(file));
+        assert(!posix.isTerminal(posix.fileHandle(file)));
         u8[4] contents = [4, 3, 2, 1];
         assert(fwrite(contents.ptr, 1, contents.length, file) == contents.length);
         assert(fflush(file) == 0);
 
         void* address;
         assert(posix.mapReadOnly(
-                posix.fromFileDescriptor(fileno(file)),
+                posix.fileHandle(file),
                 contents.length,
                 &address,
         ).succeeded);

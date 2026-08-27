@@ -2,22 +2,26 @@ module xtb.os.posix.terminal;
 
 nothrow @nogc:
 
-import core.stdc.stdio : FILE, fileno;
 import core.sys.posix.unistd : isatty;
+import xtb.os.handle : NativeHandle;
+import xtb.os.posix.handle : fileDescriptor;
 
-/// Returns whether `file` refers to a POSIX terminal device.
-bool isTerminal(FILE* file) @system
+/// Returns whether `handle` refers to a POSIX terminal device.
+bool isTerminal(NativeHandle handle) @system
 {
-    return file !is null && isatty(fileno(file)) == 1;
+    const descriptor = fileDescriptor(handle);
+    return descriptor >= 0 && isatty(descriptor) == 1;
 }
 
 unittest
 {
-    import core.stdc.stdio : fclose, tmpfile;
+    import core.stdc.stdio : FILE, fclose, tmpfile;
+    import xtb.os.posix.stdio : fileHandle;
+
+    assert(!isTerminal(NativeHandle.init));
 
     FILE* file = tmpfile();
     assert(file !is null);
-    assert(!isTerminal(file));
+    assert(!isTerminal(fileHandle(file)));
     assert(fclose(file) == 0);
-    assert(!isTerminal(null));
 }
