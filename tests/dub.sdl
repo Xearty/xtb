@@ -136,6 +136,14 @@ configuration "test-os" {
     dependency "xtb" path=".."
 }
 
+configuration "test-time" {
+    targetType "executable"
+    targetName "time_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "time_tests.d"
+    dependency "xtb" path=".."
+}
+
 configuration "test-serde" {
     targetType "executable"
     targetName "serde_tests"

@@ -39,6 +39,7 @@ buildType "unit-asan" {
 
 subPackage "source/core"
 subPackage "source/os"
+subPackage "source/time"
 subPackage "source/log"
 subPackage "source/math"
 subPackage "source/threading"
@@ -53,6 +54,7 @@ subPackage "tools/compose"
 
 dependency ":core" version="*"
 dependency ":os" version="*"
+dependency ":time" version="*"
 dependency ":log" version="*"
 dependency ":math" version="*"
 dependency ":threading" version="*"

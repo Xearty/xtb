@@ -8,7 +8,8 @@ classes, and runtime reflection, and keeps allocation and ownership explicit.
 | Subpackage | Import | Provides |
 |---|---|---|
 | [core](source/core/README.md) | `xtb` | allocators, containers, strings, formatting, `Option`, `Result`, utilities |
-| [os](source/os/README.md) | `xtb.os` | files, paths, environment, time, ANSI capability detection, processes, pipes |
+| [os](source/os/README.md) | `xtb.os` | files, paths, environment, ANSI capability detection, processes, pipes |
+| [time](source/time/README.md) | `xtb.time` | wall-clock timestamps and monotonic instants |
 | [log](source/log/README.md) | `xtb.log` | level-based logging and composable sinks |
 | [math](source/math/README.md) | `xtb.math` | vectors, matrices, transforms, random, noise |
 | [threading](source/threading/README.md) | `xtb.thread`, `xtb.sync` | threads and synchronization primitives |
