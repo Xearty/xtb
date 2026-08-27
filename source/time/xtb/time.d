@@ -6,8 +6,35 @@ import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.duration : Duration, durationNanoseconds = nanoseconds;
-import xtb.os.time : monotonicNanoseconds, wallClockNanoseconds;
+import xtb.os.error : OsError, unsupported;
 import xtb.types : i64, u64;
+
+version (Posix)
+{
+    private import xtb.os.posix.time : monotonicNanoseconds, sleepNanoseconds,
+        wallClockNanoseconds;
+}
+else
+{
+    private OsError monotonicNanoseconds(u64* output) @system
+    {
+        if (output !is null)
+            *output = 0;
+        return unsupported();
+    }
+
+    private OsError wallClockNanoseconds(i64* output) @system
+    {
+        if (output !is null)
+            *output = 0;
+        return unsupported();
+    }
+
+    private OsError sleepNanoseconds(u64) pure @safe
+    {
+        return unsupported();
+    }
+}
 
 enum TimeoutKind : ubyte
 {
@@ -73,8 +100,6 @@ nothrow @nogc:
 /// Panics if the platform unexpectedly cannot perform the sleep.
 void sleep(Duration duration) @trusted
 {
-    import xtb.os.time : sleepNanoseconds;
-
     if (sleepNanoseconds(duration.totalNanoseconds).failed)
         panic("failed to sleep");
 }

@@ -1,7 +1,8 @@
 # time
 
 `time` owns wall-clock timestamps, monotonic instants, timeout value semantics,
-and sleeping. Platform clock and sleep mechanisms are supplied by `xtb.os`.
+and sleeping. The domain selects the appropriate low-level platform clock and
+sleep interface, such as `xtb.os.posix.time`.
 
 ```d
 const timestamp = Timestamp.now();

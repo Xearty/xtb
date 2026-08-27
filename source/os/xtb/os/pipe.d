@@ -5,11 +5,10 @@ nothrow @nogc:
 version (XTB_Checked) import xtb.panic : require;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.handle : NativeHandle;
-import xtb.os.internal.pipe : NativePipeReadState, NativePipeWriteState;
 import xtb.types : u8;
 
 version (linux)
-    private import backend = xtb.os.internal.linux.pipe;
+    private import backend = xtb.os.linux.pipe;
 else
     private import backend = xtb.os.internal.unsupported.pipe;
 
@@ -144,7 +143,7 @@ OsError createPipe(PipeOptions options, Pipe* output) @system
 
     NativeHandle readerHandle;
     NativeHandle writerHandle;
-    const error = backend.createPipeImpl(
+    const error = backend.createPipe(
         options.readerMode == PipeMode.nonBlocking,
         options.writerMode == PipeMode.nonBlocking,
         &readerHandle,
@@ -179,7 +178,7 @@ PipeReadResult readSome(PipeReader* reader, u8[] output) @system
     if (output.length == 0)
         return PipeReadResult(OsError.init, 0, PipeReadState.data);
 
-    const result = backend.readSomeImpl(reader.handle_, output);
+    const result = backend.readSome(reader.handle_, output);
     return PipeReadResult(
         result.error,
         result.transferred,
@@ -194,7 +193,7 @@ PipeWriteResult writeSome(PipeWriter* writer, scope const(u8)[] input) @system
     if (input.length == 0)
         return PipeWriteResult(OsError.init, 0, PipeWriteState.data);
 
-    const result = backend.writeSomeImpl(writer.handle_, input);
+    const result = backend.writeSome(writer.handle_, input);
     return PipeWriteResult(
         result.error,
         result.transferred,
@@ -213,31 +212,31 @@ private OsError closeOwnedHandle(NativeHandle* handle) @system
         return OsError.init;
     const owned = *handle;
     *handle = NativeHandle.init;
-    return backend.closeHandleImpl(owned);
+    return backend.closeHandle(owned);
 }
 
-private PipeReadState toPublic(NativePipeReadState state) pure @safe
+private PipeReadState toPublic(backend.PipeReadState state) pure @safe
 {
     final switch (state)
     {
-        case NativePipeReadState.data:
+        case backend.PipeReadState.data:
             return PipeReadState.data;
-        case NativePipeReadState.endOfFile:
+        case backend.PipeReadState.endOfFile:
             return PipeReadState.endOfFile;
-        case NativePipeReadState.wouldBlock:
+        case backend.PipeReadState.wouldBlock:
             return PipeReadState.wouldBlock;
     }
 }
 
-private PipeWriteState toPublic(NativePipeWriteState state) pure @safe
+private PipeWriteState toPublic(backend.PipeWriteState state) pure @safe
 {
     final switch (state)
     {
-        case NativePipeWriteState.data:
+        case backend.PipeWriteState.data:
             return PipeWriteState.data;
-        case NativePipeWriteState.peerClosed:
+        case backend.PipeWriteState.peerClosed:
             return PipeWriteState.peerClosed;
-        case NativePipeWriteState.wouldBlock:
+        case backend.PipeWriteState.wouldBlock:
             return PipeWriteState.wouldBlock;
     }
 }

@@ -13,7 +13,7 @@ import xtb.os.pipe : PipeReadState, PipeReader, PipeWriteState, PipeWriter,
     close, readSome, writeSome;
 import xtb.process.process : ChildProcess, ExitStatus, ProcessError,
     ProcessOperation, WaitState, kill, requestTermination, tryWait;
-import xtb.os.time : monotonicNanoseconds, sleepNanoseconds;
+import xtb.process.internal.time : monotonicNanoseconds, sleepNanoseconds;
 import xtb.time : Timeout, TimeoutKind;
 import xtb.process.internal.process_backend : NativeActivityHandles,
     NativeProcessWatchState;

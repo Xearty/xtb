@@ -1,20 +1,58 @@
-module xtb.os.internal.linux.pipe;
+module xtb.os.linux.pipe;
 
 nothrow @nogc:
 
-import xtb.os.error : OsError, fromErrno, lastError;
+version (XTB_Checked) import xtb.panic : require;
+import xtb.os.error : OsError;
+import xtb.os.posix.error : fromErrno, lastError;
 import xtb.os.handle : NativeHandle;
-import xtb.os.internal.pipe : NativePipeReadResult, NativePipeReadState,
-    NativePipeWriteResult, NativePipeWriteState;
+import xtb.os.posix.handle : fileDescriptor, fromFileDescriptor;
 import xtb.types : u8;
 
-package(xtb.os) OsError createPipeImpl(
+enum PipeReadState : ubyte
+{
+    data,
+    endOfFile,
+    wouldBlock,
+}
+
+struct PipeReadResult
+{
+    OsError error;
+    size_t transferred;
+    PipeReadState state;
+}
+
+enum PipeWriteState : ubyte
+{
+    data,
+    peerClosed,
+    wouldBlock,
+}
+
+struct PipeWriteResult
+{
+    OsError error;
+    size_t transferred;
+    PipeWriteState state;
+}
+
+OsError createPipe(
     bool readerNonBlocking,
     bool writerNonBlocking,
     NativeHandle* readerHandle,
     NativeHandle* writerHandle,
 ) @system
 {
+    version (XTB_Checked)
+    {
+        require(readerHandle !is null, "pipe reader handle output is null");
+        require(writerHandle !is null, "pipe writer handle output is null");
+        require(readerHandle !is writerHandle, "pipe handle outputs must be distinct");
+    }
+    *readerHandle = NativeHandle.init;
+    *writerHandle = NativeHandle.init;
+
     import core.sys.posix.fcntl : O_CLOEXEC;
 
     int[2] descriptors = [-1, -1];
@@ -38,16 +76,23 @@ package(xtb.os) OsError createPipeImpl(
     return OsError.init;
 }
 
-package(xtb.os) OsError closeHandleImpl(NativeHandle handle) @system
+OsError closeHandle(NativeHandle handle) @system
 {
+    if (!handle.valid)
+        return OsError.init;
     return closeDescriptor(toDescriptor(handle));
 }
 
-package(xtb.os) NativePipeReadResult readSomeImpl(
+PipeReadResult readSome(
     NativeHandle handle,
     u8[] output,
 ) @system
 {
+    version (XTB_Checked)
+        require(handle.valid, "invalid native pipe handle for read");
+    if (output.length == 0)
+        return PipeReadResult(OsError.init, 0, PipeReadState.data);
+
     import core.stdc.errno : EAGAIN, EINTR, EWOULDBLOCK, errno;
     import core.sys.posix.unistd : read;
 
@@ -55,38 +100,43 @@ package(xtb.os) NativePipeReadResult readSomeImpl(
     {
         const amount = read(toDescriptor(handle), output.ptr, output.length);
         if (amount > 0)
-            return NativePipeReadResult(
+            return PipeReadResult(
                 OsError.init,
                 cast(size_t) amount,
-                NativePipeReadState.data,
+                PipeReadState.data,
             );
         if (amount == 0)
-            return NativePipeReadResult(
+            return PipeReadResult(
                 OsError.init,
                 0,
-                NativePipeReadState.endOfFile,
+                PipeReadState.endOfFile,
             );
         if (errno == EINTR)
             continue;
         if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return NativePipeReadResult(
+            return PipeReadResult(
                 OsError.init,
                 0,
-                NativePipeReadState.wouldBlock,
+                PipeReadState.wouldBlock,
             );
-        return NativePipeReadResult(lastError(), 0, NativePipeReadState.data);
+        return PipeReadResult(lastError(), 0, PipeReadState.data);
     }
 }
 
-package(xtb.os) NativePipeWriteResult writeSomeImpl(
+PipeWriteResult writeSome(
     NativeHandle handle,
     scope const(u8)[] input,
 ) @system
 {
+    version (XTB_Checked)
+        require(handle.valid, "invalid native pipe handle for write");
+    if (input.length == 0)
+        return PipeWriteResult(OsError.init, 0, PipeWriteState.data);
+
     import core.stdc.errno : EAGAIN, EINTR, EPIPE, EWOULDBLOCK, errno;
-    import core.sys.posix.signal : SIG_BLOCK, SIG_SETMASK, SIGPIPE,
-        pthread_sigmask, sigaddset, sigemptyset, sigismember, sigpending,
-        sigset_t, sigtimedwait;
+    import core.sys.posix.signal : SIG_BLOCK, SIG_SETMASK, SIGPIPE, sigaddset,
+        sigemptyset, sigismember, sigpending, sigprocmask, sigset_t,
+        sigtimedwait;
     import core.sys.posix.time : timespec;
     import core.sys.posix.unistd : write;
 
@@ -94,23 +144,22 @@ package(xtb.os) NativePipeWriteResult writeSomeImpl(
     sigset_t previous;
     sigemptyset(&blocked);
     sigaddset(&blocked, SIGPIPE);
-    int code = pthread_sigmask(SIG_BLOCK, &blocked, &previous);
-    if (code != 0)
-        return NativePipeWriteResult(
-            fromErrno(code),
+    if (sigprocmask(SIG_BLOCK, &blocked, &previous) != 0)
+        return PipeWriteResult(
+            lastError(),
             0,
-            NativePipeWriteState.data,
+            PipeWriteState.data,
         );
 
     sigset_t pending;
     if (sigpending(&pending) != 0)
     {
         const pendingError = lastError();
-        pthread_sigmask(SIG_SETMASK, &previous, null);
-        return NativePipeWriteResult(
+        cast(void) sigprocmask(SIG_SETMASK, &previous, null);
+        return PipeWriteResult(
             pendingError,
             0,
-            NativePipeWriteState.data,
+            PipeWriteState.data,
         );
     }
     const wasPending = sigismember(&pending, SIGPIPE) == 1;
@@ -129,46 +178,45 @@ package(xtb.os) NativePipeWriteResult writeSomeImpl(
         }
     }
 
-    code = pthread_sigmask(SIG_SETMASK, &previous, null);
-    if (code != 0)
-        return NativePipeWriteResult(
-            fromErrno(code),
+    if (sigprocmask(SIG_SETMASK, &previous, null) != 0)
+        return PipeWriteResult(
+            lastError(),
             0,
-            NativePipeWriteState.data,
+            PipeWriteState.data,
         );
     if (amount >= 0)
-        return NativePipeWriteResult(
+        return PipeWriteResult(
             OsError.init,
             cast(size_t) amount,
-            NativePipeWriteState.data,
+            PipeWriteState.data,
         );
     if (writeError == EPIPE)
-        return NativePipeWriteResult(
+        return PipeWriteResult(
             OsError.init,
             0,
-            NativePipeWriteState.peerClosed,
+            PipeWriteState.peerClosed,
         );
     if (writeError == EAGAIN || writeError == EWOULDBLOCK)
-        return NativePipeWriteResult(
+        return PipeWriteResult(
             OsError.init,
             0,
-            NativePipeWriteState.wouldBlock,
+            PipeWriteState.wouldBlock,
         );
-    return NativePipeWriteResult(
+    return PipeWriteResult(
         fromErrno(writeError),
         0,
-        NativePipeWriteState.data,
+        PipeWriteState.data,
     );
 }
 
 private NativeHandle fromDescriptor(int descriptor) pure @safe
 {
-    return NativeHandle.fromFileDescriptor(descriptor);
+    return fromFileDescriptor(descriptor);
 }
 
 private int toDescriptor(NativeHandle handle) pure @safe
 {
-    return handle.fileDescriptor;
+    return fileDescriptor(handle);
 }
 
 private OsError closeDescriptor(int descriptor) @system

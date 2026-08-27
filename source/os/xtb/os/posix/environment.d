@@ -1,20 +1,15 @@
-module xtb.os.environment;
+module xtb.os.posix.environment;
 
 nothrow @nogc:
 
 version (XTB_Checked) import xtb.panic : require;
+import core.stdc.stdlib : getenv;
 import xtb.os.error : OsError, OsErrorKind;
-
-version (Posix)
-    private import backend = xtb.os.internal.posix.environment;
-else
-    private import backend = xtb.os.internal.unsupported.environment;
 
 /// Looks up a process-environment entry using a permanent native C string.
 ///
 /// The returned pointer is borrowed from the process environment and may be
-/// invalidated by a later environment mutation. This is a low-level mechanism;
-/// validation of domain-specific environment names belongs to callers.
+/// invalidated by a later environment mutation.
 OsError environmentVariable(
     const(char)* name,
     const(char)** output,
@@ -25,5 +20,10 @@ OsError environmentVariable(
     *output = null;
     if (name is null || name[0] == '\0')
         return OsError(OsErrorKind.invalidArgument, 0);
-    return backend.environmentVariableImpl(name, output);
+
+    const value = getenv(name);
+    if (value is null)
+        return OsError(OsErrorKind.notFound, 0);
+    *output = value;
+    return OsError.init;
 }

@@ -18,8 +18,10 @@ import core.sys.posix.sys.types : pid_t;
 import core.sys.posix.sys.wait : WNOHANG, waitpid;
 import core.sys.posix.time : timespec;
 import core.sys.posix.unistd : nativeClose = close, environ;
-import xtb.os.error : OsError, OsErrorKind, fromErrno, lastError;
+import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.posix.error : fromErrno, lastError;
 import xtb.os.handle : NativeHandle;
+import xtb.os.posix.handle : fileDescriptor, fromFileDescriptor;
 import xtb.process.internal.process_backend : NativeActivityHandles,
     NativeProcessId, NativeProcessWatchResult, NativeProcessWatchState,
     NativeRoute, NativeRouteKind, NativeSignal, NativeSpawnOptions,
@@ -402,12 +404,12 @@ package(xtb.process) OsError signalProcess(
 
 private NativeHandle fromDescriptor(int descriptor) pure @safe
 {
-    return NativeHandle.fromFileDescriptor(descriptor);
+    return fromFileDescriptor(descriptor);
 }
 
 private int toDescriptor(NativeHandle handle) pure @safe
 {
-    return handle.fileDescriptor;
+    return fileDescriptor(handle);
 }
 
 private NativeProcessId fromProcessId(pid_t processId) pure @safe

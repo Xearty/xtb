@@ -5,8 +5,20 @@ nothrow @nogc:
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
 import xtb.thread_context : ScratchScope;
-import xtb.os.environment : osEnvironmentVariable = environmentVariable;
-import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.error : OsError, OsErrorKind, unsupported;
+
+version (Posix)
+    private import xtb.os.posix.environment : osEnvironmentVariable = environmentVariable;
+else
+    private OsError osEnvironmentVariable(
+        const(char)*,
+        const(char)** output,
+    ) pure @safe
+{
+    if (output !is null)
+        *output = null;
+    return unsupported();
+}
 
 private bool validEnvironmentName(String name) pure @safe
 {

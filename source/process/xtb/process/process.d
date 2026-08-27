@@ -17,7 +17,7 @@ import xtb.fs.file : File;
 import xtb.fs.path : Path;
 import xtb.os.pipe : Pipe, PipeMode, PipeOptions, PipeReader, PipeWriter,
     close, createPipe;
-import xtb.os.time : monotonicNanoseconds, sleepNanoseconds;
+import xtb.process.internal.time : monotonicNanoseconds, sleepNanoseconds;
 import xtb.time : Timeout, TimeoutKind;
 import xtb.process.internal.process_backend : NativeProcessId,
     NativeProcessWatchState, NativeRoute, NativeRouteKind, NativeSignal,

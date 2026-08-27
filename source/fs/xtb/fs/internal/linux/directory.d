@@ -12,7 +12,8 @@ import core.sys.posix.sys.stat : mkdir;
 import core.sys.posix.unistd : F_OK, R_OK, W_OK, X_OK, access, getcwd,
     readlink, rmdir, unlink;
 import xtb.containers.array : Array;
-import xtb.os.error : OsError, OsErrorKind, lastError;
+import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.posix.error : lastError;
 import xtb.string;
 import xtb.thread_context : ScratchScope;
 import xtb.types : u8;

@@ -5,8 +5,8 @@ nothrow @nogc:
 /// Opaque native resource handle exchanged across low-level XTB boundaries.
 ///
 /// Domain packages should pass this value through without depending on its
-/// platform representation. Platform-specific code may use the native adapters
-/// exposed for its target.
+/// platform representation. Platform-specific `xtb.os.*` modules provide the
+/// native adapters for their target.
 struct NativeHandle
 {
 nothrow @nogc:
@@ -19,19 +19,16 @@ nothrow @nogc:
         return value_ != invalidValue;
     }
 
-    version (Posix) static NativeHandle fromFileDescriptor(
-        int descriptor,
+    package(xtb.os) static NativeHandle fromNativeValue(
+        size_t value,
     ) pure @safe
     {
-        NativeHandle handle;
-        if (descriptor >= 0)
-            handle.value_ = cast(size_t) descriptor;
-        return handle;
+        return NativeHandle(value);
     }
 
-    version (Posix) int fileDescriptor() const pure @safe
+    package(xtb.os) size_t nativeValue() const pure @safe
     {
-        return valid ? cast(int) value_ : -1;
+        return value_;
     }
 }
 
@@ -39,12 +36,4 @@ unittest
 {
     NativeHandle handle;
     assert(!handle.valid);
-
-    version (Posix)
-    {
-        handle = NativeHandle.fromFileDescriptor(0);
-        assert(handle.valid);
-        assert(handle.fileDescriptor == 0);
-        assert(!NativeHandle.fromFileDescriptor(-1).valid);
-    }
 }

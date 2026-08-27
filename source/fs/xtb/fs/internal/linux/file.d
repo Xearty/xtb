@@ -8,8 +8,10 @@ import core.sys.posix.fcntl : O_APPEND, O_CLOEXEC, O_CREAT, O_EXCL,
 import core.sys.posix.sys.stat : S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
     S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK, fstat, lstat, stat, stat_t;
 import core.sys.posix.unistd : fsync, nativeClose = close, read, write;
-import xtb.os.error : OsError, OsErrorKind, lastError;
+import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.posix.error : lastError;
 import xtb.os.handle : NativeHandle;
+import xtb.os.posix.handle : fileDescriptor, fromFileDescriptor;
 import xtb.string : String, StringBuf;
 import xtb.thread_context : ScratchScope;
 import xtb.types : i64, u32, u64, u8;
@@ -101,12 +103,12 @@ package(xtb.fs) OsError handleMetadata(
 
 private NativeHandle fromDescriptor(int descriptor) pure @safe
 {
-    return NativeHandle.fromFileDescriptor(descriptor);
+    return fromFileDescriptor(descriptor);
 }
 
 private int toDescriptor(NativeHandle handle) pure @safe
 {
-    return handle.fileDescriptor;
+    return fileDescriptor(handle);
 }
 
 package(xtb.fs) OsError pathMetadata(

@@ -10,9 +10,8 @@ import xtb.process.pipeline;
 import xtb.os.pipe;
 import xtb.process.process;
 import xtb.process.io;
-import xtb.os.time : monotonicNanoseconds, sleepNanoseconds, wallClockNanoseconds;
-import xtb.time : Timeout;
-import xtb.os.terminal;
+import xtb.duration : milliseconds;
+import xtb.time : Instant, Timestamp, Timeout, sleep;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.containers.array;
 import xtb.allocators.arena : Arena, TempArena, pop, push;
@@ -1085,13 +1084,11 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     String environmentPath;
     assert(environmentVariable("PATH", &environmentPath).succeeded);
     assert(environmentPath.length != 0);
-    u64 before;
-    u64 after;
-    assert(monotonicNanoseconds(&before).succeeded);
-    assert(sleepNanoseconds(1_000_000).succeeded);
-    assert(monotonicNanoseconds(&after).succeeded && after >= before);
-    i64 wallTime;
-    assert(wallClockNanoseconds(&wallTime).succeeded && wallTime != 0);
+    const before = Instant.now();
+    sleep(milliseconds(1));
+    const after = Instant.now();
+    assert(after >= before);
+    assert(Timestamp.now().nanosecondsSinceUnixEpoch != 0);
 
     const helperDirectory = Path.fromString(executable.view).parent;
     StringBuf helperExecutable = StringBuf.fromString(

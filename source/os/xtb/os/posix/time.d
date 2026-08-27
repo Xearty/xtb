@@ -1,14 +1,21 @@
-module xtb.os.internal.linux.time;
+module xtb.os.posix.time;
 
 nothrow @nogc:
 
+version (XTB_Checked) import xtb.panic : require;
 import core.stdc.errno : EINTR, errno;
-import core.sys.posix.time : CLOCK_MONOTONIC, CLOCK_REALTIME, clock_gettime, nanosleep, timespec;
+import core.sys.posix.time : CLOCK_MONOTONIC, CLOCK_REALTIME, clock_gettime,
+    nanosleep, timespec;
+import xtb.os.error : OsError, OsErrorKind;
+import xtb.os.posix.error : lastError;
 import xtb.types : i64, u64;
-import xtb.os.error : OsError, OsErrorKind, lastError;
 
-package(xtb.os) OsError monotonicNanosecondsImpl(u64* output) @system
+OsError monotonicNanoseconds(u64* output) @system
 {
+    version (XTB_Checked)
+        require(output !is null, "monotonic clock output pointer is null");
+    *output = 0;
+
     timespec value;
     if (clock_gettime(CLOCK_MONOTONIC, &value) != 0)
         return lastError();
@@ -16,8 +23,12 @@ package(xtb.os) OsError monotonicNanosecondsImpl(u64* output) @system
     return OsError.init;
 }
 
-package(xtb.os) OsError wallClockNanosecondsImpl(i64* output) @system
+OsError wallClockNanoseconds(i64* output) @system
 {
+    version (XTB_Checked)
+        require(output !is null, "wall clock output pointer is null");
+    *output = 0;
+
     timespec value;
     if (clock_gettime(CLOCK_REALTIME, &value) != 0)
         return lastError();
@@ -30,7 +41,7 @@ package(xtb.os) OsError wallClockNanosecondsImpl(i64* output) @system
     return OsError.init;
 }
 
-package(xtb.os) OsError sleepNanosecondsImpl(u64 duration) @system
+OsError sleepNanoseconds(u64 duration) @system
 {
     timespec remaining;
     remaining.tv_sec = cast(typeof(remaining.tv_sec))(duration / 1_000_000_000UL);

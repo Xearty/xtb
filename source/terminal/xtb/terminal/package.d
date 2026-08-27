@@ -4,8 +4,30 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE;
 import core.stdc.string : strcmp;
-import xtb.os.environment : osEnvironmentVariable = environmentVariable;
-import xtb.os.terminal : isTerminal;
+import xtb.os.error : OsError, unsupported;
+
+version (Posix)
+{
+    private import xtb.os.posix.environment : osEnvironmentVariable = environmentVariable;
+    private import xtb.os.posix.terminal : isTerminal;
+}
+else
+{
+    private OsError osEnvironmentVariable(
+        const(char)*,
+        const(char)** output,
+    ) pure @safe
+    {
+        if (output !is null)
+            *output = null;
+        return unsupported();
+    }
+
+    private bool isTerminal(FILE*) pure @safe
+    {
+        return false;
+    }
+}
 
 /// User policy for ANSI presentation selection.
 enum AnsiMode : ubyte

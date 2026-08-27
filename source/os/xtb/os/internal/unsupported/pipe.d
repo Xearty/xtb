@@ -4,11 +4,37 @@ nothrow @nogc:
 
 import xtb.os.error : OsError, unsupported;
 import xtb.os.handle : NativeHandle;
-import xtb.os.internal.pipe : NativePipeReadResult, NativePipeReadState,
-    NativePipeWriteResult, NativePipeWriteState;
 import xtb.types : u8;
 
-package(xtb.os) OsError createPipeImpl(
+package(xtb.os) enum PipeReadState : ubyte
+{
+    data,
+    endOfFile,
+    wouldBlock,
+}
+
+package(xtb.os) struct PipeReadResult
+{
+    OsError error;
+    size_t transferred;
+    PipeReadState state;
+}
+
+package(xtb.os) enum PipeWriteState : ubyte
+{
+    data,
+    peerClosed,
+    wouldBlock,
+}
+
+package(xtb.os) struct PipeWriteResult
+{
+    OsError error;
+    size_t transferred;
+    PipeWriteState state;
+}
+
+package(xtb.os) OsError createPipe(
     bool,
     bool,
     NativeHandle*,
@@ -18,23 +44,23 @@ package(xtb.os) OsError createPipeImpl(
     return unsupported();
 }
 
-package(xtb.os) OsError closeHandleImpl(NativeHandle) pure @safe
+package(xtb.os) OsError closeHandle(NativeHandle) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.os) NativePipeReadResult readSomeImpl(
+package(xtb.os) PipeReadResult readSome(
     NativeHandle,
     u8[],
 ) pure @safe
 {
-    return NativePipeReadResult(unsupported(), 0, NativePipeReadState.data);
+    return PipeReadResult(unsupported(), 0, PipeReadState.data);
 }
 
-package(xtb.os) NativePipeWriteResult writeSomeImpl(
+package(xtb.os) PipeWriteResult writeSome(
     NativeHandle,
     scope const(u8)[],
 ) pure @safe
 {
-    return NativePipeWriteResult(unsupported(), 0, NativePipeWriteState.data);
+    return PipeWriteResult(unsupported(), 0, PipeWriteState.data);
 }

@@ -1,34 +1,32 @@
 # os
 
-`import xtb.os;` exposes the low-level operating-system mechanisms that are
-shared by higher-level XTB domains:
+`xtb.os` is XTB's low-level native-mechanism layer. The broad `import xtb.os;`
+contains only mechanisms that have a useful platform-neutral contract:
 
-- `OsError` and native error translation;
-- raw wall-clock, monotonic-clock, and sleep primitives;
-- opaque native handles for cross-domain resource exchange;
-- handle-backed memory mapping;
+- `OsError`;
+- opaque `NativeHandle` values for cross-domain resource exchange;
 - raw pipe endpoints and I/O.
 
-Precise low-level modules may expose additional native capability queries, such
-as `xtb.os.terminal.isTerminal` and the C-string lookup in
-`xtb.os.environment`. These precise modules are not re-exported from
-`import xtb.os;`; callers opt into the native-facing API they need.
-Implementation-only bridges and platform backends live under `xtb.os.internal`
-and are not user-facing APIs.
+Platform interfaces are first-class low-level APIs rather than hidden backends:
 
-`os` owns reusable mechanisms rather than domain semantics. Files and paths
-belong to `xtb.fs`, process and environment semantics belong to `xtb.process`,
-timestamps and elapsed-time semantics belong to `xtb.time`, and ANSI selection
-policy belongs to `xtb.terminal`.
+- `xtb.os.posix` exposes thin POSIX mechanisms such as errno translation,
+  file-descriptor adapters, environment and terminal queries, memory mapping,
+  and clocks;
+- `xtb.os.linux` exposes Linux-specific mechanisms such as `pipe2`-based pipe
+  creation and I/O.
 
-A domain does not need to add a one-off `xtb.os` wrapper merely to hide that its
-implementation uses a native API. Domain-specific platform glue stays with the
-domain under its own `internal` backend; mechanisms that are useful across
-domains belong in `xtb.os`. This keeps both the semantic owner and the native
-boundary explicit without turning `os` into a general-purpose services layer.
+Higher-level domains own portability and semantics. `xtb.time` selects the
+platform clock mechanism, `xtb.fs` owns file-backed mapping lifetime and
+filesystem concepts, `xtb.process` owns process/environment semantics, and
+`xtb.terminal` owns ANSI-selection policy. Their platform-specific
+implementations may call `xtb.os.posix`, `xtb.os.linux`, or future platform
+interfaces directly.
 
-The dependency direction is deliberately one-way: `xtb.os` depends only on
-`xtb:core`; domain subpackages may depend downward on `xtb.os`, but `xtb.os`
-does not import them. Platform selection is compile-time, and portable domain
-modules keep substantial platform-specific implementations behind internal
-backends.
+`xtb.os.internal` is reserved for implementation details beneath these
+low-level APIs, such as unsupported-target shims. It is not the platform API
+surface.
+
+The dependency direction remains one-way: `xtb.os` depends only on `xtb:core`;
+domain subpackages may depend downward on `xtb.os`, but `xtb.os` does not
+import them. A domain does not need a generic `xtb.os` wrapper merely to hide
+that its implementation uses a native API.
