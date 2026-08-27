@@ -9,8 +9,11 @@ shared by higher-level XTB domains:
 - raw pipe endpoints and I/O.
 
 Precise low-level modules may expose additional native capability queries, such
-as `xtb.os.terminal.isTerminal`. Implementation-only bridges and platform
-backends live under `xtb.os.internal` and are not user-facing APIs.
+as `xtb.os.terminal.isTerminal` and the C-string lookup in
+`xtb.os.environment`. These precise modules are not re-exported from
+`import xtb.os;`; callers opt into the native-facing API they need.
+Implementation-only bridges and platform backends live under `xtb.os.internal`
+and are not user-facing APIs.
 
 `os` owns reusable mechanisms rather than domain semantics. Files and paths
 belong to `xtb.fs`, process and environment semantics belong to `xtb.process`,

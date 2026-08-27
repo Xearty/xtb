@@ -5,7 +5,7 @@ nothrow @nogc:
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
 import xtb.thread_context : ScratchScope;
-import xtb.os.internal.environment : environmentVariableCString;
+import xtb.os.environment : osEnvironmentVariable = environmentVariable;
 import xtb.os.error : OsError, OsErrorKind;
 
 private bool validEnvironmentName(String name) pure @safe
@@ -28,7 +28,15 @@ OsError environmentVariable(String name, String* output) @system
         return OsError(OsErrorKind.invalidArgument, 0);
     ScratchScope scratch = ScratchScope.acquire();
     StringBuf native = StringBuf.fromString(scratch.allocator, name);
-    return environmentVariableCString(native.checkedCString, output);
+    const(char)* value;
+    const error = osEnvironmentVariable(native.checkedCString, &value);
+    if (error.failed)
+        return error;
+    const checked = fromCString(value);
+    if (checked.failed)
+        return OsError(OsErrorKind.invalidData, 0);
+    *output = checked.value;
+    return OsError.init;
 }
 
 unittest

@@ -3,26 +3,16 @@ module xtb.os.internal.posix.environment;
 nothrow @nogc:
 
 import core.stdc.stdlib : getenv;
-import xtb.string : fromCString;
-import xtb.types : String;
 import xtb.os.error : OsError, OsErrorKind;
 
-package(xtb.os) const(char)* rawEnvironmentVariableImpl(const(char)* name) @system
-{
-    return getenv(name);
-}
-
-package(xtb.os) OsError environmentVariableCStringImpl(
+package(xtb.os) OsError environmentVariableImpl(
     const(char)* name,
-    String* output,
+    const(char)** output,
 ) @system
 {
-    const value = rawEnvironmentVariableImpl(name);
+    const value = getenv(name);
     if (value is null)
         return OsError(OsErrorKind.notFound, 0);
-    const checked = fromCString(value);
-    if (checked.failed)
-        return OsError(OsErrorKind.invalidData, 0);
-    *output = checked.value;
+    *output = value;
     return OsError.init;
 }

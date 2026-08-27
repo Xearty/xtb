@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE;
 import core.stdc.string : strcmp;
-import xtb.os.internal.environment : rawEnvironmentVariable;
+import xtb.os.environment : osEnvironmentVariable = environmentVariable;
 import xtb.os.terminal : isTerminal;
 
 /// User policy for ANSI presentation selection.
@@ -31,6 +31,12 @@ private bool automaticAnsiAllowed(
     return term is null || strcmp(term, "dumb".ptr) != 0;
 }
 
+private const(char)* environmentValue(const(char)* name) @system
+{
+    const(char)* value;
+    return osEnvironmentVariable(name, &value).succeeded ? value : null;
+}
+
 /**
  * Resolves whether ANSI styling should be used for `file`.
  *
@@ -47,9 +53,9 @@ bool shouldUseAnsi(FILE* file, AnsiMode mode = AnsiMode.automatic) @system
 
     return automaticAnsiAllowed(
         isTerminal(file),
-        rawEnvironmentVariable("NO_COLOR".ptr),
-        rawEnvironmentVariable("CLICOLOR_FORCE".ptr),
-        rawEnvironmentVariable("TERM".ptr),
+        environmentValue("NO_COLOR".ptr),
+        environmentValue("CLICOLOR_FORCE".ptr),
+        environmentValue("TERM".ptr),
     );
 }
 
