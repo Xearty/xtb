@@ -341,7 +341,9 @@ private string composeInRepository(
     const subpackages = availableSubpackages(repositoryRoot);
     validateSubpackages(options.subpackages, subpackages);
     const compiler = environment.get("DC", "ldc2");
-    const requestedKey = canonicalSubpackageSetName(options.subpackages.length ? options.subpackages : ["core"]);
+    const requestedKey = canonicalSubpackageSetName(options.subpackages.length ? options.subpackages : [
+        "core"
+    ]);
     const modeRoot = buildPath(repositoryRoot, "build", "compose", options.mode);
     const resolveRoot = buildPath(cacheRoot, options.mode, requestedKey);
     mkdirRecurse(resolveRoot);
