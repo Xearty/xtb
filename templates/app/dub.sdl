@@ -23,4 +23,3 @@ lflags "-L$XTB_LIBRARY_PATH"
 // application links that single archive without maintaining per-subpackage library
 // order here.
 libs "xtb"
-libs "pthread" platform="linux"
