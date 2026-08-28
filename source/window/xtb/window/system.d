@@ -78,6 +78,10 @@ private i32 consume_backend_error() @system
     return glfwGetError(&description);
 }
 
+// GLFW has a process-global lifecycle, so only one owning WindowSystem may be
+// alive at a time.
+private __gshared bool window_system_active;
+
 struct WindowSystem
 {
 nothrow @nogc:
@@ -100,6 +104,8 @@ nothrow @nogc:
     {
         if (allocator is null || *allocator is null)
             return typeof(return).err(WindowError(WindowErrorKind.allocation_failed));
+        if (window_system_active)
+            return typeof(return).err(WindowError(WindowErrorKind.already_initialized));
 
         int major;
         int minor;
@@ -135,6 +141,7 @@ nothrow @nogc:
         }
         result.allocator_ = allocator;
         result.initialized_ = true;
+        window_system_active = true;
         return typeof(return).ok(result);
     }
 
@@ -153,6 +160,7 @@ nothrow @nogc:
 
         Allocator* allocator = allocator_;
         glfwTerminate();
+        window_system_active = false;
         allocator_ = null;
         initialized_ = false;
         polling_events_ = false;

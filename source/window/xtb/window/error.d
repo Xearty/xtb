@@ -12,6 +12,7 @@ enum WindowErrorKind : u8
     unsupported_backend_version,
     platform_unavailable,
     initialization_failed,
+    already_initialized,
     window_creation_failed,
     invalid_size,
     title_contains_nul,

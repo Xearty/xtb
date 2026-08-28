@@ -42,9 +42,10 @@ while (!window.should_close())
 ```
 
 `WindowSystem` and its window creation, destruction, and event processing are
-main-thread operations. Every window must be destroyed before its system is
-deinitialized. A `Monitor` is a borrowed backend handle and must be reacquired
-after monitor disconnection.
+main-thread operations. Exactly one live `WindowSystem` may own GLFW at a time;
+a second `WindowSystem.create()` returns `WindowErrorKind.already_initialized`.
+Every window must be destroyed before its system is deinitialized. A `Monitor`
+is a borrowed backend handle and must be reacquired after monitor disconnection.
 
 ## OpenGL
 

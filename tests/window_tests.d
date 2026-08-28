@@ -16,12 +16,43 @@ private bool same_size(WindowSize left, WindowSize right) pure @safe
     return left.width == right.width && left.height == right.height;
 }
 
+private bool single_window_system_ownership(
+    Allocator* allocator,
+    WindowSystemConfig config,
+) @system
+{
+    auto first_result = WindowSystem.create(allocator, config);
+    if (first_result.isErr)
+        return false;
+    WindowSystem* first = first_result.take();
+
+    auto second_result = WindowSystem.create(allocator, config);
+    if (!second_result.isErr ||
+        second_result.takeError().kind != WindowErrorKind.already_initialized)
+    {
+        first.deinit();
+        return false;
+    }
+
+    first.deinit();
+
+    auto replacement_result = WindowSystem.create(allocator, config);
+    if (replacement_result.isErr)
+        return false;
+    WindowSystem* replacement = replacement_result.take();
+    replacement.deinit();
+    return true;
+}
+
 extern (C) int main() @system
 {
     Allocator* allocator = mallocAllocator();
 
     WindowSystemConfig system_config;
     system_config.platform = WindowPlatform.headless;
+    if (!single_window_system_ownership(allocator, system_config))
+        return 55;
+
     auto system_result = WindowSystem.create(allocator, system_config);
     if (system_result.isErr)
         return 1;
