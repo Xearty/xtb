@@ -5,6 +5,11 @@ nothrow @nogc:
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
 import xtb.window;
+import xtb.window.opengl;
+import xtb.window.internal.glfw : GLFW_CLIENT_API, GLFW_FALSE, GLFW_OPENGL_API,
+    GLFW_OSMESA_CONTEXT_API, GLFW_CONTEXT_CREATION_API, GLFW_VISIBLE, GLFWwindow,
+    glfwCreateWindow, glfwDefaultWindowHints, glfwDestroyWindow, glfwGetCurrentContext,
+    glfwMakeContextCurrent, glfwSetWindowUserPointer, glfwWindowHint;
 
 private bool same_size(WindowSize left, WindowSize right) pure @safe
 {
@@ -109,48 +114,48 @@ extern (C) int main() @system
     if (first.scroll_delta.x != 0 || first.scroll_delta.y != 0)
         return 24;
 
-    auto generic_context_result = OpenGLContext.from_window(first);
+    if (first.has_opengl_context())
+        return 25;
+    auto generic_context_result = first.make_context_current();
     if (!generic_context_result.isErr ||
         generic_context_result.takeError().kind != WindowErrorKind.context_unavailable)
-        return 25;
+        return 26;
 
-    const es_config = OpenGLContextConfig.opengl_es();
+    const es_config = OpenGLConfig.opengl_es();
     if (es_config.api != OpenGLAPI.opengl_es ||
         es_config.context_version.major != 3 ||
         es_config.context_version.minor != 0 ||
         es_config.profile != OpenGLProfile.any)
-        return 26;
-
-    OpenGLContextConfig invalid_gl_config;
-    invalid_gl_config.context_version = OpenGLVersion(3, 1);
-    invalid_gl_config.profile = OpenGLProfile.core;
-    auto invalid_gl_result = create_opengl_window(system, config, invalid_gl_config);
-    if (!invalid_gl_result.isErr ||
-        invalid_gl_result.takeError().kind != WindowErrorKind.invalid_context_config)
         return 27;
 
-    auto null_allocator_gl_result = create_opengl_window(
-        system,
+    OpenGLConfig invalid_gl_config;
+    invalid_gl_config.context_version = OpenGLVersion(3, 1);
+    invalid_gl_config.profile = OpenGLProfile.core;
+    auto invalid_gl_result = system.create_opengl_window(config, invalid_gl_config);
+    if (!invalid_gl_result.isErr ||
+        invalid_gl_result.takeError().kind != WindowErrorKind.invalid_context_config)
+        return 28;
+
+    auto null_allocator_gl_result = system.create_opengl_window(
         cast(Allocator*) null,
         config,
     );
     if (!null_allocator_gl_result.isErr ||
         null_allocator_gl_result.takeError()
             .kind != WindowErrorKind.allocation_failed)
-        return 28;
+        return 29;
 
-    OpenGLContextConfig unavailable_gl_config;
+    OpenGLConfig unavailable_gl_config;
     unavailable_gl_config.context_version = OpenGLVersion(99, 0);
-    auto unavailable_gl_result = create_opengl_window(
-        system,
+    auto unavailable_gl_result = system.create_opengl_window(
         config,
         unavailable_gl_config,
     );
     if (!unavailable_gl_result.isErr ||
         unavailable_gl_result.takeError().kind != WindowErrorKind.context_unavailable)
-        return 29;
+        return 30;
 
-    OpenGLContextConfig gl_config;
+    OpenGLConfig gl_config;
     gl_config.creation_api = OpenGLContextCreationAPI.os_mesa;
     gl_config.debug_context = true;
     gl_config.robustness = OpenGLRobustness.no_reset_notification;
@@ -158,7 +163,7 @@ extern (C) int main() @system
     gl_config.framebuffer.samples = 4;
     gl_config.framebuffer.srgb_capable = true;
 
-    auto gl_result = create_opengl_window(system, config, gl_config);
+    auto gl_result = system.create_opengl_window(config, gl_config);
     if (gl_result.isErr)
     {
         // The Null platform is always present in GLFW 3.4+, but the host may
@@ -166,33 +171,30 @@ extern (C) int main() @system
         // Static validation above still runs everywhere; exercise the live
         // context path whenever this optional runtime is available.
         if (gl_result.takeError().kind != WindowErrorKind.context_unavailable)
-            return 30;
+            return 31;
         return 0;
     }
 
-    OpenGLContext gl = gl_result.take();
-    Window* gl_window = gl.window;
+    Window* gl_window = gl_result.take();
     scope (exit)
         gl_window.deinit();
 
-    if (!gl.valid || gl.api != OpenGLAPI.opengl || system.window_count != 2)
-        return 31;
-    if (gl.current)
+    if (!gl_window.has_opengl_context() || system.window_count != 2)
         return 32;
-
-    auto premature_swap = gl.swap_buffers();
-    if (!premature_swap.isErr ||
-        premature_swap.takeError().kind != WindowErrorKind.no_current_context)
+    if (gl_window.context_is_current())
         return 33;
 
-    if (gl.make_current().isErr || !gl.current)
+    auto premature_swap = gl_window.swap_buffers();
+    if (!premature_swap.isErr ||
+        premature_swap.takeError().kind != WindowErrorKind.no_current_context)
         return 34;
-    if (OpenGLContext.current_context().window !is gl_window)
+
+    if (gl_window.make_context_current().isErr || !gl_window.context_is_current())
         return 35;
-    if (gl.set_swap_interval(1).isErr)
+    if (gl_window.set_swap_interval(1).isErr)
         return 36;
 
-    auto info_result = gl.info();
+    auto info_result = gl_window.opengl_context_info();
     if (info_result.isErr)
         return 37;
     const info = info_result.take();
@@ -206,15 +208,15 @@ extern (C) int main() @system
         return 38;
 
     const char[3] proc_with_nul = ['g', '\0', 'l'];
-    auto invalid_proc = gl.proc_address(proc_with_nul[]);
+    auto invalid_proc = gl_window.opengl_proc_address(proc_with_nul[]);
     if (!invalid_proc.isErr || invalid_proc.takeError().kind != WindowErrorKind.invalid_proc_name)
         return 39;
 
-    auto proc_result = gl.proc_address("glGetString");
+    auto proc_result = gl_window.opengl_proc_address("glGetString");
     if (proc_result.isErr || proc_result.take() is null)
         return 40;
 
-    auto extension_result = gl.extension_supported("GL_FAKE_extension");
+    auto extension_result = gl_window.opengl_extension_supported("GL_FAKE_extension");
     if (extension_result.isErr)
         return 41;
     const fake_extension_supported = extension_result.take();
@@ -223,7 +225,7 @@ extern (C) int main() @system
     // GL_FAKE_extension is reported only if all creation hints above reached
     // glfwCreateWindow unchanged. Real OpenGL implementations simply skip
     // this backend-specific assertion.
-    const fake_backend = !gl.proc_address("glFakeFunction").isErr;
+    const fake_backend = !gl_window.opengl_proc_address("glFakeFunction").isErr;
     if (fake_backend && !fake_extension_supported)
         return 42;
     if (!info.debug_context ||
@@ -232,11 +234,10 @@ extern (C) int main() @system
         !info.double_buffered)
         return 43;
 
-    OpenGLContextConfig mismatched_share_config = gl_config;
+    OpenGLConfig mismatched_share_config = gl_config;
     mismatched_share_config.creation_api = OpenGLContextCreationAPI.egl;
-    mismatched_share_config.shared_context = gl;
-    auto mismatched_share_result = create_opengl_window(
-        system,
+    mismatched_share_config.share_context_with = gl_window;
+    auto mismatched_share_result = system.create_opengl_window(
         config,
         mismatched_share_config,
     );
@@ -245,14 +246,13 @@ extern (C) int main() @system
             .kind != WindowErrorKind.invalid_context_config)
         return 44;
 
-    OpenGLContextConfig shared_config = gl_config;
-    shared_config.shared_context = gl;
-    auto shared_result = create_opengl_window(system, config, shared_config);
+    OpenGLConfig shared_config = gl_config;
+    shared_config.share_context_with = gl_window;
+    auto shared_result = system.create_opengl_window(config, shared_config);
     if (shared_result.isErr)
         return 45;
-    OpenGLContext shared_gl = shared_result.take();
-    Window* shared_window = shared_gl.window;
-    if (!shared_gl.valid || system.window_count != 3)
+    Window* shared_window = shared_result.take();
+    if (!shared_window.has_opengl_context() || system.window_count != 3)
     {
         shared_window.deinit();
         return 46;
@@ -261,11 +261,32 @@ extern (C) int main() @system
     if (system.window_count != 2)
         return 47;
 
-    if (gl.swap_buffers().isErr)
+    if (gl_window.swap_buffers().isErr)
         return 48;
-    if (OpenGLContext.clear_current().isErr || gl.current ||
-        OpenGLContext.current_context().valid)
+    if (clear_current_context().isErr || gl_window.context_is_current())
         return 49;
+
+    glfwDefaultWindowHints();
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_OSMESA_CONTEXT_API);
+    GLFWwindow* foreign_window = glfwCreateWindow(16, 16, "foreign context".ptr, null, null);
+    if (foreign_window is null)
+        return 50;
+    scope (exit)
+        glfwDestroyWindow(foreign_window);
+
+    glfwSetWindowUserPointer(foreign_window, cast(void*) 1);
+    glfwMakeContextCurrent(foreign_window);
+    if (glfwGetCurrentContext() !is foreign_window)
+        return 51;
+    if (gl_window.context_is_current())
+        return 52;
+
+    if (gl_window.make_context_current().isErr || !gl_window.context_is_current())
+        return 53;
+    if (clear_current_context().isErr)
+        return 54;
 
     return 0;
 }
