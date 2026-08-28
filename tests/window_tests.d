@@ -2,11 +2,12 @@ module tests.window_tests;
 
 nothrow @nogc:
 
-import tests.support.fake_glfw : make_foreign_context_current, opengl_hints,
+import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
+    fake_platform_error, make_foreign_context_current, opengl_hints,
     queue_content_scale, queue_cursor_enter, queue_cursor_position, queue_focus,
     queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
     queue_mouse_button, queue_scroll, queue_text, queue_window_position,
-    queue_window_size, swap_count, swap_interval;
+    queue_window_size, seed_backend_error, swap_count, swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
 import xtb.window;
@@ -138,6 +139,77 @@ extern (C) int main() @system
     if (!title_result.isErr || title_result.takeError().kind != WindowErrorKind.title_contains_nul)
         return 18;
 
+    fail_next_operation(FakeGLFWOperation.set_window_title);
+    auto failed_title = first.set_title("backend failure");
+    if (!failed_title.isErr)
+        return 100;
+    const title_backend_error = failed_title.takeError();
+    if (title_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        title_backend_error.backend_code != fake_platform_error)
+        return 101;
+
+    fail_next_operation(FakeGLFWOperation.set_window_position);
+    auto failed_position = first.set_position(WindowPosition(11, 13));
+    if (!failed_position.isErr)
+        return 102;
+    const position_backend_error = failed_position.takeError();
+    if (position_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        position_backend_error.backend_code != fake_platform_error ||
+        first.position != WindowPosition.init)
+        return 103;
+
+    fail_next_operation(FakeGLFWOperation.set_window_size);
+    auto failed_size = first.set_size(WindowSize(800, 600));
+    if (!failed_size.isErr)
+        return 104;
+    const size_backend_error = failed_size.takeError();
+    if (size_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        size_backend_error.backend_code != fake_platform_error ||
+        !same_size(first.size, WindowSize(640, 360)))
+        return 105;
+
+    fail_next_operation(FakeGLFWOperation.set_input_mode);
+    auto failed_cursor_mode = first.set_cursor_mode(CursorMode.hidden);
+    if (!failed_cursor_mode.isErr)
+        return 106;
+    const cursor_backend_error = failed_cursor_mode.takeError();
+    if (cursor_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        cursor_backend_error.backend_code != fake_platform_error ||
+        first.cursor_mode != CursorMode.normal)
+        return 107;
+
+    seed_backend_error();
+    if (first.set_cursor_mode(CursorMode.hidden).isErr ||
+        first.cursor_mode != CursorMode.hidden ||
+        first.set_cursor_mode(CursorMode.normal).isErr)
+        return 108;
+
+    fail_next_operation(FakeGLFWOperation.set_window_monitor);
+    auto failed_fullscreen = first.set_fullscreen(true, primary);
+    if (!failed_fullscreen.isErr)
+        return 109;
+    const fullscreen_backend_error = failed_fullscreen.takeError();
+    if (fullscreen_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        fullscreen_backend_error.backend_code != fake_platform_error ||
+        first.fullscreen)
+        return 110;
+
+    if (first.set_fullscreen(true, primary).isErr || !first.fullscreen)
+        return 116;
+    fail_next_operation(FakeGLFWOperation.set_window_monitor);
+    auto failed_windowed = first.set_fullscreen(false);
+    if (!failed_windowed.isErr)
+        return 117;
+    const windowed_backend_error = failed_windowed.takeError();
+    if (windowed_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        windowed_backend_error.backend_code != fake_platform_error ||
+        !first.fullscreen)
+        return 118;
+    if (first.set_fullscreen(false).isErr || first.fullscreen ||
+        first.position != WindowPosition.init ||
+        !same_size(first.size, WindowSize(640, 360)))
+        return 119;
+
     first.request_close();
     if (!first.should_close())
         return 19;
@@ -161,6 +233,15 @@ extern (C) int main() @system
     EventLog event_log;
     first.set_event_handler(WindowEventHandler(&record_event, &event_log));
 
+    fail_next_operation(FakeGLFWOperation.poll_events);
+    auto failed_poll = system.poll_events();
+    if (!failed_poll.isErr)
+        return 114;
+    const poll_backend_error = failed_poll.takeError();
+    if (poll_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        poll_backend_error.backend_code != fake_platform_error)
+        return 115;
+
     if (!queue_key(first, Key.a, KeyAction.pressed, KeyModifier.shift, 17) ||
         !queue_text(first, 'A') ||
         !queue_mouse_button(first, MouseButton.left, KeyAction.pressed, KeyModifier.control) ||
@@ -179,7 +260,8 @@ extern (C) int main() @system
         !queue_minimized(first, true))
         return 24;
 
-    system.poll_events();
+    if (system.poll_events().isErr)
+        return 111;
     if (!first.key_down(Key.a) || !first.key_pressed(Key.a) ||
         first.key_released(Key.a) || first.key_repeated(Key.a))
         return 25;
@@ -221,7 +303,8 @@ extern (C) int main() @system
         !queue_cursor_position(first, 15, 10))
         return 32;
 
-    system.poll_events();
+    if (system.poll_events().isErr)
+        return 112;
     if (first.key_down(Key.a) || first.key_pressed(Key.a) || !first.key_released(Key.a))
         return 33;
     if (first.key_down(Key.b) || !first.key_pressed(Key.b) || !first.key_released(Key.b))
@@ -241,7 +324,8 @@ extern (C) int main() @system
     if (first.scrolled || first.scroll_delta.x != 0 || first.scroll_delta.y != 0)
         return 38;
 
-    system.poll_events();
+    if (system.poll_events().isErr)
+        return 113;
     if (first.key_pressed(Key.b) || first.key_released(Key.b) ||
         first.mouse_button_pressed(MouseButton.right) ||
         first.mouse_button_released(

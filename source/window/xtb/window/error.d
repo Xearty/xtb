@@ -25,6 +25,7 @@ enum WindowErrorKind : u8
     invalid_proc_name,
     proc_unavailable,
     invalid_extension_name,
+    backend_operation_failed,
 }
 
 struct WindowError

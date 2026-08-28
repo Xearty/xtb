@@ -6,6 +6,7 @@ import core.stdc.string : strlen;
 import xtb.types : String, i32;
 import xtb.window.error : WindowError, WindowErrorKind, WindowResult;
 import xtb.window.internal.glfw;
+import xtb.window.internal.glfw_error : clear_glfw_error, glfw_call_error;
 
 struct VideoMode
 {
@@ -42,14 +43,13 @@ nothrow @nogc:
     {
         if (handle_ is null)
             return typeof(return).err(WindowError(WindowErrorKind.monitor_unavailable));
+        clear_glfw_error();
         const GLFWvidmode* mode = glfwGetVideoMode(backend_handle());
         if (mode is null)
         {
-            const(char)* description;
-            return typeof(return).err(WindowError(
-                    WindowErrorKind.monitor_unavailable,
-                    glfwGetError(&description),
-            ));
+            const error = glfw_call_error(WindowErrorKind.monitor_unavailable);
+            return typeof(return).err(error.failed
+                    ? error : WindowError(WindowErrorKind.monitor_unavailable));
         }
         return typeof(return).ok(VideoMode(
                 mode.width,

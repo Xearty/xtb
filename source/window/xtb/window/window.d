@@ -15,6 +15,7 @@ import xtb.window.internal.create_options : BackendClientAPI, BackendGLContextCr
     BackendGLProfile, BackendGLReleaseBehavior, BackendGLRobustness,
     BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
+import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error, glfw_call_status;
 import xtb.window.internal.glfw_input : key_action_from_glfw, key_from_glfw,
     modifiers_from_glfw, mouse_button_from_glfw;
 import xtb.window.monitor : Monitor;
@@ -99,6 +100,7 @@ nothrow @nogc:
         scope (exit)
             release_c_string(allocator, title_storage);
 
+        clear_glfw_error();
         glfwDefaultWindowHints();
         apply_backend_window_hints(backend_options);
         glfwWindowHint(GLFW_RESIZABLE, config.resizable ? GLFW_TRUE : GLFW_FALSE);
@@ -106,7 +108,11 @@ nothrow @nogc:
         glfwWindowHint(GLFW_DECORATED, config.decorated ? GLFW_TRUE : GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUSED, config.focused ? GLFW_TRUE : GLFW_FALSE);
         glfwWindowHint(GLFW_MAXIMIZED, config.maximized ? GLFW_TRUE : GLFW_FALSE);
+        const hint_error = glfw_call_error(WindowErrorKind.window_creation_failed);
+        if (hint_error.failed)
+            return typeof(return).err(hint_error);
 
+        clear_glfw_error();
         GLFWwindow* handle = glfwCreateWindow(
             config.width,
             config.height,
@@ -116,12 +122,9 @@ nothrow @nogc:
         );
         if (handle is null)
         {
-            const(char)* description;
-            const backend_error = glfwGetError(&description);
-            return typeof(return).err(WindowError(
-                    WindowErrorKind.window_creation_failed,
-                    backend_error,
-            ));
+            const error = glfw_call_error(WindowErrorKind.window_creation_failed);
+            return typeof(return).err(error.failed
+                    ? error : window_error(WindowErrorKind.window_creation_failed));
         }
 
         Window* window = allocator.tryAllocateInit!Window();
@@ -136,8 +139,22 @@ nothrow @nogc:
         window.allocator_ = allocator;
         window.client_api_ = backend_options.client_api;
         window.context_creation_api_ = backend_options.context_creation_api;
+
+        clear_glfw_error();
         glfwGetCursorPos(handle, &window.cursor_position_.x, &window.cursor_position_.y);
-        window.cursor_inside_ = glfwGetWindowAttrib(handle, GLFW_HOVERED) == GLFW_TRUE;
+        auto state_error = glfw_call_error(WindowErrorKind.backend_operation_failed);
+        if (!state_error.failed)
+        {
+            clear_glfw_error();
+            window.cursor_inside_ = glfwGetWindowAttrib(handle, GLFW_HOVERED) == GLFW_TRUE;
+            state_error = glfw_call_error(WindowErrorKind.backend_operation_failed);
+        }
+        if (state_error.failed)
+        {
+            glfwDestroyWindow(handle);
+            allocator.deallocate(window);
+            return typeof(return).err(state_error);
+        }
 
         glfwSetWindowUserPointer(handle, window);
         install_callbacks(handle);
@@ -209,8 +226,9 @@ nothrow @nogc:
         scope (exit)
             release_c_string(allocator_, storage);
 
+        clear_glfw_error();
         glfwSetWindowTitle(handle_, value);
-        return typeof(return).ok();
+        return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
     WindowPosition position() const @system
@@ -222,11 +240,15 @@ nothrow @nogc:
         return result;
     }
 
-    void set_position(WindowPosition value) @system
+    WindowStatus set_position(WindowPosition value) @system
     {
         require_live();
-        if (handle_ !is null)
-            glfwSetWindowPos(handle_, value.x, value.y);
+        if (handle_ is null)
+            return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
+
+        clear_glfw_error();
+        glfwSetWindowPos(handle_, value.x, value.y);
+        return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
     WindowSize size() const @system
@@ -245,8 +267,9 @@ nothrow @nogc:
             return typeof(return).err(window_error(WindowErrorKind.invalid_size));
         if (handle_ is null)
             return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
+        clear_glfw_error();
         glfwSetWindowSize(handle_, value.width, value.height);
-        return typeof(return).ok();
+        return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
     WindowSize framebuffer_size() const @system
@@ -314,9 +337,9 @@ nothrow @nogc:
                 return typeof(return).err(mode_result.takeError());
             const mode = mode_result.take();
 
-            fullscreen_restore_position_ = position();
-            fullscreen_restore_size_ = size();
-            has_fullscreen_restore_ = true;
+            const restore_position = position();
+            const restore_size = size();
+            clear_glfw_error();
             glfwSetWindowMonitor(
                 handle_,
                 target.backend_handle(),
@@ -326,6 +349,13 @@ nothrow @nogc:
                 mode.height,
                 mode.refresh_rate,
             );
+            const status = glfw_call_status(WindowErrorKind.backend_operation_failed);
+            if (status.isErr)
+                return status;
+
+            fullscreen_restore_position_ = restore_position;
+            fullscreen_restore_size_ = restore_size;
+            has_fullscreen_restore_ = true;
             return typeof(return).ok();
         }
 
@@ -334,6 +364,7 @@ nothrow @nogc:
         if (!has_fullscreen_restore_)
             return typeof(return).err(window_error(WindowErrorKind.monitor_unavailable));
 
+        clear_glfw_error();
         glfwSetWindowMonitor(
             handle_,
             null,
@@ -343,8 +374,10 @@ nothrow @nogc:
             fullscreen_restore_size_.height,
             GLFW_DONT_CARE,
         );
-        has_fullscreen_restore_ = false;
-        return typeof(return).ok();
+        const status = glfw_call_status(WindowErrorKind.backend_operation_failed);
+        if (!status.isErr)
+            has_fullscreen_restore_ = false;
+        return status;
     }
 
     void set_event_handler(WindowEventHandler handler) @system
@@ -450,11 +483,13 @@ nothrow @nogc:
         }
     }
 
-    void set_cursor_mode(CursorMode mode) @system
+    WindowStatus set_cursor_mode(CursorMode mode) @system
     {
         require_live();
         if (handle_ is null)
-            return;
+            return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
+
+        clear_glfw_error();
         final switch (mode)
         {
             case CursorMode.normal:
@@ -467,6 +502,7 @@ nothrow @nogc:
                 glfwSetInputMode(handle_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                 break;
         }
+        return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
     WindowResult!NativeWindowHandle native_handle() const @system
@@ -480,6 +516,7 @@ nothrow @nogc:
         {
             if (selected == GLFW_PLATFORM_WIN32)
             {
+                clear_glfw_error();
                 void* native = glfwGetWin32Window(backend_handle());
                 if (native is null)
                     return native_handle_error!NativeWindowHandle();
@@ -493,6 +530,7 @@ nothrow @nogc:
         {
             if (selected == GLFW_PLATFORM_COCOA)
             {
+                clear_glfw_error();
                 void* native_window = glfwGetCocoaWindow(backend_handle());
                 void* native_view = glfwGetCocoaView(backend_handle());
                 if (native_window is null || native_view is null)
@@ -507,6 +545,7 @@ nothrow @nogc:
         {
             if (selected == GLFW_PLATFORM_X11)
             {
+                clear_glfw_error();
                 const native = glfwGetX11Window(backend_handle());
                 if (native == 0)
                     return native_handle_error!NativeWindowHandle();
@@ -517,6 +556,7 @@ nothrow @nogc:
             }
             if (selected == GLFW_PLATFORM_WAYLAND)
             {
+                clear_glfw_error();
                 void* native = glfwGetWaylandWindow(backend_handle());
                 if (native is null)
                     return native_handle_error!NativeWindowHandle();
@@ -706,10 +746,9 @@ private void apply_backend_window_hints(BackendWindowCreateOptions options) @sys
 
 private WindowResult!T native_handle_error(T)() @system
 {
-    const(char)* description;
     return typeof(return).err(WindowError(
             WindowErrorKind.native_handle_unavailable,
-            glfwGetError(&description),
+            consume_glfw_error(),
     ));
 }
 

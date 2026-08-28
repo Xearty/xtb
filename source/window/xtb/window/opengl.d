@@ -10,6 +10,7 @@ import xtb.window.internal.create_options : BackendClientAPI, BackendGLContextCr
     BackendGLProfile, BackendGLReleaseBehavior, BackendGLRobustness,
     BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
+import xtb.window.internal.glfw_error : clear_glfw_error, glfw_call_error, glfw_call_status;
 import xtb.window.system : WindowSystem;
 import xtb.window.window : Window, WindowConfig;
 
@@ -136,17 +137,17 @@ WindowStatus make_context_current(Window* window) @system
     if (!window_has_opengl_context(window))
         return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
 
-    clear_backend_error();
+    clear_glfw_error();
     glfwMakeContextCurrent(window.backend_handle());
-    return context_call_status();
+    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Detaches any OpenGL/OpenGL ES context from the calling thread.
 WindowStatus clear_current_context() @system
 {
-    clear_backend_error();
+    clear_glfw_error();
     glfwMakeContextCurrent(null);
-    return context_call_status();
+    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Swaps `window`'s OpenGL front and back buffers.
@@ -161,9 +162,9 @@ WindowStatus swap_buffers(Window* window) @system
     if (!window.context_is_current())
         return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
 
-    clear_backend_error();
+    clear_glfw_error();
     glfwSwapBuffers(window.backend_handle());
-    return context_call_status();
+    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Sets the swap interval for `window`'s current OpenGL context.
@@ -178,9 +179,9 @@ WindowStatus set_swap_interval(Window* window, i32 interval) @system
     if (!window.context_is_current())
         return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
 
-    clear_backend_error();
+    clear_glfw_error();
     glfwSwapInterval(interval);
-    return context_call_status();
+    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Queries context attributes exposed by GLFW for `window`.
@@ -193,7 +194,7 @@ WindowResult!OpenGLContextInfo opengl_context_info(const(Window)* window) @syste
     if (!window_has_opengl_context(window))
         return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
 
-    clear_backend_error();
+    clear_glfw_error();
     OpenGLContextInfo result;
     result.api = window_opengl_api(window);
     result.context_version.major = glfwGetWindowAttrib(window.backend_handle(), GLFW_CONTEXT_VERSION_MAJOR);
@@ -234,7 +235,7 @@ WindowResult!OpenGLContextInfo opengl_context_info(const(Window)* window) @syste
         GLFW_DOUBLEBUFFER,
     ) == GLFW_TRUE;
 
-    const error = context_call_error();
+    const error = glfw_call_error(WindowErrorKind.context_operation_failed);
     if (error.failed)
         return typeof(return).err(error);
     return typeof(return).ok(result);
@@ -265,9 +266,9 @@ WindowResult!OpenGLProc opengl_proc_address(Window* window, scope String name) @
     scope (exit)
         release_api_name(window.backend_allocator, allocated_storage);
 
-    clear_backend_error();
+    clear_glfw_error();
     const backend_proc = glfwGetProcAddress(c_name);
-    const error = context_call_error();
+    const error = glfw_call_error(WindowErrorKind.context_operation_failed);
     if (error.failed)
         return typeof(return).err(error);
     if (backend_proc is null)
@@ -300,9 +301,9 @@ WindowResult!bool opengl_extension_supported(Window* window, scope String name) 
     scope (exit)
         release_api_name(window.backend_allocator, allocated_storage);
 
-    clear_backend_error();
+    clear_glfw_error();
     const supported = glfwExtensionSupported(c_name);
-    const error = context_call_error();
+    const error = glfw_call_error(WindowErrorKind.context_operation_failed);
     if (error.failed)
         return typeof(return).err(error);
     return typeof(return).ok(supported == GLFW_TRUE);
@@ -573,26 +574,6 @@ private OpenGLReleaseBehavior opengl_release_behavior(i32 value) pure @safe
         default:
             return OpenGLReleaseBehavior.any;
     }
-}
-
-private void clear_backend_error() @system
-{
-    const(char)* description;
-    cast(void) glfwGetError(&description);
-}
-
-private WindowError context_call_error() @system
-{
-    const(char)* description;
-    const code = glfwGetError(&description);
-    return code == GLFW_NO_ERROR
-        ? WindowError.init : WindowError(WindowErrorKind.context_operation_failed, code);
-}
-
-private WindowStatus context_call_status() @system
-{
-    const error = context_call_error();
-    return error.failed ? typeof(return).err(error) : typeof(return).ok();
 }
 
 private WindowError prepare_api_name(

@@ -34,7 +34,8 @@ scope (exit) window.deinit();
 
 while (!window.should_close())
 {
-    system.poll_events();
+    if (system.poll_events().isErr)
+        return 1;
 
     if (window.key_pressed(Key.escape))
         window.request_close();
@@ -46,6 +47,12 @@ main-thread operations. Exactly one live `WindowSystem` may own GLFW at a time;
 a second `WindowSystem.create()` returns `WindowErrorKind.already_initialized`.
 Every window must be destroyed before its system is deinitialized. A `Monitor`
 is a borrowed backend handle and must be reacquired after monitor disconnection.
+
+Platform-facing mutations and event polling return `WindowStatus`. A backend
+failure is reported as `WindowErrorKind.backend_operation_failed` with the
+original GLFW error code preserved in `backend_code`. Simple state queries keep
+value-returning APIs; use events when backend-independent state tracking is
+preferred.
 
 ## OpenGL
 
@@ -87,7 +94,8 @@ if (window.set_swap_interval(1).isErr)
 
 while (!window.should_close())
 {
-    system.poll_events();
+    if (system.poll_events().isErr)
+        return 1;
 
     // Render through your OpenGL bindings.
 

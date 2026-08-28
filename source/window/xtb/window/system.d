@@ -2,10 +2,11 @@ module xtb.window.system;
 
 nothrow @nogc:
 
-import xtb.types : i32, u8;
-import xtb.window.error : WindowError, WindowErrorKind, WindowResult;
+import xtb.types : u8;
+import xtb.window.error : WindowError, WindowErrorKind, WindowResult, WindowStatus;
 import xtb.window.internal.create_options : BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
+import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error, glfw_call_status;
 import xtb.window.monitor : Monitor;
 import xtb.window.native : NativeDisplayHandle, NativeWindowPlatform,
     WaylandDisplayHandle, Win32DisplayHandle, X11DisplayHandle;
@@ -72,12 +73,6 @@ private WindowPlatform window_platform(int platform) pure @safe
     }
 }
 
-private i32 consume_backend_error() @system
-{
-    const(char)* description;
-    return glfwGetError(&description);
-}
-
 // GLFW has a process-global lifecycle, so only one owning WindowSystem may be
 // alive at a time.
 private __gshared bool window_system_active;
@@ -117,20 +112,27 @@ nothrow @nogc:
             ));
 
         const requested = glfw_platform(config.platform);
+        clear_glfw_error();
         if (config.platform != WindowPlatform.automatic &&
             glfwPlatformSupported(requested) != GLFW_TRUE)
         {
             return typeof(return).err(WindowError(
                     WindowErrorKind.platform_unavailable,
-                    consume_backend_error(),
+                    consume_glfw_error(),
             ));
         }
 
+        clear_glfw_error();
         glfwInitHint(GLFW_PLATFORM, requested);
+        const init_hint_error = glfw_call_error(WindowErrorKind.initialization_failed);
+        if (init_hint_error.failed)
+            return typeof(return).err(init_hint_error);
+
+        clear_glfw_error();
         if (glfwInit() != GLFW_TRUE)
             return typeof(return).err(WindowError(
                     WindowErrorKind.initialization_failed,
-                    consume_backend_error(),
+                    consume_glfw_error(),
             ));
 
         WindowSystem* result = allocator.tryAllocateInit!WindowSystem();
@@ -237,15 +239,17 @@ nothrow @nogc:
     /// Clears per-poll transition state for every window and then dispatches
     /// all pending backend events. Event handlers run synchronously inside this
     /// call.
-    void poll_events() @system
+    WindowStatus poll_events() @system
     {
         version (XTB_Checked)
         {
             require(initialized_, "WindowSystem is not initialized");
             require(!polling_events_, "WindowSystem event polling is not reentrant");
         }
-        if (!initialized_ || polling_events_)
-            return;
+        if (!initialized_)
+            return typeof(return).err(WindowError(WindowErrorKind.initialization_failed));
+        if (polling_events_)
+            return typeof(return).ok();
 
         for (Window* window = first_window_; window !is null; window = window.next_window())
             window.reset_poll_state();
@@ -253,7 +257,9 @@ nothrow @nogc:
         polling_events_ = true;
         scope (exit)
             polling_events_ = false;
+        clear_glfw_error();
         glfwPollEvents();
+        return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
     WindowResult!Monitor primary_monitor() const @system
@@ -263,11 +269,12 @@ nothrow @nogc:
         if (!initialized_)
             return typeof(return).err(WindowError(WindowErrorKind.initialization_failed));
 
+        clear_glfw_error();
         GLFWmonitor* monitor = glfwGetPrimaryMonitor();
         if (monitor is null)
             return typeof(return).err(WindowError(
                     WindowErrorKind.monitor_unavailable,
-                    consume_backend_error(),
+                    consume_glfw_error(),
             ));
         return typeof(return).ok(Monitor.from_backend(monitor));
     }
@@ -320,11 +327,12 @@ nothrow @nogc:
         {
             if (selected == GLFW_PLATFORM_X11)
             {
+                clear_glfw_error();
                 void* display = glfwGetX11Display();
                 if (display is null)
                     return typeof(return).err(WindowError(
                             WindowErrorKind.native_handle_unavailable,
-                            consume_backend_error(),
+                            consume_glfw_error(),
                     ));
                 NativeDisplayHandle result;
                 result.platform = NativeWindowPlatform.x11;
@@ -333,11 +341,12 @@ nothrow @nogc:
             }
             if (selected == GLFW_PLATFORM_WAYLAND)
             {
+                clear_glfw_error();
                 void* display = glfwGetWaylandDisplay();
                 if (display is null)
                     return typeof(return).err(WindowError(
                             WindowErrorKind.native_handle_unavailable,
-                            consume_backend_error(),
+                            consume_glfw_error(),
                     ));
                 NativeDisplayHandle result;
                 result.platform = NativeWindowPlatform.wayland;

@@ -6,6 +6,19 @@ import core.stdc.string : strcmp;
 import xtb.window : Key, KeyAction, KeyModifier, MouseButton, Window;
 import G = xtb.window.internal.glfw;
 
+enum FakeGLFWOperation : ubyte
+{
+    none,
+    poll_events,
+    set_window_title,
+    set_window_position,
+    set_window_size,
+    set_window_monitor,
+    set_input_mode,
+}
+
+enum int fake_platform_error = G.GLFW_PLATFORM_ERROR;
+
 struct FakeOpenGLHints
 {
     int client_api;
@@ -132,6 +145,8 @@ private FakeEvent[max_events] events;
 private size_t event_count;
 private G.GLFWwindow* current_context;
 private int last_error;
+private FakeGLFWOperation failing_operation;
+private int failing_error;
 private int selected_platform = G.GLFW_PLATFORM_NULL;
 private bool initialized;
 private FakeWindow foreign_context;
@@ -473,6 +488,20 @@ int swap_interval(Window* window) @system
     return value is null ? 0 : value.swap_interval;
 }
 
+void fail_next_operation(
+    FakeGLFWOperation operation,
+    int error = fake_platform_error,
+) @system
+{
+    failing_operation = operation;
+    failing_error = error;
+}
+
+void seed_backend_error(int error = fake_platform_error) @system
+{
+    last_error = error;
+}
+
 void make_foreign_context_current() @system
 {
     foreign_context = FakeWindow.init;
@@ -480,6 +509,16 @@ void make_foreign_context_current() @system
     foreign_context.hints.client_api = G.GLFW_OPENGL_API;
     foreign_context.user = cast(void*) 1;
     current_context = backend(&foreign_context);
+}
+
+private bool fail_operation(FakeGLFWOperation operation) @system
+{
+    if (failing_operation != operation)
+        return false;
+    last_error = failing_error;
+    failing_operation = FakeGLFWOperation.none;
+    failing_error = G.GLFW_NO_ERROR;
+    return true;
 }
 
 private extern (C) void fake_proc() nothrow @nogc
@@ -495,6 +534,8 @@ private void reset_backend_state() @system
     event_count = 0;
     current_context = null;
     last_error = G.GLFW_NO_ERROR;
+    failing_operation = FakeGLFWOperation.none;
+    failing_error = G.GLFW_NO_ERROR;
     foreign_context = FakeWindow.init;
     monitor_handles[0] = cast(G.GLFWmonitor*)&fake_monitors[0];
     monitor_handles[1] = cast(G.GLFWmonitor*)&fake_monitors[1];
@@ -666,6 +707,9 @@ extern (C) void glfwDestroyWindow(G.GLFWwindow* window)
 
 extern (C) void glfwPollEvents()
 {
+    if (fail_operation(FakeGLFWOperation.poll_events))
+        return;
+
     size_t index;
     while (index < event_count)
     {
@@ -842,6 +886,7 @@ extern (C) void glfwSetWindowShouldClose(G.GLFWwindow* window, int value)
 
 extern (C) void glfwSetWindowTitle(G.GLFWwindow*, const(char)*)
 {
+    cast(void) fail_operation(FakeGLFWOperation.set_window_title);
 }
 
 extern (C) void glfwGetWindowPos(G.GLFWwindow* window, int* x, int* y)
@@ -852,6 +897,8 @@ extern (C) void glfwGetWindowPos(G.GLFWwindow* window, int* x, int* y)
 
 extern (C) void glfwSetWindowPos(G.GLFWwindow* window, int x, int y)
 {
+    if (fail_operation(FakeGLFWOperation.set_window_position))
+        return;
     FakeWindow* value = fake(window);
     value.x = x;
     value.y = y;
@@ -867,6 +914,8 @@ extern (C) void glfwGetWindowSize(G.GLFWwindow* window, int* width, int* height)
 
 extern (C) void glfwSetWindowSize(G.GLFWwindow* window, int width, int height)
 {
+    if (fail_operation(FakeGLFWOperation.set_window_size))
+        return;
     FakeWindow* value = fake(window);
     value.width = width;
     value.height = height;
@@ -939,6 +988,8 @@ extern (C) void glfwSetWindowMonitor(
     int,
 )
 {
+    if (fail_operation(FakeGLFWOperation.set_window_monitor))
+        return;
     FakeWindow* value = fake(window);
     value.monitor = monitor;
     value.x = x;
@@ -992,6 +1043,8 @@ extern (C) int glfwGetInputMode(G.GLFWwindow* window, int mode)
 
 extern (C) void glfwSetInputMode(G.GLFWwindow* window, int mode, int value)
 {
+    if (fail_operation(FakeGLFWOperation.set_input_mode))
+        return;
     FakeWindow* target = fake(window);
     if (mode == G.GLFW_CURSOR)
         target.cursor_mode = value;
