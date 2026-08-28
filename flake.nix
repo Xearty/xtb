@@ -142,7 +142,9 @@
           pkgs.dscanner
           pkgs.dformat
         ];
-        buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
+        buildInputs =
+          [pkgs.glfw]
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
         XTB_DIAGNOSTICS_NATIVE_ARCHIVE =
           lib.optionalString pkgs.stdenv.hostPlatform.isLinux "${libbacktrace}/lib/libbacktrace.a";
         dontConfigure = true;
@@ -177,7 +179,9 @@
           clang-tools
           lldb
         ];
-        buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
+        buildInputs =
+          [pkgs.glfw]
+          ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
 
         shellHook = ''
           export XTB_LIBRARY_OUTPUT_DIR=''${XTB_LIBRARY_OUTPUT_DIR:-"$PWD/build"}

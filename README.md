@@ -13,6 +13,7 @@ classes, and runtime reflection, and keeps allocation and ownership explicit.
 | [fs](source/fs/README.md) | `xtb.fs` | paths, files, directories, metadata, file-backed mappings |
 | [process](source/process/README.md) | `xtb.process` | process environment, commands, child processes, communication, pipelines |
 | [time](source/time/README.md) | `xtb.time` | timestamps, monotonic instants, timeouts, sleeping |
+| [window](source/window/README.md) | `xtb.window` | desktop windows, input, OpenGL contexts, native graphics handles |
 | [log](source/log/README.md) | `xtb.log` | level-based logging and composable sinks |
 | [math](source/math/README.md) | `xtb.math` | vectors, matrices, transforms, random, noise |
 | [threading](source/threading/README.md) | `xtb.thread`, `xtb.sync` | threads and synchronization primitives |
