@@ -157,7 +157,9 @@ configuration "test-window" {
     targetName "window_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "window_tests.d"
+    sourceFiles "support/fake_glfw.d"
     dependency "xtb:window" version="*"
+    subConfiguration "xtb:window" "test-backend"
 }
 
 configuration "test-serde" {

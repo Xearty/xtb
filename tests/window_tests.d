@@ -2,18 +2,37 @@ module tests.window_tests;
 
 nothrow @nogc:
 
+import tests.support.fake_glfw : make_foreign_context_current, opengl_hints,
+    queue_content_scale, queue_cursor_enter, queue_cursor_position, queue_focus,
+    queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
+    queue_mouse_button, queue_scroll, queue_text, queue_window_position,
+    queue_window_size, swap_count, swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
 import xtb.window;
 import xtb.window.opengl;
-import xtb.window.internal.glfw : GLFW_CLIENT_API, GLFW_FALSE, GLFW_OPENGL_API,
-    GLFW_OSMESA_CONTEXT_API, GLFW_CONTEXT_CREATION_API, GLFW_VISIBLE, GLFWwindow,
-    glfwCreateWindow, glfwDefaultWindowHints, glfwDestroyWindow, glfwGetCurrentContext,
-    glfwMakeContextCurrent, glfwSetWindowUserPointer, glfwWindowHint;
 
 private bool same_size(WindowSize left, WindowSize right) pure @safe
 {
     return left.width == right.width && left.height == right.height;
+}
+
+private struct EventLog
+{
+    WindowEvent[32] events;
+    size_t count;
+}
+
+private void record_event(
+    Window*,
+    scope const WindowEvent* event,
+    void* context,
+) @system
+{
+    EventLog* log = cast(EventLog*) context;
+    if (log is null || log.count >= log.events.length)
+        return;
+    log.events[log.count++] = *event;
 }
 
 private bool single_window_system_ownership(
@@ -51,41 +70,41 @@ extern (C) int main() @system
     WindowSystemConfig system_config;
     system_config.platform = WindowPlatform.headless;
     if (!single_window_system_ownership(allocator, system_config))
-        return 55;
+        return 1;
 
     auto system_result = WindowSystem.create(allocator, system_config);
     if (system_result.isErr)
-        return 1;
+        return 2;
     WindowSystem* system = system_result.take();
     scope (exit)
         system.deinit();
 
     if (!system.initialized || system.platform != WindowPlatform.headless)
-        return 2;
-    if (!WindowSystem.platform_supported(WindowPlatform.headless))
         return 3;
-    if (system.monitor_count == 0)
+    if (!WindowSystem.platform_supported(WindowPlatform.headless))
         return 4;
+    if (system.monitor_count != 2)
+        return 5;
 
     auto primary_result = system.primary_monitor();
     if (primary_result.isErr)
-        return 5;
+        return 6;
     Monitor primary = primary_result.take();
     if (!primary.valid || primary.name.length == 0)
-        return 6;
+        return 7;
 
     auto mode_result = primary.video_mode();
     if (mode_result.isErr)
-        return 7;
-    const mode = mode_result.take();
-    if (mode.width <= 0 || mode.height <= 0 || mode.refresh_rate <= 0)
         return 8;
+    const mode = mode_result.take();
+    if (mode.width != 1920 || mode.height != 1080 || mode.refresh_rate != 60)
+        return 9;
 
     WindowConfig invalid_config;
     invalid_config.width = 0;
     auto invalid_result = system.create_window(invalid_config);
     if (!invalid_result.isErr || invalid_result.takeError().kind != WindowErrorKind.invalid_size)
-        return 9;
+        return 10;
 
     WindowConfig config;
     config.width = 320;
@@ -95,69 +114,155 @@ extern (C) int main() @system
 
     auto first_result = system.create_window(config);
     if (first_result.isErr)
-        return 10;
+        return 11;
     Window* first = first_result.take();
     scope (exit)
         first.deinit();
 
     if (system.window_count != 1 || !first.valid)
-        return 11;
-    if (!same_size(first.size, WindowSize(320, 240)))
         return 12;
-    if (!same_size(first.framebuffer_size, WindowSize(320, 240)))
+    if (!same_size(first.size, WindowSize(320, 240)))
         return 13;
+    if (!same_size(first.framebuffer_size, WindowSize(320, 240)))
+        return 14;
 
     if (first.set_size(WindowSize(640, 360)).isErr)
-        return 14;
-    if (!same_size(first.size, WindowSize(640, 360)))
         return 15;
+    if (!same_size(first.size, WindowSize(640, 360)))
+        return 16;
 
     if (first.set_title("headless renamed").isErr)
-        return 16;
+        return 17;
     const char[3] title_with_nul = ['x', '\0', 'y'];
     auto title_result = first.set_title(title_with_nul[]);
     if (!title_result.isErr || title_result.takeError().kind != WindowErrorKind.title_contains_nul)
-        return 17;
+        return 18;
 
     first.request_close();
     if (!first.should_close())
-        return 18;
+        return 19;
 
     if (!first.native_handle().isErr || !system.native_display_handle().isErr)
-        return 19;
+        return 20;
 
     auto second_result = system.create_window(config);
     if (second_result.isErr)
-        return 20;
+        return 21;
     Window* second = second_result.take();
     if (system.window_count != 2)
     {
         second.deinit();
-        return 21;
+        return 22;
     }
     second.deinit();
     if (system.window_count != 1)
-        return 22;
-
-    system.poll_events();
-    if (first.cursor_delta.x != 0 || first.cursor_delta.y != 0)
         return 23;
-    if (first.scroll_delta.x != 0 || first.scroll_delta.y != 0)
+
+    EventLog event_log;
+    first.set_event_handler(WindowEventHandler(&record_event, &event_log));
+
+    if (!queue_key(first, Key.a, KeyAction.pressed, KeyModifier.shift, 17) ||
+        !queue_text(first, 'A') ||
+        !queue_mouse_button(first, MouseButton.left, KeyAction.pressed, KeyModifier.control) ||
+        !queue_cursor_position(first, 10, 5) ||
+        !queue_cursor_position(first, 13, 9) ||
+        !queue_scroll(first, 1, 0.5) ||
+        !queue_scroll(first, -0.25, 2) ||
+        !queue_cursor_enter(
+            first, true) ||
+        !queue_focus(first, false) ||
+        !queue_window_position(first, 7, 9) ||
+        !queue_window_size(first, 500, 400) ||
+        !queue_framebuffer_size(first, 1000, 800) ||
+        !queue_content_scale(first, 2, 2) ||
+        !queue_maximized(first, true) ||
+        !queue_minimized(first, true))
         return 24;
 
-    if (first.has_opengl_context())
+    system.poll_events();
+    if (!first.key_down(Key.a) || !first.key_pressed(Key.a) ||
+        first.key_released(Key.a) || first.key_repeated(Key.a))
         return 25;
+    if (!first.mouse_button_down(MouseButton.left) ||
+        !first.mouse_button_pressed(
+            MouseButton.left) ||
+        first.mouse_button_released(MouseButton.left))
+        return 26;
+    if (first.cursor_position.x != 13 || first.cursor_position.y != 9 ||
+        first.cursor_delta.x != 13 || first.cursor_delta.y != 9)
+        return 27;
+    if (first.scroll_delta.x != 0.75 || first.scroll_delta.y != 2.5 || !first.scrolled)
+        return 28;
+    if (!first.cursor_inside || !first.cursor_entered || first.cursor_left)
+        return 29;
+    if (first.focused || !first.maximized || !first.minimized)
+        return 30;
+    if (event_log.count != 15 ||
+        event_log.events[0].kind != WindowEventKind.key ||
+        event_log.events[0].key_event.key != Key.a ||
+        event_log.events[0].key_event.scan_code != 17 ||
+        event_log.events[0].key_event.action != KeyAction.pressed ||
+        event_log.events[0].key_event.modifiers != KeyModifier.shift ||
+        event_log.events[1].kind != WindowEventKind.text_input ||
+        event_log.events[1].text_input.codepoint != 'A' ||
+        event_log.events[2].kind != WindowEventKind.mouse_button ||
+        event_log.events[2].mouse_button_event.button != MouseButton.left ||
+        event_log.events[2].mouse_button_event.modifiers != KeyModifier.control ||
+        event_log.events[14].kind != WindowEventKind.minimized_changed)
+        return 31;
+
+    if (!queue_key(first, Key.a, KeyAction.released) ||
+        !queue_key(first, Key.b, KeyAction.pressed) ||
+        !queue_key(first, Key.b, KeyAction.released) ||
+        !queue_mouse_button(first, MouseButton.left, KeyAction.released) ||
+        !queue_mouse_button(first, MouseButton.right, KeyAction.pressed) ||
+        !queue_mouse_button(first, MouseButton.right, KeyAction.released) ||
+        !queue_cursor_enter(first, false) ||
+        !queue_cursor_position(first, 15, 10))
+        return 32;
+
+    system.poll_events();
+    if (first.key_down(Key.a) || first.key_pressed(Key.a) || !first.key_released(Key.a))
+        return 33;
+    if (first.key_down(Key.b) || !first.key_pressed(Key.b) || !first.key_released(Key.b))
+        return 34;
+    if (first.mouse_button_down(MouseButton.left) ||
+        first.mouse_button_pressed(MouseButton.left) ||
+        !first.mouse_button_released(MouseButton.left))
+        return 35;
+    if (first.mouse_button_down(MouseButton.right) ||
+        !first.mouse_button_pressed(
+            MouseButton.right) ||
+        !first.mouse_button_released(MouseButton.right))
+        return 36;
+    if (first.cursor_inside || first.cursor_entered || !first.cursor_left ||
+        first.cursor_delta.x != 2 || first.cursor_delta.y != 1)
+        return 37;
+    if (first.scrolled || first.scroll_delta.x != 0 || first.scroll_delta.y != 0)
+        return 38;
+
+    system.poll_events();
+    if (first.key_pressed(Key.b) || first.key_released(Key.b) ||
+        first.mouse_button_pressed(MouseButton.right) ||
+        first.mouse_button_released(
+            MouseButton.right) ||
+        first.cursor_delta.x != 0 || first.cursor_delta.y != 0 ||
+        first.cursor_entered || first.cursor_left)
+        return 39;
+
+    if (first.has_opengl_context())
+        return 40;
     auto generic_context_result = first.make_context_current();
     if (!generic_context_result.isErr ||
         generic_context_result.takeError().kind != WindowErrorKind.context_unavailable)
-        return 26;
+        return 41;
 
     const es_config = OpenGLConfig.opengl_es();
     if (es_config.api != OpenGLAPI.opengl_es ||
         es_config.context_version.major != 3 ||
         es_config.context_version.minor != 0 ||
         es_config.profile != OpenGLProfile.any)
-        return 27;
+        return 42;
 
     OpenGLConfig invalid_gl_config;
     invalid_gl_config.context_version = OpenGLVersion(3, 1);
@@ -165,7 +270,7 @@ extern (C) int main() @system
     auto invalid_gl_result = system.create_opengl_window(config, invalid_gl_config);
     if (!invalid_gl_result.isErr ||
         invalid_gl_result.takeError().kind != WindowErrorKind.invalid_context_config)
-        return 28;
+        return 43;
 
     auto null_allocator_gl_result = system.create_opengl_window(
         cast(Allocator*) null,
@@ -174,7 +279,7 @@ extern (C) int main() @system
     if (!null_allocator_gl_result.isErr ||
         null_allocator_gl_result.takeError()
             .kind != WindowErrorKind.allocation_failed)
-        return 29;
+        return 44;
 
     OpenGLConfig unavailable_gl_config;
     unavailable_gl_config.context_version = OpenGLVersion(99, 0);
@@ -184,7 +289,7 @@ extern (C) int main() @system
     );
     if (!unavailable_gl_result.isErr ||
         unavailable_gl_result.takeError().kind != WindowErrorKind.context_unavailable)
-        return 30;
+        return 45;
 
     OpenGLConfig gl_config;
     gl_config.creation_api = OpenGLContextCreationAPI.os_mesa;
@@ -196,74 +301,63 @@ extern (C) int main() @system
 
     auto gl_result = system.create_opengl_window(config, gl_config);
     if (gl_result.isErr)
-    {
-        // The Null platform is always present in GLFW 3.4+, but the host may
-        // not provide the OSMesa runtime needed for a headless OpenGL context.
-        // Static validation above still runs everywhere; exercise the live
-        // context path whenever this optional runtime is available.
-        if (gl_result.takeError().kind != WindowErrorKind.context_unavailable)
-            return 31;
-        return 0;
-    }
+        return 46;
 
     Window* gl_window = gl_result.take();
     scope (exit)
         gl_window.deinit();
 
     if (!gl_window.has_opengl_context() || system.window_count != 2)
-        return 32;
+        return 47;
     if (gl_window.context_is_current())
-        return 33;
+        return 48;
 
     auto premature_swap = gl_window.swap_buffers();
     if (!premature_swap.isErr ||
         premature_swap.takeError().kind != WindowErrorKind.no_current_context)
-        return 34;
+        return 49;
 
     if (gl_window.make_context_current().isErr || !gl_window.context_is_current())
-        return 35;
-    if (gl_window.set_swap_interval(1).isErr)
-        return 36;
+        return 50;
+    if (gl_window.set_swap_interval(1).isErr || swap_interval(gl_window) != 1)
+        return 51;
 
     auto info_result = gl_window.opengl_context_info();
     if (info_result.isErr)
-        return 37;
+        return 52;
     const info = info_result.take();
-    const version_too_old =
-        info.context_version.major < gl_config.context_version.major ||
-        (info.context_version.major == gl_config.context_version.major &&
-                info.context_version.minor < gl_config.context_version.minor);
-    if (info.api != OpenGLAPI.opengl || version_too_old ||
+    if (info.api != OpenGLAPI.opengl ||
+        info.context_version.major != gl_config.context_version.major ||
+        info.context_version.minor != gl_config.context_version.minor ||
         info.creation_api != OpenGLContextCreationAPI.os_mesa ||
-        info.profile != OpenGLProfile.core)
-        return 38;
+        info.profile != OpenGLProfile.core ||
+        !info.debug_context ||
+        info.robustness != OpenGLRobustness.no_reset_notification ||
+        info.release_behavior != OpenGLReleaseBehavior.flush ||
+        !info.double_buffered)
+        return 53;
+
+    const creation_hints = opengl_hints(gl_window);
+    if (creation_hints.version_major != gl_config.context_version.major ||
+        creation_hints.version_minor != gl_config.context_version.minor ||
+        creation_hints.debug_context != gl_config.debug_context ||
+        creation_hints.samples != gl_config.framebuffer.samples ||
+        creation_hints.srgb_capable != gl_config.framebuffer.srgb_capable ||
+        !creation_hints.double_buffered)
+        return 54;
 
     const char[3] proc_with_nul = ['g', '\0', 'l'];
     auto invalid_proc = gl_window.opengl_proc_address(proc_with_nul[]);
     if (!invalid_proc.isErr || invalid_proc.takeError().kind != WindowErrorKind.invalid_proc_name)
-        return 39;
+        return 55;
 
     auto proc_result = gl_window.opengl_proc_address("glGetString");
     if (proc_result.isErr || proc_result.take() is null)
-        return 40;
+        return 56;
 
     auto extension_result = gl_window.opengl_extension_supported("GL_FAKE_extension");
-    if (extension_result.isErr)
-        return 41;
-    const fake_extension_supported = extension_result.take();
-
-    // The instrumented test backend exposes glFakeFunction. When present,
-    // GL_FAKE_extension is reported only if all creation hints above reached
-    // glfwCreateWindow unchanged. Real OpenGL implementations simply skip
-    // this backend-specific assertion.
-    const fake_backend = !gl_window.opengl_proc_address("glFakeFunction").isErr;
-    if (fake_backend && !fake_extension_supported)
-        return 42;
-    if (!info.debug_context ||
-        info.robustness != OpenGLRobustness.no_reset_notification ||
-        info.release_behavior != OpenGLReleaseBehavior.flush ||
-        !info.double_buffered)
-        return 43;
+    if (extension_result.isErr || !extension_result.take())
+        return 57;
 
     OpenGLConfig mismatched_share_config = gl_config;
     mismatched_share_config.creation_api = OpenGLContextCreationAPI.egl;
@@ -275,49 +369,38 @@ extern (C) int main() @system
     if (!mismatched_share_result.isErr ||
         mismatched_share_result.takeError()
             .kind != WindowErrorKind.invalid_context_config)
-        return 44;
+        return 58;
 
     OpenGLConfig shared_config = gl_config;
     shared_config.share_context_with = gl_window;
     auto shared_result = system.create_opengl_window(config, shared_config);
     if (shared_result.isErr)
-        return 45;
+        return 59;
     Window* shared_window = shared_result.take();
-    if (!shared_window.has_opengl_context() || system.window_count != 3)
+    if (!shared_window.has_opengl_context() || system.window_count != 3 ||
+        opengl_hints(shared_window).shared_context_with !is gl_window)
     {
         shared_window.deinit();
-        return 46;
+        return 60;
     }
     shared_window.deinit();
     if (system.window_count != 2)
-        return 47;
+        return 61;
 
-    if (gl_window.swap_buffers().isErr)
-        return 48;
+    const swaps_before = swap_count(gl_window);
+    if (gl_window.swap_buffers().isErr || swap_count(gl_window) != swaps_before + 1)
+        return 62;
     if (clear_current_context().isErr || gl_window.context_is_current())
-        return 49;
+        return 63;
 
-    glfwDefaultWindowHints();
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_OSMESA_CONTEXT_API);
-    GLFWwindow* foreign_window = glfwCreateWindow(16, 16, "foreign context".ptr, null, null);
-    if (foreign_window is null)
-        return 50;
-    scope (exit)
-        glfwDestroyWindow(foreign_window);
-
-    glfwSetWindowUserPointer(foreign_window, cast(void*) 1);
-    glfwMakeContextCurrent(foreign_window);
-    if (glfwGetCurrentContext() !is foreign_window)
-        return 51;
+    make_foreign_context_current();
     if (gl_window.context_is_current())
-        return 52;
+        return 64;
 
     if (gl_window.make_context_current().isErr || !gl_window.context_is_current())
-        return 53;
+        return 65;
     if (clear_current_context().isErr)
-        return 54;
+        return 66;
 
     return 0;
 }

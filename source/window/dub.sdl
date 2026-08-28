@@ -3,7 +3,16 @@ targetType "sourceLibrary"
 sourcePaths "."
 importPaths "."
 dependency "xtb:core" version="*"
-libs "glfw"
+
+configuration "glfw" {
+    targetType "sourceLibrary"
+    libs "glfw"
+}
+
+configuration "test-backend" {
+    targetType "sourceLibrary"
+}
+
 buildOptions "betterC"
 buildRequirements "disallowDeprecations"
 dflags "-preview=dip1000" platform="ldc"
