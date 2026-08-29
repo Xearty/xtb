@@ -396,6 +396,7 @@ extern (C) int main() @system
         event_log.events[2].kind != WindowEventKind.mouse_button ||
         event_log.events[2].mouse_button_event.button != MouseButton.left ||
         event_log.events[2].mouse_button_event.modifiers != KeyModifier.control ||
+        event_log.events[7].kind != WindowEventKind.cursor_entered ||
         event_log.events[14].kind != WindowEventKind.minimized_changed)
         return 31;
 
@@ -425,7 +426,8 @@ extern (C) int main() @system
         !first.mouse_button_released(MouseButton.right))
         return 36;
     if (first.cursor_inside || first.cursor_entered || !first.cursor_left ||
-        first.cursor_delta.x != 2 || first.cursor_delta.y != 1)
+        first.cursor_delta.x != 2 || first.cursor_delta.y != 1 ||
+        event_log.events[21].kind != WindowEventKind.cursor_left)
         return 37;
     if (first.scrolled || first.scroll_delta.x != 0 || first.scroll_delta.y != 0)
         return 38;

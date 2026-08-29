@@ -68,6 +68,7 @@ enum WindowEventKind : u8
     mouse_button,
     cursor_moved,
     cursor_entered,
+    cursor_left,
     scroll,
     moved,
     resized,

@@ -910,8 +910,9 @@ private extern (C) void on_cursor_enter(GLFWwindow* handle, int entered) nothrow
     window.cursor_left_ = entered != GLFW_TRUE;
 
     WindowEvent event;
-    event.kind = WindowEventKind.cursor_entered;
-    event.state = BoolWindowEvent(window.cursor_inside_);
+    event.kind = entered == GLFW_TRUE
+        ? WindowEventKind.cursor_entered
+        : WindowEventKind.cursor_left;
     window.dispatch(&event);
 }
 
