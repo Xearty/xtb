@@ -7,7 +7,7 @@ import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     queue_content_scale, queue_cursor_enter, queue_cursor_position, queue_focus,
     queue_close, queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
     queue_mouse_button, queue_monitor_connected, queue_monitor_disconnected,
-    queue_scroll, queue_text, queue_window_position, queue_window_size,
+    queue_refresh, queue_scroll, queue_text, queue_window_position, queue_window_size,
     seed_backend_error, swap_count, swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
@@ -498,8 +498,14 @@ extern (C) int main() @system
     if (first.scrolled || first.scroll_delta.x != 0 || first.scroll_delta.y != 0)
         return 38;
 
-    if (system.poll_events().isErr)
+    if (!queue_refresh(first))
         return 113;
+
+    if (system.poll_events().isErr)
+        return 114;
+    if (event_log.count != 25 ||
+        event_log.events[24].kind != WindowEventKind.refresh_requested)
+        return 115;
     if (first.key_pressed(Key.b) || first.key_released(Key.b) ||
         first.mouse_button_pressed(MouseButton.right) ||
         first.mouse_button_released(

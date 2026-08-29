@@ -99,6 +99,7 @@ private struct FakeWindow
     G.GLFWwindowposfun window_position_callback;
     G.GLFWwindowsizefun window_size_callback;
     G.GLFWwindowclosefun window_close_callback;
+    G.GLFWwindowrefreshfun window_refresh_callback;
     G.GLFWwindowfocusfun window_focus_callback;
     G.GLFWwindowiconifyfun window_iconify_callback;
     G.GLFWwindowmaximizefun window_maximize_callback;
@@ -117,6 +118,7 @@ private enum FakeEventKind : ubyte
     window_position,
     window_size,
     close,
+    refresh,
     focus,
     minimize,
     maximize,
@@ -414,6 +416,12 @@ bool queue_close(Window* window) @system
 {
     FakeWindow* target = find_window(window);
     return push_event(FakeEvent(FakeEventKind.close, target));
+}
+
+bool queue_refresh(Window* window) @system
+{
+    FakeWindow* target = find_window(window);
+    return push_event(FakeEvent(FakeEventKind.refresh, target));
 }
 
 bool queue_focus(Window* window, bool focused) @system
@@ -822,6 +830,10 @@ extern (C) void glfwPollEvents()
                 if (window.window_close_callback !is null)
                     window.window_close_callback(handle);
                 break;
+            case FakeEventKind.refresh:
+                if (window.window_refresh_callback !is null)
+                    window.window_refresh_callback(handle);
+                break;
             case FakeEventKind.focus:
                 window.focused = event.a == G.GLFW_TRUE;
                 if (window.window_focus_callback !is null)
@@ -1183,6 +1195,17 @@ extern (C) G.GLFWwindowclosefun glfwSetWindowCloseCallback(G.GLFWwindow* window,
 {
     auto previous = fake(window).window_close_callback;
     fake(window).window_close_callback = callback;
+    return previous;
+}
+
+extern (C) G.GLFWwindowrefreshfun glfwSetWindowRefreshCallback(
+    G.GLFWwindow* window,
+    G.GLFWwindowrefreshfun callback,
+)
+{
+    FakeWindow* target = fake(window);
+    G.GLFWwindowrefreshfun previous = target.window_refresh_callback;
+    target.window_refresh_callback = callback;
     return previous;
 }
 

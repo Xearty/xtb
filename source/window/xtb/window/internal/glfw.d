@@ -31,6 +31,7 @@ alias GLFWscrollfun = extern (C) void function(GLFWwindow*, double, double) noth
 alias GLFWwindowposfun = extern (C) void function(GLFWwindow*, int, int) nothrow @nogc;
 alias GLFWwindowsizefun = extern (C) void function(GLFWwindow*, int, int) nothrow @nogc;
 alias GLFWwindowclosefun = extern (C) void function(GLFWwindow*) nothrow @nogc;
+alias GLFWwindowrefreshfun = extern (C) void function(GLFWwindow*) nothrow @nogc;
 alias GLFWwindowfocusfun = extern (C) void function(GLFWwindow*, int) nothrow @nogc;
 alias GLFWwindowiconifyfun = extern (C) void function(GLFWwindow*, int) nothrow @nogc;
 alias GLFWwindowmaximizefun = extern (C) void function(GLFWwindow*, int) nothrow @nogc;
@@ -86,6 +87,7 @@ GLFWscrollfun glfwSetScrollCallback(GLFWwindow*, GLFWscrollfun);
 GLFWwindowposfun glfwSetWindowPosCallback(GLFWwindow*, GLFWwindowposfun);
 GLFWwindowsizefun glfwSetWindowSizeCallback(GLFWwindow*, GLFWwindowsizefun);
 GLFWwindowclosefun glfwSetWindowCloseCallback(GLFWwindow*, GLFWwindowclosefun);
+GLFWwindowrefreshfun glfwSetWindowRefreshCallback(GLFWwindow*, GLFWwindowrefreshfun);
 GLFWwindowfocusfun glfwSetWindowFocusCallback(GLFWwindow*, GLFWwindowfocusfun);
 GLFWwindowiconifyfun glfwSetWindowIconifyCallback(GLFWwindow*, GLFWwindowiconifyfun);
 GLFWwindowmaximizefun glfwSetWindowMaximizeCallback(GLFWwindow*, GLFWwindowmaximizefun);

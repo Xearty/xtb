@@ -74,6 +74,7 @@ enum WindowEventKind : u8
     moved,
     resized,
     close_requested,
+    refresh_requested,
     focus_gained,
     focus_lost,
     minimized_changed,

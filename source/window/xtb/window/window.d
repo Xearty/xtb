@@ -827,6 +827,7 @@ private void install_callbacks(GLFWwindow* handle) @system
     glfwSetWindowPosCallback(handle, &on_window_position);
     glfwSetWindowSizeCallback(handle, &on_window_size);
     glfwSetWindowCloseCallback(handle, &on_window_close);
+    glfwSetWindowRefreshCallback(handle, &on_window_refresh);
     glfwSetWindowFocusCallback(handle, &on_window_focus);
     glfwSetWindowIconifyCallback(handle, &on_window_iconify);
     glfwSetWindowMaximizeCallback(handle, &on_window_maximize);
@@ -996,6 +997,16 @@ private extern (C) void on_window_close(GLFWwindow* handle) nothrow @nogc @syste
         return;
     WindowEvent event;
     event.kind = WindowEventKind.close_requested;
+    window.dispatch(&event);
+}
+
+private extern (C) void on_window_refresh(GLFWwindow* handle) nothrow @nogc @system
+{
+    Window* window = window_from_backend(handle);
+    if (window is null)
+        return;
+    WindowEvent event;
+    event.kind = WindowEventKind.refresh_requested;
     window.dispatch(&event);
 }
 
