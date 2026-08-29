@@ -5,7 +5,7 @@ nothrow @nogc:
 import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     fake_platform_error, make_foreign_context_current, opengl_hints,
     queue_content_scale, queue_cursor_enter, queue_cursor_position, queue_focus,
-    queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
+    queue_close, queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
     queue_mouse_button, queue_scroll, queue_text, queue_window_position,
     queue_window_size, seed_backend_error, swap_count, swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
@@ -34,6 +34,26 @@ private void record_event(
     if (log is null || log.count >= log.events.length)
         return;
     log.events[log.count++] = *event;
+}
+
+private struct CloseRequestLog
+{
+    size_t count;
+}
+
+private void cancel_close_request(
+    Window* window,
+    scope const WindowEvent* event,
+    void* context,
+) @system
+{
+    if (event.kind != WindowEventKind.close_requested)
+        return;
+
+    CloseRequestLog* log = cast(CloseRequestLog*) context;
+    if (log !is null)
+        ++log.count;
+    window.set_should_close(false);
 }
 
 private bool single_window_system_ownership(
@@ -245,6 +265,16 @@ extern (C) int main() @system
     first.request_close();
     if (!first.should_close())
         return 19;
+    first.set_should_close(false);
+    if (first.should_close())
+        return 127;
+
+    CloseRequestLog close_log;
+    first.set_event_handler(WindowEventHandler(&cancel_close_request, &close_log));
+    if (!queue_close(first) || system.poll_events().isErr ||
+        close_log.count != 1 || first.should_close())
+        return 128;
+    first.set_event_handler(WindowEventHandler.init);
 
     if (!first.native_handle().isErr || !system.native_display_handle().isErr)
         return 20;

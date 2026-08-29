@@ -205,11 +205,16 @@ nothrow @nogc:
         return handle_ !is null && glfwWindowShouldClose(backend_handle()) == GLFW_TRUE;
     }
 
-    void request_close() @system
+    void set_should_close(bool value) @system
     {
         require_live();
         if (handle_ !is null)
-            glfwSetWindowShouldClose(handle_, GLFW_TRUE);
+            glfwSetWindowShouldClose(handle_, value ? GLFW_TRUE : GLFW_FALSE);
+    }
+
+    void request_close() @system
+    {
+        set_should_close(true);
     }
 
     WindowStatus set_title(scope String title) @system

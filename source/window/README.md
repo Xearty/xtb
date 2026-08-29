@@ -54,6 +54,11 @@ original GLFW error code preserved in `backend_code`. Simple state queries keep
 value-returning APIs; use events when backend-independent state tracking is
 preferred.
 
+A native close request sets the window close flag before dispatching
+`WindowEventKind.close_requested`. An event handler may reject the request with
+`window.set_should_close(false)`. `window.request_close()` is convenience sugar
+for setting the same flag to `true`.
+
 ## OpenGL
 
 OpenGL support is an extension module in the same `xtb:window` library. Import
