@@ -137,8 +137,9 @@ context must be detached with `clear_current_context()` before its Window is
 destroyed from another thread.
 
 `OpenGLContextCreationAPI.os_mesa` is available for headless contexts when the
-GLFW build and host provide OSMesa. The window test uses this path when
-available, but does not require an OSMesa runtime.
+GLFW build and host provide OSMesa. The deterministic window tests use the
+in-repo fake backend and do not require OSMesa. A separate real-GLFW smoke test
+uses GLFW's Null platform without creating a graphics context.
 
 ## Other graphics APIs
 

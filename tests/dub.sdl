@@ -162,6 +162,15 @@ configuration "test-window" {
     subConfiguration "xtb:window" "test-backend"
 }
 
+configuration "test-window-glfw" {
+    targetType "executable"
+    targetName "window_glfw_smoke_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "window_glfw_smoke_tests.d"
+    dependency "xtb:window" version="*"
+    subConfiguration "xtb:window" "glfw"
+}
+
 configuration "test-serde" {
     targetType "executable"
     targetName "serde_tests"
