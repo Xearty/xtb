@@ -2,6 +2,7 @@ module xtb.window.window;
 
 nothrow @nogc:
 
+import xtb.flag_set : FlagSet, enable;
 import xtb.memory : Allocator, deallocate, tryAllocateInit;
 import xtb.string : StringBuf;
 import xtb.thread_context : ScratchScope;
@@ -11,15 +12,15 @@ import xtb.window.error : WindowError, WindowErrorKind, WindowResult;
 import xtb.window.event : BoolWindowEvent, ContentScale, CursorMovedEvent, KeyEvent,
     MouseButtonEvent, ScrollEvent, TextInputEvent, WindowEvent, WindowEventKind,
     WindowPosition, WindowSize;
-import xtb.window.input : CursorDelta, CursorMode, CursorPosition, Key, KeyState,
-    MouseButton, MouseButtonState, ScrollDelta;
+import xtb.window.input : CursorDelta, CursorMode, CursorPosition, Key, KeyAction,
+    KeyState, MouseButton, MouseButtonAction, MouseButtonState, ScrollDelta;
 import xtb.window.internal.create_options : BackendClientAPI, BackendGLContextCreationAPI,
     BackendGLProfile, BackendGLReleaseBehavior, BackendGLRobustness,
     BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
 import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error;
 import xtb.window.internal.glfw_input : key_action_from_glfw, key_from_glfw,
-    modifiers_from_glfw, mouse_button_from_glfw;
+    modifiers_from_glfw, mouse_button_action_from_glfw, mouse_button_from_glfw;
 import xtb.window.monitor : Monitor;
 import xtb.window.native : CocoaWindowHandle, NativeWindowHandle,
     NativeWindowPlatform, WaylandWindowHandle, Win32WindowHandle, X11WindowHandle;
@@ -30,6 +31,28 @@ version (XTB_Checked) import xtb.panic : require;
 private WindowError window_error(WindowErrorKind kind) pure @safe
 {
     return WindowError(kind);
+}
+
+private alias KeyTransitions = FlagSet!KeyAction;
+private alias MouseButtonTransitions = FlagSet!MouseButtonAction;
+
+// These are manifest constants so the public state-query methods can remain
+// `pure`: FlagSet.contains validates arbitrary runtime enum values in checked
+// builds, while these transition kinds are compile-time-known valid values.
+private enum key_pressed_transition = KeyTransitions.of(KeyAction.pressed);
+private enum key_released_transition = KeyTransitions.of(KeyAction.released);
+private enum key_repeated_transition = KeyTransitions.of(KeyAction.repeated);
+private enum mouse_pressed_transition = MouseButtonTransitions.of(MouseButtonAction.pressed);
+private enum mouse_released_transition = MouseButtonTransitions.of(MouseButtonAction.released);
+
+private struct InputTransitions
+{
+    KeyTransitions[cast(size_t) Key.count] keys;
+    MouseButtonTransitions[cast(size_t) MouseButton.count] mouse_buttons;
+    CursorDelta cursor_delta;
+    ScrollDelta scroll_delta;
+    bool cursor_entered;
+    bool cursor_left;
 }
 
 /// Native window creation parameters. Width and height must be positive. The
@@ -71,14 +94,16 @@ nothrow @nogc:
     private Window* previous_window_;
     private Window* next_window_;
     private WindowEventHandler event_handler_;
-    private KeyState[cast(size_t) Key.count] key_states_;
-    private MouseButtonState[cast(size_t) MouseButton.count] mouse_states_;
+    private bool[cast(size_t) Key.count] key_down_;
+    private bool[cast(size_t) MouseButton.count] mouse_button_down_;
     private CursorPosition cursor_position_;
-    private CursorDelta cursor_delta_;
-    private ScrollDelta scroll_delta_;
     private bool cursor_inside_;
-    private bool cursor_entered_;
-    private bool cursor_left_;
+    // GLFW may invoke callbacks synchronously from calls other than
+    // glfwPollEvents. Keep the last published transition batch separate from
+    // the batch callbacks are currently accumulating so an event delivered
+    // between polls cannot be erased by the next poll boundary.
+    private InputTransitions input_transitions_;
+    private InputTransitions pending_input_transitions_;
     private WindowPosition fullscreen_restore_position_;
     private WindowSize fullscreen_restore_size_;
     private bool has_fullscreen_restore_position_;
@@ -448,10 +473,23 @@ nothrow @nogc:
         event_handler_ = handler;
     }
 
+    /// Returns the key's current persistent state plus transitions from the
+    /// most recently completed `WindowSystem.poll_events` batch. `down`
+    /// changes immediately when a callback arrives; transition flags are not
+    /// published until the next poll completes.
     KeyState key_state(Key key) const pure @safe
     {
         const index = cast(size_t) key;
-        return index < key_states_.length ? key_states_[index] : KeyState.init;
+        if (index >= key_down_.length)
+            return KeyState.init;
+
+        const transition = input_transitions_.keys[index];
+        return KeyState(
+            key_down_[index],
+            transition.intersects(key_pressed_transition),
+            transition.intersects(key_released_transition),
+            transition.intersects(key_repeated_transition),
+        );
     }
 
     bool key_down(Key key) const pure @safe
@@ -474,10 +512,23 @@ nothrow @nogc:
         return key_state(key).repeated;
     }
 
+    /// Returns the button's current persistent state plus transitions from the
+    /// most recently completed `WindowSystem.poll_events` batch. `down`
+    /// changes immediately when a callback arrives; transition flags are not
+    /// published until the next poll completes.
     MouseButtonState mouse_button_state(MouseButton button) const pure @safe
     {
         const index = cast(size_t) button;
-        return index < mouse_states_.length ? mouse_states_[index] : MouseButtonState.init;
+        if (index >= mouse_button_down_.length)
+            return MouseButtonState.init;
+
+        const transition = input_transitions_.mouse_buttons[index];
+        return MouseButtonState(
+            mouse_button_down_[index],
+            transition.intersects(
+                mouse_pressed_transition),
+            transition.intersects(mouse_released_transition),
+        );
     }
 
     bool mouse_button_down(MouseButton button) const pure @safe
@@ -500,19 +551,24 @@ nothrow @nogc:
         return cursor_position_;
     }
 
+    /// Returns cursor movement accumulated for the most recently completed
+    /// poll batch. Cursor position itself is updated immediately by callbacks.
     CursorDelta cursor_delta() const pure @safe
     {
-        return cursor_delta_;
+        return input_transitions_.cursor_delta;
     }
 
+    /// Returns scroll movement accumulated for the most recently completed
+    /// poll batch.
     ScrollDelta scroll_delta() const pure @safe
     {
-        return scroll_delta_;
+        return input_transitions_.scroll_delta;
     }
 
     bool scrolled() const pure @safe
     {
-        return scroll_delta_.x != 0 || scroll_delta_.y != 0;
+        return input_transitions_.scroll_delta.x != 0 ||
+            input_transitions_.scroll_delta.y != 0;
     }
 
     bool cursor_inside() const pure @safe
@@ -520,14 +576,20 @@ nothrow @nogc:
         return cursor_inside_;
     }
 
+    /// Returns whether at least one cursor-enter callback occurred in the most
+    /// recently completed poll batch. Enter and leave may both be true when
+    /// both transitions occurred in the same batch.
     bool cursor_entered() const pure @safe
     {
-        return cursor_entered_;
+        return input_transitions_.cursor_entered;
     }
 
+    /// Returns whether at least one cursor-leave callback occurred in the most
+    /// recently completed poll batch. Enter and leave may both be true when
+    /// both transitions occurred in the same batch.
     bool cursor_left() const pure @safe
     {
-        return cursor_left_;
+        return input_transitions_.cursor_left;
     }
 
     CursorMode cursor_mode() const @system
@@ -628,16 +690,15 @@ nothrow @nogc:
         return NativeWindowHandle.init;
     }
 
-    package(xtb.window) void reset_poll_state() pure @safe
+    /// Publishes the transitions accumulated since the previous completed
+    /// poll, including callbacks delivered synchronously between polls and
+    /// callbacks delivered by the current glfwPollEvents call. Only the
+    /// pending buffer is cleared; the published buffer remains stable for
+    /// callers until the next completed poll publishes a replacement batch.
+    package(xtb.window) void publish_input_transitions() pure @safe
     {
-        foreach (ref state; key_states_)
-            state.reset_transitions();
-        foreach (ref state; mouse_states_)
-            state.reset_transitions();
-        cursor_delta_ = CursorDelta.init;
-        scroll_delta_ = ScrollDelta.init;
-        cursor_entered_ = false;
-        cursor_left_ = false;
+        input_transitions_ = pending_input_transitions_;
+        pending_input_transitions_ = InputTransitions.init;
     }
 
     package(xtb.window) Window* previous_window() return pure @safe
@@ -860,7 +921,20 @@ private extern (C) void on_key(
     const key = key_from_glfw(backend_key);
     const action = key_action_from_glfw(backend_action);
     if (key != Key.unknown)
-        window.key_states_[cast(size_t) key].apply(action);
+    {
+        const index = cast(size_t) key;
+        final switch (action)
+        {
+            case KeyAction.released:
+                window.key_down_[index] = false;
+                break;
+            case KeyAction.pressed:
+            case KeyAction.repeated:
+                window.key_down_[index] = true;
+                break;
+        }
+        window.pending_input_transitions_.keys[index].enable(action);
+    }
 
     WindowEvent event;
     event.kind = WindowEventKind.key;
@@ -899,8 +973,18 @@ private extern (C) void on_mouse_button(
     const button = mouse_button_from_glfw(backend_button);
     if (button == MouseButton.count)
         return;
-    const action = key_action_from_glfw(backend_action);
-    window.mouse_states_[cast(size_t) button].apply(action);
+    const action = mouse_button_action_from_glfw(backend_action);
+    const index = cast(size_t) button;
+    final switch (action)
+    {
+        case MouseButtonAction.released:
+            window.mouse_button_down_[index] = false;
+            break;
+        case MouseButtonAction.pressed:
+            window.mouse_button_down_[index] = true;
+            break;
+    }
+    window.pending_input_transitions_.mouse_buttons[index].enable(action);
 
     WindowEvent event;
     event.kind = WindowEventKind.mouse_button;
@@ -925,8 +1009,8 @@ private extern (C) void on_cursor_position(
     const delta_x = x - window.cursor_position_.x;
     const delta_y = y - window.cursor_position_.y;
     window.cursor_position_ = CursorPosition(x, y);
-    window.cursor_delta_.x += delta_x;
-    window.cursor_delta_.y += delta_y;
+    window.pending_input_transitions_.cursor_delta.x += delta_x;
+    window.pending_input_transitions_.cursor_delta.y += delta_y;
 
     WindowEvent event;
     event.kind = WindowEventKind.cursor_moved;
@@ -941,13 +1025,12 @@ private extern (C) void on_cursor_enter(GLFWwindow* handle, int entered) nothrow
         return;
 
     window.cursor_inside_ = entered == GLFW_TRUE;
-    window.cursor_entered_ = entered == GLFW_TRUE;
-    window.cursor_left_ = entered != GLFW_TRUE;
+    window.pending_input_transitions_.cursor_entered |= entered == GLFW_TRUE;
+    window.pending_input_transitions_.cursor_left |= entered != GLFW_TRUE;
 
     WindowEvent event;
     event.kind = entered == GLFW_TRUE
-        ? WindowEventKind.cursor_entered
-        : WindowEventKind.cursor_left;
+        ? WindowEventKind.cursor_entered : WindowEventKind.cursor_left;
     window.dispatch(&event);
 }
 
@@ -961,8 +1044,8 @@ private extern (C) void on_scroll(
     if (window is null)
         return;
 
-    window.scroll_delta_.x += x;
-    window.scroll_delta_.y += y;
+    window.pending_input_transitions_.scroll_delta.x += x;
+    window.pending_input_transitions_.scroll_delta.y += y;
 
     WindowEvent event;
     event.kind = WindowEventKind.scroll;
@@ -1027,8 +1110,7 @@ private extern (C) void on_window_focus(GLFWwindow* handle, int focused) nothrow
         return;
     WindowEvent event;
     event.kind = focused == GLFW_TRUE
-        ? WindowEventKind.focus_gained
-        : WindowEventKind.focus_lost;
+        ? WindowEventKind.focus_gained : WindowEventKind.focus_lost;
     window.dispatch(&event);
 }
 

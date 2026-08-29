@@ -2,7 +2,7 @@ module xtb.window.internal.glfw_input;
 
 nothrow @nogc:
 
-import xtb.window.input : Key, KeyAction, KeyModifier, MouseButton;
+import xtb.window.input : Key, KeyAction, KeyModifier, MouseButton, MouseButtonAction;
 import xtb.window.internal.glfw;
 
 package(xtb.window) KeyAction key_action_from_glfw(int action) pure @safe
@@ -16,6 +16,11 @@ package(xtb.window) KeyAction key_action_from_glfw(int action) pure @safe
         default:
             return KeyAction.released;
     }
+}
+
+package(xtb.window) MouseButtonAction mouse_button_action_from_glfw(int action) pure @safe
+{
+    return action == GLFW_PRESS ? MouseButtonAction.pressed : MouseButtonAction.released;
 }
 
 package(xtb.window) KeyModifier modifiers_from_glfw(int modifiers) pure @safe

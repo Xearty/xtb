@@ -4,6 +4,8 @@ nothrow @nogc:
 
 import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     fake_feature_unavailable, fake_platform_error, fake_version_unavailable,
+    dispatch_cursor_enter_now, dispatch_cursor_position_now, dispatch_key_now,
+    dispatch_mouse_button_now, dispatch_scroll_now,
     make_foreign_context_current, opengl_hints,
     queue_content_scale, queue_cursor_enter, queue_cursor_position, queue_focus,
     queue_close, queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
@@ -114,6 +116,104 @@ private bool single_window_system_ownership(
     return true;
 }
 
+private bool synchronous_transition_publication(
+    WindowSystem* system,
+    Window* first,
+    WindowConfig config,
+) @system
+{
+    auto second_result = system.create_window(config);
+    if (second_result.isErr)
+        return false;
+    Window* second = second_result.take();
+    scope (exit)
+        second.deinit();
+
+    if (system.window_count != 2)
+        return false;
+
+    const start = first.cursor_position;
+
+    // Model callbacks delivered synchronously by GLFW between two polling
+    // calls. Persistent state must change immediately, while transition
+    // queries must continue exposing the previous published batch until the
+    // next poll completes.
+    if (!dispatch_key_now(first, Key.c, KeyAction.pressed) ||
+        !dispatch_key_now(first, Key.c, KeyAction.released) ||
+        !dispatch_mouse_button_now(first, MouseButton.middle, MouseButtonAction.pressed) ||
+        !dispatch_cursor_position_now(first, start.x + 5, start.y + 4) ||
+        !dispatch_scroll_now(
+            first, 1, 2) ||
+        !dispatch_cursor_enter_now(first, true) ||
+        !dispatch_key_now(second, Key.e, KeyAction.pressed))
+        return false;
+
+    if (first.key_down(Key.c) || first.key_pressed(Key.c) ||
+        first.key_released(Key.c) || first.key_repeated(Key.c) ||
+        !first.mouse_button_down(MouseButton.middle) ||
+        first.mouse_button_pressed(MouseButton.middle) ||
+        first.mouse_button_released(
+            MouseButton.middle) ||
+        first.cursor_position != CursorPosition(start.x + 5, start.y + 4) ||
+        first.cursor_delta != CursorDelta.init || first.scrolled ||
+        !first.cursor_inside || first.cursor_entered || first.cursor_left ||
+        !second.key_down(Key.e) || second.key_pressed(Key.e))
+        return false;
+
+    // Events dispatched by glfwPollEvents join the already-pending
+    // between-poll callbacks in one publication batch.
+    if (!queue_key(first, Key.c, KeyAction.repeated) ||
+        !queue_mouse_button(first, MouseButton.middle, MouseButtonAction.released) ||
+        !queue_cursor_position(first, start.x + 8, start.y + 10) ||
+        !queue_scroll(first, -0.25, 0.5) ||
+        !queue_cursor_enter(first, false) ||
+        !queue_key(second, Key.e, KeyAction.released) ||
+        system.poll_events().isErr)
+        return false;
+
+    const first_key = first.key_state(Key.c);
+    const first_button = first.mouse_button_state(MouseButton.middle);
+    const second_key = second.key_state(Key.e);
+    if (!first_key.down || !first_key.pressed || !first_key.released ||
+        !first_key.repeated || first_button.down || !first_button.pressed ||
+        !first_button.released ||
+        first.cursor_delta != CursorDelta(8, 10) ||
+        first.scroll_delta != ScrollDelta(0.75, 2.5) || !first.scrolled ||
+        first.cursor_inside || !first.cursor_entered || !first.cursor_left ||
+        second_key.down || !second_key.pressed || !second_key.released)
+        return false;
+
+    // An empty poll replaces the published batch with an empty one without
+    // disturbing persistent state.
+    if (system.poll_events().isErr)
+        return false;
+    if (!first.key_down(Key.c) || first.key_pressed(Key.c) ||
+        first.key_released(Key.c) || first.key_repeated(Key.c) ||
+        first.mouse_button_down(
+            MouseButton.middle) ||
+        first.mouse_button_pressed(MouseButton.middle) ||
+        first.mouse_button_released(MouseButton.middle) ||
+        first.cursor_delta != CursorDelta.init || first.scrolled ||
+        first.cursor_entered || first.cursor_left || second.key_down(Key.e) ||
+        second.key_pressed(Key.e) || second.key_released(Key.e))
+        return false;
+
+    // Publication is independent of GLFW's ambient error result. A backend
+    // call can report an error after callbacks have already run, so a failed
+    // poll must not make already-observed transitions disappear.
+    if (!dispatch_key_now(first, Key.f, KeyAction.pressed))
+        return false;
+    fail_next_operation(FakeGLFWOperation.poll_events);
+    auto failed_poll = system.poll_events();
+    if (!failed_poll.isErr || !first.key_down(Key.f) || !first.key_pressed(Key.f))
+        return false;
+
+    if (system.poll_events().isErr || !first.key_down(Key.f) || first.key_pressed(Key.f))
+        return false;
+
+    return true;
+}
+
 extern (C) int main() @system
 {
     ThreadContextScope thread_context = ThreadContextScope.acquire();
@@ -167,11 +267,12 @@ extern (C) int main() @system
         !system_event_log.monitor_valid[1] || system.monitor_count != 2)
         return 138;
     if (!queue_monitor_disconnected(0) || !queue_monitor_disconnected(1) ||
-        system.poll_events().isErr || system_event_log.count != 4 ||
-        system_event_log.kinds[2] != WindowSystemEventKind.monitor_disconnected ||
-        system_event_log.kinds[3] != WindowSystemEventKind.monitor_disconnected ||
-        !system_event_log.monitor_valid[2] || !system_event_log.monitor_valid[3] ||
-        system.monitor_count != 0 || system.primary_monitor().valid ||
+        system.poll_events()
+            .isErr || system_event_log.count != 4 ||
+            system_event_log.kinds[2] != WindowSystemEventKind.monitor_disconnected ||
+            system_event_log.kinds[3] != WindowSystemEventKind.monitor_disconnected ||
+            !system_event_log.monitor_valid[2] || !system_event_log.monitor_valid[3] ||
+            system.monitor_count != 0 || system.primary_monitor().valid ||
         system.monitor(0).valid)
         return 139;
 
@@ -429,12 +530,12 @@ extern (C) int main() @system
     lock_window.set_event_handler(WindowEventHandler(&record_event, &lock_event_log));
     const enabled_lock_modifiers = cast(KeyModifier)(
         cast(ubyte) KeyModifier.caps_lock |
-        cast(ubyte) KeyModifier.num_lock);
+            cast(ubyte) KeyModifier.num_lock);
     if (!queue_key(lock_window, Key.c, KeyAction.pressed, enabled_lock_modifiers) ||
         !queue_mouse_button(
             lock_window,
             MouseButton.left,
-            KeyAction.pressed,
+            MouseButtonAction.pressed,
             enabled_lock_modifiers) ||
         system.poll_events().isErr ||
         lock_event_log.count != 2 ||
@@ -462,11 +563,12 @@ extern (C) int main() @system
 
     const lock_modifiers = cast(KeyModifier)(
         cast(ubyte) KeyModifier.shift |
-        cast(ubyte) KeyModifier.caps_lock |
-        cast(ubyte) KeyModifier.num_lock);
+            cast(
+                ubyte) KeyModifier.caps_lock |
+            cast(ubyte) KeyModifier.num_lock);
     if (!queue_key(first, Key.a, KeyAction.pressed, lock_modifiers, 17) ||
         !queue_text(first, 'A') ||
-        !queue_mouse_button(first, MouseButton.left, KeyAction.pressed, KeyModifier.control) ||
+        !queue_mouse_button(first, MouseButton.left, MouseButtonAction.pressed, KeyModifier.control) ||
         !queue_cursor_position(first, 10, 5) ||
         !queue_cursor_position(first, 13, 9) ||
         !queue_scroll(first, 1, 0.5) ||
@@ -513,6 +615,7 @@ extern (C) int main() @system
         event_log.events[1].text_input.codepoint != 'A' ||
         event_log.events[2].kind != WindowEventKind.mouse_button ||
         event_log.events[2].mouse_button_event.button != MouseButton.left ||
+        event_log.events[2].mouse_button_event.action != MouseButtonAction.pressed ||
         event_log.events[2].mouse_button_event.modifiers != KeyModifier.control ||
         event_log.events[7].kind != WindowEventKind.cursor_entered ||
         event_log.events[8].kind != WindowEventKind.focus_lost ||
@@ -524,9 +627,10 @@ extern (C) int main() @system
     if (!queue_key(first, Key.a, KeyAction.released) ||
         !queue_key(first, Key.b, KeyAction.pressed) ||
         !queue_key(first, Key.b, KeyAction.released) ||
-        !queue_mouse_button(first, MouseButton.left, KeyAction.released) ||
-        !queue_mouse_button(first, MouseButton.right, KeyAction.pressed) ||
-        !queue_mouse_button(first, MouseButton.right, KeyAction.released) ||
+        !queue_mouse_button(first, MouseButton.left, MouseButtonAction.released) ||
+        !queue_mouse_button(first, MouseButton.right, MouseButtonAction.pressed) ||
+        !queue_mouse_button(
+            first, MouseButton.right, MouseButtonAction.released) ||
         !queue_cursor_enter(first, false) ||
         !queue_cursor_position(first, 15, 10) ||
         !queue_focus(first, true))
@@ -571,6 +675,12 @@ extern (C) int main() @system
         first.cursor_delta.x != 0 || first.cursor_delta.y != 0 ||
         first.cursor_entered || first.cursor_left)
         return 39;
+
+    first.set_event_handler(WindowEventHandler.init);
+    if (!synchronous_transition_publication(system, first, config))
+        return 158;
+    if (system.window_count != 1)
+        return 159;
 
     if (first.has_opengl_context())
         return 40;

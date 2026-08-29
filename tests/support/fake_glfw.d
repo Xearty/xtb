@@ -3,7 +3,7 @@ module tests.support.fake_glfw;
 nothrow @nogc:
 
 import core.stdc.string : strcmp;
-import xtb.window : Key, KeyAction, KeyModifier, MouseButton, Window;
+import xtb.window : Key, KeyAction, KeyModifier, MouseButton, MouseButtonAction, Window;
 import G = xtb.window.internal.glfw;
 
 enum FakeGLFWOperation : ubyte
@@ -364,7 +364,7 @@ bool queue_text(Window* window, dchar codepoint) @system
 bool queue_mouse_button(
     Window* window,
     MouseButton button,
-    KeyAction action,
+    MouseButtonAction action,
     KeyModifier modifiers = KeyModifier.none,
 ) @system
 {
@@ -408,6 +408,90 @@ bool queue_scroll(Window* window, double x, double y) @system
     event.x = x;
     event.y = y;
     return push_event(event);
+}
+
+// These immediate-dispatch helpers model GLFW callbacks that are delivered
+// synchronously from a GLFW call other than glfwPollEvents. They intentionally
+// bypass the fake event queue so window tests can verify that XTB does not
+// assume all callbacks occur inside the polling call.
+bool dispatch_key_now(
+    Window* window,
+    Key key,
+    KeyAction action,
+    KeyModifier modifiers = KeyModifier.none,
+    int scan_code = 0,
+) @system
+{
+    FakeWindow* target = find_window(window);
+    if (target is null || target.key_callback is null)
+        return false;
+
+    int backend_modifiers = cast(int) modifiers;
+    if (!target.lock_key_modifiers)
+        backend_modifiers &= ~(G.GLFW_MOD_CAPS_LOCK | G.GLFW_MOD_NUM_LOCK);
+    target.key_callback(
+        backend(target),
+        backend_key(key),
+        scan_code,
+        cast(int) action,
+        backend_modifiers,
+    );
+    return true;
+}
+
+bool dispatch_mouse_button_now(
+    Window* window,
+    MouseButton button,
+    MouseButtonAction action,
+    KeyModifier modifiers = KeyModifier.none,
+) @system
+{
+    FakeWindow* target = find_window(window);
+    if (target is null || target.mouse_button_callback is null)
+        return false;
+
+    int backend_modifiers = cast(int) modifiers;
+    if (!target.lock_key_modifiers)
+        backend_modifiers &= ~(G.GLFW_MOD_CAPS_LOCK | G.GLFW_MOD_NUM_LOCK);
+    target.mouse_button_callback(
+        backend(target),
+        cast(int) button,
+        cast(int) action,
+        backend_modifiers,
+    );
+    return true;
+}
+
+bool dispatch_cursor_position_now(Window* window, double x, double y) @system
+{
+    FakeWindow* target = find_window(window);
+    if (target is null || target.cursor_position_callback is null)
+        return false;
+
+    target.cursor_x = x;
+    target.cursor_y = y;
+    target.cursor_position_callback(backend(target), x, y);
+    return true;
+}
+
+bool dispatch_cursor_enter_now(Window* window, bool entered) @system
+{
+    FakeWindow* target = find_window(window);
+    if (target is null || target.cursor_enter_callback is null)
+        return false;
+
+    target.cursor_enter_callback(backend(target), entered ? G.GLFW_TRUE : G.GLFW_FALSE);
+    return true;
+}
+
+bool dispatch_scroll_now(Window* window, double x, double y) @system
+{
+    FakeWindow* target = find_window(window);
+    if (target is null || target.scroll_callback is null)
+        return false;
+
+    target.scroll_callback(backend(target), x, y);
+    return true;
 }
 
 bool queue_window_position(Window* window, int x, int y) @system
@@ -1132,7 +1216,7 @@ extern (C) G.GLFWmonitor* glfwGetPrimaryMonitor()
     foreach (ref monitor; fake_monitors)
     {
         if (monitor.connected)
-            return cast(G.GLFWmonitor*) &monitor;
+            return cast(G.GLFWmonitor*)&monitor;
     }
     return null;
 }
@@ -1143,7 +1227,7 @@ extern (C) G.GLFWmonitor** glfwGetMonitors(int* count)
     foreach (ref monitor; fake_monitors)
     {
         if (monitor.connected)
-            monitor_handles[connected_count++] = cast(G.GLFWmonitor*) &monitor;
+            monitor_handles[connected_count++] = cast(G.GLFWmonitor*)&monitor;
     }
     *count = cast(int) connected_count;
     return connected_count == 0 ? null : monitor_handles.ptr;

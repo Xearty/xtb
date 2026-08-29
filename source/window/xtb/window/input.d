@@ -156,32 +156,6 @@ nothrow @nogc:
     bool pressed;
     bool released;
     bool repeated;
-
-    package(xtb.window) void apply(KeyAction action) pure @safe
-    {
-        final switch (action)
-        {
-            case KeyAction.released:
-                down = false;
-                released = true;
-                break;
-            case KeyAction.pressed:
-                down = true;
-                pressed = true;
-                break;
-            case KeyAction.repeated:
-                down = true;
-                repeated = true;
-                break;
-        }
-    }
-
-    package(xtb.window) void reset_transitions() pure @safe
-    {
-        pressed = false;
-        released = false;
-        repeated = false;
-    }
 }
 
 enum MouseButton : u8
@@ -197,6 +171,12 @@ enum MouseButton : u8
     count,
 }
 
+enum MouseButtonAction : u8
+{
+    released,
+    pressed,
+}
+
 struct MouseButtonState
 {
 nothrow @nogc:
@@ -204,30 +184,6 @@ nothrow @nogc:
     bool down;
     bool pressed;
     bool released;
-
-    package(xtb.window) void apply(KeyAction action) pure @safe
-    {
-        final switch (action)
-        {
-            case KeyAction.released:
-                down = false;
-                released = true;
-                break;
-            case KeyAction.pressed:
-                down = true;
-                pressed = true;
-                break;
-            case KeyAction.repeated:
-                down = true;
-                break;
-        }
-    }
-
-    package(xtb.window) void reset_transitions() pure @safe
-    {
-        pressed = false;
-        released = false;
-    }
 }
 
 enum CursorMode : u8

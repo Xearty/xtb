@@ -277,18 +277,27 @@ nothrow @nogc:
         return Window.create(&this, allocator, config, backend_options);
     }
 
-    /// Clears per-poll transition state for every window and then dispatches
-    /// all pending backend events. Event handlers run synchronously inside this
-    /// call.
+    /// Dispatches pending backend events, then publishes one transition batch
+    /// per window. A batch includes callbacks delivered since the previous
+    /// completed poll, including synchronous callbacks caused by other GLFW
+    /// calls between polls. Event handlers run synchronously inside this call.
     WindowStatus poll_events() @system
     {
         version (XTB_Checked)
             require(initialized_, "WindowSystem is not initialized");
-        for (Window* window = first_window_; window !is null; window = window.next_window())
-            window.reset_poll_state();
 
         clear_glfw_error();
         glfwPollEvents();
+        // Do not clear transitions before glfwPollEvents. GLFW callbacks are
+        // not confined to event-polling calls, so pending transitions may
+        // already contain valid events delivered between the previous poll and
+        // this one. Publishing after dispatch preserves those events and folds
+        // callbacks from this poll into the same observable batch. Publish
+        // before interpreting GLFW's error slot as well: a GLFW call may have
+        // delivered callbacks before reporting a backend error, and those
+        // transitions still happened and must not be discarded or delayed.
+        for (Window* window = first_window_; window !is null; window = window.next_window())
+            window.publish_input_transitions();
         return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 

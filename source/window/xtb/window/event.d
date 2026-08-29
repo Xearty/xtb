@@ -3,7 +3,8 @@ module xtb.window.event;
 nothrow @nogc:
 
 import xtb.types : i32, u8;
-import xtb.window.input : CursorPosition, Key, KeyAction, KeyModifier, MouseButton;
+import xtb.window.input : CursorPosition, Key, KeyAction, KeyModifier, MouseButton,
+    MouseButtonAction;
 import xtb.window.monitor : Monitor;
 
 struct WindowPosition
@@ -45,7 +46,7 @@ struct TextInputEvent
 struct MouseButtonEvent
 {
     MouseButton button;
-    KeyAction action;
+    MouseButtonAction action;
     KeyModifier modifiers;
 }
 
