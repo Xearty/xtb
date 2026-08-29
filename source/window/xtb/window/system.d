@@ -123,7 +123,10 @@ nothrow @nogc:
         int minor;
         int revision;
         glfwGetVersion(&major, &minor, &revision);
-        if (major < 3 || (major == 3 && minor < 4))
+        // XTB declares the GLFW 3.x ABI directly. Do not assume a future major
+        // version is ABI-compatible merely because its number is newer; support
+        // for another major must be an explicit XTB compatibility update.
+        if (major != 3 || minor < 4)
             return typeof(return).err(WindowError(
                     WindowErrorKind.unsupported_backend_version,
             ));

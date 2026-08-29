@@ -11,7 +11,8 @@ import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     queue_close, queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
     queue_mouse_button, queue_monitor_connected, queue_monitor_disconnected,
     queue_refresh, queue_scroll, queue_text, queue_window_position, queue_window_size,
-    seed_backend_error, set_default_content_scale, swap_count, swap_interval;
+    seed_backend_error, set_backend_version, set_default_content_scale, swap_count,
+    swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
 import xtb.thread_context : ThreadContextScope;
@@ -131,6 +132,42 @@ private void exit_fullscreen_reentrantly(
     // nested exit therefore proves that restore state was staged before GLFW
     // was allowed to call back into application code.
     window.set_fullscreen(false);
+}
+
+private bool expect_backend_version(
+    Allocator* allocator,
+    WindowSystemConfig config,
+    int major,
+    int minor,
+    bool supported,
+) @system
+{
+    set_backend_version(major, minor);
+    auto result = WindowSystem.create(allocator, config);
+    if (supported)
+    {
+        if (result.isErr)
+            return false;
+        result.take().deinit();
+        return true;
+    }
+
+    return result.isErr &&
+        result.takeError().kind == WindowErrorKind.unsupported_backend_version;
+}
+
+private bool runtime_backend_version_gate(
+    Allocator* allocator,
+    WindowSystemConfig config,
+) @system
+{
+    scope (exit) set_backend_version(3, 4);
+
+    return expect_backend_version(allocator, config, 3, 3, false) &&
+        expect_backend_version(allocator, config, 3, 4, true) &&
+        expect_backend_version(allocator, config, 3, 5, true) &&
+        expect_backend_version(allocator, config, 4, 0, false) &&
+        expect_backend_version(allocator, config, 2, 9, false);
 }
 
 private bool single_window_system_ownership(
@@ -271,6 +308,8 @@ extern (C) int main() @system
 
     WindowSystemConfig system_config;
     system_config.platform = WindowPlatform.headless;
+    if (!runtime_backend_version_gate(allocator, system_config))
+        return 147;
     if (!single_window_system_ownership(allocator, system_config))
         return 1;
 

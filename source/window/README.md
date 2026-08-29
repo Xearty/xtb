@@ -10,8 +10,8 @@ with no client graphics API, while graphics integrations supply their own
 creation-time requirements without putting Vulkan, Direct3D, Metal, OpenGL,
 swap-chain, sample-count, or vsync policy into `WindowConfig`.
 
-The initial backend is GLFW 3.4 or newer. Applications using this subpackage
-must link GLFW. On Linux the linked GLFW library must be compiled with both
+The initial backend is GLFW 3.x, version 3.4 or newer. Applications using this
+subpackage must link GLFW. On Linux the linked GLFW library must be compiled with both
 X11 and Wayland backends. XTB exposes native handles for whichever backend is
 selected at runtime and therefore references both sets of GLFW native-access
 symbols. GLFW 3.4 and newer enable both Linux backends by default.

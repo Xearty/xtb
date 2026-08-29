@@ -2,8 +2,8 @@ module xtb.window.internal.glfw;
 
 nothrow @nogc:
 
-// Minimal GLFW 3.4+ ABI used by xtb.window. Keeping this declaration surface
-// local prevents GLFW constants and types from becoming part of XTB's API.
+// Minimal GLFW 3.x ABI (version 3.4+) used by xtb.window. Keeping this
+// declaration surface local prevents GLFW constants and types from becoming part of XTB's API.
 
 extern (C):
 

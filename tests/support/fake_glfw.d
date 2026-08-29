@@ -164,6 +164,9 @@ private float default_content_scale_x = 1;
 private float default_content_scale_y = 1;
 private int selected_platform = G.GLFW_PLATFORM_NULL;
 private bool initialized;
+private int backend_version_major = 3;
+private int backend_version_minor = 4;
+private int backend_version_revision;
 private FakeWindow foreign_context;
 private G.GLFWmonitorfun monitor_callback;
 
@@ -643,6 +646,13 @@ void seed_backend_error(int error = fake_platform_error) @system
     last_error = error;
 }
 
+void set_backend_version(int major, int minor, int revision = 0) @system
+{
+    backend_version_major = major;
+    backend_version_minor = minor;
+    backend_version_revision = revision;
+}
+
 void make_foreign_context_current() @system
 {
     foreign_context = FakeWindow.init;
@@ -689,9 +699,9 @@ private void reset_backend_state() @system
 
 extern (C) void glfwGetVersion(int* major, int* minor, int* revision)
 {
-    *major = 3;
-    *minor = 4;
-    *revision = 0;
+    *major = backend_version_major;
+    *minor = backend_version_minor;
+    *revision = backend_version_revision;
 }
 
 extern (C) void glfwInitHint(int hint, int value)
