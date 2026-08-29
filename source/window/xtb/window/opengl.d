@@ -3,7 +3,7 @@ module xtb.window.opengl;
 nothrow @nogc:
 
 import core.stdc.string : memcpy;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.memory : Allocator;
 import xtb.types : String, i32, u8;
 import xtb.window.error : WindowError, WindowErrorKind, WindowResult, WindowStatus;
 import xtb.window.internal.create_options : BackendClientAPI, BackendGLContextCreationAPI,
@@ -242,7 +242,8 @@ WindowResult!OpenGLContextInfo opengl_context_info(const(Window)* window) @syste
 }
 
 /// Looks up an OpenGL/OpenGL ES procedure for `window`'s current context.
-/// `name` must be non-empty ASCII without embedded NUL bytes.
+/// `name` must be non-empty ASCII without embedded NUL bytes and at most
+/// 255 bytes long.
 WindowResult!OpenGLProc opengl_proc_address(Window* window, scope String name) @system
 {
     if (!window_has_opengl_context(window))
@@ -251,20 +252,15 @@ WindowResult!OpenGLProc opengl_proc_address(Window* window, scope String name) @
         return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
 
     char[256] local_storage;
-    char[] allocated_storage;
     const(char)* c_name;
     const name_error = prepare_api_name(
-        window.backend_allocator,
         name,
         WindowErrorKind.invalid_proc_name,
         local_storage[],
-        &allocated_storage,
         &c_name,
     );
     if (name_error.failed)
         return typeof(return).err(name_error);
-    scope (exit)
-        release_api_name(window.backend_allocator, allocated_storage);
 
     clear_glfw_error();
     const backend_proc = glfwGetProcAddress(c_name);
@@ -277,7 +273,8 @@ WindowResult!OpenGLProc opengl_proc_address(Window* window, scope String name) @
 }
 
 /// Checks a client/context API extension for `window`'s current context.
-/// `name` must be non-empty ASCII without embedded NUL bytes.
+/// `name` must be non-empty ASCII without embedded NUL bytes and at most
+/// 255 bytes long.
 WindowResult!bool opengl_extension_supported(Window* window, scope String name) @system
 {
     if (!window_has_opengl_context(window))
@@ -286,20 +283,15 @@ WindowResult!bool opengl_extension_supported(Window* window, scope String name) 
         return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
 
     char[256] local_storage;
-    char[] allocated_storage;
     const(char)* c_name;
     const name_error = prepare_api_name(
-        window.backend_allocator,
         name,
         WindowErrorKind.invalid_extension_name,
         local_storage[],
-        &allocated_storage,
         &c_name,
     );
     if (name_error.failed)
         return typeof(return).err(name_error);
-    scope (exit)
-        release_api_name(window.backend_allocator, allocated_storage);
 
     clear_glfw_error();
     const supported = glfwExtensionSupported(c_name);
@@ -577,45 +569,22 @@ private OpenGLReleaseBehavior opengl_release_behavior(i32 value) pure @safe
 }
 
 private WindowError prepare_api_name(
-    Allocator* allocator,
     scope String name,
     WindowErrorKind invalid_kind,
-    scope char[] local_storage,
-    scope char[]* allocated_storage,
+    scope char[] storage,
     scope const(char)** output,
 ) @system
 {
-    *allocated_storage = null;
     *output = null;
 
-    if (name.length == 0 || name.length == size_t.max)
+    if (name.length == 0 || name.length >= storage.length)
         return WindowError(invalid_kind);
     foreach (character; name)
         if (character == '\0' || cast(ubyte) character > 0x7f)
             return WindowError(invalid_kind);
 
-    if (name.length < local_storage.length)
-    {
-        memcpy(local_storage.ptr, name.ptr, name.length);
-        local_storage[name.length] = '\0';
-        *output = local_storage.ptr;
-        return WindowError.init;
-    }
-
-    if (allocator is null || *allocator is null)
-        return WindowError(WindowErrorKind.allocation_failed);
-    char[] storage = allocator.tryAllocateArray!char(name.length + 1);
-    if (storage.ptr is null)
-        return WindowError(WindowErrorKind.allocation_failed);
     memcpy(storage.ptr, name.ptr, name.length);
     storage[name.length] = '\0';
-    *allocated_storage = storage;
     *output = storage.ptr;
     return WindowError.init;
-}
-
-private void release_api_name(Allocator* allocator, char[] storage) @system
-{
-    if (storage.ptr !is null)
-        allocator.deallocateArray(storage);
 }

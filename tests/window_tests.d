@@ -634,6 +634,26 @@ extern (C) int main() @system
     if (!invalid_proc.isErr || invalid_proc.takeError().kind != WindowErrorKind.invalid_proc_name)
         return 55;
 
+    char[255] longest_api_name;
+    longest_api_name[] = 'a';
+    auto longest_proc = gl_window.opengl_proc_address(longest_api_name[]);
+    if (!longest_proc.isErr || longest_proc.takeError().kind != WindowErrorKind.proc_unavailable)
+        return 146;
+    auto longest_extension = gl_window.opengl_extension_supported(longest_api_name[]);
+    if (longest_extension.isErr || longest_extension.take())
+        return 147;
+
+    char[256] oversized_api_name;
+    oversized_api_name[] = 'a';
+    auto oversized_proc = gl_window.opengl_proc_address(oversized_api_name[]);
+    if (!oversized_proc.isErr ||
+        oversized_proc.takeError().kind != WindowErrorKind.invalid_proc_name)
+        return 148;
+    auto oversized_extension = gl_window.opengl_extension_supported(oversized_api_name[]);
+    if (!oversized_extension.isErr ||
+        oversized_extension.takeError().kind != WindowErrorKind.invalid_extension_name)
+        return 149;
+
     auto proc_result = gl_window.opengl_proc_address("glGetString");
     if (proc_result.isErr || proc_result.take() is null)
         return 56;

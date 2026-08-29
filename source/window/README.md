@@ -144,8 +144,10 @@ operations such as `make_context_current`, `swap_buffers`, `set_swap_interval`,
 `opengl_proc_address`, and `opengl_extension_supported` may be used on the
 render thread as long as the application synchronizes access and keeps window
 lifecycle, `opengl_context_info`, and event processing on the main thread. The
-context must be detached with `clear_current_context()` before its Window is
-destroyed from another thread.
+procedure and extension queries use fixed stack storage and do not access the
+Window allocator; names are limited to 255 ASCII bytes. The context must be
+detached with `clear_current_context()` before its Window is destroyed from
+another thread.
 
 `OpenGLContextCreationAPI.os_mesa` is available for headless contexts when the
 GLFW build and host provide OSMesa. The deterministic window tests use the
