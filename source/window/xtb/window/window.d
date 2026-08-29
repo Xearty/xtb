@@ -295,6 +295,15 @@ nothrow @nogc:
         return result;
     }
 
+    ContentScale content_scale() const @system
+    {
+        require_live();
+        ContentScale result;
+        if (handle_ !is null)
+            glfwGetWindowContentScale(backend_handle(), &result.x, &result.y);
+        return result;
+    }
+
     bool focused() const @system
     {
         require_live();

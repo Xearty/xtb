@@ -84,6 +84,8 @@ private struct FakeWindow
     bool focused = true;
     bool minimized;
     bool maximized;
+    float content_scale_x = 1;
+    float content_scale_y = 1;
     Hints hints;
     G.GLFWmonitor* monitor;
     G.GLFWwindow* shared_context;
@@ -153,6 +155,8 @@ private G.GLFWwindow* current_context;
 private int last_error;
 private FakeGLFWOperation failing_operation;
 private int failing_error;
+private float default_content_scale_x = 1;
+private float default_content_scale_y = 1;
 private int selected_platform = G.GLFW_PLATFORM_NULL;
 private bool initialized;
 private FakeWindow foreign_context;
@@ -460,6 +464,12 @@ bool queue_framebuffer_size(Window* window, int width, int height) @system
     return push_event(FakeEvent(FakeEventKind.framebuffer_size, target, width, height));
 }
 
+void set_default_content_scale(float x, float y) @system
+{
+    default_content_scale_x = x;
+    default_content_scale_y = y;
+}
+
 bool queue_content_scale(Window* window, float x, float y) @system
 {
     FakeWindow* target = find_window(window);
@@ -578,6 +588,8 @@ private void reset_backend_state() @system
     last_error = G.GLFW_NO_ERROR;
     failing_operation = FakeGLFWOperation.none;
     failing_error = G.GLFW_NO_ERROR;
+    default_content_scale_x = 1;
+    default_content_scale_y = 1;
     foreign_context = FakeWindow.init;
     monitor_callback = null;
     foreach (ref monitor; fake_monitors)
@@ -733,6 +745,8 @@ extern (C) G.GLFWwindow* glfwCreateWindow(
     window.height = height;
     window.focused = hints.focused == G.GLFW_TRUE;
     window.maximized = hints.maximized == G.GLFW_TRUE;
+    window.content_scale_x = default_content_scale_x;
+    window.content_scale_y = default_content_scale_y;
     window.hints = hints;
     window.monitor = monitor;
     window.shared_context = shared_context;
@@ -855,6 +869,8 @@ extern (C) void glfwPollEvents()
                     window.framebuffer_size_callback(handle, event.a, event.b);
                 break;
             case FakeEventKind.content_scale:
+                window.content_scale_x = cast(float) event.x;
+                window.content_scale_y = cast(float) event.y;
                 if (window.content_scale_callback !is null)
                     window.content_scale_callback(handle, cast(float) event.x, cast(float) event.y);
                 break;
@@ -994,6 +1010,12 @@ extern (C) void glfwGetFramebufferSize(G.GLFWwindow* window, int* width, int* he
 {
     *width = fake(window).width;
     *height = fake(window).height;
+}
+
+extern (C) void glfwGetWindowContentScale(G.GLFWwindow* window, float* x, float* y)
+{
+    *x = fake(window).content_scale_x;
+    *y = fake(window).content_scale_y;
 }
 
 extern (C) int glfwGetWindowAttrib(G.GLFWwindow* window, int attrib)

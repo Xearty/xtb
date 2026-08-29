@@ -8,7 +8,7 @@ import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     queue_close, queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
     queue_mouse_button, queue_monitor_connected, queue_monitor_disconnected,
     queue_refresh, queue_scroll, queue_text, queue_window_position, queue_window_size,
-    seed_backend_error, swap_count, swap_interval;
+    seed_backend_error, set_default_content_scale, swap_count, swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
 import xtb.window;
@@ -174,6 +174,8 @@ extern (C) int main() @system
     if (!invalid_result.isErr || invalid_result.takeError().kind != WindowErrorKind.invalid_size)
         return 10;
 
+    set_default_content_scale(1.5f, 1.25f);
+
     WindowConfig config;
     config.width = 320;
     config.height = 240;
@@ -193,6 +195,9 @@ extern (C) int main() @system
         return 13;
     if (!same_size(first.framebuffer_size, WindowSize(320, 240)))
         return 14;
+
+    if (first.content_scale != ContentScale(1.5f, 1.25f))
+        return 139;
 
     if (first.set_size(WindowSize(640, 360)).isErr)
         return 15;
@@ -447,6 +452,8 @@ extern (C) int main() @system
         return 29;
     if (first.focused || !first.maximized || !first.minimized)
         return 30;
+    if (first.content_scale != ContentScale(2, 2))
+        return 140;
     if (event_log.count != 15 ||
         event_log.events[0].kind != WindowEventKind.key ||
         event_log.events[0].key_event.key != Key.a ||
