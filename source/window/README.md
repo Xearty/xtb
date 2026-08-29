@@ -39,8 +39,7 @@ scope (exit) window.deinit();
 
 while (!window.should_close())
 {
-    if (system.poll_events().isErr)
-        return 1;
+    system.poll_events();
 
     if (window.key_pressed(Key.escape))
         window.request_close();
@@ -67,7 +66,9 @@ contract violations rather than recoverable window errors. Checked builds
 validate these contracts; release-fast does not retain defensive branches for
 them. Runtime `WindowResult` / `WindowStatus` values are reserved for operations
 where failure is a normal and useful control-flow outcome, such as system/window
-creation, event polling, and backend queries whose result must be trustworthy.
+creation and backend queries whose result must be trustworthy. Event polling is
+a command: GLFW's thread-local last-error slot cannot soundly attribute an error
+to `poll_events()` when synchronous callbacks may make nested GLFW calls.
 
 Window creation and `set_title` use the current thread context's scratch arena
 to adapt UTF-8 `String` values to the temporary NUL-terminated strings GLFW
@@ -134,8 +135,7 @@ window.set_swap_interval(1);
 
 while (!window.should_close())
 {
-    if (system.poll_events().isErr)
-        return 1;
+    system.poll_events();
 
     // Render through your OpenGL bindings.
 

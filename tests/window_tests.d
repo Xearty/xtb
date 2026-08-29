@@ -88,6 +88,51 @@ private void cancel_close_request(
     window.set_should_close(false);
 }
 
+private struct FullscreenNestedErrorLog
+{
+    bool injected;
+}
+
+private void inject_nested_fullscreen_error(
+    Window* window,
+    scope const WindowEvent* event,
+    void* context,
+) @system
+{
+    FullscreenNestedErrorLog* log = cast(FullscreenNestedErrorLog*) context;
+    if (log is null || log.injected || event.kind != WindowEventKind.moved)
+        return;
+
+    log.injected = true;
+    fail_next_operation(FakeGLFWOperation.set_window_position);
+    // glfwSetWindowMonitor synchronously dispatched this callback. Make a
+    // nested GLFW call fail so the outer transition has a foreign error in
+    // GLFW's shared last-error slot when it eventually returns.
+    window.set_position(WindowPosition(101, 103));
+}
+
+private struct ReentrantFullscreenExitLog
+{
+    bool exited;
+}
+
+private void exit_fullscreen_reentrantly(
+    Window* window,
+    scope const WindowEvent* event,
+    void* context,
+) @system
+{
+    ReentrantFullscreenExitLog* log = cast(ReentrantFullscreenExitLog*) context;
+    if (log is null || log.exited || event.kind != WindowEventKind.moved)
+        return;
+
+    log.exited = true;
+    // The move callback is synchronous inside the outer fullscreen entry. The
+    // nested exit therefore proves that restore state was staged before GLFW
+    // was allowed to call back into application code.
+    window.set_fullscreen(false);
+}
+
 private bool single_window_system_ownership(
     Allocator* allocator,
     WindowSystemConfig config,
@@ -167,9 +212,9 @@ private bool synchronous_transition_publication(
         !queue_cursor_position(first, start.x + 8, start.y + 10) ||
         !queue_scroll(first, -0.25, 0.5) ||
         !queue_cursor_enter(first, false) ||
-        !queue_key(second, Key.e, KeyAction.released) ||
-        system.poll_events().isErr)
+        !queue_key(second, Key.e, KeyAction.released))
         return false;
+    system.poll_events();
 
     const first_key = first.key_state(Key.c);
     const first_button = first.mouse_button_state(MouseButton.middle);
@@ -185,8 +230,7 @@ private bool synchronous_transition_publication(
 
     // An empty poll replaces the published batch with an empty one without
     // disturbing persistent state.
-    if (system.poll_events().isErr)
-        return false;
+    system.poll_events();
     if (!first.key_down(Key.c) || first.key_pressed(Key.c) ||
         first.key_released(Key.c) || first.key_repeated(Key.c) ||
         first.mouse_button_down(
@@ -198,17 +242,18 @@ private bool synchronous_transition_publication(
         second.key_pressed(Key.e) || second.key_released(Key.e))
         return false;
 
-    // Publication is independent of GLFW's ambient error result. A backend
-    // call can report an error after callbacks have already run, so a failed
-    // poll must not make already-observed transitions disappear.
+    // poll_events is a command: it publishes already-observed transitions
+    // without attempting to attribute GLFW's ambient last-error slot to the
+    // poll. A stale backend error must therefore have no effect on publication.
     if (!dispatch_key_now(first, Key.f, KeyAction.pressed))
         return false;
-    fail_next_operation(FakeGLFWOperation.poll_events);
-    auto failed_poll = system.poll_events();
-    if (!failed_poll.isErr || !first.key_down(Key.f) || !first.key_pressed(Key.f))
+    seed_backend_error();
+    system.poll_events();
+    if (!first.key_down(Key.f) || !first.key_pressed(Key.f))
         return false;
 
-    if (system.poll_events().isErr || !first.key_down(Key.f) || first.key_pressed(Key.f))
+    system.poll_events();
+    if (!first.key_down(Key.f) || first.key_pressed(Key.f))
         return false;
 
     return true;
@@ -256,29 +301,36 @@ extern (C) int main() @system
 
     WindowSystemEventLog system_event_log;
     system.set_event_handler(WindowSystemEventHandler(&record_system_event, &system_event_log));
-    if (!queue_monitor_disconnected(1) || system.poll_events().isErr ||
-        system_event_log.count != 1 ||
+    if (!queue_monitor_disconnected(1))
+        return 137;
+    system.poll_events();
+    if (system_event_log.count != 1 ||
         system_event_log.kinds[0] != WindowSystemEventKind.monitor_disconnected ||
         !system_event_log.monitor_valid[0] || system.monitor_count != 1)
         return 137;
-    if (!queue_monitor_connected(1) || system.poll_events().isErr ||
-        system_event_log.count != 2 ||
+    if (!queue_monitor_connected(1))
+        return 138;
+    system.poll_events();
+    if (system_event_log.count != 2 ||
         system_event_log.kinds[1] != WindowSystemEventKind.monitor_connected ||
         !system_event_log.monitor_valid[1] || system.monitor_count != 2)
         return 138;
-    if (!queue_monitor_disconnected(0) || !queue_monitor_disconnected(1) ||
-        system.poll_events()
-            .isErr || system_event_log.count != 4 ||
-            system_event_log.kinds[2] != WindowSystemEventKind.monitor_disconnected ||
-            system_event_log.kinds[3] != WindowSystemEventKind.monitor_disconnected ||
-            !system_event_log.monitor_valid[2] || !system_event_log.monitor_valid[3] ||
-            system.monitor_count != 0 || system.primary_monitor().valid ||
+    if (!queue_monitor_disconnected(0) || !queue_monitor_disconnected(1))
+        return 139;
+    system.poll_events();
+    if (system_event_log.count != 4 ||
+        system_event_log.kinds[2] != WindowSystemEventKind.monitor_disconnected ||
+        system_event_log.kinds[3] != WindowSystemEventKind.monitor_disconnected ||
+        !system_event_log.monitor_valid[2] || !system_event_log.monitor_valid[3] ||
+        system.monitor_count != 0 || system.primary_monitor().valid ||
         system.monitor(0).valid)
         return 139;
 
     system.set_event_handler(WindowSystemEventHandler.init);
-    if (!queue_monitor_connected(0) || !queue_monitor_connected(1) ||
-        system.poll_events().isErr || system.monitor_count != 2)
+    if (!queue_monitor_connected(0) || !queue_monitor_connected(1))
+        return 140;
+    system.poll_events();
+    if (system.monitor_count != 2)
         return 140;
     primary = system.primary_monitor();
     if (!primary.valid)
@@ -363,6 +415,7 @@ extern (C) int main() @system
     static assert(is(typeof(first.set_position(WindowPosition.init)) == void));
     static assert(is(typeof(first.set_fullscreen(false)) == void));
     static assert(is(typeof(first.set_cursor_mode(CursorMode.normal)) == void));
+    static assert(is(typeof(system.poll_events()) == void));
 
     first.set_size(WindowSize(640, 360));
     if (!same_size(first.size, WindowSize(640, 360)))
@@ -420,6 +473,41 @@ extern (C) int main() @system
     if (first.fullscreen || !has_position(first, restore_position) ||
         !same_size(first.size, WindowSize(640, 360)))
         return 136;
+
+    // An error produced by a nested GLFW call from a synchronous callback
+    // must not be mistaken for failure of the outer fullscreen transition.
+    // The follow-up exit also verifies that restore state was committed despite
+    // the unrelated nested error.
+    FullscreenNestedErrorLog nested_error_log;
+    first.set_event_handler(WindowEventHandler(
+            &inject_nested_fullscreen_error,
+            &nested_error_log,
+    ));
+    first.set_fullscreen(true, primary);
+    first.set_event_handler(WindowEventHandler.init);
+    if (!nested_error_log.injected || !first.fullscreen ||
+        first.monitor.name != primary.name)
+        return 158;
+    first.set_fullscreen(false);
+    if (first.fullscreen || !has_position(first, restore_position) ||
+        !same_size(first.size, WindowSize(640, 360)))
+        return 159;
+
+    // A callback caused by fullscreen entry may itself leave fullscreen before
+    // the outer glfwSetWindowMonitor returns. The nested exit must see valid
+    // restore state, and the outer call must reconcile bookkeeping with the
+    // final backend mode instead of blindly committing its requested mode.
+    ReentrantFullscreenExitLog reentrant_exit_log;
+    first.set_event_handler(WindowEventHandler(
+            &exit_fullscreen_reentrantly,
+            &reentrant_exit_log,
+    ));
+    first.set_fullscreen(true, primary);
+    first.set_event_handler(WindowEventHandler.init);
+    if (!reentrant_exit_log.exited || first.fullscreen ||
+        !has_position(first, restore_position) ||
+        !same_size(first.size, WindowSize(640, 360)))
+        return 160;
 
     // A backend transition failure is an unobservable command no-op.
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
@@ -488,8 +576,10 @@ extern (C) int main() @system
 
     CloseRequestLog close_log;
     first.set_event_handler(WindowEventHandler(&cancel_close_request, &close_log));
-    if (!queue_close(first) || system.poll_events().isErr ||
-        close_log.count != 1 || first.should_close())
+    if (!queue_close(first))
+        return 128;
+    system.poll_events();
+    if (close_log.count != 1 || first.should_close())
         return 128;
     first.set_event_handler(WindowEventHandler.init);
 
@@ -536,9 +626,13 @@ extern (C) int main() @system
             lock_window,
             MouseButton.left,
             MouseButtonAction.pressed,
-            enabled_lock_modifiers) ||
-        system.poll_events().isErr ||
-        lock_event_log.count != 2 ||
+            enabled_lock_modifiers))
+    {
+        lock_window.deinit();
+        return 132;
+    }
+    system.poll_events();
+    if (lock_event_log.count != 2 ||
         lock_event_log.events[0].key_event.modifiers != enabled_lock_modifiers ||
         lock_event_log.events[1].mouse_button_event.modifiers != enabled_lock_modifiers)
     {
@@ -551,15 +645,6 @@ extern (C) int main() @system
 
     EventLog event_log;
     first.set_event_handler(WindowEventHandler(&record_event, &event_log));
-
-    fail_next_operation(FakeGLFWOperation.poll_events);
-    auto failed_poll = system.poll_events();
-    if (!failed_poll.isErr)
-        return 114;
-    const poll_backend_error = failed_poll.takeError();
-    if (poll_backend_error.kind != WindowErrorKind.backend_operation_failed ||
-        poll_backend_error.backend_code != fake_platform_error)
-        return 115;
 
     const lock_modifiers = cast(KeyModifier)(
         cast(ubyte) KeyModifier.shift |
@@ -584,8 +669,7 @@ extern (C) int main() @system
         !queue_minimized(first, true))
         return 24;
 
-    if (system.poll_events().isErr)
-        return 111;
+    system.poll_events();
     if (!first.key_down(Key.a) || !first.key_pressed(Key.a) ||
         first.key_released(Key.a) || first.key_repeated(Key.a))
         return 25;
@@ -636,8 +720,7 @@ extern (C) int main() @system
         !queue_focus(first, true))
         return 32;
 
-    if (system.poll_events().isErr)
-        return 112;
+    system.poll_events();
     if (first.key_down(Key.a) || first.key_pressed(Key.a) || !first.key_released(Key.a))
         return 33;
     if (first.key_down(Key.b) || !first.key_pressed(Key.b) || !first.key_released(Key.b))
@@ -663,8 +746,7 @@ extern (C) int main() @system
     if (!queue_refresh(first))
         return 113;
 
-    if (system.poll_events().isErr)
-        return 114;
+    system.poll_events();
     if (event_log.count != 25 ||
         event_log.events[24].kind != WindowEventKind.refresh_requested)
         return 115;

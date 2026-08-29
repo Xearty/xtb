@@ -9,7 +9,6 @@ import G = xtb.window.internal.glfw;
 enum FakeGLFWOperation : ubyte
 {
     none,
-    poll_events,
     set_window_title,
     get_window_position,
     set_window_position,
@@ -857,9 +856,6 @@ extern (C) void glfwDestroyWindow(G.GLFWwindow* window)
 
 extern (C) void glfwPollEvents()
 {
-    if (fail_operation(FakeGLFWOperation.poll_events))
-        return;
-
     size_t index;
     while (index < event_count)
     {

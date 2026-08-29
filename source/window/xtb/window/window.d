@@ -404,20 +404,37 @@ nothrow @nogc:
                 return;
             const mode = mode_result.take();
 
-            WindowPosition restore_position;
-            WindowSize restore_size;
-            bool has_restore_position;
             if (!currently_fullscreen)
             {
+                WindowPosition restore_position;
+                WindowSize restore_size;
+                bool has_restore_position;
                 if (!query_fullscreen_restore_position(
                         &restore_position,
                         &has_restore_position))
                     return;
                 if (!query_fullscreen_restore_size(&restore_size))
                     return;
+
+                // Stage the windowed restore state before asking GLFW to enter
+                // fullscreen. glfwSetWindowMonitor may synchronously invoke
+                // XTB callbacks before it returns, and a callback may itself
+                // call set_fullscreen(false). Such a reentrant exit must already
+                // have valid restore state available; committing it only after
+                // glfwSetWindowMonitor returns would expose a half-transitioned
+                // Window to the callback.
+                fullscreen_restore_position_ = restore_position;
+                fullscreen_restore_size_ = restore_size;
+                has_fullscreen_restore_position_ = has_restore_position;
+                has_fullscreen_restore_ = true;
             }
 
-            clear_glfw_error();
+            // Do not use GLFW's last-error slot to decide whether this
+            // transition happened. glfwSetWindowMonitor may synchronously run
+            // application callbacks, and nested GLFW calls share the same
+            // thread-local error slot. A nested error could therefore look like
+            // an error from this call. The resulting monitor is the state XTB
+            // actually needs to keep its fullscreen bookkeeping coherent.
             glfwSetWindowMonitor(
                 backend_handle(),
                 target.backend_handle(),
@@ -427,16 +444,14 @@ nothrow @nogc:
                 mode.height,
                 mode.refresh_rate,
             );
-            if (consume_glfw_error() != GLFW_NO_ERROR)
-                return;
 
-            if (!currently_fullscreen)
-            {
-                fullscreen_restore_position_ = restore_position;
-                fullscreen_restore_size_ = restore_size;
-                has_fullscreen_restore_position_ = has_restore_position;
-                has_fullscreen_restore_ = true;
-            }
+            // Reentrant callbacks are allowed to perform another fullscreen
+            // transition. Judge the final mode rather than requiring the outer
+            // call's requested monitor to win. If the window ended windowed, no
+            // fullscreen restore state may remain; if it ended fullscreen, keep
+            // the staged state (or any newer state established reentrantly).
+            if (glfwGetWindowMonitor(backend_handle()) is null)
+                clear_fullscreen_restore();
             return;
         }
 
@@ -451,7 +466,10 @@ nothrow @nogc:
         const restore_y = has_fullscreen_restore_position_
             ? fullscreen_restore_position_.y : 0;
 
-        clear_glfw_error();
+        // As above, the ambient GLFW error cannot be attributed to this call
+        // when synchronous callbacks can make nested GLFW calls. Keep the
+        // restore state available throughout the call so callbacks caused by
+        // the transition can safely perform further fullscreen operations.
         glfwSetWindowMonitor(
             backend_handle(),
             null,
@@ -461,11 +479,12 @@ nothrow @nogc:
             fullscreen_restore_size_.height,
             GLFW_DONT_CARE,
         );
-        if (consume_glfw_error() != GLFW_NO_ERROR)
-            return;
 
-        has_fullscreen_restore_position_ = false;
-        has_fullscreen_restore_ = false;
+        // Clear restore state only if the window actually ended windowed. A
+        // failed backend transition, or a callback that re-entered fullscreen,
+        // leaves a fullscreen window that still needs its restore information.
+        if (glfwGetWindowMonitor(backend_handle()) is null)
+            clear_fullscreen_restore();
     }
 
     void set_event_handler(WindowEventHandler handler) @system
@@ -725,6 +744,14 @@ nothrow @nogc:
     package(xtb.window) void set_next_window(Window* next) pure @safe
     {
         next_window_ = next;
+    }
+
+    private void clear_fullscreen_restore() pure @safe
+    {
+        fullscreen_restore_position_ = WindowPosition.init;
+        fullscreen_restore_size_ = WindowSize.init;
+        has_fullscreen_restore_position_ = false;
+        has_fullscreen_restore_ = false;
     }
 
     private bool query_fullscreen_restore_position(

@@ -3,11 +3,11 @@ module xtb.window.system;
 nothrow @nogc:
 
 import xtb.types : u8;
-import xtb.window.error : WindowError, WindowErrorKind, WindowResult, WindowStatus;
+import xtb.window.error : WindowError, WindowErrorKind, WindowResult;
 import xtb.window.event : WindowSystemEvent, WindowSystemEventKind;
 import xtb.window.internal.create_options : BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
-import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error, glfw_call_status;
+import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error;
 import xtb.window.monitor : Monitor;
 import xtb.window.native : NativeDisplayHandle, NativeWindowPlatform,
     WaylandDisplayHandle, Win32DisplayHandle, X11DisplayHandle;
@@ -281,24 +281,27 @@ nothrow @nogc:
     /// per window. A batch includes callbacks delivered since the previous
     /// completed poll, including synchronous callbacks caused by other GLFW
     /// calls between polls. Event handlers run synchronously inside this call.
-    WindowStatus poll_events() @system
+    void poll_events() @system
     {
         version (XTB_Checked)
             require(initialized_, "WindowSystem is not initialized");
 
-        clear_glfw_error();
+        // Do not bracket glfwPollEvents with glfwGetError. GLFW may invoke an
+        // application callback before glfwPollEvents returns, and that callback
+        // may make another GLFW call on this thread. GLFW exposes only one
+        // thread-local last-error slot, with no provenance, so reading it here
+        // could incorrectly attribute the nested call's error to the poll. Event
+        // processing is a command anyway; callers have no useful per-poll
+        // recovery path for a backend error.
         glfwPollEvents();
+
         // Do not clear transitions before glfwPollEvents. GLFW callbacks are
         // not confined to event-polling calls, so pending transitions may
         // already contain valid events delivered between the previous poll and
         // this one. Publishing after dispatch preserves those events and folds
-        // callbacks from this poll into the same observable batch. Publish
-        // before interpreting GLFW's error slot as well: a GLFW call may have
-        // delivered callbacks before reporting a backend error, and those
-        // transitions still happened and must not be discarded or delayed.
+        // callbacks from this poll into the same observable batch.
         for (Window* window = first_window_; window !is null; window = window.next_window())
             window.publish_input_transitions();
-        return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
     /// Returns the current primary monitor, or an invalid Monitor if no monitor

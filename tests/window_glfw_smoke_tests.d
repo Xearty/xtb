@@ -63,8 +63,7 @@ extern (C) int main() @system
     if (!(content_scale.x > 0) || !(content_scale.y > 0))
         return 8;
 
-    if (system.poll_events().isErr)
-        return 6;
+    system.poll_events();
 
     return 0;
 }
