@@ -11,7 +11,9 @@ enum FakeGLFWOperation : ubyte
     none,
     poll_events,
     set_window_title,
+    get_window_position,
     set_window_position,
+    get_window_size,
     set_window_size,
     set_window_monitor,
     set_input_mode,
@@ -890,6 +892,8 @@ extern (C) void glfwSetWindowTitle(G.GLFWwindow*, const(char)*)
 
 extern (C) void glfwGetWindowPos(G.GLFWwindow* window, int* x, int* y)
 {
+    if (fail_operation(FakeGLFWOperation.get_window_position))
+        return;
     *x = fake(window).x;
     *y = fake(window).y;
 }
@@ -907,6 +911,8 @@ extern (C) void glfwSetWindowPos(G.GLFWwindow* window, int x, int y)
 
 extern (C) void glfwGetWindowSize(G.GLFWwindow* window, int* width, int* height)
 {
+    if (fail_operation(FakeGLFWOperation.get_window_size))
+        return;
     *width = fake(window).width;
     *height = fake(window).height;
 }

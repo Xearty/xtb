@@ -360,8 +360,15 @@ nothrow @nogc:
             WindowSize restore_size;
             if (!currently_fullscreen)
             {
-                restore_position = position();
-                restore_size = size();
+                auto position_result = query_position();
+                if (position_result.isErr)
+                    return typeof(return).err(position_result.takeError());
+                restore_position = position_result.take();
+
+                auto size_result = query_size();
+                if (size_result.isErr)
+                    return typeof(return).err(size_result.takeError());
+                restore_size = size_result.take();
             }
 
             clear_glfw_error();
@@ -637,6 +644,24 @@ nothrow @nogc:
     package(xtb.window) void set_next_window(Window* next) pure @safe
     {
         next_window_ = next;
+    }
+
+    private WindowResult!WindowPosition query_position() const @system
+    {
+        WindowPosition result;
+        clear_glfw_error();
+        glfwGetWindowPos(backend_handle(), &result.x, &result.y);
+        const error = glfw_call_error(WindowErrorKind.backend_operation_failed);
+        return error.failed ? typeof(return).err(error) : typeof(return).ok(result);
+    }
+
+    private WindowResult!WindowSize query_size() const @system
+    {
+        WindowSize result;
+        clear_glfw_error();
+        glfwGetWindowSize(backend_handle(), &result.width, &result.height);
+        const error = glfw_call_error(WindowErrorKind.backend_operation_failed);
+        return error.failed ? typeof(return).err(error) : typeof(return).ok(result);
     }
 
     package(xtb.window) GLFWwindow* backend_handle() const pure @system

@@ -219,6 +219,28 @@ extern (C) int main() @system
     if (first.set_position(restore_position).isErr)
         return 122;
 
+    fail_next_operation(FakeGLFWOperation.get_window_position);
+    auto failed_restore_position = first.set_fullscreen(true, primary);
+    if (!failed_restore_position.isErr)
+        return 133;
+    const restore_position_error = failed_restore_position.takeError();
+    if (restore_position_error.kind != WindowErrorKind.backend_operation_failed ||
+        restore_position_error.backend_code != fake_platform_error ||
+        first.fullscreen || first.position != restore_position ||
+        !same_size(first.size, WindowSize(640, 360)))
+        return 134;
+
+    fail_next_operation(FakeGLFWOperation.get_window_size);
+    auto failed_restore_size = first.set_fullscreen(true, primary);
+    if (!failed_restore_size.isErr)
+        return 135;
+    const restore_size_error = failed_restore_size.takeError();
+    if (restore_size_error.kind != WindowErrorKind.backend_operation_failed ||
+        restore_size_error.backend_code != fake_platform_error ||
+        first.fullscreen || first.position != restore_position ||
+        !same_size(first.size, WindowSize(640, 360)))
+        return 136;
+
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
     auto failed_fullscreen = first.set_fullscreen(true, primary);
     if (!failed_fullscreen.isErr)
