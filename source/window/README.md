@@ -45,9 +45,14 @@ while (!window.should_close())
 ```
 
 `WindowSystem` and its window creation, destruction, and event processing are
-main-thread operations. Exactly one live `WindowSystem` may own GLFW at a time;
-a second `WindowSystem.create()` returns `WindowErrorKind.already_initialized`.
-Every window must be destroyed before its system is deinitialized. A `Monitor`
+main-thread operations. XTB exclusively owns GLFW's process-global lifecycle
+while a `WindowSystem` is alive. GLFW must not already be initialized by
+application code or another library when `WindowSystem.create()` is called, and
+external code must not call `glfwInit`, `glfwTerminate`, or replace GLFW's
+process-global callbacks until the system is deinitialized. Exactly one live
+XTB `WindowSystem` may own GLFW at a time; a second `WindowSystem.create()`
+returns `WindowErrorKind.already_initialized`. Every window must be destroyed
+before its system is deinitialized. A `Monitor`
 is a borrowed backend handle and must be reacquired after monitor disconnection.
 Monitor connection changes are delivered through `WindowSystemEventHandler` as
 `monitor_connected` and `monitor_disconnected` events. The monitor in a system

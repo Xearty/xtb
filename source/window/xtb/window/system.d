@@ -102,9 +102,13 @@ nothrow @nogc:
 
     @disable this(this);
 
-    /// Initializes the process GLFW window system. Only one XTB WindowSystem
-    /// may own the GLFW lifecycle at a time. The returned pointer is stable
-    /// until `deinit` and is allocated from `allocator`.
+    /// Initializes the process GLFW window system. XTB exclusively owns the
+    /// process-global GLFW lifecycle while a WindowSystem is alive: GLFW must
+    /// not already be initialized by application code or another library, and
+    /// external code must not initialize, terminate, or replace process-global
+    /// GLFW callbacks until `deinit`. Only one XTB WindowSystem may own this
+    /// lifecycle at a time. The returned pointer is stable until `deinit` and
+    /// is allocated from `allocator`.
     static WindowResult!(WindowSystem*) create(
         Allocator* allocator,
         WindowSystemConfig config = WindowSystemConfig.init,
@@ -172,8 +176,10 @@ nothrow @nogc:
         return typeof(return).ok(result);
     }
 
-    /// Terminates the window system. Every window created by this system must
-    /// already have been deinitialized.
+    /// Terminates XTB's process-global GLFW lifecycle. Every window created by
+    /// this system must already have been deinitialized. This calls
+    /// `glfwTerminate`, so external GLFW resources must not coexist with a live
+    /// WindowSystem.
     void deinit()
     {
         if (!initialized_)
