@@ -3,6 +3,7 @@ module xtb.window.window;
 nothrow @nogc:
 
 import xtb.memory : Allocator, deallocate, tryAllocateInit;
+import xtb.option : Option;
 import xtb.types : String, i32;
 import xtb.window.error : WindowError, WindowErrorKind, WindowResult, WindowStatus;
 import xtb.window.event : BoolWindowEvent, ContentScale, CursorMovedEvent, KeyEvent,
@@ -30,6 +31,8 @@ private WindowError window_error(WindowErrorKind kind) pure @safe
     return WindowError(kind);
 }
 
+/// Native window creation parameters. Width and height must be positive and
+/// the title must not contain embedded NUL bytes.
 struct WindowConfig
 {
     i32 width = 1280;
@@ -77,6 +80,7 @@ nothrow @nogc:
     private bool cursor_left_;
     private WindowPosition fullscreen_restore_position_;
     private WindowSize fullscreen_restore_size_;
+    private bool has_fullscreen_restore_position_;
     private bool has_fullscreen_restore_;
 
     @disable this(this);
@@ -88,10 +92,12 @@ nothrow @nogc:
         BackendWindowCreateOptions backend_options,
     ) @system
     {
-        if (allocator is null || *allocator is null)
-            return typeof(return).err(window_error(WindowErrorKind.allocation_failed));
-        if (config.width <= 0 || config.height <= 0)
-            return typeof(return).err(window_error(WindowErrorKind.invalid_size));
+        version (XTB_Checked)
+        {
+            require(system !is null, "WindowSystem is null");
+            require(allocator !is null && *allocator !is null, "Window allocator is null");
+            require(config.width > 0 && config.height > 0, "Window size must be positive");
+        }
 
         char[] title_storage;
         const(char)* title;
@@ -185,8 +191,6 @@ nothrow @nogc:
 
         version (XTB_Checked)
             require(system_ !is null, "live Window has no WindowSystem");
-        if (system_ is null)
-            return;
 
         WindowSystem* system = system_;
         Allocator* allocator = allocator_;
@@ -211,14 +215,13 @@ nothrow @nogc:
     bool should_close() const @system
     {
         require_live();
-        return handle_ !is null && glfwWindowShouldClose(backend_handle()) == GLFW_TRUE;
+        return glfwWindowShouldClose(backend_handle()) == GLFW_TRUE;
     }
 
     void set_should_close(bool value) @system
     {
         require_live();
-        if (handle_ !is null)
-            glfwSetWindowShouldClose(handle_, value ? GLFW_TRUE : GLFW_FALSE);
+        glfwSetWindowShouldClose(backend_handle(), value ? GLFW_TRUE : GLFW_FALSE);
     }
 
     void request_close() @system
@@ -226,11 +229,12 @@ nothrow @nogc:
         set_should_close(true);
     }
 
+    /// Changes the window title. The title must not contain embedded NUL bytes.
+    /// Temporary C-string allocation failure and unexpected backend failures
+    /// are reported to the caller.
     WindowStatus set_title(scope String title) @system
     {
         require_live();
-        if (handle_ is null)
-            return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
 
         char[] storage;
         const(char)* value;
@@ -241,57 +245,53 @@ nothrow @nogc:
             release_c_string(allocator_, storage);
 
         clear_glfw_error();
-        glfwSetWindowTitle(handle_, value);
+        glfwSetWindowTitle(backend_handle(), value);
         return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
-    WindowPosition position() const @system
+    /// Returns the global window position when the active platform exposes it.
+    /// Platforms such as Wayland do not expose global window coordinates and
+    /// return none.
+    Option!WindowPosition position() const @system
     {
         require_live();
         WindowPosition result;
-        if (handle_ !is null)
-            glfwGetWindowPos(backend_handle(), &result.x, &result.y);
-        return result;
+        clear_glfw_error();
+        glfwGetWindowPos(backend_handle(), &result.x, &result.y);
+        return consume_glfw_error() == GLFW_NO_ERROR
+            ? Option!WindowPosition.some(result) : Option!WindowPosition.none();
     }
 
-    WindowStatus set_position(WindowPosition value) @system
+    /// Requests a global window position. Platforms that do not expose this
+    /// operation may ignore the request.
+    void set_position(WindowPosition value) @system
     {
         require_live();
-        if (handle_ is null)
-            return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
-
-        clear_glfw_error();
-        glfwSetWindowPos(handle_, value.x, value.y);
-        return glfw_call_status(WindowErrorKind.backend_operation_failed);
+        glfwSetWindowPos(backend_handle(), value.x, value.y);
     }
 
     WindowSize size() const @system
     {
         require_live();
         WindowSize result;
-        if (handle_ !is null)
-            glfwGetWindowSize(backend_handle(), &result.width, &result.height);
+        glfwGetWindowSize(backend_handle(), &result.width, &result.height);
         return result;
     }
 
-    WindowStatus set_size(WindowSize value) @system
+    /// Requests a positive client-area size.
+    void set_size(WindowSize value) @system
     {
         require_live();
-        if (value.width <= 0 || value.height <= 0)
-            return typeof(return).err(window_error(WindowErrorKind.invalid_size));
-        if (handle_ is null)
-            return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
-        clear_glfw_error();
-        glfwSetWindowSize(handle_, value.width, value.height);
-        return glfw_call_status(WindowErrorKind.backend_operation_failed);
+        version (XTB_Checked)
+            require(value.width > 0 && value.height > 0, "Window size must be positive");
+        glfwSetWindowSize(backend_handle(), value.width, value.height);
     }
 
     WindowSize framebuffer_size() const @system
     {
         require_live();
         WindowSize result;
-        if (handle_ !is null)
-            glfwGetFramebufferSize(backend_handle(), &result.width, &result.height);
+        glfwGetFramebufferSize(backend_handle(), &result.width, &result.height);
         return result;
     }
 
@@ -299,8 +299,6 @@ nothrow @nogc:
     {
         require_live();
         ContentScale result;
-        if (handle_ is null)
-            return result;
 
         clear_glfw_error();
         glfwGetWindowContentScale(backend_handle(), &result.x, &result.y);
@@ -312,39 +310,40 @@ nothrow @nogc:
     bool focused() const @system
     {
         require_live();
-        return handle_ !is null && glfwGetWindowAttrib(backend_handle(), GLFW_FOCUSED) == GLFW_TRUE;
+        return glfwGetWindowAttrib(backend_handle(), GLFW_FOCUSED) == GLFW_TRUE;
     }
 
     bool minimized() const @system
     {
         require_live();
-        return handle_ !is null && glfwGetWindowAttrib(backend_handle(), GLFW_ICONIFIED) == GLFW_TRUE;
+        return glfwGetWindowAttrib(backend_handle(), GLFW_ICONIFIED) == GLFW_TRUE;
     }
 
     bool maximized() const @system
     {
         require_live();
-        return handle_ !is null && glfwGetWindowAttrib(backend_handle(), GLFW_MAXIMIZED) == GLFW_TRUE;
+        return glfwGetWindowAttrib(backend_handle(), GLFW_MAXIMIZED) == GLFW_TRUE;
     }
 
     bool fullscreen() const @system
     {
         require_live();
-        return handle_ !is null && glfwGetWindowMonitor(backend_handle()) !is null;
+        return glfwGetWindowMonitor(backend_handle()) !is null;
     }
 
     Monitor monitor() const @system
     {
         require_live();
-        return handle_ is null
-            ? Monitor.init : Monitor.from_backend(glfwGetWindowMonitor(backend_handle()));
+        return Monitor.from_backend(glfwGetWindowMonitor(backend_handle()));
     }
 
-    WindowStatus set_fullscreen(bool enabled, Monitor target = Monitor.init) @system
+    /// Requests fullscreen presentation. An invalid target selects the primary
+    /// monitor when entering fullscreen and keeps the current monitor when
+    /// already fullscreen. Missing monitors and unsupported platform features
+    /// are treated as no-ops.
+    void set_fullscreen(bool enabled, Monitor target = Monitor.init) @system
     {
         require_live();
-        if (handle_ is null)
-            return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
 
         GLFWmonitor* current_monitor = glfwGetWindowMonitor(backend_handle());
         const currently_fullscreen = current_monitor !is null;
@@ -354,40 +353,37 @@ nothrow @nogc:
             if (!target.valid)
             {
                 if (currently_fullscreen)
-                    return typeof(return).ok();
+                    return;
 
-                auto monitor_result = system_.primary_monitor();
-                if (monitor_result.isErr)
-                    return typeof(return).err(monitor_result.takeError());
-                target = monitor_result.take();
+                target = system_.primary_monitor();
+                if (!target.valid)
+                    return;
             }
 
             if (currently_fullscreen && target.backend_handle() is current_monitor)
-                return typeof(return).ok();
+                return;
 
             auto mode_result = target.video_mode();
             if (mode_result.isErr)
-                return typeof(return).err(mode_result.takeError());
+                return;
             const mode = mode_result.take();
 
             WindowPosition restore_position;
             WindowSize restore_size;
+            bool has_restore_position;
             if (!currently_fullscreen)
             {
-                auto position_result = query_position();
-                if (position_result.isErr)
-                    return typeof(return).err(position_result.takeError());
-                restore_position = position_result.take();
-
-                auto size_result = query_size();
-                if (size_result.isErr)
-                    return typeof(return).err(size_result.takeError());
-                restore_size = size_result.take();
+                if (!query_fullscreen_restore_position(
+                        &restore_position,
+                        &has_restore_position))
+                    return;
+                if (!query_fullscreen_restore_size(&restore_size))
+                    return;
             }
 
             clear_glfw_error();
             glfwSetWindowMonitor(
-                handle_,
+                backend_handle(),
                 target.backend_handle(),
                 0,
                 0,
@@ -395,41 +391,45 @@ nothrow @nogc:
                 mode.height,
                 mode.refresh_rate,
             );
-            const status = glfw_call_status(WindowErrorKind.backend_operation_failed);
-            if (status.isErr)
-                return status;
+            if (consume_glfw_error() != GLFW_NO_ERROR)
+                return;
 
             if (!currently_fullscreen)
             {
                 fullscreen_restore_position_ = restore_position;
                 fullscreen_restore_size_ = restore_size;
+                has_fullscreen_restore_position_ = has_restore_position;
                 has_fullscreen_restore_ = true;
             }
-            return typeof(return).ok();
+            return;
         }
 
         if (!currently_fullscreen)
-            return typeof(return).ok();
+            return;
 
         version (XTB_Checked)
             require(has_fullscreen_restore_, "fullscreen restore state is unavailable");
-        if (!has_fullscreen_restore_)
-            return typeof(return).err(window_error(WindowErrorKind.monitor_unavailable));
+
+        const restore_x = has_fullscreen_restore_position_
+            ? fullscreen_restore_position_.x : 0;
+        const restore_y = has_fullscreen_restore_position_
+            ? fullscreen_restore_position_.y : 0;
 
         clear_glfw_error();
         glfwSetWindowMonitor(
-            handle_,
+            backend_handle(),
             null,
-            fullscreen_restore_position_.x,
-            fullscreen_restore_position_.y,
+            restore_x,
+            restore_y,
             fullscreen_restore_size_.width,
             fullscreen_restore_size_.height,
             GLFW_DONT_CARE,
         );
-        const status = glfw_call_status(WindowErrorKind.backend_operation_failed);
-        if (!status.isErr)
-            has_fullscreen_restore_ = false;
-        return status;
+        if (consume_glfw_error() != GLFW_NO_ERROR)
+            return;
+
+        has_fullscreen_restore_position_ = false;
+        has_fullscreen_restore_ = false;
     }
 
     void set_event_handler(WindowEventHandler handler) @system
@@ -522,8 +522,6 @@ nothrow @nogc:
     CursorMode cursor_mode() const @system
     {
         require_live();
-        if (handle_ is null)
-            return CursorMode.normal;
         switch (glfwGetInputMode(backend_handle(), GLFW_CURSOR))
         {
             case GLFW_CURSOR_HIDDEN:
@@ -535,94 +533,88 @@ nothrow @nogc:
         }
     }
 
-    WindowStatus set_cursor_mode(CursorMode mode) @system
+    /// Requests the cursor mode. Platforms that cannot provide a requested
+    /// mode may leave the current mode unchanged.
+    void set_cursor_mode(CursorMode mode) @system
     {
         require_live();
-        if (handle_ is null)
-            return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
 
-        clear_glfw_error();
         final switch (mode)
         {
             case CursorMode.normal:
-                glfwSetInputMode(handle_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                glfwSetInputMode(backend_handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
                 break;
             case CursorMode.hidden:
-                glfwSetInputMode(handle_, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+                glfwSetInputMode(backend_handle(), GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
                 break;
             case CursorMode.disabled:
-                glfwSetInputMode(handle_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                glfwSetInputMode(backend_handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                 break;
         }
-        return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
-    /// Returns the native window handle for the selected window-system backend.
-    /// On Linux, linking xtb.window requires GLFW to be built with both the X11
-    /// and Wayland backends because XTB references both native-access APIs.
-    WindowResult!NativeWindowHandle native_handle() const @system
+    /// Returns the native window handle for the selected window-system backend,
+    /// or an invalid handle when the active backend has no corresponding native
+    /// window handle. On Linux, linking xtb.window requires GLFW to be built
+    /// with both the X11 and Wayland backends because XTB references both
+    /// native-access APIs.
+    NativeWindowHandle native_handle() const @system
     {
         require_live();
-        if (handle_ is null)
-            return typeof(return).err(window_error(WindowErrorKind.native_handle_unavailable));
 
         const selected = glfwGetPlatform();
         version (Windows)
         {
             if (selected == GLFW_PLATFORM_WIN32)
             {
-                clear_glfw_error();
                 void* native = glfwGetWin32Window(backend_handle());
                 if (native is null)
-                    return native_handle_error!NativeWindowHandle();
+                    return NativeWindowHandle.init;
                 NativeWindowHandle result;
                 result.platform = NativeWindowPlatform.win32;
                 result.win32 = Win32WindowHandle(native);
-                return typeof(return).ok(result);
+                return result;
             }
         }
         else version (OSX)
         {
             if (selected == GLFW_PLATFORM_COCOA)
             {
-                clear_glfw_error();
                 void* native_window = glfwGetCocoaWindow(backend_handle());
                 void* native_view = glfwGetCocoaView(backend_handle());
                 if (native_window is null || native_view is null)
-                    return native_handle_error!NativeWindowHandle();
+                    return NativeWindowHandle.init;
                 NativeWindowHandle result;
                 result.platform = NativeWindowPlatform.cocoa;
                 result.cocoa = CocoaWindowHandle(native_window, native_view);
-                return typeof(return).ok(result);
+                return result;
             }
         }
         else version (linux)
         {
             if (selected == GLFW_PLATFORM_X11)
             {
-                clear_glfw_error();
                 const native = glfwGetX11Window(backend_handle());
                 if (native == 0)
-                    return native_handle_error!NativeWindowHandle();
+                    return NativeWindowHandle.init;
                 NativeWindowHandle result;
                 result.platform = NativeWindowPlatform.x11;
                 result.x11 = X11WindowHandle(native);
-                return typeof(return).ok(result);
+                return result;
             }
             if (selected == GLFW_PLATFORM_WAYLAND)
             {
-                clear_glfw_error();
                 void* native = glfwGetWaylandWindow(backend_handle());
                 if (native is null)
-                    return native_handle_error!NativeWindowHandle();
+                    return NativeWindowHandle.init;
                 NativeWindowHandle result;
                 result.platform = NativeWindowPlatform.wayland;
                 result.wayland = WaylandWindowHandle(native);
-                return typeof(return).ok(result);
+                return result;
             }
         }
 
-        return typeof(return).err(window_error(WindowErrorKind.native_handle_unavailable));
+        return NativeWindowHandle.init;
     }
 
     package(xtb.window) void reset_poll_state() pure @safe
@@ -663,22 +655,28 @@ nothrow @nogc:
         next_window_ = next;
     }
 
-    private WindowResult!WindowPosition query_position() const @system
+    private bool query_fullscreen_restore_position(
+        WindowPosition* result,
+        bool* available,
+    ) const @system
     {
-        WindowPosition result;
+        *available = false;
         clear_glfw_error();
         glfwGetWindowPos(backend_handle(), &result.x, &result.y);
-        const error = glfw_call_error(WindowErrorKind.backend_operation_failed);
-        return error.failed ? typeof(return).err(error) : typeof(return).ok(result);
+        const error = consume_glfw_error();
+        if (error == GLFW_NO_ERROR)
+        {
+            *available = true;
+            return true;
+        }
+        return error == GLFW_FEATURE_UNAVAILABLE || error == GLFW_FEATURE_UNIMPLEMENTED;
     }
 
-    private WindowResult!WindowSize query_size() const @system
+    private bool query_fullscreen_restore_size(WindowSize* result) const @system
     {
-        WindowSize result;
         clear_glfw_error();
         glfwGetWindowSize(backend_handle(), &result.width, &result.height);
-        const error = glfw_call_error(WindowErrorKind.backend_operation_failed);
-        return error.failed ? typeof(return).err(error) : typeof(return).ok(result);
+        return consume_glfw_error() == GLFW_NO_ERROR;
     }
 
     package(xtb.window) GLFWwindow* backend_handle() const pure @system
@@ -694,11 +692,6 @@ nothrow @nogc:
     package(xtb.window) BackendGLContextCreationAPI backend_context_creation_api() const pure @safe
     {
         return context_creation_api_;
-    }
-
-    package(xtb.window) Allocator* backend_allocator() return pure @safe
-    {
-        return allocator_;
     }
 
     package(xtb.window) WindowSystem* owner_system() return pure @safe
@@ -815,14 +808,6 @@ private void apply_backend_window_hints(BackendWindowCreateOptions options) @sys
         GLFW_DOUBLEBUFFER,
         options.double_buffered ? GLFW_TRUE : GLFW_FALSE,
     );
-}
-
-private WindowResult!T native_handle_error(T)() @system
-{
-    return typeof(return).err(WindowError(
-            WindowErrorKind.native_handle_unavailable,
-            consume_glfw_error(),
-    ));
 }
 
 private Window* window_from_backend(GLFWwindow* handle) @system

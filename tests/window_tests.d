@@ -3,7 +3,8 @@ module tests.window_tests;
 nothrow @nogc:
 
 import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
-    fake_platform_error, make_foreign_context_current, opengl_hints,
+    fake_feature_unavailable, fake_platform_error, fake_version_unavailable,
+    make_foreign_context_current, opengl_hints,
     queue_content_scale, queue_cursor_enter, queue_cursor_position, queue_focus,
     queue_close, queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
     queue_mouse_button, queue_monitor_connected, queue_monitor_disconnected,
@@ -17,6 +18,12 @@ import xtb.window.opengl;
 private bool same_size(WindowSize left, WindowSize right) pure @safe
 {
     return left.width == right.width && left.height == right.height;
+}
+
+private bool has_position(Window* window, WindowPosition expected) @system
+{
+    auto position = window.position();
+    return position.isSome && position.value == expected;
 }
 
 private struct EventLog
@@ -133,10 +140,7 @@ extern (C) int main() @system
     if (system.monitor_count != 2)
         return 5;
 
-    auto primary_result = system.primary_monitor();
-    if (primary_result.isErr)
-        return 6;
-    Monitor primary = primary_result.take();
+    Monitor primary = system.primary_monitor();
     if (!primary.valid || primary.name.length == 0)
         return 7;
 
@@ -159,20 +163,26 @@ extern (C) int main() @system
         system_event_log.kinds[1] != WindowSystemEventKind.monitor_connected ||
         !system_event_log.monitor_valid[1] || system.monitor_count != 2)
         return 138;
+    if (!queue_monitor_disconnected(0) || !queue_monitor_disconnected(1) ||
+        system.poll_events().isErr || system_event_log.count != 4 ||
+        system_event_log.kinds[2] != WindowSystemEventKind.monitor_disconnected ||
+        system_event_log.kinds[3] != WindowSystemEventKind.monitor_disconnected ||
+        !system_event_log.monitor_valid[2] || !system_event_log.monitor_valid[3] ||
+        system.monitor_count != 0 || system.primary_monitor().valid ||
+        system.monitor(0).valid)
+        return 139;
+
     system.set_event_handler(WindowSystemEventHandler.init);
+    if (!queue_monitor_connected(0) || !queue_monitor_connected(1) ||
+        system.poll_events().isErr || system.monitor_count != 2)
+        return 140;
+    primary = system.primary_monitor();
+    if (!primary.valid)
+        return 141;
 
-    auto secondary_result = system.monitor(1);
-    if (secondary_result.isErr)
-        return 120;
-    Monitor secondary = secondary_result.take();
-    if (!secondary.valid || secondary.name == primary.name)
+    Monitor secondary = system.monitor(1);
+    if (!secondary.valid || secondary.name == primary.name || system.monitor(2).valid)
         return 121;
-
-    WindowConfig invalid_config;
-    invalid_config.width = 0;
-    auto invalid_result = system.create_window(invalid_config);
-    if (!invalid_result.isErr || invalid_result.takeError().kind != WindowErrorKind.invalid_size)
-        return 10;
 
     set_default_content_scale(1.5f, 1.25f);
 
@@ -209,17 +219,17 @@ extern (C) int main() @system
     if (first.content_scale != ContentScale(1.5f, 1.25f))
         return 145;
 
-    if (first.set_size(WindowSize(640, 360)).isErr)
-        return 15;
+    static assert(is(typeof(first.set_size(WindowSize(640, 360))) == void));
+    static assert(is(typeof(first.set_position(WindowPosition.init)) == void));
+    static assert(is(typeof(first.set_fullscreen(false)) == void));
+    static assert(is(typeof(first.set_cursor_mode(CursorMode.normal)) == void));
+
+    first.set_size(WindowSize(640, 360));
     if (!same_size(first.size, WindowSize(640, 360)))
         return 16;
 
     if (first.set_title("headless renamed").isErr)
         return 17;
-    const char[3] title_with_nul = ['x', '\0', 'y'];
-    auto title_result = first.set_title(title_with_nul[]);
-    if (!title_result.isErr || title_result.takeError().kind != WindowErrorKind.title_contains_nul)
-        return 18;
 
     fail_next_operation(FakeGLFWOperation.set_window_title);
     auto failed_title = first.set_title("backend failure");
@@ -231,113 +241,98 @@ extern (C) int main() @system
         return 101;
 
     fail_next_operation(FakeGLFWOperation.set_window_position);
-    auto failed_position = first.set_position(WindowPosition(11, 13));
-    if (!failed_position.isErr)
-        return 102;
-    const position_backend_error = failed_position.takeError();
-    if (position_backend_error.kind != WindowErrorKind.backend_operation_failed ||
-        position_backend_error.backend_code != fake_platform_error ||
-        first.position != WindowPosition.init)
+    first.set_position(WindowPosition(11, 13));
+    if (!has_position(first, WindowPosition.init))
         return 103;
 
+    fail_next_operation(
+        FakeGLFWOperation.get_window_position,
+        fake_feature_unavailable,
+    );
+    if (!first.position().isNone || !has_position(first, WindowPosition.init))
+        return 102;
+
     fail_next_operation(FakeGLFWOperation.set_window_size);
-    auto failed_size = first.set_size(WindowSize(800, 600));
-    if (!failed_size.isErr)
-        return 104;
-    const size_backend_error = failed_size.takeError();
-    if (size_backend_error.kind != WindowErrorKind.backend_operation_failed ||
-        size_backend_error.backend_code != fake_platform_error ||
-        !same_size(first.size, WindowSize(640, 360)))
+    first.set_size(WindowSize(800, 600));
+    if (!same_size(first.size, WindowSize(640, 360)))
         return 105;
 
     fail_next_operation(FakeGLFWOperation.set_input_mode);
-    auto failed_cursor_mode = first.set_cursor_mode(CursorMode.hidden);
-    if (!failed_cursor_mode.isErr)
-        return 106;
-    const cursor_backend_error = failed_cursor_mode.takeError();
-    if (cursor_backend_error.kind != WindowErrorKind.backend_operation_failed ||
-        cursor_backend_error.backend_code != fake_platform_error ||
-        first.cursor_mode != CursorMode.normal)
+    first.set_cursor_mode(CursorMode.hidden);
+    if (first.cursor_mode != CursorMode.normal)
         return 107;
 
     seed_backend_error();
-    if (first.set_cursor_mode(CursorMode.hidden).isErr ||
-        first.cursor_mode != CursorMode.hidden ||
-        first.set_cursor_mode(CursorMode.normal).isErr)
+    first.set_cursor_mode(CursorMode.hidden);
+    if (first.cursor_mode != CursorMode.hidden)
         return 108;
+    first.set_cursor_mode(CursorMode.normal);
 
     const restore_position = WindowPosition(23, 29);
-    if (first.set_position(restore_position).isErr)
+    first.set_position(restore_position);
+    if (!has_position(first, restore_position))
         return 122;
 
+    // A real restore-position query failure aborts the transition.
     fail_next_operation(FakeGLFWOperation.get_window_position);
-    auto failed_restore_position = first.set_fullscreen(true, primary);
-    if (!failed_restore_position.isErr)
-        return 133;
-    const restore_position_error = failed_restore_position.takeError();
-    if (restore_position_error.kind != WindowErrorKind.backend_operation_failed ||
-        restore_position_error.backend_code != fake_platform_error ||
-        first.fullscreen || first.position != restore_position ||
+    first.set_fullscreen(true, primary);
+    if (first.fullscreen || !has_position(first, restore_position) ||
         !same_size(first.size, WindowSize(640, 360)))
         return 134;
 
+    // A real restore-size query failure also leaves the window unchanged.
     fail_next_operation(FakeGLFWOperation.get_window_size);
-    auto failed_restore_size = first.set_fullscreen(true, primary);
-    if (!failed_restore_size.isErr)
-        return 135;
-    const restore_size_error = failed_restore_size.takeError();
-    if (restore_size_error.kind != WindowErrorKind.backend_operation_failed ||
-        restore_size_error.backend_code != fake_platform_error ||
-        first.fullscreen || first.position != restore_position ||
+    first.set_fullscreen(true, primary);
+    if (first.fullscreen || !has_position(first, restore_position) ||
         !same_size(first.size, WindowSize(640, 360)))
         return 136;
 
+    // A backend transition failure is an unobservable command no-op.
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
-    auto failed_fullscreen = first.set_fullscreen(true, primary);
-    if (!failed_fullscreen.isErr)
-        return 109;
-    const fullscreen_backend_error = failed_fullscreen.takeError();
-    if (fullscreen_backend_error.kind != WindowErrorKind.backend_operation_failed ||
-        fullscreen_backend_error.backend_code != fake_platform_error ||
-        first.fullscreen)
+    first.set_fullscreen(true, primary);
+    if (first.fullscreen)
         return 110;
 
-    if (first.set_fullscreen(true, primary).isErr || !first.fullscreen ||
-        first.monitor.name != primary.name ||
+    first.set_fullscreen(true, primary);
+    if (!first.fullscreen || first.monitor.name != primary.name ||
         !same_size(first.size, WindowSize(1920, 1080)))
         return 116;
 
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
-    auto failed_monitor_switch = first.set_fullscreen(true, secondary);
-    if (!failed_monitor_switch.isErr)
-        return 123;
-    const monitor_switch_error = failed_monitor_switch.takeError();
-    if (monitor_switch_error.kind != WindowErrorKind.backend_operation_failed ||
-        monitor_switch_error.backend_code != fake_platform_error ||
-        first.monitor.name != primary.name)
+    first.set_fullscreen(true, secondary);
+    if (first.monitor.name != primary.name)
         return 124;
 
-    if (first.set_fullscreen(true, secondary).isErr ||
-        first.monitor.name != secondary.name ||
+    first.set_fullscreen(true, secondary);
+    if (first.monitor.name != secondary.name ||
         !same_size(first.size, WindowSize(2560, 1440)))
         return 125;
 
-    if (first.set_fullscreen(true).isErr || first.monitor.name != secondary.name)
+    first.set_fullscreen(true);
+    if (first.monitor.name != secondary.name)
         return 126;
 
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
-    auto failed_windowed = first.set_fullscreen(false);
-    if (!failed_windowed.isErr)
-        return 117;
-    const windowed_backend_error = failed_windowed.takeError();
-    if (windowed_backend_error.kind != WindowErrorKind.backend_operation_failed ||
-        windowed_backend_error.backend_code != fake_platform_error ||
-        !first.fullscreen || first.monitor.name != secondary.name)
+    first.set_fullscreen(false);
+    if (!first.fullscreen || first.monitor.name != secondary.name)
         return 118;
-    if (first.set_fullscreen(false).isErr || first.fullscreen ||
-        first.position != restore_position ||
+
+    first.set_fullscreen(false);
+    if (first.fullscreen || !has_position(first, restore_position) ||
         !same_size(first.size, WindowSize(640, 360)))
         return 119;
+
+    // Wayland-style lack of global positioning must not prevent fullscreen.
+    fail_next_operation(
+        FakeGLFWOperation.get_window_position,
+        fake_feature_unavailable,
+    );
+    first.set_fullscreen(true, primary);
+    if (!first.fullscreen || first.monitor.name != primary.name)
+        return 133;
+    first.set_fullscreen(false);
+    if (first.fullscreen || !same_size(first.size, WindowSize(640, 360)))
+        return 135;
 
     first.request_close();
     if (!first.should_close())
@@ -353,7 +348,7 @@ extern (C) int main() @system
         return 128;
     first.set_event_handler(WindowEventHandler.init);
 
-    if (!first.native_handle().isErr || !system.native_display_handle().isErr)
+    if (first.native_handle().valid || system.native_display_handle().valid)
         return 20;
 
     auto second_result = system.create_window(config);
@@ -535,10 +530,6 @@ extern (C) int main() @system
 
     if (first.has_opengl_context())
         return 40;
-    auto generic_context_result = first.make_context_current();
-    if (!generic_context_result.isErr ||
-        generic_context_result.takeError().kind != WindowErrorKind.context_unavailable)
-        return 41;
 
     const es_config = OpenGLConfig.opengl_es();
     if (es_config.api != OpenGLAPI.opengl_es ||
@@ -547,32 +538,18 @@ extern (C) int main() @system
         es_config.profile != OpenGLProfile.any)
         return 42;
 
-    OpenGLConfig invalid_gl_config;
-    invalid_gl_config.context_version = OpenGLVersion(3, 1);
-    invalid_gl_config.profile = OpenGLProfile.core;
-    auto invalid_gl_result = system.create_opengl_window(config, invalid_gl_config);
-    if (!invalid_gl_result.isErr ||
-        invalid_gl_result.takeError().kind != WindowErrorKind.invalid_context_config)
-        return 43;
-
-    auto null_allocator_gl_result = system.create_opengl_window(
-        cast(Allocator*) null,
-        config,
-    );
-    if (!null_allocator_gl_result.isErr ||
-        null_allocator_gl_result.takeError()
-            .kind != WindowErrorKind.allocation_failed)
-        return 44;
-
     OpenGLConfig unavailable_gl_config;
     unavailable_gl_config.context_version = OpenGLVersion(99, 0);
     auto unavailable_gl_result = system.create_opengl_window(
         config,
         unavailable_gl_config,
     );
-    if (!unavailable_gl_result.isErr ||
-        unavailable_gl_result.takeError().kind != WindowErrorKind.context_unavailable)
+    if (!unavailable_gl_result.isErr)
         return 45;
+    const unavailable_gl_error = unavailable_gl_result.takeError();
+    if (unavailable_gl_error.kind != WindowErrorKind.window_creation_failed ||
+        unavailable_gl_error.backend_code != fake_version_unavailable)
+        return 44;
 
     OpenGLConfig gl_config;
     gl_config.creation_api = OpenGLContextCreationAPI.os_mesa;
@@ -595,14 +572,18 @@ extern (C) int main() @system
     if (gl_window.context_is_current())
         return 48;
 
-    auto premature_swap = gl_window.swap_buffers();
-    if (!premature_swap.isErr ||
-        premature_swap.takeError().kind != WindowErrorKind.no_current_context)
-        return 49;
+    static assert(is(typeof(gl_window.make_context_current()) == void));
+    static assert(is(typeof(clear_current_context()) == void));
+    static assert(is(typeof(gl_window.swap_buffers()) == void));
+    static assert(is(typeof(gl_window.set_swap_interval(1)) == void));
+    static assert(is(typeof(gl_window.opengl_proc_address("glGetString")) == OpenGLProc));
+    static assert(is(typeof(gl_window.opengl_extension_supported("GL_FAKE_extension")) == bool));
 
-    if (gl_window.make_context_current().isErr || !gl_window.context_is_current())
+    gl_window.make_context_current();
+    if (!gl_window.context_is_current())
         return 50;
-    if (gl_window.set_swap_interval(1).isErr || swap_interval(gl_window) != 1)
+    gl_window.set_swap_interval(1);
+    if (swap_interval(gl_window) != 1)
         return 51;
 
     auto info_result = gl_window.opengl_context_info();
@@ -629,50 +610,16 @@ extern (C) int main() @system
         !creation_hints.double_buffered)
         return 54;
 
-    const char[3] proc_with_nul = ['g', '\0', 'l'];
-    auto invalid_proc = gl_window.opengl_proc_address(proc_with_nul[]);
-    if (!invalid_proc.isErr || invalid_proc.takeError().kind != WindowErrorKind.invalid_proc_name)
-        return 55;
-
     char[255] longest_api_name;
     longest_api_name[] = 'a';
-    auto longest_proc = gl_window.opengl_proc_address(longest_api_name[]);
-    if (!longest_proc.isErr || longest_proc.takeError().kind != WindowErrorKind.proc_unavailable)
+    if (gl_window.opengl_proc_address(longest_api_name[]) !is null ||
+        gl_window.opengl_extension_supported(longest_api_name[]))
         return 146;
-    auto longest_extension = gl_window.opengl_extension_supported(longest_api_name[]);
-    if (longest_extension.isErr || longest_extension.take())
-        return 147;
 
-    char[256] oversized_api_name;
-    oversized_api_name[] = 'a';
-    auto oversized_proc = gl_window.opengl_proc_address(oversized_api_name[]);
-    if (!oversized_proc.isErr ||
-        oversized_proc.takeError().kind != WindowErrorKind.invalid_proc_name)
-        return 148;
-    auto oversized_extension = gl_window.opengl_extension_supported(oversized_api_name[]);
-    if (!oversized_extension.isErr ||
-        oversized_extension.takeError().kind != WindowErrorKind.invalid_extension_name)
-        return 149;
-
-    auto proc_result = gl_window.opengl_proc_address("glGetString");
-    if (proc_result.isErr || proc_result.take() is null)
+    if (gl_window.opengl_proc_address("glGetString") is null)
         return 56;
-
-    auto extension_result = gl_window.opengl_extension_supported("GL_FAKE_extension");
-    if (extension_result.isErr || !extension_result.take())
+    if (!gl_window.opengl_extension_supported("GL_FAKE_extension"))
         return 57;
-
-    OpenGLConfig mismatched_share_config = gl_config;
-    mismatched_share_config.creation_api = OpenGLContextCreationAPI.egl;
-    mismatched_share_config.share_context_with = gl_window;
-    auto mismatched_share_result = system.create_opengl_window(
-        config,
-        mismatched_share_config,
-    );
-    if (!mismatched_share_result.isErr ||
-        mismatched_share_result.takeError()
-            .kind != WindowErrorKind.invalid_context_config)
-        return 58;
 
     OpenGLConfig shared_config = gl_config;
     shared_config.share_context_with = gl_window;
@@ -691,19 +638,21 @@ extern (C) int main() @system
         return 61;
 
     const swaps_before = swap_count(gl_window);
-    if (gl_window.swap_buffers().isErr || swap_count(gl_window) != swaps_before + 1)
+    gl_window.swap_buffers();
+    if (swap_count(gl_window) != swaps_before + 1)
         return 62;
-    if (clear_current_context().isErr || gl_window.context_is_current())
+    clear_current_context();
+    if (gl_window.context_is_current())
         return 63;
 
     make_foreign_context_current();
     if (gl_window.context_is_current())
         return 64;
 
-    if (gl_window.make_context_current().isErr || !gl_window.context_is_current())
+    gl_window.make_context_current();
+    if (!gl_window.context_is_current())
         return 65;
-    if (clear_current_context().isErr)
-        return 66;
+    clear_current_context();
 
     return 0;
 }

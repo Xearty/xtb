@@ -5,14 +5,16 @@ nothrow @nogc:
 import core.stdc.string : memcpy;
 import xtb.memory : Allocator;
 import xtb.types : String, i32, u8;
-import xtb.window.error : WindowError, WindowErrorKind, WindowResult, WindowStatus;
+import xtb.window.error : WindowErrorKind, WindowResult;
 import xtb.window.internal.create_options : BackendClientAPI, BackendGLContextCreationAPI,
     BackendGLProfile, BackendGLReleaseBehavior, BackendGLRobustness,
     BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
-import xtb.window.internal.glfw_error : clear_glfw_error, glfw_call_error, glfw_call_status;
+import xtb.window.internal.glfw_error : clear_glfw_error, glfw_call_error;
 import xtb.window.system : WindowSystem;
 import xtb.window.window : Window, WindowConfig;
+
+version (XTB_Checked) import xtb.panic : require;
 
 /// Client API provided by an OpenGL context window.
 enum OpenGLAPI : u8
@@ -68,10 +70,11 @@ struct OpenGLFramebufferConfig
 
 /// Requirements supplied before the native window and its context are created.
 ///
-/// The default requests desktop OpenGL 3.3 core. `share_context_with`, when non-null,
-/// must belong to the same WindowSystem and use the same client and context
-/// creation APIs. It is a non-owning handle and does not extend the lifetime of
-/// the shared window.
+/// The default requests desktop OpenGL 3.3 core. Configuration consistency is
+/// an API contract. `share_context_with`, when non-null, must be a live OpenGL
+/// window owned by the same WindowSystem and must use the same client and
+/// context creation APIs. It is a non-owning handle and does not extend the
+/// lifetime of the shared window.
 struct OpenGLConfig
 {
     OpenGLAPI api = OpenGLAPI.opengl;
@@ -132,22 +135,17 @@ bool context_is_current(const(Window)* window) @system
 }
 
 /// Makes `window`'s OpenGL/OpenGL ES context current on this thread.
-WindowStatus make_context_current(Window* window) @system
+void make_context_current(Window* window) @system
 {
-    if (!window_has_opengl_context(window))
-        return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
-
-    clear_glfw_error();
+    version (XTB_Checked)
+        require(window_has_opengl_context(window), "Window has no OpenGL context");
     glfwMakeContextCurrent(window.backend_handle());
-    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Detaches any OpenGL/OpenGL ES context from the calling thread.
-WindowStatus clear_current_context() @system
+void clear_current_context() @system
 {
-    clear_glfw_error();
     glfwMakeContextCurrent(null);
-    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Swaps `window`'s OpenGL front and back buffers.
@@ -155,16 +153,14 @@ WindowStatus clear_current_context() @system
 /// XTB requires the context to be current on the calling thread even on
 /// backends where GLFW itself does not require this, keeping behavior portable
 /// to EGL.
-WindowStatus swap_buffers(Window* window) @system
+void swap_buffers(Window* window) @system
 {
-    if (!window_has_opengl_context(window))
-        return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
-    if (!window.context_is_current())
-        return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
-
-    clear_glfw_error();
+    version (XTB_Checked)
+    {
+        require(window_has_opengl_context(window), "Window has no OpenGL context");
+        require(window.context_is_current(), "OpenGL context is not current on this thread");
+    }
     glfwSwapBuffers(window.backend_handle());
-    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Sets the swap interval for `window`'s current OpenGL context.
@@ -172,16 +168,14 @@ WindowStatus swap_buffers(Window* window) @system
 /// Zero disables synchronization; one requests normal vertical
 /// synchronization. Negative values are backend-extension dependent and are
 /// passed through to GLFW.
-WindowStatus set_swap_interval(Window* window, i32 interval) @system
+void set_swap_interval(Window* window, i32 interval) @system
 {
-    if (!window_has_opengl_context(window))
-        return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
-    if (!window.context_is_current())
-        return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
-
-    clear_glfw_error();
+    version (XTB_Checked)
+    {
+        require(window_has_opengl_context(window), "Window has no OpenGL context");
+        require(window.context_is_current(), "OpenGL context is not current on this thread");
+    }
     glfwSwapInterval(interval);
-    return glfw_call_status(WindowErrorKind.context_operation_failed);
 }
 
 /// Queries context attributes exposed by GLFW for `window`.
@@ -191,8 +185,8 @@ WindowStatus set_swap_interval(Window* window, i32 interval) @system
 /// OpenGL.
 WindowResult!OpenGLContextInfo opengl_context_info(const(Window)* window) @system
 {
-    if (!window_has_opengl_context(window))
-        return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
+    version (XTB_Checked)
+        require(window_has_opengl_context(window), "Window has no OpenGL context");
 
     clear_glfw_error();
     OpenGLContextInfo result;
@@ -235,70 +229,44 @@ WindowResult!OpenGLContextInfo opengl_context_info(const(Window)* window) @syste
         GLFW_DOUBLEBUFFER,
     ) == GLFW_TRUE;
 
-    const error = glfw_call_error(WindowErrorKind.context_operation_failed);
+    const error = glfw_call_error(WindowErrorKind.backend_operation_failed);
     if (error.failed)
         return typeof(return).err(error);
     return typeof(return).ok(result);
 }
 
 /// Looks up an OpenGL/OpenGL ES procedure for `window`'s current context.
-/// `name` must be non-empty ASCII without embedded NUL bytes and at most
-/// 255 bytes long.
-WindowResult!OpenGLProc opengl_proc_address(Window* window, scope String name) @system
+/// Returns null when the procedure is unavailable. `name` must be non-empty
+/// ASCII without embedded NUL bytes and at most 255 bytes long.
+OpenGLProc opengl_proc_address(Window* window, scope String name) @system
 {
-    if (!window_has_opengl_context(window))
-        return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
-    if (!window.context_is_current())
-        return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
+    version (XTB_Checked)
+    {
+        require(window_has_opengl_context(window), "Window has no OpenGL context");
+        require(window.context_is_current(), "OpenGL context is not current on this thread");
+    }
 
     char[256] local_storage;
     const(char)* c_name;
-    const name_error = prepare_api_name(
-        name,
-        WindowErrorKind.invalid_proc_name,
-        local_storage[],
-        &c_name,
-    );
-    if (name_error.failed)
-        return typeof(return).err(name_error);
-
-    clear_glfw_error();
-    const backend_proc = glfwGetProcAddress(c_name);
-    const error = glfw_call_error(WindowErrorKind.context_operation_failed);
-    if (error.failed)
-        return typeof(return).err(error);
-    if (backend_proc is null)
-        return typeof(return).err(WindowError(WindowErrorKind.proc_unavailable));
-    return typeof(return).ok(cast(OpenGLProc) backend_proc);
+    prepare_api_name(name, local_storage[], &c_name);
+    return cast(OpenGLProc) glfwGetProcAddress(c_name);
 }
 
 /// Checks a client/context API extension for `window`'s current context.
 /// `name` must be non-empty ASCII without embedded NUL bytes and at most
 /// 255 bytes long.
-WindowResult!bool opengl_extension_supported(Window* window, scope String name) @system
+bool opengl_extension_supported(Window* window, scope String name) @system
 {
-    if (!window_has_opengl_context(window))
-        return typeof(return).err(WindowError(WindowErrorKind.context_unavailable));
-    if (!window.context_is_current())
-        return typeof(return).err(WindowError(WindowErrorKind.no_current_context));
+    version (XTB_Checked)
+    {
+        require(window_has_opengl_context(window), "Window has no OpenGL context");
+        require(window.context_is_current(), "OpenGL context is not current on this thread");
+    }
 
     char[256] local_storage;
     const(char)* c_name;
-    const name_error = prepare_api_name(
-        name,
-        WindowErrorKind.invalid_extension_name,
-        local_storage[],
-        &c_name,
-    );
-    if (name_error.failed)
-        return typeof(return).err(name_error);
-
-    clear_glfw_error();
-    const supported = glfwExtensionSupported(c_name);
-    const error = glfw_call_error(WindowErrorKind.context_operation_failed);
-    if (error.failed)
-        return typeof(return).err(error);
-    return typeof(return).ok(supported == GLFW_TRUE);
+    prepare_api_name(name, local_storage[], &c_name);
+    return glfwExtensionSupported(c_name) == GLFW_TRUE;
 }
 
 /// Creates a Window with an OpenGL/OpenGL ES context. The Window allocation
@@ -309,8 +277,8 @@ WindowResult!(Window*) create_opengl_window(
     OpenGLConfig opengl_config = OpenGLConfig.init,
 ) @system
 {
-    if (system is null)
-        return typeof(return).err(WindowError(WindowErrorKind.initialization_failed));
+    version (XTB_Checked)
+        require(system !is null && system.initialized, "WindowSystem is not initialized");
     return create_opengl_window_impl(
         system,
         system.allocator_for_windows,
@@ -327,10 +295,11 @@ WindowResult!(Window*) create_opengl_window(
     OpenGLConfig opengl_config = OpenGLConfig.init,
 ) @system
 {
-    if (system is null)
-        return typeof(return).err(WindowError(WindowErrorKind.initialization_failed));
-    if (allocator is null || *allocator is null)
-        return typeof(return).err(WindowError(WindowErrorKind.allocation_failed));
+    version (XTB_Checked)
+    {
+        require(system !is null && system.initialized, "WindowSystem is not initialized");
+        require(allocator !is null && *allocator !is null, "Window allocator is null");
+    }
     return create_opengl_window_impl(system, allocator, window_config, opengl_config);
 }
 
@@ -341,9 +310,8 @@ private WindowResult!(Window*) create_opengl_window_impl(
     OpenGLConfig opengl_config,
 ) @system
 {
-    const config_error = validate_context_config(system, opengl_config);
-    if (config_error.failed)
-        return typeof(return).err(config_error);
+    version (XTB_Checked)
+        require_context_config(system, opengl_config);
 
     BackendWindowCreateOptions backend_options;
     backend_options.client_api = backend_client_api(opengl_config.api);
@@ -362,40 +330,11 @@ private WindowResult!(Window*) create_opengl_window_impl(
     if (opengl_config.share_context_with !is null)
         backend_options.shared_context = opengl_config.share_context_with.backend_handle();
 
-    auto window_result = system.create_window_with_backend_options(
+    return system.create_window_with_backend_options(
         allocator,
         window_config,
         backend_options,
     );
-    if (window_result.isErr)
-        return typeof(return).err(opengl_creation_error(window_result.takeError()));
-    return window_result;
-}
-
-private WindowError opengl_creation_error(WindowError error) pure @safe
-{
-    if (error.kind != WindowErrorKind.window_creation_failed)
-        return error;
-
-    switch (error.backend_code)
-    {
-        case GLFW_INVALID_ENUM:
-        case GLFW_INVALID_VALUE:
-        case GLFW_NO_WINDOW_CONTEXT:
-            error.kind = WindowErrorKind.invalid_context_config;
-            break;
-        case GLFW_API_UNAVAILABLE:
-        case GLFW_VERSION_UNAVAILABLE:
-        case GLFW_FORMAT_UNAVAILABLE:
-            error.kind = WindowErrorKind.context_unavailable;
-            break;
-        case GLFW_OUT_OF_MEMORY:
-            error.kind = WindowErrorKind.allocation_failed;
-            break;
-        default:
-            break;
-    }
-    return error;
 }
 
 private bool window_has_opengl_context(const(Window)* window) pure @safe
@@ -413,35 +352,36 @@ private OpenGLAPI window_opengl_api(const(Window)* window) pure @safe
         ? OpenGLAPI.opengl_es : OpenGLAPI.opengl;
 }
 
-private WindowError validate_context_config(
+version (XTB_Checked) private void require_context_config(
     WindowSystem* system,
     OpenGLConfig config,
-) pure @safe
+) @safe
 {
-    if (config.context_version.major <= 0 || config.context_version.minor < 0 ||
-        config.framebuffer.samples < 0)
-        return WindowError(WindowErrorKind.invalid_context_config);
+    require(config.context_version.major > 0, "OpenGL major version must be positive");
+    require(config.context_version.minor >= 0, "OpenGL minor version must not be negative");
+    require(config.framebuffer.samples >= 0, "OpenGL sample count must not be negative");
 
     if (config.api == OpenGLAPI.opengl)
     {
-        if (config.profile != OpenGLProfile.any &&
-            !version_at_least(config.context_version, 3, 2))
-            return WindowError(WindowErrorKind.invalid_context_config);
-        if (config.forward_compatible && !version_at_least(config.context_version, 3, 0))
-            return WindowError(WindowErrorKind.invalid_context_config);
+        require(config.profile == OpenGLProfile.any ||
+            version_at_least(config.context_version, 3, 2),
+            "OpenGL profiles require OpenGL 3.2 or newer");
+        require(!config.forward_compatible || version_at_least(config.context_version, 3, 0),
+            "forward-compatible OpenGL requires OpenGL 3.0 or newer");
     }
 
     if (config.share_context_with !is null)
     {
-        if (!window_has_opengl_context(config.share_context_with) ||
-            config.share_context_with.owner_system !is system ||
-            config.share_context_with.backend_client_api != backend_client_api(config.api) ||
-            config.share_context_with.backend_context_creation_api !=
-            backend_context_creation_api(config.creation_api))
-            return WindowError(WindowErrorKind.invalid_context_config);
+        require(window_has_opengl_context(config.share_context_with),
+            "shared Window has no OpenGL context");
+        require(config.share_context_with.owner_system is system,
+            "shared Window belongs to another WindowSystem");
+        require(config.share_context_with.backend_client_api == backend_client_api(config.api),
+            "shared Window uses another client API");
+        require(config.share_context_with.backend_context_creation_api ==
+            backend_context_creation_api(config.creation_api),
+            "shared Window uses another context creation API");
     }
-
-    return WindowError.init;
 }
 
 private bool version_at_least(OpenGLVersion value, i32 major, i32 minor) pure @safe
@@ -568,23 +508,24 @@ private OpenGLReleaseBehavior opengl_release_behavior(i32 value) pure @safe
     }
 }
 
-private WindowError prepare_api_name(
+private void prepare_api_name(
     scope String name,
-    WindowErrorKind invalid_kind,
     scope char[] storage,
     scope const(char)** output,
 ) @system
 {
-    *output = null;
-
-    if (name.length == 0 || name.length >= storage.length)
-        return WindowError(invalid_kind);
-    foreach (character; name)
-        if (character == '\0' || cast(ubyte) character > 0x7f)
-            return WindowError(invalid_kind);
+    version (XTB_Checked)
+    {
+        require(name.length != 0, "OpenGL name must not be empty");
+        require(name.length < storage.length, "OpenGL name exceeds 255 bytes");
+        foreach (character; name)
+        {
+            require(character != '\0', "OpenGL name contains an embedded NUL byte");
+            require(cast(ubyte) character <= 0x7f, "OpenGL name must be ASCII");
+        }
+    }
 
     memcpy(storage.ptr, name.ptr, name.length);
     storage[name.length] = '\0';
     *output = storage.ptr;
-    return WindowError.init;
 }

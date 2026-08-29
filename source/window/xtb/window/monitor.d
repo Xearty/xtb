@@ -8,6 +8,8 @@ import xtb.window.error : WindowError, WindowErrorKind, WindowResult;
 import xtb.window.internal.glfw;
 import xtb.window.internal.glfw_error : clear_glfw_error, glfw_call_error;
 
+version (XTB_Checked) import xtb.panic : require;
+
 struct VideoMode
 {
     i32 width;
@@ -31,8 +33,8 @@ nothrow @nogc:
 
     String name() const @system
     {
-        if (handle_ is null)
-            return null;
+        version (XTB_Checked)
+            require(handle_ !is null, "Monitor is not valid");
         const(char)* value = glfwGetMonitorName(backend_handle());
         if (value is null)
             return null;
@@ -41,15 +43,15 @@ nothrow @nogc:
 
     WindowResult!VideoMode video_mode() const @system
     {
-        if (handle_ is null)
-            return typeof(return).err(WindowError(WindowErrorKind.monitor_unavailable));
+        version (XTB_Checked)
+            require(handle_ !is null, "Monitor is not valid");
         clear_glfw_error();
         const GLFWvidmode* mode = glfwGetVideoMode(backend_handle());
         if (mode is null)
         {
-            const error = glfw_call_error(WindowErrorKind.monitor_unavailable);
+            const error = glfw_call_error(WindowErrorKind.backend_operation_failed);
             return typeof(return).err(error.failed
-                    ? error : WindowError(WindowErrorKind.monitor_unavailable));
+                    ? error : WindowError(WindowErrorKind.backend_operation_failed));
         }
         return typeof(return).ok(VideoMode(
                 mode.width,

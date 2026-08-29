@@ -7,6 +7,8 @@ import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.types : String;
 import xtb.window.error : WindowError, WindowErrorKind;
 
+version (XTB_Checked) import xtb.panic : require;
+
 package(xtb.window) WindowError prepare_c_string(
     Allocator* allocator,
     scope String value,
@@ -14,13 +16,11 @@ package(xtb.window) WindowError prepare_c_string(
     const(char)** result,
 ) @system
 {
-    if (allocator is null || *allocator is null)
-        return WindowError(WindowErrorKind.allocation_failed);
-
-    foreach (ch; value)
+    version (XTB_Checked)
     {
-        if (ch == '\0')
-            return WindowError(WindowErrorKind.title_contains_nul);
+        require(allocator !is null && *allocator !is null, "C-string allocator is null");
+        foreach (ch; value)
+            require(ch != '\0', "C-string input contains an embedded NUL byte");
     }
 
     char[] buffer = allocator.tryAllocateArray!char(value.length + 1);

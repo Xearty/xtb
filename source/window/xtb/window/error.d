@@ -14,17 +14,6 @@ enum WindowErrorKind : u8
     initialization_failed,
     already_initialized,
     window_creation_failed,
-    invalid_size,
-    title_contains_nul,
-    monitor_unavailable,
-    native_handle_unavailable,
-    invalid_context_config,
-    context_unavailable,
-    no_current_context,
-    context_operation_failed,
-    invalid_proc_name,
-    proc_unavailable,
-    invalid_extension_name,
     backend_operation_failed,
 }
 

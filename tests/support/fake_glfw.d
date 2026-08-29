@@ -21,6 +21,8 @@ enum FakeGLFWOperation : ubyte
 }
 
 enum int fake_platform_error = G.GLFW_PLATFORM_ERROR;
+enum int fake_feature_unavailable = G.GLFW_FEATURE_UNAVAILABLE;
+enum int fake_version_unavailable = G.GLFW_VERSION_UNAVAILABLE;
 
 struct FakeOpenGLHints
 {

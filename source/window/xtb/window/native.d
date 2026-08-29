@@ -51,6 +51,8 @@ struct WaylandWindowHandle
 
 struct NativeDisplayHandle
 {
+nothrow @nogc:
+
     NativeWindowPlatform platform = NativeWindowPlatform.none;
     union
     {
@@ -58,10 +60,17 @@ struct NativeDisplayHandle
         X11DisplayHandle x11;
         WaylandDisplayHandle wayland;
     }
+
+    bool valid() const pure @safe
+    {
+        return platform != NativeWindowPlatform.none;
+    }
 }
 
 struct NativeWindowHandle
 {
+nothrow @nogc:
+
     NativeWindowPlatform platform = NativeWindowPlatform.none;
     union
     {
@@ -69,5 +78,10 @@ struct NativeWindowHandle
         CocoaWindowHandle cocoa;
         X11WindowHandle x11;
         WaylandWindowHandle wayland;
+    }
+
+    bool valid() const pure @safe
+    {
+        return platform != NativeWindowPlatform.none;
     }
 }
