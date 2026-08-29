@@ -59,11 +59,22 @@ Monitor connection changes are delivered through `WindowSystemEventHandler` as
 event is borrowed; a disconnected monitor must not be retained or used after
 its event callback returns.
 
-Platform-facing mutations and event polling return `WindowStatus`. A backend
-failure is reported as `WindowErrorKind.backend_operation_failed` with the
-original GLFW error code preserved in `backend_code`. Simple state queries keep
-value-returning APIs; use events when backend-independent state tracking is
-preferred.
+Invalid arguments and invalid object or graphics-context state are API
+contract violations rather than recoverable window errors. Checked builds
+validate these contracts; release-fast does not retain defensive branches for
+them. Runtime `WindowResult` / `WindowStatus` values are reserved for operations
+where failure is a normal and useful control-flow outcome, such as system/window
+creation, event polling, title allocation, and backend queries whose result must
+be trustworthy.
+
+Ordinary window mutations are best-effort commands. `set_size`, `set_position`,
+`set_fullscreen`, and `set_cursor_mode` do not require platform-specific caller
+branches; an unavailable platform feature is simply left unchanged. Global
+window position is itself optional, so `window.position()` returns
+`Option!WindowPosition` and is `none` on platforms such as Wayland. Monitor
+lookup likewise returns an invalid `Monitor` when no matching monitor exists,
+and native-handle queries return handles whose `valid` property is false when
+the active backend has no corresponding native handle.
 
 A native close request sets the window close flag before dispatching
 `WindowEventKind.close_requested`. An event handler may reject the request with
@@ -108,10 +119,8 @@ if (window_result.isErr)
 Window* window = window_result.take();
 scope (exit) window.deinit();
 
-if (window.make_context_current().isErr)
-    return 1;
-if (window.set_swap_interval(1).isErr)
-    return 1;
+window.make_context_current();
+window.set_swap_interval(1);
 
 while (!window.should_close())
 {
@@ -120,8 +129,7 @@ while (!window.should_close())
 
     // Render through your OpenGL bindings.
 
-    if (window.swap_buffers().isErr)
-        return 1;
+    window.swap_buffers();
 }
 ```
 
@@ -133,21 +141,29 @@ using the same `Window*` type after creation.
 
 XTB does not provide OpenGL function declarations or a loader; use
 `window.opengl_proc_address()` with the OpenGL binding/loader chosen by the
-application. The default configuration requests desktop OpenGL 3.3 core. For
-OpenGL ES, start from `OpenGLConfig.opengl_es()`, which requests OpenGL ES 3.0
-and clears desktop-only profile requirements. Contexts may share objects by
-setting `share_context_with` to another OpenGL window; both windows must belong
-to the same `WindowSystem` and use the same client API and context creation API.
+application. Procedure lookup returns `null` when a symbol is unavailable and
+`opengl_extension_supported()` returns a plain `bool`. The default configuration
+requests desktop OpenGL 3.3 core. For OpenGL ES, start from
+`OpenGLConfig.opengl_es()`, which requests OpenGL ES 3.0 and clears desktop-only
+profile requirements. Contexts may share objects by setting
+`share_context_with` to another OpenGL window; both windows must belong to the
+same `WindowSystem` and use the same client API and context creation API. These
+configuration relationships are contracts. Valid but unavailable requirements,
+such as an unsupported OpenGL version, remain ordinary window-creation failures
+with the original GLFW error code preserved in `WindowError.backend_code`.
 
 An OpenGL context may be current on only one thread at a time. After creation,
 operations such as `make_context_current`, `swap_buffers`, `set_swap_interval`,
 `opengl_proc_address`, and `opengl_extension_supported` may be used on the
 render thread as long as the application synchronizes access and keeps window
-lifecycle, `opengl_context_info`, and event processing on the main thread. The
-procedure and extension queries use fixed stack storage and do not access the
-Window allocator; names are limited to 255 ASCII bytes. The context must be
-detached with `clear_current_context()` before its Window is destroyed from
-another thread.
+lifecycle, `opengl_context_info`, and event processing on the main thread.
+Calling a context operation on a non-OpenGL window, or calling an operation that
+requires the context to be current when it is not current on that thread, is a
+contract violation rather than a recoverable OpenGL error. The procedure and
+extension queries use fixed stack storage and do not access the Window
+allocator; names are limited to 255 ASCII bytes. The context must be detached
+with `clear_current_context()` before its Window is destroyed from another
+thread.
 
 `OpenGLContextCreationAPI.os_mesa` is available for headless contexts when the
 GLFW build and host provide OSMesa. The deterministic window tests use the
