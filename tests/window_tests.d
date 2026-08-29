@@ -199,6 +199,16 @@ extern (C) int main() @system
     if (first.content_scale != ContentScale(1.5f, 1.25f))
         return 139;
 
+    seed_backend_error();
+    if (first.content_scale != ContentScale(1.5f, 1.25f))
+        return 143;
+
+    fail_next_operation(FakeGLFWOperation.get_window_content_scale);
+    if (first.content_scale != ContentScale.init)
+        return 144;
+    if (first.content_scale != ContentScale(1.5f, 1.25f))
+        return 145;
+
     if (first.set_size(WindowSize(640, 360)).isErr)
         return 15;
     if (!same_size(first.size, WindowSize(640, 360)))
@@ -467,6 +477,8 @@ extern (C) int main() @system
         event_log.events[2].mouse_button_event.modifiers != KeyModifier.control ||
         event_log.events[7].kind != WindowEventKind.cursor_entered ||
         event_log.events[8].kind != WindowEventKind.focus_lost ||
+        event_log.events[12].kind != WindowEventKind.content_scale_changed ||
+        event_log.events[12].content_scale != ContentScale(2, 2) ||
         event_log.events[14].kind != WindowEventKind.minimized_changed)
         return 31;
 

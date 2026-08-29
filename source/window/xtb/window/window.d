@@ -299,8 +299,13 @@ nothrow @nogc:
     {
         require_live();
         ContentScale result;
-        if (handle_ !is null)
-            glfwGetWindowContentScale(backend_handle(), &result.x, &result.y);
+        if (handle_ is null)
+            return result;
+
+        clear_glfw_error();
+        glfwGetWindowContentScale(backend_handle(), &result.x, &result.y);
+        if (consume_glfw_error() != GLFW_NO_ERROR)
+            return ContentScale.init;
         return result;
     }
 

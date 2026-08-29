@@ -50,6 +50,10 @@ extern (C) int main() @system
     if (size.width != window_config.width || size.height != window_config.height)
         return 5;
 
+    const content_scale = window.content_scale();
+    if (!(content_scale.x > 0) || !(content_scale.y > 0))
+        return 8;
+
     if (system.poll_events().isErr)
         return 6;
 

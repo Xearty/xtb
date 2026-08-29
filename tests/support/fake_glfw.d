@@ -15,6 +15,7 @@ enum FakeGLFWOperation : ubyte
     set_window_position,
     get_window_size,
     set_window_size,
+    get_window_content_scale,
     set_window_monitor,
     set_input_mode,
 }
@@ -1014,8 +1015,17 @@ extern (C) void glfwGetFramebufferSize(G.GLFWwindow* window, int* width, int* he
 
 extern (C) void glfwGetWindowContentScale(G.GLFWwindow* window, float* x, float* y)
 {
-    *x = fake(window).content_scale_x;
-    *y = fake(window).content_scale_y;
+    if (x !is null)
+        *x = 0;
+    if (y !is null)
+        *y = 0;
+    if (fail_operation(FakeGLFWOperation.get_window_content_scale))
+        return;
+
+    if (x !is null)
+        *x = fake(window).content_scale_x;
+    if (y !is null)
+        *y = fake(window).content_scale_y;
 }
 
 extern (C) int glfwGetWindowAttrib(G.GLFWwindow* window, int attrib)
