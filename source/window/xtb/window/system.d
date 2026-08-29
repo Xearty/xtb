@@ -83,7 +83,6 @@ nothrow @nogc:
 
     private Allocator* allocator_;
     private bool initialized_;
-    private bool polling_events_;
     private Window* first_window_;
     private size_t window_count_;
 
@@ -165,7 +164,6 @@ nothrow @nogc:
         window_system_active = false;
         allocator_ = null;
         initialized_ = false;
-        polling_events_ = false;
         window_count_ = 0;
         allocator.deallocate(&this);
     }
@@ -215,10 +213,7 @@ nothrow @nogc:
     ) @system
     {
         version (XTB_Checked)
-        {
             require(initialized_, "WindowSystem is not initialized");
-            require(!polling_events_, "cannot create a window while dispatching events");
-        }
         return create_window_with_backend_options(
             allocator,
             config,
@@ -233,10 +228,7 @@ nothrow @nogc:
     ) @system
     {
         version (XTB_Checked)
-        {
             require(initialized_, "WindowSystem is not initialized");
-            require(!polling_events_, "cannot create a window while dispatching events");
-        }
         if (!initialized_)
             return typeof(return).err(WindowError(WindowErrorKind.initialization_failed));
         return Window.create(&this, allocator, config, backend_options);
@@ -248,21 +240,12 @@ nothrow @nogc:
     WindowStatus poll_events() @system
     {
         version (XTB_Checked)
-        {
             require(initialized_, "WindowSystem is not initialized");
-            require(!polling_events_, "WindowSystem event polling is not reentrant");
-        }
         if (!initialized_)
             return typeof(return).err(WindowError(WindowErrorKind.initialization_failed));
-        if (polling_events_)
-            return typeof(return).ok();
-
         for (Window* window = first_window_; window !is null; window = window.next_window())
             window.reset_poll_state();
 
-        polling_events_ = true;
-        scope (exit)
-            polling_events_ = false;
         clear_glfw_error();
         glfwPollEvents();
         return glfw_call_status(WindowErrorKind.backend_operation_failed);
@@ -367,11 +350,6 @@ nothrow @nogc:
     package(xtb.window) Allocator* allocator_for_windows() return pure @safe
     {
         return allocator_;
-    }
-
-    package(xtb.window) bool polling_events() const pure @safe
-    {
-        return polling_events_;
     }
 
     package(xtb.window) void link_window(Window* window) @system

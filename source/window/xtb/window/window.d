@@ -184,12 +184,8 @@ nothrow @nogc:
             return;
 
         version (XTB_Checked)
-        {
             require(system_ !is null, "live Window has no WindowSystem");
-            require(!system_.polling_events(),
-                "cannot destroy a Window while dispatching events");
-        }
-        if (system_ is null || system_.polling_events())
+        if (system_ is null)
             return;
 
         WindowSystem* system = system_;
