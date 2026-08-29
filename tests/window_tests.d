@@ -204,6 +204,42 @@ extern (C) int main() @system
 
     if (system.window_count != 1 || !first.valid)
         return 12;
+    if (first.visible)
+        return 146;
+
+    static assert(is(typeof(first.show()) == void));
+    static assert(is(typeof(first.hide()) == void));
+
+    first.show();
+    if (!first.visible)
+        return 147;
+    first.show();
+    if (!first.visible)
+        return 148;
+
+    first.hide();
+    if (first.visible)
+        return 149;
+    first.hide();
+    if (first.visible)
+        return 150;
+
+    fail_next_operation(FakeGLFWOperation.show_window);
+    first.show();
+    if (first.visible)
+        return 151;
+    first.show();
+    if (!first.visible)
+        return 152;
+
+    fail_next_operation(FakeGLFWOperation.hide_window);
+    first.hide();
+    if (!first.visible)
+        return 153;
+    first.hide();
+    if (first.visible)
+        return 154;
+
     if (!same_size(first.size, WindowSize(320, 240)))
         return 13;
     if (!same_size(first.framebuffer_size, WindowSize(320, 240)))
@@ -290,10 +326,21 @@ extern (C) int main() @system
     if (first.fullscreen)
         return 110;
 
+    first.show();
+    if (!first.visible)
+        return 155;
+
     first.set_fullscreen(true, primary);
     if (!first.fullscreen || first.monitor.name != primary.name ||
         !same_size(first.size, WindowSize(1920, 1080)))
         return 116;
+
+    first.hide();
+    if (!first.visible)
+        return 156;
+    first.show();
+    if (!first.visible)
+        return 157;
 
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
     first.set_fullscreen(true, secondary);

@@ -295,6 +295,29 @@ nothrow @nogc:
         return result;
     }
 
+    bool visible() const @system
+    {
+        require_live();
+        return glfwGetWindowAttrib(backend_handle(), GLFW_VISIBLE) == GLFW_TRUE;
+    }
+
+    /// Requests that a hidden window become visible. Showing a windowed window
+    /// may also give it input focus according to platform policy. GLFW ignores
+    /// this command for fullscreen windows.
+    void show() @system
+    {
+        require_live();
+        glfwShowWindow(backend_handle());
+    }
+
+    /// Requests that a visible window become hidden. GLFW ignores this command
+    /// for fullscreen windows.
+    void hide() @system
+    {
+        require_live();
+        glfwHideWindow(backend_handle());
+    }
+
     bool focused() const @system
     {
         require_live();

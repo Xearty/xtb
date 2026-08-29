@@ -15,6 +15,8 @@ enum FakeGLFWOperation : ubyte
     set_window_position,
     get_window_size,
     set_window_size,
+    show_window,
+    hide_window,
     get_window_content_scale,
     set_window_monitor,
     set_input_mode,
@@ -84,6 +86,7 @@ private struct FakeWindow
     double cursor_y = 0;
     int cursor_mode = G.GLFW_CURSOR_NORMAL;
     bool lock_key_modifiers;
+    bool visible = true;
     bool focused = true;
     bool minimized;
     bool maximized;
@@ -746,6 +749,7 @@ extern (C) G.GLFWwindow* glfwCreateWindow(
     window.alive = true;
     window.width = width;
     window.height = height;
+    window.visible = hints.visible == G.GLFW_TRUE;
     window.focused = hints.focused == G.GLFW_TRUE;
     window.maximized = hints.maximized == G.GLFW_TRUE;
     window.content_scale_x = default_content_scale_x;
@@ -1009,6 +1013,24 @@ extern (C) void glfwSetWindowSize(G.GLFWwindow* window, int width, int height)
         value.framebuffer_size_callback(window, width, height);
 }
 
+extern (C) void glfwShowWindow(G.GLFWwindow* window)
+{
+    if (fail_operation(FakeGLFWOperation.show_window))
+        return;
+    FakeWindow* value = fake(window);
+    if (value.monitor is null)
+        value.visible = true;
+}
+
+extern (C) void glfwHideWindow(G.GLFWwindow* window)
+{
+    if (fail_operation(FakeGLFWOperation.hide_window))
+        return;
+    FakeWindow* value = fake(window);
+    if (value.monitor is null)
+        value.visible = false;
+}
+
 extern (C) void glfwGetFramebufferSize(G.GLFWwindow* window, int* width, int* height)
 {
     *width = fake(window).width;
@@ -1035,6 +1057,8 @@ extern (C) int glfwGetWindowAttrib(G.GLFWwindow* window, int attrib)
     FakeWindow* value = fake(window);
     switch (attrib)
     {
+        case G.GLFW_VISIBLE:
+            return value.visible ? G.GLFW_TRUE : G.GLFW_FALSE;
         case G.GLFW_HOVERED:
             return G.GLFW_FALSE;
         case G.GLFW_FOCUSED:

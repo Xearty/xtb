@@ -66,6 +66,8 @@ void glfwGetWindowPos(GLFWwindow*, int*, int*);
 void glfwSetWindowPos(GLFWwindow*, int, int);
 void glfwGetWindowSize(GLFWwindow*, int*, int*);
 void glfwSetWindowSize(GLFWwindow*, int, int);
+void glfwShowWindow(GLFWwindow*);
+void glfwHideWindow(GLFWwindow*);
 void glfwGetFramebufferSize(GLFWwindow*, int*, int*);
 void glfwGetWindowContentScale(GLFWwindow*, float*, float*);
 int glfwGetWindowAttrib(GLFWwindow*, int);

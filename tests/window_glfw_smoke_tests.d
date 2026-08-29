@@ -45,8 +45,15 @@ extern (C) int main() @system
     scope (exit)
         window.deinit();
 
-    if (!window.valid)
+    if (!window.valid || window.visible)
         return 4;
+
+    window.show();
+    if (!window.visible)
+        return 9;
+    window.hide();
+    if (window.visible)
+        return 10;
 
     const size = window.size();
     if (size.width != window_config.width || size.height != window_config.height)
