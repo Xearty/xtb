@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import xtb.types : u8;
 import xtb.window.error : WindowError, WindowErrorKind, WindowResult, WindowStatus;
+import xtb.window.event : WindowSystemEvent, WindowSystemEventKind;
 import xtb.window.internal.create_options : BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
 import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error, glfw_call_status;
@@ -73,9 +74,21 @@ private WindowPlatform window_platform(int platform) pure @safe
     }
 }
 
-// GLFW has a process-global lifecycle, so only one owning WindowSystem may be
-// alive at a time.
-private __gshared bool window_system_active;
+alias WindowSystemEventFn = void function(
+    WindowSystem* system,
+    scope const WindowSystemEvent* event,
+    void* context,
+) nothrow @nogc;
+
+struct WindowSystemEventHandler
+{
+    WindowSystemEventFn callback;
+    void* context;
+}
+
+// GLFW has a process-global lifecycle, so this is also the single active XTB
+// owner used to route process-level GLFW callbacks.
+private __gshared WindowSystem* active_window_system;
 
 struct WindowSystem
 {
@@ -85,6 +98,7 @@ nothrow @nogc:
     private bool initialized_;
     private Window* first_window_;
     private size_t window_count_;
+    private WindowSystemEventHandler event_handler_;
 
     @disable this(this);
 
@@ -98,7 +112,7 @@ nothrow @nogc:
     {
         if (allocator is null || *allocator is null)
             return typeof(return).err(WindowError(WindowErrorKind.allocation_failed));
-        if (window_system_active)
+        if (active_window_system !is null)
             return typeof(return).err(WindowError(WindowErrorKind.already_initialized));
 
         int major;
@@ -142,7 +156,19 @@ nothrow @nogc:
         }
         result.allocator_ = allocator;
         result.initialized_ = true;
-        window_system_active = true;
+
+        clear_glfw_error();
+        glfwSetMonitorCallback(&glfw_monitor_callback);
+        const callback_error = glfw_call_error(WindowErrorKind.initialization_failed);
+        if (callback_error.failed)
+        {
+            result.initialized_ = false;
+            allocator.deallocate(result);
+            glfwTerminate();
+            return typeof(return).err(callback_error);
+        }
+
+        active_window_system = result;
         return typeof(return).ok(result);
     }
 
@@ -160,11 +186,13 @@ nothrow @nogc:
             return;
 
         Allocator* allocator = allocator_;
+        glfwSetMonitorCallback(null);
+        active_window_system = null;
         glfwTerminate();
-        window_system_active = false;
         allocator_ = null;
         initialized_ = false;
         window_count_ = 0;
+        event_handler_ = WindowSystemEventHandler.init;
         allocator.deallocate(&this);
     }
 
@@ -198,6 +226,18 @@ nothrow @nogc:
     size_t window_count() const pure @safe
     {
         return window_count_;
+    }
+
+    /// Sets the handler for process-level window-system events such as monitor
+    /// connection changes. The handler runs synchronously during backend event
+    /// processing.
+    void set_event_handler(WindowSystemEventHandler handler) @system
+    {
+        version (XTB_Checked)
+            require(initialized_, "WindowSystem is not initialized");
+        if (!initialized_)
+            return;
+        event_handler_ = handler;
     }
 
     WindowResult!(Window*) create_window(
@@ -350,6 +390,12 @@ nothrow @nogc:
         return typeof(return).err(WindowError(WindowErrorKind.native_handle_unavailable));
     }
 
+    package(xtb.window) void dispatch_event(scope const WindowSystemEvent* event) @system
+    {
+        if (event_handler_.callback !is null)
+            event_handler_.callback(&this, event, event_handler_.context);
+    }
+
     package(xtb.window) Allocator* allocator_for_windows() return pure @safe
     {
         return allocator_;
@@ -378,4 +424,26 @@ nothrow @nogc:
         if (window_count_ != 0)
             --window_count_;
     }
+}
+
+private extern (C) void glfw_monitor_callback(GLFWmonitor* monitor, int backend_event)
+{
+    WindowSystem* system = active_window_system;
+    if (system is null || monitor is null)
+        return;
+
+    WindowSystemEvent event;
+    switch (backend_event)
+    {
+        case GLFW_CONNECTED:
+            event.kind = WindowSystemEventKind.monitor_connected;
+            break;
+        case GLFW_DISCONNECTED:
+            event.kind = WindowSystemEventKind.monitor_disconnected;
+            break;
+        default:
+            return;
+    }
+    event.monitor = Monitor.from_backend(monitor);
+    system.dispatch_event(&event);
 }

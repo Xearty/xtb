@@ -65,6 +65,7 @@ private struct FakeMonitor
 {
     const(char)* name;
     G.GLFWvidmode mode;
+    bool connected = true;
 }
 
 private struct FakeWindow
@@ -121,6 +122,7 @@ private enum FakeEventKind : ubyte
     maximize,
     framebuffer_size,
     content_scale,
+    monitor,
 }
 
 private struct FakeEvent
@@ -134,6 +136,7 @@ private struct FakeEvent
     double x;
     double y;
     uint codepoint;
+    FakeMonitor* monitor;
 }
 
 private enum size_t max_windows = 32;
@@ -151,10 +154,11 @@ private int failing_error;
 private int selected_platform = G.GLFW_PLATFORM_NULL;
 private bool initialized;
 private FakeWindow foreign_context;
+private G.GLFWmonitorfun monitor_callback;
 
 private FakeMonitor[2] fake_monitors = [
-    FakeMonitor("Fake Monitor 1".ptr, G.GLFWvidmode(1920, 1080, 8, 8, 8, 60)),
-    FakeMonitor("Fake Monitor 2".ptr, G.GLFWvidmode(2560, 1440, 8, 8, 8, 144)),
+    FakeMonitor("Fake Monitor 1".ptr, G.GLFWvidmode(1920, 1080, 8, 8, 8, 60), true),
+    FakeMonitor("Fake Monitor 2".ptr, G.GLFWvidmode(2560, 1440, 8, 8, 8, 144), true),
 ];
 private G.GLFWmonitor*[2] monitor_handles;
 
@@ -187,7 +191,14 @@ private FakeWindow* find_window(Window* window) @system
 
 private bool push_event(FakeEvent event) @system
 {
-    if (event.window is null || event_count >= events.length)
+    if (event_count >= events.length)
+        return false;
+    if (event.kind == FakeEventKind.monitor)
+    {
+        if (event.monitor is null)
+            return false;
+    }
+    else if (event.window is null)
         return false;
     events[event_count++] = event;
     return true;
@@ -452,6 +463,28 @@ bool queue_content_scale(Window* window, float x, float y) @system
     return push_event(event);
 }
 
+bool queue_monitor_connected(size_t index) @system
+{
+    if (index >= fake_monitors.length)
+        return false;
+    FakeEvent event;
+    event.kind = FakeEventKind.monitor;
+    event.monitor = &fake_monitors[index];
+    event.a = G.GLFW_CONNECTED;
+    return push_event(event);
+}
+
+bool queue_monitor_disconnected(size_t index) @system
+{
+    if (index >= fake_monitors.length)
+        return false;
+    FakeEvent event;
+    event.kind = FakeEventKind.monitor;
+    event.monitor = &fake_monitors[index];
+    event.a = G.GLFW_DISCONNECTED;
+    return push_event(event);
+}
+
 FakeOpenGLHints opengl_hints(Window* window) @system
 {
     FakeOpenGLHints result;
@@ -538,6 +571,9 @@ private void reset_backend_state() @system
     failing_operation = FakeGLFWOperation.none;
     failing_error = G.GLFW_NO_ERROR;
     foreign_context = FakeWindow.init;
+    monitor_callback = null;
+    foreach (ref monitor; fake_monitors)
+        monitor.connected = true;
     monitor_handles[0] = cast(G.GLFWmonitor*)&fake_monitors[0];
     monitor_handles[1] = cast(G.GLFWmonitor*)&fake_monitors[1];
 }
@@ -715,6 +751,16 @@ extern (C) void glfwPollEvents()
     while (index < event_count)
     {
         FakeEvent event = events[index++];
+        if (event.kind == FakeEventKind.monitor)
+        {
+            if (event.monitor is null)
+                continue;
+            event.monitor.connected = event.a == G.GLFW_CONNECTED;
+            if (monitor_callback !is null)
+                monitor_callback(cast(G.GLFWmonitor*) event.monitor, event.a);
+            continue;
+        }
+
         FakeWindow* window = event.window;
         if (window is null || !window.alive)
             continue;
@@ -799,6 +845,8 @@ extern (C) void glfwPollEvents()
             case FakeEventKind.content_scale:
                 if (window.content_scale_callback !is null)
                     window.content_scale_callback(handle, cast(float) event.x, cast(float) event.y);
+                break;
+            case FakeEventKind.monitor:
                 break;
         }
     }
@@ -1011,13 +1059,31 @@ extern (C) void glfwSetWindowMonitor(
 
 extern (C) G.GLFWmonitor* glfwGetPrimaryMonitor()
 {
-    return monitor_handles[0];
+    foreach (ref monitor; fake_monitors)
+    {
+        if (monitor.connected)
+            return cast(G.GLFWmonitor*) &monitor;
+    }
+    return null;
 }
 
 extern (C) G.GLFWmonitor** glfwGetMonitors(int* count)
 {
-    *count = cast(int) monitor_handles.length;
-    return monitor_handles.ptr;
+    size_t connected_count;
+    foreach (ref monitor; fake_monitors)
+    {
+        if (monitor.connected)
+            monitor_handles[connected_count++] = cast(G.GLFWmonitor*) &monitor;
+    }
+    *count = cast(int) connected_count;
+    return connected_count == 0 ? null : monitor_handles.ptr;
+}
+
+extern (C) G.GLFWmonitorfun glfwSetMonitorCallback(G.GLFWmonitorfun callback)
+{
+    const previous = monitor_callback;
+    monitor_callback = callback;
+    return previous;
 }
 
 extern (C) const(char)* glfwGetMonitorName(G.GLFWmonitor* monitor)

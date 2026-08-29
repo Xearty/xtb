@@ -6,8 +6,9 @@ import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     fake_platform_error, make_foreign_context_current, opengl_hints,
     queue_content_scale, queue_cursor_enter, queue_cursor_position, queue_focus,
     queue_close, queue_framebuffer_size, queue_key, queue_maximized, queue_minimized,
-    queue_mouse_button, queue_scroll, queue_text, queue_window_position,
-    queue_window_size, seed_backend_error, swap_count, swap_interval;
+    queue_mouse_button, queue_monitor_connected, queue_monitor_disconnected,
+    queue_scroll, queue_text, queue_window_position, queue_window_size,
+    seed_backend_error, swap_count, swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
 import xtb.window;
@@ -34,6 +35,27 @@ private void record_event(
     if (log is null || log.count >= log.events.length)
         return;
     log.events[log.count++] = *event;
+}
+
+private struct WindowSystemEventLog
+{
+    WindowSystemEventKind[4] kinds;
+    bool[4] monitor_valid;
+    size_t count;
+}
+
+private void record_system_event(
+    WindowSystem*,
+    scope const WindowSystemEvent* event,
+    void* context,
+) @system
+{
+    WindowSystemEventLog* log = cast(WindowSystemEventLog*) context;
+    if (log is null || log.count >= log.kinds.length)
+        return;
+    log.kinds[log.count] = event.kind;
+    log.monitor_valid[log.count] = event.monitor.valid;
+    ++log.count;
 }
 
 private struct CloseRequestLog
@@ -124,6 +146,20 @@ extern (C) int main() @system
     const mode = mode_result.take();
     if (mode.width != 1920 || mode.height != 1080 || mode.refresh_rate != 60)
         return 9;
+
+    WindowSystemEventLog system_event_log;
+    system.set_event_handler(WindowSystemEventHandler(&record_system_event, &system_event_log));
+    if (!queue_monitor_disconnected(1) || system.poll_events().isErr ||
+        system_event_log.count != 1 ||
+        system_event_log.kinds[0] != WindowSystemEventKind.monitor_disconnected ||
+        !system_event_log.monitor_valid[0] || system.monitor_count != 1)
+        return 137;
+    if (!queue_monitor_connected(1) || system.poll_events().isErr ||
+        system_event_log.count != 2 ||
+        system_event_log.kinds[1] != WindowSystemEventKind.monitor_connected ||
+        !system_event_log.monitor_valid[1] || system.monitor_count != 2)
+        return 138;
+    system.set_event_handler(WindowSystemEventHandler.init);
 
     auto secondary_result = system.monitor(1);
     if (secondary_result.isErr)

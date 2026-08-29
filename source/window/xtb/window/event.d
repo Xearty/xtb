@@ -4,6 +4,7 @@ nothrow @nogc:
 
 import xtb.types : i32, u8;
 import xtb.window.input : CursorPosition, Key, KeyAction, KeyModifier, MouseButton;
+import xtb.window.monitor : Monitor;
 
 struct WindowPosition
 {
@@ -96,4 +97,19 @@ struct WindowEvent
         WindowSize size;
         ContentScale content_scale;
     }
+}
+
+enum WindowSystemEventKind : u8
+{
+    monitor_connected,
+    monitor_disconnected,
+}
+
+/// A process-level window-system event. `monitor` is borrowed. For
+/// `monitor_disconnected`, it must not be retained or used after the event
+/// callback returns.
+struct WindowSystemEvent
+{
+    WindowSystemEventKind kind;
+    Monitor monitor;
 }

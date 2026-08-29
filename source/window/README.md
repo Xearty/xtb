@@ -49,6 +49,10 @@ main-thread operations. Exactly one live `WindowSystem` may own GLFW at a time;
 a second `WindowSystem.create()` returns `WindowErrorKind.already_initialized`.
 Every window must be destroyed before its system is deinitialized. A `Monitor`
 is a borrowed backend handle and must be reacquired after monitor disconnection.
+Monitor connection changes are delivered through `WindowSystemEventHandler` as
+`monitor_connected` and `monitor_disconnected` events. The monitor in a system
+event is borrowed; a disconnected monitor must not be retained or used after
+its event callback returns.
 
 Platform-facing mutations and event polling return `WindowStatus`. A backend
 failure is reported as `WindowErrorKind.backend_operation_failed` with the

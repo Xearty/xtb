@@ -36,6 +36,7 @@ alias GLFWwindowiconifyfun = extern (C) void function(GLFWwindow*, int) nothrow 
 alias GLFWwindowmaximizefun = extern (C) void function(GLFWwindow*, int) nothrow @nogc;
 alias GLFWframebuffersizefun = extern (C) void function(GLFWwindow*, int, int) nothrow @nogc;
 alias GLFWwindowcontentscalefun = extern (C) void function(GLFWwindow*, float, float) nothrow @nogc;
+alias GLFWmonitorfun = extern (C) void function(GLFWmonitor*, int) nothrow @nogc;
 
 void glfwGetVersion(int*, int*, int*);
 void glfwInitHint(int, int);
@@ -72,6 +73,7 @@ GLFWmonitor* glfwGetPrimaryMonitor();
 GLFWmonitor** glfwGetMonitors(int*);
 const(char)* glfwGetMonitorName(GLFWmonitor*);
 const(GLFWvidmode)* glfwGetVideoMode(GLFWmonitor*);
+GLFWmonitorfun glfwSetMonitorCallback(GLFWmonitorfun);
 void glfwGetCursorPos(GLFWwindow*, double*, double*);
 int glfwGetInputMode(GLFWwindow*, int);
 void glfwSetInputMode(GLFWwindow*, int, int);
@@ -124,6 +126,8 @@ enum int GLFW_TRUE = 1;
 enum int GLFW_RELEASE = 0;
 enum int GLFW_PRESS = 1;
 enum int GLFW_REPEAT = 2;
+enum int GLFW_CONNECTED = 0x00040001;
+enum int GLFW_DISCONNECTED = 0x00040002;
 enum int GLFW_DONT_CARE = -1;
 
 // Initialization hints and runtime platforms (GLFW 3.4+).
