@@ -180,9 +180,10 @@ nothrow @nogc:
     }
 
     /// Terminates XTB's process-global GLFW lifecycle. Every window created by
-    /// this system must already have been deinitialized. This calls
-    /// `glfwTerminate`, so external GLFW resources must not coexist with a live
-    /// WindowSystem.
+    /// this system must already have been deinitialized. Must not be called
+    /// while XTB is dispatching a window-system or window event callback. This
+    /// calls `glfwTerminate`, so external GLFW resources must not coexist with
+    /// a live WindowSystem.
     void deinit()
     {
         if (!initialized_)
@@ -233,7 +234,8 @@ nothrow @nogc:
 
     /// Sets the handler for process-level window-system events such as monitor
     /// connection changes. The handler runs synchronously during backend event
-    /// processing.
+    /// processing. Ordinary window commands may be called from the handler, but
+    /// it must not call `poll_events` or `deinit` on the WindowSystem.
     void set_event_handler(WindowSystemEventHandler handler) @system
     {
         version (XTB_Checked)
@@ -284,6 +286,7 @@ nothrow @nogc:
     /// per window. A batch includes callbacks delivered since the previous
     /// completed poll, including synchronous callbacks caused by other GLFW
     /// calls between polls. Event handlers run synchronously inside this call.
+    /// Must not be called from a window-system or window event callback.
     void poll_events() @system
     {
         version (XTB_Checked)

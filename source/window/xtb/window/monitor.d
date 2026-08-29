@@ -31,6 +31,9 @@ nothrow @nogc:
         return handle_ !is null;
     }
 
+    /// Returns a borrowed UTF-8 view owned by GLFW. The returned string is
+    /// valid only while this monitor remains connected and the owning
+    /// WindowSystem remains alive. Copy it if it must outlive that interval.
     String name() const @system
     {
         version (XTB_Checked)

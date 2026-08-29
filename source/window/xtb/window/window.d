@@ -203,8 +203,8 @@ nothrow @nogc:
     }
 
     /// Destroys this window and releases the Window allocation. The pointer is
-    /// invalid after this call. Window destruction is not permitted from an
-    /// event callback.
+    /// invalid after this call. Must not be called from this window's event
+    /// callback.
     void deinit() @system
     {
         if (handle_ is null)
@@ -487,6 +487,11 @@ nothrow @nogc:
             clear_fullscreen_restore();
     }
 
+    /// Sets the handler for this window's events. The handler runs
+    /// synchronously when GLFW reports an event. Ordinary window commands may
+    /// be called from the handler, but the handler must not destroy this window,
+    /// recursively call `WindowSystem.poll_events`, or deinitialize the owning
+    /// WindowSystem.
     void set_event_handler(WindowEventHandler handler) @system
     {
         event_handler_ = handler;

@@ -59,7 +59,14 @@ is a borrowed backend handle and must be reacquired after monitor disconnection.
 Monitor connection changes are delivered through `WindowSystemEventHandler` as
 `monitor_connected` and `monitor_disconnected` events. The monitor in a system
 event is borrowed; a disconnected monitor must not be retained or used after
-its event callback returns.
+its event callback returns. `Monitor.name()` likewise returns GLFW-owned
+borrowed storage that is valid only while the monitor remains connected and the
+owning `WindowSystem` remains alive.
+
+Window and window-system event handlers run synchronously. Ordinary window
+commands may be used from them. An event handler must not recursively call
+`WindowSystem.poll_events()`, deinitialize the owning `WindowSystem`, or destroy
+the window whose event callback is currently running.
 
 Invalid arguments and invalid object or graphics-context state are API
 contract violations rather than recoverable window errors. Checked builds
