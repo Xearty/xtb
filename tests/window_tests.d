@@ -86,6 +86,10 @@ private bool single_window_system_ownership(
 
 extern (C) int main() @system
 {
+    if (NativeWindowHandle.init.platform != NativeWindowPlatform.none ||
+        NativeDisplayHandle.init.platform != NativeWindowPlatform.none)
+        return 132;
+
     Allocator* allocator = mallocAllocator();
 
     WindowSystemConfig system_config;

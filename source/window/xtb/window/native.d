@@ -6,6 +6,7 @@ import xtb.types : u8;
 
 enum NativeWindowPlatform : u8
 {
+    none,
     win32,
     cocoa,
     wayland,
@@ -50,7 +51,7 @@ struct WaylandWindowHandle
 
 struct NativeDisplayHandle
 {
-    NativeWindowPlatform platform;
+    NativeWindowPlatform platform = NativeWindowPlatform.none;
     union
     {
         Win32DisplayHandle win32;
@@ -61,7 +62,7 @@ struct NativeDisplayHandle
 
 struct NativeWindowHandle
 {
-    NativeWindowPlatform platform;
+    NativeWindowPlatform platform = NativeWindowPlatform.none;
     union
     {
         Win32WindowHandle win32;
