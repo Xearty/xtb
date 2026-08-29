@@ -318,27 +318,38 @@ nothrow @nogc:
         if (handle_ is null)
             return typeof(return).err(window_error(WindowErrorKind.window_creation_failed));
 
-        const currently_fullscreen = glfwGetWindowMonitor(backend_handle()) !is null;
-        if (enabled == currently_fullscreen)
-            return typeof(return).ok();
+        GLFWmonitor* current_monitor = glfwGetWindowMonitor(backend_handle());
+        const currently_fullscreen = current_monitor !is null;
 
         if (enabled)
         {
             if (!target.valid)
             {
+                if (currently_fullscreen)
+                    return typeof(return).ok();
+
                 auto monitor_result = system_.primary_monitor();
                 if (monitor_result.isErr)
                     return typeof(return).err(monitor_result.takeError());
                 target = monitor_result.take();
             }
 
+            if (currently_fullscreen && target.backend_handle() is current_monitor)
+                return typeof(return).ok();
+
             auto mode_result = target.video_mode();
             if (mode_result.isErr)
                 return typeof(return).err(mode_result.takeError());
             const mode = mode_result.take();
 
-            const restore_position = position();
-            const restore_size = size();
+            WindowPosition restore_position;
+            WindowSize restore_size;
+            if (!currently_fullscreen)
+            {
+                restore_position = position();
+                restore_size = size();
+            }
+
             clear_glfw_error();
             glfwSetWindowMonitor(
                 handle_,
@@ -353,11 +364,17 @@ nothrow @nogc:
             if (status.isErr)
                 return status;
 
-            fullscreen_restore_position_ = restore_position;
-            fullscreen_restore_size_ = restore_size;
-            has_fullscreen_restore_ = true;
+            if (!currently_fullscreen)
+            {
+                fullscreen_restore_position_ = restore_position;
+                fullscreen_restore_size_ = restore_size;
+                has_fullscreen_restore_ = true;
+            }
             return typeof(return).ok();
         }
+
+        if (!currently_fullscreen)
+            return typeof(return).ok();
 
         version (XTB_Checked)
             require(has_fullscreen_restore_, "fullscreen restore state is unavailable");

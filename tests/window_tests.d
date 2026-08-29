@@ -101,6 +101,13 @@ extern (C) int main() @system
     if (mode.width != 1920 || mode.height != 1080 || mode.refresh_rate != 60)
         return 9;
 
+    auto secondary_result = system.monitor(1);
+    if (secondary_result.isErr)
+        return 120;
+    Monitor secondary = secondary_result.take();
+    if (!secondary.valid || secondary.name == primary.name)
+        return 121;
+
     WindowConfig invalid_config;
     invalid_config.width = 0;
     auto invalid_result = system.create_window(invalid_config);
@@ -184,6 +191,10 @@ extern (C) int main() @system
         first.set_cursor_mode(CursorMode.normal).isErr)
         return 108;
 
+    const restore_position = WindowPosition(23, 29);
+    if (first.set_position(restore_position).isErr)
+        return 122;
+
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
     auto failed_fullscreen = first.set_fullscreen(true, primary);
     if (!failed_fullscreen.isErr)
@@ -194,8 +205,29 @@ extern (C) int main() @system
         first.fullscreen)
         return 110;
 
-    if (first.set_fullscreen(true, primary).isErr || !first.fullscreen)
+    if (first.set_fullscreen(true, primary).isErr || !first.fullscreen ||
+        first.monitor.name != primary.name ||
+        !same_size(first.size, WindowSize(1920, 1080)))
         return 116;
+
+    fail_next_operation(FakeGLFWOperation.set_window_monitor);
+    auto failed_monitor_switch = first.set_fullscreen(true, secondary);
+    if (!failed_monitor_switch.isErr)
+        return 123;
+    const monitor_switch_error = failed_monitor_switch.takeError();
+    if (monitor_switch_error.kind != WindowErrorKind.backend_operation_failed ||
+        monitor_switch_error.backend_code != fake_platform_error ||
+        first.monitor.name != primary.name)
+        return 124;
+
+    if (first.set_fullscreen(true, secondary).isErr ||
+        first.monitor.name != secondary.name ||
+        !same_size(first.size, WindowSize(2560, 1440)))
+        return 125;
+
+    if (first.set_fullscreen(true).isErr || first.monitor.name != secondary.name)
+        return 126;
+
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
     auto failed_windowed = first.set_fullscreen(false);
     if (!failed_windowed.isErr)
@@ -203,10 +235,10 @@ extern (C) int main() @system
     const windowed_backend_error = failed_windowed.takeError();
     if (windowed_backend_error.kind != WindowErrorKind.backend_operation_failed ||
         windowed_backend_error.backend_code != fake_platform_error ||
-        !first.fullscreen)
+        !first.fullscreen || first.monitor.name != secondary.name)
         return 118;
     if (first.set_fullscreen(false).isErr || first.fullscreen ||
-        first.position != WindowPosition.init ||
+        first.position != restore_position ||
         !same_size(first.size, WindowSize(640, 360)))
         return 119;
 
