@@ -136,7 +136,6 @@ private struct FakeEvent
 
 private enum size_t max_windows = 32;
 private enum size_t max_events = 256;
-private enum int GLFW_LOCK_KEY_MODS = 0x00033004;
 
 private Hints hints;
 private FakeWindow[max_windows] windows;
@@ -1036,7 +1035,7 @@ extern (C) int glfwGetInputMode(G.GLFWwindow* window, int mode)
     FakeWindow* value = fake(window);
     if (mode == G.GLFW_CURSOR)
         return value.cursor_mode;
-    if (mode == GLFW_LOCK_KEY_MODS)
+    if (mode == G.GLFW_LOCK_KEY_MODS)
         return value.lock_key_modifiers ? G.GLFW_TRUE : G.GLFW_FALSE;
     return G.GLFW_FALSE;
 }
@@ -1048,7 +1047,7 @@ extern (C) void glfwSetInputMode(G.GLFWwindow* window, int mode, int value)
     FakeWindow* target = fake(window);
     if (mode == G.GLFW_CURSOR)
         target.cursor_mode = value;
-    else if (mode == GLFW_LOCK_KEY_MODS)
+    else if (mode == G.GLFW_LOCK_KEY_MODS)
         target.lock_key_modifiers = value == G.GLFW_TRUE;
 }
 

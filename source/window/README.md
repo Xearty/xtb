@@ -59,6 +59,11 @@ A native close request sets the window close flag before dispatching
 `window.set_should_close(false)`. `window.request_close()` is convenience sugar
 for setting the same flag to `true`.
 
+`WindowConfig.lock_key_modifiers` is `false` by default. Set it to `true` when
+key or mouse-button events need the current Caps Lock and Num Lock state in
+`KeyModifier.caps_lock` and `KeyModifier.num_lock`. Shift, Control, Alt, and Super
+modifiers are reported regardless of this option.
+
 ## OpenGL
 
 OpenGL support is an extension module in the same `xtb:window` library. Import

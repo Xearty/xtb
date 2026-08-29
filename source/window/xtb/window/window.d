@@ -40,6 +40,7 @@ struct WindowConfig
     bool decorated = true;
     bool focused = true;
     bool maximized = false;
+    bool lock_key_modifiers = false;
 }
 
 alias WindowEventFn = void function(
@@ -125,6 +126,18 @@ nothrow @nogc:
             const error = glfw_call_error(WindowErrorKind.window_creation_failed);
             return typeof(return).err(error.failed
                     ? error : window_error(WindowErrorKind.window_creation_failed));
+        }
+
+        if (config.lock_key_modifiers)
+        {
+            clear_glfw_error();
+            glfwSetInputMode(handle, GLFW_LOCK_KEY_MODS, GLFW_TRUE);
+            const input_mode_error = glfw_call_error(WindowErrorKind.backend_operation_failed);
+            if (input_mode_error.failed)
+            {
+                glfwDestroyWindow(handle);
+                return typeof(return).err(input_mode_error);
+            }
         }
 
         Window* window = allocator.tryAllocateInit!Window();

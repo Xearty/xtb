@@ -292,6 +292,46 @@ extern (C) int main() @system
     if (system.window_count != 1)
         return 23;
 
+    WindowConfig lock_config = config;
+    lock_config.lock_key_modifiers = true;
+
+    fail_next_operation(FakeGLFWOperation.set_input_mode);
+    auto failed_lock_result = system.create_window(lock_config);
+    if (!failed_lock_result.isErr)
+        return 129;
+    const lock_backend_error = failed_lock_result.takeError();
+    if (lock_backend_error.kind != WindowErrorKind.backend_operation_failed ||
+        lock_backend_error.backend_code != fake_platform_error ||
+        system.window_count != 1)
+        return 130;
+
+    auto lock_result = system.create_window(lock_config);
+    if (lock_result.isErr)
+        return 131;
+    Window* lock_window = lock_result.take();
+    EventLog lock_event_log;
+    lock_window.set_event_handler(WindowEventHandler(&record_event, &lock_event_log));
+    const enabled_lock_modifiers = cast(KeyModifier)(
+        cast(ubyte) KeyModifier.caps_lock |
+        cast(ubyte) KeyModifier.num_lock);
+    if (!queue_key(lock_window, Key.c, KeyAction.pressed, enabled_lock_modifiers) ||
+        !queue_mouse_button(
+            lock_window,
+            MouseButton.left,
+            KeyAction.pressed,
+            enabled_lock_modifiers) ||
+        system.poll_events().isErr ||
+        lock_event_log.count != 2 ||
+        lock_event_log.events[0].key_event.modifiers != enabled_lock_modifiers ||
+        lock_event_log.events[1].mouse_button_event.modifiers != enabled_lock_modifiers)
+    {
+        lock_window.deinit();
+        return 132;
+    }
+    lock_window.deinit();
+    if (system.window_count != 1)
+        return 133;
+
     EventLog event_log;
     first.set_event_handler(WindowEventHandler(&record_event, &event_log));
 
@@ -304,7 +344,11 @@ extern (C) int main() @system
         poll_backend_error.backend_code != fake_platform_error)
         return 115;
 
-    if (!queue_key(first, Key.a, KeyAction.pressed, KeyModifier.shift, 17) ||
+    const lock_modifiers = cast(KeyModifier)(
+        cast(ubyte) KeyModifier.shift |
+        cast(ubyte) KeyModifier.caps_lock |
+        cast(ubyte) KeyModifier.num_lock);
+    if (!queue_key(first, Key.a, KeyAction.pressed, lock_modifiers, 17) ||
         !queue_text(first, 'A') ||
         !queue_mouse_button(first, MouseButton.left, KeyAction.pressed, KeyModifier.control) ||
         !queue_cursor_position(first, 10, 5) ||
