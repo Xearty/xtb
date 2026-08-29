@@ -3,20 +3,21 @@ module xtb.window.window;
 nothrow @nogc:
 
 import xtb.memory : Allocator, deallocate, tryAllocateInit;
+import xtb.string : StringBuf;
+import xtb.thread_context : ScratchScope;
 import xtb.option : Option;
 import xtb.types : String, i32;
-import xtb.window.error : WindowError, WindowErrorKind, WindowResult, WindowStatus;
+import xtb.window.error : WindowError, WindowErrorKind, WindowResult;
 import xtb.window.event : BoolWindowEvent, ContentScale, CursorMovedEvent, KeyEvent,
     MouseButtonEvent, ScrollEvent, TextInputEvent, WindowEvent, WindowEventKind,
     WindowPosition, WindowSize;
 import xtb.window.input : CursorDelta, CursorMode, CursorPosition, Key, KeyState,
     MouseButton, MouseButtonState, ScrollDelta;
-import xtb.window.internal.c_string : prepare_c_string, release_c_string;
 import xtb.window.internal.create_options : BackendClientAPI, BackendGLContextCreationAPI,
     BackendGLProfile, BackendGLReleaseBehavior, BackendGLRobustness,
     BackendWindowCreateOptions;
 import xtb.window.internal.glfw;
-import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error, glfw_call_status;
+import xtb.window.internal.glfw_error : clear_glfw_error, consume_glfw_error, glfw_call_error;
 import xtb.window.internal.glfw_input : key_action_from_glfw, key_from_glfw,
     modifiers_from_glfw, mouse_button_from_glfw;
 import xtb.window.monitor : Monitor;
@@ -31,8 +32,8 @@ private WindowError window_error(WindowErrorKind kind) pure @safe
     return WindowError(kind);
 }
 
-/// Native window creation parameters. Width and height must be positive and
-/// the title must not contain embedded NUL bytes.
+/// Native window creation parameters. Width and height must be positive. The
+/// title must be valid UTF-8 without embedded NUL bytes.
 struct WindowConfig
 {
     i32 width = 1280;
@@ -99,13 +100,8 @@ nothrow @nogc:
             require(config.width > 0 && config.height > 0, "Window size must be positive");
         }
 
-        char[] title_storage;
-        const(char)* title;
-        const title_error = prepare_c_string(allocator, config.title, &title_storage, &title);
-        if (title_error.failed)
-            return typeof(return).err(title_error);
-        scope (exit)
-            release_c_string(allocator, title_storage);
+        ScratchScope scratch = ScratchScope.acquire();
+        StringBuf title = StringBuf.fromString(scratch.allocator, config.title);
 
         clear_glfw_error();
         glfwDefaultWindowHints();
@@ -123,7 +119,7 @@ nothrow @nogc:
         GLFWwindow* handle = glfwCreateWindow(
             config.width,
             config.height,
-            title,
+            title.checkedCString,
             null,
             backend_options.shared_context,
         );
@@ -229,24 +225,16 @@ nothrow @nogc:
         set_should_close(true);
     }
 
-    /// Changes the window title. The title must not contain embedded NUL bytes.
-    /// Temporary C-string allocation failure and unexpected backend failures
-    /// are reported to the caller.
-    WindowStatus set_title(scope String title) @system
+    /// Changes the window title. `title` must be valid UTF-8 without embedded
+    /// NUL bytes. Temporary native storage comes from the current thread's
+    /// scratch arena, so a thread context must be installed.
+    void set_title(scope String title) @system
     {
         require_live();
 
-        char[] storage;
-        const(char)* value;
-        const error = prepare_c_string(allocator_, title, &storage, &value);
-        if (error.failed)
-            return typeof(return).err(error);
-        scope (exit)
-            release_c_string(allocator_, storage);
-
-        clear_glfw_error();
-        glfwSetWindowTitle(backend_handle(), value);
-        return glfw_call_status(WindowErrorKind.backend_operation_failed);
+        ScratchScope scratch = ScratchScope.acquire();
+        StringBuf native = StringBuf.fromString(scratch.allocator, title);
+        glfwSetWindowTitle(backend_handle(), native.checkedCString);
     }
 
     /// Returns the global window position when the active platform exposes it.

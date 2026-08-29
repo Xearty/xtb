@@ -4,10 +4,12 @@ nothrow @nogc:
 
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
+import xtb.thread_context : ThreadContextScope;
 import xtb.window;
 
 extern (C) int main() @system
 {
+    ThreadContextScope thread_context = ThreadContextScope.acquire();
     Allocator* allocator = mallocAllocator();
 
     WindowSystemConfig system_config;

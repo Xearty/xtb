@@ -12,6 +12,7 @@ import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     seed_backend_error, set_default_content_scale, swap_count, swap_interval;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.memory : Allocator;
+import xtb.thread_context : ThreadContextScope;
 import xtb.window;
 import xtb.window.opengl;
 
@@ -115,6 +116,8 @@ private bool single_window_system_ownership(
 
 extern (C) int main() @system
 {
+    ThreadContextScope thread_context = ThreadContextScope.acquire();
+
     if (NativeWindowHandle.init.platform != NativeWindowPlatform.none ||
         NativeDisplayHandle.init.platform != NativeWindowPlatform.none)
         return 132;
@@ -228,17 +231,11 @@ extern (C) int main() @system
     if (!same_size(first.size, WindowSize(640, 360)))
         return 16;
 
-    if (first.set_title("headless renamed").isErr)
-        return 17;
+    static assert(is(typeof(first.set_title("headless renamed")) == void));
+    first.set_title("headless renamed");
 
     fail_next_operation(FakeGLFWOperation.set_window_title);
-    auto failed_title = first.set_title("backend failure");
-    if (!failed_title.isErr)
-        return 100;
-    const title_backend_error = failed_title.takeError();
-    if (title_backend_error.kind != WindowErrorKind.backend_operation_failed ||
-        title_backend_error.backend_code != fake_platform_error)
-        return 101;
+    first.set_title("backend failure");
 
     fail_next_operation(FakeGLFWOperation.set_window_position);
     first.set_position(WindowPosition(11, 13));

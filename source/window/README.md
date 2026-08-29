@@ -20,7 +20,10 @@ symbols. GLFW 3.4 and newer enable both Linux backends by default.
 
 ```d
 import xtb.allocators.malloc : mallocAllocator;
+import xtb.thread_context : ThreadContextScope;
 import xtb.window;
+
+ThreadContextScope thread_context = ThreadContextScope.acquire();
 
 auto system_result = WindowSystem.create(mallocAllocator());
 if (system_result.isErr)
@@ -64,12 +67,18 @@ contract violations rather than recoverable window errors. Checked builds
 validate these contracts; release-fast does not retain defensive branches for
 them. Runtime `WindowResult` / `WindowStatus` values are reserved for operations
 where failure is a normal and useful control-flow outcome, such as system/window
-creation, event polling, title allocation, and backend queries whose result must
-be trustworthy.
+creation, event polling, and backend queries whose result must be trustworthy.
 
-Ordinary window mutations are best-effort commands. `set_size`, `set_position`,
-`set_fullscreen`, and `set_cursor_mode` do not require platform-specific caller
-branches; an unavailable platform feature is simply left unchanged. Global
+Window creation and `set_title` use the current thread context's scratch arena
+to adapt UTF-8 `String` values to the temporary NUL-terminated strings GLFW
+requires. Install a `ThreadContextScope` before using those operations. GLFW
+copies titles before returning, so the temporary scratch storage never escapes
+the call. Titles must be valid UTF-8 without embedded NUL bytes.
+
+Ordinary window mutations are best-effort commands. `set_title`, `set_size`,
+`set_position`, `set_fullscreen`, and `set_cursor_mode` do not require
+platform-specific caller branches; an unavailable platform feature is simply
+left unchanged. Global
 window position is itself optional, so `window.position()` returns
 `Option!WindowPosition` and is `none` on platforms such as Wayland. Monitor
 lookup likewise returns an invalid `Monitor` when no matching monitor exists,

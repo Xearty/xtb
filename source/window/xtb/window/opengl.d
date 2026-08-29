@@ -270,7 +270,8 @@ bool opengl_extension_supported(Window* window, scope String name) @system
 }
 
 /// Creates a Window with an OpenGL/OpenGL ES context. The Window allocation
-/// uses the WindowSystem allocator.
+/// uses the WindowSystem allocator. Requires an installed thread context for
+/// temporary title conversion.
 WindowResult!(Window*) create_opengl_window(
     WindowSystem* system,
     WindowConfig window_config = WindowConfig.init,
@@ -287,7 +288,8 @@ WindowResult!(Window*) create_opengl_window(
     );
 }
 
-/// Allocator-selecting counterpart to `create_opengl_window`.
+/// Allocator-selecting counterpart to `create_opengl_window`. Requires an
+/// installed thread context for temporary title conversion.
 WindowResult!(Window*) create_opengl_window(
     WindowSystem* system,
     Allocator* allocator,

@@ -238,6 +238,8 @@ nothrow @nogc:
         event_handler_ = handler;
     }
 
+    /// Creates a native window. Requires an installed thread context for
+    /// temporary title conversion.
     WindowResult!(Window*) create_window(
         WindowConfig config = WindowConfig.init,
     ) @system
@@ -245,6 +247,8 @@ nothrow @nogc:
         return create_window(allocator_, config);
     }
 
+    /// Allocator-selecting counterpart to `create_window`. Requires an
+    /// installed thread context for temporary title conversion.
     WindowResult!(Window*) create_window(
         Allocator* allocator,
         WindowConfig config = WindowConfig.init,
