@@ -84,10 +84,13 @@ copies titles before returning, so the temporary scratch storage never escapes
 the call. Titles must be valid UTF-8 without embedded NUL bytes.
 
 Ordinary window mutations are best-effort commands. `set_title`, `set_size`,
-`set_position`, `show`, `hide`, `set_fullscreen`, and `set_cursor_mode` do not
-require platform-specific caller branches; an unavailable platform feature is
-simply left unchanged. `visible()` reports whether a window is currently visible;
-GLFW ignores `show` and `hide` for fullscreen windows. Global
+`set_position`, `show`, `hide`, `minimize`, `maximize`, `restore`,
+`set_fullscreen`, and `set_cursor_mode` do not require platform-specific caller
+branches; an unavailable platform feature is simply left unchanged. `visible()`
+reports whether a window is currently visible; GLFW ignores `show`, `hide`, and
+`maximize` for fullscreen windows. `fullscreen_monitor()` returns the monitor
+used for fullscreen presentation and is invalid for a windowed window; it does
+not locate a windowed window on the desktop. Global
 window position is itself optional, so `window.position()` returns
 `Option!WindowPosition` and is `none` on platforms such as Wayland. Monitor
 lookup likewise returns an invalid `Monitor` when no matching monitor exists,

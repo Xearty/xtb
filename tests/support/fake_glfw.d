@@ -16,6 +16,9 @@ enum FakeGLFWOperation : ubyte
     set_window_size,
     show_window,
     hide_window,
+    iconify_window,
+    maximize_window,
+    restore_window,
     get_window_content_scale,
     set_window_monitor,
     set_input_mode,
@@ -1119,6 +1122,54 @@ extern (C) void glfwHideWindow(G.GLFWwindow* window)
     FakeWindow* value = fake(window);
     if (value.monitor is null)
         value.visible = false;
+}
+
+extern (C) void glfwIconifyWindow(G.GLFWwindow* window)
+{
+    if (fail_operation(FakeGLFWOperation.iconify_window))
+        return;
+
+    FakeWindow* value = fake(window);
+    if (value.minimized)
+        return;
+
+    value.minimized = true;
+    if (value.window_iconify_callback !is null)
+        value.window_iconify_callback(window, G.GLFW_TRUE);
+}
+
+extern (C) void glfwMaximizeWindow(G.GLFWwindow* window)
+{
+    if (fail_operation(FakeGLFWOperation.maximize_window))
+        return;
+
+    FakeWindow* value = fake(window);
+    if (value.monitor !is null || value.maximized)
+        return;
+
+    value.maximized = true;
+    if (value.window_maximize_callback !is null)
+        value.window_maximize_callback(window, G.GLFW_TRUE);
+}
+
+extern (C) void glfwRestoreWindow(G.GLFWwindow* window)
+{
+    if (fail_operation(FakeGLFWOperation.restore_window))
+        return;
+
+    FakeWindow* value = fake(window);
+    if (value.minimized)
+    {
+        value.minimized = false;
+        if (value.window_iconify_callback !is null)
+            value.window_iconify_callback(window, G.GLFW_FALSE);
+    }
+    if (value.maximized)
+    {
+        value.maximized = false;
+        if (value.window_maximize_callback !is null)
+            value.window_maximize_callback(window, G.GLFW_FALSE);
+    }
 }
 
 extern (C) void glfwGetFramebufferSize(G.GLFWwindow* window, int* width, int* height)

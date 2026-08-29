@@ -361,13 +361,42 @@ nothrow @nogc:
         return glfwGetWindowAttrib(backend_handle(), GLFW_MAXIMIZED) == GLFW_TRUE;
     }
 
+    /// Requests that this window be minimized. A minimized fullscreen window
+    /// remains associated with its fullscreen monitor; restoring it resumes
+    /// the fullscreen video mode.
+    void minimize() @system
+    {
+        require_live();
+        glfwIconifyWindow(backend_handle());
+    }
+
+    /// Requests that this window be maximized. GLFW ignores this command for
+    /// fullscreen windows.
+    void maximize() @system
+    {
+        require_live();
+        glfwMaximizeWindow(backend_handle());
+    }
+
+    /// Requests restoration from minimized or maximized state. For a
+    /// minimized fullscreen window this restores the fullscreen video mode; it
+    /// does not leave fullscreen. Use `set_fullscreen(false)` for that.
+    void restore() @system
+    {
+        require_live();
+        glfwRestoreWindow(backend_handle());
+    }
+
     bool fullscreen() const @system
     {
         require_live();
         return glfwGetWindowMonitor(backend_handle()) !is null;
     }
 
-    Monitor monitor() const @system
+    /// Returns the monitor this window uses for fullscreen presentation, or an
+    /// invalid Monitor while the window is windowed. This does not identify
+    /// which monitor currently contains a windowed window.
+    Monitor fullscreen_monitor() const @system
     {
         require_live();
         return Monitor.from_backend(glfwGetWindowMonitor(backend_handle()));

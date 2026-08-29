@@ -398,9 +398,15 @@ extern (C) int main() @system
         return 12;
     if (first.visible)
         return 146;
+    if (first.fullscreen_monitor.valid)
+        return 173;
 
     static assert(is(typeof(first.show()) == void));
     static assert(is(typeof(first.hide()) == void));
+    static assert(is(typeof(first.minimize()) == void));
+    static assert(is(typeof(first.maximize()) == void));
+    static assert(is(typeof(first.restore()) == void));
+    static assert(is(typeof(first.fullscreen_monitor()) == Monitor));
 
     first.show();
     if (!first.visible)
@@ -431,6 +437,45 @@ extern (C) int main() @system
     first.hide();
     if (first.visible)
         return 154;
+
+    if (first.minimized || first.maximized)
+        return 161;
+
+    first.minimize();
+    if (!first.minimized || first.maximized)
+        return 162;
+
+    fail_next_operation(FakeGLFWOperation.restore_window);
+    first.restore();
+    if (!first.minimized)
+        return 163;
+
+    first.restore();
+    if (first.minimized || first.maximized)
+        return 164;
+
+    first.maximize();
+    if (first.minimized || !first.maximized)
+        return 165;
+
+    fail_next_operation(FakeGLFWOperation.restore_window);
+    first.restore();
+    if (!first.maximized)
+        return 166;
+
+    first.restore();
+    if (first.minimized || first.maximized)
+        return 167;
+
+    fail_next_operation(FakeGLFWOperation.iconify_window);
+    first.minimize();
+    if (first.minimized)
+        return 168;
+
+    fail_next_operation(FakeGLFWOperation.maximize_window);
+    first.maximize();
+    if (first.maximized)
+        return 169;
 
     if (!same_size(first.size, WindowSize(320, 240)))
         return 13;
@@ -525,7 +570,7 @@ extern (C) int main() @system
     first.set_fullscreen(true, primary);
     first.set_event_handler(WindowEventHandler.init);
     if (!nested_error_log.injected || !first.fullscreen ||
-        first.monitor.name != primary.name)
+        first.fullscreen_monitor.name != primary.name)
         return 158;
     first.set_fullscreen(false);
     if (first.fullscreen || !has_position(first, restore_position) ||
@@ -559,9 +604,22 @@ extern (C) int main() @system
         return 155;
 
     first.set_fullscreen(true, primary);
-    if (!first.fullscreen || first.monitor.name != primary.name ||
+    if (!first.fullscreen || first.fullscreen_monitor.name != primary.name ||
         !same_size(first.size, WindowSize(1920, 1080)))
         return 116;
+
+    first.maximize();
+    if (first.maximized || first.fullscreen_monitor.name != primary.name)
+        return 170;
+
+    first.minimize();
+    if (!first.minimized || !first.fullscreen ||
+        first.fullscreen_monitor.name != primary.name)
+        return 171;
+    first.restore();
+    if (first.minimized || !first.fullscreen ||
+        first.fullscreen_monitor.name != primary.name)
+        return 172;
 
     first.hide();
     if (!first.visible)
@@ -572,21 +630,21 @@ extern (C) int main() @system
 
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
     first.set_fullscreen(true, secondary);
-    if (first.monitor.name != primary.name)
+    if (first.fullscreen_monitor.name != primary.name)
         return 124;
 
     first.set_fullscreen(true, secondary);
-    if (first.monitor.name != secondary.name ||
+    if (first.fullscreen_monitor.name != secondary.name ||
         !same_size(first.size, WindowSize(2560, 1440)))
         return 125;
 
     first.set_fullscreen(true);
-    if (first.monitor.name != secondary.name)
+    if (first.fullscreen_monitor.name != secondary.name)
         return 126;
 
     fail_next_operation(FakeGLFWOperation.set_window_monitor);
     first.set_fullscreen(false);
-    if (!first.fullscreen || first.monitor.name != secondary.name)
+    if (!first.fullscreen || first.fullscreen_monitor.name != secondary.name)
         return 118;
 
     first.set_fullscreen(false);
@@ -600,7 +658,7 @@ extern (C) int main() @system
         fake_feature_unavailable,
     );
     first.set_fullscreen(true, primary);
-    if (!first.fullscreen || first.monitor.name != primary.name)
+    if (!first.fullscreen || first.fullscreen_monitor.name != primary.name)
         return 133;
     first.set_fullscreen(false);
     if (first.fullscreen || !same_size(first.size, WindowSize(640, 360)))
