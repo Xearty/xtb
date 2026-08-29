@@ -23,6 +23,13 @@ extern (C) int main() @system
     if (!system.initialized || system.platform != WindowPlatform.headless)
         return 2;
 
+    version (linux)
+    {
+        if (!WindowSystem.platform_compiled_in(WindowPlatform.x11) ||
+            !WindowSystem.platform_compiled_in(WindowPlatform.wayland))
+            return 7;
+    }
+
     WindowConfig window_config;
     window_config.width = 64;
     window_config.height = 64;

@@ -294,6 +294,9 @@ nothrow @nogc:
         return typeof(return).ok(Monitor.from_backend(monitors[index]));
     }
 
+    /// Returns the native display for the selected window-system backend.
+    /// On Linux, linking xtb.window requires GLFW to be built with both the X11
+    /// and Wayland backends because XTB references both native-access APIs.
     WindowResult!NativeDisplayHandle native_display_handle() const @system
     {
         version (XTB_Checked)

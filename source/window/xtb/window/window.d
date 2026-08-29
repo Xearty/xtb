@@ -543,6 +543,9 @@ nothrow @nogc:
         return glfw_call_status(WindowErrorKind.backend_operation_failed);
     }
 
+    /// Returns the native window handle for the selected window-system backend.
+    /// On Linux, linking xtb.window requires GLFW to be built with both the X11
+    /// and Wayland backends because XTB references both native-access APIs.
     WindowResult!NativeWindowHandle native_handle() const @system
     {
         require_live();
