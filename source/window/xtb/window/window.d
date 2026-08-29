@@ -981,8 +981,9 @@ private extern (C) void on_window_focus(GLFWwindow* handle, int focused) nothrow
     if (window is null)
         return;
     WindowEvent event;
-    event.kind = WindowEventKind.focus_changed;
-    event.state = BoolWindowEvent(focused == GLFW_TRUE);
+    event.kind = focused == GLFW_TRUE
+        ? WindowEventKind.focus_gained
+        : WindowEventKind.focus_lost;
     window.dispatch(&event);
 }
 

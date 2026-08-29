@@ -401,6 +401,7 @@ extern (C) int main() @system
         event_log.events[2].mouse_button_event.button != MouseButton.left ||
         event_log.events[2].mouse_button_event.modifiers != KeyModifier.control ||
         event_log.events[7].kind != WindowEventKind.cursor_entered ||
+        event_log.events[8].kind != WindowEventKind.focus_lost ||
         event_log.events[14].kind != WindowEventKind.minimized_changed)
         return 31;
 
@@ -411,7 +412,8 @@ extern (C) int main() @system
         !queue_mouse_button(first, MouseButton.right, KeyAction.pressed) ||
         !queue_mouse_button(first, MouseButton.right, KeyAction.released) ||
         !queue_cursor_enter(first, false) ||
-        !queue_cursor_position(first, 15, 10))
+        !queue_cursor_position(first, 15, 10) ||
+        !queue_focus(first, true))
         return 32;
 
     if (system.poll_events().isErr)
@@ -431,7 +433,9 @@ extern (C) int main() @system
         return 36;
     if (first.cursor_inside || first.cursor_entered || !first.cursor_left ||
         first.cursor_delta.x != 2 || first.cursor_delta.y != 1 ||
-        event_log.events[21].kind != WindowEventKind.cursor_left)
+        event_log.events[21].kind != WindowEventKind.cursor_left ||
+        event_log.events[23].kind != WindowEventKind.focus_gained ||
+        !first.focused)
         return 37;
     if (first.scrolled || first.scroll_delta.x != 0 || first.scroll_delta.y != 0)
         return 38;
