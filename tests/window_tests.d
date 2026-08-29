@@ -106,7 +106,7 @@ extern (C) int main() @system
 
     if (!system.initialized || system.platform != WindowPlatform.headless)
         return 3;
-    if (!WindowSystem.platform_supported(WindowPlatform.headless))
+    if (!WindowSystem.platform_compiled_in(WindowPlatform.headless))
         return 4;
     if (system.monitor_count != 2)
         return 5;

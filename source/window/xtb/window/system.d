@@ -184,10 +184,16 @@ nothrow @nogc:
         return window_platform(glfwGetPlatform());
     }
 
-    static bool platform_supported(WindowPlatform platform) @system
+    /// Returns whether the linked GLFW binary was compiled with support for
+    /// `platform`. This does not imply that the platform is usable in the
+    /// current environment. `automatic` is not a concrete platform.
+    static bool platform_compiled_in(WindowPlatform platform) @system
     {
+        version (XTB_Checked)
+            require(platform != WindowPlatform.automatic,
+                "automatic is not a concrete window platform");
         if (platform == WindowPlatform.automatic)
-            return true;
+            return false;
         return glfwPlatformSupported(glfw_platform(platform)) == GLFW_TRUE;
     }
 
