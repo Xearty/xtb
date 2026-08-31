@@ -1,6 +1,7 @@
 module tests.core_tests;
 
 import xtb.types;
+import xtb : DataStruct;
 import xtb.numeric;
 import xtb.duration;
 import xtb.panic : panic;
@@ -34,6 +35,41 @@ import xtb.diagnostics.demangle;
 import xtb.diagnostics.stacktrace_style;
 import xtb.diagnostics.stacktrace;
 import xtb.diagnostics.crash;
+
+private struct DataStructConfig {
+    i32 width;
+    i32 height;
+
+    mixin DataStruct;
+}
+
+static assert(__traits(compiles,
+    DataStructConfig(width: 800, height: 600)));
+static assert(!__traits(compiles,
+    DataStructConfig(width: 800)));
+static assert(!__traits(compiles, () { DataStructConfig config; }));
+
+private struct OwningDataStruct {
+    StringBuf text;
+    Array!i32 values;
+
+    mixin DataStruct;
+
+    void deinit() {
+        this.text.deinit();
+        this.values.deinit();
+    }
+}
+
+static assert(__traits(compiles, () @system {
+    StringBuf text = StringBuf.init;
+    Array!i32 values = Array!i32.init;
+    OwningDataStruct config = OwningDataStruct(
+        text: move(text),
+        values: move(values),
+    );
+    config.deinit();
+}));
 
 static assert(__traits(hasMember, StringBuf, "append"));
 static assert(__traits(hasMember, Array!int, "append"));

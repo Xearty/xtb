@@ -1,5 +1,6 @@
 module xtb;
 public import xtb.types;
+public import xtb.data_struct;
 public import xtb.numeric;
 public import xtb.duration;
 public import xtb.metadata;

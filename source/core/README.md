@@ -1,8 +1,12 @@
 # core
 
 `core` is XTB's base subpackage. `import xtb;` exposes allocators, containers,
-strings and UTF-8 helpers, formatting, `Option`, `Result`, durations, flags,
-ANSI helpers, and other low-level utilities.
+strings and UTF-8 helpers, formatting, `Option`, `Result`, `DataStruct`,
+durations, flags, ANSI helpers, and other low-level utilities.
+
+`mixin DataStruct;` gives a data-carrying struct a consuming memberwise
+constructor that requires every field. D's explicit `Type.init` escape hatch
+remains available.
 
 Useful documentation:
 
