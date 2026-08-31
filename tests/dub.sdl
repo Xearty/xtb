@@ -171,6 +171,14 @@ configuration "test-window-glfw" {
     subConfiguration "xtb:window" "glfw"
 }
 
+configuration "test-opengl" {
+    targetType "executable"
+    targetName "opengl_tests"
+    targetPath "../build/test/$XTB_TEST_MODE"
+    mainSourceFile "opengl_tests.d"
+    dependency "xtb:opengl" version="*"
+}
+
 configuration "test-serde" {
     targetType "executable"
     targetName "serde_tests"

@@ -159,11 +159,12 @@ D UFCS, so `window.swap_buffers()` does not make OpenGL part of the base
 `Window` API. This also lets an application choose its renderer at runtime while
 using the same `Window*` type after creation.
 
-XTB does not provide OpenGL function declarations or a loader; use
-`window.opengl_proc_address()` with the OpenGL binding/loader chosen by the
-application. Procedure lookup returns `null` when a symbol is unavailable and
-`opengl_extension_supported()` returns a plain `bool`. The default configuration
-requests desktop OpenGL 3.3 core. For OpenGL ES, start from
+The optional [`xtb:opengl`](../opengl/README.md) subpackage provides desktop
+OpenGL declarations and runtime function loading. Applications may instead use
+`window.opengl_proc_address()` with another binding or loader. Procedure lookup
+returns `null` when a symbol is unavailable and `opengl_extension_supported()`
+returns a plain `bool`. The default configuration requests desktop OpenGL 3.3
+core. For OpenGL ES, start from
 `OpenGLConfig.opengl_es()`, which requests OpenGL ES 3.0 and clears desktop-only
 profile requirements. Contexts may share objects by setting
 `share_context_with` to another OpenGL window; both windows must belong to the

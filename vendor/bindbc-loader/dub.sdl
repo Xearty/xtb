@@ -1,0 +1,17 @@
+name "bindbc-loader"
+description "Cross-platform shared library loader usable with BetterC."
+license "BSL-1.0"
+authors "Aya Partridge" "Mike Parker"
+
+targetType "staticLibrary"
+targetPath "lib"
+targetName "BindBC_Loader"
+libs "dl" platform="linux"
+
+configuration "noBC" {
+
+}
+
+configuration "yesBC" {
+	buildOptions "betterC"
+}

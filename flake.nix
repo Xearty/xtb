@@ -80,7 +80,7 @@
     in rec {
       default = xtb;
       source = pkgs.runCommand "xtb-source" {src = projectSource;} ''
-        mkdir -p "$out/include/xtb"
+        mkdir -p "$out/include/xtb" "$out/include/bindbc"
         cp -R "$src/source/core/xtb/." "$out/include/xtb/"
         for feature in "$src"/source/*; do
           if [ "$feature" = "$src/source/core" ] || [ ! -d "$feature/xtb" ]; then
@@ -88,6 +88,8 @@
           fi
           cp -R "$feature/xtb/." "$out/include/xtb/"
         done
+        cp -R "$src/vendor/bindbc-opengl/source/bindbc/." "$out/include/bindbc/"
+        cp -R "$src/vendor/bindbc-loader/source/bindbc/." "$out/include/bindbc/"
       '';
       xtb = pkgs.stdenv.mkDerivation {
         pname = "xtb";
@@ -109,7 +111,7 @@
         '';
         installPhase = ''
           runHook preInstall
-          mkdir -p $out/include
+          mkdir -p $out/include/bindbc
           for mode in debug release-safe release-fast; do
             mkdir -p "$out/lib/$mode"
             cp build/"$mode"/libxtb*.a "$out/lib/$mode/"
@@ -121,6 +123,8 @@
             fi
             cp -R "$feature/xtb/." $out/include/xtb/
           done
+          cp -R vendor/bindbc-opengl/source/bindbc/. $out/include/bindbc/
+          cp -R vendor/bindbc-loader/source/bindbc/. $out/include/bindbc/
           runHook postInstall
         '';
       };
@@ -181,11 +185,17 @@
         ];
         buildInputs =
           [pkgs.glfw]
-          ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [libbacktrace];
+          ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+            libbacktrace
+            pkgs.libglvnd
+          ];
 
         shellHook = ''
           export XTB_LIBRARY_OUTPUT_DIR=''${XTB_LIBRARY_OUTPUT_DIR:-"$PWD/build"}
           export XTB_DIAGNOSTICS_NATIVE_ARCHIVE=${lib.optionalString pkgs.stdenv.hostPlatform.isLinux "${libbacktrace}/lib/libbacktrace.a"}
+          ${lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+            export LD_LIBRARY_PATH=${lib.makeLibraryPath [pkgs.libglvnd]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          ''}
           echo "xtb BetterC shell: $(ldc2 --version | head -n 1)"
         '';
       };
