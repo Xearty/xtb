@@ -57,6 +57,13 @@ configuration "math-demo" {
     mainSourceFile "math_demo.d"
 }
 
+configuration "window-opengl-demo" {
+    targetType "executable"
+    targetName "window_opengl_demo"
+    targetPath "../build/examples"
+    mainSourceFile "window_opengl_demo.d"
+}
+
 configuration "fs-demo" {
     targetType "executable"
     targetName "fs_demo"

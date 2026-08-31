@@ -4,6 +4,7 @@ set script-interpreter := ["bash", "-eu", "-o", "pipefail"]
 d_files := `find source tools tests examples benchmarks -type f -name '*.d' -print | sort | tr '\n' ' '`
 subpackages := `for recipe in source/*/dub.sdl; do sed -n 's/^name "\([^"]*\)".*/\1/p' "$recipe" | head -n 1; done | sort | tr '\n' ' '`
 example_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' examples/dub.sdl | tr '\n' ' '`
+interactive_example_configurations := "window-opengl-demo"
 benchmark_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' benchmarks/dub.sdl | tr '\n' ' '`
 test_configurations := `sed -n 's/^configuration "\([^"]*\)".*/\1/p' tests/dub.sdl | tr '\n' ' '`
 library_output_dir := env_var_or_default("XTB_LIBRARY_OUTPUT_DIR", "build")
@@ -303,6 +304,8 @@ run-example name *tail:
     just --justfile "{{ justfile() }}" --working-directory "{{ consumer_project_dir }}" \
         _dispatch run example "$name" "$mode" -- "$@"
 
+# Bulk runs skip examples that wait for user input or a window-system event.
+# They remain directly runnable and are still included in bulk builds.
 build-examples mode="debug": (_dispatch "build" "example" "all" mode)
 run-examples mode="debug": (_dispatch "run" "example" "all" mode)
 
@@ -492,6 +495,10 @@ _dispatch action kind name mode *program_args:
                     exit 2
                 fi
                 for config in {{ example_configurations }}; do
+                    if [[ "$action" == run ]] && contains "$config" {{ interactive_example_configurations }}; then
+                        echo "Skip interactive example ${config%-demo}"
+                        continue
+                    fi
                     build_or_run_example "$action" "${config%-demo}"
                 done
             else

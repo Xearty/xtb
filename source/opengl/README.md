@@ -5,6 +5,10 @@ and a process-global runtime loader. It is intended for XTB's renderer and for
 applications that want a ready binding; applications remain free to use a
 different OpenGL binding with `xtb.window.opengl_proc_address`.
 
+See the runnable [`window_opengl_demo.d`](../../examples/window_opengl_demo.d)
+for a minimal window and colored-triangle render loop. Run it with
+`just run example window-opengl`.
+
 Create and make an OpenGL context current before loading functions:
 
 ```d
