@@ -55,6 +55,7 @@ subPackage "source/diagnostics"
 subPackage "examples"
 subPackage "benchmarks"
 subPackage "tests"
+subPackage "tests/zero_cost"
 subPackage "tools/compose"
 
 dependency ":core" version="*"

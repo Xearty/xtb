@@ -316,6 +316,20 @@ test-release-fast: (_test "release-fast")
 test-release: test-release-safe
 test-sanitize: (_test "asan")
 
+# Verify release-fast abstractions against their generated executables. These
+# checks inspect compiler output and intentionally remain separate from tests
+# of program behavior and from timing benchmarks.
+[script]
+check-zero-cost:
+    echo "Checking zero-cost abstractions"
+    export XTB_LIBRARY_OUTPUT_DIR="$(mkdir -p build/zero-cost/libraries && cd build/zero-cost/libraries && pwd -P)"
+    export DFLAGS="${DFLAGS:+$DFLAGS }-boundscheck=off"
+    dub build :zero-cost-tests {{ dub_options }} --parallel \
+        --build=zero-cost-release-fast \
+        --config=contracts
+    bash tests/zero_cost/verify_contracts.sh \
+        build/zero-cost/contract_tests
+
 # Run the routine local verification matrix.
 check: format-check lint _check-build-debug _check-build-release-safe _check-build-release-fast _check-compose-diagnostics test test-optimized test-release-safe test-release-fast test-sanitize run-examples
 

@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.stdlib : abort, exit;
 import core.stdc.stdio : FILE, fflush, fwrite, stderr;
-import xtb.types : String;
+import xtb.types;
 
 alias PanicHandler = void function(String message, void* context);
 
@@ -53,7 +53,7 @@ noreturn panic(String message)
     abort();
 }
 
-private void append(ref char[1024] buffer, ref size_t length, String value)
+private void append(ref char[1024] buffer, ref usize length, String value)
 {
     const available = buffer.length - length;
     const amount = value.length < available ? value.length : available;
@@ -62,10 +62,10 @@ private void append(ref char[1024] buffer, ref size_t length, String value)
     length += amount;
 }
 
-private void appendDecimal(ref char[1024] buffer, ref size_t length, size_t value)
+private void appendDecimal(ref char[1024] buffer, ref usize length, usize value)
 {
     char[32] digits;
-    size_t begin = digits.length;
+    usize begin = digits.length;
     do
     {
         digits[--begin] = cast(char)('0' + value % 10);
@@ -75,10 +75,10 @@ private void appendDecimal(ref char[1024] buffer, ref size_t length, size_t valu
     append(buffer, length, digits[begin .. $]);
 }
 
-private noreturn panicAt(String message, String file, size_t line)
+private noreturn panicAt(String message, String file, usize line)
 {
     char[1024] buffer;
-    size_t length;
+    usize length;
     append(buffer, length, message);
     append(buffer, length, " (");
     append(buffer, length, file);
@@ -90,25 +90,45 @@ private noreturn panicAt(String message, String file, size_t line)
     panic(buffer[0 .. length]);
 }
 
-version (XTB_Checked)
-{
+version (XTB_Checked) {
     /// Enforces a programmer contract in checked builds.
-    ///
-    /// Call sites must also be guarded by `version (XTB_Checked)` so the
-    /// condition and message are not evaluated in release-fast builds.
-    void require(string file = __FILE__, size_t line = __LINE__)(
+    void require(string file = __FILE__, usize line = __LINE__)(
         bool condition,
         String message,
-    ) @trusted
-    {
-        if (!condition)
+    ) @trusted {
+        if (!condition) {
             panicAt(message, file, line);
+        }
+    }
+
+    /// Verifies an implementation guarantee in checked builds.
+    void ensure(string file = __FILE__, usize line = __LINE__)(
+        bool condition,
+        String message,
+    ) @trusted {
+        if (!condition) {
+            panicAt(message, file, line);
+        }
+    }
+} else {
+    /// Omits a programmer contract and its arguments in unchecked builds.
+    void require(string file = __FILE__, usize line = __LINE__)(
+        lazy bool,
+        lazy String,
+    ) @trusted {
+    }
+
+    /// Omits an implementation guarantee and its arguments in unchecked builds.
+    void ensure(string file = __FILE__, usize line = __LINE__)(
+        lazy bool,
+        lazy String,
+    ) @trusted {
     }
 }
 
 noreturn unreachableCode(
     string file = __FILE__,
-    size_t line = __LINE__,
+    usize line = __LINE__,
 )() @trusted
 {
     panicAt("unreachable code reached", file, line);

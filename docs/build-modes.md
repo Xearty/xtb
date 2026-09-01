@@ -28,6 +28,17 @@ just run example cli release-safe -- --help
 preconditions: invalid indices, foreign pointers, invalid ownership/state
 transitions, and similar misuse. These checks normally panic when violated.
 
+Use `require` for caller preconditions and `ensure` for implementation
+postconditions and invariants. They invoke XTB's panic handler when they fail in
+a checked build. In `release-fast`, their operands are lazy and are not
+evaluated; the optimizer and linker remove their checking code and diagnostic
+strings. Contract operands must therefore only inspect already-computed state
+and must never perform work required by the program.
+
+The contract functions own their build-mode behavior, so they may be imported
+and called without a `version (XTB_Checked)` guard. Existing guarded call sites
+may be migrated independently.
+
 `release-fast` removes checked-only diagnostics, so callers must satisfy the
 documented preconditions. It does **not** turn ordinary failures into unchecked
 behavior. Fallible APIs still report allocation, parsing, CLI, and operating

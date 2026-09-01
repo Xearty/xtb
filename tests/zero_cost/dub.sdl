@@ -1,0 +1,20 @@
+name "zero-cost-tests"
+description "Compiler-output checks for XTB zero-cost abstractions"
+license "BSL-1.0"
+targetType "none"
+importPaths "../.." "../../source"
+buildOptions "betterC"
+buildRequirements "disallowDeprecations"
+dflags "-preview=dip1000" platform="ldc"
+
+buildType "zero-cost-release-fast" {
+    buildOptions "releaseMode" "optimize" "inline"
+}
+
+configuration "contracts" {
+    targetType "executable"
+    targetName "contract_tests"
+    targetPath "../../build/zero-cost"
+    mainSourceFile "contracts.d"
+    dependency "xtb:core" version="*"
+}

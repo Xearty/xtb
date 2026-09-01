@@ -16,6 +16,7 @@ Useful documentation:
 - [Instrumented allocator](docs/instrumented-allocator.md)
 - [Thread context and scratch arenas](docs/thread-context.md)
 - [Ownership and lifetimes](docs/ownership.md)
+- [Contracts](docs/contracts.md)
 - [Container ownership](docs/containers.md)
 - [Strings](docs/strings.md)
 - [Option and Result](docs/option-result.md)

@@ -6,7 +6,7 @@ import xtb.numeric;
 import xtb.duration;
 import xtb.panic : panic;
 
-version (XTB_Checked) import xtb.panic : require;
+version (XTB_Checked) import xtb.panic : ensure, require;
 import xtb.metadata;
 import xtb.slice;
 import xtb.memory;
@@ -145,6 +145,9 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "panic"))
         version (XTB_Checked)
             require(false, "intentional death test");
+    if (cStringEqual(name, "ensure"))
+        version (XTB_Checked)
+            ensure(false, "intentional ensure death test");
     if (cStringEqual(name, "numeric-clamp"))
         clamp(0, 1, 0);
     if (cStringEqual(name, "numeric-overflow"))
@@ -681,6 +684,7 @@ extern (C) int main(int argumentCount, char** arguments)
         assert(workerAllocator is mallocAllocator());
 
         expectDeath(arguments[0], "panic");
+        expectDeath(arguments[0], "ensure");
         expectDeath(arguments[0], "numeric-clamp");
         expectDeath(arguments[0], "numeric-overflow");
         expectDeath(arguments[0], "duration-negative");
