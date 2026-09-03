@@ -52,3 +52,5 @@ just check
 ```
 
 See [build modes](docs/build-modes.md) for the exact differences.
+
+Contributors should follow the [XTB style guide](docs/style-guide.md).

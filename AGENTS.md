@@ -24,22 +24,17 @@ to relevant examples or guides. Put subpackage-specific user guides in
 Do not use user documentation for design plans, implementation logs, or project
 history.
 
+Before modifying handwritten D code, read `docs/style-guide.md` in full and
+follow it. It is the single source of truth for naming, formatting, declaration
+layout, and API-expression conventions. When nearby legacy code conflicts with
+the guide, follow the guide without reformatting or renaming unrelated code.
+
 Before changing public APIs, inspect their existing call sites.
 
 ## Implementation constraints
 
 - Do not introduce dependencies on the garbage collector.
 - Do not use exceptions, `TypeInfo`, classes, or runtime reflection.
-- Prefer slices for borrowed contiguous data. Function parameters that mutate
-  caller-owned values use explicit pointers. Owning structs expose their
-  ordinary receiver-owned operations as member methods, so mutation remains
-  discoverable without synthetic UFCS adapters. Document and validate pointer
-  nullability at actual pointer boundaries.
-- Use `scope const` for borrowed input that must not escape or mutate. Use
-  `return scope` deliberately; do not use `in` as a blanket substitute. Do not
-  use `ref` for ordinary mutable parameters; reserve it for language-required
-  hooks, tightly scoped internals, or genuine free algorithms whose receiver is
-  not an owning type.
 - Put `@safe`, `pure`, `nothrow`, and `@nogc` on public APIs when their actual
   contracts permit it. Keep unavoidable `@system` code in small boundary
   modules and document its invariants.
@@ -49,21 +44,10 @@ Before changing public APIs, inspect their existing call sites.
   API panics only for an explicit panic path that remains in every supported
   build; do not describe `XTB_Checked` contract enforcement as an unconditional
   panic guarantee or repeat the build-mode mechanics on every API.
-- Give every owning struct explicit `create`/`deinit` behavior, make zero state
-  valid when practical, and document whether copying is allowed. When an
-  explicit-lifetime local is intentionally kept until the end of the current
-  lexical scope, put its `scope (exit)` cleanup immediately after the
-  declaration/acquisition it protects. Keep a one-statement cleanup on the same
-  line, for example `scope (exit) value.deinit();`. Do not add such a guard when
-  ownership is moved/released or otherwise ended earlier, and do not duplicate
-  cleanup already owned by a genuine RAII guard.
-- Do not declare a member named `init`; preserve D's built-in `Type.init`
-  property. Use `create`, `withCapacity`, `fromX`, or `acquire` according to
-  whether the operation constructs, preallocates, converts, or acquires a
-  scoped resource.
-- Use `snake_case` for modules and filenames, `PascalCase` for types, and
-  `camelCase` for functions and variables. Follow D's standard naming for
-  compile-time values and enum members unless a foreign ABI dictates names.
+- Give every owning struct explicit construction and deinitialization behavior,
+  make zero state valid when practical, document whether copying is allowed,
+  and balance every explicit lifetime. Do not duplicate cleanup already owned
+  by a genuine RAII guard.
 - Avoid module constructors, mutable process-wide state, and hidden persistent
   allocator selection. Scratch and the optional current logger use the TLS
   thread context that the thread explicitly installs through
@@ -83,33 +67,28 @@ Before changing public APIs, inspect their existing call sites.
   to/return `StringBuf`, and every returned view documents its lifetime.
 - Use `String` everywhere string bytes are not intentionally mutated. Do not
   substitute raw `const(char)[]`, D `string`, or C pointers in ordinary APIs.
-- Use short operation names (`append`, `reserve`, `clear`) rather than
-  type-prefixed names. Put receiver-owned operations on owning structs as real
-  members for compiler/LSP discoverability. Keep free functions for algorithms
-  over borrowed/native representations (such as `String`) and for operations
-  that genuinely combine unrelated types.
 - Handwrite managed-container APIs in the same module as their unmanaged
   storage; do not generate forwarding declarations with mixins or reflection.
   Managed structs contain ownership fields, static factories, ordinary member
   operations, a mutable-only `Allocator* allocator()` member, and D-required
   hooks. D automatically permits member calls through a non-null struct
   pointer; checked builds use a struct invariant to reject a null receiver.
-  Guard every
-  `require` import and call with `version (XTB_Checked)` so release-fast does
-  not evaluate contract expressions. When several `require` calls are
-  adjacent, put them in one scoped `version (XTB_Checked) { ... }` block.
-  Conditions passed to `require` must only inspect already-computed state:
-  never put necessary computation, mutation,
-  or output initialization inside a removable contract. See
+  Use `require` for caller obligations and `ensure` for implementation
+  guarantees. Their operands are not evaluated in release-fast, even without
+  an explicit `version (XTB_Checked)` guard; existing guarded call sites may be
+  migrated separately. Contract operands must only inspect already-computed
+  state: never put necessary computation, mutation, or output initialization
+  inside a removable contract. Do not use D's runtime `assert` outside unit
+  tests or test programs; `static assert` remains valid. See
   `docs/build-modes.md`.
 - Re-export stable public modules from the corresponding public `package.d` so
   consumers can use short imports. Keep implementation imports focused and do
   not put implementation code in `package.d`.
-- Use the narrowest D protection boundary that fits an internal API. Prefer
-  `private` for same-module implementation details and `package(xtb.<domain>)`
-  for helpers shared only within one namespace. Reserve `package(xtb)` for
-  intentional XTB-internal bridges that must cross sibling namespaces; do not
-  use it as a default friend mechanism.
+- For non-field declarations, use the narrowest D protection boundary that
+  fits an internal API. Prefer `private` for same-module implementation details
+  and `package(xtb.<domain>)` for helpers shared only within one namespace.
+  Reserve `package(xtb)` for intentional XTB-internal bridges that must cross
+  sibling namespaces; do not use it as a default friend mechanism.
 - Preserve the existing public API unless the task explicitly requires a change.
 - Keep allocator vocabulary explicit: `allocate!T()` is raw storage for one
   object, `allocateArray!T(n)` returns raw array storage as a slice,
@@ -120,7 +99,6 @@ Before changing public APIs, inspect their existing call sites.
   arena allocations; `clear`/`deinit` do not run element destructors. Stateful
   allocator adapters expose their `Allocator*` consistently as `.allocator`.
 - Avoid allocations in formatting and low-level utility code.
-- Follow the formatting and naming conventions of nearby code.
 
 ## Testing workflow
 
