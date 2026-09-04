@@ -18,5 +18,5 @@ extern (C) int main()
     if (after < before)
         return 1;
 
-    return after.since(before).totalNanoseconds <= after.nanoseconds ? 0 : 1;
+    return after.since(before).total_nanoseconds <= after.nanoseconds ? 0 : 1;
 }

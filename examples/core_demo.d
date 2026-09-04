@@ -40,7 +40,7 @@ extern (C) int main() nothrow @nogc
         formatln!"permission bit position: {}"(cast(int) permission);
 
     const timeout = milliseconds(2_000);
-    formatln!"timeout: {} ms"(timeout.wholeMilliseconds);
+    formatln!"timeout: {} ms"(timeout.whole_milliseconds);
 
     String text = "Aé🙂";
     formatln!"text bytes={}, code points={}"(

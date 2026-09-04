@@ -63,7 +63,7 @@ nothrow @nogc:
 
     static Timeout after(Duration duration) pure @safe
     {
-        return duration.isZero
+        return duration.is_zero
             ? immediate() : Timeout(TimeoutKind.finite, duration);
     }
 
@@ -100,7 +100,7 @@ nothrow @nogc:
 /// Panics if the platform unexpectedly cannot perform the sleep.
 void sleep(Duration duration) @trusted
 {
-    if (sleepNanoseconds(duration.totalNanoseconds).failed)
+    if (sleepNanoseconds(duration.total_nanoseconds).failed)
         panic("failed to sleep");
 }
 
@@ -200,5 +200,5 @@ unittest
     sleep(milliseconds(1));
     const after = Instant.now();
     assert(after >= before);
-    assert(after.since(before).totalNanoseconds <= after.nanoseconds);
+    assert(after.since(before).total_nanoseconds <= after.nanoseconds);
 }

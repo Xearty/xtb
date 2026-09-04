@@ -2,181 +2,202 @@ module xtb.duration;
 
 nothrow @nogc:
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.types : u64;
+import xtb.panic;
+import xtb.types;
 
-enum u64 nanosecondsPerMicrosecond = 1_000;
-enum u64 nanosecondsPerMillisecond = 1_000_000;
-enum u64 nanosecondsPerSecond = 1_000_000_000;
-enum u64 nanosecondsPerMinute = 60 * nanosecondsPerSecond;
-enum u64 nanosecondsPerHour = 60 * nanosecondsPerMinute;
-enum u64 nanosecondsPerDay = 24 * nanosecondsPerHour;
+enum u64 nanoseconds_per_microsecond = 1_000;
+enum u64 nanoseconds_per_millisecond = 1_000_000;
+enum u64 nanoseconds_per_second = 1_000_000_000;
+enum u64 nanoseconds_per_minute = 60 * nanoseconds_per_second;
+enum u64 nanoseconds_per_hour = 60 * nanoseconds_per_minute;
+enum u64 nanoseconds_per_day = 24 * nanoseconds_per_hour;
 
-private enum bool isDurationCount(T) =
-    is(T == byte) || is(T == short) || is(T == int) || is(T == long) ||
-    is(T == ubyte) || is(T == ushort) || is(T == uint) || is(T == ulong);
+private enum bool is_duration_count(T) = is(T == i8)
+    || is(T == i16)
+    || is(T == i32)
+    || is(T == i64)
+    || is(T == u8)
+    || is(T == u16)
+    || is(T == u32)
+    || is(T == u64);
 
-private enum bool isSignedDurationCount(T) =
-    is(T == byte) || is(T == short) || is(T == int) || is(T == long);
+private enum bool is_signed_duration_count(T) = is(T == i8)
+    || is(T == i16)
+    || is(T == i32)
+    || is(T == i64);
 
 /// A finite, nonnegative span of time with nanosecond resolution.
+///
+/// Arithmetic operands and unit counts must produce a representable duration.
+/// Signed counts must be nonnegative, and divisors must be nonzero.
 struct Duration
 {
 nothrow @nogc:
 
-    private u64 nanoseconds_;
+    u64 nanoseconds;
 
     /// The largest duration representable by this type.
     enum Duration max = Duration(u64.max);
 
-    bool isZero() const pure @safe
+    bool is_zero() const pure @safe
     {
-        return nanoseconds_ == 0;
+        return this.nanoseconds == 0;
     }
 
-    u64 totalNanoseconds() const pure @safe
+    u64 total_nanoseconds() const pure @safe
     {
-        return nanoseconds_;
+        return this.nanoseconds;
     }
 
-    u64 wholeMicroseconds() const pure @safe
+    u64 whole_microseconds() const pure @safe
     {
-        return nanoseconds_ / nanosecondsPerMicrosecond;
+        return this.nanoseconds / nanoseconds_per_microsecond;
     }
 
-    u64 wholeMilliseconds() const pure @safe
+    u64 whole_milliseconds() const pure @safe
     {
-        return nanoseconds_ / nanosecondsPerMillisecond;
+        return this.nanoseconds / nanoseconds_per_millisecond;
     }
 
-    u64 wholeSeconds() const pure @safe
+    u64 whole_seconds() const pure @safe
     {
-        return nanoseconds_ / nanosecondsPerSecond;
+        return this.nanoseconds / nanoseconds_per_second;
     }
 
-    u64 wholeMinutes() const pure @safe
+    u64 whole_minutes() const pure @safe
     {
-        return nanoseconds_ / nanosecondsPerMinute;
+        return this.nanoseconds / nanoseconds_per_minute;
     }
 
-    u64 wholeHours() const pure @safe
+    u64 whole_hours() const pure @safe
     {
-        return nanoseconds_ / nanosecondsPerHour;
+        return this.nanoseconds / nanoseconds_per_hour;
     }
 
-    u64 wholeDays() const pure @safe
+    u64 whole_days() const pure @safe
     {
-        return nanoseconds_ / nanosecondsPerDay;
+        return this.nanoseconds / nanoseconds_per_day;
     }
 
-    int opCmp(Duration other) const pure @safe
+    i32 opCmp(Duration other) const pure @safe
     {
-        return nanoseconds_ < other.nanoseconds_ ? -1 : nanoseconds_ > other.nanoseconds_ ? 1 : 0;
+        if (this.nanoseconds < other.nanoseconds) return -1;
+        if (this.nanoseconds > other.nanoseconds) return 1;
+
+        return 0;
     }
 
     Duration opBinary(string operation)(Duration other) const @safe
-            if (operation == "+" || operation == "-")
+    if (operation == "+" || operation == "-")
     {
         static if (operation == "+")
         {
-            version (XTB_Checked)
-                require(
-                    other.nanoseconds_ <= u64.max - nanoseconds_,
-                    "Duration addition overflow",
-                );
-            return Duration(nanoseconds_ + other.nanoseconds_);
+            require(
+                other.nanoseconds <= u64.max - this.nanoseconds,
+                "duration addition overflow",
+            );
+
+            return Duration(this.nanoseconds + other.nanoseconds);
         }
         else
         {
-            version (XTB_Checked)
-                require(
-                    other.nanoseconds_ <= nanoseconds_,
-                    "Duration subtraction underflow",
-                );
-            return Duration(nanoseconds_ - other.nanoseconds_);
+            require(
+                other.nanoseconds <= this.nanoseconds,
+                "duration subtraction underflow",
+            );
+
+            return Duration(this.nanoseconds - other.nanoseconds);
         }
     }
 
     Duration opBinary(string operation, T)(T value) const @safe
-            if ((operation == "*" || operation == "/") && isDurationCount!T)
+    if ((operation == "*" || operation == "/") && is_duration_count!T)
     {
-        static if (isSignedDurationCount!T)
-            version (XTB_Checked)
-                require(value >= 0, "Duration scale cannot be negative");
+        static if (is_signed_duration_count!T)
+            require(value >= 0, "duration scale cannot be negative");
 
         const scale = cast(u64) value;
+
         static if (operation == "*")
         {
-            version (XTB_Checked)
-                require(
-                    nanoseconds_ == 0 || scale <= u64.max / nanoseconds_,
-                    "Duration multiplication overflow",
-                );
-            return Duration(nanoseconds_ * scale);
+            require(
+                this.nanoseconds == 0 || scale <= u64.max / this.nanoseconds,
+                "duration multiplication overflow",
+            );
+
+            return Duration(this.nanoseconds * scale);
         }
         else
         {
-            version (XTB_Checked)
-                require(scale != 0, "Duration division by zero");
-            return Duration(nanoseconds_ / scale);
+            require(scale != 0, "duration division by zero");
+
+            return Duration(this.nanoseconds / scale);
         }
     }
 
     Duration opBinaryRight(string operation, T)(T value) const @safe
-            if (operation == "*" && isDurationCount!T)
+    if (operation == "*" && is_duration_count!T)
     {
         return this * value;
     }
 }
 
-private Duration scaledDuration(T)(T count, u64 scale) @safe if (isDurationCount!T)
+private Duration scaled_duration(T)(T count, u64 scale) @safe
+if (is_duration_count!T)
 {
-    static if (isSignedDurationCount!T)
-        version (XTB_Checked)
-            require(count >= 0, "Duration cannot be negative");
+    static if (is_signed_duration_count!T)
+        require(count >= 0, "duration cannot be negative");
 
     const value = cast(u64) count;
-    version (XTB_Checked)
-        require(
-            value == 0 || scale <= u64.max / value,
-            "Duration unit conversion overflow",
-        );
+
+    require(
+        value == 0 || scale <= u64.max / value,
+        "duration unit conversion overflow",
+    );
+
     return Duration(value * scale);
 }
 
-Duration nanoseconds(T)(T count) @safe if (isDurationCount!T)
+Duration nanoseconds(T)(T count) @safe
+if (is_duration_count!T)
 {
-    return scaledDuration(count, 1);
+    return scaled_duration(count, 1);
 }
 
-Duration microseconds(T)(T count) @safe if (isDurationCount!T)
+Duration microseconds(T)(T count) @safe
+if (is_duration_count!T)
 {
-    return scaledDuration(count, nanosecondsPerMicrosecond);
+    return scaled_duration(count, nanoseconds_per_microsecond);
 }
 
-Duration milliseconds(T)(T count) @safe if (isDurationCount!T)
+Duration milliseconds(T)(T count) @safe
+if (is_duration_count!T)
 {
-    return scaledDuration(count, nanosecondsPerMillisecond);
+    return scaled_duration(count, nanoseconds_per_millisecond);
 }
 
-Duration seconds(T)(T count) @safe if (isDurationCount!T)
+Duration seconds(T)(T count) @safe
+if (is_duration_count!T)
 {
-    return scaledDuration(count, nanosecondsPerSecond);
+    return scaled_duration(count, nanoseconds_per_second);
 }
 
-Duration minutes(T)(T count) @safe if (isDurationCount!T)
+Duration minutes(T)(T count) @safe
+if (is_duration_count!T)
 {
-    return scaledDuration(count, nanosecondsPerMinute);
+    return scaled_duration(count, nanoseconds_per_minute);
 }
 
-Duration hours(T)(T count) @safe if (isDurationCount!T)
+Duration hours(T)(T count) @safe
+if (is_duration_count!T)
 {
-    return scaledDuration(count, nanosecondsPerHour);
+    return scaled_duration(count, nanoseconds_per_hour);
 }
 
-Duration days(T)(T count) @safe if (isDurationCount!T)
+Duration days(T)(T count) @safe
+if (is_duration_count!T)
 {
-    return scaledDuration(count, nanosecondsPerDay);
+    return scaled_duration(count, nanoseconds_per_day);
 }
 
 static assert(Duration.sizeof == u64.sizeof);
@@ -186,22 +207,22 @@ static assert(!__traits(compiles, milliseconds(1) * 1.5));
 
 unittest
 {
-    assert(Duration.init.isZero);
-    assert(Duration.max.totalNanoseconds == u64.max);
+    assert(Duration.init.is_zero);
+    assert(Duration.max.total_nanoseconds == u64.max);
 
-    assert(nanoseconds(7).totalNanoseconds == 7);
-    assert(microseconds(2).totalNanoseconds == 2_000);
-    assert(milliseconds(3).totalNanoseconds == 3_000_000);
-    assert(seconds(4).totalNanoseconds == 4_000_000_000);
-    assert(minutes(2).wholeSeconds == 120);
-    assert(hours(2).wholeMinutes == 120);
-    assert(days(2).wholeHours == 48);
+    assert(nanoseconds(7).total_nanoseconds == 7);
+    assert(microseconds(2).total_nanoseconds == 2_000);
+    assert(milliseconds(3).total_nanoseconds == 3_000_000);
+    assert(seconds(4).total_nanoseconds == 4_000_000_000);
+    assert(minutes(2).whole_seconds == 120);
+    assert(hours(2).whole_minutes == 120);
+    assert(days(2).whole_hours == 48);
 
     const duration = milliseconds(2_500);
-    assert(duration.wholeMicroseconds == 2_500_000);
-    assert(duration.wholeMilliseconds == 2_500);
-    assert(duration.wholeSeconds == 2);
-    assert(duration.wholeMinutes == 0);
+    assert(duration.whole_microseconds == 2_500_000);
+    assert(duration.whole_milliseconds == 2_500);
+    assert(duration.whole_seconds == 2);
+    assert(duration.whole_minutes == 0);
 
     assert(milliseconds(500) < seconds(1));
     assert(seconds(1) == milliseconds(1_000));
@@ -211,10 +232,10 @@ unittest
     assert(4 * milliseconds(250) == seconds(1));
     assert(seconds(1) / 4 == milliseconds(250));
 
-    int signedCount = 5;
-    uint unsignedCount = 6;
-    assert(milliseconds(signedCount) == milliseconds(5));
-    assert(milliseconds(unsignedCount) == milliseconds(6));
-    assert(seconds(1) * signedCount == seconds(5));
-    assert(unsignedCount * seconds(1) == seconds(6));
+    const i32 signed_count = 5;
+    const u32 unsigned_count = 6;
+    assert(milliseconds(signed_count) == milliseconds(5));
+    assert(milliseconds(unsigned_count) == milliseconds(6));
+    assert(seconds(1) * signed_count == seconds(5));
+    assert(unsigned_count * seconds(1) == seconds(6));
 }

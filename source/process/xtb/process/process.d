@@ -1144,7 +1144,7 @@ private WaitResult waitForPlatform(ChildProcess* child, Timeout timeout) @system
     OsError error = monotonicNanoseconds(&started);
     if (error.failed)
         return waitError(error);
-    const duration = timeout.duration.totalNanoseconds;
+    const duration = timeout.duration.total_nanoseconds;
     const deadline = duration > u64.max - started ? u64.max : started + duration;
 
     const watch = backend.openProcessWatch(child.processId_);

@@ -510,7 +510,7 @@ private OsError makeDeadline(Timeout timeout, Deadline* output) @system
     if (error.failed)
         return error;
     const duration = timeout.isImmediate
-        ? 0 : timeout.duration.totalNanoseconds;
+        ? 0 : timeout.duration.total_nanoseconds;
     output.finite = true;
     output.value = duration > u64.max - now ? u64.max : now + duration;
     return OsError.init;
