@@ -3,10 +3,10 @@ module tests.threading_tests;
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : move;
 import core.stdc.stdlib : free, malloc;
-import xtb.lifetime : hasDDestructor,
+import xtb.lifetime : has_d_destructor,
     lifetimeDeinit = deinit,
     lifetimeMove = move,
-    needsDeinit;
+    needs_deinit;
 import xtb.memory : Allocator;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.panic : panic;
@@ -47,18 +47,18 @@ static assert(!hasElaborateDestructor!WaitGroup);
 static assert(!hasElaborateDestructor!Latch);
 static assert(!hasElaborateDestructor!Barrier);
 static assert(!hasElaborateDestructor!Once);
-static assert(!needsDeinit!Mutex);
-static assert(!needsDeinit!RwLock);
-static assert(!needsDeinit!CondVar);
-static assert(!needsDeinit!Semaphore);
-static assert(!needsDeinit!WaitGroup);
-static assert(!needsDeinit!Latch);
-static assert(!needsDeinit!Barrier);
-static assert(!needsDeinit!Once);
+static assert(!needs_deinit!Mutex);
+static assert(!needs_deinit!RwLock);
+static assert(!needs_deinit!CondVar);
+static assert(!needs_deinit!Semaphore);
+static assert(!needs_deinit!WaitGroup);
+static assert(!needs_deinit!Latch);
+static assert(!needs_deinit!Barrier);
+static assert(!needs_deinit!Once);
 
 // OnceCell is an explicit owner rather than an ordinary synchronization value.
 static assert(!hasElaborateDestructor!(OnceCell!int));
-static assert(needsDeinit!(OnceCell!int));
+static assert(needs_deinit!(OnceCell!int));
 
 // These remain destructor-bearing intentionally because scope exit is their
 // abstraction. Thread/JoinHandle lifecycle diagnostics are a separate policy
@@ -78,12 +78,12 @@ version (linux)
         Thread thread;
     }
 
-    static assert(hasDDestructor!Thread);
-    static assert(hasDDestructor!(Thread[2]));
-    static assert(hasDDestructor!ThreadEnvelope);
-    static assert(hasDDestructor!(JoinHandle!int));
-    static assert(!needsDeinit!Thread);
-    static assert(!needsDeinit!(JoinHandle!int));
+    static assert(has_d_destructor!Thread);
+    static assert(has_d_destructor!(Thread[2]));
+    static assert(has_d_destructor!ThreadEnvelope);
+    static assert(has_d_destructor!(JoinHandle!int));
+    static assert(!needs_deinit!Thread);
+    static assert(!needs_deinit!(JoinHandle!int));
 }
 
 version (Posix) private struct IncrementContext
@@ -610,7 +610,7 @@ version (linux) struct ExplicitLifetimeCapture
     }
 }
 
-version (linux) static assert(needsDeinit!ExplicitLifetimeCapture);
+version (linux) static assert(needs_deinit!ExplicitLifetimeCapture);
 version (linux) static assert(!hasElaborateDestructor!ExplicitLifetimeCapture);
 
 version (linux) private int explicitLifetimeWorker(

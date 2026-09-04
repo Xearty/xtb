@@ -78,8 +78,8 @@ public:
         );
 
         Self result;
-        moveEmplace(records, result.records_);
-        moveEmplace(byEntity, result.byEntity_);
+        move_emplace(records, result.records_);
+        move_emplace(byEntity, result.byEntity_);
         return move(result);
     }
 
@@ -239,12 +239,12 @@ public:
         VirtualArray!EntityId destroyQueue = VirtualArray!EntityId.create(maxEntities);
 
         Self result;
-        moveEmplace(entities, result.entities_);
-        moveEmplace(positions, result.positions_);
-        moveEmplace(velocities, result.velocities_);
-        moveEmplace(health, result.health_);
-        moveEmplace(projectiles, result.projectiles_);
-        moveEmplace(destroyQueue, result.destroyQueue_);
+        move_emplace(entities, result.entities_);
+        move_emplace(positions, result.positions_);
+        move_emplace(velocities, result.velocities_);
+        move_emplace(health, result.health_);
+        move_emplace(projectiles, result.projectiles_);
+        move_emplace(destroyQueue, result.destroyQueue_);
         return move(result);
     }
 

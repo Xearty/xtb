@@ -6,8 +6,8 @@ import core.lifetime : emplace, forward;
 import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
     VirtualMemoryReservation, tryReserveVirtualMemory, virtualMemoryPageSize,
     virtualMemorySupported;
-import xtb.lifetime : canFinalizeWithoutContext, finalize, move, moveEmplace,
-    needsDeinit, needsFinalization;
+import xtb.lifetime : can_finalize_without_context, finalize, move, move_emplace,
+    needs_deinit, needs_finalization;
 import xtb.numeric : addOverflows;
 import xtb.panic : panic;
 import xtb.containers.internal.pool_storage : IndexedPoolStorageLayout,
@@ -161,13 +161,13 @@ public:
             freeIndices.deinit();
 
         Self result;
-        moveEmplace(reservation, result.reservation_);
-        moveEmplace(values, result.values_);
-        moveEmplace(states, result.states_);
-        moveEmplace(freeIndices, result.freeIndices_);
+        move_emplace(reservation, result.reservation_);
+        move_emplace(values, result.values_);
+        move_emplace(states, result.states_);
+        move_emplace(freeIndices, result.freeIndices_);
         result.capacity_ = capacity;
         result.nextIndex_ = 1;
-        moveEmplace(result, *output);
+        move_emplace(result, *output);
         return true;
     }
 
@@ -394,7 +394,7 @@ public:
 
     /// Finalizes a live value without external cleanup context, then recycles
     /// its slot.
-    static if (canFinalizeWithoutContext!T)
+    static if (can_finalize_without_context!T)
     {
         bool tryDispose(Handle handle) @system
         {
@@ -402,7 +402,7 @@ public:
             if (value is null)
                 return false;
 
-            static if (needsFinalization!T)
+            static if (needs_finalization!T)
                 finalize(*value);
             return tryDeallocate(handle);
         }
@@ -1371,14 +1371,14 @@ private uint deactivateAndAdvance(uint state) pure @safe
     return (stateGeneration(state) + 1) & generationMask;
 }
 
-static assert(needsDeinit!(GenerationalPool!ubyte));
+static assert(needs_deinit!(GenerationalPool!ubyte));
 static assert(activeBit == 0x8000_0000u);
 static assert(generationMask == 0x7fff_ffffu);
 
 unittest
 {
     import core.stdc.string : memcmp;
-    import xtb.lifetime : moveAssign;
+    import xtb.lifetime : move_assign;
 
     alias IntPool = GenerationalPool!int;
     alias IntHandle = IntPool.Handle;
@@ -1824,7 +1824,7 @@ unittest
         }
     }
 
-    static assert(!canFinalizeWithoutContext!ContextOwner);
+    static assert(!can_finalize_without_context!ContextOwner);
     static assert(!__traits(compiles,
             (ref GenerationalPool!ContextOwner contextPool,
             GenerationalPool!ContextOwner.Handle handle) { contextPool.dispose(handle); }));
@@ -1853,7 +1853,7 @@ unittest
 
     IntPool target = IntPool.create(1);
     target.allocateInit();
-    moveAssign(moved, target);
+    move_assign(moved, target);
     assert(moved.capacity == 0);
     assert(target.contains(sourceHandle));
     assert(*target.get(sourceHandle) == 91);

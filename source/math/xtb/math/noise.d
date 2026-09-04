@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.stdc.math : floorf, fmodf;
 import xtb.containers.array;
-import xtb.lifetime : move, moveEmplace, needsDeinit;
+import xtb.lifetime : move, move_emplace, needs_deinit;
 import xtb.memory : Allocator;
 import xtb.panic : panic;
 
@@ -43,7 +43,7 @@ nothrow @nogc:
         }
         output.deinit();
         Array!float values = Array!float.create(allocator);
-        moveEmplace(values, output.values_);
+        move_emplace(values, output.values_);
         if (!output.values_.tryResize(period))
         {
             output.deinit();
@@ -91,7 +91,7 @@ nothrow @nogc:
 }
 
 static assert(!hasElaborateDestructor!ValueNoise1D);
-static assert(needsDeinit!ValueNoise1D);
+static assert(needs_deinit!ValueNoise1D);
 static assert(!__traits(isCopyable, ValueNoise1D));
 
 private extern (C) void* rejectingAllocation(

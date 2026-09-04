@@ -5,14 +5,14 @@ nothrow @nogc:
 import xtb.ansi : AnsiColor, AnsiStyle;
 import xtb.fmt.ansi : beginAnsi, endAnsi;
 import xtb.lifetime : lifetimeDeinit = deinit,
-    isTaggedPayloadField,
+    is_tagged_payload_field,
     move,
-    needsDeinit,
-    taggedBy,
-    taggedCase,
-    taggedPayloadDiscriminatorIndex,
-    taggedPayloadMemberTag,
-    taggedPayloadMetadata;
+    needs_deinit,
+    tagged_by,
+    tagged_case,
+    tagged_payload_discriminator_index,
+    tagged_payload_member_tag,
+    tagged_payload_metadata;
 
 version (unittest)
 {
@@ -155,7 +155,7 @@ struct OwnedPrettyValue(T)
     private T value_;
     PrettyPrintOptions options;
 
-    static if (needsDeinit!T)
+    static if (needs_deinit!T)
     {
         @disable this(this);
         @disable ref OwnedPrettyValue opAssign(OwnedPrettyValue source) return;
@@ -1179,7 +1179,7 @@ private void writeStruct(T)(
                         options,
                     );
                     writePunctuation(writer, ": ", options);
-                    static if (isTaggedPayloadField!(U, index))
+                    static if (is_tagged_payload_field!(U, index))
                         writeTaggedPayload!(U, index)(
                             writer,
                             value,
@@ -1234,10 +1234,10 @@ private void writeTaggedPayload(T, size_t payloadIndex)(
 )
 {
     alias U = Unqualified!T;
-    enum metadata = taggedPayloadMetadata!(U, payloadIndex)();
+    enum metadata = tagged_payload_metadata!(U, payloadIndex)();
     alias Tag = Unqualified!(typeof(metadata.inactive));
     alias Payload = Unqualified!(typeof(U.tupleof[payloadIndex]));
-    enum discriminatorIndex = taggedPayloadDiscriminatorIndex!(U, payloadIndex)();
+    enum discriminatorIndex = tagged_payload_discriminator_index!(U, payloadIndex)();
     const active = value.tupleof[discriminatorIndex];
 
     if (active == metadata.inactive)
@@ -1266,7 +1266,7 @@ private void writeTaggedPayload(T, size_t payloadIndex)(
     static foreach (memberIndex; 0 .. Payload.tupleof.length)
     {
         {
-            enum mappedTag = taggedPayloadMemberTag!(
+            enum mappedTag = tagged_payload_member_tag!(
                     Payload,
                     memberIndex,
                     Tag,
@@ -2368,10 +2368,10 @@ private WidthEstimate estimateTaggedPayload(T, size_t payloadIndex)(
 )
 {
     alias U = Unqualified!T;
-    enum metadata = taggedPayloadMetadata!(U, payloadIndex)();
+    enum metadata = tagged_payload_metadata!(U, payloadIndex)();
     alias Tag = Unqualified!(typeof(metadata.inactive));
     alias Payload = Unqualified!(typeof(U.tupleof[payloadIndex]));
-    enum discriminatorIndex = taggedPayloadDiscriminatorIndex!(U, payloadIndex)();
+    enum discriminatorIndex = tagged_payload_discriminator_index!(U, payloadIndex)();
     const active = value.tupleof[discriminatorIndex];
 
     if (active == metadata.inactive)
@@ -2394,7 +2394,7 @@ private WidthEstimate estimateTaggedPayload(T, size_t payloadIndex)(
     static foreach (memberIndex; 0 .. Payload.tupleof.length)
     {
         {
-            enum mappedTag = taggedPayloadMemberTag!(
+            enum mappedTag = tagged_payload_member_tag!(
                     Payload,
                     memberIndex,
                     Tag,
@@ -2462,7 +2462,7 @@ private WidthEstimate estimateStruct(T)(
                     if (!addWidth(&total, name.length, budget) ||
                         !addWidth(&total, 2, budget))
                         return unknownWidth();
-                    static if (isTaggedPayloadField!(U, index))
+                    static if (is_tagged_payload_field!(U, index))
                         const child = estimateTaggedPayload!(U, index)(
                             value,
                             options,
@@ -2885,7 +2885,7 @@ version (unittest)
     {
         int integer;
 
-        @taggedCase(PrettyPrintTestTaggedKind.floating)
+        @tagged_case(PrettyPrintTestTaggedKind.floating)
         int renamedFloating;
     }
 
@@ -2893,7 +2893,7 @@ version (unittest)
     {
         PrettyPrintTestTaggedKind kind;
 
-        @taggedBy("kind", PrettyPrintTestTaggedKind.none)
+        @tagged_by("kind", PrettyPrintTestTaggedKind.none)
         PrettyPrintTestTaggedPayload payload;
     }
 

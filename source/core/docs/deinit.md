@@ -11,7 +11,7 @@ immediately after acquisition:
 
 ```d
 OwnedString name = "xtb".copy(heap);
-scope(exit) name.deinit();
+scope (exit) name.deinit();
 ```
 
 `xtb.lifetime.deinit(value, ...)` is the generic protocol entry point. A public,
@@ -21,16 +21,16 @@ arguments supplied to the free function:
 ```d
 struct Buffer
 {
-    ArrayUnmanaged!ubyte bytes;
+    ArrayUnmanaged!u8 bytes;
 
     void deinit(Allocator* allocator) nothrow @nogc
     {
-        bytes.deinit(allocator);
+        this.bytes.deinit(allocator);
     }
 }
 
 Buffer buffer;
-scope(exit) deinit(buffer, heap);
+scope (exit) deinit(buffer, heap);
 ```
 
 Use a member `deinit` when cleanup needs external context, custom ordering, or
@@ -46,7 +46,7 @@ struct Session
 }
 
 Session session;
-scope(exit) deinit(session);
+scope (exit) deinit(session);
 ```
 
 Borrowed values, raw pointers, and cleanup-free values do not participate in the
@@ -56,9 +56,9 @@ protocol; attempting to `deinit` them is a compile-time error.
 
 | API | Meaning |
 |---|---|
-| `needsDeinit!T` | `T` has explicit deinitialization work |
-| `needsFinalization!T` | `T` needs explicit cleanup or D destruction |
-| `canFinalizeWithoutContext!T` | a generic container can discard `T` without extra arguments |
+| `needs_deinit!T` | `T` has explicit deinitialization work |
+| `needs_finalization!T` | `T` needs explicit cleanup or D destruction |
+| `can_finalize_without_context!T` | a generic container can discard `T` without extra arguments |
 | `finalize(value)` | perform whichever supported cleanup model `T` uses |
 
 `finalize` is primarily for generic/container code. Ordinary XTB owners should
@@ -67,8 +67,8 @@ use their explicit `deinit` contract.
 ## Moving owners
 
 `move(source)` transfers a live owner and resets the source to a safely
-deinitializable state. `moveEmplace` transfers into dead/uninitialized storage;
-`moveAssign` first deinitializes a live destination and then replaces it.
+deinitializable state. `move_emplace` transfers into dead/uninitialized storage;
+`move_assign` first deinitializes a live destination and then replaces it.
 
 See [Ownership and lifetimes](ownership.md) for the higher-level borrowed,
 owned, arena, and container lifetime rules.

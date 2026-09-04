@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.allocators.arena : Arena, TempArena, pop, push;
 import xtb.memory : Allocator, allocateInit, dispose;
-import xtb.lifetime : moveEmplace;
+import xtb.lifetime : move_emplace;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.panic : panic;
 
@@ -91,7 +91,7 @@ nothrow @nogc:
         foreach (i; 0 .. scratchArenaCount)
         {
             Arena arena = Arena.create(backingAllocator, scratchChunkSize);
-            moveEmplace(arena, context.arenas[i]);
+            move_emplace(arena, context.arenas[i]);
         }
 
         tlsContext = context;

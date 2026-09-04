@@ -4,7 +4,7 @@ import tests.serde_backend_contract : runSerdeBackendContracts;
 import xtb.containers.array;
 import xtb.containers.hash_map;
 import xtb.containers.hash_set;
-import xtb.lifetime : deinitValue = deinit, move, moveEmplace;
+import xtb.lifetime : deinitValue = deinit, move, move_emplace;
 import xtb.memory : Allocator;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.allocators.malloc : mallocAllocator;
@@ -1470,7 +1470,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
         mallocAllocator(), records[]);
     OwnedDocument document;
     StringBuf preserved = StringBuf.fromString(allocator.allocator, "preserved");
-    moveEmplace(preserved, document.applicationName);
+    move_emplace(preserved, document.applicationName);
 
     SerdeError error = readJson(
         "{\"application_name\":\"replacement\"," ~
@@ -1901,7 +1901,7 @@ private void testTomlHashMaps() nothrow @nogc
 
     HashMapDocument document;
     auto documentValues = HashMap!(String, int).create(mallocAllocator());
-    moveEmplace(documentValues, document.values);
+    move_emplace(documentValues, document.values);
     assert(document.values.tryAdd("one", 1) == AddStatus.inserted);
     encoded.clear();
     writer = Writer.fromSink(&bufferSink, &encoded);

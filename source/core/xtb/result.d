@@ -5,9 +5,9 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.lifetime : canFinalizeWithoutContext,
-    deinitValue = deinit, finalize, hasDDestructor, move, moveEmplace,
-    needsDeinit, needsFinalization;
+import xtb.lifetime : can_finalize_without_context,
+    deinitValue = deinit, finalize, has_d_destructor, move, move_emplace,
+    needs_deinit, needs_finalization;
 import xtb.panic : panic;
 import xtb.types : String;
 
@@ -25,7 +25,7 @@ private template isCopyableResultValue(T)
         enum bool isCopyableResultValue = true;
     else
         enum bool isCopyableResultValue = __traits(isCopyable, T) &&
-            !needsDeinit!T && !hasDDestructor!T &&
+            !needs_deinit!T && !has_d_destructor!T &&
             !hasElaborateCopyConstructor!T;
 }
 
@@ -34,8 +34,8 @@ private template isMonadicValue(T)
     static if (is(T == void))
         enum bool isMonadicValue = true;
     else
-        enum bool isMonadicValue = !needsDeinit!T &&
-            !hasDDestructor!T && !hasElaborateCopyConstructor!T;
+        enum bool isMonadicValue = !needs_deinit!T &&
+            !has_d_destructor!T && !hasElaborateCopyConstructor!T;
 }
 
 private enum bool isResultType(T) = is(T == Result!(Value, Error), Value, Error);
@@ -69,16 +69,16 @@ nothrow @nogc:
 
     static assert(!is(E == void), "Result error type cannot be void");
     static if (!is(T == void))
-        static assert(canFinalizeWithoutContext!T,
+        static assert(can_finalize_without_context!T,
             "Result value type must support context-free finalization");
-    static assert(canFinalizeWithoutContext!E,
+    static assert(can_finalize_without_context!E,
         "Result error type must support context-free finalization");
 
     static if (is(T == void))
         private enum bool valueNeedsCleanup = false;
     else
-        private enum bool valueNeedsCleanup = needsFinalization!T;
-    private enum bool errorNeedsCleanup = needsFinalization!E;
+        private enum bool valueNeedsCleanup = needs_finalization!T;
+    private enum bool errorNeedsCleanup = needs_finalization!E;
     private enum bool payloadNeedsCleanup = valueNeedsCleanup || errorNeedsCleanup;
 
     private ResultState state_;
@@ -120,14 +120,14 @@ nothrow @nogc:
         static if (!is(T == void))
         {
             if (source.state_ == ResultState.ok)
-                moveEmplace(source.valuePayload(), valuePayload());
+                move_emplace(source.valuePayload(), valuePayload());
             else
-                moveEmplace(source.errorPayload(), errorPayload());
+                move_emplace(source.errorPayload(), errorPayload());
         }
         else
         {
             if (source.state_ == ResultState.err)
-                moveEmplace(source.errorPayload(), errorPayload());
+                move_emplace(source.errorPayload(), errorPayload());
         }
         version (XTB_Checked)
         {
@@ -153,7 +153,7 @@ nothrow @nogc:
         static Result ok(T value)
         {
             Result result = void;
-            moveEmplace(value, result.valuePayload());
+            move_emplace(value, result.valuePayload());
             result.state_ = ResultState.ok;
             version (XTB_Checked)
                 result.consumed_ = false;
@@ -167,7 +167,7 @@ nothrow @nogc:
         package(xtb) static Result okMove(ref T value)
         {
             Result result = void;
-            moveEmplace(value, result.valuePayload());
+            move_emplace(value, result.valuePayload());
             result.state_ = ResultState.ok;
             version (XTB_Checked)
                 result.consumed_ = false;
@@ -178,7 +178,7 @@ nothrow @nogc:
     static Result err(E error)
     {
         Result result = void;
-        moveEmplace(error, result.errorPayload());
+        move_emplace(error, result.errorPayload());
         result.state_ = ResultState.err;
         version (XTB_Checked)
             result.consumed_ = false;
@@ -273,7 +273,7 @@ nothrow @nogc:
                 require(isOk, "cannot take the value of a non-ok Result");
             }
             T result = void;
-            moveEmplace(valuePayload(), result);
+            move_emplace(valuePayload(), result);
             version (XTB_Checked)
                 consumed_ = true;
             return result;
@@ -358,7 +358,7 @@ nothrow @nogc:
             require(isErr, "cannot take the error of a non-error Result");
         }
         E result = void;
-        moveEmplace(errorPayload(), result);
+        move_emplace(errorPayload(), result);
         version (XTB_Checked)
             consumed_ = true;
         return result;

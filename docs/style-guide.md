@@ -124,8 +124,30 @@ void refresh_cache();
 ```
 
 Do not create duplicate factory functions or singleton manifest values merely
-to give an attribute a separate lowercase spelling. Existing attribute APIs
-may be migrated separately rather than changed incidentally.
+to give an attribute a separate lowercase spelling. A `snake_case` factory is
+appropriate when it provides utility beyond renaming, such as inferring a
+template argument that D cannot infer when constructing the attribute type
+directly. Keep the attribute type in `PascalCase` and name the utility factory
+like an ordinary function:
+
+```d
+struct TaggedBy(Tag)
+{
+    String discriminator;
+    Tag inactive;
+}
+
+TaggedBy!Tag tagged_by(Tag)(String discriminator, Tag inactive) pure nothrow @nogc @safe
+{
+    return TaggedBy!Tag(discriminator, inactive);
+}
+
+@tagged_by("kind", Kind.none)
+Payload payload;
+```
+
+Existing attribute APIs may be migrated separately rather than changed
+incidentally.
 
 ## Primitive numeric types
 

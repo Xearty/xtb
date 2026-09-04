@@ -2,8 +2,8 @@ module xtb.containers.string_hash_map;
 
 nothrow @nogc:
 
-import xtb.lifetime : canFinalizeWithoutContext, finalize,
-    hasDDestructor, move, moveEmplace, needsDeinit, needsFinalization;
+import xtb.lifetime : can_finalize_without_context, finalize,
+    has_d_destructor, move, move_emplace, needs_deinit, needs_finalization;
 import xtb.hash : HashSeed, hash_value;
 import xtb.containers.hash_map;
 import xtb.memory : Allocator;
@@ -75,12 +75,12 @@ private struct OwnedStringHashMapValueOps(T)
 {
 nothrow @nogc:
 
-    static assert(canFinalizeWithoutContext!T,
+    static assert(can_finalize_without_context!T,
         "OwnedStringHashMap values must support context-free finalization");
 
     static void destroy(Allocator*, T* value)
     {
-        static if (needsFinalization!T)
+        static if (needs_finalization!T)
             finalize(*value);
     }
 }
@@ -88,7 +88,7 @@ nothrow @nogc:
 private template isSimpleStringHashValue(T)
 {
     enum isSimpleStringHashValue = __traits(isCopyable, T) &&
-        !needsDeinit!T && !hasDDestructor!T;
+        !needs_deinit!T && !has_d_destructor!T;
 }
 
 private template OwnedStringMapStorage(V, ValueOps)
@@ -141,7 +141,7 @@ public:
             hasher,
             OwnedStringEqual.init,
         );
-        moveEmplace(map, result.map_);
+        move_emplace(map, result.map_);
         return move(result);
     }
 
@@ -161,7 +161,7 @@ public:
         StringHashMapUnmanaged temporary;
         if (!temporary.tryReserve(allocator, requested))
             return false;
-        moveEmplace(temporary, *output);
+        move_emplace(temporary, *output);
         return true;
     }
 
@@ -593,7 +593,7 @@ private:
             auto released = key.release();
             Allocator* sourceAllocator;
             auto extracted = released.extract(&sourceAllocator);
-            moveEmplace(extracted, owned);
+            move_emplace(extracted, owned);
             version (XTB_Checked)
                 require(sourceAllocator is allocator,
                     "OwnedString allocator changed during release");
@@ -664,7 +664,7 @@ private:
                     "StringBuf allocator changed during release");
             auto exact = raw.releaseExactStorage();
             auto adopted = OwnedStringUnmanaged.adoptExact(&exact);
-            moveEmplace(adopted, owned);
+            move_emplace(adopted, owned);
         }
         else
         {
@@ -723,7 +723,7 @@ public:
         Self result;
         result.allocator_ = allocator;
         Storage storage = Storage.seeded(seed);
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -743,7 +743,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -771,7 +771,7 @@ public:
             requested,
             seed,
         );
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -786,7 +786,7 @@ public:
             Storage storage = released.extract(&allocator);
             Self result;
             result.allocator_ = allocator;
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -1027,7 +1027,7 @@ package(xtb.containers):
                     "StringHashMapUnmanaged pointer is null");
             Self result;
             result.allocator_ = allocator;
-            moveEmplace(*storage, result.storage_);
+            move_emplace(*storage, result.storage_);
             return move(result);
         }
     }

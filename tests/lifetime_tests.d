@@ -57,7 +57,7 @@ private void emplaceOwner(
 ) @system
 {
     AllocationOwner source = AllocationOwner.create(allocator, size);
-    moveEmplace(source, destination);
+    move_emplace(source, destination);
 
     // A successful XTB move leaves the source in a live moved-from state that
     // remains safe to deinitialize.
@@ -75,7 +75,7 @@ private union Payload
 {
     AllocationOwner primary;
 
-    @taggedCase(PayloadKind.secondary)
+    @tagged_case(PayloadKind.secondary)
     AllocationOwner differentlyNamed;
 }
 
@@ -84,7 +84,7 @@ private struct Envelope
     AllocationOwner header;
     PayloadKind kind;
 
-    @taggedBy("kind", PayloadKind.none)
+    @tagged_by("kind", PayloadKind.none)
     Payload payload;
 }
 
@@ -92,12 +92,12 @@ private struct DoubleEnvelope
 {
     PayloadKind firstKind;
 
-    @taggedBy("firstKind", PayloadKind.none)
+    @tagged_by("firstKind", PayloadKind.none)
     Payload firstPayload;
 
     PayloadKind secondKind;
 
-    @taggedBy("secondKind", PayloadKind.none)
+    @tagged_by("secondKind", PayloadKind.none)
     Payload secondPayload;
 }
 
@@ -178,7 +178,7 @@ private void testMoveReplacementCleanup() @system
     AllocationOwner target = AllocationOwner.create(allocator, 43);
     assert(tracked.stats.outstandingAllocations == 2);
 
-    moveAssign(source, target);
+    move_assign(source, target);
     assert(tracked.stats.outstandingAllocations == 1);
 
     // The source was moved from, but is still a valid deinit target.
@@ -189,7 +189,7 @@ private void testMoveReplacementCleanup() @system
     assertAllocatorClean(tracked);
 
     AllocationOwner self = AllocationOwner.create(allocator, 45);
-    moveAssign(self, self);
+    move_assign(self, self);
     assert(tracked.stats.outstandingAllocations == 1);
     deinit(self);
     assertAllocatorClean(tracked);
@@ -269,12 +269,12 @@ private void testMovementStress() @system
 
         AllocationOwner moved = move(first);
         assert(first.storage.ptr is null);
-        moveAssign(second, moved);
+        move_assign(second, moved);
         assert(second.storage.ptr is null);
 
         AllocationOwner taken = move(moved);
         assert(moved.storage.ptr is null);
-        moveAssign(third, taken);
+        move_assign(third, taken);
         assert(third.storage.ptr is null);
 
         deinit(first);

@@ -2,7 +2,7 @@ module examples.serde_demo;
 
 import xtb.containers.array;
 import xtb.memory : Allocator;
-import xtb.lifetime : deinitValue = deinit, move, moveEmplace;
+import xtb.lifetime : deinitValue = deinit, move, move_emplace;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.option : Option, some;
 import xtb.fmt.writer : Writer;
@@ -228,24 +228,24 @@ private bool demonstrateOwningDecode() nothrow @nogc
 
     Endpoint replica;
     StringBuf replicaHostName = StringBuf.fromString(allocator, "api-2.internal");
-    moveEmplace(replicaHostName, replica.hostName);
+    move_emplace(replicaHostName, replica.hostName);
     replica.port = 9443;
     replica.protocol = Protocol.https;
     OwnedArray!StringBuf replicaLabels = OwnedArray!StringBuf.create(allocator);
-    moveEmplace(replicaLabels, replica.labels);
+    move_emplace(replicaLabels, replica.labels);
     StringBuf canary = StringBuf.fromString(allocator, "canary");
     replica.labels.append(move(canary));
     config.replicaEndpoints.append(move(replica));
 
     Endpoint fallback;
     StringBuf fallbackHostName = StringBuf.fromString(allocator, "fallback.internal");
-    moveEmplace(fallbackHostName, fallback.hostName);
+    move_emplace(fallbackHostName, fallback.hostName);
     fallback.port = 443;
     fallback.protocol = Protocol.https;
     OwnedArray!StringBuf fallbackLabels = OwnedArray!StringBuf.create(allocator);
-    moveEmplace(fallbackLabels, fallback.labels);
+    move_emplace(fallbackLabels, fallback.labels);
     Option!Endpoint fallbackOption = some(move(fallback));
-    moveEmplace(fallbackOption, config.fallbackEndpoint);
+    move_emplace(fallbackOption, config.fallbackEndpoint);
 
     if (!writeFormats(config))
         return false;

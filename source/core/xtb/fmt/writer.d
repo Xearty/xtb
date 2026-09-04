@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.interpolation : InterpolatedExpression, InterpolatedLiteral,
     InterpolationFooter, InterpolationHeader;
 import core.stdc.stdio : snprintf;
-import xtb.lifetime : needsFinalization;
+import xtb.lifetime : needs_finalization;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.types : String, u8;
@@ -286,7 +286,7 @@ private void writeValue(T)(ref Writer writer, auto ref T value)
         enum representationIsBorrowed =
             hasFunctionAttribute!(value.formatRepresentation, "ref")();
         static assert(representationIsBorrowed ||
-                !needsFinalization!Representation, U.stringof ~
+                !needs_finalization!Representation, U.stringof ~
                 ".formatRepresentation() must return a borrowed reference " ~
                 "or a cleanup-free value");
         writeValue(writer, value.formatRepresentation());

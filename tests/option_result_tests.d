@@ -6,7 +6,7 @@ import core.internal.traits : hasElaborateDestructor;
 
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.allocators.malloc : mallocAllocator;
-import xtb.lifetime : deinit, move, needsDeinit;
+import xtb.lifetime : deinit, move, needs_deinit;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.option;
 import xtb.result;
@@ -23,8 +23,8 @@ static assert(!__traits(compiles, () { Result!(ContextOwner, int) value; }));
 static assert(!__traits(compiles, () { Result!(int, ContextOwner) value; }));
 static assert(!__traits(compiles, () { Result!(void, ContextOwner) value; }));
 
-static assert(!needsDeinit!(Option!int));
-static assert(!needsDeinit!(Result!(int, int)));
+static assert(!needs_deinit!(Option!int));
+static assert(!needs_deinit!(Result!(int, int)));
 static assert(!__traits(hasMember, Option!int, "deinit"));
 static assert(!__traits(hasMember, Result!(int, int), "deinit"));
 static assert(__traits(isCopyable, Option!(Option!int)));
@@ -80,9 +80,9 @@ nothrow @nogc:
     }
 }
 
-static assert(needsDeinit!(Option!HeapOwner));
-static assert(needsDeinit!(Result!(HeapOwner, int)));
-static assert(needsDeinit!(Result!(int, HeapOwner)));
+static assert(needs_deinit!(Option!HeapOwner));
+static assert(needs_deinit!(Result!(HeapOwner, int)));
+static assert(needs_deinit!(Result!(int, HeapOwner)));
 static assert(__traits(hasMember, Option!HeapOwner, "deinit"));
 static assert(__traits(hasMember, Result!(HeapOwner, int), "deinit"));
 static assert(__traits(hasMember, Result!(int, HeapOwner), "deinit"));
@@ -180,7 +180,7 @@ private void testOptionOwners(Allocator* allocator)
     deinit(extracted);
     assert(deinits == 3);
 
-    static assert(needsDeinit!(Option!HeapOwner));
+    static assert(needs_deinit!(Option!HeapOwner));
     static assert(!__traits(compiles,
             (ref Option!HeapOwner value) { Option!HeapOwner copy = value; }));
     static assert(!__traits(compiles,
@@ -240,7 +240,7 @@ private void testResultTransitions(Allocator* allocator)
     deinit(extracted);
     assert(deinits == 8);
 
-    static assert(needsDeinit!(Result!(HeapOwner, HeapOwner)));
+    static assert(needs_deinit!(Result!(HeapOwner, HeapOwner)));
     static assert(!__traits(compiles,
             (ref Result!(HeapOwner, HeapOwner) value) { Result!(HeapOwner, HeapOwner) copy = value; }));
     static assert(!__traits(compiles,

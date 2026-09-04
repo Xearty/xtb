@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.internal.traits : Parameters, ReturnType;
 import core.lifetime : emplace, forward;
-import xtb.lifetime : finalize, move, needsDeinit, needsFinalization;
+import xtb.lifetime : finalize, move, needs_deinit, needs_finalization;
 import xtb.option : Option, OptionReturns;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -58,7 +58,7 @@ nothrow @nogc:
         if (!once_.completed())
             return;
 
-        static if (needsFinalization!T)
+        static if (needs_finalization!T)
             finalize(storage_.value);
     }
 
@@ -170,7 +170,7 @@ private bool parameterHasStorageClass(
 }
 
 static assert(!__traits(isCopyable, OnceCell!int));
-static assert(needsDeinit!(OnceCell!int));
+static assert(needs_deinit!(OnceCell!int));
 static assert(!__traits(compiles, () { OnceCell!int source; OnceCell!int target; target = source; }));
 
 version (unittest)

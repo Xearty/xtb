@@ -5,9 +5,9 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
 import core.lifetime : forward;
-import xtb.lifetime : canFinalizeWithoutContext,
-    deinitValue = deinit, finalize, hasDDestructor, move, moveEmplace,
-    needsDeinit, needsFinalization;
+import xtb.lifetime : can_finalize_without_context,
+    deinitValue = deinit, finalize, has_d_destructor, move, move_emplace,
+    needs_deinit, needs_finalization;
 import xtb.panic : panic;
 import xtb.types : String;
 
@@ -21,8 +21,8 @@ private template OptionValue(T)
         alias OptionValue = Value;
 }
 
-private enum bool isMonadicValue(T) = !needsDeinit!T &&
-    !hasDDestructor!T && !hasElaborateCopyConstructor!T;
+private enum bool isMonadicValue(T) = !needs_deinit!T &&
+    !has_d_destructor!T && !hasElaborateCopyConstructor!T;
 
 /// Explicit absence token accepted by Option construction and assignment.
 struct None
@@ -79,18 +79,18 @@ nothrow @nogc:
 nothrow @nogc:
 
     static assert(!is(T == void), "Option value type cannot be void");
-    static assert(canFinalizeWithoutContext!T,
+    static assert(can_finalize_without_context!T,
         "Option payload must support context-free finalization");
 
-    private enum bool payloadNeedsCleanup = needsFinalization!T;
+    private enum bool payloadNeedsCleanup = needs_finalization!T;
 
     private bool present_;
     align(T.alignof) private ubyte[T.sizeof] storage_;
 
     // A cleanup-bearing payload must never acquire implicit owner copying just
     // because its representation happens to be copyable.
-    static if (!__traits(isCopyable, T) || needsDeinit!T ||
-        hasDDestructor!T || hasElaborateCopyConstructor!T)
+    static if (!__traits(isCopyable, T) || needs_deinit!T ||
+        has_d_destructor!T || hasElaborateCopyConstructor!T)
         @disable this(this);
 
     /// Explicitly constructs an absent Option from `none()`.
@@ -113,7 +113,7 @@ nothrow @nogc:
         reset();
         if (source.present_)
         {
-            moveEmplace(source.payload(), payload());
+            move_emplace(source.payload(), payload());
             source.present_ = false;
             present_ = true;
         }
@@ -135,7 +135,7 @@ nothrow @nogc:
     static Option some(T value)
     {
         Option result;
-        moveEmplace(value, result.payload());
+        move_emplace(value, result.payload());
         result.present_ = true;
         return result;
     }
@@ -219,7 +219,7 @@ nothrow @nogc:
         version (XTB_Checked)
             require(present_, "cannot take an empty Option");
         T result = void;
-        moveEmplace(payload(), result);
+        move_emplace(payload(), result);
         present_ = false;
         return result;
     }

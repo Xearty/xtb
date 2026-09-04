@@ -5,9 +5,9 @@ nothrow @nogc:
 import core.attribute : mustuse;
 import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
-import xtb.lifetime : finalize, hasDDestructor,
-    lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit,
-    needsFinalization;
+import xtb.lifetime : finalize, has_d_destructor,
+    lifetimeDeinit = deinit, lifetimeMove = move, needs_deinit,
+    needs_finalization;
 import xtb.memory : Allocator, deallocate, tryAllocate;
 import xtb.panic : panic;
 import xtb.result : Result, ResultReturns;
@@ -220,7 +220,7 @@ private void validateTypedWorker(alias function_)()
             !is(Parameters!function_[index] == inout InoutBase, InoutBase),
             "typed Thread start does not yet accept top-level inout parameters",
         );
-        static if (needsDeinit!(Parameters!function_[index]))
+        static if (needs_deinit!(Parameters!function_[index]))
             static assert(
                 is(Parameters!function_[index] ==
                     Unqual!(Parameters!function_[index])),
@@ -250,7 +250,7 @@ private struct TypedCaptures(alias function_)
 
 private void finalizeTypedValue(T)(ref T value) @system
 {
-    static if (needsFinalization!T)
+    static if (needs_finalization!T)
         finalize(value);
 }
 
@@ -531,8 +531,8 @@ nothrow @nogc:
         );
 
         static foreach (index; 0 .. WorkerParameters.length)
-            static if (needsDeinit!(Unqual!(Args[index])) ||
-                needsDeinit!(Unqual!(WorkerParameters[index])))
+            static if (needs_deinit!(Unqual!(Args[index])) ||
+                needs_deinit!(Unqual!(WorkerParameters[index])))
                 static assert(
                     is(Unqual!(Args[index]) == Unqual!(WorkerParameters[index])),
                     "explicit-lifetime Thread arguments require an exact worker parameter type",
@@ -688,8 +688,8 @@ nothrow @nogc:
         );
 
         static foreach (index; 0 .. WorkerParameters.length)
-            static if (needsDeinit!(Unqual!(Args[index])) ||
-                needsDeinit!(Unqual!(WorkerParameters[index])))
+            static if (needs_deinit!(Unqual!(Args[index])) ||
+                needs_deinit!(Unqual!(WorkerParameters[index])))
                 static assert(
                     is(Unqual!(Args[index]) == Unqual!(WorkerParameters[index])),
                     "explicit-lifetime Thread arguments require an exact worker parameter type",
@@ -702,7 +702,7 @@ nothrow @nogc:
         if (state is null)
         {
             static foreach_reverse (index; 0 .. Args.length)
-                static if (needsDeinit!(Unqual!(Args[index])))
+                static if (needs_deinit!(Unqual!(Args[index])))
                     lifetimeDeinit(arguments[index]);
             return err(allocationStartFailure());
         }

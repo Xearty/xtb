@@ -5,7 +5,7 @@ nothrow @nogc:
 import xtb.cli.attributes;
 import xtb.cli.value : CliValueError;
 import xtb.containers.array : Array;
-import xtb.lifetime : hasDDestructor, needsFinalization;
+import xtb.lifetime : has_d_destructor, needs_finalization;
 import xtb.memory : Allocator;
 import xtb.option : Option;
 import xtb.fmt.writer : Writer;
@@ -1205,7 +1205,7 @@ private bool validateField(Root, T, size_t index)() pure @safe
             alias ParsedValue = Unqualified!Field;
         else
             alias ParsedValue = Value;
-        static assert(!hasDDestructor!ParsedValue,
+        static assert(!has_d_destructor!ParsedValue,
             T.stringof ~ "." ~ sourceName ~
                 " @cliValueWith value types with D destructor semantics are not supported");
         alias Representation = FieldValueRepresentation!(T, index);
@@ -1431,7 +1431,7 @@ private bool validateField(Root, T, size_t index)() pure @safe
         static if (cliFieldIsRepeated!(T, index))
             static assert(!is(Unqualified!Value == bool),
                 T.stringof ~ "." ~ sourceName ~ " Array!bool CLI fields are not supported");
-        static assert(!needsFinalization!Value,
+        static assert(!needs_finalization!Value,
             T.stringof ~ "." ~ sourceName ~
                 " Array CLI fields require elements without cleanup obligations");
     }

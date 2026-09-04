@@ -347,10 +347,10 @@ private void* byteAddress(void* base, size_t offset) @system
 
 unittest
 {
-    import xtb.lifetime : move, needsDeinit;
+    import xtb.lifetime : move, needs_deinit;
 
     static assert(__traits(isCopyable, VirtualMemoryRegion));
-    static assert(!needsDeinit!VirtualMemoryRegion);
+    static assert(!needs_deinit!VirtualMemoryRegion);
     static assert(__traits(compiles, () nothrow @nogc @system {
             VirtualMemoryRegion value;
             VirtualMemoryRegion output;
@@ -363,7 +363,7 @@ unittest
         }));
 
     static assert(!__traits(isCopyable, VirtualMemoryReservation));
-    static assert(needsDeinit!VirtualMemoryReservation);
+    static assert(needs_deinit!VirtualMemoryReservation);
     static assert(__traits(compiles, () nothrow @nogc @system {
             VirtualMemoryReservation value;
             cast(void) value.base;

@@ -2,7 +2,7 @@ module xtb.containers.string_hash_set;
 
 nothrow @nogc:
 
-import xtb.lifetime : move, moveEmplace;
+import xtb.lifetime : move, move_emplace;
 import xtb.hash : HashSeed;
 import xtb.containers.hash_map : AddStatus;
 import xtb.containers.hash_set : HashSet, HashSetUnmanaged;
@@ -53,7 +53,7 @@ public:
     {
         StringHashSetUnmanaged result;
         auto map = typeof(result.map_).seeded(seed);
-        moveEmplace(map, result.map_);
+        move_emplace(map, result.map_);
         return move(result);
     }
 
@@ -73,7 +73,7 @@ public:
         StringHashMapUnmanaged!StringSetMarker map;
         if (!typeof(map).tryWithCapacity(allocator, requested, &map))
             return false;
-        moveEmplace(map, output.map_);
+        move_emplace(map, output.map_);
         return true;
     }
 
@@ -303,7 +303,7 @@ public:
         StringHashSet result;
         result.allocator_ = allocator;
         Storage storage = Storage.seeded(seed);
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -323,7 +323,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -348,7 +348,7 @@ public:
         StringHashSet result;
         result.allocator_ = allocator;
         Storage storage = Storage.withCapacity(allocator, requested, seed);
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -361,7 +361,7 @@ public:
         Storage storage = released.extract(&allocator);
         StringHashSet result;
         result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 

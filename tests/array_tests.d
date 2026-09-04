@@ -3,7 +3,7 @@ module tests.array_tests;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.containers.array;
-import xtb.lifetime : deinit, move, moveAssign;
+import xtb.lifetime : deinit, move, move_assign;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
 import xtb.string : StringBuf;
 
@@ -252,7 +252,7 @@ private void testMoveAssignmentReleasesReplacedOwners() @system
         Array!int source = Array!int.fromSlice(tracked.allocator, [1, 2, 3]);
         Array!int target = Array!int.fromSlice(tracked.allocator, [9]);
         assert(tracked.stats.outstandingAllocations == 2);
-        moveAssign(source, target);
+        move_assign(source, target);
         assert(source.allocator is null && source.empty);
         assert(target.slice == [1, 2, 3]);
         assert(tracked.stats.outstandingAllocations == 1);
@@ -280,7 +280,7 @@ private void testMoveAssignmentReleasesReplacedOwners() @system
         target.append(move(targetOwner));
         assert(tracked.stats.outstandingAllocations == 4);
 
-        moveAssign(source, target);
+        move_assign(source, target);
         assert(source.allocator is null && source.empty);
         assert(target.length == 1 && target[0].bytes.length == 19);
         assert(tracked.stats.outstandingAllocations == 2);

@@ -2,11 +2,12 @@ module xtb.lifetime;
 
 nothrow @nogc:
 
-import core.internal.lifetime : emplaceInitializer;
-import core.internal.traits : Unqual, hasElaborateCopyConstructor,
-    hasElaborateDestructor;
-import core.lifetime : coreMoveEmplace = moveEmplace, forward;
-import xtb.types : String;
+import core.internal.lifetime : emplace_initializer = emplaceInitializer;
+import core.internal.traits : Unqual, has_elaborate_copy_constructor = hasElaborateCopyConstructor,
+    has_elaborate_destructor = hasElaborateDestructor;
+import core.lifetime : core_move_emplace = moveEmplace, forward;
+import xtb.panic;
+import xtb.types;
 
 private alias AliasSeq(T...) = T;
 
@@ -15,7 +16,7 @@ private alias AliasSeq(T...) = T;
 /// Apply this to the union field of a containing aggregate:
 ///
 /// ```d
-/// @taggedBy("kind", Kind.none)
+/// @tagged_by("kind", Kind.none)
 /// Payload payload;
 /// ```
 struct TaggedBy(Tag)
@@ -30,457 +31,651 @@ struct TaggedCase(Tag)
     Tag tag;
 }
 
-/// Creates tagged-union lifetime metadata for a raw union field.
-TaggedBy!Tag taggedBy(Tag)(String discriminator, Tag inactive) pure @safe
+/// Creates tagged-union lifetime metadata while inferring the tag type.
+TaggedBy!Tag tagged_by(Tag)(String discriminator, Tag inactive) pure @safe
 {
     return TaggedBy!Tag(discriminator, inactive);
 }
 
-/// Overrides the discriminator value associated with a raw union member.
-TaggedCase!Tag taggedCase(Tag)(Tag tag) pure @safe
+/// Overrides a raw union member's discriminator value while inferring its type.
+TaggedCase!Tag tagged_case(Tag)(Tag tag) pure @safe
 {
     return TaggedCase!Tag(tag);
 }
 
 private template MemberFunctionType(alias operation)
 {
-    static if (is(typeof(&operation) Function : Function*) &&
-        is(Function == function))
+    static if (
+        is(typeof(&operation) Function : Function*)
+        && is(Function == function)
+    )
+    {
         alias MemberFunctionType = Function;
+    }
     else static if (is(typeof(operation) Function == function))
+    {
         alias MemberFunctionType = Function;
+    }
     else
+    {
         alias MemberFunctionType = void;
+    }
 }
 
 private template MemberParameters(alias operation)
 {
     static if (is(MemberFunctionType!operation Parameters == function))
+    {
         alias MemberParameters = Parameters;
+    }
     else
+    {
         alias MemberParameters = AliasSeq!();
+    }
 }
 
 private template MemberReturnType(alias operation)
 {
     static if (is(MemberFunctionType!operation Return == return))
+    {
         alias MemberReturnType = Return;
-    else
-        alias MemberReturnType = void;
-}
-
-private bool hasFunctionAttribute(alias operation, String wanted)() pure @safe
-{
-    static foreach (attribute; __traits(getFunctionAttributes, operation))
-        if (attribute == wanted)
-            return true;
-    return false;
-}
-
-private bool parameterRequiresLvalue(alias operation, size_t index)() pure @safe
-{
-    alias FunctionPointer = typeof(&operation);
-    static foreach (storageClass; __traits(getParameterStorageClasses, FunctionPointer, index))
-        if (storageClass == "ref" || storageClass == "out")
-            return true;
-    return false;
-}
-
-private template IsCompatibleDeinitOverload(alias operation, arguments...)
-{
-    alias Parameters = MemberParameters!operation;
-    static if (
-        __traits(getProtection, operation) != "public" ||
-        __traits(isStaticFunction, operation) ||
-        !is(MemberReturnType!operation == void) ||
-        hasFunctionAttribute!(operation, "immutable")() ||
-        hasFunctionAttribute!(operation, "shared")() ||
-        Parameters.length != arguments.length)
-        enum IsCompatibleDeinitOverload = false;
+    }
     else
     {
-        enum bool matches = () {
+        alias MemberReturnType = void;
+    }
+}
+
+private bool has_function_attribute(alias operation, String wanted)() pure @safe
+{
+    static foreach (attribute; __traits(getFunctionAttributes, operation))
+    {
+        if (attribute == wanted)
+            return true;
+    }
+
+    return false;
+}
+
+private bool parameter_requires_lvalue(alias operation, usize index)() pure @safe
+{
+    alias FunctionPointer = typeof(&operation);
+
+    static foreach (storage_class; __traits(
+        getParameterStorageClasses,
+        FunctionPointer,
+        index,
+    ))
+    {
+        if (storage_class == "ref" || storage_class == "out")
+            return true;
+    }
+
+    return false;
+}
+
+private template is_compatible_deinit_overload(alias operation, arguments...)
+{
+    alias Parameters = MemberParameters!operation;
+
+    static if (
+        __traits(getProtection, operation) != "public"
+        || __traits(isStaticFunction, operation)
+        || !is(MemberReturnType!operation == void)
+        || has_function_attribute!(operation, "immutable")()
+        || has_function_attribute!(operation, "shared")()
+        || Parameters.length != arguments.length
+    )
+    {
+        enum is_compatible_deinit_overload = false;
+    }
+    else
+    {
+        enum bool matches = ()
+        {
             static foreach (index; 0 .. arguments.length)
             {
                 static if (!is(Parameters[index] == typeof(arguments[index])))
+                {
                     return false;
-                static if (parameterRequiresLvalue!(operation, index)() &&
-                    !__traits(isRef, arguments[index]))
+                }
+
+                static if (
+                    parameter_requires_lvalue!(operation, index)()
+                    && !__traits(isRef, arguments[index])
+                )
+                {
                     return false;
+                }
             }
+
             return true;
         }();
-        enum IsCompatibleDeinitOverload = matches;
+
+        enum is_compatible_deinit_overload = matches;
     }
 }
 
-private template instanceDeinitOverloadCount(T)
+private template instance_deinit_overload_count(T)
 {
     alias U = Unqual!T;
-    static if (!((is(U == struct) || is(U == union)) &&
-            __traits(hasMember, U, "deinit")))
-        enum instanceDeinitOverloadCount = 0;
-    else
+
+    static if (
+        !(
+            (is(U == struct) || is(U == union))
+            && __traits(hasMember, U, "deinit")
+        )
+    )
     {
-        enum size_t count = () {
-            size_t result;
-            static foreach (alias operation; __traits(getOverloads, U, "deinit"))
-                static if (!__traits(isStaticFunction, operation))
-                    ++result;
-            return result;
-        }();
-        enum instanceDeinitOverloadCount = count;
+        enum instance_deinit_overload_count = 0;
     }
-}
-
-private template hasDeinitFamily(T)
-{
-    enum hasDeinitFamily = instanceDeinitOverloadCount!(Unqual!T) != 0;
-}
-
-private template validDeinitOverloadCount(T)
-{
-    alias U = Unqual!T;
-    static if (!hasDeinitFamily!U)
-        enum validDeinitOverloadCount = 0;
     else
     {
-        enum size_t count = () {
-            size_t result;
+        enum usize count = ()
+        {
+            usize result;
+
             static foreach (alias operation; __traits(getOverloads, U, "deinit"))
             {
-                static if (
-                    __traits(getProtection, operation) == "public" &&
-                    !__traits(isStaticFunction, operation) &&
-                    is(MemberReturnType!operation == void) &&
-                    !hasFunctionAttribute!(operation, "immutable")() &&
-                    !hasFunctionAttribute!(operation, "shared")())
+                static if (!__traits(isStaticFunction, operation))
                 {
                     ++result;
                 }
             }
+
             return result;
         }();
-        enum validDeinitOverloadCount = count;
+
+        enum instance_deinit_overload_count = count;
     }
 }
 
-private template compatibleDeinitOverloadCount(T, arguments...)
+private template has_deinit_family(T)
+{
+    enum has_deinit_family = instance_deinit_overload_count!(Unqual!T) != 0;
+}
+
+private template valid_deinit_overload_count(T)
 {
     alias U = Unqual!T;
-    static if (!hasDeinitFamily!U)
-        enum compatibleDeinitOverloadCount = 0;
+
+    static if (!has_deinit_family!U)
+    {
+        enum valid_deinit_overload_count = 0;
+    }
     else
     {
-        enum size_t count = () {
-            size_t result;
+        enum usize count = ()
+        {
+            usize result;
+
             static foreach (alias operation; __traits(getOverloads, U, "deinit"))
             {
-                static if (IsCompatibleDeinitOverload!(operation, arguments))
+                static if (
+                    __traits(getProtection, operation) == "public"
+                    && !__traits(isStaticFunction, operation)
+                    && is(MemberReturnType!operation == void)
+                    && !has_function_attribute!(operation, "immutable")()
+                    && !has_function_attribute!(operation, "shared")()
+                )
+                {
                     ++result;
+                }
             }
+
             return result;
         }();
-        enum compatibleDeinitOverloadCount = count;
+
+        enum valid_deinit_overload_count = count;
     }
 }
 
-private template IsTaggedByAttribute(A)
+private template compatible_deinit_overload_count(T, arguments...)
+{
+    alias U = Unqual!T;
+
+    static if (!has_deinit_family!U)
+    {
+        enum compatible_deinit_overload_count = 0;
+    }
+    else
+    {
+        enum usize count = ()
+        {
+            usize result;
+
+            static foreach (alias operation; __traits(getOverloads, U, "deinit"))
+            {
+                static if (is_compatible_deinit_overload!(operation, arguments))
+                {
+                    ++result;
+                }
+            }
+
+            return result;
+        }();
+
+        enum compatible_deinit_overload_count = count;
+    }
+}
+
+private template is_tagged_by_attribute(A)
 {
     static if (is(A == TaggedBy!Tag, Tag))
-        enum IsTaggedByAttribute = true;
+    {
+        enum is_tagged_by_attribute = true;
+    }
     else
-        enum IsTaggedByAttribute = false;
+    {
+        enum is_tagged_by_attribute = false;
+    }
 }
 
-private template IsTaggedCaseAttribute(A)
+private template is_tagged_case_attribute(A)
 {
     static if (is(A == TaggedCase!Tag, Tag))
-        enum IsTaggedCaseAttribute = true;
+    {
+        enum is_tagged_case_attribute = true;
+    }
     else
-        enum IsTaggedCaseAttribute = false;
+    {
+        enum is_tagged_case_attribute = false;
+    }
 }
 
-private template HasNamedField(T, size_t index)
+private template has_named_field(T, usize index)
 {
     alias U = Unqual!T;
     enum name = __traits(identifier, U.tupleof[index]);
-    enum HasNamedField = __traits(compiles, __traits(getMember, U, name));
+    enum has_named_field = __traits(compiles, __traits(getMember, U, name));
 }
 
-private template FieldSymbol(T, size_t index)
+private template FieldSymbol(T, usize index)
 {
     alias U = Unqual!T;
     enum name = __traits(identifier, U.tupleof[index]);
     alias FieldSymbol = __traits(getMember, U, name);
 }
 
-private template UnionMemberSymbol(T, size_t index)
+private template UnionMemberSymbol(T, usize index)
 {
     alias U = Unqual!T;
     enum name = __traits(identifier, U.tupleof[index]);
     alias UnionMemberSymbol = __traits(getMember, U, name);
 }
 
-private size_t taggedByAttributeCount(T, size_t index)() pure @safe
+private usize tagged_by_attribute_count(T, usize index)() pure @safe
 {
-    size_t result;
-    static if (HasNamedField!(T, index))
+    usize result;
+
+    static if (has_named_field!(T, index))
+    {
         static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
-            {
+        {
             static if (__traits(compiles, typeof(attribute)))
-                static if (IsTaggedByAttribute!(typeof(attribute)))
+            {
+                static if (is_tagged_by_attribute!(typeof(attribute)))
+                {
                     ++result;
+                }
+            }
         }
+    }
+
     return result;
 }
 
-private auto taggedByAttribute(T, size_t index)() pure @safe
+private auto tagged_by_attribute(T, usize index)() pure @safe
 {
-    static assert(taggedByAttributeCount!(T, index) == 1,
-        "tagged lifetime payload field must have exactly one @taggedBy");
+    static assert(
+        tagged_by_attribute_count!(T, index) == 1,
+        "tagged lifetime payload field must have exactly one @tagged_by",
+    );
+
     static foreach (attribute; __traits(getAttributes, FieldSymbol!(T, index)))
     {
         static if (__traits(compiles, typeof(attribute)))
-            static if (IsTaggedByAttribute!(typeof(attribute)))
+        {
+            static if (is_tagged_by_attribute!(typeof(attribute)))
+            {
                 return attribute;
+            }
+        }
     }
 }
 
-private size_t taggedCaseAttributeCount(T, size_t index)() pure @safe
+private usize tagged_case_attribute_count(T, usize index)() pure @safe
 {
-    size_t result;
-    static foreach (attribute; __traits(getAttributes,
-            UnionMemberSymbol!(T, index)))
+    usize result;
+
+    static foreach (attribute; __traits(
+        getAttributes,
+        UnionMemberSymbol!(T, index),
+    ))
     {
         static if (__traits(compiles, typeof(attribute)))
-            static if (IsTaggedCaseAttribute!(typeof(attribute)))
+        {
+            static if (is_tagged_case_attribute!(typeof(attribute)))
+            {
                 ++result;
+            }
+        }
     }
+
     return result;
 }
 
-private auto taggedCaseAttribute(T, size_t index)() pure @safe
+private auto tagged_case_attribute(T, usize index)() pure @safe
 {
-    static assert(taggedCaseAttributeCount!(T, index) == 1,
-        "tagged union member must have exactly one @taggedCase override");
-    static foreach (attribute; __traits(getAttributes,
-            UnionMemberSymbol!(T, index)))
+    static assert(
+        tagged_case_attribute_count!(T, index) == 1,
+        "tagged union member must have exactly one @tagged_case override",
+    );
+
+    static foreach (attribute; __traits(
+        getAttributes,
+        UnionMemberSymbol!(T, index),
+    ))
     {
         static if (__traits(compiles, typeof(attribute)))
-            static if (IsTaggedCaseAttribute!(typeof(attribute)))
+        {
+            static if (is_tagged_case_attribute!(typeof(attribute)))
+            {
                 return attribute;
+            }
+        }
     }
 }
 
-private size_t fieldIndexNamed(T, String name, size_t index = 0)() pure @safe
+private usize field_index_named(T, String name, usize index = 0)() pure @safe
 {
     alias U = Unqual!T;
+
     static if (index == U.tupleof.length)
-        return size_t.max;
+    {
+        return usize.max;
+    }
     else static if (__traits(identifier, U.tupleof[index]) == name)
+    {
         return index;
+    }
     else
-        return fieldIndexNamed!(U, name, index + 1)();
+    {
+        return field_index_named!(U, name, index + 1)();
+    }
 }
 
-private size_t enumValueCount(Tag)(Tag value) pure @safe
+private usize enum_value_count(Tag)(Tag value) pure @safe
 {
     alias U = Unqual!Tag;
-    size_t result;
+    usize result;
+
     static foreach (member; __traits(allMembers, U))
     {
         static if (__traits(hasMember, U, member))
+        {
             if (__traits(getMember, U, member) == value)
                 ++result;
+        }
     }
+
     return result;
 }
 
-private bool enumValuesAreUnique(Tag)() pure @safe
+private bool enum_values_are_unique(Tag)() pure @safe
 {
     alias U = Unqual!Tag;
     alias members = __traits(allMembers, U);
-    static foreach (leftIndex, left; members)
+
+    static foreach (left_index, left; members)
     {
         static if (__traits(hasMember, U, left))
-            static foreach (rightIndex, right; members)
+        {
+            static foreach (right_index, right; members)
+            {
+                static if (
+                    right_index > left_index
+                    && __traits(hasMember, U, right)
+                )
                 {
-                static if (rightIndex > leftIndex &&
-                    __traits(hasMember, U, right))
-                    if (__traits(getMember, U, left) ==
-                        __traits(getMember, U, right))
+                    if (
+                        __traits(getMember, U, left)
+                        == __traits(getMember, U, right)
+                    )
+                    {
                         return false;
+                    }
+                }
             }
+        }
     }
+
     return true;
 }
 
-private Tag unionMemberTag(Payload, size_t index, Tag)() pure @safe
+private Tag union_member_tag(Payload, usize index, Tag)() pure @safe
 {
     alias P = Unqual!Payload;
     alias U = Unqual!Tag;
-    enum caseAttributeCount = taggedCaseAttributeCount!(P, index)();
-    static assert(caseAttributeCount <= 1,
-        "a tagged union member may have at most one @taggedCase override");
+    enum case_attribute_count = tagged_case_attribute_count!(P, index)();
 
-    static if (caseAttributeCount == 1)
+    static assert(
+        case_attribute_count <= 1,
+        "a tagged union member may have at most one @tagged_case override",
+    );
+
+    static if (case_attribute_count == 1)
     {
-        enum attribute = taggedCaseAttribute!(P, index)();
-        static assert(is(Unqual!(typeof(attribute.tag)) == U),
-            "@taggedCase value must have the discriminator enum type");
+        enum attribute = tagged_case_attribute!(P, index)();
+
+        static assert(
+            is(Unqual!(typeof(attribute.tag)) == U),
+            "@tagged_case value must have the discriminator enum type",
+        );
+
         return cast(U) attribute.tag;
     }
     else
     {
-        enum memberName = __traits(identifier, P.tupleof[index]);
-        static assert(__traits(hasMember, U, memberName),
-            "tagged union member has no same-named discriminator value; add @taggedCase");
-        enum value = __traits(getMember, U, memberName);
-        static assert(is(typeof(value) == U),
-            "same-named tagged union discriminator symbol is not an enum member");
+        enum member_name = __traits(identifier, P.tupleof[index]);
+
+        static assert(
+            __traits(hasMember, U, member_name),
+            "tagged union member has no same-named discriminator value; add @tagged_case",
+        );
+
+        enum value = __traits(getMember, U, member_name);
+
+        static assert(
+            is(typeof(value) == U),
+            "same-named tagged union discriminator symbol is not an enum member",
+        );
+
         return value;
     }
 }
 
-private size_t unionMembersForTag(Payload, Tag)(Tag tag) pure @safe
+private usize union_members_for_tag(Payload, Tag)(Tag tag) pure @safe
 {
     alias P = Unqual!Payload;
-    size_t result;
+    usize result;
+
     static foreach (index; 0 .. P.tupleof.length)
-        if (unionMemberTag!(P, index, Tag)() == tag)
+    {
+        if (union_member_tag!(P, index, Tag)() == tag)
             ++result;
+    }
+
     return result;
 }
 
-private template ValidateTaggedPayload(T, size_t payloadIndex)
+private bool tag_mapping_is_valid(Payload, Tag, string member)(Tag inactive) pure @safe
+{
+    enum tag = __traits(getMember, Tag, member);
+
+    if (tag == inactive) return true;
+
+    enum matching_member_count = union_members_for_tag!(Payload, Tag)(tag);
+    return matching_member_count == 1;
+}
+
+private template validate_tagged_payload(T, usize payload_index)
 {
     alias U = Unqual!T;
-    enum metadata = taggedByAttribute!(U, payloadIndex)();
+    enum metadata = tagged_by_attribute!(U, payload_index)();
     alias MetadataTag = Unqual!(typeof(metadata.inactive));
-    enum discriminatorIndex = fieldIndexNamed!(U, metadata.discriminator)();
+    enum discriminator_index = field_index_named!(U, metadata.discriminator)();
 
-    static assert(discriminatorIndex != size_t.max,
-        "@taggedBy discriminator field does not exist in the containing aggregate");
-    alias Discriminator = Unqual!(typeof(U.tupleof[discriminatorIndex]));
-    alias Payload = Unqual!(typeof(U.tupleof[payloadIndex]));
-    static assert(is(Discriminator == enum),
-        "@taggedBy discriminator field must have an enum type");
-    static assert(is(Discriminator == MetadataTag),
-        "@taggedBy inactive value must have the discriminator enum type");
-    static assert(is(Payload == union),
-        "@taggedBy may only annotate a raw union field");
-    static assert(enumValuesAreUnique!Discriminator(),
-        "tagged union discriminator enum values must be unique");
-    static assert(enumValueCount!Discriminator(metadata.inactive) == 1,
-        "@taggedBy inactive value must identify exactly one discriminator enum member");
-    static assert(U.init.tupleof[discriminatorIndex] == metadata.inactive,
-        "@taggedBy inactive value must match the discriminator field's .init value");
+    static assert(
+        discriminator_index != usize.max,
+        "@tagged_by discriminator field does not exist in the containing aggregate",
+    );
 
-    static foreach (memberIndex; 0 .. Payload.tupleof.length)
+    alias Discriminator = Unqual!(typeof(U.tupleof[discriminator_index]));
+    alias Payload = Unqual!(typeof(U.tupleof[payload_index]));
+
+    static assert(
+        is(Discriminator == enum),
+        "@tagged_by discriminator field must have an enum type",
+    );
+    static assert(
+        is(Discriminator == MetadataTag),
+        "@tagged_by inactive value must have the discriminator enum type",
+    );
+    static assert(
+        is(Payload == union),
+        "@tagged_by may only annotate a raw union field",
+    );
+    static assert(
+        enum_values_are_unique!Discriminator(),
+        "tagged union discriminator enum values must be unique",
+    );
+    static assert(
+        enum_value_count!Discriminator(metadata.inactive) == 1,
+        "@tagged_by inactive value must identify exactly one discriminator enum member",
+    );
+    static assert(
+        U.init.tupleof[discriminator_index] == metadata.inactive,
+        "@tagged_by inactive value must match the discriminator field's .init value",
+    );
+
+    static foreach (member_index; 0 .. Payload.tupleof.length)
     {
-        static assert(enumValueCount!Discriminator(
-                unionMemberTag!(Payload, memberIndex, Discriminator)()) == 1,
-            "tagged union member maps to a value not declared by the discriminator enum");
-        static assert(unionMemberTag!(Payload, memberIndex, Discriminator)() !=
-                metadata.inactive,
-            "the inactive discriminator value cannot identify an active union member");
-        static foreach (otherIndex; memberIndex + 1 .. Payload.tupleof.length)
-            static assert(unionMemberTag!(Payload, memberIndex, Discriminator)() !=
-                    unionMemberTag!(Payload, otherIndex, Discriminator)(),
-                "multiple tagged union members map to the same discriminator value");
+        static assert(
+            enum_value_count!Discriminator(
+                union_member_tag!(Payload, member_index, Discriminator)(),
+            ) == 1,
+            "tagged union member maps to a value not declared by the discriminator enum",
+        );
+        static assert(
+            union_member_tag!(Payload, member_index, Discriminator)() != metadata.inactive,
+            "the inactive discriminator value cannot identify an active union member",
+        );
+
+        static foreach (other_index; member_index + 1 .. Payload.tupleof.length)
+        {
+            static assert(
+                union_member_tag!(Payload, member_index, Discriminator)()
+                    != union_member_tag!(Payload, other_index, Discriminator)(),
+                "multiple tagged union members map to the same discriminator value",
+            );
+        }
     }
 
     static foreach (member; __traits(allMembers, Discriminator))
     {
-        static if (__traits(hasMember, Discriminator, member))
-            static if (__traits(getMember, Discriminator, member) != metadata.inactive)
-                static assert(unionMembersForTag!(Payload, Discriminator)(
-                        __traits(getMember, Discriminator, member)) == 1,
-                    "every non-inactive discriminator value must map to exactly one union member");
+        static assert(
+            tag_mapping_is_valid!(Payload, Discriminator, member)(metadata.inactive),
+            "every non-inactive discriminator value must map to exactly one union member",
+        );
     }
 
-    enum ValidateTaggedPayload = true;
+    enum validate_tagged_payload = true;
 }
 
-private template ValidateTaggedLifetime(T)
+private template validate_tagged_lifetime(T)
 {
     alias U = Unqual!T;
+
     static foreach (index; 0 .. U.tupleof.length)
     {
-        static assert(taggedByAttributeCount!(U, index)() <= 1,
-            "an aggregate field may have at most one @taggedBy attribute");
-        static if (taggedByAttributeCount!(U, index)() == 1)
-            static assert(ValidateTaggedPayload!(U, index));
+        static assert(
+            tagged_by_attribute_count!(U, index)() <= 1,
+            "an aggregate field may have at most one @tagged_by attribute",
+        );
+
+        static if (tagged_by_attribute_count!(U, index)() == 1)
+        {
+            static assert(validate_tagged_payload!(U, index));
+        }
     }
-    enum ValidateTaggedLifetime = true;
+
+    enum validate_tagged_lifetime = true;
 }
 
-private template IsTaggedPayloadField(T, size_t index)
+private template is_tagged_payload_field_impl(T, usize index)
 {
-    enum IsTaggedPayloadField = taggedByAttributeCount!(Unqual!T, index)() == 1;
+    enum is_tagged_payload_field_impl = tagged_by_attribute_count!(Unqual!T, index)() == 1;
 }
 
 // Package-level tagged-union introspection used by other core facilities such
 // as structural pretty printing. Keep the reflection and validation rules in
 // one place so observers cannot accidentally disagree with lifetime cleanup
 // about which raw union member is active.
-package template isTaggedPayloadField(T, size_t index)
+package(xtb) template is_tagged_payload_field(T, usize index)
 {
-    enum isTaggedPayloadField = IsTaggedPayloadField!(T, index);
+    enum is_tagged_payload_field = is_tagged_payload_field_impl!(T, index);
 }
 
-package auto taggedPayloadMetadata(T, size_t payloadIndex)() pure @safe
+package(xtb) auto tagged_payload_metadata(T, usize payload_index)() pure @safe
 {
     alias U = Unqual!T;
-    static assert(ValidateTaggedPayload!(U, payloadIndex));
-    return taggedByAttribute!(U, payloadIndex)();
+    static assert(validate_tagged_payload!(U, payload_index));
+    return tagged_by_attribute!(U, payload_index)();
 }
 
-package size_t taggedPayloadDiscriminatorIndex(T, size_t payloadIndex)()
-pure @safe
+package(xtb) usize tagged_payload_discriminator_index(T, usize payload_index)() pure @safe
 {
     alias U = Unqual!T;
-    enum metadata = taggedPayloadMetadata!(U, payloadIndex)();
-    return fieldIndexNamed!(U, metadata.discriminator)();
+    enum metadata = tagged_payload_metadata!(U, payload_index)();
+    return field_index_named!(U, metadata.discriminator)();
 }
 
-package Tag taggedPayloadMemberTag(Payload, size_t memberIndex, Tag)()
-pure @safe
+package(xtb) Tag tagged_payload_member_tag(Payload, usize member_index, Tag)() pure @safe
 {
-    return unionMemberTag!(Payload, memberIndex, Tag)();
+    return union_member_tag!(Payload, member_index, Tag)();
 }
 
-private void deinitTaggedPayload(T, size_t payloadIndex)(ref T value)
+private void deinit_tagged_payload(T, usize payload_index)(ref T value)
 {
     alias U = Unqual!T;
-    static assert(ValidateTaggedPayload!(U, payloadIndex));
-    enum metadata = taggedByAttribute!(U, payloadIndex)();
+    static assert(validate_tagged_payload!(U, payload_index));
+    enum metadata = tagged_by_attribute!(U, payload_index)();
     alias Tag = Unqual!(typeof(metadata.inactive));
-    alias Payload = Unqual!(typeof(U.tupleof[payloadIndex]));
-    enum discriminatorIndex = fieldIndexNamed!(U, metadata.discriminator)();
-    const active = value.tupleof[discriminatorIndex];
+    alias Payload = Unqual!(typeof(U.tupleof[payload_index]));
+    enum discriminator_index = field_index_named!(U, metadata.discriminator)();
+    const active = value.tupleof[discriminator_index];
 
     if (active == metadata.inactive)
         return;
 
-    static foreach (memberIndex; 0 .. Payload.tupleof.length)
-    {
-        {
-            enum mappedTag = unionMemberTag!(Payload, memberIndex, Tag)();
-            if (active == mappedTag)
-            {
-                static if (needsDeinit!(typeof(Payload.tupleof[memberIndex])))
-                    deinit(value.tupleof[payloadIndex].tupleof[memberIndex]);
-                return;
-            }
-        }
-    }
+    static foreach (member_index; 0 .. Payload.tupleof.length)
+    {{
+        enum mapped_tag = union_member_tag!(Payload, member_index, Tag)();
 
-    // A discriminator outside the declared enum domain provides no safe active
-    // member to inspect. Checked builds retain the assertion; release-fast
-    // avoids guessing which union storage is live.
-    assert(false, "invalid tagged union discriminator");
+        if (active == mapped_tag)
+        {
+            static if (needs_deinit!(typeof(Payload.tupleof[member_index])))
+            {
+                deinit(value.tupleof[payload_index].tupleof[member_index]);
+            }
+
+            return;
+        }
+    }}
+
+    // No union member is safe to inspect for an invalid discriminator.
+    ensure(false, "invalid tagged union discriminator");
 }
 
 /// True when `T` has D destructor semantics.
@@ -490,32 +685,39 @@ private void deinitTaggedPayload(T, size_t payloadIndex)(ref T value)
 /// the compiler-visible destructor hooks directly and recurse through static
 /// arrays so lifetime-sensitive generic code never treats such a value as
 /// plain POD.
-template hasDDestructor(T)
+template has_d_destructor(T)
 {
     alias U = Unqual!T;
 
     static if (is(U == struct))
-        enum hasDDestructor = hasElaborateDestructor!U ||
-            __traits(hasMember, U, "__dtor") ||
-            __traits(hasMember, U, "__xdtor");
-    else static if (is(U == Element[Length], Element, size_t Length))
-        enum hasDDestructor = Length != 0 && hasDDestructor!Element;
+    {
+        enum has_d_destructor = has_elaborate_destructor!U
+            || __traits(hasMember, U, "__dtor")
+            || __traits(hasMember, U, "__xdtor");
+    }
+    else static if (is(U == Element[length], Element, usize length))
+    {
+        enum has_d_destructor = length != 0 && has_d_destructor!Element;
+    }
     else
-        enum hasDDestructor = false;
+    {
+        enum has_d_destructor = false;
+    }
 }
 
-private template NeedsDeinitImpl(T)
+private template needs_deinit_impl(T)
 {
     alias U = Unqual!T;
 
-    static if (hasDeinitFamily!U)
+    static if (has_deinit_family!U)
     {
         static assert(
-            validDeinitOverloadCount!U != 0,
-            U.stringof ~
-                ".deinit must contain a public, non-static void overload callable on a mutable value",
+            valid_deinit_overload_count!U != 0,
+            U.stringof
+                ~ ".deinit must contain a public, non-static void overload"
+                ~ " callable on a mutable value",
         );
-        enum NeedsDeinitImpl = true;
+        enum needs_deinit_impl = true;
     }
     else static if (is(U == struct))
     {
@@ -523,38 +725,55 @@ private template NeedsDeinitImpl(T)
         // structurally reinterpret an aggregate whose D destruction semantics
         // are still elaborate. Once ordinary owner destructors are removed,
         // their containing aggregates naturally become structurally eligible.
-        static if (hasDDestructor!U)
-            enum NeedsDeinitImpl = false;
+        static if (has_d_destructor!U)
+        {
+            enum needs_deinit_impl = false;
+        }
         else
         {
-            static assert(ValidateTaggedLifetime!U);
-            enum bool result = () {
+            static assert(validate_tagged_lifetime!U);
+
+            enum bool result = ()
+            {
                 static foreach (index; 0 .. U.tupleof.length)
                 {
-                    static if (NeedsDeinitImpl!(typeof(U.tupleof[index])))
+                    static if (needs_deinit_impl!(typeof(U.tupleof[index])))
+                    {
                         return true;
+                    }
                 }
+
                 return false;
             }();
-            enum NeedsDeinitImpl = result;
+
+            enum needs_deinit_impl = result;
         }
     }
     else static if (is(U == union))
     {
-        enum bool result = () {
+        enum bool result = ()
+        {
             static foreach (index; 0 .. U.tupleof.length)
             {
-                static if (NeedsDeinitImpl!(typeof(U.tupleof[index])))
+                static if (needs_deinit_impl!(typeof(U.tupleof[index])))
+                {
                     return true;
+                }
             }
+
             return false;
         }();
-        enum NeedsDeinitImpl = result;
+
+        enum needs_deinit_impl = result;
     }
-    else static if (is(U == Element[Length], Element, size_t Length))
-        enum NeedsDeinitImpl = NeedsDeinitImpl!Element;
+    else static if (is(U == Element[length], Element, usize length))
+    {
+        enum needs_deinit_impl = needs_deinit_impl!Element;
+    }
     else
-        enum NeedsDeinitImpl = false;
+    {
+        enum needs_deinit_impl = false;
+    }
 }
 
 /// True when explicit deinitialization of a live `T` performs meaningful work.
@@ -562,29 +781,39 @@ private template NeedsDeinitImpl(T)
 /// This is deliberately not an ownership classifier. In particular, borrowed
 /// pointers and slices are false, as are lexical RAII values that rely only on
 /// a D destructor.
-template needsDeinit(T)
+template needs_deinit(T)
 {
-    enum needsDeinit = NeedsDeinitImpl!T;
+    enum needs_deinit = needs_deinit_impl!T;
 }
 
 /// True when a live `T` has either explicit or D destructor cleanup work.
-template needsFinalization(T)
+template needs_finalization(T)
 {
-    enum needsFinalization = needsDeinit!T || hasDDestructor!T;
+    enum needs_finalization = needs_deinit!T || has_d_destructor!T;
 }
 
-private template SupportsContextFreeDeinit(T)
+private template supports_context_free_deinit(T)
 {
     alias U = Unqual!T;
-    enum SupportsContextFreeDeinit = __traits(compiles,
-            (ref U value) nothrow @nogc { deinit(value); });
+    enum supports_context_free_deinit = __traits(
+        compiles,
+        (ref U value) nothrow @nogc
+        {
+            deinit(value);
+        },
+    );
 }
 
-private template SupportsContextFreeDestroy(T)
+private template supports_context_free_destroy(T)
 {
     alias U = Unqual!T;
-    enum SupportsContextFreeDestroy = __traits(compiles,
-            (ref U value) nothrow @nogc { destroy(value); });
+    enum supports_context_free_destroy = __traits(
+        compiles,
+        (ref U value) nothrow @nogc
+        {
+            destroy(value);
+        },
+    );
 }
 
 /// True when a container can discard a live `T` without extra cleanup context.
@@ -593,14 +822,20 @@ private template SupportsContextFreeDestroy(T)
 /// when free `deinit(value)` is valid without additional arguments under
 /// `nothrow @nogc`. Values using only D destructor semantics qualify when
 /// `destroy(value)` satisfies the same attributes.
-template canFinalizeWithoutContext(T)
+template can_finalize_without_context(T)
 {
-    static if (needsDeinit!T)
-        enum canFinalizeWithoutContext = SupportsContextFreeDeinit!T;
-    else static if (hasDDestructor!T)
-        enum canFinalizeWithoutContext = SupportsContextFreeDestroy!T;
+    static if (needs_deinit!T)
+    {
+        enum can_finalize_without_context = supports_context_free_deinit!T;
+    }
+    else static if (has_d_destructor!T)
+    {
+        enum can_finalize_without_context = supports_context_free_destroy!T;
+    }
     else
-        enum canFinalizeWithoutContext = true;
+    {
+        enum can_finalize_without_context = true;
+    }
 }
 
 /// Explicitly deinitializes a mutable live value.
@@ -616,23 +851,26 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
     static assert(is(T == U), "deinit requires a mutable lvalue");
     static assert(!is(U == P*, P), "deinit does not accept raw pointers");
     static assert(
-        needsDeinit!U,
+        needs_deinit!U,
         U.stringof ~ " does not participate in explicit deinitialization",
     );
 
-    static if (hasDeinitFamily!U)
+    static if (has_deinit_family!U)
     {
         static assert(
-            compatibleDeinitOverloadCount!(U, arguments) != 0,
-            U.stringof ~
-                ".deinit has no public member overload compatible with the requested signature",
+            compatible_deinit_overload_count!(U, arguments) != 0,
+            U.stringof
+                ~ ".deinit has no public member overload compatible with the requested signature",
         );
         static assert(
             __traits(compiles, value.deinit(forward!arguments)),
             U.stringof ~ ".deinit overload resolution failed for the requested signature",
         );
-        static assert(is(typeof(value.deinit(forward!arguments)) == void),
-            U.stringof ~ ".deinit must return void");
+        static assert(
+            is(typeof(value.deinit(forward!arguments)) == void),
+            U.stringof ~ ".deinit must return void",
+        );
+
         value.deinit(forward!arguments);
     }
     else
@@ -642,34 +880,38 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
             "structural deinit does not accept cleanup context arguments",
         );
         static assert(
-            !hasDDestructor!U,
-            U.stringof ~
-                " still has D destructor semantics and cannot use structural deinit",
+            !has_d_destructor!U,
+            U.stringof
+                ~ " still has D destructor semantics and cannot use structural deinit",
         );
 
         static if (is(U == struct))
         {
             static foreach (offset; 0 .. U.tupleof.length)
-            {
-                static if (IsTaggedPayloadField!(U,
-                        U.tupleof.length - 1 - offset))
+            {{
+                enum index = U.tupleof.length - 1 - offset;
+
+                static if (is_tagged_payload_field_impl!(U, index))
                 {
-                    static if (needsDeinit!(typeof(
-                            U.tupleof[U.tupleof.length - 1 - offset])))
-                        deinitTaggedPayload!(U,
-                            U.tupleof.length - 1 - offset)(value);
+                    static if (needs_deinit!(typeof(U.tupleof[index])))
+                    {
+                        deinit_tagged_payload!(U, index)(value);
+                    }
                 }
-                else static if (needsDeinit!(typeof(
-                        U.tupleof[U.tupleof.length - 1 - offset])))
-                    deinit(value.tupleof[U.tupleof.length - 1 - offset]);
-            }
+                else static if (needs_deinit!(typeof(U.tupleof[index])))
+                {
+                    deinit(value.tupleof[index]);
+                }
+            }}
         }
         else static if (is(U == union))
         {
-            static assert(false,
-                "a raw union with cleanup-bearing members requires tagged lifetime metadata");
+            static assert(
+                false,
+                "a raw union with cleanup-bearing members requires tagged lifetime metadata",
+            );
         }
-        else static if (is(U == Element[Length], Element, size_t Length))
+        else static if (is(U == Element[length], Element, usize length))
         {
             foreach_reverse (ref element; value)
                 deinit(element);
@@ -686,39 +928,51 @@ void deinit(T, Args...)(ref T value, auto ref Args arguments)
 /// Explicit `deinit` is authoritative when present. Destructor-only values use
 /// D's `destroy`. Cleanup-free values intentionally have no `finalize`
 /// overload, so generic code cannot pretend that finalization work exists.
-void finalize(T)(ref T value) if (needsFinalization!T && canFinalizeWithoutContext!T)
+void finalize(T)(ref T value) if (needs_finalization!T && can_finalize_without_context!T)
 {
-    static if (needsDeinit!T)
+    static if (needs_deinit!T)
+    {
         deinit(value);
+    }
     else
+    {
         destroy(value);
+    }
 }
 
 /// Moves `source` into a returned value.
 ///
 /// Unlike druntime's move for plain POD structs, an XTB explicit owner is
 /// reconstructed to `.init` so the source remains safely deinitializable.
+/// `source` must be live, and every move hook of `T` must be safe to invoke for
+/// its current state.
 T move(T)(ref T source) @system
 {
     T result = void;
-    moveEmplace(source, result);
+    move_emplace(source, result);
     return result;
 }
 
 /// Move-constructs `target` from `source` without cleaning `target` first.
-/// `target` must denote dead or uninitialized storage.
-void moveEmplace(T)(ref T source, ref T target) @system
+/// `source` must be live, `target` must denote dead or uninitialized storage,
+/// and every move hook of `T` must be safe to invoke for its current state.
+void move_emplace(T)(ref T source, ref T target) @system
 {
-    coreMoveEmplace(source, target);
+    core_move_emplace(source, target);
 
     // druntime only wipes a moved source when D destructor/copy machinery is
     // elaborate. XTB explicit owners may deliberately have neither, while a
     // duplicated representation would still carry the same cleanup obligation.
     // Reconstruct those sources to `.init` so every successful XTB move leaves
     // a live, safely deinitializable moved-from value.
-    static if ((needsDeinit!T || hasDDestructor!T) &&
-        !hasElaborateDestructor!T && !hasElaborateCopyConstructor!T)
-        emplaceInitializer(source);
+    static if (
+        (needs_deinit!T || has_d_destructor!T)
+        && !has_elaborate_destructor!T
+        && !has_elaborate_copy_constructor!T
+    )
+    {
+        emplace_initializer(source);
+    }
 }
 
 /// Replaces a live explicit-deinit owner with `source`.
@@ -727,14 +981,16 @@ void moveEmplace(T)(ref T source, ref T target) @system
 /// in the explicit deinit protocol. Semantic resources outside that protocol,
 /// such as a live Thread, cannot accidentally acquire generic replacement
 /// semantics merely because their representation is structurally simple.
-void moveAssign(T)(ref T source, ref T target) @system
-        if (is(T == Unqual!T) && needsDeinit!T && !hasDDestructor!T)
+/// Both values must be live, and `T`'s deinitialization and move hooks must be
+/// safe to invoke for their current states.
+void move_assign(T)(ref T source, ref T target) @system
+if (is(T == Unqual!T) && needs_deinit!T && !has_d_destructor!T)
 {
     if (&source == &target)
         return;
 
     deinit(target);
-    moveEmplace(source, target);
+    move_emplace(source, target);
 }
 
 unittest
@@ -743,29 +999,29 @@ unittest
     {
     nothrow @nogc:
 
-        int* deinits;
+        i32* deinits;
         bool active;
 
         @disable this();
         @disable this(this);
 
-        this(int* deinits)
+        this(i32* deinits)
         {
             this.deinits = deinits;
-            active = true;
+            this.active = true;
         }
 
         void deinit()
         {
-            if (active)
+            if (this.active)
             {
-                ++*deinits;
-                active = false;
+                ++*this.deinits;
+                this.active = false;
             }
         }
     }
 
-    int deinits;
+    i32 deinits;
     DisabledDefaultOwner source = DisabledDefaultOwner(&deinits);
     DisabledDefaultOwner target = move(source);
     assert(source == DisabledDefaultOwner.init);
@@ -777,51 +1033,52 @@ unittest
 
 unittest
 {
-    static struct ExplicitPodOwner
+    static struct ExplicitPODOwner
     {
     nothrow @nogc:
 
-        int* deinits;
+        i32* deinits;
         bool active;
 
         void deinit()
         {
-            if (active)
+            if (this.active)
             {
-                ++*deinits;
-                active = false;
+                ++*this.deinits;
+                this.active = false;
             }
         }
     }
 
-    static assert(__traits(isPOD, ExplicitPodOwner));
-    static assert(__traits(isCopyable, ExplicitPodOwner));
-    int deinits;
-    ExplicitPodOwner source = ExplicitPodOwner(&deinits, true);
-    ExplicitPodOwner target = void;
-    moveEmplace(source, target);
-    assert(source == ExplicitPodOwner.init);
+    static assert(__traits(isPOD, ExplicitPODOwner));
+    static assert(__traits(isCopyable, ExplicitPODOwner));
+
+    i32 deinits;
+    ExplicitPODOwner source = ExplicitPODOwner(&deinits, true);
+    ExplicitPODOwner target = void;
+    move_emplace(source, target);
+    assert(source == ExplicitPODOwner.init);
     deinit(source);
     assert(deinits == 0);
     deinit(target);
     assert(deinits == 1);
 
-    ExplicitPodOwner returnedSource = ExplicitPodOwner(&deinits, true);
-    ExplicitPodOwner returned = move(returnedSource);
-    assert(returnedSource == ExplicitPodOwner.init);
-    deinit(returnedSource);
+    ExplicitPODOwner returned_source = ExplicitPODOwner(&deinits, true);
+    ExplicitPODOwner returned = move(returned_source);
+    assert(returned_source == ExplicitPODOwner.init);
+    deinit(returned_source);
     assert(deinits == 1);
     deinit(returned);
     assert(deinits == 2);
 
-    ExplicitPodOwner replacementSource = ExplicitPodOwner(&deinits, true);
-    ExplicitPodOwner replacementTarget = ExplicitPodOwner(&deinits, true);
-    moveAssign(replacementSource, replacementTarget);
-    assert(replacementSource == ExplicitPodOwner.init);
+    ExplicitPODOwner replacement_source = ExplicitPODOwner(&deinits, true);
+    ExplicitPODOwner replacement_target = ExplicitPODOwner(&deinits, true);
+    move_assign(replacement_source, replacement_target);
+    assert(replacement_source == ExplicitPODOwner.init);
     assert(deinits == 3);
-    deinit(replacementSource);
+    deinit(replacement_source);
     assert(deinits == 3);
-    deinit(replacementTarget);
+    deinit(replacement_target);
     assert(deinits == 4);
 }
 
@@ -831,22 +1088,22 @@ unittest
     {
     nothrow @nogc:
 
-        int id;
-        size_t* count;
-        int* order;
+        i32 id;
+        usize* count;
+        i32* order;
 
         @disable this(this);
 
         void deinit()
         {
-            order[(*count)++] = id;
+            this.order[(*this.count)++] = this.id;
         }
     }
 
     struct Aggregate
     {
         TrackedOwner first;
-        int* borrowed;
+        i32* borrowed;
         TrackedOwner second;
     }
 
@@ -855,17 +1112,17 @@ unittest
     nothrow @nogc:
 
         TrackedOwner nested;
-        size_t* memberCalls;
+        usize* member_calls;
 
         void deinit()
         {
-            ++*memberCalls;
+            ++*this.member_calls;
         }
     }
 
     struct NamedDeinitField
     {
-        int deinit;
+        i32 deinit;
         TrackedOwner owner;
     }
 
@@ -878,17 +1135,17 @@ unittest
         }
     }
 
-    static assert(!needsDeinit!int);
-    static assert(!needsDeinit!(int*));
-    static assert(!needsDeinit!(int[]));
-    static assert(needsDeinit!TrackedOwner);
-    static assert(needsDeinit!Aggregate);
-    static assert(needsDeinit!NamedDeinitField);
-    static assert(needsDeinit!StaticDeinitMember);
-    static assert(needsDeinit!(TrackedOwner[2]));
+    static assert(!needs_deinit!i32);
+    static assert(!needs_deinit!(i32*));
+    static assert(!needs_deinit!(i32[]));
+    static assert(needs_deinit!TrackedOwner);
+    static assert(needs_deinit!Aggregate);
+    static assert(needs_deinit!NamedDeinitField);
+    static assert(needs_deinit!StaticDeinitMember);
+    static assert(needs_deinit!(TrackedOwner[2]));
 
-    size_t count;
-    int[8] order;
+    usize count;
+    i32[8] order;
     Aggregate aggregate = Aggregate(
         TrackedOwner(1, &count, order.ptr),
         null,
@@ -899,13 +1156,13 @@ unittest
     assert(order[0] == 2);
     assert(order[1] == 1);
 
-    size_t memberCalls;
+    usize member_calls;
     Authoritative authoritative = Authoritative(
         TrackedOwner(3, &count, order.ptr),
-        &memberCalls,
+        &member_calls,
     );
     deinit(authoritative);
-    assert(memberCalls == 1);
+    assert(member_calls == 1);
     assert(count == 2);
 
     TrackedOwner[2] fixed = [
@@ -918,23 +1175,23 @@ unittest
 
     TrackedOwner source = TrackedOwner(6, &count, order.ptr);
     TrackedOwner target = TrackedOwner(7, &count, order.ptr);
-    moveAssign(source, target);
+    move_assign(source, target);
     assert(order[4] == 7);
     assert(source.id == TrackedOwner.init.id);
     assert(target.id == 6);
     deinit(target);
     assert(order[5] == 6);
 
-    NamedDeinitField namedField = NamedDeinitField(
+    NamedDeinitField named_field = NamedDeinitField(
         42,
         TrackedOwner(8, &count, order.ptr),
     );
-    deinit(namedField);
+    deinit(named_field);
     assert(order[6] == 8);
 
-    StaticDeinitMember staticMember;
-    staticMember.owner = TrackedOwner(9, &count, order.ptr);
-    deinit(staticMember);
+    StaticDeinitMember static_member;
+    static_member.owner = TrackedOwner(9, &count, order.ptr);
+    deinit(static_member);
     assert(order[7] == 9);
 }
 
@@ -944,11 +1201,11 @@ unittest
     {
     nothrow @nogc:
 
-        int* calls;
+        i32* calls;
 
-        void deinit(int* context)
+        void deinit(i32* context)
         {
-            ++*calls;
+            ++*this.calls;
             ++*context;
         }
     }
@@ -957,11 +1214,11 @@ unittest
     {
     nothrow @nogc:
 
-        int* calls;
+        i32* calls;
 
-        void deinit(ref int context)
+        void deinit(ref i32 context)
         {
-            ++*calls;
+            ++*this.calls;
             ++context;
         }
     }
@@ -970,11 +1227,11 @@ unittest
     {
     nothrow @nogc:
 
-        int* mutableCalls;
+        i32* mutable_calls;
 
         void deinit()
         {
-            ++*mutableCalls;
+            ++*this.mutable_calls;
         }
 
         void deinit() const
@@ -994,58 +1251,80 @@ unittest
     union Untagged
     {
         ContextOwner owner;
-        int value;
+        i32 value;
     }
 
-    static assert(needsDeinit!ContextOwner);
-    static assert(needsFinalization!ContextOwner);
-    static assert(!canFinalizeWithoutContext!ContextOwner);
-    static assert(needsDeinit!Untagged);
-    static assert(__traits(compiles,
-            (ref ContextOwner value, int* context) { deinit(value, context); }));
-    static assert(!__traits(compiles,
-            (ref ContextOwner value) { deinit(value); }));
-    static assert(!__traits(compiles,
-            (ref ContextOwner value) { finalize(value); }));
-    static assert(!__traits(compiles,
-            (ref const(ContextOwner) value, int* context) { deinit(value, context); }));
-    static assert(!__traits(compiles,
-            (ref ContextOwner* pointer) { deinit(pointer); }));
-    static assert(!__traits(compiles,
-            (ref int value) { deinit(value); }));
-    static assert(!__traits(compiles,
-            (ref Untagged value) { deinit(value); }));
-    static assert(__traits(compiles,
-            (ref RefContextOwner value, ref int context) { deinit(value, context); }));
-    static assert(!__traits(compiles,
-            (ref RefContextOwner value) { deinit(value, 3); }));
-    static assert(__traits(compiles,
-            (ref QualifiedOwner value) { deinit(value); }));
-    static assert(needsDeinit!ConstOnlyOwner);
-    static assert(__traits(compiles,
-            (ref ConstOnlyOwner value) { deinit(value); }));
+    static assert(needs_deinit!ContextOwner);
+    static assert(needs_finalization!ContextOwner);
+    static assert(!can_finalize_without_context!ContextOwner);
+    static assert(needs_deinit!Untagged);
+    static assert(__traits(compiles, (ref ContextOwner value, i32* context)
+    {
+        deinit(value, context);
+    }));
+    static assert(!__traits(compiles, (ref ContextOwner value)
+    {
+        deinit(value);
+    }));
+    static assert(!__traits(compiles, (ref ContextOwner value)
+    {
+        finalize(value);
+    }));
+    static assert(!__traits(compiles, (ref const(ContextOwner) value, i32* context)
+    {
+        deinit(value, context);
+    }));
+    static assert(!__traits(compiles, (ref ContextOwner* pointer)
+    {
+        deinit(pointer);
+    }));
+    static assert(!__traits(compiles, (ref i32 value)
+    {
+        deinit(value);
+    }));
+    static assert(!__traits(compiles, (ref Untagged value)
+    {
+        deinit(value);
+    }));
+    static assert(__traits(compiles, (ref RefContextOwner value, ref i32 context)
+    {
+        deinit(value, context);
+    }));
+    static assert(!__traits(compiles, (ref RefContextOwner value)
+    {
+        deinit(value, 3);
+    }));
+    static assert(__traits(compiles, (ref QualifiedOwner value)
+    {
+        deinit(value);
+    }));
+    static assert(needs_deinit!ConstOnlyOwner);
+    static assert(__traits(compiles, (ref ConstOnlyOwner value)
+    {
+        deinit(value);
+    }));
 
-    int calls;
-    int context;
+    i32 calls;
+    i32 context;
     ContextOwner owner = ContextOwner(&calls);
     deinit(owner, &context);
     assert(calls == 1);
     assert(context == 1);
 
-    int refCalls;
-    int refContext;
-    RefContextOwner refOwner = RefContextOwner(&refCalls);
-    deinit(refOwner, refContext);
-    assert(refCalls == 1);
-    assert(refContext == 1);
+    i32 ref_calls;
+    i32 ref_context;
+    RefContextOwner ref_owner = RefContextOwner(&ref_calls);
+    deinit(ref_owner, ref_context);
+    assert(ref_calls == 1);
+    assert(ref_context == 1);
 
-    int mutableCalls;
-    QualifiedOwner qualifiedOwner = QualifiedOwner(&mutableCalls);
-    deinit(qualifiedOwner);
-    assert(mutableCalls == 1);
+    i32 mutable_calls;
+    QualifiedOwner qualified_owner = QualifiedOwner(&mutable_calls);
+    deinit(qualified_owner);
+    assert(mutable_calls == 1);
 
-    ConstOnlyOwner constOnly;
-    deinit(constOnly);
+    ConstOnlyOwner const_only;
+    deinit(const_only);
 }
 
 unittest
@@ -1054,15 +1333,15 @@ unittest
     {
     nothrow @nogc:
 
-        int* destructions;
+        i32* destructions;
         bool armed;
 
         ~this()
         {
-            if (armed)
+            if (this.armed)
             {
-                ++*destructions;
-                armed = false;
+                ++*this.destructions;
+                this.armed = false;
             }
         }
     }
@@ -1072,21 +1351,25 @@ unittest
         DestructorOnly value;
     }
 
-    static assert(hasDDestructor!DestructorOnly);
-    static assert(hasDDestructor!ContainsDestructorOnly);
-    static assert(hasDDestructor!(DestructorOnly[2]));
-    static assert(!needsDeinit!DestructorOnly);
-    static assert(!needsDeinit!ContainsDestructorOnly);
-    static assert(needsFinalization!DestructorOnly);
-    static assert(canFinalizeWithoutContext!DestructorOnly);
-    static assert(!needsFinalization!int);
-    static assert(canFinalizeWithoutContext!int);
-    static assert(__traits(compiles,
-            (ref DestructorOnly value) { finalize(value); }));
-    static assert(!__traits(compiles,
-            (ref int value) { finalize(value); }));
+    static assert(has_d_destructor!DestructorOnly);
+    static assert(has_d_destructor!ContainsDestructorOnly);
+    static assert(has_d_destructor!(DestructorOnly[2]));
+    static assert(!needs_deinit!DestructorOnly);
+    static assert(!needs_deinit!ContainsDestructorOnly);
+    static assert(needs_finalization!DestructorOnly);
+    static assert(can_finalize_without_context!DestructorOnly);
+    static assert(!needs_finalization!i32);
+    static assert(can_finalize_without_context!i32);
+    static assert(__traits(compiles, (ref DestructorOnly value)
+    {
+        finalize(value);
+    }));
+    static assert(!__traits(compiles, (ref i32 value)
+    {
+        finalize(value);
+    }));
 
-    int destructions;
+    i32 destructions;
     DestructorOnly value = DestructorOnly(&destructions, true);
     finalize(value);
     assert(destructions == 1);
@@ -1098,19 +1381,19 @@ unittest
     {
     nothrow @nogc:
 
-        int id;
-        size_t* count;
-        int* order;
+        i32 id;
+        usize* count;
+        i32* order;
 
         @disable this(this);
 
         void deinit()
         {
-            order[(*count)++] = id;
+            this.order[(*this.count)++] = this.id;
         }
     }
 
-    enum FirstKind : ubyte
+    enum FirstKind : u8
     {
         none,
         text,
@@ -1121,7 +1404,7 @@ unittest
         TaggedOwner text;
     }
 
-    enum SecondKind : ubyte
+    enum SecondKind : u8
     {
         none,
         values,
@@ -1129,48 +1412,48 @@ unittest
 
     union SecondPayload
     {
-        @taggedCase(SecondKind.values)
-        TaggedOwner differentlyNamed;
+        @tagged_case(SecondKind.values)
+        TaggedOwner differently_named;
     }
 
     struct Message
     {
         TaggedOwner name;
 
-        FirstKind firstKind;
-        @taggedBy("firstKind", FirstKind.none)
-        FirstPayload firstPayload;
+        FirstKind first_kind;
+        @tagged_by("first_kind", FirstKind.none)
+        FirstPayload first_payload;
 
-        SecondKind secondKind;
-        @taggedBy("secondKind", SecondKind.none)
-        SecondPayload secondPayload;
+        SecondKind second_kind;
+        @tagged_by("second_kind", SecondKind.none)
+        SecondPayload second_payload;
     }
 
-    static assert(needsDeinit!Message);
+    static assert(needs_deinit!Message);
 
-    size_t count;
-    int[8] order;
+    usize count;
+    i32[8] order;
     Message message;
     message.name = TaggedOwner(1, &count, order.ptr);
-    message.firstKind = FirstKind.text;
-    message.firstPayload.text = TaggedOwner(2, &count, order.ptr);
-    message.secondKind = SecondKind.values;
-    message.secondPayload.differentlyNamed = TaggedOwner(3, &count, order.ptr);
+    message.first_kind = FirstKind.text;
+    message.first_payload.text = TaggedOwner(2, &count, order.ptr);
+    message.second_kind = SecondKind.values;
+    message.second_payload.differently_named = TaggedOwner(3, &count, order.ptr);
 
     deinit(message);
     assert(count == 3);
     assert(order[0] == 3);
     assert(order[1] == 2);
     assert(order[2] == 1);
-    assert(message.firstKind == FirstKind.text);
-    assert(message.secondKind == SecondKind.values);
-    assert(message.firstPayload.text.id == 2);
-    assert(message.secondPayload.differentlyNamed.id == 3);
+    assert(message.first_kind == FirstKind.text);
+    assert(message.second_kind == SecondKind.values);
+    assert(message.first_payload.text.id == 2);
+    assert(message.second_payload.differently_named.id == 3);
 
     struct Inactive
     {
         FirstKind kind;
-        @taggedBy("kind", FirstKind.none)
+        @tagged_by("kind", FirstKind.none)
         FirstPayload payload;
     }
 
@@ -1187,7 +1470,7 @@ unittest
         }
     }
 
-    enum Kind : ubyte
+    enum Kind : u8
     {
         none,
         one,
@@ -1203,32 +1486,32 @@ unittest
     struct MissingDiscriminator
     {
         Kind kind;
-        @taggedBy("missing", Kind.none)
+        @tagged_by("missing", Kind.none)
         ValidPayload payload;
     }
 
     struct NonEnumDiscriminator
     {
-        int kind;
-        @taggedBy("kind", Kind.none)
+        i32 kind;
+        @tagged_by("kind", Kind.none)
         ValidPayload payload;
     }
 
     struct NonUnionPayload
     {
         Kind kind;
-        @taggedBy("kind", Kind.none)
+        @tagged_by("kind", Kind.none)
         Owner payload;
     }
 
     struct UnknownInactive
     {
         Kind kind;
-        @taggedBy("kind", cast(Kind) 99)
+        @tagged_by("kind", cast(Kind) 99)
         ValidPayload payload;
     }
 
-    enum NonInactiveDefaultKind : ubyte
+    enum NonInactiveDefaultKind : u8
     {
         one,
         none,
@@ -1244,7 +1527,7 @@ unittest
     struct NonInactiveDefault
     {
         NonInactiveDefaultKind kind;
-        @taggedBy("kind", NonInactiveDefaultKind.none)
+        @tagged_by("kind", NonInactiveDefaultKind.none)
         NonInactiveDefaultPayload payload;
     }
 
@@ -1256,27 +1539,27 @@ unittest
     struct MissingCase
     {
         Kind kind;
-        @taggedBy("kind", Kind.none)
+        @tagged_by("kind", Kind.none)
         MissingCasePayload payload;
     }
 
     union MissingNamePayload
     {
-        Owner differentlyNamed;
+        Owner differently_named;
         Owner two;
     }
 
     struct MissingName
     {
         Kind kind;
-        @taggedBy("kind", Kind.none)
+        @tagged_by("kind", Kind.none)
         MissingNamePayload payload;
     }
 
     union DuplicateCasePayload
     {
         Owner one;
-        @taggedCase(Kind.one)
+        @tagged_case(Kind.one)
         Owner duplicate;
         Owner two;
     }
@@ -1284,13 +1567,13 @@ unittest
     struct DuplicateCase
     {
         Kind kind;
-        @taggedBy("kind", Kind.none)
+        @tagged_by("kind", Kind.none)
         DuplicateCasePayload payload;
     }
 
     union InactiveCasePayload
     {
-        @taggedCase(Kind.none)
+        @tagged_case(Kind.none)
         Owner inactive;
         Owner one;
         Owner two;
@@ -1299,11 +1582,11 @@ unittest
     struct InactiveCase
     {
         Kind kind;
-        @taggedBy("kind", Kind.none)
+        @tagged_by("kind", Kind.none)
         InactiveCasePayload payload;
     }
 
-    enum DuplicateValueKind : ubyte
+    enum DuplicateValueKind : u8
     {
         none = 0,
         one = 1,
@@ -1313,25 +1596,25 @@ unittest
     union DuplicateValuePayload
     {
         Owner one;
-        @taggedCase(DuplicateValueKind.two)
+        @tagged_case(DuplicateValueKind.two)
         Owner two;
     }
 
     struct DuplicateEnumValue
     {
         DuplicateValueKind kind;
-        @taggedBy("kind", DuplicateValueKind.none)
+        @tagged_by("kind", DuplicateValueKind.none)
         DuplicateValuePayload payload;
     }
 
-    enum OtherKind : ubyte
+    enum OtherKind : u8
     {
         value,
     }
 
     union WrongCaseTypePayload
     {
-        @taggedCase(OtherKind.value)
+        @tagged_case(OtherKind.value)
         Owner one;
         Owner two;
     }
@@ -1339,19 +1622,19 @@ unittest
     struct WrongCaseType
     {
         Kind kind;
-        @taggedBy("kind", Kind.none)
+        @tagged_by("kind", Kind.none)
         WrongCaseTypePayload payload;
     }
 
-    static assert(!__traits(compiles, needsDeinit!MissingDiscriminator));
-    static assert(!__traits(compiles, needsDeinit!NonEnumDiscriminator));
-    static assert(!__traits(compiles, needsDeinit!NonUnionPayload));
-    static assert(!__traits(compiles, needsDeinit!UnknownInactive));
-    static assert(!__traits(compiles, needsDeinit!NonInactiveDefault));
-    static assert(!__traits(compiles, needsDeinit!MissingCase));
-    static assert(!__traits(compiles, needsDeinit!MissingName));
-    static assert(!__traits(compiles, needsDeinit!DuplicateCase));
-    static assert(!__traits(compiles, needsDeinit!InactiveCase));
-    static assert(!__traits(compiles, needsDeinit!DuplicateEnumValue));
-    static assert(!__traits(compiles, needsDeinit!WrongCaseType));
+    static assert(!__traits(compiles, needs_deinit!MissingDiscriminator));
+    static assert(!__traits(compiles, needs_deinit!NonEnumDiscriminator));
+    static assert(!__traits(compiles, needs_deinit!NonUnionPayload));
+    static assert(!__traits(compiles, needs_deinit!UnknownInactive));
+    static assert(!__traits(compiles, needs_deinit!NonInactiveDefault));
+    static assert(!__traits(compiles, needs_deinit!MissingCase));
+    static assert(!__traits(compiles, needs_deinit!MissingName));
+    static assert(!__traits(compiles, needs_deinit!DuplicateCase));
+    static assert(!__traits(compiles, needs_deinit!InactiveCase));
+    static assert(!__traits(compiles, needs_deinit!DuplicateEnumValue));
+    static assert(!__traits(compiles, needs_deinit!WrongCaseType));
 }

@@ -9,7 +9,7 @@ import xtb.allocators.malloc : mallocAllocator;
 import xtb.containers.array : OwnedArray;
 import xtb.containers.hash_map : AddStatus, OwnedHashMap, SetStatus;
 import xtb.containers.hash_set : OwnedHashSet;
-import xtb.lifetime : deinit, move, moveAssign, needsDeinit;
+import xtb.lifetime : deinit, move, move_assign, needs_deinit;
 import xtb.memory : Allocator;
 import xtb.option : Option, some;
 import xtb.result : Result;
@@ -23,10 +23,10 @@ static assert(!hasElaborateDestructor!StringBuf);
 static assert(!hasElaborateDestructor!OwnedString);
 static assert(!hasElaborateDestructor!StringBufUnmanaged);
 static assert(!hasElaborateDestructor!OwnedStringUnmanaged);
-static assert(needsDeinit!StringBuf);
-static assert(needsDeinit!OwnedString);
-static assert(needsDeinit!StringBufUnmanaged);
-static assert(needsDeinit!OwnedStringUnmanaged);
+static assert(needs_deinit!StringBuf);
+static assert(needs_deinit!OwnedString);
+static assert(needs_deinit!StringBufUnmanaged);
+static assert(needs_deinit!OwnedStringUnmanaged);
 static assert(__traits(compiles,
         (Allocator* allocator, Arena* arena, ref StringBuf buffer,
         scope ref const OwnedString first,
@@ -145,10 +145,10 @@ static assert(!__traits(compiles,
         (ref StringBufUnmanaged left, ref StringBufUnmanaged right) { left = move(right); }));
 static assert(!__traits(compiles,
         (ref OwnedStringUnmanaged left, ref OwnedStringUnmanaged right) { left = move(right); }));
-static assert(needsDeinit!(Option!StringBuf));
-static assert(needsDeinit!(Option!OwnedString));
-static assert(needsDeinit!(Result!(StringBuf, OwnedString)));
-static assert(needsDeinit!(Result!(int, OwnedString)));
+static assert(needs_deinit!(Option!StringBuf));
+static assert(needs_deinit!(Option!OwnedString));
+static assert(needs_deinit!(Result!(StringBuf, OwnedString)));
+static assert(needs_deinit!(Result!(int, OwnedString)));
 static assert(!__traits(compiles,
         (Option!StringBuf value) { return value.map!(item => 1); }));
 static assert(!__traits(compiles,
@@ -271,7 +271,7 @@ private void testStringBufMoveReplacement(InstrumentedAllocator* tracked)
     StringBuf target = StringBuf.fromString(tracked.allocator, "target");
     assert(tracked.stats.outstandingAllocations == 2);
 
-    moveAssign(source, target);
+    move_assign(source, target);
     assert(source.allocator is null && source.empty);
     assert(target.view == "source");
     assert(tracked.stats.outstandingAllocations == 1);
@@ -287,7 +287,7 @@ private void testOwnedStringMoveReplacement(InstrumentedAllocator* tracked)
     OwnedString target = OwnedString.fromString(tracked.allocator, "target");
     assert(tracked.stats.outstandingAllocations == 2);
 
-    moveAssign(source, target);
+    move_assign(source, target);
     assert(source.allocator is null && source.empty);
     assert(target.view == "source");
     assert(tracked.stats.outstandingAllocations == 1);

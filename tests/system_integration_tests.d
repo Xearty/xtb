@@ -15,7 +15,7 @@ import xtb.time : Instant, Timestamp, Timeout, sleep;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.containers.array;
 import xtb.allocators.arena : Arena, TempArena, pop, push;
-import xtb.lifetime : deinit, move, moveAssign, needsDeinit;
+import xtb.lifetime : deinit, move, move_assign, needs_deinit;
 import xtb.option : Option;
 import xtb.result : Result;
 import xtb.allocators.malloc : mallocAllocator;
@@ -25,19 +25,19 @@ import xtb.thread : Thread;
 import xtb.types : i64, u64, u8;
 
 static assert(!hasElaborateDestructor!DirectoryIterator);
-static assert(needsDeinit!DirectoryIterator);
+static assert(needs_deinit!DirectoryIterator);
 static assert(!__traits(isCopyable, DirectoryIterator));
 static assert(!__traits(compiles, () { DirectoryIterator left; DirectoryIterator right; left = right; }));
 static assert(!hasElaborateDestructor!MappedFile);
-static assert(needsDeinit!MappedFile);
+static assert(needs_deinit!MappedFile);
 static assert(!__traits(isCopyable, MappedFile));
 static assert(!__traits(compiles, () { MappedFile left; MappedFile right; left = right; }));
 static assert(!hasElaborateDestructor!PipeReader);
 static assert(!hasElaborateDestructor!PipeWriter);
 static assert(!hasElaborateDestructor!Pipe);
-static assert(needsDeinit!PipeReader);
-static assert(needsDeinit!PipeWriter);
-static assert(needsDeinit!Pipe);
+static assert(needs_deinit!PipeReader);
+static assert(needs_deinit!PipeWriter);
+static assert(needs_deinit!Pipe);
 static assert(!__traits(isCopyable, PipeReader));
 static assert(!__traits(isCopyable, PipeWriter));
 static assert(!__traits(isCopyable, Pipe));
@@ -45,28 +45,28 @@ static assert(!__traits(compiles, () { PipeReader left; PipeReader right; left =
 static assert(!__traits(compiles, () { PipeWriter left; PipeWriter right; left = right; }));
 static assert(!__traits(compiles, () { Pipe left; Pipe right; left = right; }));
 static assert(!hasElaborateDestructor!ChildProcess);
-static assert(needsDeinit!ChildProcess);
+static assert(needs_deinit!ChildProcess);
 static assert(!__traits(isCopyable, ChildProcess));
 static assert(!__traits(compiles, () { ChildProcess left; ChildProcess right; left = right; }));
 static assert(!hasElaborateDestructor!Pipeline);
-static assert(needsDeinit!Pipeline);
+static assert(needs_deinit!Pipeline);
 static assert(!__traits(isCopyable, Pipeline));
 static assert(!__traits(compiles, () { Pipeline left; Pipeline right; left = right; }));
 
 static assert(!hasElaborateDestructor!File);
-static assert(needsDeinit!File);
+static assert(needs_deinit!File);
 static assert(!__traits(isCopyable, File));
 static assert(!__traits(compiles, () { File left; File right; left = right; }));
-static assert(needsDeinit!(Option!File));
-static assert(needsDeinit!(Result!(File, OsError)));
-static assert(needsDeinit!(OwnedArray!File));
+static assert(needs_deinit!(Option!File));
+static assert(needs_deinit!(Result!(File, OsError)));
+static assert(needs_deinit!(OwnedArray!File));
 
 private struct FileOwnerComposition
 {
     File file;
 }
 
-static assert(needsDeinit!FileOwnerComposition);
+static assert(needs_deinit!FileOwnerComposition);
 
 version (linux) private int closedPipeWriteWorker(PipeWriter* writer) nothrow @system @nogc
 {
@@ -370,7 +370,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess target;
         scope (exit)
             target.deinit();
-        moveAssign(source, target);
+        move_assign(source, target);
         assert(source.empty && target.ownsProcess && target.id.value ==
                 processId.value);
         ExitStatus status;
@@ -933,7 +933,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         assert(open(firstPath, OpenOptions.init, &source).succeeded);
         assert(open(firstPath, OpenOptions.init, &target).succeeded);
         assert(openDescriptorCount() == baseline + 2);
-        moveAssign(source, target);
+        move_assign(source, target);
         assert(!source.valid && target.valid);
         assert(openDescriptorCount() == baseline + 1);
         deinit(source);
@@ -991,7 +991,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         assert(openDirectory(rootPath, &source).succeeded);
         assert(openDirectory(rootPath, &target).succeeded);
         assert(openDescriptorCount() == baseline + 2);
-        moveAssign(source, target);
+        move_assign(source, target);
         assert(!source.valid && target.valid);
         assert(openDescriptorCount() == baseline + 1);
         deinit(source);
@@ -1006,7 +1006,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         assert(createPipe(PipeOptions.init, &source).succeeded);
         assert(createPipe(PipeOptions.init, &target).succeeded);
         assert(openDescriptorCount() == baseline + 4);
-        moveAssign(source, target);
+        move_assign(source, target);
         assert(!source.valid && target.valid);
         assert(openDescriptorCount() == baseline + 2);
         deinit(source);
@@ -1019,7 +1019,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         MappedFile target;
         assert(mapReadOnly(firstPath, &source).succeeded);
         assert(mapReadOnly(firstPath, &target).succeeded);
-        moveAssign(source, target);
+        move_assign(source, target);
         assert(source.empty);
         assert(target.bytes == contents[]);
         deinit(source);

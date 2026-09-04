@@ -6,7 +6,7 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import xtb.lifetime : hasDDestructor, moveEmplace;
+import xtb.lifetime : has_d_destructor, move_emplace;
 import xtb.containers.array;
 import xtb.containers.hash_map;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateInit, tryAllocateInitArray;
@@ -124,7 +124,7 @@ SerdeError readJson(T)(
         return error;
     }
     deinitOwnedValue(output);
-    moveEmplace(decoded, *output);
+    move_emplace(decoded, *output);
     return success();
 }
 
@@ -1127,7 +1127,7 @@ private void decodeArray(Container)(
         return;
     }
     deinitOwnedValue(output);
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeHashMap(K, V, Hasher, Equal)(
@@ -1155,7 +1155,7 @@ private void decodeHashMap(K, V, Hasher, Equal)(
     parser.skipWhitespace();
     if (parser.consume('}'))
     {
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
         return;
     }
 
@@ -1215,7 +1215,7 @@ private void decodeHashMap(K, V, Hasher, Equal)(
             return;
         }
     }
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeOwnedHashMap(K, V, Hasher, Equal)(
@@ -1243,7 +1243,7 @@ private void decodeOwnedHashMap(K, V, Hasher, Equal)(
     parser.skipWhitespace();
     if (parser.consume('}'))
     {
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
         return;
     }
 
@@ -1305,7 +1305,7 @@ private void decodeOwnedHashMap(K, V, Hasher, Equal)(
             return;
         }
     }
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeStringHashMap(Map)(
@@ -1332,7 +1332,7 @@ private void decodeStringHashMap(Map)(
     parser.skipWhitespace();
     if (parser.consume('}'))
     {
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
         return;
     }
 
@@ -1394,7 +1394,7 @@ private void decodeStringHashMap(Map)(
             return;
         }
     }
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeFixedArray(T)(ref JsonParser parser, T* output, size_t depth)
@@ -1573,7 +1573,7 @@ private void decodeStringBuf(ref JsonParser parser, StringBuf* output)
         value.length,
         value.length + 1,
     );
-    moveEmplace(result, *output);
+    move_emplace(result, *output);
 }
 
 private void decodeOwnedString(ref JsonParser parser, OwnedString* output)
@@ -1596,7 +1596,7 @@ private void decodeOwnedString(ref JsonParser parser, OwnedString* output)
         parser.allocator,
         &storage,
     );
-    moveEmplace(result, *output);
+    move_emplace(result, *output);
 }
 
 private void decodeStringToken(

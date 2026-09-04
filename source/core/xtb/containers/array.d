@@ -5,8 +5,8 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace;
 import core.stdc.string : memmove;
-import xtb.lifetime : canFinalizeWithoutContext, deinitValue = deinit,
-    finalize, move, moveEmplace, needsDeinit, needsFinalization;
+import xtb.lifetime : can_finalize_without_context, deinitValue = deinit,
+    finalize, move, move_emplace, needs_deinit, needs_finalization;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryReallocateArray;
 import xtb.panic : panic;
 
@@ -190,7 +190,7 @@ public:
         ArrayUnmanaged temporary;
         if (capacity != 0 && !temporary.tryReserve(allocator, capacity))
             return false;
-        moveEmplace(temporary, *output);
+        move_emplace(temporary, *output);
         return true;
     }
 
@@ -832,7 +832,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, capacity, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -853,7 +853,7 @@ public:
             Storage storage = Storage.withLength(allocator, length);
             Self result;
             result.allocator_ = allocator;
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -869,7 +869,7 @@ public:
             Storage storage = Storage.fromSlice(allocator, values);
             Self result;
             result.allocator_ = allocator;
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -883,7 +883,7 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -1075,7 +1075,7 @@ package(xtb.containers):
             require(storage !is null, "ArrayUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(*storage, result.storage_);
+        move_emplace(*storage, result.storage_);
         return move(result);
     }
 
@@ -1119,7 +1119,7 @@ private:
 
     void deinitRange(size_t index, size_t count) @trusted
     {
-        static if (needsFinalization!T)
+        static if (needs_finalization!T)
         {
             size_t end = index + count;
             while (end != index)
@@ -1128,7 +1128,7 @@ private:
     }
 
 public:
-    static assert(canFinalizeWithoutContext!T,
+    static assert(can_finalize_without_context!T,
         "OwnedArray elements must support context-free finalization");
 
     @disable this(this);
@@ -1158,7 +1158,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, capacity, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -1177,7 +1177,7 @@ public:
             Storage storage = Storage.withLength(allocator, length);
             Self result;
             result.allocator_ = allocator;
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -1192,7 +1192,7 @@ public:
             Storage storage = Storage.fromSlice(allocator, values);
             Self result;
             result.allocator_ = allocator;
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -1407,10 +1407,10 @@ private void constructMove(T)(T* destination, ref T source)
     // Pointer-based move APIs promise that the source enters its normal
     // moved-from state. An explicit-deinit POD value may still own resources,
     // so a raw assignment would duplicate ownership and leave the source live.
-    static if (__traits(isPOD, T) && !needsDeinit!T)
+    static if (__traits(isPOD, T) && !needs_deinit!T)
         *destination = source;
     else
-        moveEmplace(source, *destination);
+        move_emplace(source, *destination);
 }
 
 private void constructCopy(T, U)(T* destination, ref U source)
@@ -1430,13 +1430,13 @@ unittest
     static assert(Array!int.sizeof ==
             ArrayUnmanaged!int.sizeof + (Allocator*).sizeof);
     static assert(OwnedArray!int.sizeof == Array!int.sizeof);
-    static assert(needsDeinit!(RawArrayStorage!int));
+    static assert(needs_deinit!(RawArrayStorage!int));
     static assert(!__traits(isCopyable, RawArrayStorage!int));
     static assert(!__traits(compiles, (ref RawArrayStorage!int value) { deinitValue(value); }));
     static assert(__traits(compiles, (ref RawArrayStorage!int value,
             Allocator* allocator) { deinitValue(value, allocator); }));
     static assert(!__traits(isCopyable, ArrayUnmanaged!int));
-    static assert(needsDeinit!(ArrayUnmanaged!int));
+    static assert(needs_deinit!(ArrayUnmanaged!int));
     static assert(!__traits(compiles, (ref ArrayUnmanaged!int value) { deinitValue(value); }));
     static assert(__traits(compiles, (ref ArrayUnmanaged!int value,
             Allocator* allocator) { deinitValue(value, allocator); }));
@@ -1462,10 +1462,10 @@ unittest
     static assert(!hasElaborateDestructor!(Array!int));
     static assert(!hasElaborateDestructor!(OwnedArray!int));
     static assert(!hasElaborateDestructor!(Array!int.Released));
-    static assert(needsDeinit!(Array!int));
-    static assert(needsDeinit!(OwnedArray!int));
-    static assert(needsDeinit!(Array!int.Released));
-    static assert(canFinalizeWithoutContext!DestructorOnly);
+    static assert(needs_deinit!(Array!int));
+    static assert(needs_deinit!(OwnedArray!int));
+    static assert(needs_deinit!(Array!int.Released));
+    static assert(can_finalize_without_context!DestructorOnly);
     static assert(__traits(compiles, () { OwnedArray!DestructorOnly value; }));
     static assert(!__traits(compiles, () { OwnedArray!(ArrayUnmanaged!int) value; }));
     static assert(!__traits(hasMember, OwnedArray!int, "release"));

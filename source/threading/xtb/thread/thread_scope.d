@@ -5,9 +5,9 @@ nothrow @nogc:
 import core.internal.traits : Parameters, ReturnType, Unqual;
 import core.lifetime : emplace, forward, move;
 import xtb.containers.intrusive_list : ForwardListHook, IntrusiveForwardList;
-import xtb.lifetime : finalize, hasDDestructor,
-    lifetimeDeinit = deinit, lifetimeMove = move, needsDeinit,
-    needsFinalization;
+import xtb.lifetime : finalize, has_d_destructor,
+    lifetimeDeinit = deinit, lifetimeMove = move, needs_deinit,
+    needs_finalization;
 import xtb.memory : Allocator, deallocate, tryAllocate;
 import xtb.panic : panic;
 import xtb.result : Result, ResultReturns;
@@ -129,7 +129,7 @@ private void validateScopedWorker(alias function_)()
                 !is(Parameters!function_[index] == inout InoutBase, InoutBase),
                 "ThreadScope worker does not yet accept top-level inout value parameters",
             );
-            static if (needsDeinit!(Parameters!function_[index]))
+            static if (needs_deinit!(Parameters!function_[index]))
                 static assert(
                     is(Parameters!function_[index] ==
                         Unqual!(Parameters!function_[index])),
@@ -170,7 +170,7 @@ private template scopedWorkerArgumentList(alias function_, size_t count)
 
 private void finalizeScopedValue(T)(ref T value) @system
 {
-    static if (needsFinalization!T)
+    static if (needs_finalization!T)
         finalize(value);
 }
 
@@ -293,8 +293,8 @@ nothrow @nogc:
 
         static foreach (index; 0 .. WorkerParameters.length)
             static if (!parameterIsRef!(function_, index) &&
-                (needsDeinit!(Unqual!(Args[index])) ||
-                    needsDeinit!(Unqual!(WorkerParameters[index]))))
+                (needs_deinit!(Unqual!(Args[index])) ||
+                    needs_deinit!(Unqual!(WorkerParameters[index]))))
                 {
                 static assert(
                     is(Unqual!(Args[index]) == Unqual!(WorkerParameters[index])),
@@ -319,7 +319,7 @@ nothrow @nogc:
             static foreach_reverse (index; 0 .. Args.length)
                 static if (!parameterIsRef!(function_, index) &&
                     !__traits(isRef, arguments[index]) &&
-                    needsDeinit!(Unqual!(Args[index])))
+                    needs_deinit!(Unqual!(Args[index])))
                     lifetimeDeinit(arguments[index]);
             return err(scopeAllocationFailure());
         }
@@ -343,7 +343,7 @@ nothrow @nogc:
                 );
                 node.captures.tupleof[index].reference = &arguments[index];
             }
-            else static if (needsDeinit!(Unqual!(WorkerParameters[index])))
+            else static if (needs_deinit!(Unqual!(WorkerParameters[index])))
                 emplace(
                     &node.captures.tupleof[index].owned.value,
                     lifetimeMove(arguments[index]),

@@ -2,9 +2,9 @@ module xtb.containers.hash_map;
 
 nothrow @nogc:
 
-import xtb.lifetime : canFinalizeWithoutContext, deinitValue = deinit,
-    finalize, hasDDestructor, move, moveEmplace, needsDeinit,
-    needsFinalization;
+import xtb.lifetime : can_finalize_without_context, deinitValue = deinit,
+    finalize, has_d_destructor, move, move_emplace, needs_deinit,
+    needs_finalization;
 import core.stdc.string : memset;
 import xtb.hash : HashSeed, hash_value;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
@@ -96,12 +96,12 @@ package(xtb.containers) struct OwnedHashMapElementOps(T)
 {
 nothrow @nogc:
 
-    static assert(canFinalizeWithoutContext!T,
+    static assert(can_finalize_without_context!T,
         "owned hash elements must support context-free finalization");
 
     static void destroy(Allocator*, T* element)
     {
-        static if (needsFinalization!T)
+        static if (needs_finalization!T)
             finalize(*element);
     }
 }
@@ -109,7 +109,7 @@ nothrow @nogc:
 package(xtb.containers) template isSimpleHashValue(T)
 {
     enum isSimpleHashValue = __traits(isCopyable, T) &&
-        !needsDeinit!T && !hasDDestructor!T;
+        !needs_deinit!T && !has_d_destructor!T;
 }
 
 package(xtb.containers) template IsDefaultHashPolicy(Hasher, K)
@@ -276,10 +276,10 @@ struct HashMapUnmanaged(
 nothrow @nogc:
 
     static assert(__traits(isCopyable, Hasher) &&
-            !hasDDestructor!Hasher && !needsDeinit!Hasher,
+            !has_d_destructor!Hasher && !needs_deinit!Hasher,
         "HashMap hash policies must be copyable and require no cleanup");
     static assert(__traits(isCopyable, Equal) &&
-            !hasDDestructor!Equal && !needsDeinit!Equal,
+            !has_d_destructor!Equal && !needs_deinit!Equal,
         "HashMap equality policies must be copyable and require no cleanup");
     static assert(__traits(compiles,
             KeyOps.destroy(cast(Allocator*) null, cast(K*) null)),
@@ -307,8 +307,8 @@ public:
     )
     {
         HashMapUnmanaged result;
-        moveEmplace(hasher, result.hasher_);
-        moveEmplace(equal, result.equal_);
+        move_emplace(hasher, result.hasher_);
+        move_emplace(equal, result.equal_);
         return result;
     }
 
@@ -330,7 +330,7 @@ public:
         HashMapUnmanaged temporary;
         if (!temporary.tryReserve(allocator, requested))
             return false;
-        moveEmplace(temporary, *output);
+        move_emplace(temporary, *output);
         return true;
     }
 
@@ -1141,7 +1141,7 @@ public:
         Self result;
         result.allocator_ = allocator;
         Storage storage = Storage.withPolicies(move(hasher), move(equal));
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -1161,7 +1161,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -1185,7 +1185,7 @@ public:
             Self result;
             result.allocator_ = allocator;
             Storage storage = Storage.seeded(seed);
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
 
@@ -1198,7 +1198,7 @@ public:
             Self result;
             result.allocator_ = allocator;
             Storage storage = Storage.withCapacity(allocator, requested, seed);
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -1212,7 +1212,7 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -1429,7 +1429,7 @@ package(xtb.containers):
                 "HashMapUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(*storage, result.storage_);
+        move_emplace(*storage, result.storage_);
         return move(result);
     }
 }
@@ -1439,8 +1439,8 @@ struct OwnedHashMap(K, V, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
 
-    static assert(canFinalizeWithoutContext!K &&
-            canFinalizeWithoutContext!V,
+    static assert(can_finalize_without_context!K &&
+            can_finalize_without_context!V,
         "OwnedHashMap keys and values must support context-free finalization");
 
     alias Self = OwnedHashMap!(K, V, Hasher, Equal);
@@ -1484,7 +1484,7 @@ public:
         Self result;
         result.allocator_ = allocator;
         Storage storage = Storage.withPolicies(move(hasher), move(equal));
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -1504,7 +1504,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -1528,7 +1528,7 @@ public:
             Self result;
             result.allocator_ = allocator;
             Storage storage = Storage.seeded(seed);
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
 
@@ -1541,7 +1541,7 @@ public:
             Self result;
             result.allocator_ = allocator;
             Storage storage = Storage.withCapacity(allocator, requested, seed);
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -1760,7 +1760,7 @@ package(xtb.containers) void requireValidHashAllocator(Allocator* allocator) @tr
 
 private void constructHashMove(T)(T* destination, ref T source)
 {
-    moveEmplace(source, *destination);
+    move_emplace(source, *destination);
 }
 
 private void replaceHashElement(alias Ops, T)(

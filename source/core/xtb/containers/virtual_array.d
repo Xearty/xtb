@@ -7,7 +7,7 @@ import core.stdc.string : memmove;
 import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
     VirtualMemoryReservation, tryReserveVirtualMemory, virtualMemoryPageSize,
     virtualMemorySupported;
-import xtb.lifetime : move, moveEmplace, needsDeinit;
+import xtb.lifetime : move, move_emplace, needs_deinit;
 import xtb.numeric : addOverflows, multiplyOverflows;
 import xtb.panic : panic;
 
@@ -120,12 +120,12 @@ public:
             return false;
 
         Self result;
-        moveEmplace(reservation, result.reservation_);
+        move_emplace(reservation, result.reservation_);
         result.region_ = region;
         result.data_ = cast(T*) alignedBase;
         result.capacity_ = capacity;
         result.commitGranularity_ = normalizedCommitGranularity;
-        moveEmplace(result, *output);
+        move_emplace(result, *output);
         return true;
     }
 
@@ -299,10 +299,10 @@ public:
             require(length_ != 0, "cannot pop an empty VirtualArray");
         --length_;
         T result = void;
-        static if (__traits(isPOD, T) && !needsDeinit!T)
+        static if (__traits(isPOD, T) && !needs_deinit!T)
             result = data_[length_];
         else
-            moveEmplace(data_[length_], result);
+            move_emplace(data_[length_], result);
         return result;
     }
 
@@ -377,7 +377,7 @@ private:
     }
 }
 
-static assert(needsDeinit!(VirtualArray!ubyte));
+static assert(needs_deinit!(VirtualArray!ubyte));
 
 /// Non-owning fixed-capacity typed storage over one bounded virtual-memory
 /// region.
@@ -457,7 +457,7 @@ public:
         result.data_ = cast(T*) base;
         result.capacity_ = capacity;
         result.commitGranularity_ = normalizedCommitGranularity;
-        moveEmplace(result, *output);
+        move_emplace(result, *output);
         return true;
     }
 
@@ -572,7 +572,7 @@ public:
     }
 }
 
-static assert(needsDeinit!(VirtualArrayView!ubyte));
+static assert(needs_deinit!(VirtualArrayView!ubyte));
 
 /// Page-bounded geometry for one fixed-capacity typed virtual-array region.
 ///
@@ -754,10 +754,10 @@ private void constructInitial(T)(T* destination) @system
 
 private void constructMove(T)(T* destination, ref T source) @system
 {
-    static if (__traits(isPOD, T) && !needsDeinit!T)
+    static if (__traits(isPOD, T) && !needs_deinit!T)
         *destination = source;
     else
-        moveEmplace(source, *destination);
+        move_emplace(source, *destination);
 }
 
 private void constructCopy(T, U)(T* destination, ref U source) @system
@@ -770,7 +770,7 @@ private void constructCopy(T, U)(T* destination, ref U source) @system
 
 unittest
 {
-    import xtb.lifetime : deinitValue = deinit, moveAssign;
+    import xtb.lifetime : deinitValue = deinit, move_assign;
 
     struct ExplicitOwner
     {
@@ -813,7 +813,7 @@ unittest
     }
 
     static assert(!__traits(isCopyable, VirtualArray!int));
-    static assert(needsDeinit!(VirtualArray!int));
+    static assert(needs_deinit!(VirtualArray!int));
     static assert(__traits(compiles, () nothrow @nogc @system {
             VirtualArray!int value;
             cast(void) value.ptr;
@@ -1043,7 +1043,7 @@ unittest
         VirtualArray!ubyte replacement = VirtualArray!ubyte.create(pageSize);
         ubyte* replacementOld = replacement.ptr;
         assert(replacementOld !is null);
-        moveAssign(moved, replacement);
+        move_assign(moved, replacement);
         assert(moved.ptr is null);
         assert(replacement.ptr is original);
         assert(replacement.capacity == pageSize * 4 + 17);
@@ -1079,7 +1079,7 @@ unittest
 unittest
 {
     static assert(!__traits(isCopyable, VirtualArrayView!int));
-    static assert(needsDeinit!(VirtualArrayView!int));
+    static assert(needs_deinit!(VirtualArrayView!int));
     static assert(__traits(compiles, () nothrow @nogc @safe {
             VirtualArrayView!int view;
             cast(void) view.capacity;

@@ -6,7 +6,7 @@ import xtb.cli;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.containers.array : Array;
-import xtb.lifetime : moveAssign;
+import xtb.lifetime : move_assign;
 import xtb.memory : Allocator;
 import xtb.option : Option;
 import xtb.fmt.writer : Writer;
@@ -790,7 +790,7 @@ CliValueError parseHexBytes(
             return CliValueError.allocationFailed("could not store decoded bytes");
     }
 
-    moveAssign(decoded, *output);
+    move_assign(decoded, *output);
     return CliValueError.init;
 }
 
@@ -911,7 +911,7 @@ CliValueError parseOwnedValue(
 ) nothrow @nogc
 {
     Array!String values = Array!String.create(allocator);
-    moveAssign(values, output.values);
+    move_assign(values, output.values);
     String value = input;
     if (!output.values.tryAppend(&value))
         return CliValueError.allocationFailed("could not store parsed value");

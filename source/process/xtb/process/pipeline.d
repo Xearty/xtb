@@ -2,7 +2,7 @@ module xtb.process.pipeline;
 
 nothrow @nogc:
 
-import xtb.lifetime : moveAssign, moveEmplace;
+import xtb.lifetime : move_assign, move_emplace;
 import xtb.containers.array;
 import xtb.memory : Allocator;
 import xtb.option : Option, some;
@@ -355,8 +355,8 @@ private ProcessError spawnPipelineSlice(Stage)(
         rollbackPipelineSpawn(&created);
     Array!ChildProcess children = Array!ChildProcess.create(allocator);
     Array!ExitStatus statuses = Array!ExitStatus.create(allocator);
-    moveEmplace(children, created.children_);
-    moveEmplace(statuses, created.statuses_);
+    move_emplace(children, created.children_);
+    move_emplace(statuses, created.statuses_);
     created.success_ = options.success;
     if (!created.children_.tryResize(stages.length) ||
         !created.statuses_.tryResize(stages.length))
@@ -424,10 +424,10 @@ private ProcessError spawnPipelineSlice(Stage)(
                 );
         }
         if (connection.reader.valid)
-            moveAssign(connection.reader, pendingInput);
+            move_assign(connection.reader, pendingInput);
     }
 
-    moveAssign(created, *output);
+    move_assign(created, *output);
     return ProcessError.init;
 }
 

@@ -7,7 +7,7 @@ public import xtb.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
     asString;
 
 import core.interpolation : InterpolationFooter, InterpolationHeader;
-import xtb.lifetime : move, moveEmplace;
+import xtb.lifetime : move, move_emplace;
 import core.stdc.string : memcmp, memmove, strlen;
 import xtb.types : u8;
 import xtb.containers.array;
@@ -352,7 +352,7 @@ bool trySplitWhen(
         require(output !is null, "split output is null");
     }
     Array!String created = Array!String.create(allocator);
-    moveEmplace(created, *output);
+    move_emplace(created, *output);
 
     size_t tokenBegin;
     size_t index;
@@ -498,7 +498,7 @@ public:
         StringBufUnmanaged temporary;
         if (!temporary.bytes_.tryReserve(allocator, byteCapacity))
             return false;
-        moveEmplace(temporary, *output);
+        move_emplace(temporary, *output);
         return true;
     }
 
@@ -529,7 +529,7 @@ public:
         StringBufUnmanaged temporary;
         if (!temporary.tryAppend(allocator, value))
             return false;
-        moveEmplace(temporary, *output);
+        move_emplace(temporary, *output);
         return true;
     }
 
@@ -576,7 +576,7 @@ public:
                 bytes.asStringUnchecked,
             ))
             return false;
-        moveEmplace(temporary, *output);
+        move_emplace(temporary, *output);
         return true;
     }
 
@@ -589,7 +589,7 @@ private:
     {
         StringBufUnmanaged result;
         auto bytes = ArrayUnmanaged!char.adopt(data, length, capacity);
-        moveEmplace(bytes, result.bytes_);
+        move_emplace(bytes, result.bytes_);
         return result;
     }
 
@@ -1141,7 +1141,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, byteCapacity, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -1176,7 +1176,7 @@ public:
             ))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -1207,7 +1207,7 @@ public:
         if (!Storage.tryFromBytesUnchecked(allocator, bytes, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -1231,7 +1231,7 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -1970,7 +1970,7 @@ package(xtb):
                 "StringBufUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(*storage, result.storage_);
+        move_emplace(*storage, result.storage_);
         return move(result);
     }
 
@@ -2186,7 +2186,7 @@ unittest
     import xtb.memory : Allocator;
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
     import xtb.allocators.malloc : mallocAllocator;
-    import xtb.lifetime : deinit, needsDeinit;
+    import xtb.lifetime : deinit, needs_deinit;
 
     static assert(StringBufUnmanaged.sizeof == ArrayUnmanaged!char.sizeof);
     static assert(StringBuf.sizeof ==
@@ -2196,7 +2196,7 @@ unittest
     static assert(!__traits(isCopyable, StringBuf.Released));
     static assert(!hasElaborateDestructor!StringBufUnmanaged);
     static assert(!hasElaborateDestructor!StringBuf);
-    static assert(needsDeinit!StringBuf);
+    static assert(needs_deinit!StringBuf);
     static assert(!__traits(compiles, (ref StringBufUnmanaged left,
             ref StringBufUnmanaged right) { left = move(right); }));
     static assert(!__traits(compiles, (ref StringBuf left,
@@ -2605,7 +2605,7 @@ public:
         if (!Storage.tryFromString(allocator, value, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -2633,7 +2633,7 @@ public:
         if (!Storage.tryFromBytesUnchecked(allocator, bytes, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -2657,7 +2657,7 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -2872,7 +2872,7 @@ package(xtb):
                 "OwnedStringUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(*storage, result.storage_);
+        move_emplace(*storage, result.storage_);
         return move(result);
     }
 }
@@ -3338,7 +3338,7 @@ private void commitStringTransform(
     if (allocation.length == 0)
     {
         OwnedString result = OwnedString.create(allocator);
-        moveEmplace(result, *output);
+        move_emplace(result, *output);
         return;
     }
     adoptExactOwnedString(allocator, allocation, output);
@@ -3380,7 +3380,7 @@ private void adoptExactOwnedString(
     );
     OwnedStringUnmanaged storage = OwnedStringUnmanaged.adoptExact(&raw);
     OwnedString result = OwnedString.adoptUnmanaged(allocator, &storage);
-    moveEmplace(result, *output);
+    move_emplace(result, *output);
 }
 
 private void requireValidOwnedStringAllocator(Allocator* allocator) @trusted
@@ -3402,7 +3402,7 @@ static assert(!__traits(compiles, (scope const OwnedString* value) @safe {
 unittest
 {
     import core.internal.traits : hasElaborateDestructor;
-    import xtb.lifetime : needsDeinit;
+    import xtb.lifetime : needs_deinit;
     import xtb.allocators.instrumented : InstrumentedAllocator;
     import xtb.allocators.malloc : mallocAllocator;
 
@@ -3419,7 +3419,7 @@ unittest
     static assert(!__traits(isCopyable, OwnedStringUnmanaged));
     static assert(!hasElaborateDestructor!OwnedString);
     static assert(!hasElaborateDestructor!OwnedStringUnmanaged);
-    static assert(needsDeinit!OwnedString);
+    static assert(needs_deinit!OwnedString);
     static assert(!__traits(compiles, (ref OwnedString left,
             ref OwnedString right) { left = move(right); }));
     static assert(!__traits(compiles, (ref OwnedStringUnmanaged left,

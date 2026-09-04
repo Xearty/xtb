@@ -2,7 +2,7 @@ module xtb.process.process;
 
 nothrow @nogc:
 
-import xtb.lifetime : moveAssign;
+import xtb.lifetime : move_assign;
 import core.stdc.string : memmove;
 import xtb.memory : Allocator, allocateArray, allocateZeroedArray;
 import xtb.option : Option, some;
@@ -611,11 +611,11 @@ ProcessError spawn(
     output.processId_ = processId;
     output.isolation_ = options.isolation;
     if (options.stdin.kind_ == RouteKind.piped)
-        moveAssign(childInput.writer, output.stdinPipe_);
+        move_assign(childInput.writer, output.stdinPipe_);
     if (options.stdout.kind_ == RouteKind.piped)
-        moveAssign(childOutput.reader, output.stdoutPipe_);
+        move_assign(childOutput.reader, output.stdoutPipe_);
     if (options.stderr.kind_ == RouteKind.piped)
-        moveAssign(childError.reader, output.stderrPipe_);
+        move_assign(childError.reader, output.stderrPipe_);
     return ProcessError.init;
 }
 

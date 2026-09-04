@@ -8,7 +8,7 @@ import xtb.cli.attributes;
 import xtb.cli.internal.traits;
 import xtb.cli.value : CliValueError, CliValueErrorKind;
 import xtb.containers.array : Array;
-import xtb.lifetime : deinitValue = deinit, move, moveAssign, needsDeinit;
+import xtb.lifetime : deinitValue = deinit, move, move_assign, needs_deinit;
 import xtb.memory : Allocator;
 import xtb.option : Option;
 import xtb.string : baseName;
@@ -127,7 +127,7 @@ public:
             childTag_ = 0;
         }
 
-        static if (needsDeinit!T)
+        static if (needs_deinit!T)
             deinitValue(args);
     }
 
@@ -1100,7 +1100,7 @@ private bool assignFieldValue(T, size_t index)(
     {
         alias Value = OptionElement!Field;
         Value value;
-        static if (needsDeinit!Value)
+        static if (needs_deinit!Value)
             scope (exit)
                 deinitValue(value);
         if (!parseFieldValue!(T, index, Value)(
@@ -1120,7 +1120,7 @@ private bool assignFieldValue(T, size_t index)(
     {
         alias Value = ArrayElement!Field;
         Value value;
-        static if (needsDeinit!Value)
+        static if (needs_deinit!Value)
             scope (exit)
                 deinitValue(value);
         if (!parseFieldValue!(T, index, Value)(
@@ -1141,7 +1141,7 @@ private bool assignFieldValue(T, size_t index)(
                 return false;
             }
             Field created = Field.create(state.allocator);
-            moveAssign(created, field);
+            move_assign(created, field);
         }
         if (!field.tryAppend(&value))
         {

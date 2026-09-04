@@ -2,7 +2,7 @@ module xtb.containers.released_storage;
 
 nothrow @nogc:
 
-import xtb.lifetime : hasDDestructor, move, moveEmplace;
+import xtb.lifetime : has_d_destructor, move, move_emplace;
 import xtb.memory : Allocator;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -60,7 +60,7 @@ private:
 public:
     static assert(!__traits(isCopyable, Storage),
         "ReleasedStorage requires non-copyable unmanaged storage");
-    static assert(!hasDDestructor!Storage,
+    static assert(!has_d_destructor!Storage,
         "ReleasedStorage storage must not have an elaborate destructor");
     static if (__traits(hasMember, Storage, "deinit"))
     {
@@ -146,7 +146,7 @@ package(xtb):
                 "ReleasedStorage storage pointer is null");
         ReleasedStorage result;
         result.allocator_ = allocator;
-        moveEmplace(*storage, result.storage_);
+        move_emplace(*storage, result.storage_);
         return move(result);
     }
 }

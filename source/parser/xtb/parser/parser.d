@@ -9,7 +9,7 @@ import core.stdc.stdlib : strtod;
 import core.stdc.string : memcpy;
 import xtb.allocators.arena : Arena;
 import xtb.memory : Allocator;
-import xtb.lifetime : hasDDestructor, move, moveEmplace, needsDeinit;
+import xtb.lifetime : has_d_destructor, move, move_emplace, needs_deinit;
 import xtb.numeric : addOverflows;
 import xtb.option : Option;
 
@@ -842,7 +842,7 @@ nothrow @nogc:
     }
 }
 
-package(xtb.parser) struct ArenaList(T) if (__traits(isCopyable, T) && !hasDDestructor!T)
+package(xtb.parser) struct ArenaList(T) if (__traits(isCopyable, T) && !has_d_destructor!T)
 {
 nothrow @nogc:
     Arena* arena;
@@ -904,7 +904,7 @@ public:
         return parserFromNode!Unit(parser_.arena_, node);
     }
 
-    static if (__traits(isCopyable, T) && !hasDDestructor!T)
+    static if (__traits(isCopyable, T) && !has_d_destructor!T)
     {
         Parser!(T[]) collect() @trusted
         {
@@ -963,7 +963,7 @@ nothrow @nogc:
     }
 }
 
-private struct RepeatCollectNode(T) if (__traits(isCopyable, T) && !hasDDestructor!T)
+private struct RepeatCollectNode(T) if (__traits(isCopyable, T) && !has_d_destructor!T)
 {
 nothrow @nogc:
     Parser!T parser;
@@ -1061,7 +1061,7 @@ public:
         return parserFromNode!Unit(parser_.arena_, node);
     }
 
-    static if (__traits(isCopyable, T) && !hasDDestructor!T)
+    static if (__traits(isCopyable, T) && !has_d_destructor!T)
     {
         Parser!(T[]) collect() @trusted
         {
@@ -1109,7 +1109,7 @@ nothrow @nogc:
     }
 }
 
-private struct SepCollectNode(T, S) if (__traits(isCopyable, T) && !hasDDestructor!T)
+private struct SepCollectNode(T, S) if (__traits(isCopyable, T) && !has_d_destructor!T)
 {
 nothrow @nogc:
     Parser!T parser;
@@ -1596,7 +1596,7 @@ public:
     {
         Grammar result;
         Arena arena = Arena.create(allocator, chunkSize);
-        moveEmplace(arena, result.arena_);
+        move_emplace(arena, result.arena_);
         return move(result);
     }
 
@@ -1797,7 +1797,7 @@ private template allParserTypes(T, Rest...)
 
 /// Adds trailing trivia consumption to common textual primitives.
 static assert(!hasElaborateDestructor!Grammar);
-static assert(needsDeinit!Grammar);
+static assert(needs_deinit!Grammar);
 static assert(!__traits(isCopyable, Grammar));
 
 struct Tokenizer

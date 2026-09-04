@@ -2,7 +2,7 @@ module xtb.serde.internal.traits;
 
 nothrow @nogc:
 
-import xtb.lifetime : deinitValue = deinit, hasDDestructor, moveEmplace, needsDeinit;
+import xtb.lifetime : deinitValue = deinit, has_d_destructor, move_emplace, needs_deinit;
 import xtb.containers.array;
 import xtb.containers.hash_map;
 import xtb.containers.hash_set;
@@ -874,8 +874,8 @@ private bool ownedValue(T)() pure @safe
         return ownedValue!(ArrayElement!U);
     else static if (isShallowArray!U)
         return ownedValue!(ArrayElement!U) &&
-            !needsDeinit!(ArrayElement!U) &&
-            !hasDDestructor!(ArrayElement!U);
+            !needs_deinit!(ArrayElement!U) &&
+            !has_d_destructor!(ArrayElement!U);
     else static if (isOwnedHashMap!U)
         return isOwnedSerdeHashMapKey!(HashMapKey!U) &&
             ownedValue!(HashMapValue!U);
@@ -883,8 +883,8 @@ private bool ownedValue(T)() pure @safe
         return ownedValue!(StringHashMapValue!U);
     else static if (isStringHashMap!U)
         return ownedValue!(StringHashMapValue!U) &&
-            !needsDeinit!(StringHashMapValue!U) &&
-            !hasDDestructor!(StringHashMapValue!U);
+            !needs_deinit!(StringHashMapValue!U) &&
+            !has_d_destructor!(StringHashMapValue!U);
     else static if (isFixedArray!U)
         return ownedValue!(typeof(U.init[0]));
     else static if (isTaggedUnion!U)
@@ -949,19 +949,19 @@ package(xtb.serde) void initializeOwnedValue(T)(
     static if (isStringBuf!U)
     {
         StringBuf created = StringBuf.create(allocator);
-        moveEmplace(created, *cast(StringBuf*) output);
+        move_emplace(created, *cast(StringBuf*) output);
     }
     else static if (isStringHashMap!U || isOwnedHashMap!U)
     {
         U created = U.create(allocator);
-        moveEmplace(created, *cast(U*) output);
+        move_emplace(created, *cast(U*) output);
     }
     else static if (isOption!U)
         initializeOwnedValue(allocator, &(*output).storage());
     else static if (isArray!U)
     {
         U created = U.create(allocator);
-        moveEmplace(created, *cast(U*) output);
+        move_emplace(created, *cast(U*) output);
     }
     else static if (isFixedArray!U)
         foreach (index; 0 .. output.length)
@@ -986,13 +986,13 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
     else static if (isStringBuf!U || isOwnedString!U ||
         isStringHashMap!U || isOwnedHashMap!U || isArray!U)
     {
-        static if (needsDeinit!U)
+        static if (needs_deinit!U)
         {
             deinitValue(*value);
-            static if (hasDDestructor!U)
+            static if (has_d_destructor!U)
             {
                 U empty;
-                moveEmplace(empty, *value);
+                move_emplace(empty, *value);
             }
         }
     }
@@ -1015,17 +1015,17 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
         // logical tag becomes Some. Generic structural deinit intentionally
         // follows only logical ownership, so structs containing Options need
         // serde's field-aware partial-construction cleanup here.
-        static if (hasDirectOptionField || !needsDeinit!U)
+        static if (hasDirectOptionField || !needs_deinit!U)
         {
             static foreach_reverse (index; 0 .. U.tupleof.length)
                 deinitOwnedValue(&value.tupleof[index]);
         }
         else
             deinitValue(*value);
-        static if (hasDDestructor!U)
+        static if (has_d_destructor!U)
         {
             U empty;
-            moveEmplace(empty, *value);
+            move_emplace(empty, *value);
         }
     }
 }
@@ -1135,7 +1135,7 @@ private void validateFieldSchema(T, size_t index)()
     static assert(fieldAdapterCount!(T, index) <= 1,
         "a serde field may have at most one @serdeWith");
     static assert(fieldDefaultValueCount!(T, index) == 0 ||
-            !hasDDestructor!(
+            !has_d_destructor!(
                 Unqualified!F),
         "@serdeDefaultValue currently requires a field without an elaborate destructor");
     static assert(fieldDefaultValueCount!(T, index) == 0 || !flattened,

@@ -7,7 +7,7 @@ import core.lifetime : forward;
 import core.stdc.stdio : FILE, stdout;
 import xtb.fmt.print : fileWriter;
 import xtb.fmt.writer : WriteResult, Writer;
-import xtb.lifetime : move, moveEmplace;
+import xtb.lifetime : move, move_emplace;
 import xtb.memory : Allocator;
 import xtb.panic : panic;
 import xtb.string : StringBuf;
@@ -78,7 +78,7 @@ bool tryFormatString(string pattern, Args...)(
         fresh.deinit();
         return false;
     }
-    moveEmplace(fresh, *output);
+    move_emplace(fresh, *output);
     return true;
 }
 
@@ -100,7 +100,7 @@ bool tryFormatString(Sequence...)(
         fresh.deinit();
         return false;
     }
-    moveEmplace(fresh, *output);
+    move_emplace(fresh, *output);
     return true;
 }
 

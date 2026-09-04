@@ -6,7 +6,7 @@ import core.stdc.errno : ERANGE, errno;
 import core.stdc.math : isfinite, isnan, signbit;
 import core.stdc.stdio : snprintf;
 import core.stdc.stdlib : strtod;
-import xtb.lifetime : hasDDestructor, moveEmplace;
+import xtb.lifetime : has_d_destructor, move_emplace;
 import xtb.containers.array;
 import xtb.containers.hash_map;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateInit, tryAllocateInitArray;
@@ -139,7 +139,7 @@ SerdeError readToml(T)(
         return error;
     }
     deinitOwnedValue(output);
-    moveEmplace(decoded, *output);
+    move_emplace(decoded, *output);
     return success();
 }
 
@@ -644,7 +644,7 @@ private void parseHashMapDocument(K, V, Hasher, Equal)(
             finishDocumentEntry(parser);
     }
     if (parser.error.ok)
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
 }
 
 private void parseOwnedHashMapDocument(K, V, Hasher, Equal)(
@@ -719,7 +719,7 @@ private void parseOwnedHashMapDocument(K, V, Hasher, Equal)(
             finishDocumentEntry(parser);
     }
     if (parser.error.ok)
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
 }
 
 private void parseStringHashMapDocument(Map)(
@@ -793,7 +793,7 @@ private void parseStringHashMapDocument(Map)(
             finishDocumentEntry(parser);
     }
     if (parser.error.ok)
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
 }
 
 private void parseDocument(T)(ref TomlParser parser, T* output, bool* seen)
@@ -1656,7 +1656,7 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
     parser.horizontalSpace();
     if (parser.consume('}'))
     {
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
         return;
     }
     size_t count;
@@ -1715,7 +1715,7 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
             return;
         }
     }
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeOwnedHashMapInline(K, V, Hasher, Equal)(
@@ -1737,7 +1737,7 @@ private void decodeOwnedHashMapInline(K, V, Hasher, Equal)(
     parser.horizontalSpace();
     if (parser.consume('}'))
     {
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
         return;
     }
     size_t count;
@@ -1808,7 +1808,7 @@ private void decodeOwnedHashMapInline(K, V, Hasher, Equal)(
             return;
         }
     }
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeStringHashMapInline(Map)(
@@ -1829,7 +1829,7 @@ private void decodeStringHashMapInline(Map)(
     parser.horizontalSpace();
     if (parser.consume('}'))
     {
-        moveEmplace(values, *output);
+        move_emplace(values, *output);
         return;
     }
     size_t count;
@@ -1900,7 +1900,7 @@ private void decodeStringHashMapInline(Map)(
             return;
         }
     }
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeInlineTable(T)(
@@ -2306,7 +2306,7 @@ private void decodeArray(Container)(
         return;
     }
     deinitOwnedValue(output);
-    moveEmplace(values, *output);
+    move_emplace(values, *output);
 }
 
 private void decodeFixedArray(T)(ref TomlParser parser, T* output, size_t depth)
@@ -2450,7 +2450,7 @@ private void decodeStringBuf(ref TomlParser parser, StringBuf* output)
         value.length,
         value.length + 1,
     );
-    moveEmplace(result, *output);
+    move_emplace(result, *output);
 }
 
 private void decodeOwnedString(ref TomlParser parser, OwnedString* output)
@@ -2473,7 +2473,7 @@ private void decodeOwnedString(ref TomlParser parser, OwnedString* output)
         parser.allocator,
         &storage,
     );
-    moveEmplace(result, *output);
+    move_emplace(result, *output);
 }
 
 private void decodeStringToken(

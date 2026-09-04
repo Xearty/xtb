@@ -7,7 +7,7 @@ import xtb.flag_set : FlagSet;
 import xtb.containers.hash_map;
 import xtb.containers.hash_set;
 import xtb.allocators.malloc : mallocAllocator;
-import xtb.lifetime : taggedBy, taggedCase;
+import xtb.lifetime : tagged_by, tagged_case;
 import xtb.option : Option;
 import xtb.fmt.format : formatted;
 import xtb.fmt.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
@@ -79,7 +79,7 @@ union TaggedValuePayload
 
     // The field name does not need to match the discriminator when an explicit
     // case mapping is clearer.
-    @taggedCase(TaggedValueKind.retry)
+    @tagged_case(TaggedValueKind.retry)
     uint retryAfterSeconds;
 }
 
@@ -88,7 +88,7 @@ struct TaggedValue
     String label;
     TaggedValueKind kind;
 
-    @taggedBy("kind", TaggedValueKind.none)
+    @tagged_by("kind", TaggedValueKind.none)
     TaggedValuePayload payload;
 }
 
@@ -299,7 +299,7 @@ extern (C) int main()
     taggedInactive.label = "idle";
     writeln("inactive:        ", taggedInactive.pretty(compact));
 
-    // `@taggedCase` supports an intentionally different field/tag name while
+    // `@tagged_case` supports an intentionally different field/tag name while
     // retaining the same active-member behavior in every layout.
     TaggedValue taggedRetry;
     taggedRetry.label = "backoff";

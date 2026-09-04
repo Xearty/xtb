@@ -3,7 +3,7 @@ module xtb.containers.hash_set;
 nothrow @nogc:
 
 import xtb.hash : HashSeed;
-import xtb.lifetime : canFinalizeWithoutContext, move, moveEmplace;
+import xtb.lifetime : can_finalize_without_context, move, move_emplace;
 import xtb.memory : Allocator;
 import xtb.panic : panic;
 
@@ -41,7 +41,7 @@ public:
     {
         HashSetUnmanaged result;
         auto storage = typeof(result.map_).withPolicies(move(hasher), move(equal));
-        moveEmplace(storage, result.map_);
+        move_emplace(storage, result.map_);
         return move(result);
     }
 
@@ -60,7 +60,7 @@ public:
         HashSetUnmanaged temporary;
         if (!temporary.tryReserve(allocator, requested))
             return false;
-        moveEmplace(temporary, *output);
+        move_emplace(temporary, *output);
         return true;
     }
 
@@ -78,7 +78,7 @@ public:
         {
             HashSetUnmanaged result;
             auto storage = typeof(result.map_).seeded(seed);
-            moveEmplace(storage, result.map_);
+            move_emplace(storage, result.map_);
             return move(result);
         }
 
@@ -279,7 +279,7 @@ public:
         Self result;
         result.allocator_ = allocator;
         Storage storage = Storage.withPolicies(move(hasher), move(equal));
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -294,7 +294,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &storage))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(storage, output.storage_);
+        move_emplace(storage, output.storage_);
         return true;
     }
 
@@ -314,7 +314,7 @@ public:
             Self result;
             result.allocator_ = allocator;
             Storage storage = Storage.seeded(seed);
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
 
@@ -323,7 +323,7 @@ public:
             Self result;
             result.allocator_ = allocator;
             Storage storage = Storage.withCapacity(allocator, requested, seed);
-            moveEmplace(storage, result.storage_);
+            move_emplace(storage, result.storage_);
             return move(result);
         }
     }
@@ -335,7 +335,7 @@ public:
         Storage storage = released.extract(&allocator);
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(storage, result.storage_);
+        move_emplace(storage, result.storage_);
         return move(result);
     }
 
@@ -502,7 +502,7 @@ package(xtb.containers):
             require(storage !is null, "HashSetUnmanaged pointer is null");
         Self result;
         result.allocator_ = allocator;
-        moveEmplace(*storage, result.storage_);
+        move_emplace(*storage, result.storage_);
         return move(result);
     }
 }
@@ -511,7 +511,7 @@ package(xtb.containers):
 struct OwnedHashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
 nothrow @nogc:
-    static assert(canFinalizeWithoutContext!K,
+    static assert(can_finalize_without_context!K,
         "OwnedHashSet elements must support context-free finalization");
     alias Self = OwnedHashSet!(K, Hasher, Equal);
     alias Storage = HashSetUnmanaged!(K, Hasher, Equal, OwnedHashMapElementOps!K);
@@ -535,7 +535,7 @@ public:
         Self r;
         r.allocator_ = allocator;
         Storage st = Storage.withPolicies(move(hasher), move(equal));
-        moveEmplace(st, r.storage_);
+        move_emplace(st, r.storage_);
         return move(r);
     }
 
@@ -550,7 +550,7 @@ public:
         if (!Storage.tryWithCapacity(allocator, requested, &st))
             return false;
         output.allocator_ = allocator;
-        moveEmplace(st, output.storage_);
+        move_emplace(st, output.storage_);
         return true;
     }
 
@@ -570,7 +570,7 @@ public:
             Self r;
             r.allocator_ = allocator;
             Storage st = Storage.seeded(seed);
-            moveEmplace(st, r.storage_);
+            move_emplace(st, r.storage_);
             return move(r);
         }
 
@@ -579,7 +579,7 @@ public:
             Self r;
             r.allocator_ = allocator;
             Storage st = Storage.withCapacity(allocator, requested, seed);
-            moveEmplace(st, r.storage_);
+            move_emplace(st, r.storage_);
             return move(r);
         }
     }

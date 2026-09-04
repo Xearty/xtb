@@ -7,7 +7,7 @@ import core.lifetime : emplace, forward;
 import core.stdc.string : memcpy, memset;
 import xtb.allocators.internal.virtual_memory : VirtualMemoryReservation,
     tryReserveVirtualMemory, virtualMemoryPageSize, virtualMemorySupported;
-import xtb.lifetime : moveEmplace, needsDeinit, structuralDeinit = deinit, taggedBy;
+import xtb.lifetime : move_emplace, needs_deinit, structuralDeinit = deinit, tagged_by;
 import xtb.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.panic : panic;
 
@@ -95,13 +95,13 @@ private struct ArenaStorageState
     @disable ref ArenaStorageState opAssign(ArenaStorageState source) return;
 
     ArenaStorageKind kind;
-    @taggedBy("kind", ArenaStorageKind.none)
+    @tagged_by("kind", ArenaStorageKind.none)
     ArenaStorage data;
 }
 
-static assert(needsDeinit!ChunkedArenaStorage);
-static assert(needsDeinit!VirtualArenaStorage);
-static assert(needsDeinit!ArenaStorageState);
+static assert(needs_deinit!ChunkedArenaStorage);
+static assert(needs_deinit!VirtualArenaStorage);
+static assert(needs_deinit!ArenaStorageState);
 
 struct ArenaStats
 {
@@ -228,7 +228,7 @@ nothrow @nogc:
         emplace(&output.storage_.data.virtualMemory);
         output.storage_.data.virtualMemory.commitGranularity = normalizedCommitGranularity;
         output.storage_.data.virtualMemory.pageSize = pageSize;
-        moveEmplace(reservation, output.storage_.data.virtualMemory.reservation);
+        move_emplace(reservation, output.storage_.data.virtualMemory.reservation);
         output.storage_.kind = ArenaStorageKind.virtualMemory;
         output.allocator_ = &virtualArenaAllocatorProcedure;
         return true;
@@ -1127,7 +1127,7 @@ void pop(ref TempArena temporary)
 unittest
 {
     import xtb.allocators.malloc : mallocAllocator;
-    import xtb.lifetime : move, moveAssign;
+    import xtb.lifetime : move, move_assign;
 
     static assert(!__traits(hasMember, VirtualArenaStorage, "offset"));
     static assert(!__traits(hasMember, TempArena, "offset_"));
@@ -1469,7 +1469,7 @@ unittest
         Arena replacementSource = Arena.createVirtual(pageSize * 2, pageSize);
         int* replacementValue = replacementSource.allocate!int();
         *replacementValue = 23;
-        moveAssign(replacementSource, replacementTarget);
+        move_assign(replacementSource, replacementTarget);
         assert(replacementSource.stats.reservedBytes == 0);
         assert(*replacementSource.allocator is null);
         assert(*replacementTarget.allocator == &virtualArenaAllocatorProcedure);
@@ -1581,7 +1581,7 @@ unittest
         }));
 
     static assert(!hasElaborateDestructor!Arena);
-    static assert(needsDeinit!Arena);
+    static assert(needs_deinit!Arena);
     static assert(__traits(compiles, (ref Arena value) @safe { ArenaStats snapshot = value.stats(); }));
     static assert(!__traits(compiles, (ref Arena left, ref Arena right) { left = right; }));
 

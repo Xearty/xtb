@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.internal.traits : hasElaborateDestructor;
 import core.stdc.string : memcpy;
-import xtb.lifetime : needsDeinit;
+import xtb.lifetime : needs_deinit;
 import xtb.memory : Allocator, tryAllocateInit;
 import xtb.numeric : addOverflows;
 
@@ -121,7 +121,7 @@ nothrow @nogc:
 }
 
 static assert(!hasElaborateDestructor!(Deserialized!int));
-static assert(needsDeinit!(Deserialized!int));
+static assert(needs_deinit!(Deserialized!int));
 static assert(!__traits(isCopyable, Deserialized!int));
 
 package(xtb.serde) template isDeserialized(T)
