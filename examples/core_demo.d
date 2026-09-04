@@ -35,7 +35,7 @@ extern (C) int main() nothrow @nogc
     auto permissions = Permissions.of(Permission.read)
         .enabled(Permission.write);
     permissions.enable(Permission.execute);
-    formatln!"enabled permissions: {}"(permissions.enabledCount);
+    formatln!"enabled permissions: {}"(permissions.enabled_count);
     foreach (permission; permissions)
         formatln!"permission bit position: {}"(cast(int) permission);
 

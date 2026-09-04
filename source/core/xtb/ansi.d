@@ -2,7 +2,7 @@ module xtb.ansi;
 
 nothrow @nogc:
 
-import xtb.flag_set : FlagSet, enable;
+import xtb.flag_set;
 import xtb.types : String;
 
 enum AnsiColorKind : ubyte
@@ -173,7 +173,7 @@ nothrow @nogc:
     bool enabled() const
     pure @safe
     {
-        return !attributes_.isEmpty || foregroundColor.enabled ||
+        return !attributes_.is_empty || foregroundColor.enabled ||
             backgroundColor.enabled;
     }
 

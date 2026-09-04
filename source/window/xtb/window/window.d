@@ -2,7 +2,7 @@ module xtb.window.window;
 
 nothrow @nogc:
 
-import xtb.flag_set : FlagSet, enable;
+import xtb.flag_set;
 import xtb.memory : Allocator, deallocate, tryAllocateInit;
 import xtb.string : StringBuf;
 import xtb.thread_context : ScratchScope;

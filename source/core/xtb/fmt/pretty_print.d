@@ -17,7 +17,7 @@ import xtb.lifetime : lifetimeDeinit = deinit,
 version (unittest)
 {
     import xtb.containers.array;
-    import xtb.flag_set : FlagSet;
+    import xtb.flag_set;
     import xtb.containers.hash_map;
     import xtb.containers.hash_set;
     import xtb.option : Option;
@@ -581,8 +581,8 @@ private void validatePrettyFlagsSource(Source)(scope const ref Source source)
 {
     alias U = Unqualified!Source;
     static assert(__traits(hasMember, U, "FlagType") &&
-            __traits(compiles, source.enabledCount),
-        "pretty.flags source must provide FlagType and enabledCount");
+            __traits(compiles, source.enabled_count),
+        "pretty.flags source must provide FlagType and enabled_count");
     static if (__traits(hasMember, U, "FlagType"))
     {
         alias Flag = U.FlagType;
@@ -865,7 +865,7 @@ private void writeFlagSet(Display, T)(
         writer.put(' ');
     }
 
-    const length = value.enabledCount;
+    const length = value.enabled_count;
     if (length == 0)
     {
         writePunctuation(writer, "{}", options);
@@ -2237,7 +2237,7 @@ private WidthEstimate estimateFlagSet(Display, T)(
     if (!addWidth(&total, 2, budget))
         return unknownWidth();
 
-    const length = value.enabledCount;
+    const length = value.enabled_count;
     const shown = limitedItemCount(length, options.maxItems);
     size_t written;
     static foreach (name; __traits(allMembers, Flag))

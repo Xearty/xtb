@@ -337,9 +337,9 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         flags.enable(cast(DeathFlag) 1);
     }
     if (cStringEqual(name, "bit-flags-invalid-mask"))
-        FlagSet!DeathFlag.fromBits(0b010);
+        FlagSet!DeathFlag.from_bits(0b010);
     if (cStringEqual(name, "bit-flags-null-output"))
-        FlagSet!DeathFlag.tryFromBits(0, null);
+        FlagSet!DeathFlag.try_from_bits(0, null);
     if (cStringEqual(name, "option-unwrap-none"))
     {
         Option!int option = none();
