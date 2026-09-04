@@ -6,7 +6,7 @@ import core.internal.traits : hasElaborateDestructor;
 import core.stdc.string : memcpy;
 import xtb.lifetime : needs_deinit;
 import xtb.memory : Allocator, tryAllocateInit;
-import xtb.numeric : addOverflows;
+import xtb.numeric : add_overflows;
 
 version (XTB_Checked) import xtb.panic : require;
 
@@ -228,8 +228,8 @@ private extern (C) void* trackingAllocatorProcedure(
         return null;
     }
     const padding = alignment - 1;
-    if (addOverflows(AllocationHeader.sizeof, padding) ||
-        addOverflows(AllocationHeader.sizeof + padding, newSize))
+    if (add_overflows(AllocationHeader.sizeof, padding) ||
+        add_overflows(AllocationHeader.sizeof + padding, newSize))
         return null;
     const allocationSize = AllocationHeader.sizeof + padding + newSize;
     const allocationAlignment = alignment > AllocationHeader.alignof

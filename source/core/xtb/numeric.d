@@ -2,123 +2,151 @@ module xtb.numeric;
 
 nothrow @nogc:
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.panic;
+import xtb.types;
 
-pure @safe
-T min(T)(T left, T right)
+private enum usize bytes_per_kibibyte = 1_024;
+private enum usize bytes_per_mebibyte = 1_024 * bytes_per_kibibyte;
+private enum usize bytes_per_gibibyte = 1_024 * bytes_per_mebibyte;
+private enum usize bytes_per_tebibyte = 1_024 * bytes_per_gibibyte;
+
+T min(T)(T left, T right) pure @safe
 {
     return left < right ? left : right;
 }
 
-pure @safe
-T max(T)(T left, T right)
+T max(T)(T left, T right) pure @safe
 {
     return left > right ? left : right;
 }
 
-@safe
-T clamp(T)(T value, T lower, T upper)
+/// Returns `value` restricted to the inclusive range [`lower`, `upper`].
+/// `lower` must not exceed `upper`.
+T clamp(T)(T value, T lower, T upper) @safe
 {
-    version (XTB_Checked)
-        require(lower <= upper, "invalid clamp range");
-    return value < lower ? lower : value > upper ? upper : value;
+    require(lower <= upper, "invalid clamp range");
+
+    if (value < lower) return lower;
+    if (value > upper) return upper;
+
+    return value;
 }
 
-pure @safe
-size_t growGeometric(size_t current, size_t required)
+usize grow_geometric(usize current, usize required) pure @safe
 {
-    if (required <= current)
-        return current;
-    if (current == 0 || current > size_t.max / 2)
-        return required;
+    if (required <= current) return current;
+    if (current == 0 || current > usize.max / 2) return required;
+
     const doubled = current * 2;
     return doubled > required ? doubled : required;
 }
 
-pure @safe
-bool addOverflows(size_t left, size_t right)
+bool add_overflows(usize left, usize right) pure @safe
 {
-    return right > size_t.max - left;
+    return right > usize.max - left;
 }
 
-pure @safe
-bool multiplyOverflows(size_t left, size_t right)
+bool multiply_overflows(usize left, usize right) pure @safe
 {
-    return left != 0 && right > size_t.max / left;
+    return left != 0 && right > usize.max / left;
 }
 
-private bool tryScale(size_t count, size_t multiplier, scope size_t* output) @safe
+private bool try_scale(
+    usize count,
+    usize multiplier,
+    scope usize* output,
+) pure @safe
 {
-    if (output is null)
-        return false;
+    if (output is null) return false;
+
     *output = 0;
-    if (multiplyOverflows(count, multiplier))
-        return false;
+    if (multiply_overflows(count, multiplier)) return false;
+
     *output = count * multiplier;
     return true;
 }
 
-private size_t scale(size_t count, size_t multiplier) @safe
+private usize scale(usize count, usize multiplier) @safe
 {
-    size_t result;
-    const succeeded = tryScale(count, multiplier, &result);
-    version (XTB_Checked)
-        require(succeeded, "byte count overflow");
+    usize result;
+    const succeeded = try_scale(count, multiplier, &result);
+    require(succeeded, "byte count overflow");
     return result;
 }
 
-size_t kibibytes(size_t count) @safe
+/// Converts kibibytes to bytes. The result must fit in `usize`.
+usize kibibytes(usize count) @safe
 {
-    return scale(count, 1024);
+    return scale(count, bytes_per_kibibyte);
 }
 
-size_t mebibytes(size_t count) @safe
+/// Converts mebibytes to bytes. The result must fit in `usize`.
+usize mebibytes(usize count) @safe
 {
-    return scale(count, 1024 * 1024);
+    return scale(count, bytes_per_mebibyte);
 }
 
-size_t gibibytes(size_t count) @safe
+/// Converts gibibytes to bytes. The result must fit in `usize`.
+usize gibibytes(usize count) @safe
 {
-    return scale(count, 1024UL * 1024 * 1024);
+    return scale(count, bytes_per_gibibyte);
 }
 
-size_t tebibytes(size_t count) @safe
+/// Converts tebibytes to bytes. The result must fit in `usize`.
+usize tebibytes(usize count) @safe
 {
-    return scale(count, 1024UL * 1024 * 1024 * 1024);
+    return scale(count, bytes_per_tebibyte);
 }
 
-bool tryKibibytes(size_t count, scope size_t* output) @safe
+/// Attempts to convert kibibytes to bytes.
+/// Returns `false` for overflow or a null `output`; writes zero on overflow.
+bool try_kibibytes(usize count, scope usize* output) pure @safe
 {
-    return tryScale(count, 1024, output);
+    return try_scale(count, bytes_per_kibibyte, output);
 }
 
-bool tryMebibytes(size_t count, scope size_t* output) @safe
+/// Attempts to convert mebibytes to bytes.
+/// Returns `false` for overflow or a null `output`; writes zero on overflow.
+bool try_mebibytes(usize count, scope usize* output) pure @safe
 {
-    return tryScale(count, 1024 * 1024, output);
+    return try_scale(count, bytes_per_mebibyte, output);
 }
 
-bool tryGibibytes(size_t count, scope size_t* output) @safe
+/// Attempts to convert gibibytes to bytes.
+/// Returns `false` for overflow or a null `output`; writes zero on overflow.
+bool try_gibibytes(usize count, scope usize* output) pure @safe
 {
-    return tryScale(count, 1024UL * 1024 * 1024, output);
+    return try_scale(count, bytes_per_gibibyte, output);
 }
 
-bool tryTebibytes(size_t count, scope size_t* output) @safe
+/// Attempts to convert tebibytes to bytes.
+/// Returns `false` for overflow or a null `output`; writes zero on overflow.
+bool try_tebibytes(usize count, scope usize* output) pure @safe
 {
-    return tryScale(count, 1024UL * 1024 * 1024 * 1024, output);
+    return try_scale(count, bytes_per_tebibyte, output);
 }
 
 unittest
 {
-    assert(!addOverflows(10, 20));
-    assert(addOverflows(size_t.max, 1));
-    assert(!multiplyOverflows(0, size_t.max));
-    assert(multiplyOverflows(size_t.max, 2));
     assert(min(3, 7) == 3);
     assert(max(3, 7) == 7);
     assert(clamp(12, 0, 10) == 10);
-    assert(growGeometric(8, 9) == 16);
-    assert(mebibytes(4) == 4 * 1024 * 1024);
-    size_t bytes = 1;
-    assert(!tryTebibytes(size_t.max, &bytes) && bytes == 0);
-    assert(!tryMebibytes(1, null));
+}
+
+unittest
+{
+    assert(!add_overflows(10, 20));
+    assert(add_overflows(usize.max, 1));
+    assert(!multiply_overflows(0, usize.max));
+    assert(multiply_overflows(usize.max, 2));
+    assert(grow_geometric(8, 9) == 16);
+}
+
+unittest
+{
+    assert(mebibytes(4) == 4 * 1_024 * 1_024);
+
+    usize bytes = 1;
+    assert(!try_tebibytes(usize.max, &bytes) && bytes == 0);
+    assert(!try_mebibytes(1, null));
 }

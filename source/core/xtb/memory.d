@@ -8,7 +8,7 @@ import xtb.lifetime : finalize, needs_finalization;
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
-import xtb.numeric : multiplyOverflows;
+import xtb.numeric : multiply_overflows;
 
 /// Type-erased allocator callback used by XTB ownership APIs.
 ///
@@ -94,7 +94,7 @@ T* allocate(T)(Allocator* allocator)
 /// Attempts to reserve uninitialized storage for `length` contiguous `T`s.
 T[] tryAllocateArray(T)(Allocator* allocator, size_t length)
 {
-    if (multiplyOverflows(T.sizeof, length))
+    if (multiply_overflows(T.sizeof, length))
         return null;
     T* data = cast(T*) tryAllocate(
         allocator,
@@ -109,7 +109,7 @@ T[] tryAllocateArray(T)(Allocator* allocator, size_t length)
 /// Reserves uninitialized storage for `length` contiguous `T`s.
 T[] allocateArray(T)(Allocator* allocator, size_t length)
 {
-    if (multiplyOverflows(T.sizeof, length))
+    if (multiply_overflows(T.sizeof, length))
         panic("allocation size overflow");
     T* data = cast(T*) allocate(
         allocator,
@@ -125,8 +125,8 @@ T[] tryReallocateArray(T)(
     size_t newLength,
 ) if (__traits(isPOD, T))
 {
-    if (multiplyOverflows(T.sizeof, oldValues.length) ||
-        multiplyOverflows(T.sizeof, newLength))
+    if (multiply_overflows(T.sizeof, oldValues.length) ||
+        multiply_overflows(T.sizeof, newLength))
         return null;
     T* data = cast(T*) tryReallocate(
         allocator,
@@ -146,8 +146,8 @@ T[] reallocateArray(T)(
     size_t newLength,
 ) if (__traits(isPOD, T))
 {
-    if (multiplyOverflows(T.sizeof, oldValues.length) ||
-        multiplyOverflows(T.sizeof, newLength))
+    if (multiply_overflows(T.sizeof, oldValues.length) ||
+        multiply_overflows(T.sizeof, newLength))
         panic("reallocation size overflow");
     T* data = cast(T*) reallocate(
         allocator,
@@ -277,7 +277,7 @@ void deallocate(T)(Allocator* allocator, T* pointer)
 /// Releases raw array storage without destroying its elements.
 void deallocateArray(T)(Allocator* allocator, T[] values)
 {
-    if (multiplyOverflows(T.sizeof, values.length))
+    if (multiply_overflows(T.sizeof, values.length))
         panic("deallocation size overflow");
     deallocate(
         allocator,

@@ -8,7 +8,7 @@ import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
     VirtualMemoryReservation, tryReserveVirtualMemory, virtualMemoryPageSize,
     virtualMemorySupported;
 import xtb.lifetime : move, move_emplace, needs_deinit;
-import xtb.numeric : addOverflows, multiplyOverflows;
+import xtb.numeric : add_overflows, multiply_overflows;
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -97,7 +97,7 @@ public:
         VirtualArrayRegionGeometry geometry;
         if (!tryVirtualArrayRegionGeometry!T(capacity, pageSize, &geometry))
             return false;
-        if (addOverflows(geometry.regionBytes, geometry.alignmentSlack))
+        if (add_overflows(geometry.regionBytes, geometry.alignmentSlack))
             return false;
         const reservationBytes = geometry.regionBytes + geometry.alignmentSlack;
 
@@ -429,7 +429,7 @@ public:
             return false;
         if (capacity == 0)
             return region.empty;
-        if (region.empty || multiplyOverflows(capacity, T.sizeof))
+        if (region.empty || multiply_overflows(capacity, T.sizeof))
             return false;
 
         const pageSize = virtualMemoryPageSize();
@@ -591,7 +591,7 @@ package(xtb.containers) bool tryVirtualArrayRegionGeometry(T)(
     scope VirtualArrayRegionGeometry* output,
 ) pure @safe
 {
-    if (output is null || pageSize == 0 || multiplyOverflows(capacity, T.sizeof))
+    if (output is null || pageSize == 0 || multiply_overflows(capacity, T.sizeof))
         return false;
 
     const dataBytes = capacity * T.sizeof;
@@ -686,7 +686,7 @@ private bool tryRoundUpToMultiple(
     }
 
     const increment = multiple - remainder;
-    if (addOverflows(value, increment))
+    if (add_overflows(value, increment))
         return false;
     *output = value + increment;
     return true;
@@ -714,7 +714,7 @@ private bool tryLeastCommonMultiple(
 
     const divisor = greatestCommonDivisor(left, right);
     const reduced = left / divisor;
-    if (multiplyOverflows(reduced, right))
+    if (multiply_overflows(reduced, right))
         return false;
     *output = reduced * right;
     return true;
@@ -738,7 +738,7 @@ package(xtb.containers) bool tryAlignAddressUp(
     }
 
     const increment = alignment - remainder;
-    if (addOverflows(value, increment))
+    if (add_overflows(value, increment))
         return false;
     *output = cast(void*)(value + increment);
     return true;

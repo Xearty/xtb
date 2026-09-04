@@ -11,7 +11,7 @@ import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryReallocateA
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
-import xtb.numeric : multiplyOverflows;
+import xtb.numeric : multiply_overflows;
 import xtb.containers.released_storage : ReleasedStorage;
 
 private template supportsDefaultInitialization(T)
@@ -749,7 +749,7 @@ private:
 
     bool trySetCapacity(Allocator* allocator, size_t capacity)
     {
-        if (multiplyOverflows(capacity, T.sizeof))
+        if (multiply_overflows(capacity, T.sizeof))
             return false;
 
         static if (__traits(isPOD, T))

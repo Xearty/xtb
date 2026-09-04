@@ -12,7 +12,7 @@ import xtb.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
-import xtb.numeric : addOverflows, multiplyOverflows;
+import xtb.numeric : add_overflows, multiply_overflows;
 
 private enum ArenaStorageKind : ubyte
 {
@@ -297,7 +297,7 @@ nothrow @nogc:
 
     T[] tryAllocateArray(T)(size_t length)
     {
-        if (multiplyOverflows(T.sizeof, length))
+        if (multiply_overflows(T.sizeof, length))
             return null;
         T* data = cast(T*) tryAllocate(
             T.sizeof * length,
@@ -310,7 +310,7 @@ nothrow @nogc:
 
     T[] allocateArray(T)(size_t length)
     {
-        if (multiplyOverflows(T.sizeof, length))
+        if (multiply_overflows(T.sizeof, length))
             panic("arena allocation size overflow");
         T* data = cast(T*) allocate(
             T.sizeof * length,
@@ -796,8 +796,8 @@ nothrow @nogc:
 
     {
         const padding = alignment - 1;
-        if (addOverflows(ArenaChunk.sizeof, padding) ||
-            addOverflows(ArenaChunk.sizeof + padding, capacity))
+        if (add_overflows(ArenaChunk.sizeof, padding) ||
+            add_overflows(ArenaChunk.sizeof + padding, capacity))
             return null;
 
         const allocationSize = ArenaChunk.sizeof + padding + capacity;

@@ -10,7 +10,7 @@ import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
     virtualMemorySupported;
 import xtb.lifetime : can_finalize_without_context, finalize, move, move_emplace,
     needs_deinit, needs_finalization;
-import xtb.numeric : addOverflows;
+import xtb.numeric : add_overflows;
 import xtb.panic : panic;
 import xtb.containers.internal.pool_storage : IndexedPoolStorageLayout,
     tryIndexedPoolStorageLayout, tryIndexedPoolStorageRegions;
@@ -1098,7 +1098,7 @@ private bool tryPoolLayout(T)(
         return false;
 
     const capacityAsSize = cast(size_t) capacity;
-    if (addOverflows(capacityAsSize, 1))
+    if (add_overflows(capacityAsSize, 1))
         return false;
     const valueCapacity = capacityAsSize + 1;
 

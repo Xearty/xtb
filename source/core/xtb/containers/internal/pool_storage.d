@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
     VirtualMemoryReservation;
-import xtb.numeric : addOverflows;
+import xtb.numeric : add_overflows;
 import xtb.containers.virtual_array : tryAlignAddressUp,
     tryVirtualArrayRegionGeometry, VirtualArrayRegionGeometry;
 
@@ -34,7 +34,7 @@ package(xtb.containers) bool tryIndexedPoolStorageLayout(T, State)(
         return false;
 
     const capacityAsSize = cast(size_t) capacity;
-    if (addOverflows(capacityAsSize, 1))
+    if (add_overflows(capacityAsSize, 1))
         return false;
 
     IndexedPoolStorageLayout result;
@@ -96,7 +96,7 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     const valuesOffset = valuesAddress - reservationBase;
     if (!reservation.tryRegion(valuesOffset, layout.values.regionBytes, values))
         return false;
-    if (addOverflows(valuesAddress, layout.values.regionBytes))
+    if (add_overflows(valuesAddress, layout.values.regionBytes))
         return false;
     cursor = valuesAddress + layout.values.regionBytes;
 
@@ -117,7 +117,7 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
             states,
         ))
         return false;
-    if (addOverflows(statesAddress, layout.states.regionBytes))
+    if (add_overflows(statesAddress, layout.states.regionBytes))
         return false;
     cursor = statesAddress + layout.states.regionBytes;
 
@@ -147,10 +147,10 @@ private bool tryAddRegionBytes(
     scope const VirtualArrayRegionGeometry geometry,
 ) pure @safe
 {
-    if (addOverflows(total, geometry.alignmentSlack))
+    if (add_overflows(total, geometry.alignmentSlack))
         return false;
     total += geometry.alignmentSlack;
-    if (addOverflows(total, geometry.regionBytes))
+    if (add_overflows(total, geometry.regionBytes))
         return false;
     total += geometry.regionBytes;
     return true;

@@ -10,7 +10,7 @@ import core.stdc.string : memcpy;
 import xtb.allocators.arena : Arena;
 import xtb.memory : Allocator;
 import xtb.lifetime : has_d_destructor, move, move_emplace, needs_deinit;
-import xtb.numeric : addOverflows;
+import xtb.numeric : add_overflows;
 import xtb.option : Option;
 
 version (XTB_Checked) import xtb.panic : require;

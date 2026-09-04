@@ -8,7 +8,7 @@ import xtb.lifetime : can_finalize_without_context, deinitValue = deinit,
 import core.stdc.string : memset;
 import xtb.hash : HashSeed, hash_value;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
-import xtb.numeric : multiplyOverflows;
+import xtb.numeric : multiply_overflows;
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -1039,7 +1039,7 @@ private:
         version (XTB_Checked)
             require(capacity >= 8 && (capacity & (capacity - 1)) == 0,
                 "invalid HashMap capacity");
-        if (multiplyOverflows(Entry!(K, V).sizeof, capacity))
+        if (multiply_overflows(Entry!(K, V).sizeof, capacity))
             return false;
 
         SlotState* states = allocator.tryAllocateZeroedArray!SlotState(capacity).ptr;

@@ -151,7 +151,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "numeric-clamp"))
         clamp(0, 1, 0);
     if (cStringEqual(name, "numeric-overflow"))
-        tebibytes(size_t.max);
+        tebibytes(usize.max);
     if (cStringEqual(name, "duration-negative"))
         milliseconds(-1);
     if (cStringEqual(name, "duration-conversion-overflow"))
