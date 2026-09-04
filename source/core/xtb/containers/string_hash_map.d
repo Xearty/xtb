@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.lifetime : canFinalizeWithoutContext, finalize,
     hasDDestructor, move, moveEmplace, needsDeinit, needsFinalization;
-import xtb.hash : HashSeed, hashValue;
+import xtb.hash : HashSeed, hash_value;
 import xtb.containers.hash_map;
 import xtb.memory : Allocator;
 import xtb.panic : panic;
@@ -28,12 +28,12 @@ nothrow @nogc:
 
     size_t opCall(scope const(OwnedStringUnmanaged)* key) const pure @safe
     {
-        return hashValue(key.view, seed);
+        return hash_value(key.view, seed);
     }
 
     size_t opCall(scope const(String)* key) const pure @safe
     {
-        return hashValue(*key, seed);
+        return hash_value(*key, seed);
     }
 }
 

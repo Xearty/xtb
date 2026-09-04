@@ -9,7 +9,7 @@ extern (C) int main() nothrow @nogc
 {
     StringViewHashMap!int inventory = StringViewHashMap!int.seeded(
         mallocAllocator(),
-        HashSeed.fromValue(0x7862_7464),
+        HashSeed.from_value(0x7862_7464),
     );
     inventory.set("apples", 12);
     inventory.set("pears", 7);

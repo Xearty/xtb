@@ -6,7 +6,7 @@ import xtb.lifetime : canFinalizeWithoutContext, deinitValue = deinit,
     finalize, hasDDestructor, move, moveEmplace, needsDeinit,
     needsFinalization;
 import core.stdc.string : memset;
-import xtb.hash : HashSeed, hashValue;
+import xtb.hash : HashSeed, hash_value;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
 import xtb.numeric : multiplyOverflows;
 import xtb.panic : panic;
@@ -31,13 +31,13 @@ struct DefaultHash(K)
 
     size_t opCall(scope const(K)* key) const
     {
-        static if (__traits(compiles, hashValue(*key, seed)))
-            return hashValue(*key, seed);
+        static if (__traits(compiles, hash_value(*key, seed)))
+            return hash_value(*key, seed);
         else static if (__traits(compiles, (*key).toHash()))
-            return hashValue((*key).toHash(), seed);
+            return hash_value((*key).toHash(), seed);
         else
             static assert(false,
-                "DefaultHash requires hashValue(value) or value.toHash()");
+                "DefaultHash requires hash_value(value) or value.toHash()");
     }
 }
 
@@ -2207,7 +2207,7 @@ unittest
 
     HashSet!int values = HashSet!int.seeded(
         mallocAllocator(),
-        HashSeed.fromValue(123),
+        HashSeed.from_value(123),
     );
     assert(values.add(3));
     assert(!values.add(3));

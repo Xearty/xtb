@@ -13,7 +13,7 @@ import xtb.types : u8;
 import xtb.containers.array;
 import xtb.allocators.arena : Arena;
 import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
-import xtb.hash : hashValue;
+import xtb.hash : hash_value;
 import xtb.panic : panic;
 import xtb.fmt.writer : Writer;
 
@@ -657,7 +657,7 @@ public:
 
     size_t toHash() const pure @trusted
     {
-        return hashValue(view);
+        return hash_value(view);
     }
 
     void reserve(Allocator* allocator, size_t byteCapacity)
@@ -2525,7 +2525,7 @@ public:
 
     size_t toHash() const pure @safe
     {
-        return hashValue(value_);
+        return hash_value(value_);
     }
 
 package(xtb):
@@ -3414,7 +3414,7 @@ unittest
     assert(text.view == "hello");
     assert(text.equal("hello"));
     assert(text.byteLength == 5);
-    assert(text.toHash == hashValue("hello"));
+    assert(text.toHash == hash_value("hello"));
     static assert(!__traits(isCopyable, OwnedString));
     static assert(!__traits(isCopyable, OwnedStringUnmanaged));
     static assert(!hasElaborateDestructor!OwnedString);

@@ -2,7 +2,7 @@ module xtb.hash;
 
 nothrow @nogc:
 
-import xtb.types : String;
+import xtb.types;
 
 /// The two keys used by the default non-cryptographic hash function.
 ///
@@ -11,85 +11,96 @@ import xtb.types : String;
 /// accepting adversarial keys must select a stronger custom hash policy.
 struct HashSeed
 {
-    ulong first = 0xa076_1d64_78bd_642f;
-    ulong second = 0xe703_7ed1_a0b4_28db;
+    u64 first = 0xA076_1D64_78BD_642F;
+    u64 second = 0xE703_7ED1_A0B4_28DB;
 
-    static HashSeed fromValue(ulong value) pure nothrow @safe @nogc
+    static HashSeed from_value(u64 value) pure nothrow @nogc @safe
     {
         return HashSeed(
-            avalanche(value ^ 0x8ebc_6af0_9c88_c6e3),
-            avalanche(value ^ 0x5899_65cc_7537_4cc3),
+            avalanche(value ^ 0x8EBC_6AF0_9C88_C6E3),
+            avalanche(value ^ 0x5899_65CC_7537_4CC3),
         );
     }
 }
 
-private ulong avalanche(ulong value) pure @safe
+private u64 avalanche(u64 value) pure @safe
 {
     value ^= value >> 32;
-    value *= 0xd6e8_feb8_6659_fd93;
+    value *= 0xD6E8_FEB8_6659_FD93;
     value ^= value >> 32;
-    value *= 0xd6e8_feb8_6659_fd93;
+    value *= 0xD6E8_FEB8_6659_FD93;
     value ^= value >> 32;
     return value;
 }
 
-private ulong hashBytes(scope const(char)[] bytes, HashSeed seed) pure @safe
+private u64 hash_bytes(scope String bytes, HashSeed seed) pure @safe
 {
-    ulong hash = seed.first ^ (cast(ulong) bytes.length * 0x9e37_79b9_7f4a_7c15);
+    u64 hash = seed.first ^ (cast(u64) bytes.length * 0x9E37_79B9_7F4A_7C15);
     foreach (value; bytes)
     {
-        hash ^= cast(ubyte) value;
-        hash *= 0x100_0000_01b3;
+        hash ^= cast(u8) value;
+        hash *= 0x100_0000_01B3;
         hash ^= hash >> 29;
     }
+
     return avalanche(hash ^ seed.second);
 }
 
 /// Hashes the exact bytes in a `String`. Text normalization and case folding
 /// are deliberately outside the hashing layer.
-size_t hashValue(scope String value, HashSeed seed = HashSeed.init) pure @safe
+usize hash_value(scope String value, HashSeed seed = HashSeed.init) pure @safe
 {
-    return cast(size_t) hashBytes(value, seed);
+    return cast(usize) hash_bytes(value, seed);
 }
 
 /// Hashes integral and enum values without relying on `TypeInfo`.
-size_t hashValue(T)(scope const T value, HashSeed seed = HashSeed.init) pure @safe
-        if (is(T == bool) || is(T == byte) || is(T == ubyte) ||
-        is(T == short) || is(T == ushort) || is(T == int) ||
-        is(T == uint) || is(T == long) || is(T == ulong) ||
-        is(T == char) || is(T == wchar) || is(T == dchar) ||
-        is(T == enum))
+usize hash_value(T)(const T value, HashSeed seed = HashSeed.init) pure @safe
+if (
+    is(T == bool)
+    || is(T == i8)
+    || is(T == u8)
+    || is(T == i16)
+    || is(T == u16)
+    || is(T == i32)
+    || is(T == u32)
+    || is(T == i64)
+    || is(T == u64)
+    || is(T == char)
+    || is(T == wchar)
+    || is(T == dchar)
+    || is(T == enum)
+)
 {
-    const bits = cast(ulong) value;
-    return cast(size_t) avalanche(bits ^ seed.first ^
-            (cast(ulong) T.sizeof * 0x9e37_79b9_7f4a_7c15) ^ seed.second);
+    const bits = cast(u64) value;
+    const type_size_salt = cast(u64) T.sizeof * 0x9E37_79B9_7F4A_7C15;
+    return cast(usize) avalanche(bits ^ seed.first ^ type_size_salt ^ seed.second);
 }
 
 /// Hashes a pointer by address. The result is meaningful only within the
 /// process in which that address is valid.
-size_t hashValue(T)(scope T* value, HashSeed seed = HashSeed.init) pure @safe
+/// `value` may be null.
+usize hash_value(T)(scope T* value, HashSeed seed = HashSeed.init) pure @safe
 {
-    return cast(size_t) avalanche(
-        cast(size_t) value ^ seed.first ^ seed.second,
+    return cast(usize) avalanche(
+        cast(usize) value ^ seed.first ^ seed.second,
     );
 }
 
 unittest
 {
-    enum TestKind : ubyte
+    enum TestKind : u8
     {
         first = 1,
         second = 2,
     }
 
-    assert(hashValue(42) == hashValue(42));
-    assert(hashValue(42, HashSeed.fromValue(1)) !=
-            hashValue(42, HashSeed.fromValue(2)));
-    assert(hashValue(cast(uint) 42) != hashValue(cast(ulong) 42));
-    assert(hashValue(cast(String) "hello") == hashValue(cast(String) "hello"));
-    assert(hashValue(cast(String) "hello") != hashValue(cast(String) "world"));
-    assert(hashValue(TestKind.first) != hashValue(TestKind.second));
+    assert(hash_value(42) == hash_value(42));
+    assert(hash_value(42, HashSeed.from_value(1)) != hash_value(42, HashSeed.from_value(2)));
+    assert(hash_value(cast(u32) 42) != hash_value(cast(u64) 42));
+    assert(hash_value(cast(String) "hello") == hash_value(cast(String) "hello"));
+    assert(hash_value(cast(String) "hello") != hash_value(cast(String) "world"));
+    assert(hash_value(TestKind.first) != hash_value(TestKind.second));
 
-    int value;
-    assert(hashValue(&value) == hashValue(&value));
+    i32 value = 0;
+    assert(hash_value(&value) == hash_value(&value));
 }
