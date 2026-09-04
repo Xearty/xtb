@@ -17,8 +17,8 @@ import xtb.fmt.writer : Writer;
 import xtb.string;
 import xtb.containers.string_hash_map;
 import xtb.types : String;
-import xtb.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
-    isValidUtf8;
+import xtb.utf8 : DecodedCodePoint, decode_code_point, encode_utf8,
+    is_valid_utf8;
 import xtb.serde.attributes : SerdeFlatten, SerdeIgnore, KeyCase, SerdeOmitDefault, SerdeRename,
     SerdeRequired, TagLayout;
 import xtb.serde.internal.casing : writeCased;
@@ -2522,7 +2522,7 @@ private void decodeStringToken(
         else
         {
             DecodedCodePoint decoded;
-            const utf8Error = decodeCodePoint(
+            const utf8Error = decode_code_point(
                 parser.input,
                 parser.position,
                 &decoded,
@@ -2532,9 +2532,9 @@ private void decodeStringToken(
                 parser.fail(SerdeErrorKind.invalidUtf8);
                 return;
             }
-            foreach (_; 0 .. decoded.byteLength)
+            foreach (_; 0 .. decoded.byte_length)
                 parser.take();
-            decodedLength += decoded.byteLength;
+            decodedLength += decoded.byte_length;
         }
         if (decodedLength > parser.options.limits.maxCollectionLength)
         {
@@ -2682,9 +2682,9 @@ private void decodeEscapeBytes(
 
 private void appendUtf8(char* output, size_t* position, uint value)
 {
-    const encoded = encodeUtf8(cast(dchar) value);
-    const codeUnits = encoded.codeUnits;
-    foreach (index; 0 .. encoded.byteLength)
+    const encoded = encode_utf8(cast(dchar) value);
+    const codeUnits = encoded.bytes;
+    foreach (index; 0 .. encoded.byte_length)
         output[(*position)++] = codeUnits[index];
 }
 

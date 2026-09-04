@@ -9,7 +9,7 @@ import xtb.lifetime : needs_finalization;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.types : String, u8;
-import xtb.utf8 : encodeUtf8;
+import xtb.utf8 : encode_utf8;
 
 /// Synchronously accepts raw output bytes and returns the accepted prefix size.
 alias WriterSink = size_t function(void* context, scope const(u8)[] bytes);
@@ -95,9 +95,9 @@ nothrow @nogc:
     {
         if (failed_)
             return;
-        const encoded = encodeUtf8(value);
-        const codeUnits = encoded.codeUnits;
-        emit(codeUnits[0 .. encoded.byteLength]);
+        const encoded = encode_utf8(value);
+        const codeUnits = encoded.bytes;
+        emit(codeUnits[0 .. encoded.byte_length]);
     }
 
     /// Writes borrowed UTF-8 text synchronously.
@@ -133,9 +133,9 @@ nothrow @nogc:
     {
         if (failed_ || count == 0)
             return;
-        const encoded = encodeUtf8(value);
-        const codeUnits = encoded.codeUnits;
-        const text = cast(String) codeUnits[0 .. encoded.byteLength];
+        const encoded = encode_utf8(value);
+        const codeUnits = encoded.bytes;
+        const text = cast(String) codeUnits[0 .. encoded.byte_length];
         while (count-- != 0 && !failed_)
             emit(text);
     }

@@ -17,8 +17,8 @@ import xtb.fmt.writer : Writer;
 import xtb.string;
 import xtb.containers.string_hash_map;
 import xtb.types : String;
-import xtb.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
-    isValidUtf8;
+import xtb.utf8 : DecodedCodePoint, decode_code_point, encode_utf8,
+    is_valid_utf8;
 import xtb.serde.attributes : SerdeAliasName, SerdeFlatten, SerdeIgnore, KeyCase, SerdeOmitDefault,
     SerdeRename, SerdeRequired, TagLayout;
 import xtb.serde.internal.casing : writeCased;

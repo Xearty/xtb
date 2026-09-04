@@ -17,8 +17,8 @@ import xtb.fmt.writer : Writer;
 import xtb.string;
 import xtb.containers.string_hash_map;
 import xtb.types : String;
-import xtb.utf8 : DecodedCodePoint, decodeCodePoint, encodeUtf8,
-    isValidUtf8;
+import xtb.utf8 : DecodedCodePoint, decode_code_point, encode_utf8,
+    is_valid_utf8;
 import xtb.serde.attributes : SerdeFlatten, SerdeIgnore, KeyCase, SerdeOmitDefault, SerdeRename,
     SerdeRequired, TagLayout;
 import xtb.serde.internal.casing : writeCased;
@@ -634,7 +634,7 @@ private void encodeArray(Element)(
 
 private void encodeString(ref TomlEncoder encoder, scope String value)
 {
-    if (!isValidUtf8(value))
+    if (!is_valid_utf8(value))
     {
         encoder.fail(SerdeErrorKind.invalidUtf8);
         return;
@@ -644,13 +644,13 @@ private void encodeString(ref TomlEncoder encoder, scope String value)
     while (offset < value.length)
     {
         DecodedCodePoint decoded;
-        const utf8Error = decodeCodePoint(value, offset, &decoded);
+        const utf8Error = decode_code_point(value, offset, &decoded);
         if (utf8Error.failed)
         {
             encoder.fail(SerdeErrorKind.invalidUtf8);
             return;
         }
-        offset += decoded.byteLength;
+        offset += decoded.byte_length;
         const dchar character = decoded.value;
         switch (character)
         {

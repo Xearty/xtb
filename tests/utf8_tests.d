@@ -1,30 +1,37 @@
 module tests.utf8_tests;
 
-import xtb.types : String, u8;
+import xtb.types;
 import xtb.utf8;
 
 static assert(__traits(compiles,
-        (return scope const(u8)[] input) => input.asString));
+    (return scope const(u8)[] input) => input.as_string,
+));
 static assert(__traits(compiles,
-        (return scope String input) => input.codePoints));
-static assert(__traits(compiles, () @safe {
-        foreach (codePoint; "safe".codePoints)
-            cast(void) codePoint;
-    }));
+    (return scope String input) => input.code_points,
+));
+static assert(__traits(compiles,
+    () @safe
+    {
+        foreach (code_point; "safe".code_points)
+        {
+            cast(void) code_point;
+        }
+    },
+));
 
-private void assertUtf8Error(
+private void assert_utf8_error(
     scope const(u8)[] bytes,
     Utf8ErrorKind kind,
-    size_t byteOffset,
-) nothrow @nogc @trusted
+    usize byte_offset,
+) nothrow @nogc @safe
 {
-    const error = validateUtf8(bytes);
+    const error = validate_utf8(bytes);
     assert(error.kind == kind);
-    assert(error.byteOffset == byteOffset);
+    assert(error.byte_offset == byte_offset);
 }
 
 extern (C) int main() nothrow @nogc
 {
-    mixin(utf8TestBody);
+    mixin(utf8_test_body);
     return 0;
 }

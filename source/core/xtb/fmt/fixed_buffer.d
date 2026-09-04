@@ -6,7 +6,7 @@ import core.interpolation : InterpolationFooter, InterpolationHeader;
 import core.stdc.string : memcpy;
 import xtb.fmt.writer : Writer;
 import xtb.types : String, u8;
-import xtb.utf8 : isValidUtf8;
+import xtb.utf8 : is_valid_utf8;
 
 version (XTB_Checked) import xtb.panic : require;
 
@@ -59,7 +59,7 @@ private void finishFixedBuffer(FixedBufferState* state)
     version (XTB_Checked)
         require(state !is null, "fixed buffer state is null");
     while (state.written != 0 &&
-        !isValidUtf8(cast(String) state.destination[0 .. state.written]))
+        !is_valid_utf8(cast(String) state.destination[0 .. state.written]))
         --state.written;
     if (state.destination.length != 0)
         state.destination[state.written] = '\0';

@@ -1118,7 +1118,7 @@ unittest
     import core.stdc.stdio : fclose, tmpfile;
     import xtb.ansi : AnsiAttribute, AnsiColor, AnsiStyle;
     import xtb.fmt.ansi : styled;
-    import xtb.utf8 : isValidUtf8;
+    import xtb.utf8 : is_valid_utf8;
     import xtb.string;
 
     static assert(is(typeof(&captureSink) == LogSink));
@@ -2520,7 +2520,7 @@ unittest
         assert(utf8Result.status == LogStatus.truncated);
         assert(utf8Result.written == "🙂".length);
         assertEvent(utf8Capture, 4, LogSinkEventKind.messageChunk, "🙂");
-        assert(isValidUtf8(cast(const(ubyte)[]) utf8Capture.events[4].text));
+        assert(is_valid_utf8(cast(const(ubyte)[]) utf8Capture.events[4].text));
     }
 
     // ANSI truncation emits only the safe formatter prefix and still finishes

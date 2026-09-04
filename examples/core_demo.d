@@ -45,17 +45,17 @@ extern (C) int main() nothrow @nogc
     String text = "Aé🙂";
     formatln!"text bytes={}, code points={}"(
         text.byteLength,
-        text.codePointCount,
+        text.code_point_count,
     );
-    foreach (decoded; text.codePointsWithOffsets)
+    foreach (decoded; text.code_points_with_offsets)
         formatln!"scalar U+{} starts at byte {} and occupies {} bytes"(
             hexadecimal(cast(uint) decoded.value).upper,
-            decoded.byteOffset,
-            decoded.byteLength,
+            decoded.byte_offset,
+            decoded.byte_length,
         );
 
     const u8[5] externalBytes = ['c', 'a', 'f', 0xc3, 0xa9];
-    const checkedText = externalBytes[].asString;
+    const checkedText = externalBytes[].as_string;
     if (checkedText.failed)
         return 1;
     formatln!"validated external text: {}"(checkedText.value);

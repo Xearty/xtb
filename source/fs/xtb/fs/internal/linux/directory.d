@@ -149,7 +149,7 @@ package(xtb.fs) OsError executablePath(ref StringBuf output) @system
         if (cast(size_t) amount < buffer.length)
         {
             const checked = (cast(const(u8)[])
-                buffer.slice[0 .. cast(size_t) amount]).asString;
+                buffer.slice[0 .. cast(size_t) amount]).as_string;
             if (checked.failed)
                 return OsError(OsErrorKind.invalidData, 0);
             output.append(checked.value);

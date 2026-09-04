@@ -14,7 +14,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
         if (checked.failed)
         {
             formatln!"path is not valid UTF-8 at byte {}"(
-                checked.error.byteOffset,
+                checked.error.byte_offset,
             );
             return 1;
         }

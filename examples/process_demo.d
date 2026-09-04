@@ -59,7 +59,7 @@ version (linux)
                 return true;
             if (result.state == PipeReadState.data)
             {
-                const checked = storage[0 .. result.transferred].asString;
+                const checked = storage[0 .. result.transferred].as_string;
                 if (checked.failed)
                     return false;
                 write(checked.value);
@@ -164,7 +164,7 @@ version (linux)
         );
         if (!report(result.error, "bounded communicate"))
             return false;
-        const checked = capture.bytes.asString;
+        const checked = capture.bytes.as_string;
         if (checked.failed)
             return false;
         formatln!"captured='{}', length={}, truncated={}"(

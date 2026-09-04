@@ -13,7 +13,7 @@ import xtb.memory : Allocator;
 import xtb.option : Option;
 import xtb.string : baseName;
 import xtb.types : String;
-import xtb.utf8 : isValidUtf8;
+import xtb.utf8 : is_valid_utf8;
 
 enum CliErrorKind : ubyte
 {
@@ -366,7 +366,7 @@ CliParseResult!T parseArgs(T)(scope String[] argv, Allocator* allocator) @truste
 pragma(inline, true)
 package(xtb.cli) String normalizeProgramName(String programPath) @safe
 {
-    if (!isValidUtf8(programPath))
+    if (!is_valid_utf8(programPath))
         return "program";
 
     String programName = programPath.baseName;
@@ -409,7 +409,7 @@ private void parseCommand(Root, T, Ancestors...)(
     while (!state.atEnd && state.outcome == CliOutcomeKind.invocation)
     {
         const token = state.current;
-        if (!isValidUtf8(token))
+        if (!is_valid_utf8(token))
         {
             state.fail(CliErrorKind.invalidUtf8, token);
             return;
@@ -929,7 +929,7 @@ private OptionMatch consumeNamedField(
             }
             ++state.index;
             value = state.current;
-            if (!isValidUtf8(value))
+            if (!is_valid_utf8(value))
             {
                 state.fail(CliErrorKind.invalidUtf8, value, optionToken);
                 return OptionMatch.failed;

@@ -73,7 +73,7 @@ extern (C) int main() nothrow @nogc
 
     // External bytes can be validated before becoming a borrowed String.
     const u8[7] externalBytes = ['c', 'a', 'f', 0xc3, 0xa9, '!', '\n'];
-    const validated = externalBytes[].asString;
+    const validated = externalBytes[].as_string;
     if (validated.failed)
         return 1;
     formatln!"validated UTF-8: {}"(validated.value);

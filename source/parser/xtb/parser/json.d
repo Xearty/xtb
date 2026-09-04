@@ -9,8 +9,8 @@ import xtb.allocators.arena : Arena;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.types : String;
-import xtb.utf8 : DecodedCodePoint, EncodedCodePoint, decodeCodePoint,
-    encodeUtf8, encodedUtf8Length;
+import xtb.utf8 : DecodedCodePoint, EncodedCodePoint, decode_code_point,
+    encode_utf8, encoded_utf8_length;
 import xtb.parser.parser : Grammar, ParseContext, ParseErrorKind, ParseOutcome,
     ParseState, Parser, Rule, Tokenizer, Unit;
 
@@ -256,7 +256,7 @@ nothrow @nogc:
                             state.setOffset(cursor);
                             return ParseOutcome!String.failure();
                         }
-                        decodedLength += encodedUtf8Length(escaped.value);
+                        decodedLength += encoded_utf8_length(escaped.value);
                         cursor = escaped.nextOffset;
                         break;
                     default:
@@ -268,15 +268,15 @@ nothrow @nogc:
             }
 
             DecodedCodePoint decoded;
-            const utf8Error = decodeCodePoint(input, cursor, &decoded);
+            const utf8Error = decode_code_point(input, cursor, &decoded);
             if (utf8Error.failed)
             {
                 state.fail(ParseErrorKind.invalidSyntax, cursor, "valid UTF-8");
                 state.setOffset(cursor);
                 return ParseOutcome!String.failure();
             }
-            decodedLength += decoded.byteLength;
-            cursor += decoded.byteLength;
+            decodedLength += decoded.byte_length;
+            cursor += decoded.byte_length;
         }
 
         if (cursor >= input.length)
@@ -298,16 +298,16 @@ nothrow @nogc:
             if (input[source] != '\\')
             {
                 DecodedCodePoint decoded;
-                const utf8Error = decodeCodePoint(input, source, &decoded);
+                const utf8Error = decode_code_point(input, source, &decoded);
                 if (utf8Error.failed)
                 {
                     state.fail(ParseErrorKind.invalidSyntax, source, "valid UTF-8");
                     state.setOffset(source);
                     return ParseOutcome!String.failure();
                 }
-                foreach (index; 0 .. decoded.byteLength)
+                foreach (index; 0 .. decoded.byte_length)
                     storage[target++] = input[source + index];
-                source += decoded.byteLength;
+                source += decoded.byte_length;
                 continue;
             }
 
@@ -354,9 +354,9 @@ nothrow @nogc:
                         state.setOffset(source);
                         return ParseOutcome!String.failure();
                     }
-                    const EncodedCodePoint encoded = encodeUtf8(escaped.value);
-                    const bytes = encoded.codeUnits;
-                    foreach (index; 0 .. encoded.byteLength)
+                    const EncodedCodePoint encoded = encode_utf8(escaped.value);
+                    const bytes = encoded.bytes;
+                    foreach (index; 0 .. encoded.byte_length)
                         storage[target++] = bytes[index];
                     source = escaped.nextOffset;
                     break;

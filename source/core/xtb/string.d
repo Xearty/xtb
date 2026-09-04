@@ -4,7 +4,7 @@ nothrow @nogc:
 
 public import xtb.types : String;
 public import xtb.utf8 : Utf8Error, Utf8ErrorKind, Utf8StringResult,
-    asString;
+    as_string;
 
 import core.interpolation : InterpolationFooter, InterpolationHeader;
 import xtb.lifetime : move, move_emplace;
@@ -19,8 +19,8 @@ import xtb.fmt.writer : Writer;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.containers.released_storage : ReleasedStorage;
-import xtb.utf8 : ceilCodePointBoundary, encodeUtf8,
-    isCodePointBoundary, validateUtf8;
+import xtb.utf8 : ceil_code_point_boundary, encode_utf8,
+    is_code_point_boundary, validate_utf8;
 
 enum notFound = size_t.max;
 
@@ -64,7 +64,7 @@ Utf8StringResult fromCString(const(char)* value) @system
     version (XTB_Checked)
         require(value !is null, "null C string");
     const candidate = value[0 .. strlen(value)];
-    const error = validateUtf8(candidate);
+    const error = validate_utf8(candidate);
     return error.failed
         ? Utf8StringResult(String.init, error) : Utf8StringResult(candidate, Utf8Error.init);
 }
@@ -139,9 +139,9 @@ String sliceBytes(
             "String byte slice begin exceeds end");
         require(endByteOffset <= value.length,
             "String byte slice end out of bounds");
-        require(value.isCodePointBoundary(beginByteOffset),
+        require(value.is_code_point_boundary(beginByteOffset),
             "String byte slice begins inside UTF-8 code point");
-        require(value.isCodePointBoundary(endByteOffset),
+        require(value.is_code_point_boundary(endByteOffset),
             "String byte slice ends inside UTF-8 code point");
     }
     return value[beginByteOffset .. endByteOffset];
@@ -215,16 +215,16 @@ size_t findLastCodeUnit(String value, char codeUnit) pure @safe
 
 size_t findCodePoint(String value, dchar codePoint) @safe
 {
-    const encoded = encodeUtf8(codePoint);
-    const codeUnits = encoded.codeUnits;
-    return value.find(codeUnits[0 .. encoded.byteLength]);
+    const encoded = encode_utf8(codePoint);
+    const codeUnits = encoded.bytes;
+    return value.find(codeUnits[0 .. encoded.byte_length]);
 }
 
 size_t findLastCodePoint(String value, dchar codePoint) @safe
 {
-    const encoded = encodeUtf8(codePoint);
-    const codeUnits = encoded.codeUnits;
-    return value.findLast(codeUnits[0 .. encoded.byteLength]);
+    const encoded = encode_utf8(codePoint);
+    const codeUnits = encoded.bytes;
+    return value.findLast(codeUnits[0 .. encoded.byte_length]);
 }
 
 String baseName(String value) pure @safe
@@ -363,11 +363,11 @@ bool trySplitWhen(
             require(skip <= value.length - index, "split predicate skipped past input");
         if (skip == 0)
         {
-            index = value.ceilCodePointBoundary(index + 1);
+            index = value.ceil_code_point_boundary(index + 1);
             continue;
         }
         version (XTB_Checked)
-            require(value.isCodePointBoundary(index + skip),
+            require(value.is_code_point_boundary(index + skip),
                 "split predicate ended inside UTF-8 code point");
 
         String token = value[tokenBegin .. index];
@@ -720,11 +720,11 @@ public:
 
     bool tryAppend(Allocator* allocator, dchar value)
     {
-        const encoded = encodeUtf8(value);
-        const codeUnits = encoded.codeUnits;
+        const encoded = encode_utf8(value);
+        const codeUnits = encoded.bytes;
         return bytes_.tryAppend(
             allocator,
-            codeUnits[0 .. encoded.byteLength],
+            codeUnits[0 .. encoded.byte_length],
         );
     }
 
@@ -743,9 +743,9 @@ public:
 
     void appendAssumeCapacity(dchar value)
     {
-        const encoded = encodeUtf8(value);
-        const codeUnits = encoded.codeUnits;
-        bytes_.appendAssumeCapacity(codeUnits[0 .. encoded.byteLength]);
+        const encoded = encode_utf8(value);
+        const codeUnits = encoded.bytes;
+        bytes_.appendAssumeCapacity(codeUnits[0 .. encoded.byte_length]);
     }
 
     bool tryInsert(Value)(
@@ -758,7 +758,7 @@ public:
         {
             require(byteOffset <= byteLength,
                 "StringBuf insertion byte offset out of bounds");
-            require(view.isCodePointBoundary(byteOffset),
+            require(view.is_code_point_boundary(byteOffset),
                 "StringBuf insertion byte offset is inside UTF-8 code point");
         }
         return bytes_.tryInsert(
@@ -800,7 +800,7 @@ public:
         {
             require(newByteLength <= byteLength,
                 "StringBuf truncation byte length out of bounds");
-            require(view.isCodePointBoundary(newByteLength),
+            require(view.is_code_point_boundary(newByteLength),
                 "StringBuf truncation splits UTF-8 code point");
         }
         bytes_.removeRange(newByteLength, byteLength - newByteLength);
