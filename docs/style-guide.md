@@ -1110,11 +1110,20 @@ Keep `@trusted` on the specific declaration whose implementation justifies
 the trust boundary. Do not apply `@trusted` to an entire module or broad
 section. Keep unavoidable `@system` annotations similarly narrow.
 
+Use explicit `@system` when a declaration intentionally places a memory-safety
+obligation on its caller that the signature cannot express, or when it must opt
+out of an enclosing safety attribute. Do not add explicit `@system` merely to
+restate D's default or solely because an implementation contains operations the
+compiler cannot verify. A raw pointer parameter alone does not decide the
+attribute; the relevant question is whether the caller or the implementation
+owns the safety obligation.
+
 A `@trusted` declaration must provide a genuinely safe interface for every
 input permitted by its signature. Use it for a small adapter that performs a
-necessary system operation and itself establishes everything required for
-memory safety. Explain a non-obvious trusted operation and its safety argument
-in a nearby comment:
+necessary system operation and either establishes everything required for
+memory safety itself or relies only on a documented invariant established
+through a narrow `@system` boundary. Explain a non-obvious trusted operation
+and its safety argument in a nearby comment:
 
 ```d
 const(u8)[] bytes(return scope String value) pure nothrow @nogc @trusted

@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.signal : sig_atomic_t;
 import core.stdc.stdio : FILE, stderr;
-import xtb.panic : PanicHook, panic, setPanicHandler;
+import xtb.panic : PanicHook, panic, set_panic_handler;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.fmt.writer : Writer;
@@ -73,7 +73,7 @@ nothrow @nogc:
         if (!signalsInstalled)
             panic("failed to install crash signal handler");
         if (options.tracePanics)
-            globalState.previousPanic = setPanicHandler(&tracePanic);
+            globalState.previousPanic = set_panic_handler(&tracePanic);
         globalState.tracesPanics = options.tracePanics;
         globalState.active = true;
 
@@ -87,7 +87,7 @@ nothrow @nogc:
         if (!active_)
             return;
         if (globalState.tracesPanics)
-            setPanicHandler(
+            cast(void) set_panic_handler(
                 globalState.previousPanic.handler,
                 globalState.previousPanic.context,
             );
