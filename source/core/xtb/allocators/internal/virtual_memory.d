@@ -16,7 +16,7 @@ import xtb.panic : panic;
 
 /// Whether this target has XTB's native virtual-memory backend.
 package(xtb) enum bool virtualMemorySupported =
-    backend.virtualMemorySupported;
+    backend.virtual_memory_supported;
 
 /// One non-owning page-bounded subrange of a virtual-memory reservation.
 ///
@@ -62,7 +62,7 @@ public:
         if (!validPageRange(base_, bytes_, offset, bytes))
             return false;
 
-        return backend.tryCommitVirtualMemoryBackend(
+        return backend.try_commit_virtual_memory_backend(
             byteAddress(base_, offset),
             bytes,
         );
@@ -81,7 +81,7 @@ public:
         if (!validPageRange(base_, bytes_, offset, bytes))
             return false;
 
-        return backend.tryDecommitVirtualMemoryBackend(
+        return backend.try_decommit_virtual_memory_backend(
             byteAddress(base_, offset),
             bytes,
         );
@@ -174,7 +174,7 @@ public:
         if (!validPageRange(base_, reservedBytes_, offset, bytes))
             return false;
 
-        return backend.tryCommitVirtualMemoryBackend(
+        return backend.try_commit_virtual_memory_backend(
             byteAddress(base_, offset),
             bytes,
         );
@@ -193,7 +193,7 @@ public:
         if (!validPageRange(base_, reservedBytes_, offset, bytes))
             return false;
 
-        return backend.tryDecommitVirtualMemoryBackend(
+        return backend.try_decommit_virtual_memory_backend(
             byteAddress(base_, offset),
             bytes,
         );
@@ -213,7 +213,7 @@ public:
         base_ = null;
         reservedBytes_ = 0;
 
-        if (!backend.releaseVirtualMemoryBackend(base, reservedBytes))
+        if (!backend.release_virtual_memory_backend(base, reservedBytes))
             panic("virtual-memory release failed");
     }
 }
@@ -221,7 +221,7 @@ public:
 /// Returns the native VM page size, or zero when virtual memory is unsupported.
 package(xtb) size_t virtualMemoryPageSize() @system
 {
-    return backend.virtualMemoryPageSizeBackend();
+    return backend.virtual_memory_page_size_backend();
 }
 
 /// Attempts to reserve at least `bytes` of contiguous virtual address space.
@@ -252,7 +252,7 @@ package(xtb) bool tryReserveVirtualMemory(
     if (pageSize == 0 || !roundUpToMultiple(bytes, pageSize, &reservedBytes))
         return false;
 
-    void* base = backend.tryReserveVirtualMemoryBackend(reservedBytes);
+    void* base = backend.try_reserve_virtual_memory_backend(reservedBytes);
     if (base is null)
         return false;
 
