@@ -14,7 +14,7 @@ import xtb.duration : milliseconds;
 import xtb.time : Instant, Timestamp, Timeout, sleep;
 import core.internal.traits : hasElaborateDestructor;
 import xtb.containers.array;
-import xtb.allocators.arena : Arena, TempArena, pop, push;
+import xtb.allocators.arena : Arena, TempArena;
 import xtb.lifetime : deinit, move, move_assign, needs_deinit;
 import xtb.option : Option;
 import xtb.result : Result;

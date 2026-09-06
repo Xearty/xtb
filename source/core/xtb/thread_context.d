@@ -2,7 +2,7 @@ module xtb.thread_context;
 
 nothrow @nogc:
 
-import xtb.allocators.arena : Arena, TempArena, pop, push;
+import xtb.allocators.arena : Arena, TempArena;
 import xtb.memory : Allocator, allocate_init, dispose;
 import xtb.lifetime : move_emplace;
 import xtb.allocators.malloc : malloc_allocator;
