@@ -1253,7 +1253,7 @@ public:
     /// Transfers allocator-bound storage out and leaves this buffer empty.
     Released release() @trusted
     {
-        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        auto result = Released.from_owned_parts(allocator_, &storage_);
         allocator_ = null;
         return move(result);
     }
@@ -2207,7 +2207,7 @@ unittest
     static assert(!__traits(compiles, (scope const StringBuf* value) @safe {
             Allocator* allocator = value.allocator;
         }));
-    static assert(!__traits(compiles, () @safe {
+    static assert(__traits(compiles, () @safe {
             StringBuf.Released released;
             ref StringBufUnmanaged storage = released.storage;
         }));
@@ -2676,7 +2676,7 @@ public:
 
     Released release() @trusted
     {
-        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        auto result = Released.from_owned_parts(allocator_, &storage_);
         allocator_ = null;
         return move(result);
     }

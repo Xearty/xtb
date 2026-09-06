@@ -905,7 +905,7 @@ public:
     /// Transfers allocator-bound storage out and leaves this array empty.
     Released release() @trusted
     {
-        auto result = Released.fromOwnedParts(allocator_, &storage_);
+        auto result = Released.from_owned_parts(allocator_, &storage_);
         allocator_ = null;
         return move(result);
     }

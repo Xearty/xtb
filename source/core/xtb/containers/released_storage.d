@@ -2,41 +2,54 @@ module xtb.containers.released_storage;
 
 nothrow @nogc:
 
-import xtb.lifetime : has_d_destructor, move, move_emplace;
-import xtb.memory : Allocator;
+import core.attribute;
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.lifetime;
+import xtb.memory;
+import xtb.panic;
+import xtb.types;
 
 private template ReleasedFunctionType(alias operation)
 {
     static if (is(typeof(&operation) F : F*) && is(F == function))
+    {
         alias ReleasedFunctionType = F;
+    }
     else static if (is(typeof(operation) F == function))
+    {
         alias ReleasedFunctionType = F;
+    }
     else
-        static assert(false,
-            "ReleasedStorage expected a concrete function declaration");
+    {
+        static assert(false, "ReleasedStorage expected a concrete function declaration");
+    }
 }
 
 private template ReleasedParameters(alias operation)
 {
     static if (is(ReleasedFunctionType!operation P == function))
+    {
         alias ReleasedParameters = P;
+    }
 }
 
 private template ReleasedReturnType(alias operation)
 {
     static if (is(ReleasedFunctionType!operation R == return))
+    {
         alias ReleasedReturnType = R;
+    }
 }
 
-private size_t publicDeinitCount(Storage)()
+private usize public_deinit_count(Storage)()
 {
-    size_t result;
+    usize result;
     static foreach (alias operation; __traits(getOverloads, Storage, "deinit"))
     {
         static if (__traits(getProtection, operation) == "public")
+        {
             ++result;
+        }
     }
     return result;
 }
@@ -44,54 +57,61 @@ private size_t publicDeinitCount(Storage)()
 /// Move-only explicit owner used while transferring allocator-bound unmanaged
 /// storage out of a managed container. Call free `deinit` if ownership is not
 /// transferred onward with `extract`/adopt.
-struct ReleasedStorage(Storage)
+@mustuse struct ReleasedStorage(Storage)
 {
 nothrow @nogc:
 
-private:
-    Allocator* allocator_;
-    Storage storage_;
+    /// Allocator associated with `storage`, or null when ownership was extracted.
+    Allocator* allocator;
 
-    static Storage takeStorage(Storage* source) @system
-    {
-        return move(*source);
-    }
+    /// Unmanaged storage owned by this token until extracted or deinitialized.
+    Storage storage;
 
-public:
-    static assert(!__traits(isCopyable, Storage),
-        "ReleasedStorage requires non-copyable unmanaged storage");
-    static assert(!has_d_destructor!Storage,
-        "ReleasedStorage storage must not have an elaborate destructor");
+    static assert(
+        !__traits(isCopyable, Storage),
+        "ReleasedStorage requires non-copyable unmanaged storage",
+    );
+    static assert(
+        !has_d_destructor!Storage,
+        "ReleasedStorage storage must not have an elaborate destructor",
+    );
     static if (__traits(hasMember, Storage, "deinit"))
     {
-        static assert(publicDeinitCount!Storage() == 1,
-            "ReleasedStorage requires Storage.deinit(Allocator*): " ~
-                "exactly one public overload is required");
+        static assert(
+            public_deinit_count!Storage() == 1,
+            "ReleasedStorage requires Storage.deinit(Allocator*): "
+                ~ "exactly one public overload is required",
+        );
         static foreach (alias operation; __traits(getOverloads, Storage, "deinit"))
         {
             static if (__traits(getProtection, operation) == "public")
             {
-                static assert(!__traits(isStaticFunction, operation),
-                    "ReleasedStorage requires instance " ~
-                        "Storage.deinit(Allocator*)");
-                static assert(is(ReleasedReturnType!operation == void),
-                    Storage.stringof ~ ".deinit must return void");
-                static assert(ReleasedParameters!operation.length == 1,
-                    Storage.stringof ~ ".deinit must take exactly one " ~
-                        "Allocator* parameter");
+                static assert(
+                    !__traits(isStaticFunction, operation),
+                    "ReleasedStorage requires instance Storage.deinit(Allocator*)",
+                );
+                static assert(
+                    is(ReleasedReturnType!operation == void),
+                    Storage.stringof ~ ".deinit must return void",
+                );
+                static assert(
+                    ReleasedParameters!operation.length == 1,
+                    Storage.stringof ~ ".deinit must take exactly one Allocator* parameter",
+                );
                 static if (ReleasedParameters!operation.length == 1)
                 {
-                    static assert(is(ReleasedParameters!operation[0] ==
-                            Allocator*),
-                        Storage.stringof ~ ".deinit must take exactly one " ~
-                            "Allocator* parameter");
+                    static assert(
+                        is(ReleasedParameters!operation[0] == Allocator*),
+                        Storage.stringof ~ ".deinit must take exactly one Allocator* parameter",
+                    );
                 }
             }
         }
     }
     else
-        static assert(false,
-            "unmanaged storage must provide deinit");
+    {
+        static assert(false, "unmanaged storage must provide deinit");
+    }
 
     @disable this(this);
     @disable ref ReleasedStorage opAssign(ReleasedStorage source) return;
@@ -99,54 +119,40 @@ public:
     /// Explicitly releases the owned allocator/storage pair.
     void deinit() @trusted
     {
-        if (allocator_ !is null)
-            storage_.deinit(allocator_);
-    }
-
-    /// Returns the exact allocator associated with the owned storage.
-    Allocator* allocator() return @safe
-    {
-        return allocator_;
-    }
-
-    /// Borrows the unmanaged storage for read-only inspection.
-    ref const(Storage) storage() const return @safe
-    {
-        return storage_;
-    }
-
-    /// Borrows the unmanaged storage mutably.
-    ///
-    /// The caller must preserve the allocator/storage association and must not
-    /// move or replace the storage while this token remains its owner.
-    ref Storage storage() return @system
-    {
-        return storage_;
+        if (this.allocator !is null)
+        {
+            this.storage.deinit(this.allocator);
+        }
     }
 
     /// Permanently extracts the allocator/storage pair and empties this token.
-    Storage extract(scope Allocator** allocatorOutput) scope @trusted
+    /// `allocator_output` must not be null.
+    Storage extract(scope Allocator** allocator_output) scope @trusted
     {
-        version (XTB_Checked)
-            require(allocatorOutput !is null,
-                "ReleasedStorage allocator output pointer is null");
-        *allocatorOutput = allocator_;
-        allocator_ = null;
-        return takeStorage(&storage_);
+        require(
+            allocator_output !is null,
+            "ReleasedStorage allocator output pointer is null",
+        );
+        *allocator_output = this.allocator;
+        this.allocator = null;
+        return take_storage(&this.storage);
     }
 
-package(xtb):
-    static ReleasedStorage fromOwnedParts(
+    package(xtb) static ReleasedStorage from_owned_parts(
         Allocator* allocator,
         scope Storage* storage,
     ) @trusted
     {
-        version (XTB_Checked)
-            require(storage !is null,
-                "ReleasedStorage storage pointer is null");
+        require(storage !is null, "ReleasedStorage storage pointer is null");
+
         ReleasedStorage result;
-        result.allocator_ = allocator;
-        move_emplace(*storage, result.storage_);
+        result.allocator = allocator;
+        move_emplace(*storage, result.storage);
         return move(result);
+    }
+
+    private static Storage take_storage(Storage* source) @system
+    {
+        return move(*source);
     }
 }
