@@ -763,14 +763,14 @@ unittest
         "retained",
     );
 
-    setAllocator.failAfter(0);
+    setAllocator.fail_after(0);
     assert(values.tryAddMove(&retained) == AddStatus.outOfMemory);
     {
         assert(retained.view == "retained");
     }
     assert(values.empty && setAllocator.clean);
 
-    setAllocator.failAfter(2);
+    setAllocator.fail_after(2);
     assert(values.tryAddMove(&retained) == AddStatus.outOfMemory);
     {
         assert(retained.view == "retained");
@@ -782,6 +782,6 @@ unittest
         retained.deinit();
     }
     assert(setAllocator.clean && sourceAllocator.clean);
-    assert(setAllocator.stats.invalidCalls == 0);
-    assert(sourceAllocator.stats.invalidCalls == 0);
+    assert(setAllocator.stats.invalid_calls == 0);
+    assert(sourceAllocator.stats.invalid_calls == 0);
 }

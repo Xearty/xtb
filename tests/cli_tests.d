@@ -3157,7 +3157,7 @@ private void testCustomValueParserErrors()
             malloc_allocator(),
             records[],
         );
-        allocator.failAfter(0);
+        allocator.fail_after(0);
         String[3] argv = ["tool", "--bytes", "00"];
         auto result = parseArgs!WholeArrayCustomValueArgs(argv, allocator.allocator);
         assert(result.failed);
@@ -3187,7 +3187,7 @@ private void testAllocatorCustomValueParserCleanup()
         assert(allocator.clean);
     }
 
-    allocator.failAfter(0);
+    allocator.fail_after(0);
     {
         String[3] argv = ["tool", "--value", "owned"];
         auto result = parseArgs!AllocatorCustomValueArgs(argv, allocator.allocator);
@@ -3723,7 +3723,7 @@ private void testAllocationFailureCleansUp()
         malloc_allocator(),
         records[],
     );
-    allocator.failAfter(0);
+    allocator.fail_after(0);
 
     String[4] argv = ["tool", "run", "-Da", "app"];
     auto result = parseArgs!AllocRootArgs(argv, allocator.allocator);

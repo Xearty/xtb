@@ -289,7 +289,7 @@ unittest
         8,
     );
     transactional.write("keep");
-    transactionalAllocator.failAfter(0);
+    transactionalAllocator.fail_after(0);
     char[128] oversized;
     oversized[] = 'x';
     assert(!transactional.tryWrite("++", cast(String) oversized[]));
@@ -302,7 +302,7 @@ unittest
         malloc_allocator(),
         records[],
     );
-    failing.failAfter(0);
+    failing.fail_after(0);
     StringBuf failedInterpolated;
     assert(!tryFormatString(
             failing.allocator,

@@ -1404,9 +1404,9 @@ unittest
     assert(values.find("stable") is null);
     values.deinit();
     assert(mapAllocator.clean);
-    assert(mapAllocator.stats.invalidCalls == 0);
+    assert(mapAllocator.stats.invalid_calls == 0);
     assert(foreignAllocator.clean);
-    assert(foreignAllocator.stats.invalidCalls == 0);
+    assert(foreignAllocator.stats.invalid_calls == 0);
 
     AllocationRecord[16] failedMapRecords;
     AllocationRecord[8] retainedRecords;
@@ -1425,7 +1425,7 @@ unittest
         "retained",
     );
     int retainedValue = 7;
-    failedMapAllocator.failAfter(0);
+    failedMapAllocator.fail_after(0);
     assert(failing.tryAddMove(&retained, &retainedValue) ==
             AddStatus.outOfMemory);
     {
@@ -1433,7 +1433,7 @@ unittest
     }
     assert(failing.empty && failedMapAllocator.clean);
 
-    failedMapAllocator.failAfter(2);
+    failedMapAllocator.fail_after(2);
     assert(failing.tryAddMove(&retained, &retainedValue) ==
             AddStatus.outOfMemory);
     {
@@ -1446,7 +1446,7 @@ unittest
         retained.deinit();
     }
     assert(failedMapAllocator.clean);
-    assert(failedMapAllocator.stats.invalidCalls == 0);
+    assert(failedMapAllocator.stats.invalid_calls == 0);
     assert(retainedAllocator.clean);
-    assert(retainedAllocator.stats.invalidCalls == 0);
+    assert(retainedAllocator.stats.invalid_calls == 0);
 }

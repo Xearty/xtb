@@ -338,11 +338,11 @@ unittest
     i32[] tracked_values = tracked.allocator.allocate_zeroed_array!i32(4);
     assert(tracked_values.length == 4);
     assert(tracked_values[3] == 0);
-    assert(tracked.stats.outstandingBytes == 4 * i32.sizeof);
+    assert(tracked.stats.outstanding_bytes == 4 * i32.sizeof);
 
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(tracked.allocator.try_allocate!i32() is null);
-    assert(tracked.stats.failedCalls == 1);
+    assert(tracked.stats.failed_calls == 1);
 
     tracked.allocator.deallocate_array(tracked_values);
     assert(tracked.clean);
@@ -472,7 +472,7 @@ unittest
         malloc_allocator(),
         records[],
     );
-    failing.failAfter(0);
+    failing.fail_after(0);
     assert(failing.allocator.try_create!Constructed(1, &destroyed) is null);
 
     TrackedInit[] tracked = malloc_allocator().allocate_init_array!TrackedInit(3);

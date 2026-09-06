@@ -1547,13 +1547,13 @@ unittest
         fallible.appendAssumeCapacity(42);
     int candidate = 7;
     const previousLength = fallible.length;
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(!fallible.tryAppend(&candidate));
     assert(candidate == 7);
     assert(fallible.length == previousLength && fallible[0] == 42);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     fallible.deinit();
-    assert(tracked.clean && tracked.stats.invalidCalls == 0);
+    assert(tracked.clean && tracked.stats.invalid_calls == 0);
 }
 
 unittest
@@ -1631,20 +1631,20 @@ unittest
     Array!int second = Array!int.create(tracked.allocator);
     second.append(22);
     nested.append(move(second));
-    assert(tracked.stats.outstandingAllocations == 3);
+    assert(tracked.stats.outstanding_allocations == 3);
 
     Array!int transferred = nested.pop();
     assert(transferred[0] == 22);
-    assert(tracked.stats.outstandingAllocations == 3);
+    assert(tracked.stats.outstanding_allocations == 3);
     transferred.deinit();
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
 
     nested.clear();
     // Only the OwnedArray backing allocation remains after its child is
     // deep-cleaned.
-    assert(tracked.stats.outstandingAllocations == 1);
+    assert(tracked.stats.outstanding_allocations == 1);
     nested.deinit();
-    assert(tracked.clean && tracked.stats.invalidCalls == 0);
+    assert(tracked.clean && tracked.stats.invalid_calls == 0);
 }
 
 unittest
@@ -1671,11 +1671,11 @@ unittest
     }
     StringBuf candidate = StringBuf.fromString(tracked.allocator, "candidate");
     const oldLength = values.length;
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(!values.tryAppend(&candidate));
     assert(candidate.view == "candidate");
     assert(values.length == oldLength);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
 
     // Array is shallow, so explicitly finalize its elements before releasing
     // the backing allocation in this test.
@@ -1684,7 +1684,7 @@ unittest
     values.clear();
     values.deinit();
     candidate.deinit();
-    assert(tracked.clean && tracked.stats.invalidCalls == 0);
+    assert(tracked.clean && tracked.stats.invalid_calls == 0);
 }
 
 unittest
@@ -1766,7 +1766,7 @@ unittest
     appendReleasedValue(released.storage, released.allocator, 4);
     assert(released.storage.slice == [1, 2, 3, 4]);
     deinitValue(released);
-    assert(tracked.clean && tracked.stats.invalidCalls == 0);
+    assert(tracked.clean && tracked.stats.invalid_calls == 0);
 }
 
 unittest

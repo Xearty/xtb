@@ -1619,7 +1619,7 @@ unittest
     InstrumentedAllocator failing = InstrumentedAllocator.create(
         malloc_allocator(), records[],
     );
-    failing.failAfter(0);
+    failing.fail_after(0);
     Arena fallible = Arena.create(failing.allocator, 64);
     assert(fallible.tryAllocate(8, 8) is null);
     assert(fallible.tryAllocate!int() is null);

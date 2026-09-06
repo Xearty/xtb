@@ -331,7 +331,7 @@ static assert(!__traits(compiles, () { OwnedStringHashMap!ContextOwner map; }));
 private void assertClean(ref const InstrumentedAllocator allocator)
 {
     assert(allocator.clean);
-    assert(allocator.stats.invalidCalls == 0);
+    assert(allocator.stats.invalid_calls == 0);
 }
 
 private void testSafeSelfValueReplacement() @system
@@ -406,7 +406,7 @@ private void testOwnedMapFailurePreservesInputs() @system
     HeapOwner setKey = HeapOwner.create(tracked.allocator, 100, &deinits);
     HeapOwner setValue = HeapOwner.create(tracked.allocator, 1000, &deinits);
 
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(map.tryAdd(&duplicateKey, &duplicateValue) == AddStatus.alreadyPresent);
     assert(duplicateKey.bytes.ptr !is null && duplicateValue.bytes.ptr !is null);
     const previousLength = map.length;
@@ -417,7 +417,7 @@ private void testOwnedMapFailurePreservesInputs() @system
     assert(map.trySet(&setKey, &setValue) == SetStatus.outOfMemory);
     assert(setKey.bytes.ptr !is null && setValue.bytes.ptr !is null);
     assert(map.length == previousLength && map.capacity == previousCapacity);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
 
     deinit(duplicateKey);
     deinit(duplicateValue);
@@ -486,13 +486,13 @@ private void testOwnedSetFailurePreservesInput() @system
     HeapOwner absent = HeapOwner.create(tracked.allocator, 99, &deinits);
     const previousLength = set.length;
     const previousCapacity = set.capacity;
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(set.tryAdd(&duplicate) == AddStatus.alreadyPresent);
     assert(duplicate.bytes.ptr !is null);
     assert(set.tryAdd(&absent) == AddStatus.outOfMemory);
     assert(absent.bytes.ptr !is null);
     assert(set.length == previousLength && set.capacity == previousCapacity);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
 
     deinit(duplicate);
     deinit(absent);
@@ -802,11 +802,11 @@ private void testOwnedStringMapValueOwnership() @system
     assert(duplicate.bytes.ptr !is null);
 
     map.reserve(128);
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     HeapOwner retained = HeapOwner.create(malloc_allocator(), 101, null);
     assert(map.tryAdd("allocation-fails", &retained) == AddStatus.outOfMemory);
     assert(retained.bytes.ptr !is null);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     deinit(retained);
     deinit(duplicate);
 

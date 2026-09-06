@@ -355,6 +355,6 @@ extern (C) int main()
     testSimpleMonads();
 
     assert(instrumented.clean);
-    assert(instrumented.stats.invalidCalls == 0);
+    assert(instrumented.stats.invalid_calls == 0);
     return 0;
 }

@@ -125,7 +125,7 @@ unittest
     assert(!tracked.clean());
     trackedNoise.deinit();
     assert(tracked.clean());
-    assert(tracked.stats.invalidCalls == 0);
+    assert(tracked.stats.invalid_calls == 0);
 
     ValueNoise1D a = ValueNoise1D.create(malloc_allocator(), 8, 1234);
     scope (exit)

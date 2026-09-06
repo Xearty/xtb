@@ -2125,19 +2125,19 @@ unittest
         records[],
     );
     CollisionMap failing = CollisionMap.create(allocator.allocator);
-    allocator.failAfter(0);
+    allocator.fail_after(0);
     assert(failing.tryAdd(1, 10) == AddStatus.outOfMemory);
     assert(failing.empty && allocator.clean);
 
-    allocator.failAfter(1);
+    allocator.fail_after(1);
     assert(failing.tryAdd(1, 10) == AddStatus.outOfMemory);
     assert(failing.empty && allocator.clean);
 
-    allocator.allowAllocations();
+    allocator.allow_allocations();
     foreach (value; 0 .. 7)
         assert(failing.add(value, value));
     const previousCapacity = failing.capacity;
-    allocator.failAfter(0);
+    allocator.fail_after(0);
     assert(failing.tryAdd(7, 7) == AddStatus.outOfMemory);
     assert(failing.length == 7 && failing.capacity == previousCapacity);
     assert(failing.trySet(1, 11) == SetStatus.replaced);
@@ -2150,7 +2150,7 @@ unittest
         assert(*failing.find(value) == (value == 1 ? 11 : value));
     failing.deinit();
     assert(allocator.clean);
-    assert(allocator.stats.invalidCalls == 0);
+    assert(allocator.stats.invalid_calls == 0);
 }
 
 unittest
@@ -2406,7 +2406,7 @@ unittest
         );
         IntMapStorage output;
 
-        allocator.failAfter(0);
+        allocator.fail_after(0);
         assert(!IntMapStorage.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2414,7 +2414,7 @@ unittest
         ));
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
-        allocator.failAfter(1);
+        allocator.fail_after(1);
         assert(!IntMapStorage.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2422,7 +2422,7 @@ unittest
         ));
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
-        allocator.allowAllocations();
+        allocator.allow_allocations();
         assert(IntMapStorage.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2430,7 +2430,7 @@ unittest
         ));
         assert(output.capacity >= 32);
         output.deinit(allocator.allocator);
-        assert(allocator.clean && allocator.stats.invalidCalls == 0);
+        assert(allocator.clean && allocator.stats.invalid_calls == 0);
     }
 
     {
@@ -2441,7 +2441,7 @@ unittest
         );
         IntMap output;
 
-        allocator.failAfter(1);
+        allocator.fail_after(1);
         assert(!IntMap.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2450,7 +2450,7 @@ unittest
         assert(output.allocator is null);
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
-        allocator.allowAllocations();
+        allocator.allow_allocations();
         assert(IntMap.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2459,7 +2459,7 @@ unittest
         assert(output.allocator is allocator.allocator);
         assert(output.capacity >= 32);
         output.deinit();
-        assert(allocator.clean && allocator.stats.invalidCalls == 0);
+        assert(allocator.clean && allocator.stats.invalid_calls == 0);
     }
 
     {
@@ -2470,7 +2470,7 @@ unittest
         );
         IntSetStorage output;
 
-        allocator.failAfter(1);
+        allocator.fail_after(1);
         assert(!IntSetStorage.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2478,7 +2478,7 @@ unittest
         ));
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
-        allocator.allowAllocations();
+        allocator.allow_allocations();
         assert(IntSetStorage.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2486,7 +2486,7 @@ unittest
         ));
         assert(output.capacity >= 32);
         output.deinit(allocator.allocator);
-        assert(allocator.clean && allocator.stats.invalidCalls == 0);
+        assert(allocator.clean && allocator.stats.invalid_calls == 0);
     }
 
     {
@@ -2497,7 +2497,7 @@ unittest
         );
         IntSet output;
 
-        allocator.failAfter(1);
+        allocator.fail_after(1);
         assert(!IntSet.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2506,7 +2506,7 @@ unittest
         assert(output.allocator is null);
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
-        allocator.allowAllocations();
+        allocator.allow_allocations();
         assert(IntSet.tryWithCapacity(
                 allocator.allocator,
                 32,
@@ -2515,7 +2515,7 @@ unittest
         assert(output.allocator is allocator.allocator);
         assert(output.capacity >= 32);
         output.deinit();
-        assert(allocator.clean && allocator.stats.invalidCalls == 0);
+        assert(allocator.clean && allocator.stats.invalid_calls == 0);
     }
 }
 
@@ -2646,5 +2646,5 @@ unittest
     unmanaged.set(allocator.allocator, 5, 50);
     assert(unmanaged.find(7) !is null);
     unmanaged.deinit(allocator.allocator);
-    assert(allocator.clean && allocator.stats.invalidCalls == 0);
+    assert(allocator.clean && allocator.stats.invalid_calls == 0);
 }

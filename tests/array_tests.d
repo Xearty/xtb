@@ -69,7 +69,7 @@ static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "tryResize")
 private void assertClean(ref const InstrumentedAllocator allocator)
 {
     assert(allocator.clean);
-    assert(allocator.stats.invalidCalls == 0);
+    assert(allocator.stats.invalid_calls == 0);
 }
 
 private void testPointerMoveConsumesExplicitPodOwner() @system
@@ -86,7 +86,7 @@ private void testPointerMoveConsumesExplicitPodOwner() @system
     assert(source.allocator is null);
     assert(source.bytes.ptr is null);
     assert(values.length == 1);
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
 
     deinit(source);
     deinit(values);
@@ -176,14 +176,14 @@ private void testFallibleAppendPreservesOwnership() @system
 
     StringBuf candidate = StringBuf.fromString(tracked.allocator, "candidate");
     const oldLength = values.length;
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(!values.tryAppend(&candidate));
     assert(candidate == "candidate");
     assert(values.length == oldLength);
     assert(!values.tryInsert(0, &candidate));
     assert(candidate == "candidate");
     assert(values.length == oldLength && values[0] == "first");
-    tracked.allowAllocations();
+    tracked.allow_allocations();
 
     deinit(candidate);
     deinit(values);
@@ -251,11 +251,11 @@ private void testMoveAssignmentReleasesReplacedOwners() @system
 
         Array!int source = Array!int.fromSlice(tracked.allocator, [1, 2, 3]);
         Array!int target = Array!int.fromSlice(tracked.allocator, [9]);
-        assert(tracked.stats.outstandingAllocations == 2);
+        assert(tracked.stats.outstanding_allocations == 2);
         move_assign(source, target);
         assert(source.allocator is null && source.empty);
         assert(target.slice == [1, 2, 3]);
-        assert(tracked.stats.outstandingAllocations == 1);
+        assert(tracked.stats.outstanding_allocations == 1);
         deinit(source);
         deinit(target);
         assertClean(tracked);
@@ -278,12 +278,12 @@ private void testMoveAssignmentReleasesReplacedOwners() @system
         );
         PodOwner targetOwner = PodOwner.create(tracked.allocator, 29);
         target.append(move(targetOwner));
-        assert(tracked.stats.outstandingAllocations == 4);
+        assert(tracked.stats.outstanding_allocations == 4);
 
         move_assign(source, target);
         assert(source.allocator is null && source.empty);
         assert(target.length == 1 && target[0].bytes.length == 19);
-        assert(tracked.stats.outstandingAllocations == 2);
+        assert(tracked.stats.outstanding_allocations == 2);
         deinit(source);
         deinit(target);
         assertClean(tracked);
@@ -300,7 +300,7 @@ private void testReleasedStorageNeedsExplicitCleanup() @system
 
     Array!int values = Array!int.fromSlice(tracked.allocator, [1, 2, 3]);
     Array!int.Released released = values.release();
-    assert(tracked.stats.outstandingAllocations == 1);
+    assert(tracked.stats.outstanding_allocations == 1);
     deinit(released);
     assertClean(tracked);
 }

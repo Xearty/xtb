@@ -3407,7 +3407,7 @@ unittest
             assert(!allocator.clean());
         }
         assert(allocator.clean());
-        assert(allocator.stats.invalidCalls == 0);
+        assert(allocator.stats.invalid_calls == 0);
     }
 
     PrettyPrintTestRecord interpolatedRecord =

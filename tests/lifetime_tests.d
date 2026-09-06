@@ -47,7 +47,7 @@ nothrow @nogc:
 private void assertAllocatorClean(ref const InstrumentedAllocator allocator)
 {
     assert(allocator.clean);
-    assert(allocator.stats.invalidCalls == 0);
+    assert(allocator.stats.invalid_calls == 0);
 }
 
 private void emplaceOwner(
@@ -120,7 +120,7 @@ private void testStructuralAndTaggedCleanup() @system
     Pair pair;
     emplaceOwner(pair.first, allocator, 17);
     emplaceOwner(pair.second, allocator, 31);
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
     deinit(pair);
     assertAllocatorClean(tracked);
 
@@ -128,7 +128,7 @@ private void testStructuralAndTaggedCleanup() @system
     emplaceOwner(primary.header, allocator, 11);
     primary.kind = PayloadKind.primary;
     emplaceOwner(primary.payload.primary, allocator, 23);
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
     deinit(primary);
     assertAllocatorClean(tracked);
 
@@ -136,7 +136,7 @@ private void testStructuralAndTaggedCleanup() @system
     emplaceOwner(secondary.header, allocator, 13);
     secondary.kind = PayloadKind.secondary;
     emplaceOwner(secondary.payload.differentlyNamed, allocator, 29);
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
     deinit(secondary);
     assertAllocatorClean(tracked);
 
@@ -153,14 +153,14 @@ private void testStructuralAndTaggedCleanup() @system
         allocator,
         39,
     );
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
     deinit(doubleEnvelope);
     assertAllocatorClean(tracked);
 
     AllocationOwner[4] fixed;
     foreach (index; 0 .. fixed.length)
         emplaceOwner(fixed[index], allocator, index + 1);
-    assert(tracked.stats.outstandingAllocations == fixed.length);
+    assert(tracked.stats.outstanding_allocations == fixed.length);
     deinit(fixed);
     assertAllocatorClean(tracked);
 }
@@ -176,21 +176,21 @@ private void testMoveReplacementCleanup() @system
 
     AllocationOwner source = AllocationOwner.create(allocator, 41);
     AllocationOwner target = AllocationOwner.create(allocator, 43);
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
 
     move_assign(source, target);
-    assert(tracked.stats.outstandingAllocations == 1);
+    assert(tracked.stats.outstanding_allocations == 1);
 
     // The source was moved from, but is still a valid deinit target.
     deinit(source);
-    assert(tracked.stats.outstandingAllocations == 1);
+    assert(tracked.stats.outstanding_allocations == 1);
 
     deinit(target);
     assertAllocatorClean(tracked);
 
     AllocationOwner self = AllocationOwner.create(allocator, 45);
     move_assign(self, self);
-    assert(tracked.stats.outstandingAllocations == 1);
+    assert(tracked.stats.outstanding_allocations == 1);
     deinit(self);
     assertAllocatorClean(tracked);
 }
@@ -206,14 +206,14 @@ private void testAllocatorDisposalCleanup() @system
 
     AllocationOwner* single = allocator.allocate_init!AllocationOwner();
     emplaceOwner(*single, allocator, 47);
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
     allocator.dispose(single);
     assertAllocatorClean(tracked);
 
     AllocationOwner[] values = allocator.allocate_init_array!AllocationOwner(3);
     foreach (index; 0 .. values.length)
         emplaceOwner(values[index], allocator, 53 + index);
-    assert(tracked.stats.outstandingAllocations == values.length + 1);
+    assert(tracked.stats.outstanding_allocations == values.length + 1);
     allocator.dispose_array(values);
     assertAllocatorClean(tracked);
 }
@@ -227,20 +227,20 @@ private void testAllocationFailureDoesNotLeak() @system
     );
     Allocator* allocator = tracked.allocator();
 
-    tracked.failAfter(1);
+    tracked.fail_after(1);
     AllocationOwner first;
     assert(AllocationOwner.tryCreate(allocator, 59, &first));
 
     AllocationOwner failed;
     assert(!AllocationOwner.tryCreate(allocator, 61, &failed));
     assert(failed.storage.ptr is null);
-    assert(tracked.stats.outstandingAllocations == 1);
-    assert(tracked.stats.failedCalls == 1);
-    assert(tracked.stats.invalidCalls == 0);
+    assert(tracked.stats.outstanding_allocations == 1);
+    assert(tracked.stats.failed_calls == 1);
+    assert(tracked.stats.invalid_calls == 0);
 
     deinit(first);
     assertAllocatorClean(tracked);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
 }
 
 private void testMovementStress() @system

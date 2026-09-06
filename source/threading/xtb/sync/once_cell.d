@@ -386,11 +386,11 @@ version (unittest)
         OnceCell!OwnedString cell;
         ref value = cell.getOrInit!initializeOwnedString(tracked.allocator());
         assert(value == "once-cell");
-        assert(tracked.stats.outstandingAllocations == 1);
+        assert(tracked.stats.outstanding_allocations == 1);
 
         cell.deinit();
         assert(tracked.clean);
-        assert(tracked.stats.invalidCalls == 0);
+        assert(tracked.stats.invalid_calls == 0);
     }
 
     static if (Atomic!uint.waitSupported)

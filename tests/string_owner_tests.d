@@ -269,12 +269,12 @@ private void testStringBufMoveReplacement(InstrumentedAllocator* tracked)
 {
     StringBuf source = StringBuf.fromString(tracked.allocator, "source");
     StringBuf target = StringBuf.fromString(tracked.allocator, "target");
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
 
     move_assign(source, target);
     assert(source.allocator is null && source.empty);
     assert(target.view == "source");
-    assert(tracked.stats.outstandingAllocations == 1);
+    assert(tracked.stats.outstanding_allocations == 1);
 
     deinit(source);
     deinit(target);
@@ -285,12 +285,12 @@ private void testOwnedStringMoveReplacement(InstrumentedAllocator* tracked)
 {
     OwnedString source = OwnedString.fromString(tracked.allocator, "source");
     OwnedString target = OwnedString.fromString(tracked.allocator, "target");
-    assert(tracked.stats.outstandingAllocations == 2);
+    assert(tracked.stats.outstanding_allocations == 2);
 
     move_assign(source, target);
     assert(source.allocator is null && source.empty);
     assert(target.view == "source");
-    assert(tracked.stats.outstandingAllocations == 1);
+    assert(tracked.stats.outstanding_allocations == 1);
 
     deinit(source);
     deinit(target);
@@ -324,7 +324,7 @@ private void testReleasedStorage(InstrumentedAllocator* tracked)
 
 private void testConstructionFailure(InstrumentedAllocator* tracked)
 {
-    tracked.failAfter(0);
+    tracked.fail_after(0);
 
     StringBuf buffer;
     assert(!StringBuf.tryFromString(tracked.allocator, "buffer", &buffer));
@@ -334,9 +334,9 @@ private void testConstructionFailure(InstrumentedAllocator* tracked)
     assert(!OwnedString.tryFromString(tracked.allocator, "text", &text));
     assert(text.allocator is null && text.empty);
     assert(tracked.clean);
-    assert(tracked.stats.invalidCalls == 0);
+    assert(tracked.stats.invalid_calls == 0);
 
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     deinit(buffer);
     deinit(text);
     assert(tracked.clean);
@@ -346,13 +346,13 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
 {
     OwnedString copied = "copy".copy(tracked.allocator);
     assert(copied.view == "copy");
-    assert(tracked.stats.outstandingBytes == copied.byteLength);
+    assert(tracked.stats.outstanding_bytes == copied.byteLength);
     deinit(copied);
     assert(tracked.clean);
 
     OwnedString concatenated = "left".concat("right", tracked.allocator);
     assert(concatenated.view == "leftright");
-    assert(tracked.stats.outstandingBytes == concatenated.byteLength);
+    assert(tracked.stats.outstanding_bytes == concatenated.byteLength);
     deinit(concatenated);
     assert(tracked.clean);
 
@@ -362,24 +362,24 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
         tracked.allocator,
     );
     assert(replaced.view == "1 two 1");
-    assert(tracked.stats.outstandingBytes == replaced.byteLength);
+    assert(tracked.stats.outstanding_bytes == replaced.byteLength);
     deinit(replaced);
     assert(tracked.clean);
 
     String[3] parts = ["a", "b", "c"];
     OwnedString joined = parts[].join("/", tracked.allocator);
     assert(joined.view == "a/b/c");
-    assert(tracked.stats.outstandingBytes == joined.byteLength);
+    assert(tracked.stats.outstanding_bytes == joined.byteLength);
     deinit(joined);
     assert(tracked.clean);
 
     OwnedString escaped = "a\n\t\\b".escape(tracked.allocator);
     assert(escaped.view == "a\\n\\t\\\\b");
-    assert(tracked.stats.outstandingBytes == escaped.byteLength);
+    assert(tracked.stats.outstanding_bytes == escaped.byteLength);
     deinit(escaped);
     assert(tracked.clean);
 
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     OwnedString failedCopy;
     OwnedString failedConcat;
     OwnedString failedReplace;
@@ -396,7 +396,7 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
     assert(failedJoin.allocator is null && failedJoin.empty);
     assert(failedEscape.allocator is null && failedEscape.empty);
     assert(tracked.clean);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
 }
 
 private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
@@ -506,13 +506,13 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
         assert(arenaEscape == "hello\\nworld");
         assert(arena.stats.usedBytes == usedBytes);
 
-        tracked.failAfter(0);
+        tracked.fail_after(0);
         OwnedString failed;
         scope (exit)
             failed.deinit();
         assert(!source.tryConcat(" failure", tracked.allocator, &failed));
         assert(failed.allocator is null && failed.empty);
-        tracked.allowAllocations();
+        tracked.allow_allocations();
     }
 
     assert(tracked.clean);
@@ -599,10 +599,10 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
         scope (exit)
             escaped.deinit();
         escaped.append("first\nsecond\t\"quoted\" café🙂");
-        const allocationCalls = tracked.stats.allocationCalls;
+        const allocationCalls = tracked.stats.allocation_calls;
         assert(escaped.tryEscapeInPlace());
         assert(escaped.view == "first\\nsecond\\t\\\"quoted\\\" café🙂");
-        assert(tracked.stats.allocationCalls == allocationCalls);
+        assert(tracked.stats.allocation_calls == allocationCalls);
     }
     assert(tracked.clean);
 
@@ -613,10 +613,10 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
         );
         scope (exit)
             replaceFailure.deinit();
-        tracked.failAfter(0);
+        tracked.fail_after(0);
         assert(!replaceFailure.tryReplaceInPlace("x", "replacement"));
         assert(replaceFailure.view == "xxxxxxxx");
-        tracked.allowAllocations();
+        tracked.allow_allocations();
     }
     assert(tracked.clean);
 
@@ -628,10 +628,10 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
         scope (exit)
             aliasFailure.deinit();
         String aliasedNeedle = aliasFailure.view[0 .. 5];
-        tracked.failAfter(0);
+        tracked.fail_after(0);
         assert(!aliasFailure.tryReplaceInPlace(aliasedNeedle, "x"));
         assert(aliasFailure.view == "alias-alias");
-        tracked.allowAllocations();
+        tracked.allow_allocations();
     }
     assert(tracked.clean);
 
@@ -642,10 +642,10 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
         );
         scope (exit)
             escapeFailure.deinit();
-        tracked.failAfter(0);
+        tracked.fail_after(0);
         assert(!escapeFailure.tryEscapeInPlace());
         assert(escapeFailure.view == "\n\n\n\n\n\n\n\n");
-        tracked.allowAllocations();
+        tracked.allow_allocations();
     }
     assert(tracked.clean);
 }
@@ -687,11 +687,11 @@ private void testStringBufReplacementOutputs(InstrumentedAllocator* tracked)
     assert(source.view == "cat dog cat");
 
     OwnedString failed;
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(!source.tryReplace("cat", "lion", tracked.allocator, &failed));
     assert(failed.allocator is null && failed.empty);
     assert(source.view == "cat dog cat");
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     failed.deinit();
 }
 
@@ -745,7 +745,7 @@ private void testArenaStringTransforms(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 
     Arena failing = Arena.create(tracked.allocator, 128);
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     String failedCopy = "unchanged-copy";
     String failedConcat = "unchanged-concat";
     String failedReplace = "unchanged-replace";
@@ -763,7 +763,7 @@ private void testArenaStringTransforms(InstrumentedAllocator* tracked)
     assert(failedEscape == "unchanged-escape");
     assert(failing.stats.usedBytes == 0);
     assert(tracked.clean);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     failing.deinit();
 }
 
@@ -781,7 +781,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
         StringBuf source = StringBuf.create(tracked.allocator);
         scope (exit)
             source.deinit();
-        const allocationCalls = tracked.stats.allocationCalls;
+        const allocationCalls = tracked.stats.allocation_calls;
 
         OwnedString copied = source.copy(tracked.allocator);
         scope (exit)
@@ -790,7 +790,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
         assert(copied.allocator is tracked.allocator);
         assert(source.empty);
         assert(source.allocator is tracked.allocator);
-        assert(tracked.stats.allocationCalls == allocationCalls);
+        assert(tracked.stats.allocation_calls == allocationCalls);
     }
     assert(tracked.clean);
 
@@ -864,7 +864,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
         scope (exit)
             output.deinit();
 
-        failing.failAfter(0);
+        failing.fail_after(0);
         assert(!retained.tryCopy(failing.allocator, &output));
         assert(retained.view == "retained");
         assert(retained.allocator is tracked.allocator);
@@ -971,11 +971,11 @@ private void testOwnedArrayIntegration(InstrumentedAllocator* tracked)
 
     OwnedArray!StringBuf failing = OwnedArray!StringBuf.create(tracked.allocator);
     StringBuf retained = StringBuf.fromString(tracked.allocator, "retained-array-value");
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(!failing.tryAppend(&retained));
     assert(retained.view == "retained-array-value");
     assert(failing.empty);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     deinit(retained);
     deinit(failing);
     assert(tracked.clean);
@@ -1033,11 +1033,11 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
     Map failing = Map.create(tracked.allocator);
     StringBuf retainedKey = StringBuf.fromString(tracked.allocator, "oom-key");
     StringBuf retainedValue = StringBuf.fromString(tracked.allocator, "oom-value");
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(failing.tryAdd(&retainedKey, &retainedValue) == AddStatus.outOfMemory);
     assert(retainedKey.view == "oom-key" && retainedValue.view == "oom-value");
     assert(failing.empty);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     deinit(retainedKey);
     deinit(retainedValue);
     deinit(failing);
@@ -1079,11 +1079,11 @@ private void testOwnedHashSetStringIntegration(InstrumentedAllocator* tracked)
 
     Set failing = Set.create(tracked.allocator);
     StringBuf retained = StringBuf.fromString(tracked.allocator, "oom-set-value");
-    tracked.failAfter(0);
+    tracked.fail_after(0);
     assert(failing.tryAdd(&retained) == AddStatus.outOfMemory);
     assert(retained.view == "oom-set-value");
     assert(failing.empty);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     deinit(retained);
     deinit(failing);
     assert(tracked.clean);
@@ -1121,13 +1121,13 @@ private void testOwnedStringHashMapIntegration(InstrumentedAllocator* tracked)
     auto failing = OwnedStringHashMap!OwnedString.create(tracked.allocator);
     failing.reserve(8);
     OwnedString retained = OwnedString.fromString(tracked.allocator, "oom-value");
-    const failedBefore = tracked.stats.failedCalls;
-    tracked.failAfter(0);
+    const failedBefore = tracked.stats.failed_calls;
+    tracked.fail_after(0);
     assert(failing.tryAdd("oom-key", &retained) == AddStatus.outOfMemory);
-    assert(tracked.stats.failedCalls == failedBefore + 1);
+    assert(tracked.stats.failed_calls == failedBefore + 1);
     assert(retained.view == "oom-value");
     assert(failing.empty);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     deinit(retained);
     deinit(failing);
     assert(tracked.clean);
@@ -1183,13 +1183,13 @@ private void testNestedOwnedStringHashMapIntegration(InstrumentedAllocator* trac
     auto failing = OwnedStringHashMap!Value.create(tracked.allocator);
     failing.reserve(8);
     Value retained = makeStringArray(tracked.allocator, "oom-array");
-    const failedBefore = tracked.stats.failedCalls;
-    tracked.failAfter(0);
+    const failedBefore = tracked.stats.failed_calls;
+    tracked.fail_after(0);
     assert(failing.tryAdd("oom-nested-key", &retained) == AddStatus.outOfMemory);
-    assert(tracked.stats.failedCalls == failedBefore + 1);
+    assert(tracked.stats.failed_calls == failedBefore + 1);
     assert(retained.length == 2 && retained[0] == "oom-array");
     assert(failing.empty);
-    tracked.allowAllocations();
+    tracked.allow_allocations();
     deinit(retained);
     deinit(failing);
     assert(tracked.clean);
@@ -1223,8 +1223,8 @@ extern (C) int main()
     testNestedOwnedStringHashMapIntegration(&tracked);
 
     assert(tracked.clean);
-    assert(tracked.stats.outstandingAllocations == 0);
-    assert(tracked.stats.outstandingBytes == 0);
-    assert(tracked.stats.invalidCalls == 0);
+    assert(tracked.stats.outstanding_allocations == 0);
+    assert(tracked.stats.outstanding_bytes == 0);
+    assert(tracked.stats.invalid_calls == 0);
     return 0;
 }

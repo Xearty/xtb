@@ -2140,7 +2140,7 @@ unittest
     InstrumentedAllocator failing = InstrumentedAllocator.create(
         malloc_allocator(), records[],
     );
-    failing.failAfter(0);
+    failing.fail_after(0);
     StringBuf failedBytes;
     assert(!StringBuf.tryFromBytesUnchecked(
             failing.allocator,
@@ -2385,7 +2385,7 @@ unittest
         records[],
     );
     StringBuf retained = StringBuf.fromString(failing.allocator, "small");
-    failing.failAfter(0);
+    failing.fail_after(0);
     assert(!retained.tryAssign(
             "this replacement is intentionally larger than the current capacity",
     ));
@@ -3463,7 +3463,7 @@ unittest
         records[],
     );
     StringBuf source = StringBuf.fromString(malloc_allocator(), "retained");
-    failing.failAfter(0);
+    failing.fail_after(0);
     OwnedString failed;
     assert(!source.tryCopy(failing.allocator, &failed));
     {
@@ -3499,16 +3499,16 @@ unittest
             &exact,
     ));
     assert(exact.byteLength == 16);
-    assert(allocator.stats.outstandingAllocations == 1);
-    assert(allocator.stats.outstandingBytes == 16);
+    assert(allocator.stats.outstanding_allocations == 1);
+    assert(allocator.stats.outstanding_bytes == 16);
     exact.deinit(allocator.allocator);
     assert(allocator.clean);
 
-    const allocationCalls = allocator.stats.allocationCalls;
+    const allocationCalls = allocator.stats.allocation_calls;
     OwnedString empty = OwnedString.fromString(allocator.allocator, "");
     assert(empty.empty);
     assert(empty.allocator is allocator.allocator);
-    assert(allocator.stats.allocationCalls == allocationCalls);
+    assert(allocator.stats.allocation_calls == allocationCalls);
 
     StringBuf spare = StringBuf.withCapacity(allocator.allocator, 64);
     {
@@ -3545,8 +3545,8 @@ unittest
     spare.deinit();
     empty.deinit();
     assert(allocator.clean);
-    assert(allocator.stats.invalidCalls == 0);
-    assert(foreign.stats.invalidCalls == 0);
+    assert(allocator.stats.invalid_calls == 0);
+    assert(foreign.stats.invalid_calls == 0);
 }
 
 unittest
@@ -3571,13 +3571,13 @@ unittest
 
     OwnedString copied = "copy".copy(allocator.allocator);
     assert(copied == "copy");
-    assert(allocator.stats.outstandingBytes == copied.byteLength);
+    assert(allocator.stats.outstanding_bytes == copied.byteLength);
     copied.deinit();
     assert(allocator.clean);
 
     OwnedString concatenated = "left".concat("right", allocator.allocator);
     assert(concatenated == "leftright");
-    assert(allocator.stats.outstandingBytes == concatenated.byteLength);
+    assert(allocator.stats.outstanding_bytes == concatenated.byteLength);
     concatenated.deinit();
     assert(allocator.clean);
 
@@ -3587,30 +3587,30 @@ unittest
         allocator.allocator,
     );
     assert(replaced == "1 two 1");
-    assert(allocator.stats.outstandingBytes == replaced.byteLength);
+    assert(allocator.stats.outstanding_bytes == replaced.byteLength);
     replaced.deinit();
     assert(allocator.clean);
 
     String[3] parts = ["a", "b", "c"];
     OwnedString joined = parts[].join("/", allocator.allocator);
     assert(joined == "a/b/c");
-    assert(allocator.stats.outstandingBytes == joined.byteLength);
+    assert(allocator.stats.outstanding_bytes == joined.byteLength);
     joined.deinit();
     assert(allocator.clean);
 
     OwnedString escaped = "a\n\t\\b".escape(allocator.allocator);
     assert(escaped == "a\\n\\t\\\\b");
-    assert(allocator.stats.outstandingBytes == escaped.byteLength);
+    assert(allocator.stats.outstanding_bytes == escaped.byteLength);
     escaped.deinit();
     assert(allocator.clean);
 
-    const allocationCalls = allocator.stats.allocationCalls;
+    const allocationCalls = allocator.stats.allocation_calls;
     OwnedString empty = "".concat("", allocator.allocator);
     assert(empty.empty && empty.allocator is allocator.allocator);
-    assert(allocator.stats.allocationCalls == allocationCalls);
+    assert(allocator.stats.allocation_calls == allocationCalls);
     empty.deinit();
 
-    allocator.failAfter(0);
+    allocator.fail_after(0);
     OwnedString failedCopy;
     OwnedString failedConcat;
     OwnedString failedReplace;
@@ -3627,5 +3627,5 @@ unittest
     assert(failedJoin.allocator is null && failedJoin.empty);
     assert(failedEscape.allocator is null && failedEscape.empty);
     assert(allocator.clean);
-    assert(allocator.stats.invalidCalls == 0);
+    assert(allocator.stats.invalid_calls == 0);
 }

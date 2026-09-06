@@ -25,7 +25,7 @@ private void testArenaExplicitCleanup()
         if ((index & 7) == 7)
             arena.clear();
     }
-    assert(tracked.stats.outstandingAllocations != 0);
+    assert(tracked.stats.outstanding_allocations != 0);
     arena.deinit();
     assert(tracked.clean);
 }
@@ -50,7 +50,7 @@ private void testThreadContextReleasesArenas()
             ScratchScope second = ScratchScope.acquire(first.allocator);
             second.arena.allocateArray!ubyte(128);
         }
-        assert(tracked.stats.outstandingAllocations != 0);
+        assert(tracked.stats.outstanding_allocations != 0);
     }
 
     assert(tracked.clean);

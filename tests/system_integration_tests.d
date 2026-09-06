@@ -838,7 +838,7 @@ version (linux) private void runPipelineIntegration(
         InstrumentedAllocator failing = InstrumentedAllocator.create(
             malloc_allocator(), records[],
         );
-        failing.failAfter(0);
+        failing.fail_after(0);
         Pipeline pipeline;
         scope (exit)
             pipeline.deinit();
@@ -918,7 +918,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         InstrumentedAllocator failing = InstrumentedAllocator.create(
             malloc_allocator(), records[],
         );
-        failing.failAfter(0);
+        failing.fail_after(0);
         Array!u8 failedRead = Array!u8.create(failing.allocator);
         assert(readEntireFile(firstPath, failedRead).kind == OsErrorKind.system);
         assert(openDescriptorCount() == baseline);
