@@ -434,10 +434,10 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             }
 
             Node node;
-            IntrusiveList!Node first;
-            IntrusiveList!Node second;
-            first.pushBack(&node);
-            second.pushBack(&node);
+            IntrusiveList!(Node, "listHook") first;
+            IntrusiveList!(Node, "listHook") second;
+            first.push_back(&node);
+            second.push_back(&node);
         }
     version (XTB_Checked)
         if (cStringEqual(name, "intrusive-forward-list-double-link"))
@@ -448,10 +448,10 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             }
 
             Node node;
-            IntrusiveForwardList!Node first;
-            IntrusiveForwardList!Node second;
-            first.pushBack(&node);
-            second.pushBack(&node);
+            IntrusiveForwardList!(Node, "forwardListHook") first;
+            IntrusiveForwardList!(Node, "forwardListHook") second;
+            first.push_back(&node);
+            second.push_back(&node);
         }
     version (XTB_Checked)
         if (cStringEqual(name, "intrusive-forward-double-link"))
@@ -462,9 +462,9 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             }
 
             Node node;
-            IntrusiveQueue!Node queue;
-            IntrusiveStack!Node stack;
-            queue.pushBack(&node);
+            IntrusiveQueue!(Node, "forwardListHook") queue;
+            IntrusiveStack!(Node, "forwardListHook") stack;
+            queue.push_back(&node);
             stack.push(&node);
         }
     version (linux)

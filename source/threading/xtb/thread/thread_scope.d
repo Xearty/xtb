@@ -243,7 +243,7 @@ nothrow @nogc:
 
     private Allocator* allocator_;
     private ThreadId owner_;
-    private IntrusiveForwardList!ScopedChildHeader children_;
+    private IntrusiveForwardList!(ScopedChildHeader, "forwardListHook") children_;
 
     private this(Allocator* allocator) @trusted
     {
@@ -366,7 +366,7 @@ nothrow @nogc:
         }
 
         node.header.thread = started.unwrap();
-        children_.pushFront(&node.header);
+        children_.push_front(&node.header);
         return ok();
     }
 
@@ -374,7 +374,7 @@ nothrow @nogc:
     {
         while (!children_.empty)
         {
-            ScopedChildHeader* child = children_.popFront();
+            ScopedChildHeader* child = children_.pop_front();
             const status = child.thread.join();
             if (status != 0)
                 panic("scoped child trampoline returned a nonzero status");

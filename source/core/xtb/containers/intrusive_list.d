@@ -1,42 +1,26 @@
 module xtb.containers.intrusive_list;
 
-version (XTB_Checked) import xtb.panic : require;
-
 nothrow @nogc:
+
+import xtb.panic;
+import xtb.types;
 
 /// One intrusive doubly linked-list membership hook.
 ///
 /// A node may contain multiple `ListHook!Node` fields and therefore belong to
 /// multiple lists at the same time. Each individual hook may belong to at most
 /// one list. `XTB_Checked` builds track that per-hook membership and reject
-/// double insertion. The membership flag and `linked` diagnostic accessor do
-/// not exist without `XTB_Checked`, where correct hook ownership is a caller
-/// invariant.
+/// double insertion. The `linked` diagnostic field does not exist without
+/// `XTB_Checked`, where correct hook ownership is a caller invariant. Direct
+/// mutation of `previous`, `next`, or `linked` must preserve list membership.
 struct ListHook(Node)
 {
-    private Node* previous_;
-    private Node* next_;
+    Node* previous;
+    Node* next;
 
     version (XTB_Checked)
     {
-        private bool linked_;
-
-        /// Whether this hook currently belongs to an intrusive list.
-        /// Available only in checked builds.
-        bool linked() const pure @safe
-        {
-            return linked_;
-        }
-    }
-
-    inout(Node)* previous() inout return pure
-    {
-        return previous_;
-    }
-
-    inout(Node)* next() inout return pure
-    {
-        return next_;
+        bool linked;
     }
 }
 
@@ -45,89 +29,79 @@ struct ListHook(Node)
 /// A node may contain multiple `ForwardListHook!Node` fields and therefore belong
 /// to multiple intrusive structures at the same time. Each individual hook may
 /// belong to at most one structure. `XTB_Checked` builds track that per-hook
-/// membership and reject double insertion. The membership flag and `linked`
-/// diagnostic accessor do not exist without `XTB_Checked`.
+/// membership and reject double insertion. The `linked` diagnostic field does
+/// not exist without `XTB_Checked`. Direct mutation of `next` or `linked` must
+/// preserve intrusive-structure membership.
 struct ForwardListHook(Node)
 {
-    private Node* next_;
+    Node* next;
 
     version (XTB_Checked)
     {
-        private bool linked_;
-
-        /// Whether this hook currently belongs to an intrusive structure.
-        /// Available only in checked builds.
-        bool linked() const pure @safe
-        {
-            return linked_;
-        }
-    }
-
-    inout(Node)* next() inout return pure
-    {
-        return next_;
+        bool linked;
     }
 }
 
-private ref ListHook!Node listHookOf(Node, string hookMember)(Node* node)
+private ref ListHook!Node list_hook_of(Node, string hook_member)(Node* node)
 {
-    return __traits(getMember, *node, hookMember);
+    return __traits(getMember, *node, hook_member);
 }
 
-private ref const(ListHook!Node) listHookOf(Node, string hookMember)(const(Node)* node)
+private ref const(ListHook!Node) list_hook_of(Node, string hook_member)(const(Node)* node)
 {
-    return __traits(getMember, *node, hookMember);
+    return __traits(getMember, *node, hook_member);
 }
 
-private ref ForwardListHook!Node forwardListHookOf(Node, string hookMember)(Node* node)
+private ref ForwardListHook!Node forward_list_hook_of(Node, string hook_member)(Node* node)
 {
-    return __traits(getMember, *node, hookMember);
+    return __traits(getMember, *node, hook_member);
 }
 
-private ref const(ForwardListHook!Node) forwardListHookOf(Node, string hookMember)(const(Node)* node)
+private ref const(ForwardListHook!Node) forward_list_hook_of(
+    Node,
+    string hook_member,
+)(const(Node)* node)
 {
-    return __traits(getMember, *node, hookMember);
+    return __traits(getMember, *node, hook_member);
 }
 
 version (XTB_Checked)
 {
-    private void requireUnlinked(Node)(ref ListHook!Node link)
+    private void require_unlinked(Node)(ref ListHook!Node link)
     {
-        require(!link.linked_, "list hook is already linked");
+        require(!link.linked, "list hook is already linked");
     }
 
-    private void requireUnlinked(Node)(ref ForwardListHook!Node link)
+    private void require_unlinked(Node)(ref ForwardListHook!Node link)
     {
-        require(!link.linked_, "forward hook is already linked");
+        require(!link.linked, "forward hook is already linked");
     }
 }
 
-/// Intrusive doubly linked list using `Node.hookMember` as its membership hook.
-struct IntrusiveList(Node, string hookMember = "listHook")
+/// Intrusive doubly linked list using `Node.hook_member` as its membership hook.
+///
+/// `front` and `back` are null exactly when the list is empty. Direct mutation
+/// must preserve the hook chain and membership invariants. Node and position
+/// pointer parameters are required to be non-null.
+struct IntrusiveList(Node, string hook_member = "list_hook")
 {
-    static assert(__traits(hasMember, Node, hookMember),
-        "IntrusiveList node is missing its " ~ hookMember ~ " hook");
-    static assert(is(typeof(__traits(getMember, Node.init, hookMember)) == ListHook!Node),
-        "IntrusiveList hook must be ListHook!Node");
+    static assert(
+        __traits(hasMember, Node, hook_member),
+        "IntrusiveList node is missing its " ~ hook_member ~ " hook",
+    );
+    static assert(
+        is(typeof(__traits(getMember, Node.init, hook_member)) == ListHook!Node),
+        "IntrusiveList hook must be ListHook!Node",
+    );
 
-    private Node* front_;
-    private Node* back_;
+    Node* front;
+    Node* back;
 
     @disable this(this);
 
     bool empty() const pure @safe
     {
-        return front_ is null;
-    }
-
-    inout(Node)* front() inout return pure
-    {
-        return front_;
-    }
-
-    inout(Node)* back() inout return pure
-    {
-        return back_;
+        return this.front is null;
     }
 
     /// Iterates nodes from front to back without modifying the list.
@@ -135,36 +109,28 @@ struct IntrusiveList(Node, string hookMember = "listHook")
     /// The next hook is captured before invoking the callback, so removing the
     /// current node from this list during the loop does not invalidate the
     /// traversal. Other structural mutation during iteration is unspecified.
-    int opApply(
-        scope int delegate(Node*) nothrow @nogc callback,
-    ) nothrow @nogc
+    i32 opApply(scope i32 delegate(Node*) nothrow @nogc callback) nothrow @nogc
     {
-        version (XTB_Checked)
-            require(callback !is null, "intrusive-list iteration callback is null");
-        for (Node* current = front_; current !is null;)
+        require(callback !is null, "intrusive-list iteration callback is null");
+        for (Node* current = this.front; current !is null;)
         {
-            Node* next = listHookOf!(Node, hookMember)(current).next_;
+            Node* next = list_hook_of!(Node, hook_member)(current).next;
             const control = callback(current);
-            if (control != 0)
-                return control;
+            if (control != 0) return control;
             current = next;
         }
         return 0;
     }
 
     /// Const iteration yields pointers to const nodes.
-    int opApply(
-        scope int delegate(const(Node)*) nothrow @nogc callback,
-    ) const nothrow @nogc
+    i32 opApply(scope i32 delegate(const(Node)*) nothrow @nogc callback) const nothrow @nogc
     {
-        version (XTB_Checked)
-            require(callback !is null, "intrusive-list iteration callback is null");
-        for (const(Node)* current = front_; current !is null;)
+        require(callback !is null, "intrusive-list iteration callback is null");
+        for (const(Node)* current = this.front; current !is null;)
         {
-            const(Node)* next = listHookOf!(Node, hookMember)(current).next_;
+            const(Node)* next = list_hook_of!(Node, hook_member)(current).next;
             const control = callback(current);
-            if (control != 0)
-                return control;
+            if (control != 0) return control;
             current = next;
         }
         return 0;
@@ -172,233 +138,239 @@ struct IntrusiveList(Node, string hookMember = "listHook")
 
     private bool contains(Node* node)
     {
-        for (Node* current = front_; current !is null; current = listHookOf!(Node, hookMember)(current)
-            .next_)
+        for (Node* current = this.front; current !is null;)
         {
-            if (current is node)
-                return true;
+            if (current is node) return true;
+            current = list_hook_of!(Node, hook_member)(current).next;
         }
         return false;
     }
 
-    void pushBack(Node* node)
+    void push_back(Node* node)
     {
+        require(node !is null, "cannot insert a null list node");
+        ref link = list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
-            require(node !is null, "cannot insert a null list node");
-        ref link = listHookOf!(Node, hookMember)(node);
-        version (XTB_Checked)
-            requireUnlinked(link);
+            require_unlinked(link);
 
-        link.previous_ = back_;
-        link.next_ = null;
+        link.previous = this.back;
+        link.next = null;
         version (XTB_Checked)
-            link.linked_ = true;
-        if (back_ is null)
-            front_ = node;
-        else
-            listHookOf!(Node, hookMember)(back_).next_ = node;
-        back_ = node;
-    }
-
-    void pushFront(Node* node)
-    {
-        version (XTB_Checked)
-            require(node !is null, "cannot insert a null list node");
-        ref link = listHookOf!(Node, hookMember)(node);
-        version (XTB_Checked)
-            requireUnlinked(link);
-
-        link.previous_ = null;
-        link.next_ = front_;
-        version (XTB_Checked)
-            link.linked_ = true;
-        if (front_ is null)
-            back_ = node;
-        else
-            listHookOf!(Node, hookMember)(front_).previous_ = node;
-        front_ = node;
-    }
-
-    void insertAfter(Node* position, Node* node)
-    {
-        version (XTB_Checked)
+            link.linked = true;
+        if (this.back is null)
         {
-            require(position !is null && node !is null,
-                "cannot insert a null list node");
-            require(contains(position), "position is not in this list");
+            this.front = node;
         }
-        if (position is back_)
+        else
         {
-            pushBack(node);
+            list_hook_of!(Node, hook_member)(this.back).next = node;
+        }
+        this.back = node;
+    }
+
+    void push_front(Node* node)
+    {
+        require(node !is null, "cannot insert a null list node");
+        ref link = list_hook_of!(Node, hook_member)(node);
+        version (XTB_Checked)
+            require_unlinked(link);
+
+        link.previous = null;
+        link.next = this.front;
+        version (XTB_Checked)
+            link.linked = true;
+        if (this.front is null)
+        {
+            this.back = node;
+        }
+        else
+        {
+            list_hook_of!(Node, hook_member)(this.front).previous = node;
+        }
+        this.front = node;
+    }
+
+    void insert_after(Node* position, Node* node)
+    {
+        require(
+            position !is null && node !is null,
+            "cannot insert a null list node",
+        );
+        require(this.contains(position), "position is not in this list");
+        if (position is this.back)
+        {
+            this.push_back(node);
             return;
         }
 
-        ref positionLink = listHookOf!(Node, hookMember)(position);
-        ref link = listHookOf!(Node, hookMember)(node);
+        ref position_link = list_hook_of!(Node, hook_member)(position);
+        ref link = list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
-            requireUnlinked(link);
-        link.previous_ = position;
-        link.next_ = positionLink.next_;
+            require_unlinked(link);
+        link.previous = position;
+        link.next = position_link.next;
         version (XTB_Checked)
-            link.linked_ = true;
-        listHookOf!(Node, hookMember)(positionLink.next_).previous_ = node;
-        positionLink.next_ = node;
+            link.linked = true;
+        list_hook_of!(Node, hook_member)(position_link.next).previous = node;
+        position_link.next = node;
     }
 
-    void insertBefore(Node* position, Node* node)
+    void insert_before(Node* position, Node* node)
     {
-        version (XTB_Checked)
+        require(
+            position !is null && node !is null,
+            "cannot insert a null list node",
+        );
+        require(this.contains(position), "position is not in this list");
+        if (position is this.front)
         {
-            require(position !is null && node !is null,
-                "cannot insert a null list node");
-            require(contains(position), "position is not in this list");
-        }
-        if (position is front_)
-        {
-            pushFront(node);
+            this.push_front(node);
             return;
         }
 
-        ref positionLink = listHookOf!(Node, hookMember)(position);
-        ref link = listHookOf!(Node, hookMember)(node);
+        ref position_link = list_hook_of!(Node, hook_member)(position);
+        ref link = list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
-            requireUnlinked(link);
-        link.next_ = position;
-        link.previous_ = positionLink.previous_;
+            require_unlinked(link);
+        link.next = position;
+        link.previous = position_link.previous;
         version (XTB_Checked)
-            link.linked_ = true;
-        listHookOf!(Node, hookMember)(positionLink.previous_).next_ = node;
-        positionLink.previous_ = node;
+            link.linked = true;
+        list_hook_of!(Node, hook_member)(position_link.previous).next = node;
+        position_link.previous = node;
     }
 
     void remove(Node* node)
     {
-        version (XTB_Checked)
+        require(node !is null, "cannot remove a null list node");
+        require(this.contains(node), "node is not in this list");
+        ref link = list_hook_of!(Node, hook_member)(node);
+
+        if (link.previous is null)
         {
-            require(node !is null, "cannot remove a null list node");
-            require(contains(node), "node is not in this list");
+            this.front = link.next;
         }
-        ref link = listHookOf!(Node, hookMember)(node);
-
-        if (link.previous_ is null)
-            front_ = link.next_;
         else
-            listHookOf!(Node, hookMember)(link.previous_).next_ = link.next_;
+        {
+            list_hook_of!(Node, hook_member)(link.previous).next = link.next;
+        }
 
-        if (link.next_ is null)
-            back_ = link.previous_;
+        if (link.next is null)
+        {
+            this.back = link.previous;
+        }
         else
-            listHookOf!(Node, hookMember)(link.next_).previous_ = link.previous_;
+        {
+            list_hook_of!(Node, hook_member)(link.next).previous = link.previous;
+        }
 
         link = ListHook!Node.init;
     }
 
-    Node* popFront()
+    Node* pop_front()
     {
-        version (XTB_Checked)
-            require(front_ !is null, "cannot pop an empty list");
-        Node* result = front_;
-        remove(result);
+        require(this.front !is null, "cannot pop an empty list");
+        Node* result = this.front;
+        this.remove(result);
         return result;
     }
 
-    Node* popBack()
+    Node* pop_back()
     {
-        version (XTB_Checked)
-            require(back_ !is null, "cannot pop an empty list");
-        Node* result = back_;
-        remove(result);
+        require(this.back !is null, "cannot pop an empty list");
+        Node* result = this.back;
+        this.remove(result);
         return result;
     }
 
-    void spliceBack(ref IntrusiveList source)
+    /// Appends all nodes from non-null `source`, leaving it empty.
+    void splice_back(IntrusiveList* source)
     {
-        version (XTB_Checked)
-            require(&this !is &source, "cannot spliceBack a list with itself");
-        if (source.empty)
-            return;
-        if (empty)
+        require(source !is null, "source list is null");
+        require(&this !is source, "cannot splice a list with itself");
+        if (source.empty) return;
+        if (this.empty)
         {
-            front_ = source.front_;
-            back_ = source.back_;
+            this.front = source.front;
+            this.back = source.back;
         }
         else
         {
-            listHookOf!(Node, hookMember)(back_).next_ = source.front_;
-            listHookOf!(Node, hookMember)(source.front_).previous_ = back_;
-            back_ = source.back_;
+            list_hook_of!(Node, hook_member)(this.back).next = source.front;
+            list_hook_of!(Node, hook_member)(source.front).previous = this.back;
+            this.back = source.back;
         }
-        source.front_ = null;
-        source.back_ = null;
+        source.front = null;
+        source.back = null;
     }
 
-    IntrusiveListCursor!(Node, hookMember) cursor()
+    IntrusiveListCursor!(Node, hook_member) cursor()
     {
-        return IntrusiveListCursor!(Node, hookMember)(front_, false);
+        return IntrusiveListCursor!(Node, hook_member)(this.front, false);
     }
 
-    IntrusiveListCursor!(Node, hookMember) reverseCursor()
+    IntrusiveListCursor!(Node, hook_member) reverse_cursor()
     {
-        return IntrusiveListCursor!(Node, hookMember)(back_, true);
+        return IntrusiveListCursor!(Node, hook_member)(this.back, true);
     }
 }
 
-struct IntrusiveListCursor(Node, string hookMember)
+/// Cursor state over an `IntrusiveList`.
+///
+/// `node` is null when invalid. Direct mutation of `node` or `reverse` changes
+/// the traversal position or direction.
+struct IntrusiveListCursor(Node, string hook_member)
 {
-    private Node* current_;
-    private bool reverse_;
+    Node* node;
+    bool reverse;
 
     bool valid() const pure @safe
     {
-        return current_ !is null;
+        return this.node !is null;
     }
 
     Node* current() return
     {
-        version (XTB_Checked)
-            require(valid, "invalid list cursor");
-        return current_;
+        require(this.valid, "invalid list cursor");
+        return this.node;
     }
 
     void advance()
     {
-        version (XTB_Checked)
-            require(valid, "invalid list cursor");
-        ref link = listHookOf!(Node, hookMember)(current_);
-        current_ = reverse_ ? link.previous_ : link.next_;
+        require(this.valid, "invalid list cursor");
+        ref link = list_hook_of!(Node, hook_member)(this.node);
+        this.node = this.reverse ? link.previous : link.next;
     }
 }
 
-/// General intrusive singly linked list using `Node.hookMember` as its membership hook.
+/// General intrusive singly linked list using `Node.hook_member` as its membership hook.
+///
+/// `front` and `back` are null exactly when the list is empty. Direct mutation
+/// must preserve the hook chain and membership invariants. Node and position
+/// pointer parameters are required to be non-null.
 ///
 /// The list stores both its first and last node so insertion at either end is
-/// O(1). `IntrusiveQueue` is implemented as a restricted queue facade over this type;
+/// O(1). `IntrusiveQueue` provides queue operations over this type;
 /// `IntrusiveStack` remains separate because it needs only one container pointer.
-struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
+struct IntrusiveForwardList(Node, string hook_member = "forward_list_hook")
 {
-    static assert(__traits(hasMember, Node, hookMember),
-        "IntrusiveForwardList node is missing its " ~ hookMember ~ " hook");
-    static assert(is(typeof(__traits(getMember, Node.init, hookMember)) == ForwardListHook!Node),
-        "IntrusiveForwardList hook must be ForwardListHook!Node");
+    static assert(
+        __traits(hasMember, Node, hook_member),
+        "IntrusiveForwardList node is missing its " ~ hook_member ~ " hook",
+    );
+    static assert(
+        is(typeof(__traits(getMember, Node.init, hook_member)) == ForwardListHook!Node),
+        "IntrusiveForwardList hook must be ForwardListHook!Node",
+    );
 
-    private Node* front_;
-    private Node* back_;
+    Node* front;
+    Node* back;
 
     @disable this(this);
 
     bool empty() const pure @safe
     {
-        return front_ is null;
-    }
-
-    inout(Node)* front() inout return pure
-    {
-        return front_;
-    }
-
-    inout(Node)* back() inout return pure
-    {
-        return back_;
+        return this.front is null;
     }
 
     /// Iterates nodes from front to back without modifying the list.
@@ -406,36 +378,28 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
     /// The next hook is captured before invoking the callback, so removing the
     /// current node from this list during the loop does not invalidate the
     /// traversal. Other structural mutation during iteration is unspecified.
-    int opApply(
-        scope int delegate(Node*) nothrow @nogc callback,
-    ) nothrow @nogc
+    i32 opApply(scope i32 delegate(Node*) nothrow @nogc callback) nothrow @nogc
     {
-        version (XTB_Checked)
-            require(callback !is null, "intrusive-forward-list iteration callback is null");
-        for (Node* current = front_; current !is null;)
+        require(callback !is null, "intrusive-forward-list iteration callback is null");
+        for (Node* current = this.front; current !is null;)
         {
-            Node* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            Node* next = forward_list_hook_of!(Node, hook_member)(current).next;
             const control = callback(current);
-            if (control != 0)
-                return control;
+            if (control != 0) return control;
             current = next;
         }
         return 0;
     }
 
     /// Const iteration yields pointers to const nodes.
-    int opApply(
-        scope int delegate(const(Node)*) nothrow @nogc callback,
-    ) const nothrow @nogc
+    i32 opApply(scope i32 delegate(const(Node)*) nothrow @nogc callback) const nothrow @nogc
     {
-        version (XTB_Checked)
-            require(callback !is null, "intrusive-forward-list iteration callback is null");
-        for (const(Node)* current = front_; current !is null;)
+        require(callback !is null, "intrusive-forward-list iteration callback is null");
+        for (const(Node)* current = this.front; current !is null;)
         {
-            const(Node)* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            const(Node)* next = forward_list_hook_of!(Node, hook_member)(current).next;
             const control = callback(current);
-            if (control != 0)
-                return control;
+            if (control != 0) return control;
             current = next;
         }
         return 0;
@@ -443,137 +407,128 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
 
     private bool contains(Node* node)
     {
-        for (Node* current = front_; current !is null; current = forwardListHookOf!(Node, hookMember)(
-                current).next_)
+        for (Node* current = this.front; current !is null;)
         {
-            if (current is node)
-                return true;
+            if (current is node) return true;
+            current = forward_list_hook_of!(Node, hook_member)(current).next;
         }
         return false;
     }
 
     /// Inserts `node` at the front in O(1).
-    void pushFront(Node* node)
+    void push_front(Node* node)
     {
+        require(node !is null, "cannot insert a null forward-list node");
+        ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
-            require(node !is null, "cannot insert a null forward-list node");
-        ref link = forwardListHookOf!(Node, hookMember)(node);
-        version (XTB_Checked)
-            requireUnlinked(link);
+            require_unlinked(link);
 
-        link.next_ = front_;
+        link.next = this.front;
         version (XTB_Checked)
-            link.linked_ = true;
-        front_ = node;
-        if (back_ is null)
-            back_ = node;
+            link.linked = true;
+        this.front = node;
+        if (this.back is null) this.back = node;
     }
 
     /// Inserts `node` at the back in O(1).
-    void pushBack(Node* node)
+    void push_back(Node* node)
     {
+        require(node !is null, "cannot insert a null forward-list node");
+        ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
-            require(node !is null, "cannot insert a null forward-list node");
-        ref link = forwardListHookOf!(Node, hookMember)(node);
-        version (XTB_Checked)
-            requireUnlinked(link);
+            require_unlinked(link);
 
-        link.next_ = null;
+        link.next = null;
         version (XTB_Checked)
-            link.linked_ = true;
-        if (back_ is null)
-            front_ = node;
+            link.linked = true;
+        if (this.back is null)
+        {
+            this.front = node;
+        }
         else
-            forwardListHookOf!(Node, hookMember)(back_).next_ = node;
-        back_ = node;
+        {
+            forward_list_hook_of!(Node, hook_member)(this.back).next = node;
+        }
+        this.back = node;
     }
 
     /// Inserts `node` immediately after `position`.
     ///
     /// This is O(1); checked builds verify that `position` belongs to this
     /// list, which requires an O(n) validation walk.
-    void insertAfter(Node* position, Node* node)
+    void insert_after(Node* position, Node* node)
     {
-        version (XTB_Checked)
+        require(
+            position !is null && node !is null,
+            "cannot insert relative to a null forward-list node",
+        );
+        require(this.contains(position), "position is not in this forward list");
+        if (position is this.back)
         {
-            require(position !is null && node !is null,
-                "cannot insert relative to a null forward-list node");
-            require(contains(position), "position is not in this forward list");
-        }
-        if (position is back_)
-        {
-            pushBack(node);
+            this.push_back(node);
             return;
         }
 
-        ref positionLink = forwardListHookOf!(Node, hookMember)(position);
-        ref link = forwardListHookOf!(Node, hookMember)(node);
+        ref position_link = forward_list_hook_of!(Node, hook_member)(position);
+        ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
-            requireUnlinked(link);
-        link.next_ = positionLink.next_;
+            require_unlinked(link);
+        link.next = position_link.next;
         version (XTB_Checked)
-            link.linked_ = true;
-        positionLink.next_ = node;
+            link.linked = true;
+        position_link.next = node;
     }
 
     /// Removes and returns the node immediately after `position`.
     ///
     /// This is O(1); checked builds verify that `position` belongs to this
     /// list, which requires an O(n) validation walk.
-    Node* removeAfter(Node* position)
+    Node* remove_after(Node* position)
     {
-        version (XTB_Checked)
-        {
-            require(position !is null, "cannot remove after a null forward-list node");
-            require(contains(position), "position is not in this forward list");
-        }
+        require(position !is null, "cannot remove after a null forward-list node");
+        require(this.contains(position), "position is not in this forward list");
 
-        ref positionLink = forwardListHookOf!(Node, hookMember)(position);
-        version (XTB_Checked)
-            require(positionLink.next_ !is null, "no forward-list node exists after position");
+        ref position_link = forward_list_hook_of!(Node, hook_member)(position);
+        require(position_link.next !is null, "no forward-list node exists after position");
 
-        Node* result = positionLink.next_;
-        ref link = forwardListHookOf!(Node, hookMember)(result);
-        positionLink.next_ = link.next_;
-        if (result is back_)
-            back_ = position;
+        Node* result = position_link.next;
+        ref link = forward_list_hook_of!(Node, hook_member)(result);
+        position_link.next = link.next;
+        if (result is this.back) this.back = position;
         link = ForwardListHook!Node.init;
         return result;
     }
 
     /// Removes and returns the first node in O(1).
-    Node* popFront()
+    Node* pop_front()
     {
-        version (XTB_Checked)
-            require(front_ !is null, "cannot pop an empty forward list");
-        Node* result = front_;
-        ref link = forwardListHookOf!(Node, hookMember)(result);
-        front_ = link.next_;
+        require(this.front !is null, "cannot pop an empty forward list");
+        Node* result = this.front;
+        ref link = forward_list_hook_of!(Node, hook_member)(result);
+        this.front = link.next;
         link = ForwardListHook!Node.init;
-        if (front_ is null)
-            back_ = null;
+        if (this.front is null) this.back = null;
         return result;
     }
 
-    /// Appends all nodes from `source` in O(1), leaving `source` empty.
-    void spliceBack(ref IntrusiveForwardList source)
+    /// Appends all nodes from non-null `source` in O(1), leaving it empty.
+    void splice_back(IntrusiveForwardList* source)
     {
-        version (XTB_Checked)
-            require(&this !is &source, "cannot spliceBack a forward list with itself");
-        if (source.empty)
-            return;
-        if (empty)
+        require(source !is null, "source forward list is null");
+        require(&this !is source, "cannot splice a forward list with itself");
+        if (source.empty) return;
+        if (this.empty)
         {
-            front_ = source.front_;
-            back_ = source.back_;
+            this.front = source.front;
+            this.back = source.back;
         }
         else
         {
-            forwardListHookOf!(Node, hookMember)(back_).next_ = source.front_;
-            back_ = source.back_;
+            forward_list_hook_of!(Node, hook_member)(this.back).next = source.front;
+            this.back = source.back;
         }
-        source.front_ = null;
-        source.back_ = null;
+        source.front = null;
+        source.back = null;
     }
 
     /// Detaches all nodes after `position` and returns them as a new list.
@@ -581,140 +536,140 @@ struct IntrusiveForwardList(Node, string hookMember = "forwardListHook")
     /// Existing hook membership remains live because nodes stay linked, only
     /// the owning list header changes. The returned list is empty when
     /// `position` is already the last node.
-    IntrusiveForwardList splitAfter(Node* position)
+    IntrusiveForwardList split_after(Node* position)
     {
-        version (XTB_Checked)
-        {
-            require(position !is null, "cannot split after a null forward-list node");
-            require(contains(position), "position is not in this forward list");
-        }
+        require(position !is null, "cannot split after a null forward-list node");
+        require(this.contains(position), "position is not in this forward list");
 
         IntrusiveForwardList result;
-        ref positionLink = forwardListHookOf!(Node, hookMember)(position);
-        result.front_ = positionLink.next_;
-        if (result.front_ !is null)
+        ref position_link = forward_list_hook_of!(Node, hook_member)(position);
+        result.front = position_link.next;
+        if (result.front !is null)
         {
-            result.back_ = back_;
-            back_ = position;
-            positionLink.next_ = null;
+            result.back = this.back;
+            this.back = position;
+            position_link.next = null;
         }
         return result;
     }
 
-    IntrusiveForwardListCursor!(Node, hookMember) cursor()
+    IntrusiveForwardListCursor!(Node, hook_member) cursor()
     {
-        return IntrusiveForwardListCursor!(Node, hookMember)(front_);
+        return IntrusiveForwardListCursor!(Node, hook_member)(this.front);
     }
 }
 
 /// Forward-only cursor over an intrusive `IntrusiveForwardList`.
-struct IntrusiveForwardListCursor(Node, string hookMember)
+///
+/// `node` is null when invalid. Direct mutation changes the traversal position.
+struct IntrusiveForwardListCursor(Node, string hook_member)
 {
-    private Node* current_;
+    Node* node;
 
     bool valid() const pure @safe
     {
-        return current_ !is null;
+        return this.node !is null;
     }
 
     Node* current() return
     {
-        version (XTB_Checked)
-            require(valid, "invalid forward-list cursor");
-        return current_;
+        require(this.valid, "invalid forward-list cursor");
+        return this.node;
     }
 
     void advance()
     {
-        version (XTB_Checked)
-            require(valid, "invalid forward-list cursor");
-        current_ = forwardListHookOf!(Node, hookMember)(current_).next_;
+        require(this.valid, "invalid forward-list cursor");
+        this.node = forward_list_hook_of!(Node, hook_member)(this.node).next;
     }
 }
 
-/// Intrusive FIFO queue using `Node.hookMember` as its membership hook.
+/// Intrusive FIFO queue using `Node.hook_member` as its membership hook.
 ///
-/// IntrusiveQueue is intentionally a narrow facade over `IntrusiveForwardList`: it preserves
-/// XTB's existing front/back queue operations while hiding arbitrary
-/// insert-after, split, spliceBack, and cursor mutation.
-struct IntrusiveQueue(Node, string hookMember = "forwardListHook")
+/// IntrusiveQueue provides queue operations over an `IntrusiveForwardList`.
+///
+/// The public `list` field is representation state. Direct mutation must
+/// preserve the queue's membership and ordering invariants.
+struct IntrusiveQueue(Node, string hook_member = "forward_list_hook")
 {
-    static assert(__traits(hasMember, Node, hookMember),
-        "IntrusiveQueue node is missing its " ~ hookMember ~ " hook");
-    static assert(is(typeof(__traits(getMember, Node.init, hookMember)) == ForwardListHook!Node),
-        "IntrusiveQueue hook must be ForwardListHook!Node");
+    static assert(
+        __traits(hasMember, Node, hook_member),
+        "IntrusiveQueue node is missing its " ~ hook_member ~ " hook",
+    );
+    static assert(
+        is(typeof(__traits(getMember, Node.init, hook_member)) == ForwardListHook!Node),
+        "IntrusiveQueue hook must be ForwardListHook!Node",
+    );
 
-    private IntrusiveForwardList!(Node, hookMember) list_;
+    IntrusiveForwardList!(Node, hook_member) list;
 
     @disable this(this);
 
     bool empty() const pure @safe
     {
-        return list_.empty;
+        return this.list.empty;
     }
 
     inout(Node)* front() inout return pure
     {
-        return list_.front;
+        return this.list.front;
     }
 
     inout(Node)* back() inout return pure
     {
-        return list_.back;
+        return this.list.back;
     }
 
     /// Iterates queued nodes from front to back.
-    int opApply(
-        scope int delegate(Node*) nothrow @nogc callback,
-    ) nothrow @nogc
+    i32 opApply(scope i32 delegate(Node*) nothrow @nogc callback) nothrow @nogc
     {
-        return list_.opApply(callback);
+        return this.list.opApply(callback);
     }
 
     /// Const iteration yields pointers to const nodes.
-    int opApply(
-        scope int delegate(const(Node)*) nothrow @nogc callback,
-    ) const nothrow @nogc
+    i32 opApply(scope i32 delegate(const(Node)*) nothrow @nogc callback) const nothrow @nogc
     {
-        return list_.opApply(callback);
+        return this.list.opApply(callback);
     }
 
-    void pushBack(Node* node)
+    void push_back(Node* node)
     {
-        list_.pushBack(node);
+        this.list.push_back(node);
     }
 
-    void pushFront(Node* node)
+    void push_front(Node* node)
     {
-        list_.pushFront(node);
+        this.list.push_front(node);
     }
 
-    Node* popFront()
+    Node* pop_front()
     {
-        return list_.popFront();
+        return this.list.pop_front();
     }
 }
 
-/// Intrusive LIFO stack using `Node.hookMember` as its membership hook.
-struct IntrusiveStack(Node, string hookMember = "forwardListHook")
+/// Intrusive LIFO stack using `Node.hook_member` as its membership hook.
+///
+/// `top` is null exactly when the stack is empty. Direct mutation must preserve
+/// the hook chain and membership invariants. `push` requires a non-null node.
+struct IntrusiveStack(Node, string hook_member = "forward_list_hook")
 {
-    static assert(__traits(hasMember, Node, hookMember),
-        "IntrusiveStack node is missing its " ~ hookMember ~ " hook");
-    static assert(is(typeof(__traits(getMember, Node.init, hookMember)) == ForwardListHook!Node),
-        "IntrusiveStack hook must be ForwardListHook!Node");
+    static assert(
+        __traits(hasMember, Node, hook_member),
+        "IntrusiveStack node is missing its " ~ hook_member ~ " hook",
+    );
+    static assert(
+        is(typeof(__traits(getMember, Node.init, hook_member)) == ForwardListHook!Node),
+        "IntrusiveStack hook must be ForwardListHook!Node",
+    );
 
-    private Node* top_;
+    Node* top;
 
     @disable this(this);
 
     bool empty() const pure @safe
     {
-        return top_ is null;
-    }
-
-    inout(Node)* top() inout return pure
-    {
-        return top_;
+        return this.top is null;
     }
 
     /// Iterates nodes from the current top toward the bottom.
@@ -722,36 +677,28 @@ struct IntrusiveStack(Node, string hookMember = "forwardListHook")
     /// The next hook is captured before invoking the callback, so popping the
     /// current node during the loop does not invalidate the traversal. Other
     /// structural mutation during iteration is unspecified.
-    int opApply(
-        scope int delegate(Node*) nothrow @nogc callback,
-    ) nothrow @nogc
+    i32 opApply(scope i32 delegate(Node*) nothrow @nogc callback) nothrow @nogc
     {
-        version (XTB_Checked)
-            require(callback !is null, "intrusive-stack iteration callback is null");
-        for (Node* current = top_; current !is null;)
+        require(callback !is null, "intrusive-stack iteration callback is null");
+        for (Node* current = this.top; current !is null;)
         {
-            Node* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            Node* next = forward_list_hook_of!(Node, hook_member)(current).next;
             const control = callback(current);
-            if (control != 0)
-                return control;
+            if (control != 0) return control;
             current = next;
         }
         return 0;
     }
 
     /// Const iteration yields pointers to const nodes.
-    int opApply(
-        scope int delegate(const(Node)*) nothrow @nogc callback,
-    ) const nothrow @nogc
+    i32 opApply(scope i32 delegate(const(Node)*) nothrow @nogc callback) const nothrow @nogc
     {
-        version (XTB_Checked)
-            require(callback !is null, "intrusive-stack iteration callback is null");
-        for (const(Node)* current = top_; current !is null;)
+        require(callback !is null, "intrusive-stack iteration callback is null");
+        for (const(Node)* current = this.top; current !is null;)
         {
-            const(Node)* next = forwardListHookOf!(Node, hookMember)(current).next_;
+            const(Node)* next = forward_list_hook_of!(Node, hook_member)(current).next;
             const control = callback(current);
-            if (control != 0)
-                return control;
+            if (control != 0) return control;
             current = next;
         }
         return 0;
@@ -759,27 +706,79 @@ struct IntrusiveStack(Node, string hookMember = "forwardListHook")
 
     void push(Node* node)
     {
+        require(node !is null, "cannot insert a null stack node");
+        ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
-            require(node !is null, "cannot insert a null stack node");
-        ref link = forwardListHookOf!(Node, hookMember)(node);
-        version (XTB_Checked)
-            requireUnlinked(link);
+            require_unlinked(link);
 
-        link.next_ = top_;
+        link.next = this.top;
         version (XTB_Checked)
-            link.linked_ = true;
-        top_ = node;
+            link.linked = true;
+        this.top = node;
     }
 
     Node* pop()
     {
-        version (XTB_Checked)
-            require(top_ !is null, "cannot pop an empty stack");
-        Node* result = top_;
-        ref link = forwardListHookOf!(Node, hookMember)(result);
-        top_ = link.next_;
+        require(this.top !is null, "cannot pop an empty stack");
+        Node* result = this.top;
+        ref link = forward_list_hook_of!(Node, hook_member)(result);
+        this.top = link.next;
         link = ForwardListHook!Node.init;
         return result;
+    }
+}
+
+version (unittest)
+{
+    private struct IntrusiveContainerLayoutProbe
+    {
+        ForwardListHook!IntrusiveContainerLayoutProbe forward_list_hook;
+    }
+
+    static assert(IntrusiveForwardList!IntrusiveContainerLayoutProbe.sizeof == usize.sizeof * 2);
+    static assert(
+        IntrusiveQueue!IntrusiveContainerLayoutProbe.sizeof
+            == IntrusiveForwardList!IntrusiveContainerLayoutProbe.sizeof,
+    );
+    static assert(IntrusiveStack!IntrusiveContainerLayoutProbe.sizeof == usize.sizeof);
+    static assert(
+        __traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "insert_after"),
+    );
+    static assert(
+        __traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "remove_after"),
+    );
+    static assert(
+        __traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "split_after"),
+    );
+    static assert(
+        !__traits(hasMember, IntrusiveQueue!IntrusiveContainerLayoutProbe, "insert_after"),
+    );
+    static assert(
+        !__traits(hasMember, IntrusiveQueue!IntrusiveContainerLayoutProbe, "remove_after"),
+    );
+    static assert(
+        !__traits(hasMember, IntrusiveQueue!IntrusiveContainerLayoutProbe, "split_after"),
+    );
+
+    private struct IntrusiveLinkLayoutProbe
+    {
+    }
+
+    version (XTB_Checked)
+    {
+        static assert(__traits(hasMember, ListHook!IntrusiveLinkLayoutProbe, "linked"));
+        static assert(__traits(hasMember, ForwardListHook!IntrusiveLinkLayoutProbe, "linked"));
+        static assert(ListHook!IntrusiveLinkLayoutProbe.sizeof > usize.sizeof * 2);
+        static assert(ForwardListHook!IntrusiveLinkLayoutProbe.sizeof > usize.sizeof);
+    }
+    else
+    {
+        // Unchecked hooks contain structural links only. Membership bookkeeping and
+        // its public diagnostic field must contribute zero storage/API surface.
+        static assert(!__traits(hasMember, ListHook!IntrusiveLinkLayoutProbe, "linked"));
+        static assert(!__traits(hasMember, ForwardListHook!IntrusiveLinkLayoutProbe, "linked"));
+        static assert(ListHook!IntrusiveLinkLayoutProbe.sizeof == usize.sizeof * 2);
+        static assert(ForwardListHook!IntrusiveLinkLayoutProbe.sizeof == usize.sizeof);
     }
 }
 
@@ -787,8 +786,8 @@ unittest
 {
     struct Node
     {
-        ListHook!Node listHook;
-        int value;
+        ListHook!Node list_hook;
+        i32 value;
     }
 
     Node first;
@@ -799,55 +798,55 @@ unittest
     middle.value = 3;
 
     IntrusiveList!Node list;
-    list.pushBack(&first);
-    list.pushBack(&second);
-    list.insertBefore(&second, &middle);
+    list.push_back(&first);
+    list.push_back(&second);
+    list.insert_before(&second, &middle);
     assert(list.front.value == 1);
-    assert(list.back.value == 2 && list.front.listHook.next is &middle);
-    assert(list.popFront() is &first);
+    assert(list.back.value == 2 && list.front.list_hook.next is &middle);
+    assert(list.pop_front() is &first);
     version (XTB_Checked)
-        assert(!first.listHook.linked);
-    assert(list.popBack() is &second);
+        assert(!first.list_hook.linked);
+    assert(list.pop_back() is &second);
     list.remove(&middle);
     assert(list.empty);
 
     IntrusiveList!Node left;
     IntrusiveList!Node right;
-    left.pushBack(&first);
-    right.pushBack(&second);
-    left.spliceBack(right);
+    left.push_back(&first);
+    right.push_back(&second);
+    left.splice_back(&right);
     assert(right.empty && left.back is &second);
     auto iterator = left.cursor();
-    int sum;
+    i32 sum;
     while (iterator.valid)
     {
         sum += iterator.current.value;
         iterator.advance();
     }
     assert(sum == 3);
-    left.popFront();
-    left.popFront();
+    left.pop_front();
+    left.pop_front();
 
     struct MultiListNode
     {
-        ListHook!MultiListNode firstHook;
-        ListHook!MultiListNode secondHook;
+        ListHook!MultiListNode first_hook;
+        ListHook!MultiListNode second_hook;
     }
 
-    MultiListNode sharedNode;
-    IntrusiveList!(MultiListNode, "firstHook") firstList;
-    IntrusiveList!(MultiListNode, "secondHook") secondList;
-    firstList.pushBack(&sharedNode);
-    secondList.pushBack(&sharedNode);
+    MultiListNode shared_node;
+    IntrusiveList!(MultiListNode, "first_hook") first_list;
+    IntrusiveList!(MultiListNode, "second_hook") second_list;
+    first_list.push_back(&shared_node);
+    second_list.push_back(&shared_node);
     version (XTB_Checked)
-        assert(sharedNode.firstHook.linked && sharedNode.secondHook.linked);
-    firstList.popFront();
-    secondList.popFront();
+        assert(shared_node.first_hook.linked && shared_node.second_hook.linked);
+    first_list.pop_front();
+    second_list.pop_front();
 
     struct SingleNode
     {
-        ForwardListHook!SingleNode forwardListHook;
-        int value;
+        ForwardListHook!SingleNode forward_list_hook;
+        i32 value;
     }
 
     SingleNode one;
@@ -855,10 +854,10 @@ unittest
     SingleNode two;
     two.value = 2;
     IntrusiveQueue!SingleNode queue;
-    queue.pushBack(&one);
-    queue.pushFront(&two);
-    assert(queue.popFront() is &two);
-    assert(queue.popFront() is &one && queue.empty);
+    queue.push_back(&one);
+    queue.push_front(&two);
+    assert(queue.pop_front() is &two);
+    assert(queue.pop_front() is &one && queue.empty);
 
     IntrusiveStack!SingleNode stack;
     stack.push(&one);
@@ -871,8 +870,8 @@ unittest
 {
     struct Node
     {
-        ForwardListHook!Node forwardListHook;
-        int value;
+        ForwardListHook!Node forward_list_hook;
+        i32 value;
     }
 
     Node first;
@@ -885,16 +884,16 @@ unittest
     IntrusiveForwardList!Node list;
     assert(list.empty && list.front is null && list.back is null);
 
-    list.pushBack(&first);
-    list.pushBack(&third);
-    list.insertAfter(&first, &second);
+    list.push_back(&first);
+    list.push_back(&third);
+    list.insert_after(&first, &second);
     assert(list.front is &first && list.back is &third);
-    assert(first.forwardListHook.next is &second);
-    assert(second.forwardListHook.next is &third);
-    assert(third.forwardListHook.next is null);
+    assert(first.forward_list_hook.next is &second);
+    assert(second.forward_list_hook.next is &third);
+    assert(third.forward_list_hook.next is null);
 
     auto cursor = list.cursor();
-    int expected = 1;
+    i32 expected = 1;
     while (cursor.valid)
     {
         assert(cursor.current.value == expected);
@@ -905,77 +904,77 @@ unittest
 
     // Removing after a node preserves the cached tail unless the removed node
     // was the tail, and detaches only the removed hook.
-    assert(list.removeAfter(&first) is &second);
-    assert(first.forwardListHook.next is &third);
+    assert(list.remove_after(&first) is &second);
+    assert(first.forward_list_hook.next is &third);
     assert(list.back is &third);
     version (XTB_Checked)
-        assert(!second.forwardListHook.linked);
+        assert(!second.forward_list_hook.linked);
 
-    list.insertAfter(&third, &second);
+    list.insert_after(&third, &second);
     assert(list.back is &second);
-    assert(third.forwardListHook.next is &second);
+    assert(third.forward_list_hook.next is &second);
     version (XTB_Checked)
-        assert(second.forwardListHook.linked);
+        assert(second.forward_list_hook.linked);
 
-    assert(list.removeAfter(&third) is &second);
-    assert(list.back is &third && third.forwardListHook.next is null);
+    assert(list.remove_after(&third) is &second);
+    assert(list.back is &third && third.forward_list_hook.next is null);
     version (XTB_Checked)
-        assert(!second.forwardListHook.linked);
+        assert(!second.forward_list_hook.linked);
 
     // Splitting transfers a suffix without detaching its hooks. Concatenating
     // the result restores the chain in O(1).
-    list.insertAfter(&first, &second);
-    IntrusiveForwardList!Node suffix = list.splitAfter(&first);
+    list.insert_after(&first, &second);
+    IntrusiveForwardList!Node suffix = list.split_after(&first);
     assert(list.front is &first && list.back is &first);
-    assert(first.forwardListHook.next is null);
+    assert(first.forward_list_hook.next is null);
     assert(suffix.front is &second && suffix.back is &third);
-    assert(second.forwardListHook.next is &third);
+    assert(second.forward_list_hook.next is &third);
     version (XTB_Checked)
     {
-        assert(first.forwardListHook.linked);
-        assert(second.forwardListHook.linked);
-        assert(third.forwardListHook.linked);
+        assert(first.forward_list_hook.linked);
+        assert(second.forward_list_hook.linked);
+        assert(third.forward_list_hook.linked);
     }
 
-    list.spliceBack(suffix);
+    list.splice_back(&suffix);
     assert(suffix.empty);
     assert(list.front is &first && list.back is &third);
-    assert(first.forwardListHook.next is &second);
-    assert(second.forwardListHook.next is &third);
+    assert(first.forward_list_hook.next is &second);
+    assert(second.forward_list_hook.next is &third);
 
-    IntrusiveForwardList!Node emptySuffix = list.splitAfter(&third);
-    assert(emptySuffix.empty);
+    IntrusiveForwardList!Node empty_suffix = list.split_after(&third);
+    assert(empty_suffix.empty);
     assert(list.back is &third);
 
-    assert(list.popFront() is &first);
-    assert(list.popFront() is &second);
-    assert(list.popFront() is &third);
+    assert(list.pop_front() is &first);
+    assert(list.pop_front() is &second);
+    assert(list.pop_front() is &third);
     assert(list.empty && list.front is null && list.back is null);
     version (XTB_Checked)
     {
-        assert(!first.forwardListHook.linked);
-        assert(!second.forwardListHook.linked);
-        assert(!third.forwardListHook.linked);
+        assert(!first.forward_list_hook.linked);
+        assert(!second.forward_list_hook.linked);
+        assert(!third.forward_list_hook.linked);
     }
 
     // Empty/non-empty concatenation must correctly transfer both header
     // pointers and leave the source reusable.
     IntrusiveForwardList!Node source;
-    source.pushBack(&first);
-    source.pushBack(&second);
-    list.spliceBack(source);
+    source.push_back(&first);
+    source.push_back(&second);
+    list.splice_back(&source);
     assert(source.empty);
     assert(list.front is &first && list.back is &second);
-    assert(list.popFront() is &first);
-    assert(list.popFront() is &second);
+    assert(list.pop_front() is &first);
+    assert(list.pop_front() is &second);
 
-    source.pushBack(&third);
+    source.push_back(&third);
     IntrusiveForwardList!Node empty;
-    list.spliceBack(empty);
+    list.splice_back(&empty);
     assert(list.empty && empty.empty);
-    list.spliceBack(source);
+    list.splice_back(&source);
     assert(source.empty && list.front is &third && list.back is &third);
-    assert(list.popFront() is &third && list.empty);
+    assert(list.pop_front() is &third && list.empty);
 }
 
 unittest
@@ -985,77 +984,38 @@ unittest
     // consume an additional node hook.
     struct Node
     {
-        ForwardListHook!Node listHook;
-        ForwardListHook!Node queueHook;
+        ForwardListHook!Node list_hook;
+        ForwardListHook!Node queue_hook;
     }
 
     Node first;
     Node second;
-    IntrusiveForwardList!(Node, "listHook") list;
-    IntrusiveQueue!(Node, "queueHook") queue;
+    IntrusiveForwardList!(Node, "list_hook") list;
+    IntrusiveQueue!(Node, "queue_hook") queue;
 
-    list.pushBack(&first);
-    list.pushBack(&second);
-    queue.pushBack(&second);
-    queue.pushBack(&first);
+    list.push_back(&first);
+    list.push_back(&second);
+    queue.push_back(&second);
+    queue.push_back(&first);
 
     assert(list.front is &first && list.back is &second);
     assert(queue.front is &second && queue.back is &first);
     version (XTB_Checked)
     {
-        assert(first.listHook.linked && first.queueHook.linked);
-        assert(second.listHook.linked && second.queueHook.linked);
+        assert(first.list_hook.linked && first.queue_hook.linked);
+        assert(second.list_hook.linked && second.queue_hook.linked);
     }
 
-    assert(list.popFront() is &first);
-    assert(queue.popFront() is &second);
+    assert(list.pop_front() is &first);
+    assert(queue.pop_front() is &second);
     version (XTB_Checked)
     {
-        assert(!first.listHook.linked && first.queueHook.linked);
-        assert(second.listHook.linked && !second.queueHook.linked);
+        assert(!first.list_hook.linked && first.queue_hook.linked);
+        assert(second.list_hook.linked && !second.queue_hook.linked);
     }
 
-    assert(list.popFront() is &second);
-    assert(queue.popFront() is &first);
-}
-
-private struct IntrusiveContainerLayoutProbe
-{
-    ForwardListHook!IntrusiveContainerLayoutProbe forwardListHook;
-}
-
-static assert(IntrusiveForwardList!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof * 2);
-static assert(
-    IntrusiveQueue!IntrusiveContainerLayoutProbe.sizeof ==
-        IntrusiveForwardList!IntrusiveContainerLayoutProbe.sizeof,
-);
-static assert(IntrusiveStack!IntrusiveContainerLayoutProbe.sizeof == size_t.sizeof);
-static assert(__traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "insertAfter"));
-static assert(__traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "removeAfter"));
-static assert(__traits(hasMember, IntrusiveForwardList!IntrusiveContainerLayoutProbe, "splitAfter"));
-static assert(!__traits(hasMember, IntrusiveQueue!IntrusiveContainerLayoutProbe, "insertAfter"));
-static assert(!__traits(hasMember, IntrusiveQueue!IntrusiveContainerLayoutProbe, "removeAfter"));
-static assert(!__traits(hasMember, IntrusiveQueue!IntrusiveContainerLayoutProbe, "splitAfter"));
-
-private struct IntrusiveLinkLayoutProbe
-{
-}
-
-version (XTB_Checked)
-{
-    static assert(__traits(hasMember, ListHook!IntrusiveLinkLayoutProbe, "linked"));
-    static assert(__traits(hasMember, ForwardListHook!IntrusiveLinkLayoutProbe, "linked"));
-    static assert(ListHook!IntrusiveLinkLayoutProbe.sizeof > size_t.sizeof * 2);
-    static assert(ForwardListHook!IntrusiveLinkLayoutProbe.sizeof > size_t.sizeof);
-}
-else
-{
-    // Unchecked hooks contain structural links only. Membership bookkeeping and
-    // its public diagnostic accessor must contribute zero storage/API surface.
-    static assert(!__traits(hasMember, ListHook!IntrusiveLinkLayoutProbe, "linked"));
-    static assert(!__traits(hasMember, ForwardListHook!IntrusiveLinkLayoutProbe, "linked"));
-    static assert(ListHook!IntrusiveLinkLayoutProbe.sizeof == size_t.sizeof * 2);
-    static assert(ForwardListHook!IntrusiveLinkLayoutProbe.sizeof == size_t.sizeof);
+    assert(list.pop_front() is &second);
+    assert(queue.pop_front() is &first);
 }
 
 unittest
@@ -1064,9 +1024,9 @@ unittest
     // in multiple lists simultaneously without wrapper allocations.
     struct Node
     {
-        int value;
-        ListHook!Node readyHook;
-        ListHook!Node allHook;
+        i32 value;
+        ListHook!Node ready_hook;
+        ListHook!Node all_hook;
     }
 
     Node first;
@@ -1074,24 +1034,24 @@ unittest
     Node second;
     second.value = 2;
 
-    IntrusiveList!(Node, "readyHook") ready;
-    IntrusiveList!(Node, "allHook") all;
+    IntrusiveList!(Node, "ready_hook") ready;
+    IntrusiveList!(Node, "all_hook") all;
 
-    ready.pushBack(&first);
-    ready.pushBack(&second);
-    all.pushBack(&second);
-    all.pushBack(&first);
+    ready.push_back(&first);
+    ready.push_back(&second);
+    all.push_back(&second);
+    all.push_back(&first);
 
     assert(ready.front is &first && ready.back is &second);
     assert(all.front is &second && all.back is &first);
-    assert(first.readyHook.next is &second);
-    assert(first.allHook.previous is &second);
+    assert(first.ready_hook.next is &second);
+    assert(first.all_hook.previous is &second);
     version (XTB_Checked)
     {
-        assert(first.readyHook.linked);
-        assert(first.allHook.linked);
-        assert(second.readyHook.linked);
-        assert(second.allHook.linked);
+        assert(first.ready_hook.linked);
+        assert(first.all_hook.linked);
+        assert(second.ready_hook.linked);
+        assert(second.all_hook.linked);
     }
 
     // Removing one hook must not affect the node's other membership.
@@ -1100,15 +1060,15 @@ unittest
     assert(all.back is &first);
     version (XTB_Checked)
     {
-        assert(!first.readyHook.linked);
-        assert(first.allHook.linked);
+        assert(!first.ready_hook.linked);
+        assert(first.all_hook.linked);
     }
 
     // A detached hook is immediately reusable.
-    ready.pushFront(&first);
+    ready.push_front(&first);
     assert(ready.front is &first && ready.back is &second);
     version (XTB_Checked)
-        assert(first.readyHook.linked);
+        assert(first.ready_hook.linked);
 
     ready.remove(&first);
     ready.remove(&second);
@@ -1116,8 +1076,8 @@ unittest
     all.remove(&second);
     version (XTB_Checked)
     {
-        assert(!first.readyHook.linked && !first.allHook.linked);
-        assert(!second.readyHook.linked && !second.allHook.linked);
+        assert(!first.ready_hook.linked && !first.all_hook.linked);
+        assert(!second.ready_hook.linked && !second.all_hook.linked);
     }
 }
 
@@ -1127,9 +1087,9 @@ unittest
     // queued and stacked at the same time when each structure has its own hook.
     struct Node
     {
-        int value;
-        ForwardListHook!Node queueHook;
-        ForwardListHook!Node stackHook;
+        i32 value;
+        ForwardListHook!Node queue_hook;
+        ForwardListHook!Node stack_hook;
     }
 
     Node first;
@@ -1137,11 +1097,11 @@ unittest
     Node second;
     second.value = 2;
 
-    IntrusiveQueue!(Node, "queueHook") queue;
-    IntrusiveStack!(Node, "stackHook") stack;
+    IntrusiveQueue!(Node, "queue_hook") queue;
+    IntrusiveStack!(Node, "stack_hook") stack;
 
-    queue.pushBack(&first);
-    queue.pushBack(&second);
+    queue.push_back(&first);
+    queue.push_back(&second);
     stack.push(&first);
     stack.push(&second);
 
@@ -1149,25 +1109,25 @@ unittest
     assert(stack.top is &second);
     version (XTB_Checked)
     {
-        assert(first.queueHook.linked && first.stackHook.linked);
-        assert(second.queueHook.linked && second.stackHook.linked);
+        assert(first.queue_hook.linked && first.stack_hook.linked);
+        assert(second.queue_hook.linked && second.stack_hook.linked);
     }
 
-    assert(queue.popFront() is &first);
+    assert(queue.pop_front() is &first);
     assert(stack.pop() is &second);
     version (XTB_Checked)
     {
-        assert(!first.queueHook.linked);
-        assert(first.stackHook.linked);
-        assert(second.queueHook.linked);
-        assert(!second.stackHook.linked);
+        assert(!first.queue_hook.linked);
+        assert(first.stack_hook.linked);
+        assert(second.queue_hook.linked);
+        assert(!second.stack_hook.linked);
     }
 
     // Reuse the detached hooks while the independent memberships remain live.
-    queue.pushFront(&first);
+    queue.push_front(&first);
     stack.push(&second);
-    assert(queue.popFront() is &first);
-    assert(queue.popFront() is &second);
+    assert(queue.pop_front() is &first);
+    assert(queue.pop_front() is &second);
     assert(stack.pop() is &second);
     assert(stack.pop() is &first);
     assert(queue.empty && stack.empty);
@@ -1179,8 +1139,8 @@ unittest
     // state, and popping from the destination detaches hooks normally.
     struct Node
     {
-        int value;
-        ListHook!Node listHook;
+        i32 value;
+        ListHook!Node list_hook;
     }
 
     Node first;
@@ -1192,33 +1152,33 @@ unittest
 
     IntrusiveList!Node left;
     IntrusiveList!Node right;
-    left.pushBack(&first);
-    right.pushBack(&second);
-    right.pushBack(&third);
-    left.spliceBack(right);
+    left.push_back(&first);
+    right.push_back(&second);
+    right.push_back(&third);
+    left.splice_back(&right);
 
     assert(right.empty);
     assert(left.front is &first && left.back is &third);
-    assert(first.listHook.next is &second);
-    assert(second.listHook.previous is &first);
-    assert(second.listHook.next is &third);
-    assert(third.listHook.previous is &second);
+    assert(first.list_hook.next is &second);
+    assert(second.list_hook.previous is &first);
+    assert(second.list_hook.next is &third);
+    assert(third.list_hook.previous is &second);
     version (XTB_Checked)
     {
-        assert(first.listHook.linked);
-        assert(second.listHook.linked);
-        assert(third.listHook.linked);
+        assert(first.list_hook.linked);
+        assert(second.list_hook.linked);
+        assert(third.list_hook.linked);
     }
 
-    assert(left.popFront() is &first);
-    assert(left.popFront() is &second);
-    assert(left.popFront() is &third);
+    assert(left.pop_front() is &first);
+    assert(left.pop_front() is &second);
+    assert(left.pop_front() is &third);
     assert(left.empty);
     version (XTB_Checked)
     {
-        assert(!first.listHook.linked);
-        assert(!second.listHook.linked);
-        assert(!third.listHook.linked);
+        assert(!first.list_hook.linked);
+        assert(!second.list_hook.linked);
+        assert(!third.list_hook.linked);
     }
 }
 
@@ -1226,8 +1186,8 @@ unittest
 {
     struct ListNode
     {
-        ListHook!ListNode listHook;
-        int value;
+        ListHook!ListNode list_hook;
+        i32 value;
     }
 
     ListNode first;
@@ -1238,26 +1198,26 @@ unittest
     third.value = 3;
 
     IntrusiveList!ListNode list;
-    list.pushBack(&first);
-    list.pushBack(&second);
-    list.pushBack(&third);
+    list.push_back(&first);
+    list.push_back(&second);
+    list.push_back(&third);
 
-    int listValue;
+    i32 listvalue;
     foreach (node; list)
     {
         static assert(is(typeof(node) == ListNode*));
-        listValue = listValue * 10 + node.value;
+        listvalue = listvalue * 10 + node.value;
     }
-    assert(listValue == 123);
+    assert(listvalue == 123);
 
-    const(IntrusiveList!ListNode)* constList = &list;
-    int constListValue;
-    foreach (node; *constList)
+    const(IntrusiveList!ListNode)* const_list = &list;
+    i32 const_listvalue;
+    foreach (node; *const_list)
     {
         static assert(is(typeof(node) == const(ListNode)*));
-        constListValue += node.value;
+        const_listvalue += node.value;
     }
-    assert(constListValue == 6);
+    assert(const_listvalue == 6);
 
     // The implementation snapshots the next hook before the body runs, so
     // removing the current node is explicitly supported.
@@ -1267,10 +1227,10 @@ unittest
 
     struct ForwardNode
     {
-        ForwardListHook!ForwardNode listHook;
-        ForwardListHook!ForwardNode queueHook;
-        ForwardListHook!ForwardNode stackHook;
-        int value;
+        ForwardListHook!ForwardNode list_hook;
+        ForwardListHook!ForwardNode queue_hook;
+        ForwardListHook!ForwardNode stack_hook;
+        i32 value;
     }
 
     ForwardNode one;
@@ -1280,55 +1240,55 @@ unittest
     ForwardNode three;
     three.value = 3;
 
-    IntrusiveForwardList!(ForwardNode, "listHook") forwardList;
-    forwardList.pushBack(&one);
-    forwardList.pushBack(&two);
-    forwardList.pushBack(&three);
+    IntrusiveForwardList!(ForwardNode, "list_hook") forward_list;
+    forward_list.push_back(&one);
+    forward_list.push_back(&two);
+    forward_list.push_back(&three);
 
-    int forwardValue;
-    foreach (node; forwardList)
-        forwardValue = forwardValue * 10 + node.value;
-    assert(forwardValue == 123);
+    i32 forward_value;
+    foreach (node; forward_list)
+        forward_value = forward_value * 10 + node.value;
+    assert(forward_value == 123);
 
-    IntrusiveQueue!(ForwardNode, "queueHook") queue;
-    queue.pushBack(&one);
-    queue.pushBack(&two);
-    queue.pushBack(&three);
+    IntrusiveQueue!(ForwardNode, "queue_hook") queue;
+    queue.push_back(&one);
+    queue.push_back(&two);
+    queue.push_back(&three);
 
-    int queueValue;
+    i32 queue_value;
     foreach (node; queue)
-        queueValue = queueValue * 10 + node.value;
-    assert(queueValue == 123);
+        queue_value = queue_value * 10 + node.value;
+    assert(queue_value == 123);
 
-    IntrusiveStack!(ForwardNode, "stackHook") stack;
+    IntrusiveStack!(ForwardNode, "stack_hook") stack;
     stack.push(&one);
     stack.push(&two);
     stack.push(&three);
 
-    int stackValue;
+    i32 stack_value;
     foreach (node; stack)
-        stackValue = stackValue * 10 + node.value;
-    assert(stackValue == 321);
+        stack_value = stack_value * 10 + node.value;
+    assert(stack_value == 321);
 
-    const(IntrusiveForwardList!(ForwardNode, "listHook"))* constForwardList = &forwardList;
-    const(IntrusiveQueue!(ForwardNode, "queueHook"))* constQueue = &queue;
-    const(IntrusiveStack!(ForwardNode, "stackHook"))* constStack = &stack;
+    const(IntrusiveForwardList!(ForwardNode, "list_hook"))* const_forward_list = &forward_list;
+    const(IntrusiveQueue!(ForwardNode, "queue_hook"))* const_queue = &queue;
+    const(IntrusiveStack!(ForwardNode, "stack_hook"))* const_stack = &stack;
 
-    int constValue;
-    foreach (node; *constForwardList)
+    i32 const_value;
+    foreach (node; *const_forward_list)
     {
         static assert(is(typeof(node) == const(ForwardNode)*));
-        constValue += node.value;
+        const_value += node.value;
     }
-    foreach (node; *constQueue)
+    foreach (node; *const_queue)
     {
         static assert(is(typeof(node) == const(ForwardNode)*));
-        constValue += node.value;
+        const_value += node.value;
     }
-    foreach (node; *constStack)
+    foreach (node; *const_stack)
     {
         static assert(is(typeof(node) == const(ForwardNode)*));
-        constValue += node.value;
+        const_value += node.value;
     }
-    assert(constValue == 18);
+    assert(const_value == 18);
 }

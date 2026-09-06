@@ -127,7 +127,7 @@ private:
     {
         void registerWaiter(ref Waiter waiter, ref Mutex mutex) @trusted
         {
-            waiters_.pushBack(&waiter);
+            waiters_.push_back(&waiter);
 
             version (XTB_Checked)
             {
@@ -147,7 +147,7 @@ private:
         {
             if (waiters_.empty)
                 return null;
-            return waiters_.popFront();
+            return waiters_.pop_front();
         }
 
         void signalWaiter(Waiter* waiter) @trusted
@@ -166,7 +166,7 @@ private:
             // queue selects exactly the waiter population present at this broadcast.
             // Later waiters can only enqueue after stateMutex_ is released.
             while (!waiters_.empty)
-                signalWaiter(waiters_.popFront());
+                signalWaiter(waiters_.pop_front());
         }
 
         void finishWait(ref Mutex mutex) @trusted
@@ -294,7 +294,7 @@ version (unittest)
             CondVar condition;
             Waiter waiter;
             condition.stateMutex_.lock();
-            condition.waiters_.pushBack(&waiter);
+            condition.waiters_.push_back(&waiter);
             condition.stateMutex_.unlock();
 
             WaiterLifetimeContext context;

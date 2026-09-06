@@ -78,7 +78,7 @@ nothrow @nogc:
             // queued waiters without exposing them to fast-path barging.
             while (count != 0 && !waiters_.empty)
             {
-                SemaphoreWaiter* waiter = waiters_.popFront();
+                SemaphoreWaiter* waiter = waiters_.pop_front();
                 signalWaiter(waiter);
                 --count;
             }
@@ -186,7 +186,7 @@ private:
                     "Semaphore queued a waiter while a permit was available",
                 );
 
-            waiters_.pushBack(&waiter);
+            waiters_.push_back(&waiter);
             version (XTB_Checked)
                 ++activeWaiters_;
         }
@@ -303,7 +303,7 @@ version (unittest)
                 context.semaphore.stateMutex_.unlock();
                 return 1;
             }
-            SemaphoreWaiter* waiter = context.semaphore.waiters_.popFront();
+            SemaphoreWaiter* waiter = context.semaphore.waiters_.pop_front();
             if (waiter !is context.waiter)
             {
                 context.semaphore.stateMutex_.unlock();
