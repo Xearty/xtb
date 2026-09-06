@@ -19,7 +19,7 @@ private void testArenaExplicitCleanup()
     Arena arena = Arena.create(tracked.allocator, 64);
     foreach (index; 0 .. 128)
     {
-        int[] values = arena.allocateArray!int(17);
+        int[] values = arena.allocate_array!int(17);
         values[0] = cast(int) index;
         assert(values[0] == cast(int) index);
         if ((index & 7) == 7)
@@ -46,9 +46,9 @@ private void testThreadContextReleasesArenas()
         );
         {
             ScratchScope first = ScratchScope.acquire();
-            first.arena.allocateArray!ubyte(96);
+            first.arena.allocate_array!ubyte(96);
             ScratchScope second = ScratchScope.acquire(first.allocator);
-            second.arena.allocateArray!ubyte(128);
+            second.arena.allocate_array!ubyte(128);
         }
         assert(tracked.stats.outstanding_allocations != 0);
     }

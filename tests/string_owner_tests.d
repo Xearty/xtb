@@ -489,22 +489,22 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
         String arenaCopy = source.copy(&arena);
         usedBytes += arenaCopy.length;
         assert(arenaCopy == source.view);
-        assert(arena.stats.usedBytes == usedBytes);
+        assert(arena.stats.used_bytes == usedBytes);
 
         String arenaConcat = source.concat(" arena", &arena);
         usedBytes += arenaConcat.length;
         assert(arenaConcat == "hello\nworld arena");
-        assert(arena.stats.usedBytes == usedBytes);
+        assert(arena.stats.used_bytes == usedBytes);
 
         String arenaReplace = source.replace("world", "arena", &arena);
         usedBytes += arenaReplace.length;
         assert(arenaReplace == "hello\narena");
-        assert(arena.stats.usedBytes == usedBytes);
+        assert(arena.stats.used_bytes == usedBytes);
 
         String arenaEscape = source.escape(&arena);
         usedBytes += arenaEscape.length;
         assert(arenaEscape == "hello\\nworld");
-        assert(arena.stats.usedBytes == usedBytes);
+        assert(arena.stats.used_bytes == usedBytes);
 
         tracked.fail_after(0);
         OwnedString failed;
@@ -714,32 +714,32 @@ private void testArenaStringTransforms(InstrumentedAllocator* tracked)
     String copied = "copy".copy(&arena);
     expectedUsedBytes += copied.length;
     assert(copied == "copy");
-    assert(arena.stats.usedBytes == expectedUsedBytes);
+    assert(arena.stats.used_bytes == expectedUsedBytes);
 
     String concatenated = "left".concat("right", &arena);
     expectedUsedBytes += concatenated.length;
     assert(concatenated == "leftright");
-    assert(arena.stats.usedBytes == expectedUsedBytes);
+    assert(arena.stats.used_bytes == expectedUsedBytes);
 
     String replaced = "one two one".replace("one", "1", &arena);
     expectedUsedBytes += replaced.length;
     assert(replaced == "1 two 1");
-    assert(arena.stats.usedBytes == expectedUsedBytes);
+    assert(arena.stats.used_bytes == expectedUsedBytes);
 
     String[3] parts = ["a", "b", "c"];
     String joined = parts[].join("/", &arena);
     expectedUsedBytes += joined.length;
     assert(joined == "a/b/c");
-    assert(arena.stats.usedBytes == expectedUsedBytes);
+    assert(arena.stats.used_bytes == expectedUsedBytes);
 
     String escaped = "a\n\t\\b".escape(&arena);
     expectedUsedBytes += escaped.length;
     assert(escaped == "a\\n\\t\\\\b");
-    assert(arena.stats.usedBytes == expectedUsedBytes);
+    assert(arena.stats.used_bytes == expectedUsedBytes);
 
     String empty = "".concat("", &arena);
     assert(empty.length == 0);
-    assert(arena.stats.usedBytes == expectedUsedBytes);
+    assert(arena.stats.used_bytes == expectedUsedBytes);
 
     arena.deinit();
     assert(tracked.clean);
@@ -761,7 +761,7 @@ private void testArenaStringTransforms(InstrumentedAllocator* tracked)
     assert(failedReplace == "unchanged-replace");
     assert(failedJoin == "unchanged-join");
     assert(failedEscape == "unchanged-escape");
-    assert(failing.stats.usedBytes == 0);
+    assert(failing.stats.used_bytes == 0);
     assert(tracked.clean);
     tracked.allow_allocations();
     failing.deinit();

@@ -3325,7 +3325,7 @@ private bool tryPrepareStringTransform(
 {
     if (length == 0)
         return true;
-    *allocation = arena.tryAllocateArray!char(length);
+    *allocation = arena.try_allocate_array!char(length);
     return allocation.ptr !is null;
 }
 

@@ -290,7 +290,7 @@ nothrow @nogc:
             require(state.context !is null && state.context.outputArena !is null,
                 "JSON string parsing requires a parse output arena");
 
-        char[] storage = state.context.outputArena.allocateArray!char(decodedLength);
+        char[] storage = state.context.outputArena.allocate_array!char(decodedLength);
         size_t source = start + 1;
         size_t target;
         while (source < cursor)

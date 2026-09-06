@@ -1086,7 +1086,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(procStatus.length != 0);
 
     Arena* outputArena = scratchArena();
-    outputArena.setRewindPoisoning(true);
+    outputArena.set_rewind_poisoning(true);
     TempArena outputTemporary = outputArena.push();
     {
         StringBuf scratchCanonical = StringBuf.create(outputTemporary.allocator);
@@ -1100,7 +1100,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         assert(scratchExecutable.view[0] != cast(char) 0xDD);
     }
     outputTemporary.pop();
-    outputArena.setRewindPoisoning(false);
+    outputArena.set_rewind_poisoning(false);
 
     String environmentPath;
     assert(environmentVariable("PATH", &environmentPath).succeeded);

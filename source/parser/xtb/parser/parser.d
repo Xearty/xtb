@@ -346,7 +346,7 @@ package(xtb.parser) Parser!T parserFromNode(T, Node)(
 {
     version (XTB_Checked)
         require(arena !is null, "parser node requires an arena");
-    Node* stored = arena.allocateInit!Node();
+    Node* stored = arena.allocate_init!Node();
     *stored = move(node);
     Parser!T result;
     result.arena_ = arena;
@@ -866,7 +866,7 @@ nothrow @nogc:
             size_t nextCapacity = capacity == 0 ? 8 : capacity * 2;
             if (nextCapacity < capacity)
                 nextCapacity = size_t.max;
-            T[] replacement = arena.allocateArray!T(nextCapacity);
+            T[] replacement = arena.allocate_array!T(nextCapacity);
             if (length != 0)
                 memcpy(replacement.ptr, data, T.sizeof * length);
             data = replacement.ptr;
@@ -1202,7 +1202,7 @@ private String copyIntoArena(Arena* arena, String value) @trusted
 {
     if (value.length == 0)
         return String.init;
-    char[] storage = arena.allocateArray!char(value.length);
+    char[] storage = arena.allocate_array!char(value.length);
     memcpy(storage.ptr, value.ptr, value.length);
     return cast(String) storage;
 }
@@ -1728,7 +1728,7 @@ public:
     Parser!T choice(T, Rest...)(Parser!T first, Rest rest) @trusted if (allParserTypes!(T, Rest))
     {
         enum count = 1 + Rest.length;
-        Parser!T[] alternatives = arena_.allocateArray!(Parser!T)(count);
+        Parser!T[] alternatives = arena_.allocate_array!(Parser!T)(count);
         alternatives[0] = first;
         static foreach (index; 0 .. Rest.length)
             alternatives[index + 1] = rest[index];

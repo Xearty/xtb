@@ -6,9 +6,9 @@ ignored; storage is reclaimed by rewinding or destroying the arena.
 ```d
 Allocator* heap = malloc_allocator();
 Arena arena = Arena.create(heap);
-scope(exit) arena.deinit();
+scope (exit) arena.deinit();
 
-int[] values = arena.allocateArray!int(128);
+int[] values = arena.allocate_array!int(128);
 String path = "//api//users".replace("//", "/", &arena);
 ```
 
@@ -29,7 +29,7 @@ inside it. Perform required cleanup before `clear`, `pop`, or `deinit`.
 
 ```d
 TempArena temporary = (&arena).push();
-scope(exit) temporary.pop();
+scope (exit) temporary.pop();
 
 int[] scratch = temporary.allocator.allocate_array!int(256);
 ```
@@ -39,15 +39,15 @@ pattern on top of the thread context; see [Thread context and scratch arenas](th
 
 ## Virtual-backed arena
 
-`Arena.createVirtual` reserves one fixed contiguous virtual-address range and
+`Arena.create_virtual` reserves one fixed contiguous virtual-address range and
 commits pages as allocations grow:
 
 ```d
-Arena arena = Arena.createVirtual(1UL << 30); // 1 GiB address reservation
-scope(exit) arena.deinit();
+Arena arena = Arena.create_virtual(1UL << 30); // 1 GiB address reservation
+scope (exit) arena.deinit();
 ```
 
-The reservation is the arena's maximum capacity. `tryCreateVirtual` reports
+The reservation is the arena's maximum capacity. `try_create_virtual` reports
 unsupported targets or reservation failure without panicking. Unlike a chunked
 arena, growth does not require additional backing-allocator allocations and
 addresses remain inside one reservation.

@@ -94,7 +94,7 @@ public:
             require(parser.owningArena is grammar_.arena,
                 "expression operator belongs to another grammar");
         }
-        auto spec = grammar_.arena.allocateInit!(UnaryOperatorSpec!UnaryOp)();
+        auto spec = grammar_.arena.allocate_init!(UnaryOperatorSpec!UnaryOp)();
         spec.parser = parser.skip();
         spec.operation = operation;
         if (node_.prefixLast is null)
@@ -113,7 +113,7 @@ public:
             require(parser.owningArena is grammar_.arena,
                 "expression operator belongs to another grammar");
         }
-        auto spec = grammar_.arena.allocateInit!(UnaryOperatorSpec!UnaryOp)();
+        auto spec = grammar_.arena.allocate_init!(UnaryOperatorSpec!UnaryOp)();
         spec.parser = parser.skip();
         spec.operation = operation;
         if (node_.postfixLast is null)
@@ -142,7 +142,7 @@ private:
         }
         if (node_.associativity == OperatorAssociativity.none)
             node_.associativity = associativity;
-        auto spec = grammar_.arena.allocateInit!(BinaryOperatorSpec!BinaryOp)();
+        auto spec = grammar_.arena.allocate_init!(BinaryOperatorSpec!BinaryOp)();
         spec.parser = parser.skip();
         spec.operation = operation;
         if (node_.binaryLast is null)
@@ -173,7 +173,7 @@ public:
     {
         version (XTB_Checked)
             require(grammar_ !is null, "expression table requires a grammar");
-        auto node = grammar_.arena.allocateInit!(ExpressionLevelNode!(BinaryOp, UnaryOp))();
+        auto node = grammar_.arena.allocate_init!(ExpressionLevelNode!(BinaryOp, UnaryOp))();
         node.tighter = loosest_;
         loosest_ = node;
         return ExpressionLevel!(T, BinaryOp, UnaryOp).create(grammar_, node);
