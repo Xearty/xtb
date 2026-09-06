@@ -232,8 +232,10 @@ unittest
     assert(4 * milliseconds(250) == seconds(1));
     assert(seconds(1) / 4 == milliseconds(250));
 
-    const i32 signed_count = 5;
-    const u32 unsigned_count = 6;
+    // Keep these mutable so template deduction uses the same unqualified runtime
+    // count types exercised before the style migration.
+    i32 signed_count = 5;
+    u32 unsigned_count = 6;
     assert(milliseconds(signed_count) == milliseconds(5));
     assert(milliseconds(unsigned_count) == milliseconds(6));
     assert(seconds(1) * signed_count == seconds(5));
