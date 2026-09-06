@@ -11,7 +11,7 @@ import xtb.lifetime : can_finalize_without_context, finalize, move, move_emplace
 import xtb.numeric : add_overflows;
 import xtb.panic : panic;
 import xtb.containers.internal.pool_storage : IndexedPoolStorageLayout,
-    tryIndexedPoolStorageLayout, tryIndexedPoolStorageRegions;
+    try_indexed_pool_storage_layout, try_indexed_pool_storage_regions;
 import xtb.containers.virtual_array : default_virtual_commit_granularity, VirtualArrayView;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -101,7 +101,7 @@ public:
         const stateCapacity = capacityAsSize + 1;
 
         IndexedPoolStorageLayout layout;
-        if (!tryIndexedPoolStorageLayout!(T, uint)(
+        if (!try_indexed_pool_storage_layout!(T, uint)(
                 capacity,
                 stateCapacity,
                 pageSize,
@@ -110,7 +110,7 @@ public:
             return false;
 
         VirtualMemoryReservation reservation;
-        if (!try_reserve_virtual_memory(layout.reservationBytes, &reservation))
+        if (!try_reserve_virtual_memory(layout.reservation_bytes, &reservation))
             return false;
         scope (exit)
             reservation.deinit();
@@ -118,7 +118,7 @@ public:
         VirtualMemoryRegion valuesRegion;
         VirtualMemoryRegion statesRegion;
         VirtualMemoryRegion freeRegion;
-        if (!tryIndexedPoolStorageRegions(
+        if (!try_indexed_pool_storage_regions(
                 reservation,
                 layout,
                 &valuesRegion,
@@ -130,7 +130,7 @@ public:
         VirtualArrayView!T values;
         if (!VirtualArrayView!T.try_create(
                 valuesRegion,
-                layout.valueCapacity,
+                layout.value_capacity,
                 default_virtual_commit_granularity,
                 &values,
             ))
@@ -141,7 +141,7 @@ public:
         VirtualArrayView!uint states;
         if (!VirtualArrayView!uint.try_create(
                 statesRegion,
-                layout.stateCapacity,
+                layout.state_capacity,
                 default_virtual_commit_granularity,
                 &states,
             ))

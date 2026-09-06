@@ -13,7 +13,7 @@ import xtb.lifetime : can_finalize_without_context, finalize, move, move_emplace
 import xtb.numeric : add_overflows;
 import xtb.panic : panic;
 import xtb.containers.internal.pool_storage : IndexedPoolStorageLayout,
-    tryIndexedPoolStorageLayout, tryIndexedPoolStorageRegions;
+    try_indexed_pool_storage_layout, try_indexed_pool_storage_regions;
 import xtb.containers.virtual_array : default_virtual_commit_granularity, VirtualArrayView;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -80,7 +80,7 @@ public:
             return false;
 
         VirtualMemoryReservation reservation;
-        if (!try_reserve_virtual_memory(layout.reservationBytes, &reservation))
+        if (!try_reserve_virtual_memory(layout.reservation_bytes, &reservation))
             return false;
         scope (exit)
             reservation.deinit();
@@ -88,7 +88,7 @@ public:
         VirtualMemoryRegion valuesRegion;
         VirtualMemoryRegion occupiedRegion;
         VirtualMemoryRegion freeRegion;
-        if (!tryIndexedPoolStorageRegions(
+        if (!try_indexed_pool_storage_regions(
                 reservation,
                 layout,
                 &valuesRegion,
@@ -100,7 +100,7 @@ public:
         VirtualArrayView!T values;
         if (!VirtualArrayView!T.try_create(
                 valuesRegion,
-                layout.valueCapacity,
+                layout.value_capacity,
                 default_virtual_commit_granularity,
                 &values,
             ))
@@ -111,7 +111,7 @@ public:
         VirtualArrayView!size_t occupiedWords;
         if (!VirtualArrayView!size_t.try_create(
                 occupiedRegion,
-                layout.stateCapacity,
+                layout.state_capacity,
                 default_virtual_commit_granularity,
                 &occupiedWords,
             ))
@@ -1106,7 +1106,7 @@ private bool tryPoolLayout(T)(
     if (valueCapacity % occupiedBitsPerWord != 0)
         ++occupiedWordCount;
 
-    return tryIndexedPoolStorageLayout!(T, size_t)(
+    return try_indexed_pool_storage_layout!(T, size_t)(
         capacity,
         occupiedWordCount,
         pageSize,
