@@ -4,8 +4,8 @@ nothrow @nogc:
 
 import core.lifetime : emplace, forward;
 import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
-    VirtualMemoryReservation, tryReserveVirtualMemory, virtualMemoryPageSize,
-    virtualMemorySupported;
+    VirtualMemoryReservation, try_reserve_virtual_memory, virtual_memory_page_size,
+    virtual_memory_supported;
 import xtb.lifetime : can_finalize_without_context, finalize, move, move_emplace,
     needs_deinit, needs_finalization;
 import xtb.numeric : add_overflows;
@@ -88,10 +88,10 @@ public:
             return false;
         if (capacity == 0)
             return true;
-        if (!virtualMemorySupported)
+        if (!virtual_memory_supported)
             return false;
 
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         if (pageSize == 0)
             return false;
 
@@ -110,7 +110,7 @@ public:
             return false;
 
         VirtualMemoryReservation reservation;
-        if (!tryReserveVirtualMemory(layout.reservationBytes, &reservation))
+        if (!try_reserve_virtual_memory(layout.reservationBytes, &reservation))
             return false;
         scope (exit)
             reservation.deinit();
@@ -1445,7 +1445,7 @@ unittest
     assert(zeroCreated.capacity == 0);
     zeroCreated.deinit();
 
-    if (!virtualMemorySupported)
+    if (!virtual_memory_supported)
         return;
 
     IntPool pool = IntPool.create(3);

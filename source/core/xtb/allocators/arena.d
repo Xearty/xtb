@@ -6,7 +6,7 @@ import core.internal.traits : hasElaborateDestructor;
 import core.lifetime : emplace, forward;
 import core.stdc.string : memcpy, memset;
 import xtb.allocators.internal.virtual_memory : VirtualMemoryReservation,
-    tryReserveVirtualMemory, virtualMemoryPageSize, virtualMemorySupported;
+    try_reserve_virtual_memory, virtual_memory_page_size, virtual_memory_supported;
 import xtb.lifetime : move_emplace, needs_deinit, structuralDeinit = deinit, tagged_by;
 import xtb.memory : Allocator, allocate, deallocate, tryAllocate;
 import xtb.panic : panic;
@@ -208,10 +208,10 @@ nothrow @nogc:
         }
 
         if (output is null || reservationBytes == 0 || commitGranularity == 0 ||
-            !virtualMemorySupported)
+            !virtual_memory_supported)
             return false;
 
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         size_t normalizedCommitGranularity;
         if (pageSize == 0 ||
             !roundUpToMultiple(
@@ -222,7 +222,7 @@ nothrow @nogc:
             return false;
 
         VirtualMemoryReservation reservation;
-        if (!tryReserveVirtualMemory(reservationBytes, &reservation))
+        if (!try_reserve_virtual_memory(reservationBytes, &reservation))
             return false;
 
         emplace(&output.storage_.data.virtualMemory);
@@ -491,7 +491,7 @@ nothrow @nogc:
                 }
                 break;
             case ArenaStorageKind.virtualMemory:
-                result.reservedBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+                result.reservedBytes = storage_.data.virtualMemory.reservation.reserved_bytes;
                 result.committedBytes = storage_.data.virtualMemory.committedBytes;
                 break;
         }
@@ -549,8 +549,8 @@ nothrow @nogc:
             size_t retainBytes = retentionLimit;
             if (retainBytes < usedBytes_)
                 retainBytes = usedBytes_;
-            if (retainBytes > storage_.data.virtualMemory.reservation.reservedBytes)
-                retainBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+            if (retainBytes > storage_.data.virtualMemory.reservation.reserved_bytes)
+                retainBytes = storage_.data.virtualMemory.reservation.reserved_bytes;
             trimVirtualTo(retainBytes);
             return;
         }
@@ -664,7 +664,7 @@ nothrow @nogc:
         if (oldOffset > usedBytes_ || oldSize != usedBytes_ - oldOffset)
             return null;
 
-        const reservedBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+        const reservedBytes = storage_.data.virtualMemory.reservation.reserved_bytes;
         if (oldOffset > reservedBytes || newSize > reservedBytes - oldOffset)
             return null;
         const newEndOffset = oldOffset + newSize;
@@ -691,7 +691,7 @@ nothrow @nogc:
         if (!alignUp(baseAddress + usedBytes_, alignment, &alignedAddress))
             return null;
         const alignedOffset = alignedAddress - baseAddress;
-        const reservedBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+        const reservedBytes = storage_.data.virtualMemory.reservation.reserved_bytes;
         if (alignedOffset > reservedBytes || size > reservedBytes - alignedOffset)
             return null;
 
@@ -717,15 +717,15 @@ nothrow @nogc:
                 storage_.data.virtualMemory.commitGranularity,
                 &targetBytes,
             ) ||
-            targetBytes > storage_.data.virtualMemory.reservation.reservedBytes)
-            targetBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+            targetBytes > storage_.data.virtualMemory.reservation.reserved_bytes)
+            targetBytes = storage_.data.virtualMemory.reservation.reserved_bytes;
 
         if (targetBytes < requiredBytes ||
             targetBytes <= storage_.data.virtualMemory.committedBytes)
             return false;
 
         const bytes = targetBytes - storage_.data.virtualMemory.committedBytes;
-        if (!storage_.data.virtualMemory.reservation.tryCommit(
+        if (!storage_.data.virtualMemory.reservation.try_commit(
                 storage_.data.virtualMemory.committedBytes,
                 bytes,
             ))
@@ -747,13 +747,13 @@ nothrow @nogc:
 
         size_t targetBytes;
         if (!roundUpToMultiple(keepBytes, storage_.data.virtualMemory.pageSize, &targetBytes) ||
-            targetBytes > storage_.data.virtualMemory.reservation.reservedBytes)
-            targetBytes = storage_.data.virtualMemory.reservation.reservedBytes;
+            targetBytes > storage_.data.virtualMemory.reservation.reserved_bytes)
+            targetBytes = storage_.data.virtualMemory.reservation.reserved_bytes;
         if (targetBytes >= storage_.data.virtualMemory.committedBytes)
             return;
 
         const bytes = storage_.data.virtualMemory.committedBytes - targetBytes;
-        if (!storage_.data.virtualMemory.reservation.tryDecommit(targetBytes, bytes))
+        if (!storage_.data.virtualMemory.reservation.try_decommit(targetBytes, bytes))
             panic("virtual arena decommit failed");
         storage_.data.virtualMemory.committedBytes = targetBytes;
     }
@@ -1285,7 +1285,7 @@ unittest
 
     version (linux)
     {
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         assert(pageSize != 0);
 
         Arena virtualArena = Arena.createVirtual(
@@ -1554,7 +1554,7 @@ unittest
     version (linux)
     {
         int virtualDestructorCalls;
-        const virtualDestructorPageSize = virtualMemoryPageSize();
+        const virtualDestructorPageSize = virtual_memory_page_size();
         Arena virtualDestructorArena = Arena.createVirtual(
             virtualDestructorPageSize * 2,
             virtualDestructorPageSize,

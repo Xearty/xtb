@@ -5,8 +5,8 @@ nothrow @nogc:
 import core.lifetime : emplace;
 import core.stdc.string : memmove;
 import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
-    VirtualMemoryReservation, tryReserveVirtualMemory, virtualMemoryPageSize,
-    virtualMemorySupported;
+    VirtualMemoryReservation, try_reserve_virtual_memory, virtual_memory_page_size,
+    virtual_memory_supported;
 import xtb.lifetime : move, move_emplace, needs_deinit;
 import xtb.numeric : add_overflows, multiply_overflows;
 import xtb.panic : panic;
@@ -79,10 +79,10 @@ public:
             return false;
         if (capacity == 0)
             return true;
-        if (!virtualMemorySupported)
+        if (!virtual_memory_supported)
             return false;
 
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         if (pageSize == 0)
             return false;
 
@@ -102,7 +102,7 @@ public:
         const reservationBytes = geometry.regionBytes + geometry.alignmentSlack;
 
         VirtualMemoryReservation reservation;
-        if (!tryReserveVirtualMemory(reservationBytes, &reservation))
+        if (!try_reserve_virtual_memory(reservationBytes, &reservation))
             return false;
         scope (exit)
             reservation.deinit();
@@ -116,7 +116,7 @@ public:
         const regionOffset = alignedAddress - reservationAddress;
 
         VirtualMemoryRegion region;
-        if (!reservation.tryRegion(regionOffset, geometry.regionBytes, &region))
+        if (!reservation.try_region(regionOffset, geometry.regionBytes, &region))
             return false;
 
         Self result;
@@ -320,7 +320,7 @@ public:
         if (committedBytes_ == 0)
             return;
 
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         if (pageSize == 0)
             panic("VirtualArray page size unavailable");
 
@@ -432,7 +432,7 @@ public:
         if (region.empty || multiply_overflows(capacity, T.sizeof))
             return false;
 
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         if (pageSize == 0)
             return false;
 
@@ -557,7 +557,7 @@ public:
         if (committedBytes_ == 0)
             return;
 
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         if (pageSize == 0)
             panic("VirtualArrayView page size unavailable");
 
@@ -637,7 +637,7 @@ private bool tryEnsureCommittedPrefix(
         return false;
 
     const additionalBytes = targetCommitted - *committedBytes;
-    if (!region.tryCommit(*committedBytes, additionalBytes))
+    if (!region.try_commit(*committedBytes, additionalBytes))
         return false;
 
     *committedBytes = targetCommitted;
@@ -662,7 +662,7 @@ private bool tryTrimCommittedPrefix(
         return true;
 
     const decommitBytes = *committedBytes - targetCommitted;
-    if (!region.tryDecommit(targetCommitted, decommitBytes))
+    if (!region.try_decommit(targetCommitted, decommitBytes))
         return false;
 
     *committedBytes = targetCommitted;
@@ -868,7 +868,7 @@ unittest
 
     version (linux)
     {
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         assert(pageSize != 0);
 
         VirtualArray!int values = VirtualArray!int.create(8, pageSize);
@@ -1115,20 +1115,20 @@ unittest
 
     version (linux)
     {
-        const pageSize = virtualMemoryPageSize();
+        const pageSize = virtual_memory_page_size();
         assert(pageSize != 0);
 
         VirtualMemoryReservation reservation;
-        assert(tryReserveVirtualMemory(pageSize * 6, &reservation));
+        assert(try_reserve_virtual_memory(pageSize * 6, &reservation));
         scope (exit)
             reservation.deinit();
 
         VirtualMemoryRegion firstRegion;
         VirtualMemoryRegion secondRegion;
         VirtualMemoryRegion moveRegion;
-        assert(reservation.tryRegion(0, pageSize * 2, &firstRegion));
-        assert(reservation.tryRegion(pageSize * 2, pageSize * 2, &secondRegion));
-        assert(reservation.tryRegion(pageSize * 4, pageSize * 2, &moveRegion));
+        assert(reservation.try_region(0, pageSize * 2, &firstRegion));
+        assert(reservation.try_region(pageSize * 2, pageSize * 2, &secondRegion));
+        assert(reservation.try_region(pageSize * 4, pageSize * 2, &moveRegion));
 
         VirtualArrayView!ubyte first;
         VirtualArrayView!ubyte second;
@@ -1217,19 +1217,19 @@ unittest
         second.deinit();
         assert(movedReservation.active);
         VirtualMemoryRegion stillBorrowable;
-        assert(movedReservation.tryRegion(0, pageSize, &stillBorrowable));
-        assert(stillBorrowable.tryCommit(0, pageSize));
+        assert(movedReservation.try_region(0, pageSize, &stillBorrowable));
+        assert(stillBorrowable.try_commit(0, pageSize));
         (cast(ubyte*) stillBorrowable.base)[0] = 0x44;
         assert((cast(ubyte*) stillBorrowable.base)[0] == 0x44);
         movedReservation.deinit();
 
         // Capacity/size failure is transactional.
         VirtualMemoryReservation smallReservation;
-        assert(tryReserveVirtualMemory(pageSize, &smallReservation));
+        assert(try_reserve_virtual_memory(pageSize, &smallReservation));
         scope (exit)
             smallReservation.deinit();
         VirtualMemoryRegion smallRegion;
-        assert(smallReservation.tryRegion(0, pageSize, &smallRegion));
+        assert(smallReservation.try_region(0, pageSize, &smallRegion));
 
         VirtualArrayView!ulong overflow;
         assert(!VirtualArrayView!ulong.tryCreate(
@@ -1264,7 +1264,7 @@ unittest
             const alignedReservationBytes = OverAlignedViewValue.alignof +
                 alignedRegionBytes + pageSize;
             VirtualMemoryReservation alignedReservation;
-            assert(tryReserveVirtualMemory(
+            assert(try_reserve_virtual_memory(
                     alignedReservationBytes,
                     &alignedReservation,
             ));
@@ -1280,7 +1280,7 @@ unittest
             const alignedOffset = cast(size_t) alignedBase -
                 cast(size_t) alignedReservation.base;
             VirtualMemoryRegion alignedRegion;
-            assert(alignedReservation.tryRegion(
+            assert(alignedReservation.try_region(
                     alignedOffset,
                     alignedRegionBytes,
                     &alignedRegion,
@@ -1301,10 +1301,10 @@ unittest
             assert(alignedView[0].value == 9);
 
             if (alignedOffset + pageSize + alignedRegionBytes <=
-                alignedReservation.reservedBytes)
+                alignedReservation.reserved_bytes)
             {
                 VirtualMemoryRegion misalignedRegion;
-                assert(alignedReservation.tryRegion(
+                assert(alignedReservation.try_region(
                         alignedOffset + pageSize,
                         alignedRegionBytes,
                         &misalignedRegion,

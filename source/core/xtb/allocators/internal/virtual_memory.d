@@ -11,12 +11,11 @@ else
     private import backend = xtb.allocators.internal.virtual_memory_unsupported;
 }
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.panic : panic;
+import xtb.panic;
+import xtb.types;
 
 /// Whether this target has XTB's native virtual-memory backend.
-package(xtb) enum bool virtualMemorySupported =
-    backend.virtual_memory_supported;
+package(xtb) enum bool virtual_memory_supported = backend.virtual_memory_supported;
 
 /// One non-owning page-bounded subrange of a virtual-memory reservation.
 ///
@@ -28,26 +27,18 @@ package(xtb) struct VirtualMemoryRegion
 {
 nothrow @nogc:
 
-private:
-    void* base_;
-    size_t bytes_;
-
-public:
     /// First address in the region, or null for an empty region.
-    void* base() @system
-    {
-        return base_;
-    }
+    ///
+    /// Callers that mutate `base` or `bytes` must keep them describing the same
+    /// page-bounded range. The `@system` region operations rely on that invariant.
+    void* base;
 
     /// Page-rounded size of the region.
-    size_t bytes() const pure @safe
-    {
-        return bytes_;
-    }
+    usize bytes;
 
     bool empty() const pure @safe
     {
-        return bytes_ == 0;
+        return this.bytes == 0;
     }
 
     /// Makes a page-aligned subrange readable and writable.
@@ -55,15 +46,13 @@ public:
     /// Returns false for an invalid/non-page-aligned range, an unsupported
     /// backend, or a native commit failure. A zero-length range is always a
     /// successful no-op.
-    bool tryCommit(size_t offset, size_t bytes) @system
+    bool try_commit(usize offset, usize bytes) @system
     {
-        if (bytes == 0)
-            return true;
-        if (!validPageRange(base_, bytes_, offset, bytes))
-            return false;
+        if (bytes == 0) return true;
+        if (!valid_page_range(this.base, this.bytes, offset, bytes)) return false;
 
         return backend.try_commit_virtual_memory_backend(
-            byteAddress(base_, offset),
+            byte_address(this.base, offset),
             bytes,
         );
     }
@@ -72,17 +61,15 @@ public:
     ///
     /// Successful decommit discards the previous anonymous-page contents; a
     /// later successful commit observes zero-filled pages. Returns false under
-    /// the same conditions as `tryCommit`, plus native decommit failure. A
+    /// the same conditions as `try_commit`, plus native decommit failure. A
     /// zero-length range is always a successful no-op.
-    bool tryDecommit(size_t offset, size_t bytes) @system
+    bool try_decommit(usize offset, usize bytes) @system
     {
-        if (bytes == 0)
-            return true;
-        if (!validPageRange(base_, bytes_, offset, bytes))
-            return false;
+        if (bytes == 0) return true;
+        if (!valid_page_range(this.base, this.bytes, offset, bytes)) return false;
 
         return backend.try_decommit_virtual_memory_backend(
-            byteAddress(base_, offset),
+            byte_address(this.base, offset),
             bytes,
         );
     }
@@ -91,16 +78,10 @@ public:
     ///
     /// `output` is updated only on success. Empty regions are represented by
     /// `VirtualMemoryRegion.init`.
-    bool tryRegion(
-        size_t offset,
-        size_t bytes,
-        scope VirtualMemoryRegion* output,
-    ) @system
+    bool try_region(usize offset, usize bytes, scope VirtualMemoryRegion* output) @system
     {
-        version (XTB_Checked)
-            require(output !is null, "VirtualMemoryRegion output is null");
-
-        return tryMakeVirtualMemoryRegion(base_, bytes_, offset, bytes, output);
+        require(output !is null, "VirtualMemoryRegion output is null");
+        return try_make_virtual_memory_region(this.base, this.bytes, offset, bytes, output);
     }
 }
 
@@ -114,29 +95,23 @@ package(xtb) struct VirtualMemoryReservation
 {
 nothrow @nogc:
 
-private:
-    void* base_;
-    size_t reservedBytes_;
-
-public:
-    @disable this(this);
-    @disable ref VirtualMemoryReservation opAssign(VirtualMemoryReservation source) return;
-
     /// First address in the reserved range, or null for the inert state.
-    void* base() @system
-    {
-        return base_;
-    }
+    ///
+    /// Callers that mutate `base` or `reserved_bytes` must keep them describing
+    /// the same reservation owned by this value. `deinit` relies on that invariant.
+    void* base;
 
     /// Page-rounded size of the reserved address range.
-    size_t reservedBytes() const pure @safe
-    {
-        return reservedBytes_;
-    }
+    usize reserved_bytes;
+
+    @disable this(this);
+    @disable ref VirtualMemoryReservation opAssign(
+        VirtualMemoryReservation source,
+    ) return;
 
     bool active() const pure @safe
     {
-        return base_ !is null;
+        return this.base !is null;
     }
 
     /// Creates a page-bounded non-owning region inside this reservation.
@@ -144,18 +119,12 @@ public:
     /// `output` is updated only on success. Empty regions are represented by
     /// `VirtualMemoryRegion.init`. The reservation must outlive the returned
     /// region.
-    bool tryRegion(
-        size_t offset,
-        size_t bytes,
-        scope VirtualMemoryRegion* output,
-    ) @system
+    bool try_region(usize offset, usize bytes, scope VirtualMemoryRegion* output) @system
     {
-        version (XTB_Checked)
-            require(output !is null, "VirtualMemoryRegion output is null");
-
-        return tryMakeVirtualMemoryRegion(
-            base_,
-            reservedBytes_,
+        require(output !is null, "VirtualMemoryRegion output is null");
+        return try_make_virtual_memory_region(
+            this.base,
+            this.reserved_bytes,
             offset,
             bytes,
             output,
@@ -167,15 +136,13 @@ public:
     /// Returns false for an inactive reservation, an invalid/non-page-aligned
     /// range, an unsupported backend, or a native commit failure. A zero-length
     /// range is always a successful no-op.
-    bool tryCommit(size_t offset, size_t bytes) @system
+    bool try_commit(usize offset, usize bytes) @system
     {
-        if (bytes == 0)
-            return true;
-        if (!validPageRange(base_, reservedBytes_, offset, bytes))
-            return false;
+        if (bytes == 0) return true;
+        if (!valid_page_range(this.base, this.reserved_bytes, offset, bytes)) return false;
 
         return backend.try_commit_virtual_memory_backend(
-            byteAddress(base_, offset),
+            byte_address(this.base, offset),
             bytes,
         );
     }
@@ -184,17 +151,15 @@ public:
     ///
     /// Successful decommit discards the previous anonymous-page contents; a
     /// later successful commit observes zero-filled pages. Returns false under
-    /// the same conditions as `tryCommit`, plus native decommit failure. A
+    /// the same conditions as `try_commit`, plus native decommit failure. A
     /// zero-length range is always a successful no-op.
-    bool tryDecommit(size_t offset, size_t bytes) @system
+    bool try_decommit(usize offset, usize bytes) @system
     {
-        if (bytes == 0)
-            return true;
-        if (!validPageRange(base_, reservedBytes_, offset, bytes))
-            return false;
+        if (bytes == 0) return true;
+        if (!valid_page_range(this.base, this.reserved_bytes, offset, bytes)) return false;
 
         return backend.try_decommit_virtual_memory_backend(
-            byteAddress(base_, offset),
+            byte_address(this.base, offset),
             bytes,
         );
     }
@@ -202,24 +167,26 @@ public:
     /// Releases the complete reservation. The inert state is accepted.
     void deinit() @system
     {
-        if (base_ is null)
+        if (this.base is null)
         {
-            reservedBytes_ = 0;
+            this.reserved_bytes = 0;
             return;
         }
 
-        void* base = base_;
-        const reservedBytes = reservedBytes_;
-        base_ = null;
-        reservedBytes_ = 0;
+        void* released_base = this.base;
+        const released_bytes = this.reserved_bytes;
+        this.base = null;
+        this.reserved_bytes = 0;
 
-        if (!backend.release_virtual_memory_backend(base, reservedBytes))
+        if (!backend.release_virtual_memory_backend(released_base, released_bytes))
+        {
             panic("virtual-memory release failed");
+        }
     }
 }
 
 /// Returns the native VM page size, or zero when virtual memory is unsupported.
-package(xtb) size_t virtualMemoryPageSize() @system
+package(xtb) usize virtual_memory_page_size() @safe
 {
     return backend.virtual_memory_page_size_backend();
 }
@@ -231,101 +198,92 @@ package(xtb) size_t virtualMemoryPageSize() @system
 /// zero-byte request succeeds and leaves `output` inert. Unsupported targets,
 /// size overflow, page-size failure, and native reservation failure return
 /// false and leave `output` inert.
-package(xtb) bool tryReserveVirtualMemory(
-    size_t bytes,
+package(xtb) bool try_reserve_virtual_memory(
+    usize bytes,
     scope VirtualMemoryReservation* output,
 ) @system
 {
-    version (XTB_Checked)
+    require(output !is null, "VirtualMemoryReservation output is null");
+    require(!output.active, "VirtualMemoryReservation output is active");
+
+    if (bytes == 0) return true;
+    if (!virtual_memory_supported) return false;
+
+    const usize page_size = virtual_memory_page_size();
+    usize reserved_bytes;
+    if (page_size == 0 || !round_up_to_multiple(bytes, page_size, &reserved_bytes))
     {
-        require(output !is null, "VirtualMemoryReservation output is null");
-        require(!output.active, "VirtualMemoryReservation output is active");
+        return false;
     }
 
-    if (bytes == 0)
-        return true;
-    if (!virtualMemorySupported)
-        return false;
+    void* reservation_base = backend.try_reserve_virtual_memory_backend(reserved_bytes);
+    if (reservation_base is null) return false;
 
-    const pageSize = virtualMemoryPageSize();
-    size_t reservedBytes;
-    if (pageSize == 0 || !roundUpToMultiple(bytes, pageSize, &reservedBytes))
-        return false;
-
-    void* base = backend.try_reserve_virtual_memory_backend(reservedBytes);
-    if (base is null)
-        return false;
-
-    output.base_ = base;
-    output.reservedBytes_ = reservedBytes;
+    output.base = reservation_base;
+    output.reserved_bytes = reserved_bytes;
     return true;
 }
 
-private bool tryMakeVirtualMemoryRegion(
+private bool try_make_virtual_memory_region(
     void* base,
-    size_t availableBytes,
-    size_t offset,
-    size_t bytes,
+    usize available_bytes,
+    usize offset,
+    usize bytes,
     scope VirtualMemoryRegion* output,
 ) @system
 {
-    if (offset > availableBytes || bytes > availableBytes - offset)
-        return false;
+    if (offset > available_bytes || bytes > available_bytes - offset) return false;
 
     if (bytes == 0)
     {
-        if (availableBytes != 0 && !validPageBoundary(base, offset))
-            return false;
+        if (available_bytes != 0 && !valid_page_boundary(base, offset)) return false;
 
         *output = VirtualMemoryRegion.init;
         return true;
     }
 
-    if (!validPageRange(base, availableBytes, offset, bytes))
-        return false;
+    if (!valid_page_range(base, available_bytes, offset, bytes)) return false;
 
-    VirtualMemoryRegion result;
-    result.base_ = byteAddress(base, offset);
-    result.bytes_ = bytes;
+    VirtualMemoryRegion result = VirtualMemoryRegion(
+        base: byte_address(base, offset),
+        bytes: bytes,
+    );
     *output = result;
     return true;
 }
 
-private bool validPageBoundary(void* base, size_t offset) @system
+private bool valid_page_boundary(void* base, usize offset) @safe
 {
-    if (!virtualMemorySupported || base is null)
-        return false;
+    if (!virtual_memory_supported || base is null) return false;
 
-    const pageSize = virtualMemoryPageSize();
-    return pageSize != 0 && offset % pageSize == 0;
+    const usize page_size = virtual_memory_page_size();
+    return page_size != 0 && offset % page_size == 0;
 }
 
-private bool validPageRange(
+private bool valid_page_range(
     void* base,
-    size_t reservedBytes,
-    size_t offset,
-    size_t bytes,
-) @system
+    usize reserved_bytes,
+    usize offset,
+    usize bytes,
+) @safe
 {
-    if (!virtualMemorySupported || base is null)
-        return false;
-    if (offset > reservedBytes || bytes > reservedBytes - offset)
-        return false;
+    if (!virtual_memory_supported || base is null) return false;
+    if (offset > reserved_bytes || bytes > reserved_bytes - offset) return false;
 
-    const pageSize = virtualMemoryPageSize();
-    return pageSize != 0 &&
-        offset % pageSize == 0 &&
-        bytes % pageSize == 0;
+    const usize page_size = virtual_memory_page_size();
+    return page_size != 0
+        && offset % page_size == 0
+        && bytes % page_size == 0;
 }
 
-private bool roundUpToMultiple(
-    size_t value,
-    size_t multiple,
-    size_t* result,
+private bool round_up_to_multiple(
+    usize value,
+    usize multiple,
+    usize* result,
 ) pure @safe
 {
-    if (multiple == 0)
-        return false;
+    if (multiple == 0) return false;
+
     const remainder = value % multiple;
     if (remainder == 0)
     {
@@ -334,161 +292,174 @@ private bool roundUpToMultiple(
     }
 
     const increment = multiple - remainder;
-    if (value > size_t.max - increment)
-        return false;
+    if (value > usize.max - increment) return false;
+
     *result = value + increment;
     return true;
 }
 
-private void* byteAddress(void* base, size_t offset) @system
+private void* byte_address(void* base, usize offset) @system
 {
-    return cast(void*)(cast(ubyte*) base + offset);
+    return cast(void*)(cast(u8*) base + offset);
+}
+
+version (unittest)
+{
+    import xtb.lifetime;
 }
 
 unittest
 {
-    import xtb.lifetime : move, needs_deinit;
-
     static assert(__traits(isCopyable, VirtualMemoryRegion));
     static assert(!needs_deinit!VirtualMemoryRegion);
-    static assert(__traits(compiles, () nothrow @nogc @system {
-            VirtualMemoryRegion value;
-            VirtualMemoryRegion output;
-            cast(void) value.base;
-            cast(void) value.bytes;
-            cast(void) value.empty;
-            cast(void) value.tryCommit(0, 0);
-            cast(void) value.tryDecommit(0, 0);
-            cast(void) value.tryRegion(0, 0, &output);
-        }));
+    static assert(__traits(compiles, () nothrow @nogc @system
+    {
+        VirtualMemoryRegion value;
+        VirtualMemoryRegion output;
+        cast(void) value.base;
+        cast(void) value.bytes;
+        cast(void) value.empty;
+        cast(void) value.try_commit(0, 0);
+        cast(void) value.try_decommit(0, 0);
+        cast(void) value.try_region(0, 0, &output);
+    }));
 
     static assert(!__traits(isCopyable, VirtualMemoryReservation));
     static assert(needs_deinit!VirtualMemoryReservation);
-    static assert(__traits(compiles, () nothrow @nogc @system {
-            VirtualMemoryReservation value;
-            cast(void) value.base;
-            cast(void) value.reservedBytes;
-            cast(void) value.active;
-            VirtualMemoryRegion region;
-            cast(void) value.tryRegion(0, 0, &region);
-            cast(void) value.tryCommit(0, 0);
-            cast(void) value.tryDecommit(0, 0);
-            value.deinit();
-        }));
+    static assert(__traits(compiles, () nothrow @nogc @system
+    {
+        VirtualMemoryReservation value;
+        cast(void) value.base;
+        cast(void) value.reserved_bytes;
+        cast(void) value.active;
+        VirtualMemoryRegion region;
+        cast(void) value.try_region(0, 0, &region);
+        cast(void) value.try_commit(0, 0);
+        cast(void) value.try_decommit(0, 0);
+        value.deinit();
+    }));
+}
 
+unittest
+{
     VirtualMemoryReservation zero;
-    assert(tryReserveVirtualMemory(0, &zero));
+    assert(try_reserve_virtual_memory(0, &zero));
     assert(!zero.active);
-    assert(zero.reservedBytes == 0);
-    assert(zero.tryCommit(0, 0));
-    assert(zero.tryDecommit(0, 0));
-    assert(!zero.tryCommit(0, 4096));
-    assert(!zero.tryDecommit(0, 4096));
-    VirtualMemoryRegion zeroRegion;
-    assert(zero.tryRegion(0, 0, &zeroRegion));
-    assert(zeroRegion.empty);
-    assert(zeroRegion.base is null);
-    assert(zeroRegion.bytes == 0);
-    assert(zeroRegion.tryCommit(0, 0));
-    assert(zeroRegion.tryDecommit(0, 0));
-    assert(!zeroRegion.tryCommit(0, 4096));
-    assert(!zeroRegion.tryDecommit(0, 4096));
-    zero.deinit();
+    assert(zero.reserved_bytes == 0);
+    assert(zero.try_commit(0, 0));
+    assert(zero.try_decommit(0, 0));
+    assert(!zero.try_commit(0, 4096));
+    assert(!zero.try_decommit(0, 4096));
 
+    VirtualMemoryRegion zero_region;
+    assert(zero.try_region(0, 0, &zero_region));
+    assert(zero_region.empty);
+    assert(zero_region.base is null);
+    assert(zero_region.bytes == 0);
+    assert(zero_region.try_commit(0, 0));
+    assert(zero_region.try_decommit(0, 0));
+    assert(!zero_region.try_commit(0, 4096));
+    assert(!zero_region.try_decommit(0, 4096));
+    zero.deinit();
+}
+
+unittest
+{
     version (linux)
     {
-        assert(virtualMemorySupported);
-        const pageSize = virtualMemoryPageSize();
-        assert(pageSize != 0);
+        assert(virtual_memory_supported);
+        const usize page_size = virtual_memory_page_size();
+        assert(page_size != 0);
 
         VirtualMemoryReservation overflow;
-        assert(!tryReserveVirtualMemory(size_t.max, &overflow));
+        assert(!try_reserve_virtual_memory(usize.max, &overflow));
         assert(!overflow.active);
         overflow.deinit();
 
         VirtualMemoryReservation memory;
-        assert(tryReserveVirtualMemory(pageSize * 4, &memory));
+        assert(try_reserve_virtual_memory(page_size * 4, &memory));
         assert(memory.active);
         assert(memory.base !is null);
-        assert(memory.reservedBytes == pageSize * 4);
-        assert(cast(size_t) memory.base % pageSize == 0);
+        assert(memory.reserved_bytes == page_size * 4);
+        assert(cast(usize) memory.base % page_size == 0);
 
-        assert(!memory.tryCommit(1, pageSize));
-        assert(!memory.tryCommit(0, pageSize - 1));
-        assert(!memory.tryCommit(pageSize * 4, pageSize));
+        assert(!memory.try_commit(1, page_size));
+        assert(!memory.try_commit(0, page_size - 1));
+        assert(!memory.try_commit(page_size * 4, page_size));
 
         VirtualMemoryRegion first;
         VirtualMemoryRegion second;
-        assert(memory.tryRegion(0, pageSize * 2, &first));
-        assert(memory.tryRegion(pageSize * 2, pageSize * 2, &second));
+        assert(memory.try_region(0, page_size * 2, &first));
+        assert(memory.try_region(page_size * 2, page_size * 2, &second));
         assert(!first.empty);
         assert(!second.empty);
-        assert(first.bytes == pageSize * 2);
-        assert(second.bytes == pageSize * 2);
-        assert(cast(ubyte*) second.base == cast(ubyte*) first.base + pageSize * 2);
+        assert(first.bytes == page_size * 2);
+        assert(second.bytes == page_size * 2);
+        assert(cast(u8*) second.base == cast(u8*) first.base + page_size * 2);
 
         VirtualMemoryRegion unchanged = first;
-        void* unchangedBase = unchanged.base;
-        assert(!memory.tryRegion(1, pageSize, &unchanged));
-        assert(!memory.tryRegion(1, 0, &unchanged));
-        assert(!memory.tryRegion(pageSize, size_t.max, &unchanged));
-        assert(unchanged.base is unchangedBase);
-        assert(unchanged.bytes == pageSize * 2);
-        assert(!memory.tryRegion(pageSize * 4, pageSize, &unchanged));
-        assert(unchanged.base is unchangedBase);
-        assert(unchanged.bytes == pageSize * 2);
+        void* unchanged_base = unchanged.base;
+        assert(!memory.try_region(1, page_size, &unchanged));
+        assert(!memory.try_region(1, 0, &unchanged));
+        assert(!memory.try_region(page_size, usize.max, &unchanged));
+        assert(unchanged.base is unchanged_base);
+        assert(unchanged.bytes == page_size * 2);
+        assert(!memory.try_region(page_size * 4, page_size, &unchanged));
+        assert(unchanged.base is unchanged_base);
+        assert(unchanged.bytes == page_size * 2);
 
-        VirtualMemoryRegion emptyRegion = first;
-        assert(memory.tryRegion(pageSize, 0, &emptyRegion));
-        assert(emptyRegion.empty);
-        assert(emptyRegion.base is null);
+        VirtualMemoryRegion empty_region = first;
+        assert(memory.try_region(page_size, 0, &empty_region));
+        assert(empty_region.empty);
+        assert(empty_region.base is null);
 
         VirtualMemoryRegion middle;
-        assert(first.tryRegion(pageSize, pageSize, &middle));
-        assert(middle.base == cast(ubyte*) first.base + pageSize);
-        assert(middle.bytes == pageSize);
-        assert(!first.tryRegion(pageSize * 2, pageSize, &unchanged));
-        assert(!first.tryCommit(pageSize * 2, pageSize));
-        assert(!first.tryDecommit(pageSize * 2, pageSize));
+        assert(first.try_region(page_size, page_size, &middle));
+        assert(middle.base == cast(u8*) first.base + page_size);
+        assert(middle.bytes == page_size);
+        assert(!first.try_region(page_size * 2, page_size, &unchanged));
+        assert(!first.try_commit(page_size * 2, page_size));
+        assert(!first.try_decommit(page_size * 2, page_size));
 
-        assert(first.tryCommit(0, pageSize * 2));
-        assert(second.tryCommit(0, pageSize));
-        ubyte* firstBytes = cast(ubyte*) first.base;
-        ubyte* secondBytes = cast(ubyte*) second.base;
-        firstBytes[0] = 0xA5;
-        firstBytes[pageSize] = 0x5A;
-        secondBytes[0] = 0xC3;
+        assert(first.try_commit(0, page_size * 2));
+        assert(second.try_commit(0, page_size));
+        u8* first_bytes = cast(u8*) first.base;
+        u8* second_bytes = cast(u8*) second.base;
+        first_bytes[0] = 0xA5;
+        first_bytes[page_size] = 0x5A;
+        second_bytes[0] = 0xC3;
 
-        assert(middle.tryDecommit(0, pageSize));
-        assert(firstBytes[0] == 0xA5);
-        assert(secondBytes[0] == 0xC3);
-        assert(middle.tryCommit(0, pageSize));
-        assert(firstBytes[pageSize] == 0);
-        assert(firstBytes[0] == 0xA5);
-        assert(secondBytes[0] == 0xC3);
+        assert(middle.try_decommit(0, page_size));
+        assert(first_bytes[0] == 0xA5);
+        assert(second_bytes[0] == 0xC3);
+        assert(middle.try_commit(0, page_size));
+        assert(first_bytes[page_size] == 0);
+        assert(first_bytes[0] == 0xA5);
+        assert(second_bytes[0] == 0xC3);
 
         VirtualMemoryReservation moved = move(memory);
         assert(!memory.active);
         assert(moved.active);
-        assert(second.tryDecommit(0, pageSize));
-        assert(second.tryCommit(0, pageSize));
-        assert(secondBytes[0] == 0);
+        assert(second.try_decommit(0, page_size));
+        assert(second.try_commit(0, page_size));
+        assert(second_bytes[0] == 0);
 
         moved.deinit();
         assert(!moved.active);
         assert(moved.base is null);
-        assert(moved.reservedBytes == 0);
+        assert(moved.reserved_bytes == 0);
         moved.deinit();
     }
     else
     {
-        assert(!virtualMemorySupported);
-        assert(virtualMemoryPageSize() == 0);
+        assert(!virtual_memory_supported);
+        assert(virtual_memory_page_size() == 0);
+
         VirtualMemoryReservation unavailable;
-        assert(!tryReserveVirtualMemory(4096, &unavailable));
+        assert(!try_reserve_virtual_memory(4096, &unavailable));
         assert(!unavailable.active);
-        assert(!unavailable.tryCommit(0, 4096));
-        assert(!unavailable.tryDecommit(0, 4096));
+        assert(!unavailable.try_commit(0, 4096));
+        assert(!unavailable.try_decommit(0, 4096));
         unavailable.deinit();
     }
 }

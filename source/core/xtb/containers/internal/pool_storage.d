@@ -94,7 +94,7 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     if (valuesAddress < reservationBase)
         return false;
     const valuesOffset = valuesAddress - reservationBase;
-    if (!reservation.tryRegion(valuesOffset, layout.values.regionBytes, values))
+    if (!reservation.try_region(valuesOffset, layout.values.regionBytes, values))
         return false;
     if (add_overflows(valuesAddress, layout.values.regionBytes))
         return false;
@@ -111,7 +111,7 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     if (statesAddress < reservationBase)
         return false;
     const statesOffset = statesAddress - reservationBase;
-    if (!reservation.tryRegion(
+    if (!reservation.try_region(
             statesOffset,
             layout.states.regionBytes,
             states,
@@ -132,7 +132,7 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     if (freeAddress < reservationBase)
         return false;
     const freeOffset = freeAddress - reservationBase;
-    if (!reservation.tryRegion(
+    if (!reservation.try_region(
             freeOffset,
             layout.freeIndices.regionBytes,
             freeIndices,
