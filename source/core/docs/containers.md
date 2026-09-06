@@ -17,7 +17,7 @@ replaced, cleared, or the container itself is deinitialized. Use it for trivial
 or borrowed values, or when element lifetime is managed elsewhere.
 
 ```d
-Array!i32 values = Array!int.create(heap);
+Array!i32 values = Array!i32.create(heap);
 scope (exit) values.deinit();
 values.append(1);
 values.append(2);

@@ -26,7 +26,8 @@ private template supports_default_initialization(T)
 /// This package-only token owns only the allocation, not logical element
 /// cleanup. It is move-only and requires the originating allocator for
 /// explicit deinitialization. Callers that transfer the storage onward must
-/// consume the token exactly once.
+/// consume the token exactly once. Its representation satisfies
+/// `length <= capacity`, and `data is null` exactly when `capacity == 0`.
 @mustuse package(xtb) struct RawArrayStorage(T)
 {
     alias Self = RawArrayStorage!T;
@@ -38,11 +39,7 @@ private template supports_default_initialization(T)
     @disable this(this);
     @disable ref Self opAssign(Self source) return;
 
-    package(xtb) static Self adopt(
-        T* data,
-        usize length,
-        usize capacity,
-    ) @system
+    package(xtb) static Self adopt(T* data, usize length, usize capacity) @system
     {
         require(length <= capacity, "adopted raw array length exceeds capacity");
         require(
@@ -57,6 +54,9 @@ private template supports_default_initialization(T)
     }
 
     /// Releases only the backing allocation; logical elements are not finalized.
+    ///
+    /// When `capacity` is nonzero, `allocator` must point to the allocator that
+    /// owns `data`. A null allocator is accepted only when `capacity == 0`.
     void deinit(Allocator* allocator)
     {
         if (this.capacity == 0) return;
@@ -71,7 +71,10 @@ private template supports_default_initialization(T)
 /// Every operation that may allocate or release storage requires the allocator
 /// explicitly. Copying and generated assignment are disabled; use XTB move
 /// construction for transfer and explicitly deinitialize a live value with the
-/// same allocator context that owns its backing allocation.
+/// same allocator context that owns its backing allocation. The public
+/// representation must satisfy `length <= capacity` and `data is null` exactly
+/// when `capacity == 0`. Except when releasing an empty value, every allocator
+/// argument must point to a valid allocator.
 @mustuse struct ArrayUnmanaged(T)
 {
     alias Self = ArrayUnmanaged!T;
@@ -85,20 +88,18 @@ private template supports_default_initialization(T)
 
     /// Attempts to create an empty array with at least `capacity` elements.
     ///
-    /// `output` must point to an empty `ArrayUnmanaged`. On allocation failure,
-    /// `*output` remains empty.
+    /// `output` must point to `ArrayUnmanaged.init`. On allocation failure, it
+    /// remains `ArrayUnmanaged.init`.
     static bool try_with_capacity(
         Allocator* allocator,
         usize capacity,
         scope ArrayUnmanaged* output,
-    )
+    ) @system
     {
         require(output !is null, "ArrayUnmanaged output pointer is null");
-        require(
-            output is null
-                || (output.data is null && output.length == 0 && output.capacity == 0),
-            "ArrayUnmanaged output is not empty",
-        );
+        const output_is_inert = output is null
+            || (output.data is null && output.length == 0 && output.capacity == 0);
+        require(output_is_inert, "ArrayUnmanaged output is not inert");
         require_valid_allocator(allocator);
         ArrayUnmanaged temporary;
         if (capacity != 0 && !temporary.try_reserve(allocator, capacity)) return false;
@@ -107,10 +108,7 @@ private template supports_default_initialization(T)
         return true;
     }
 
-    static ArrayUnmanaged with_capacity(
-        Allocator* allocator,
-        usize capacity,
-    )
+    static ArrayUnmanaged with_capacity(Allocator* allocator, usize capacity)
     {
         ArrayUnmanaged result;
         if (!ArrayUnmanaged.try_with_capacity(allocator, capacity, &result))
@@ -121,10 +119,7 @@ private template supports_default_initialization(T)
 
     static if (supports_default_initialization!T)
     {
-        static ArrayUnmanaged with_length(
-            Allocator* allocator,
-            usize length,
-        )
+        static ArrayUnmanaged with_length(Allocator* allocator, usize length)
         {
             ArrayUnmanaged result;
             result.resize(allocator, length);
@@ -134,10 +129,7 @@ private template supports_default_initialization(T)
 
     static if (__traits(isCopyable, T))
     {
-        static ArrayUnmanaged from_slice(
-            Allocator* allocator,
-            scope const(T)[] values,
-        )
+        static ArrayUnmanaged from_slice(Allocator* allocator, scope const(T)[] values)
         {
             auto result = ArrayUnmanaged.with_capacity(allocator, values.length);
             result.append(allocator, values);
@@ -145,11 +137,7 @@ private template supports_default_initialization(T)
         }
     }
 
-    package(xtb) static ArrayUnmanaged adopt(
-        T* data,
-        usize length,
-        usize capacity,
-    ) @system
+    package(xtb) static ArrayUnmanaged adopt(T* data, usize length, usize capacity) @system
     {
         require(length <= capacity, "adopted ArrayUnmanaged length exceeds capacity");
         require(
@@ -163,13 +151,10 @@ private template supports_default_initialization(T)
         return result;
     }
 
+    /// Transfers backing storage out and leaves this unmanaged array empty.
     package(xtb) RawArrayStorage!T release_raw() @system
     {
-        auto result = RawArrayStorage!T.adopt(
-            this.data,
-            this.length,
-            this.capacity,
-        );
+        auto result = RawArrayStorage!T.adopt(this.data, this.length, this.capacity);
         this.data = null;
         this.length = 0;
         this.capacity = 0;
@@ -177,6 +162,8 @@ private template supports_default_initialization(T)
     }
 
     /// Releases backing storage without finalizing logical elements.
+    ///
+    /// A null `allocator` is accepted only when `capacity == 0`.
     void deinit(Allocator* allocator)
     {
         if (this.capacity == 0) return;
@@ -186,6 +173,8 @@ private template supports_default_initialization(T)
     }
 
     /// Releases backing storage and leaves this unmanaged array reusable.
+    ///
+    /// A null `allocator` is accepted only when `capacity == 0`.
     void reset_and_release(Allocator* allocator)
     {
         if (this.capacity != 0)
@@ -209,13 +198,15 @@ private template supports_default_initialization(T)
         pretty.sequence(this);
     }
 
-    /// Returns a slice borrowed from this array.
+    /// Returns a slice borrowed from this array until backing storage is
+    /// reallocated or released.
     inout(T)[] slice() inout return pure @system
     {
         return this.data[0 .. this.length];
     }
 
-    /// Returns a reference borrowed from this array.
+    /// Returns a reference borrowed from this array until backing storage is
+    /// reallocated or released.
     ref inout(T) opIndex(usize index) inout return @system
     {
         require(index < this.length, "Array index out of bounds");
@@ -272,7 +263,7 @@ private template supports_default_initialization(T)
     }
 
     /// Attempts to append by moving from `*value` only after capacity succeeds.
-    /// On failure `*value` and the array are unchanged.
+    /// `value` must not be null. On failure `*value` and the array are unchanged.
     bool try_append(Allocator* allocator, scope T* value) @system
     {
         require_valid_allocator(allocator);
@@ -303,10 +294,7 @@ private template supports_default_initialization(T)
 
     static if (__traits(isCopyable, T))
     {
-        bool try_append(
-            Allocator* allocator,
-            scope const(T)[] values,
-        )
+        bool try_append(Allocator* allocator, scope const(T)[] values)
         {
             require_valid_allocator(allocator);
             if (values.length > usize.max - this.length) return false;
@@ -340,11 +328,7 @@ private template supports_default_initialization(T)
             {
                 if (values.length != 0)
                 {
-                    memmove(
-                        this.data + this.length,
-                        source,
-                        values.length * T.sizeof,
-                    );
+                    memmove(this.data + this.length, source, values.length * T.sizeof);
                 }
                 this.length = new_length;
             }
@@ -377,11 +361,7 @@ private template supports_default_initialization(T)
             {
                 if (values.length != 0)
                 {
-                    memmove(
-                        this.data + this.length,
-                        values.ptr,
-                        values.length * T.sizeof,
-                    );
+                    memmove(this.data + this.length, values.ptr, values.length * T.sizeof);
                 }
                 this.length += values.length;
             }
@@ -396,11 +376,9 @@ private template supports_default_initialization(T)
         }
     }
 
-    bool try_insert(
-        Allocator* allocator,
-        usize index,
-        scope T* value,
-    ) @system
+    /// Attempts to insert by moving from `*value` only after capacity succeeds.
+    /// `value` must not be null. On failure `*value` and the array are unchanged.
+    bool try_insert(Allocator* allocator, usize index, scope T* value) @system
     {
         require_valid_allocator(allocator);
         require(index <= this.length, "Array insert index out of bounds");
@@ -416,11 +394,7 @@ private template supports_default_initialization(T)
             const following = this.length - index;
             if (following != 0)
             {
-                memmove(
-                    this.data + index + 1,
-                    this.data + index,
-                    following * T.sizeof,
-                );
+                memmove(this.data + index + 1, this.data + index, following * T.sizeof);
             }
         }
         else
@@ -432,8 +406,12 @@ private template supports_default_initialization(T)
                 --position;
             }
         }
-        T* source = aliases
-            ? this.data + (source_index >= index ? source_index + 1 : source_index) : value;
+        T* source = value;
+        if (aliases)
+        {
+            const adjusted_source_index = source_index >= index ? source_index + 1 : source_index;
+            source = this.data + adjusted_source_index;
+        }
         construct_move(this.data + index, *source);
         ++this.length;
         return true;
@@ -441,11 +419,7 @@ private template supports_default_initialization(T)
 
     static if (__traits(isCopyable, T))
     {
-        bool try_insert(
-            Allocator* allocator,
-            usize index,
-            scope const(T)[] values,
-        )
+        bool try_insert(Allocator* allocator, usize index, scope const(T)[] values)
         {
             require_valid_allocator(allocator);
             require(index <= this.length, "Array insert index out of bounds");
@@ -516,11 +490,7 @@ private template supports_default_initialization(T)
                 }
                 else
                 {
-                    memmove(
-                        this.data + index,
-                        values.ptr,
-                        values.length * T.sizeof,
-                    );
+                    memmove(this.data + index, values.ptr, values.length * T.sizeof);
                 }
             }
             else
@@ -529,8 +499,10 @@ private template supports_default_initialization(T)
                 while (position > index)
                 {
                     --position;
-                    construct_move(this.data + position + values.length,
-                        this.data[position]);
+                    construct_move(
+                        this.data + position + values.length,
+                        this.data[position],
+                    );
                 }
                 foreach (offset, const ref value; values)
                     construct_copy(this.data + index + offset, value);
@@ -547,16 +519,13 @@ private template supports_default_initialization(T)
 
     static if (__traits(isCopyable, T))
     {
-        void insert(
-            Allocator* allocator,
-            usize index,
-            scope const(T)[] values,
-        )
+        void insert(Allocator* allocator, usize index, scope const(T)[] values)
         {
             if (!this.try_insert(allocator, index, values)) panic("Array allocation failed");
         }
     }
 
+    /// Removes and returns the last element by move.
     T pop()
     {
         require(this.length != 0, "cannot pop an empty Array");
@@ -587,16 +556,12 @@ private template supports_default_initialization(T)
             const following = this.length - index - 1;
             if (following != 0)
             {
-                memmove(
-                    this.data + index,
-                    this.data + index + 1,
-                    following * T.sizeof,
-                );
+                memmove(this.data + index, this.data + index + 1, following * T.sizeof);
             }
         }
         else
         {
-            foreach (i; index .. this.length - 1)
+            for (usize i = index; i < this.length - 1; ++i)
                 construct_move(this.data + i, this.data[i + 1]);
         }
         --this.length;
@@ -612,16 +577,12 @@ private template supports_default_initialization(T)
             const following = this.length - index - count;
             if (following != 0)
             {
-                memmove(
-                    this.data + index,
-                    this.data + index + count,
-                    following * T.sizeof,
-                );
+                memmove(this.data + index, this.data + index + count, following * T.sizeof);
             }
         }
         else
         {
-            foreach (i; index .. this.length - count)
+            for (usize i = index; i < this.length - count; ++i)
                 construct_move(this.data + i, this.data[i + count]);
         }
         this.length -= count;
@@ -674,7 +635,7 @@ private template supports_default_initialization(T)
         {
             T* replacement = allocator.try_allocate_array!T(capacity).ptr;
             if (capacity != 0 && replacement is null) return false;
-            foreach (i; 0 .. this.length)
+            for (usize i; i < this.length; ++i)
                 construct_move(replacement + i, this.data[i]);
             allocator.deallocate_array(this.data[0 .. this.capacity]);
             this.data = replacement;
@@ -688,7 +649,7 @@ private template supports_default_initialization(T)
 ///
 /// `Array` owns only its backing allocation. Discard operations never finalize
 /// logical elements; use `OwnedArray` when the container must own element
-/// cleanup.
+/// cleanup. Allocator arguments to constructors must point to a valid allocator.
 @mustuse struct Array(T)
 {
     alias Self = Array!T;
@@ -700,12 +661,9 @@ private template supports_default_initialization(T)
     /// Backing allocation owned through `allocator` while this value is live.
     Storage storage;
 
-    version (XTB_Checked)
+    invariant
     {
-        invariant
-        {
-            require(&this !is null, "Array pointer is null");
-        }
+        require(&this !is null, "Array pointer is null");
     }
 
     @disable this(this);
@@ -722,19 +680,17 @@ private template supports_default_initialization(T)
 
     /// Attempts to create an empty managed array with at least `capacity` elements.
     ///
-    /// `output` must point to an uninitialized array. On allocation failure,
-    /// `*output` remains uninitialized.
-    static bool try_with_capacity(
-        Allocator* allocator,
-        usize capacity,
-        scope Self* output,
-    ) @trusted
+    /// `output` must point to `Array.init`. On allocation failure, it remains
+    /// `Array.init`.
+    static bool try_with_capacity(Allocator* allocator, usize capacity, scope Self* output) @system
     {
         require(output !is null, "Array output pointer is null");
-        require(
-            output is null || output.allocator is null,
-            "Array output is already initialized",
-        );
+        const output_is_inert = output is null
+            || (output.allocator is null
+                && output.storage.data is null
+                && output.storage.length == 0
+                && output.storage.capacity == 0);
+        require(output_is_inert, "Array output is not inert");
         Storage storage;
         if (!Storage.try_with_capacity(allocator, capacity, &storage)) return false;
         output.allocator = allocator;
@@ -768,10 +724,7 @@ private template supports_default_initialization(T)
     static if (__traits(isCopyable, T))
     {
         /// Copies `values` into a newly allocated managed array.
-        static Self from_slice(
-            Allocator* allocator,
-            scope const(T)[] values,
-        ) @trusted
+        static Self from_slice(Allocator* allocator, scope const(T)[] values) @trusted
         {
             auto storage = Storage.from_slice(allocator, values);
             Self result;
@@ -784,7 +737,7 @@ private template supports_default_initialization(T)
     /// Adopts storage previously returned by `release`.
     ///
     /// `released` must be non-null and is consumed by this operation.
-    static Self adopt(scope Released* released) @trusted
+    static Self adopt(scope Released* released) @system
     {
         require(released !is null, "released Array storage pointer is null");
         Allocator* allocator;
@@ -837,7 +790,8 @@ private template supports_default_initialization(T)
         pretty.sequence(this);
     }
 
-    /// Returns a slice borrowed from this array.
+    /// Returns a slice borrowed from this array until backing storage is
+    /// reallocated or released.
     inout(T)[] slice() inout return @system
     {
         return this.storage.slice;
@@ -866,7 +820,8 @@ private template supports_default_initialization(T)
         }
     }
 
-    bool try_append(scope T* value) @trusted
+    /// `value` must not be null. On failure `*value` and this array are unchanged.
+    bool try_append(scope T* value) @system
     {
         return this.storage.try_append(this.allocator, value);
     }
@@ -899,7 +854,8 @@ private template supports_default_initialization(T)
         }
     }
 
-    bool try_insert(usize index, scope T* value) @trusted
+    /// `value` must not be null. On failure `*value` and this array are unchanged.
+    bool try_insert(usize index, scope T* value) @system
     {
         return this.storage.try_insert(this.allocator, index, value);
     }
@@ -922,6 +878,7 @@ private template supports_default_initialization(T)
         }
     }
 
+    /// Removes and returns the last element by move.
     T pop() @trusted
     {
         return this.storage.pop();
@@ -952,7 +909,8 @@ private template supports_default_initialization(T)
         this.storage.shrink_to_fit(this.allocator);
     }
 
-    /// Returns a reference borrowed from this array.
+    /// Returns a reference borrowed from this array until backing storage is
+    /// reallocated or released.
     ref inout(T) opIndex(usize index) inout return @system
     {
         return this.storage[index];
@@ -990,7 +948,7 @@ private template supports_default_initialization(T)
 /// operation that discards an element without returning it finalizes that
 /// element. Explicit-deinit values use free `deinit`; destructor-only values
 /// use D destruction. Transfers such as `pop` do not finalize the returned
-/// value.
+/// value. Allocator arguments to constructors must point to a valid allocator.
 @mustuse struct OwnedArray(T)
 {
     alias Self = OwnedArray!T;
@@ -1001,21 +959,17 @@ private template supports_default_initialization(T)
     /// Backing allocation and live elements owned through `allocator`.
     Storage storage;
 
-    version (XTB_Checked)
+    invariant
     {
-        invariant
-        {
-            require(&this !is null, "OwnedArray pointer is null");
-        }
+        require(&this !is null, "OwnedArray pointer is null");
     }
 
     private void deinit_range(usize index, usize count) @trusted
     {
         static if (needs_finalization!T)
         {
-            usize end = index + count;
-            while (end != index)
-                finalize(this.storage.slice[--end]);
+            foreach_reverse (ref value; this.storage.slice[index .. index + count])
+                finalize(value);
         }
     }
 
@@ -1037,19 +991,17 @@ private template supports_default_initialization(T)
 
     /// Attempts to create an empty owned array with at least `capacity` elements.
     ///
-    /// `output` must point to an uninitialized array. On allocation failure,
-    /// `*output` remains uninitialized.
-    static bool try_with_capacity(
-        Allocator* allocator,
-        usize capacity,
-        scope Self* output,
-    ) @trusted
+    /// `output` must point to `OwnedArray.init`. On allocation failure, it
+    /// remains `OwnedArray.init`.
+    static bool try_with_capacity(Allocator* allocator, usize capacity, scope Self* output) @system
     {
         require(output !is null, "OwnedArray output pointer is null");
-        require(
-            output is null || output.allocator is null,
-            "OwnedArray output is already initialized",
-        );
+        const output_is_inert = output is null
+            || (output.allocator is null
+                && output.storage.data is null
+                && output.storage.length == 0
+                && output.storage.capacity == 0);
+        require(output_is_inert, "OwnedArray output is not inert");
         Storage storage;
         if (!Storage.try_with_capacity(allocator, capacity, &storage)) return false;
         output.allocator = allocator;
@@ -1080,10 +1032,7 @@ private template supports_default_initialization(T)
 
     static if (__traits(isCopyable, T))
     {
-        static Self from_slice(
-            Allocator* allocator,
-            scope const(T)[] values,
-        ) @trusted
+        static Self from_slice(Allocator* allocator, scope const(T)[] values) @trusted
         {
             auto storage = Storage.from_slice(allocator, values);
             Self result;
@@ -1129,7 +1078,8 @@ private template supports_default_initialization(T)
         pretty.sequence(this);
     }
 
-    /// Returns a slice borrowed from this array.
+    /// Returns a slice borrowed from this array until backing storage is
+    /// reallocated or released.
     inout(T)[] slice() inout return @system
     {
         return this.storage.slice;
@@ -1163,7 +1113,8 @@ private template supports_default_initialization(T)
         }
     }
 
-    bool try_append(scope T* value) @trusted
+    /// `value` must not be null. On failure `*value` and this array are unchanged.
+    bool try_append(scope T* value) @system
     {
         return this.storage.try_append(this.allocator, value);
     }
@@ -1196,7 +1147,8 @@ private template supports_default_initialization(T)
         }
     }
 
-    bool try_insert(usize index, scope T* value) @trusted
+    /// `value` must not be null. On failure `*value` and this array are unchanged.
+    bool try_insert(usize index, scope T* value) @system
     {
         return this.storage.try_insert(this.allocator, index, value);
     }
@@ -1219,6 +1171,7 @@ private template supports_default_initialization(T)
         }
     }
 
+    /// Removes and transfers ownership of the last element.
     T pop() @trusted
     {
         return this.storage.pop();
@@ -1239,10 +1192,7 @@ private template supports_default_initialization(T)
 
     void remove_range(usize index, usize count) @trusted
     {
-        require(
-            index <= this.storage.length,
-            "OwnedArray range index out of bounds",
-        );
+        require(index <= this.storage.length, "OwnedArray range index out of bounds");
         require(
             count <= this.storage.length - index,
             "OwnedArray range count out of bounds",
@@ -1261,7 +1211,8 @@ private template supports_default_initialization(T)
         this.storage.shrink_to_fit(this.allocator);
     }
 
-    /// Returns a reference borrowed from this array.
+    /// Returns a reference borrowed from this array until backing storage is
+    /// reallocated or released.
     ref inout(T) opIndex(usize index) inout return @system
     {
         return this.storage[index];
@@ -1270,10 +1221,7 @@ private template supports_default_initialization(T)
 
 private void require_valid_allocator(Allocator* allocator) @trusted
 {
-    require(
-        allocator !is null && *allocator !is null,
-        "Array requires a valid allocator",
-    );
+    require(allocator !is null && *allocator !is null, "Array requires a valid allocator");
 }
 
 private void construct_initial(T)(T* destination)
@@ -1404,9 +1352,7 @@ version (unittest)
 unittest
 {
     static assert(ArrayUnmanaged!i32.sizeof == 3 * usize.sizeof);
-    static assert(
-        Array!i32.sizeof == ArrayUnmanaged!i32.sizeof + (Allocator*).sizeof,
-    );
+    static assert(Array!i32.sizeof == ArrayUnmanaged!i32.sizeof + (Allocator*).sizeof);
     static assert(OwnedArray!i32.sizeof == Array!i32.sizeof);
     static assert(needs_deinit!(RawArrayStorage!i32));
     static assert(!__traits(isCopyable, RawArrayStorage!i32));
@@ -1490,14 +1436,8 @@ unittest
     destructor_values.deinit();
 
     AllocationRecord[8] raw_records;
-    auto raw_allocator = InstrumentedAllocator.create(
-        malloc_allocator(),
-        raw_records[],
-    );
-    auto raw_source = ArrayUnmanaged!i32.from_slice(
-        raw_allocator.allocator,
-        [1, 2, 3],
-    );
+    auto raw_allocator = InstrumentedAllocator.create(malloc_allocator(), raw_records[]);
+    auto raw_source = ArrayUnmanaged!i32.from_slice(raw_allocator.allocator, [1, 2, 3]);
     RawArrayStorage!i32 raw = raw_source.release_raw();
     assert(raw_source.empty && raw_source.capacity == 0);
     RawArrayStorage!i32 moved_raw = move(raw);
@@ -1530,19 +1470,13 @@ unittest
     values.reset_and_release();
     assert(values.capacity == 0);
 
-    auto self_inserted = Array!i32.from_slice(
-        malloc_allocator(),
-        [1, 2, 3, 4, 5, 6, 7, 8],
-    );
+    auto self_inserted = Array!i32.from_slice(malloc_allocator(), [1, 2, 3, 4, 5, 6, 7, 8]);
     self_inserted.insert(2, self_inserted.slice[1 .. 4]);
     assert(self_inserted.slice == [1, 2, 2, 3, 4, 3, 4, 5, 6, 7, 8]);
     self_inserted.deinit();
 
     AllocationRecord[8] records;
-    auto tracked = InstrumentedAllocator.create(
-        malloc_allocator(),
-        records[],
-    );
+    auto tracked = InstrumentedAllocator.create(malloc_allocator(), records[]);
     auto fallible = Array!i32.with_capacity(tracked.allocator, 1);
     while (fallible.length < fallible.capacity)
         fallible.append_assume_capacity(42);
@@ -1564,10 +1498,7 @@ unittest
     deinit_order[] = 0;
 
     // Array is shallow: discard paths do not deinitialize elements.
-    auto shallow = Array!TrackedOwner.with_capacity(
-        malloc_allocator(),
-        4,
-    );
+    auto shallow = Array!TrackedOwner.with_capacity(malloc_allocator(), 4);
     shallow.append(TrackedOwner(1));
     shallow.append(TrackedOwner(2));
     shallow.append(TrackedOwner(3));
@@ -1582,10 +1513,7 @@ unittest
 
     // OwnedArray deep-cleans every discard path in reverse order where a range
     // is discarded.
-    auto owned = OwnedArray!TrackedOwner.with_capacity(
-        malloc_allocator(),
-        4,
-    );
+    auto owned = OwnedArray!TrackedOwner.with_capacity(malloc_allocator(), 4);
     owned.append(TrackedOwner(10));
     owned.append(TrackedOwner(20));
     owned.append(TrackedOwner(30));
@@ -1613,15 +1541,10 @@ unittest
 unittest
 {
     AllocationRecord[32] records;
-    auto tracked = InstrumentedAllocator.create(
-        malloc_allocator(),
-        records[],
-    );
+    auto tracked = InstrumentedAllocator.create(malloc_allocator(), records[]);
 
     // pop transfers ownership and therefore does not deinitialize the payload.
-    auto nested = OwnedArray!(Array!i32).create(
-        tracked.allocator,
-    );
+    auto nested = OwnedArray!(Array!i32).create(tracked.allocator);
     auto first = Array!i32.create(tracked.allocator);
     first.append(11);
     nested.append(move(first));
@@ -1647,10 +1570,7 @@ unittest
 unittest
 {
     AllocationRecord[32] records;
-    auto tracked = InstrumentedAllocator.create(
-        malloc_allocator(),
-        records[],
-    );
+    auto tracked = InstrumentedAllocator.create(malloc_allocator(), records[]);
 
     // Fallible pointer insertion preserves caller ownership on allocation
     // failure, including move-only explicit owners.
@@ -1687,10 +1607,7 @@ unittest
     // storage. The original slot becomes the normal moved-from value.
     tracked_deinits = 0;
     deinit_order[] = 0;
-    auto values = OwnedArray!TrackedOwner.with_capacity(
-        malloc_allocator(),
-        1,
-    );
+    auto values = OwnedArray!TrackedOwner.with_capacity(malloc_allocator(), 1);
     values.append(TrackedOwner(7));
     assert(values.try_append(&values[0]));
     assert(values.length == 2);
@@ -1703,10 +1620,7 @@ unittest
     // The same alias rule applies to fallible insertion. If the source lies at
     // or after the insertion point it follows the shift before being consumed.
     tracked_deinits = 0;
-    auto inserted = OwnedArray!TrackedOwner.with_capacity(
-        malloc_allocator(),
-        2,
-    );
+    auto inserted = OwnedArray!TrackedOwner.with_capacity(malloc_allocator(), 2);
     inserted.append(TrackedOwner(1));
     inserted.append(TrackedOwner(2));
     assert(inserted.try_insert(0, &inserted[1]));
@@ -1725,10 +1639,7 @@ unittest
         CopyableOwner(7, &deinits),
         CopyableOwner(8, &deinits),
     ];
-    auto values = OwnedArray!CopyableOwner.from_slice(
-        malloc_allocator(),
-        source[],
-    );
+    auto values = OwnedArray!CopyableOwner.from_slice(malloc_allocator(), source[]);
     values.append(source[]);
     values.shrink_to_fit();
     values.append(values.slice[0 .. 2]);
@@ -1742,14 +1653,8 @@ unittest
     assert(deinits == 8);
 
     AllocationRecord[16] records;
-    auto tracked = InstrumentedAllocator.create(
-        malloc_allocator(),
-        records[],
-    );
-    auto released_source = Array!i32.from_slice(
-        tracked.allocator,
-        [1, 2, 3],
-    );
+    auto tracked = InstrumentedAllocator.create(malloc_allocator(), records[]);
+    auto released_source = Array!i32.from_slice(tracked.allocator, [1, 2, 3]);
     Array!i32.Released released = released_source.release();
     assert(released_source.allocator is null && released_source.empty);
     assert(released.allocator is tracked.allocator);

@@ -96,7 +96,7 @@ public:
             panic("ComponentStore entity index is out of range");
 
         const requiredLength = cast(size_t) entity.index + 1;
-        if (requiredLength > byEntity_.length && !byEntity_.tryResize(requiredLength))
+        if (requiredLength > byEntity_.length && !byEntity_.try_resize(requiredLength))
             panic("ComponentStore index map commitment failed");
 
         const mappedIndex = byEntity_[entity.index];
