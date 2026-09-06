@@ -356,10 +356,10 @@ nothrow @nogc:
         }
 
         auto started = startStableThread(options, &node.header.native);
-        if (started.isErr)
+        if (started.is_err)
         {
             finalizeOwnedScopedCaptures!function_(node.captures);
-            const error = started.unwrapError();
+            const error = started.unwrap_error();
             destroy(*node);
             allocator_.deallocate(node);
             return err(scopeThreadStartFailure(error));

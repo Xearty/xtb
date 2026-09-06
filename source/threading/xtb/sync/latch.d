@@ -125,7 +125,7 @@ version (unittest)
                     &observed[index],
                 );
                 auto started = Thread.start!waitOnLatch(&contexts[index]);
-                assert(started.isOk);
+                assert(started.is_ok);
                 waiter = started.unwrap();
             }
 
@@ -166,7 +166,7 @@ version (unittest)
                     cast(int) index + 1,
                 );
                 auto started = Thread.start!countDownLatch(&contexts[index]);
-                assert(started.isOk);
+                assert(started.is_ok);
                 worker = started.unwrap();
             }
 

@@ -26,13 +26,13 @@ import xtb.window;
 ThreadContextScope thread_context = ThreadContextScope.acquire();
 
 auto system_result = WindowSystem.create(mallocAllocator());
-if (system_result.isErr)
+if (system_result.is_err)
     return 1;
 WindowSystem* system = system_result.take();
 scope (exit) system.deinit();
 
 auto window_result = system.create_window(WindowConfig.init);
-if (window_result.isErr)
+if (window_result.is_err)
     return 1;
 Window* window = window_result.take();
 scope (exit) window.deinit();
@@ -134,7 +134,7 @@ gl_config.framebuffer.samples = 4;
 gl_config.framebuffer.srgb_capable = true;
 
 auto window_result = system.create_opengl_window(window_config, gl_config);
-if (window_result.isErr)
+if (window_result.is_err)
     return 1;
 
 Window* window = window_result.take();

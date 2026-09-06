@@ -233,7 +233,7 @@ version (unittest)
                 auto started = Thread.start!crossBarrierPhases(
                     &contexts[participant],
                 );
-                assert(started.isOk);
+                assert(started.is_ok);
                 thread = started.unwrap();
             }
 
@@ -260,7 +260,7 @@ version (unittest)
                 );
 
             auto firstStarted = Thread.start!crossBarrierUntilDrop(&contexts[0]);
-            assert(firstStarted.isOk);
+            assert(firstStarted.is_ok);
             participants[0] = firstStarted.unwrap();
             assert(participants[0].join() == 0);
             assert(completed.load(MemoryOrder.acquire) == 1);
@@ -270,7 +270,7 @@ version (unittest)
                 auto started = Thread.start!crossBarrierUntilDrop(
                     &contexts[participant],
                 );
-                assert(started.isOk);
+                assert(started.is_ok);
                 participants[participant] = started.unwrap();
             }
 
@@ -295,7 +295,7 @@ version (unittest)
             );
 
             auto started = Thread.start!waitForBarrierFinalDrop(&context);
-            assert(started.isOk);
+            assert(started.is_ok);
             Thread waiter = started.unwrap();
             waitForBarrierValue(&entered, 1);
             version (XTB_Checked)

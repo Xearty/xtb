@@ -959,14 +959,14 @@ version (linux) private void threadScopeCompileChecks() nothrow @nogc @system
 version (linux) private bool typedStartWorks() nothrow @nogc
 {
     auto zeroStarted = Thread.start!zeroArgTypedWorker();
-    if (!zeroStarted.isOk)
+    if (!zeroStarted.is_ok)
         return false;
     Thread zeroThread = zeroStarted.unwrap();
     if (zeroThread.join() != 31)
         return false;
 
     auto constStarted = Thread.start!constValueWorker(73);
-    if (!constStarted.isOk)
+    if (!constStarted.is_ok)
         return false;
     Thread constThread = constStarted.unwrap();
     if (constThread.join() != 73)
@@ -974,7 +974,7 @@ version (linux) private bool typedStartWorks() nothrow @nogc
 
     Atomic!uint entered;
     auto voidStarted = Thread.start!allocatedVoidWorker(&entered);
-    if (!voidStarted.isOk)
+    if (!voidStarted.is_ok)
         return false;
     Thread voidThread = voidStarted.unwrap();
     if (voidThread.join() != 0 || entered.load(MemoryOrder.acquire) != 1)
@@ -982,14 +982,14 @@ version (linux) private bool typedStartWorks() nothrow @nogc
 
     int[4] values = [3, 5, 7, 11];
     auto sliceStarted = Thread.start!sliceValueWorker(values[]);
-    if (!sliceStarted.isOk)
+    if (!sliceStarted.is_ok)
         return false;
     Thread sliceThread = sliceStarted.unwrap();
     if (sliceThread.join() != 26)
         return false;
 
     auto alignedStarted = Thread.start!overAlignedWorker(OverAlignedCapture(84));
-    if (!alignedStarted.isOk)
+    if (!alignedStarted.is_ok)
         return false;
     Thread alignedThread = alignedStarted.unwrap();
     return alignedThread.join() == 84;
@@ -1003,7 +1003,7 @@ version (linux) private bool typedMoveLifetimeWorks() nothrow @nogc
     capture.value = 91;
 
     auto started = Thread.start!moveOnlyWorker(move(capture));
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 91 && destructions.load() == 1;
@@ -1017,7 +1017,7 @@ version (linux) private bool typedConversionRunsOnParent() nothrow @nogc
     const parent = currentThreadId();
 
     auto started = Thread.start!convertedCaptureWorker(source, &workerThread);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 55 && convertedOn == parent &&
@@ -1035,9 +1035,9 @@ version (linux) private bool typedStartFailureCleansUp() nothrow @nogc
         ThreadStartOptions(size_t.max),
         move(capture),
     );
-    if (!started.isErr)
+    if (!started.is_err)
         return false;
-    return started.unwrapError().kind ==
+    return started.unwrap_error().kind ==
         ThreadStartErrorKind.invalidConfiguration && destructions.load() == 1;
 }
 
@@ -1049,7 +1049,7 @@ version (linux) private bool typedStackOptionsWork() nothrow @nogc
         ThreadStartOptions(requested),
         &context,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 0 && context.observed >= requested;
@@ -1081,7 +1081,7 @@ nothrow @nogc
         &context.workerEntered,
         &context.releaseWorker,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
     {
         context.startState.store(2, MemoryOrder.release);
         return null;
@@ -1128,7 +1128,7 @@ version (linux) private bool typedStartShortStress() nothrow @nogc
     foreach (_; 0 .. rounds)
     {
         auto started = Thread.start!zeroArgTypedWorker();
-        if (!started.isOk)
+        if (!started.is_ok)
             return false;
         Thread thread = started.unwrap();
         if (thread.join() != 31)
@@ -1148,7 +1148,7 @@ version (linux) private bool allocatedRawStartWorks() nothrow @nogc
         &allocatedRawWorker,
         &context,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     const status = thread.join();
@@ -1172,7 +1172,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
         20,
         22,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     if (thread.join() != 42)
@@ -1188,7 +1188,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
         mallocAllocator(),
         &entered,
     );
-    if (!voidStarted.isOk)
+    if (!voidStarted.is_ok)
         return false;
     Thread voidThread = voidStarted.unwrap();
     if (voidThread.join() != 0 || entered.load(MemoryOrder.acquire) != 1)
@@ -1198,7 +1198,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
         mallocAllocator(),
         73,
     );
-    if (!constStarted.isOk)
+    if (!constStarted.is_ok)
         return false;
     Thread constThread = constStarted.unwrap();
     if (constThread.join() != 73)
@@ -1209,7 +1209,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
         mallocAllocator(),
         values[],
     );
-    if (!sliceStarted.isOk)
+    if (!sliceStarted.is_ok)
         return false;
     Thread sliceThread = sliceStarted.unwrap();
     if (sliceThread.join() != 26)
@@ -1219,7 +1219,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
         mallocAllocator(),
         OverAlignedCapture(84),
     );
-    if (!alignedStarted.isOk)
+    if (!alignedStarted.is_ok)
         return false;
     Thread alignedThread = alignedStarted.unwrap();
     return alignedThread.join() == 84;
@@ -1236,7 +1236,7 @@ version (linux) private bool allocatedTypedMoveLifetimeWorks() nothrow @nogc
         mallocAllocator(),
         move(capture),
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 91 && destructions.load() == 1;
@@ -1253,7 +1253,7 @@ version (linux) private bool explicitTypedOwnerLifecycleWorks() nothrow @nogc
     auto stackStarted = Thread.start!explicitLifetimeWorker(
         lifetimeMove(stackCapture),
     );
-    if (!stackStarted.isOk)
+    if (!stackStarted.is_ok)
         return false;
     Thread stackThread = stackStarted.unwrap();
     if (stackThread.join() != 81 || stackDeinits.load() != 1)
@@ -1269,8 +1269,8 @@ version (linux) private bool explicitTypedOwnerLifecycleWorks() nothrow @nogc
         ThreadStartOptions(size_t.max),
         lifetimeMove(stackFailure),
     );
-    if (!stackFailed.isErr ||
-        stackFailed.unwrapError()
+    if (!stackFailed.is_err ||
+        stackFailed.unwrap_error()
             .kind !=
             ThreadStartErrorKind.invalidConfiguration ||
             stackFailureDeinits.load() != 1)
@@ -1287,8 +1287,8 @@ version (linux) private bool explicitTypedOwnerLifecycleWorks() nothrow @nogc
         failing.allocator,
         lifetimeMove(allocationFailure),
     );
-    if (!allocationFailed.isErr ||
-        allocationFailed.unwrapError()
+    if (!allocationFailed.is_err ||
+        allocationFailed.unwrap_error()
             .kind !=
             ThreadStartAllocErrorKind.allocationFailed ||
             allocationFailureDeinits.load() != 1)
@@ -1306,7 +1306,7 @@ version (linux) private bool explicitTypedOwnerLifecycleWorks() nothrow @nogc
         invalidStack.allocator,
         lifetimeMove(nativeFailure),
     );
-    if (!nativeFailed.isErr)
+    if (!nativeFailed.is_err)
         return false;
     const nativeError = nativeFailed.error();
     return nativeError.kind == ThreadStartAllocErrorKind.threadStartFailed &&
@@ -1327,7 +1327,7 @@ version (linux) private bool allocatedTypedConversionRunsOnParent() nothrow @nog
         source,
         &workerThread,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 55 && convertedOn == parent &&
@@ -1341,9 +1341,9 @@ version (linux) private bool allocatedStartFailuresCleanUp() nothrow @nogc
         failing.allocator,
         &nullContextRawWorker,
     );
-    if (!allocationFailure.isErr)
+    if (!allocationFailure.is_err)
         return false;
-    const allocationError = allocationFailure.unwrapError();
+    const allocationError = allocationFailure.unwrap_error();
     if (allocationError.kind != ThreadStartAllocErrorKind.allocationFailed ||
         failing.allocationCalls.load() != 1 ||
         failing.deallocationCalls.load() != 0)
@@ -1358,8 +1358,8 @@ version (linux) private bool allocatedStartFailuresCleanUp() nothrow @nogc
         typedFailing.allocator,
         move(allocationFailureCapture),
     );
-    if (!typedAllocationFailure.isErr ||
-        typedAllocationFailure.unwrapError()
+    if (!typedAllocationFailure.is_err ||
+        typedAllocationFailure.unwrap_error()
             .kind !=
             ThreadStartAllocErrorKind.allocationFailed ||
             allocationFailureDestructions.load() != 1 ||
@@ -1373,9 +1373,9 @@ version (linux) private bool allocatedStartFailuresCleanUp() nothrow @nogc
         invalidStack.allocator,
         &nullContextRawWorker,
     );
-    if (!nativeFailure.isErr)
+    if (!nativeFailure.is_err)
         return false;
-    const nativeError = nativeFailure.unwrapError();
+    const nativeError = nativeFailure.unwrap_error();
     if (nativeError.kind != ThreadStartAllocErrorKind.threadStartFailed ||
         nativeError.threadStartError.kind !=
         ThreadStartErrorKind.invalidConfiguration ||
@@ -1394,9 +1394,9 @@ version (linux) private bool allocatedStartFailuresCleanUp() nothrow @nogc
         typedInvalidStack.allocator,
         move(nativeFailureCapture),
     );
-    if (!typedNativeFailure.isErr)
+    if (!typedNativeFailure.is_err)
         return false;
-    const typedNativeError = typedNativeFailure.unwrapError();
+    const typedNativeError = typedNativeFailure.unwrap_error();
     if (typedNativeError.kind != ThreadStartAllocErrorKind.threadStartFailed ||
         typedNativeError.threadStartError.kind !=
         ThreadStartErrorKind.invalidConfiguration ||
@@ -1417,7 +1417,7 @@ version (linux) private bool allocatedDetachCompletes() nothrow @nogc
         &detachedWorker,
         &rawContext,
     );
-    if (!rawStarted.isOk)
+    if (!rawStarted.is_ok)
         return false;
     Thread rawThread = rawStarted.unwrap();
     rawThread.detach();
@@ -1436,7 +1436,7 @@ version (linux) private bool allocatedDetachCompletes() nothrow @nogc
         mallocAllocator(),
         &typedDone,
     );
-    if (!typedStarted.isOk)
+    if (!typedStarted.is_ok)
         return false;
     Thread typedThread = typedStarted.unwrap();
     typedThread.detach();
@@ -1459,7 +1459,7 @@ version (linux) private bool allocatedTypedStackOptionsWork() nothrow @nogc
         mallocAllocator(),
         &context,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 0 && context.observed >= requested;
@@ -1540,7 +1540,7 @@ version (linux) private int joinSpawnHandle(
 version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
 {
     auto scalarStarted = spawn!oneCaptureSpawnWorker(mallocAllocator(), 41);
-    if (!scalarStarted.isOk)
+    if (!scalarStarted.is_ok)
         return false;
     JoinHandle!int handleSource = scalarStarted.unwrap();
     JoinHandle!int constructed = move(handleSource);
@@ -1558,7 +1558,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
         20L,
         cast(short) 13,
     );
-    if (!firstLayout.isOk || !secondLayout.isOk)
+    if (!firstLayout.is_ok || !secondLayout.is_ok)
         return false;
     JoinHandle!int first = firstLayout.unwrap();
     JoinHandle!int second = secondLayout.unwrap();
@@ -1566,18 +1566,18 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
         return false;
 
     auto nestedStarted = spawn!nestedSpawnResult(mallocAllocator(), -1);
-    if (!nestedStarted.isOk)
+    if (!nestedStarted.is_ok)
         return false;
     JoinHandle!(Result!(int, ubyte)) nestedHandle = nestedStarted.unwrap();
     auto nested = nestedHandle.join();
-    if (!nested.isErr || nested.unwrapError() != 7)
+    if (!nested.is_err || nested.unwrap_error() != 7)
         return false;
 
     auto alignedStarted = spawn!makeAlignedSpawnResult(
         mallocAllocator(),
         OverAlignedCapture(71),
     );
-    if (!alignedStarted.isOk)
+    if (!alignedStarted.is_ok)
         return false;
     JoinHandle!SpawnAlignedResult aligned = alignedStarted.unwrap();
     if (aligned.join().value != 71)
@@ -1591,7 +1591,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
         mallocAllocator(),
         move(capture),
     );
-    if (!captureStarted.isOk)
+    if (!captureStarted.is_ok)
         return false;
     JoinHandle!int captureHandle = captureStarted.unwrap();
     if (captureHandle.join() != 64 || captureDestructions.load() != 1)
@@ -1606,7 +1606,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
         source,
         &workerThread,
     );
-    if (!convertedStarted.isOk)
+    if (!convertedStarted.is_ok)
         return false;
     JoinHandle!int convertedHandle = convertedStarted.unwrap();
     if (convertedHandle.join() != 55 || convertedOn != parent ||
@@ -1620,7 +1620,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
             &resultDestructions,
             91,
         );
-        if (!resultStarted.isOk)
+        if (!resultStarted.is_ok)
             return false;
         JoinHandle!SpawnMoveOnlyResult resultHandle = resultStarted.unwrap();
         SpawnMoveOnlyResult result = resultHandle.join();
@@ -1641,9 +1641,9 @@ version (linux) private bool spawnFailuresCleanUp() nothrow @nogc
         failing.allocator,
         move(allocationCapture),
     );
-    if (!allocationFailed.isErr)
+    if (!allocationFailed.is_err)
         return false;
-    const allocationError = allocationFailed.unwrapError();
+    const allocationError = allocationFailed.unwrap_error();
     if (allocationError.kind != SpawnErrorKind.allocationFailed ||
         allocationError.threadStartError != ThreadStartError.init ||
         allocationDestructions.load() != 1 ||
@@ -1661,9 +1661,9 @@ version (linux) private bool spawnFailuresCleanUp() nothrow @nogc
         invalidStack.allocator,
         move(startCapture),
     );
-    if (!startFailed.isErr)
+    if (!startFailed.is_err)
         return false;
-    const startError = startFailed.unwrapError();
+    const startError = startFailed.unwrap_error();
     return startError.kind == SpawnErrorKind.threadStartFailed &&
         startError.threadStartError.kind ==
         ThreadStartErrorKind.invalidConfiguration &&
@@ -1686,8 +1686,8 @@ version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
         failing.allocator,
         lifetimeMove(allocationCapture),
     );
-    if (!allocationFailed.isErr ||
-        allocationFailed.unwrapError()
+    if (!allocationFailed.is_err ||
+        allocationFailed.unwrap_error()
             .kind != SpawnErrorKind.allocationFailed ||
             allocationFailureDeinits.load() != 1)
         return false;
@@ -1704,7 +1704,7 @@ version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
         invalidStack.allocator,
         lifetimeMove(nativeCapture),
     );
-    if (!nativeFailed.isErr)
+    if (!nativeFailed.is_err)
         return false;
     const nativeError = nativeFailed.error();
     if (nativeError.kind != SpawnErrorKind.threadStartFailed ||
@@ -1723,7 +1723,7 @@ version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
         mallocAllocator(),
         lifetimeMove(capture),
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     JoinHandle!int handle = started.unwrap();
     if (handle.join() != 63 || captureDeinits.load() != 1)
@@ -1735,7 +1735,7 @@ version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
         &resultDeinits,
         64,
     );
-    if (!resultStarted.isOk)
+    if (!resultStarted.is_ok)
         return false;
     JoinHandle!ExplicitLifetimeCapture resultHandle = resultStarted.unwrap();
     ExplicitLifetimeCapture result = resultHandle.join();
@@ -1753,7 +1753,7 @@ version (linux) private bool spawnUsesOneStableAllocation() nothrow @nogc
         17L,
         cast(short) 25,
     );
-    if (!started.isOk || tracker.allocationCalls.load() != 1 ||
+    if (!started.is_ok || tracker.allocationCalls.load() != 1 ||
         tracker.deallocationCalls.load() != 0)
         return false;
 
@@ -1769,7 +1769,7 @@ version (linux) private bool spawnUsesOneStableAllocation() nothrow @nogc
         voidTracker.allocator,
         &entered,
     );
-    if (!voidStarted.isOk || voidTracker.allocationCalls.load() != 1 ||
+    if (!voidStarted.is_ok || voidTracker.allocationCalls.load() != 1 ||
         voidTracker.deallocationCalls.load() != 0)
         return false;
     JoinHandle!void voidHandle = voidStarted.unwrap();
@@ -1792,7 +1792,7 @@ version (linux) private bool spawnOptionsWork() nothrow @nogc
         mallocAllocator(),
         &context,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     JoinHandle!int handle = started.unwrap();
     return handle.join() == 0 && context.observed >= requested;
@@ -1802,13 +1802,13 @@ version (linux) private bool spawnHandleMovesAcrossThreads() nothrow @nogc
 {
     StartTrackingAllocator tracker = StartTrackingAllocator.create();
     auto spawned = spawn!oneCaptureSpawnWorker(tracker.allocator, 41);
-    if (!spawned.isOk)
+    if (!spawned.is_ok)
         return false;
     JoinHandle!int handle = spawned.unwrap();
 
     int result;
     auto joinerStarted = Thread.start!joinSpawnHandle(move(handle), &result);
-    if (!joinerStarted.isOk || handle.joinable())
+    if (!joinerStarted.is_ok || handle.joinable())
         return false;
     Thread joiner = joinerStarted.unwrap();
     return joiner.join() == 0 && result == 42 &&
@@ -1843,7 +1843,7 @@ nothrow @nogc
         &context.workerEntered,
         &context.releaseWorker,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
     {
         context.startState.store(2, MemoryOrder.release);
         return null;
@@ -1897,7 +1897,7 @@ version (linux) private bool spawnShortStress() nothrow @nogc
                 cast(long) batch,
                 cast(short) index,
             );
-            if (!started.isOk)
+            if (!started.is_ok)
                 return false;
             handle = started.unwrap();
         }
@@ -1945,7 +1945,7 @@ version (linux) private void manyThreadScopeBody(
     foreach (index; 0 .. ThreadScopeManyContext.childCount)
     {
         auto started = scope_.spawn!writeScopedIndex(index, context.values.ptr);
-        if (started.isErr)
+        if (started.is_err)
         {
             context.failed = true;
             return;
@@ -2049,7 +2049,7 @@ version (linux) private void allocationFailureScopeBody(
 ) nothrow @nogc
 {
     auto first = scope_.spawn!markScopedCompletion(&context.firstCompleted);
-    if (first.isErr)
+    if (first.is_err)
         return;
     first.unwrap();
 
@@ -2058,9 +2058,9 @@ version (linux) private void allocationFailureScopeBody(
         move(context.capture),
         &context.observedCapture,
     );
-    if (second.isErr)
+    if (second.is_err)
     {
-        const error = second.unwrapError();
+        const error = second.unwrap_error();
         context.sawExpectedFailure =
             error.kind == SpawnErrorKind.allocationFailed &&
             error.threadStartError == ThreadStartError.init;
@@ -2074,7 +2074,7 @@ version (linux) private void nativeFailureScopeBody(
 ) nothrow @nogc
 {
     auto first = scope_.spawn!markScopedCompletion(&context.firstCompleted);
-    if (first.isErr)
+    if (first.is_err)
         return;
     first.unwrap();
 
@@ -2083,9 +2083,9 @@ version (linux) private void nativeFailureScopeBody(
         move(context.capture),
         &context.observedCapture,
     );
-    if (second.isErr)
+    if (second.is_err)
     {
-        const error = second.unwrapError();
+        const error = second.unwrap_error();
         context.sawExpectedFailure =
             error.kind == SpawnErrorKind.threadStartFailed &&
             error.threadStartError.kind ==
@@ -2202,9 +2202,9 @@ version (linux) private void explicitThreadScopeAllocationFailureBody(
         lifetimeMove(context.capture),
         &context.observed,
     );
-    if (started.isErr)
+    if (started.is_err)
         context.sawExpectedFailure =
-            started.unwrapError().kind == SpawnErrorKind.allocationFailed;
+            started.unwrap_error().kind == SpawnErrorKind.allocationFailed;
 }
 
 version (linux) private void explicitThreadScopeNativeFailureBody(
@@ -2217,7 +2217,7 @@ version (linux) private void explicitThreadScopeNativeFailureBody(
         lifetimeMove(context.capture),
         &context.observed,
     );
-    if (started.isErr)
+    if (started.is_err)
     {
         const error = started.error();
         context.sawExpectedFailure =
@@ -2378,7 +2378,7 @@ nothrow @nogc
 {
     RawStartHandoffContext* context = cast(RawStartHandoffContext*) opaque;
     auto started = Thread.startRaw(&blockedRawHandoffWorker, context);
-    if (!started.isOk)
+    if (!started.is_ok)
     {
         context.startState.store(2, MemoryOrder.release);
         return null;
@@ -2462,7 +2462,7 @@ version (linux) private bool rawStartJoinStress() nothrow @nogc
         foreach (ref thread; threads)
         {
             auto started = Thread.startRaw(&rawStressWorker, &context);
-            if (!started.isOk)
+            if (!started.is_ok)
                 return false;
             thread = started.unwrap();
         }
@@ -2490,7 +2490,7 @@ version (linux) private bool detachCompletes() nothrow @nogc
 {
     DetachedContext context;
     auto started = Thread.startRaw(&detachedWorker, &context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
 
     Thread thread = started.unwrap();
@@ -2529,7 +2529,7 @@ version (linux) private bool threadIdentityMatches() nothrow @nogc
         return false;
 
     auto started = Thread.startRaw(&identityWorker, &context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     const childId = thread.id();
@@ -2559,7 +2559,7 @@ version (linux) private bool ldcTlsWorksInRawThread() nothrow @nogc
     tlsProbeValue = 77;
     int observedInitial = -1;
     auto started = Thread.startRaw(&tlsProbeWorker, &observedInitial);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 1234 && observedInitial == 0 && tlsProbeValue == 77;
@@ -2596,7 +2596,7 @@ version (linux) private bool stackSizeIsMinimum() nothrow @nogc
         &stackSizeWorker,
         &context,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 0 && context.observed >= requested;
@@ -2608,7 +2608,7 @@ version (linux) private bool tinyStackRequestNormalizes() nothrow @nogc
         ThreadStartOptions(1),
         &nullContextRawWorker,
     );
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
     return thread.join() == 17;
@@ -2620,9 +2620,9 @@ version (linux) private bool overflowingStackRequestFails() nothrow @nogc
         ThreadStartOptions(size_t.max),
         &nullContextRawWorker,
     );
-    if (!started.isErr)
+    if (!started.is_err)
         return false;
-    const error = started.unwrapError();
+    const error = started.unwrap_error();
     return error.kind == ThreadStartErrorKind.invalidConfiguration;
 }
 
@@ -2643,27 +2643,27 @@ nothrow @nogc
 version (linux) private bool currentThreadNaming() nothrow @nogc
 {
     auto named = setCurrentThreadName("xtb-main");
-    if (!named.isOk)
+    if (!named.is_ok)
         return false;
     named.unwrap();
     if (!nativeNameEquals("xtb-main"))
         return false;
 
     auto maximum = setCurrentThreadName("123456789012345");
-    if (!maximum.isOk)
+    if (!maximum.is_ok)
         return false;
     maximum.unwrap();
     if (!nativeNameEquals("123456789012345"))
         return false;
 
     auto tooLong = setCurrentThreadName("1234567890123456");
-    if (!tooLong.isErr ||
-        tooLong.unwrapError().kind != ThreadNameErrorKind.tooLong)
+    if (!tooLong.is_err ||
+        tooLong.unwrap_error().kind != ThreadNameErrorKind.tooLong)
         return false;
 
     auto embeddedNul = setCurrentThreadName("bad\0name");
-    return embeddedNul.isErr &&
-        embeddedNul.unwrapError().kind == ThreadNameErrorKind.invalidName;
+    return embeddedNul.is_err &&
+        embeddedNul.unwrap_error().kind == ThreadNameErrorKind.invalidName;
 }
 
 version (linux) private struct NamedWorkerContext
@@ -2688,12 +2688,12 @@ version (linux) private bool handleThreadNaming() nothrow @nogc
 {
     NamedWorkerContext context;
     auto started = Thread.startRaw(&namedWorker, &context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
 
     auto named = thread.setName("xtb-worker");
-    if (!named.isOk)
+    if (!named.is_ok)
     {
         context.check.store(1, MemoryOrder.release);
         thread.join();
@@ -2721,7 +2721,7 @@ version (linux) private bool exitedThreadNameIsUnavailable() nothrow @nogc
 {
     ExitNameContext context;
     auto started = Thread.startRaw(&exitingNamedWorker, &context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
 
@@ -2732,9 +2732,9 @@ version (linux) private bool exitedThreadNameIsUnavailable() nothrow @nogc
     foreach (_; 0 .. 100_000)
     {
         auto named = thread.setName("late");
-        if (named.isErr)
+        if (named.is_err)
         {
-            const error = named.unwrapError();
+            const error = named.unwrap_error();
             if (error.kind == ThreadNameErrorKind.threadUnavailable)
             {
                 unavailable = true;
@@ -2813,7 +2813,7 @@ version (linux) private bool mutexMutualExclusion() nothrow @nogc
     foreach (ref thread; threads)
     {
         auto started = Thread.start!mutexIncrementWorker(&context);
-        if (!started.isOk)
+        if (!started.is_ok)
         {
             foreach (index; 0 .. startedCount)
                 cast(void) threads[index].join();
@@ -2865,7 +2865,7 @@ version (linux) private bool mutexHandoffAndPublication() nothrow @nogc
 
     mutex.lock();
     auto started = Thread.start!mutexHandoffWorker(&context);
-    if (!started.isOk)
+    if (!started.is_ok)
     {
         mutex.unlock();
         return false;
@@ -2958,7 +2958,7 @@ version (linux) private bool condVarNotifyOneAndPublication() nothrow @nogc
 {
     CondVarContext context;
     auto started = Thread.start!condVarWaiter(&context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
 
@@ -2996,7 +2996,7 @@ version (linux) private bool condVarNotifyOneReleasesOneLogicalWaiter() nothrow 
     foreach (ref thread; threads)
     {
         auto started = Thread.start!condVarWaiter(&context);
-        if (!started.isOk)
+        if (!started.is_ok)
             break;
         thread = started.unwrap();
         ++startedCount;
@@ -3058,7 +3058,7 @@ version (linux) private bool condVarNotifyAllReleasesWaiters() nothrow @nogc
     foreach (ref thread; threads)
     {
         auto started = Thread.start!condVarWaiter(&context);
-        if (!started.isOk)
+        if (!started.is_ok)
             break;
         thread = started.unwrap();
         ++startedCount;
@@ -3094,7 +3094,7 @@ version (linux) private bool condVarNotificationIsNotStored() nothrow @nogc
     context.condition.notifyAll();
 
     auto started = Thread.start!condVarWaiter(&context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
 
@@ -3153,7 +3153,7 @@ version (linux) private bool condVarRepeatedWaits() nothrow @nogc
     context.rounds = rounds;
 
     auto started = Thread.start!condVarGenerationWaiter(&context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread thread = started.unwrap();
 
@@ -3199,7 +3199,7 @@ version (linux) private bool semaphoreHandoffPublishes() nothrow @nogc
 {
     SemaphorePublicationContext context;
     auto started = Thread.start!semaphorePublicationWaiter(&context);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread waiter = started.unwrap();
 
@@ -3246,7 +3246,7 @@ version (linux) private bool semaphoreReleaseCountIsExact() nothrow @nogc
     foreach (ref waiter; waiters)
     {
         auto started = Thread.start!semaphoreBatchWaiter(&context);
-        if (!started.isOk)
+        if (!started.is_ok)
             return false;
         waiter = started.unwrap();
     }
@@ -3326,7 +3326,7 @@ version (linux) private bool semaphoreRepeatedContention() nothrow @nogc
     foreach (ref worker; workers)
     {
         auto started = Thread.start!semaphoreBoundWorker(&context);
-        if (!started.isOk)
+        if (!started.is_ok)
             return false;
         worker = started.unwrap();
     }
@@ -3370,7 +3370,7 @@ nothrow @nogc
 {
     CondVarMutexMixContext context;
     auto started = Thread.start!condVarFirstMutexWaiter(&context);
-    if (!started.isOk)
+    if (!started.is_ok)
         _exit(88);
     Thread thread = started.unwrap();
     if (!waitForAtomicAtLeast(&context.ready, 1))
@@ -3427,7 +3427,7 @@ nothrow @nogc
 {
     OnceCellDeinitContext context;
     auto started = Thread.start!initializeDeinitializedOnceCellWorker(&context);
-    if (!started.isOk)
+    if (!started.is_ok)
         _exit(93);
     Thread thread = started.unwrap();
     if (!waitForAtomicAtLeast(&context.entered, 1))
@@ -3737,7 +3737,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                     auto started = Thread.start!mutexNonOwnerUnlockWorker(
                         &mutex,
                     );
-                    if (!started.isOk)
+                    if (!started.is_ok)
                         _exit(86);
                     Thread thread = started.unwrap();
                     cast(void) thread.join();
@@ -3791,7 +3791,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                     auto started = Thread.start!rwLockNonOwnerWriteUnlockWorker(
                         &lock,
                     );
-                    if (!started.isOk)
+                    if (!started.is_ok)
                         _exit(96);
                     Thread thread = started.unwrap();
                     cast(void) thread.join();
@@ -3839,7 +3839,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                     auto started = Thread.start!destroyMutexGuardOnWrongThread(
                         move(guard),
                     );
-                    if (!started.isOk)
+                    if (!started.is_ok)
                         _exit(98);
                     Thread thread = started.unwrap();
                     cast(void) thread.join();
@@ -3857,7 +3857,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
                     auto started = Thread.start!destroyWriteGuardOnWrongThread(
                         move(guard),
                     );
-                    if (!started.isOk)
+                    if (!started.is_ok)
                         _exit(100);
                     Thread thread = started.unwrap();
                     cast(void) thread.join();
@@ -3988,7 +3988,7 @@ version (linux) private bool hardwareConcurrencyMatchesAffinity() nothrow @nogc
 version (linux) private bool rawThreadBasics() nothrow @nogc
 {
     auto nullStarted = Thread.startRaw(&nullContextRawWorker);
-    if (!nullStarted.isOk)
+    if (!nullStarted.is_ok)
         return false;
     Thread nullThread = nullStarted.unwrap();
     if (!nullThread.joinable() || nullThread.join() != 17 ||
@@ -3997,7 +3997,7 @@ version (linux) private bool rawThreadBasics() nothrow @nogc
 
     int mutated = 7;
     auto mutationStarted = Thread.startRaw(&mutateRawContext, &mutated);
-    if (!mutationStarted.isOk)
+    if (!mutationStarted.is_ok)
         return false;
     Thread mutationThread = mutationStarted.unwrap();
     if (mutationThread.join() != -13 || mutated != 12)
@@ -4008,7 +4008,7 @@ version (linux) private bool rawThreadBasics() nothrow @nogc
     {
         int expectedStatus = status;
         auto statusStarted = Thread.startRaw(&statusRawWorker, &expectedStatus);
-        if (!statusStarted.isOk)
+        if (!statusStarted.is_ok)
             return false;
         Thread statusThread = statusStarted.unwrap();
         if (statusThread.join() != expectedStatus)
@@ -4021,7 +4021,7 @@ version (linux) private bool rawThreadBasics() nothrow @nogc
 version (linux) private bool moveOwnershipWorks() nothrow @nogc
 {
     auto started = Thread.startRaw(&noOpRawWorker);
-    if (!started.isOk)
+    if (!started.is_ok)
         return false;
     Thread source = started.unwrap();
     const id = source.id();

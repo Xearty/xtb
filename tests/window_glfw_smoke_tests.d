@@ -16,7 +16,7 @@ extern (C) int main() @system
     system_config.platform = WindowPlatform.headless;
 
     auto system_result = WindowSystem.create(allocator, system_config);
-    if (system_result.isErr)
+    if (system_result.is_err)
         return 1;
     WindowSystem* system = system_result.take();
     scope (exit)
@@ -39,7 +39,7 @@ extern (C) int main() @system
     window_config.visible = false;
 
     auto window_result = system.create_window(window_config);
-    if (window_result.isErr)
+    if (window_result.is_err)
         return 3;
     Window* window = window_result.take();
     scope (exit)

@@ -485,7 +485,7 @@ nothrow @nogc:
             );
 
         Thread thread = fromNativeStart(started);
-        return Result!(Thread, ThreadStartError).okMove(thread);
+        return Result!(Thread, ThreadStartError).ok_move(thread);
     }
 
     /// Starts a typed worker without allocating startup storage.
@@ -559,10 +559,10 @@ nothrow @nogc:
                 &typedStackStartTrampoline!function_,
                 &state,
             );
-            if (started.isErr)
+            if (started.is_err)
             {
                 finalizeTypedCaptures!function_(state.captures);
-                return err(started.unwrapError());
+                return err(started.unwrap_error());
             }
 
             state.captured.wait();
@@ -638,7 +638,7 @@ nothrow @nogc:
         }
 
         Thread thread = fromNativeStart(started);
-        return Result!(Thread, ThreadStartAllocError).okMove(thread);
+        return Result!(Thread, ThreadStartAllocError).ok_move(thread);
     }
 
     /// Starts a typed worker from allocator-backed stable capture storage.
@@ -731,7 +731,7 @@ nothrow @nogc:
         }
 
         Thread thread = fromNativeStart(started);
-        return Result!(Thread, ThreadStartAllocError).okMove(thread);
+        return Result!(Thread, ThreadStartAllocError).ok_move(thread);
     }
 
     /// Whether this handle still owns a join/detach obligation.
@@ -821,7 +821,7 @@ package(xtb.thread) Result!(Thread, ThreadStartError) startStableThread(
         );
 
     Thread thread = Thread.fromNativeStart(started);
-    return Result!(Thread, ThreadStartError).okMove(thread);
+    return Result!(Thread, ThreadStartError).ok_move(thread);
 }
 
 /// Returns the calling thread's opaque identity, or `.init` on an unsupported

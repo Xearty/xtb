@@ -899,21 +899,21 @@ private void testOptionResultComposition(InstrumentedAllocator* tracked)
 
     OwnedString error = OwnedString.fromString(tracked.allocator, "error");
     auto failed = Result!(StringBuf, OwnedString).err(move(error));
-    assert(failed.isErr && failed.error.view == "error");
+    assert(failed.is_err && failed.error.view == "error");
     deinit(failed);
     deinit(error);
     assert(tracked.clean);
 
     OwnedString integerError = OwnedString.fromString(tracked.allocator, "integer-error");
     auto integerFailure = Result!(int, OwnedString).err(move(integerError));
-    assert(integerFailure.isErr && integerFailure.error.view == "integer-error");
+    assert(integerFailure.is_err && integerFailure.error.view == "integer-error");
     deinit(integerFailure);
     deinit(integerError);
     assert(tracked.clean);
 
     StringBuf success = StringBuf.fromString(tracked.allocator, "ok");
     auto succeeded = Result!(StringBuf, OwnedString).ok(move(success));
-    assert(succeeded.isOk && succeeded.value == "ok");
+    assert(succeeded.is_ok && succeeded.value == "ok");
     deinit(succeeded);
     deinit(success);
     assert(tracked.clean);

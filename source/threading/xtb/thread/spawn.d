@@ -441,10 +441,10 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
         );
 
     auto started = startStableThread(options, &state.base.native);
-    if (started.isErr)
+    if (started.is_err)
     {
         finalizeSpawnCaptures!function_(state.captures);
-        const error = started.unwrapError();
+        const error = started.unwrap_error();
         allocator.deallocate(state);
         return err(threadStartFailure(error));
     }
@@ -454,7 +454,7 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
         thread,
         &state.base,
     );
-    return Result!(JoinHandle!WorkerReturn, SpawnError).okMove(handle);
+    return Result!(JoinHandle!WorkerReturn, SpawnError).ok_move(handle);
 }
 
 static assert(!__traits(isCopyable, JoinHandle!int));
@@ -500,7 +500,7 @@ unittest
                 19,
                 23,
             );
-            assert(scalarStarted.isOk);
+            assert(scalarStarted.is_ok);
             JoinHandle!int scalar = scalarStarted.unwrap();
             assert(scalar.joinable());
             assert(scalar.join() == 42);
@@ -511,7 +511,7 @@ unittest
                 mallocAllocator(),
                 &published,
             );
-            assert(voidStarted.isOk);
+            assert(voidStarted.is_ok);
             JoinHandle!void voidHandle = voidStarted.unwrap();
             voidHandle.join();
             assert(published == 42);
@@ -520,7 +520,7 @@ unittest
                 mallocAllocator(),
                 7,
             );
-            assert(aggregateStarted.isOk);
+            assert(aggregateStarted.is_ok);
             JoinHandle!SpawnedPair aggregate = aggregateStarted.unwrap();
             const pair = aggregate.join();
             assert(pair == SpawnedPair(7, 8));

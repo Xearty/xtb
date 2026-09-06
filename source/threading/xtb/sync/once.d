@@ -276,14 +276,14 @@ version (unittest)
             Thread[callerCount] callers;
 
             auto firstStarted = Thread.start!invokeContendedOnce(&context);
-            assert(firstStarted.isOk);
+            assert(firstStarted.is_ok);
             callers[0] = firstStarted.unwrap();
 
             entered.wait(0, MemoryOrder.acquire);
             foreach (ref caller; callers[1 .. $])
             {
                 auto started = Thread.start!invokeContendedOnce(&context);
-                assert(started.isOk);
+                assert(started.is_ok);
                 caller = started.unwrap();
             }
 

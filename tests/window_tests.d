@@ -146,14 +146,14 @@ private bool expect_backend_version(
     auto result = WindowSystem.create(allocator, config);
     if (supported)
     {
-        if (result.isErr)
+        if (result.is_err)
             return false;
         result.take().deinit();
         return true;
     }
 
-    return result.isErr &&
-        result.takeError().kind == WindowErrorKind.unsupported_backend_version;
+    return result.is_err &&
+        result.take_error().kind == WindowErrorKind.unsupported_backend_version;
 }
 
 private bool runtime_backend_version_gate(
@@ -176,13 +176,13 @@ private bool single_window_system_ownership(
 ) @system
 {
     auto first_result = WindowSystem.create(allocator, config);
-    if (first_result.isErr)
+    if (first_result.is_err)
         return false;
     WindowSystem* first = first_result.take();
 
     auto second_result = WindowSystem.create(allocator, config);
-    if (!second_result.isErr ||
-        second_result.takeError().kind != WindowErrorKind.already_initialized)
+    if (!second_result.is_err ||
+        second_result.take_error().kind != WindowErrorKind.already_initialized)
     {
         first.deinit();
         return false;
@@ -191,7 +191,7 @@ private bool single_window_system_ownership(
     first.deinit();
 
     auto replacement_result = WindowSystem.create(allocator, config);
-    if (replacement_result.isErr)
+    if (replacement_result.is_err)
         return false;
     WindowSystem* replacement = replacement_result.take();
     replacement.deinit();
@@ -205,7 +205,7 @@ private bool synchronous_transition_publication(
 ) @system
 {
     auto second_result = system.create_window(config);
-    if (second_result.isErr)
+    if (second_result.is_err)
         return false;
     Window* second = second_result.take();
     scope (exit)
@@ -314,7 +314,7 @@ extern (C) int main() @system
         return 1;
 
     auto system_result = WindowSystem.create(allocator, system_config);
-    if (system_result.isErr)
+    if (system_result.is_err)
         return 2;
     WindowSystem* system = system_result.take();
     scope (exit)
@@ -332,7 +332,7 @@ extern (C) int main() @system
         return 7;
 
     auto mode_result = primary.video_mode();
-    if (mode_result.isErr)
+    if (mode_result.is_err)
         return 8;
     const mode = mode_result.take();
     if (mode.width != 1920 || mode.height != 1080 || mode.refresh_rate != 60)
@@ -388,7 +388,7 @@ extern (C) int main() @system
     config.visible = false;
 
     auto first_result = system.create_window(config);
-    if (first_result.isErr)
+    if (first_result.is_err)
         return 11;
     Window* first = first_result.take();
     scope (exit)
@@ -684,7 +684,7 @@ extern (C) int main() @system
         return 20;
 
     auto second_result = system.create_window(config);
-    if (second_result.isErr)
+    if (second_result.is_err)
         return 21;
     Window* second = second_result.take();
     if (system.window_count != 2)
@@ -701,16 +701,16 @@ extern (C) int main() @system
 
     fail_next_operation(FakeGLFWOperation.set_input_mode);
     auto failed_lock_result = system.create_window(lock_config);
-    if (!failed_lock_result.isErr)
+    if (!failed_lock_result.is_err)
         return 129;
-    const lock_backend_error = failed_lock_result.takeError();
+    const lock_backend_error = failed_lock_result.take_error();
     if (lock_backend_error.kind != WindowErrorKind.backend_operation_failed ||
         lock_backend_error.backend_code != fake_platform_error ||
         system.window_count != 1)
         return 130;
 
     auto lock_result = system.create_window(lock_config);
-    if (lock_result.isErr)
+    if (lock_result.is_err)
         return 131;
     Window* lock_window = lock_result.take();
     EventLog lock_event_log;
@@ -877,9 +877,9 @@ extern (C) int main() @system
         config,
         unavailable_gl_config,
     );
-    if (!unavailable_gl_result.isErr)
+    if (!unavailable_gl_result.is_err)
         return 45;
-    const unavailable_gl_error = unavailable_gl_result.takeError();
+    const unavailable_gl_error = unavailable_gl_result.take_error();
     if (unavailable_gl_error.kind != WindowErrorKind.window_creation_failed ||
         unavailable_gl_error.backend_code != fake_version_unavailable)
         return 44;
@@ -893,7 +893,7 @@ extern (C) int main() @system
     gl_config.framebuffer.srgb_capable = true;
 
     auto gl_result = system.create_opengl_window(config, gl_config);
-    if (gl_result.isErr)
+    if (gl_result.is_err)
         return 46;
 
     Window* gl_window = gl_result.take();
@@ -920,7 +920,7 @@ extern (C) int main() @system
         return 51;
 
     auto info_result = gl_window.opengl_context_info();
-    if (info_result.isErr)
+    if (info_result.is_err)
         return 52;
     const info = info_result.take();
     if (info.api != OpenGLAPI.opengl ||
@@ -957,7 +957,7 @@ extern (C) int main() @system
     OpenGLConfig shared_config = gl_config;
     shared_config.share_context_with = gl_window;
     auto shared_result = system.create_opengl_window(config, shared_config);
-    if (shared_result.isErr)
+    if (shared_result.is_err)
         return 59;
     Window* shared_window = shared_result.take();
     if (!shared_window.has_opengl_context() || system.window_count != 3 ||

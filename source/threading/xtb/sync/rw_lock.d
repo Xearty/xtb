@@ -563,7 +563,7 @@ version (unittest)
                     cast(int)(index + 1),
                 );
                 auto started = Thread.start!holdRwLockRead(&readerContexts[index]);
-                assert(started.isOk);
+                assert(started.is_ok);
                 reader = started.unwrap();
             }
             waitForRwLockValue(&readersEntered, readerCount);
@@ -582,7 +582,7 @@ version (unittest)
                 &payload,
             );
             auto writerStarted = Thread.start!holdRwLockWrite(&writerContext);
-            assert(writerStarted.isOk);
+            assert(writerStarted.is_ok);
             Thread writer = writerStarted.unwrap();
             while ((lock.state_.load(MemoryOrder.acquire) &
                     rwLockWriterPending) == 0)
@@ -599,7 +599,7 @@ version (unittest)
             auto lateReaderStarted = Thread.start!enterRwLockReadLate(
                 &lateReaderContext,
             );
-            assert(lateReaderStarted.isOk);
+            assert(lateReaderStarted.is_ok);
             Thread lateReader = lateReaderStarted.unwrap();
 
             foreach (_; 0 .. 64)
@@ -647,7 +647,7 @@ version (unittest)
             foreach (ref reader; readers)
             {
                 auto started = Thread.start!stressRwLockRead(&context);
-                assert(started.isOk);
+                assert(started.is_ok);
                 reader = started.unwrap();
             }
 
@@ -655,7 +655,7 @@ version (unittest)
             foreach (ref writer; writers)
             {
                 auto started = Thread.start!stressRwLockWrite(&context);
-                assert(started.isOk);
+                assert(started.is_ok);
                 writer = started.unwrap();
             }
 

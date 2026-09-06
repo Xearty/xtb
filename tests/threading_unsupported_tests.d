@@ -52,9 +52,9 @@ private void unsupportedScopeBody(
 ) nothrow @nogc
 {
     auto started = scope_.spawn!scopedWorker(&context.value);
-    if (started.isErr)
+    if (started.is_err)
     {
-        const error = started.unwrapError();
+        const error = started.unwrap_error();
         context.sawUnsupported =
             error.kind == SpawnErrorKind.threadStartFailed &&
             error.threadStartError.kind == ThreadStartErrorKind.unsupported;
@@ -137,23 +137,23 @@ extern (C) int main() nothrow @nogc
         testFunction();
 
     auto started = Thread.startRaw(&worker);
-    if (!started.isErr)
+    if (!started.is_err)
         return 1;
-    if (started.unwrapError().kind != ThreadStartErrorKind.unsupported)
+    if (started.unwrap_error().kind != ThreadStartErrorKind.unsupported)
         return 2;
 
     auto typedZeroAllocStarted = Thread.start!typedWorker(42);
-    if (!typedZeroAllocStarted.isErr)
+    if (!typedZeroAllocStarted.is_err)
         return 13;
-    if (typedZeroAllocStarted.unwrapError().kind !=
+    if (typedZeroAllocStarted.unwrap_error().kind !=
         ThreadStartErrorKind.unsupported)
         return 14;
 
     TrackingAllocator rawTracker = TrackingAllocator.create();
     auto rawAllocStarted = Thread.startRawAlloc(rawTracker.allocator, &worker);
-    if (!rawAllocStarted.isErr)
+    if (!rawAllocStarted.is_err)
         return 7;
-    const rawAllocError = rawAllocStarted.unwrapError();
+    const rawAllocError = rawAllocStarted.unwrap_error();
     if (rawAllocError.kind != ThreadStartAllocErrorKind.threadStartFailed ||
         rawAllocError.threadStartError.kind != ThreadStartErrorKind.unsupported)
         return 8;
@@ -162,9 +162,9 @@ extern (C) int main() nothrow @nogc
 
     TrackingAllocator typedTracker = TrackingAllocator.create();
     auto typedStarted = Thread.startAlloc!typedWorker(typedTracker.allocator, 42);
-    if (!typedStarted.isErr)
+    if (!typedStarted.is_err)
         return 10;
-    const typedError = typedStarted.unwrapError();
+    const typedError = typedStarted.unwrap_error();
     if (typedError.kind != ThreadStartAllocErrorKind.threadStartFailed ||
         typedError.threadStartError.kind != ThreadStartErrorKind.unsupported)
         return 11;
@@ -173,9 +173,9 @@ extern (C) int main() nothrow @nogc
 
     TrackingAllocator spawnTracker = TrackingAllocator.create();
     auto spawnStarted = spawn!typedWorker(spawnTracker.allocator, 42);
-    if (!spawnStarted.isErr)
+    if (!spawnStarted.is_err)
         return 15;
-    const spawnError = spawnStarted.unwrapError();
+    const spawnError = spawnStarted.unwrap_error();
     if (spawnError.kind != SpawnErrorKind.threadStartFailed ||
         spawnError.threadStartError.kind != ThreadStartErrorKind.unsupported)
         return 16;
@@ -196,9 +196,9 @@ extern (C) int main() nothrow @nogc
         inlineScopeTracker.allocator,
         (scope ref ThreadScope scope_) nothrow @nogc {
         auto started = scope_.spawn!scopedWorker(&inlineValue);
-        if (started.isErr)
+        if (started.is_err)
         {
-            const error = started.unwrapError();
+            const error = started.unwrap_error();
             inlineUnsupported =
                 error.kind == SpawnErrorKind.threadStartFailed &&
                 error.threadStartError.kind ==
@@ -212,9 +212,9 @@ extern (C) int main() nothrow @nogc
         return 19;
 
     auto named = setCurrentThreadName("unsupported");
-    if (!named.isErr)
+    if (!named.is_err)
         return 3;
-    if (named.unwrapError().kind != ThreadNameErrorKind.unsupported)
+    if (named.unwrap_error().kind != ThreadNameErrorKind.unsupported)
         return 4;
 
     if (currentThreadId() != ThreadId.init)

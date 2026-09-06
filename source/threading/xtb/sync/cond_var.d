@@ -302,12 +302,12 @@ version (unittest)
             context.waiter = &waiter;
 
             auto notifierStarted = Thread.start!delayedWaiterSignal(&context);
-            assert(notifierStarted.isOk);
+            assert(notifierStarted.is_ok);
             Thread notifier = notifierStarted.unwrap();
             assert(waitForTestFlag(&context.signalStored));
 
             auto barrierStarted = Thread.start!crossWaiterLifetimeBarrier(&context);
-            assert(barrierStarted.isOk);
+            assert(barrierStarted.is_ok);
             Thread barrier = barrierStarted.unwrap();
 
             foreach (_; 0 .. 32)

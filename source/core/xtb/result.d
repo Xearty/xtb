@@ -2,43 +2,52 @@ module xtb.result;
 
 nothrow @nogc:
 
-import core.attribute : mustuse;
-import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
-import core.lifetime : forward;
-import xtb.lifetime : can_finalize_without_context,
-    deinitValue = deinit, finalize, has_d_destructor, move, move_emplace,
-    needs_deinit, needs_finalization;
-import xtb.panic : panic;
-import xtb.types : String;
+import core.attribute;
+import core.internal.traits;
+import d_lifetime = core.lifetime;
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.lifetime;
+import xtb.panic;
+import xtb.types;
 
-private enum ResultState : ubyte
+/// The active branch stored by a Result.
+enum ResultState : u8
 {
     ok,
     err,
 }
 
-private template isCopyableResultValue(T)
+private template is_copyable_result_value(T)
 {
     static if (is(T == void))
-        enum bool isCopyableResultValue = true;
+    {
+        enum bool is_copyable_result_value = true;
+    }
     else
-        enum bool isCopyableResultValue = __traits(isCopyable, T) &&
-            !needs_deinit!T && !has_d_destructor!T &&
-            !hasElaborateCopyConstructor!T;
+    {
+        enum bool is_copyable_result_value = __traits(isCopyable, T)
+            && !needs_deinit!T
+            && !has_d_destructor!T
+            && !hasElaborateCopyConstructor!T;
+    }
 }
 
-private template isMonadicValue(T)
+private template is_monadic_value(T)
 {
     static if (is(T == void))
-        enum bool isMonadicValue = true;
+    {
+        enum bool is_monadic_value = true;
+    }
     else
-        enum bool isMonadicValue = !needs_deinit!T &&
-            !has_d_destructor!T && !hasElaborateCopyConstructor!T;
+    {
+        enum bool is_monadic_value = !needs_deinit!T
+            && !has_d_destructor!T
+            && !hasElaborateCopyConstructor!T;
+    }
 }
 
-private enum bool isResultType(T) = is(T == Result!(Value, Error), Value, Error);
+private enum bool is_result_type(T) = is(T == Result!(Value, Error), Value, Error);
+
 private template ResultValue(T)
 {
     static if (is(T == Result!(Value, Error), Value, Error))
@@ -57,52 +66,73 @@ private template ResultError(T)
 /// empty state. Default construction is disabled; construct through `ok` or
 /// `err`.
 ///
-/// `take`/`unwrap` and `takeError`/`unwrapError` transfer the active payload
+/// `take`/`unwrap` and `take_error`/`unwrap_error` transfer the active payload
 /// without cleaning it. The Result remains in the same logical branch with a
 /// safely moved-from payload. Checked builds diagnose repeated semantic use of
 /// a consumed Result; that diagnostic bit is not a third Result state. Both
 /// branches must support context-free finalization because Result stores no
 /// cleanup context.
+///
+/// `state`, `value_storage`, `error_storage`, and (in checked builds) `consumed`
+/// expose the representation as required for XTB structs. Direct mutation must
+/// preserve the active-branch and payload-lifetime invariants described above.
 @mustuse struct Result(T, E)
 {
 nothrow @nogc:
 
     static assert(!is(E == void), "Result error type cannot be void");
     static if (!is(T == void))
-        static assert(can_finalize_without_context!T,
-            "Result value type must support context-free finalization");
-    static assert(can_finalize_without_context!E,
-        "Result error type must support context-free finalization");
+    {
+        static assert(
+            can_finalize_without_context!T,
+            "Result value type must support context-free finalization",
+        );
+    }
+    static assert(
+        can_finalize_without_context!E,
+        "Result error type must support context-free finalization",
+    );
 
     static if (is(T == void))
-        private enum bool valueNeedsCleanup = false;
+    {
+        private enum bool value_needs_cleanup = false;
+    }
     else
-        private enum bool valueNeedsCleanup = needs_finalization!T;
-    private enum bool errorNeedsCleanup = needs_finalization!E;
-    private enum bool payloadNeedsCleanup = valueNeedsCleanup || errorNeedsCleanup;
+    {
+        private enum bool value_needs_cleanup = needs_finalization!T;
+    }
+    private enum bool error_needs_cleanup = needs_finalization!E;
+    private enum bool payload_needs_cleanup = value_needs_cleanup || error_needs_cleanup;
 
-    private ResultState state_;
+    ResultState state;
     static if (!is(T == void))
-        align(T.alignof) private ubyte[T.sizeof] valueStorage_;
-    align(E.alignof) private ubyte[E.sizeof] errorStorage_;
-    version (XTB_Checked) private bool consumed_;
+    {
+        align(T.alignof) u8[T.sizeof] value_storage;
+    }
+    align(E.alignof) u8[E.sizeof] error_storage;
+    version (XTB_Checked)
+    {
+        bool consumed;
+    }
 
     @disable this();
 
-    static if (!isCopyableResultValue!T || !isCopyableResultValue!E)
+    static if (!is_copyable_result_value!T || !is_copyable_result_value!E)
+    {
         @disable this(this);
+    }
 
     static if (!is(T == void))
     {
-        private ref inout(T) valuePayload() inout return @system
+        private ref inout(T) value_payload() inout return @system
         {
-            return *cast(inout(T)*) valueStorage_.ptr;
+            return *cast(inout(T)*) this.value_storage.ptr;
         }
     }
 
-    private ref inout(E) errorPayload() inout return @system
+    private ref inout(E) error_payload() inout return @system
     {
-        return *cast(inout(E)*) errorStorage_.ptr;
+        return *cast(inout(E)*) this.error_storage.ptr;
     }
 
     /// Replaces this Result by consuming `source`.
@@ -112,27 +142,30 @@ nothrow @nogc:
     ref Result opAssign(Result source) return
     {
         version (XTB_Checked)
-            require(!source.consumed_, "cannot assign from a consumed Result");
+        {
+            require(!source.consumed, "cannot assign from a consumed Result");
+        }
 
-        static if (payloadNeedsCleanup)
-            discardActive();
-        state_ = source.state_;
+        static if (Result.payload_needs_cleanup)
+            this.discard_active();
+
+        this.state = source.state;
         static if (!is(T == void))
         {
-            if (source.state_ == ResultState.ok)
-                move_emplace(source.valuePayload(), valuePayload());
+            if (source.state == ResultState.ok)
+                move_emplace(source.value_payload(), this.value_payload());
             else
-                move_emplace(source.errorPayload(), errorPayload());
+                move_emplace(source.error_payload(), this.error_payload());
         }
         else
         {
-            if (source.state_ == ResultState.err)
-                move_emplace(source.errorPayload(), errorPayload());
+            if (source.state == ResultState.err)
+                move_emplace(source.error_payload(), this.error_payload());
         }
         version (XTB_Checked)
         {
-            consumed_ = false;
-            source.consumed_ = true;
+            this.consumed = false;
+            source.consumed = true;
         }
         return this;
     }
@@ -142,9 +175,11 @@ nothrow @nogc:
         static Result ok()
         {
             Result result = void;
-            result.state_ = ResultState.ok;
+            result.state = ResultState.ok;
             version (XTB_Checked)
-                result.consumed_ = false;
+            {
+                result.consumed = false;
+            }
             return result;
         }
     }
@@ -153,10 +188,12 @@ nothrow @nogc:
         static Result ok(T value)
         {
             Result result = void;
-            move_emplace(value, result.valuePayload());
-            result.state_ = ResultState.ok;
+            move_emplace(value, result.value_payload());
+            result.state = ResultState.ok;
             version (XTB_Checked)
-                result.consumed_ = false;
+            {
+                result.consumed = false;
+            }
             return result;
         }
 
@@ -164,13 +201,15 @@ nothrow @nogc:
         ///
         /// Package code uses this for semantic owners whose D destructor
         /// enforces an unresolved obligation, avoiding a by-value temporary.
-        package(xtb) static Result okMove(ref T value)
+        package(xtb) static Result ok_move(ref T value)
         {
             Result result = void;
-            move_emplace(value, result.valuePayload());
-            result.state_ = ResultState.ok;
+            move_emplace(value, result.value_payload());
+            result.state = ResultState.ok;
             version (XTB_Checked)
-                result.consumed_ = false;
+            {
+                result.consumed = false;
+            }
             return result;
         }
     }
@@ -178,10 +217,12 @@ nothrow @nogc:
     static Result err(E error)
     {
         Result result = void;
-        move_emplace(error, result.errorPayload());
-        result.state_ = ResultState.err;
+        move_emplace(error, result.error_payload());
+        result.state = ResultState.err;
         version (XTB_Checked)
-            result.consumed_ = false;
+        {
+            result.consumed = false;
+        }
         return result;
     }
 
@@ -191,63 +232,63 @@ nothrow @nogc:
     /// and the source remains `Err` with a moved-from payload.
     static Result err(U)(ref Result!(U, E) source)
     {
-        return err(source.takeError());
+        return Result.err(source.take_error());
     }
 
-    bool isOk() const pure @safe
+    bool is_ok() const pure @safe
     {
-        return state_ == ResultState.ok;
+        return this.state == ResultState.ok;
     }
 
-    bool isErr() const pure @safe
+    bool is_err() const pure @safe
     {
-        return state_ == ResultState.err;
+        return this.state == ResultState.err;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
     {
-        if (isErr)
+        if (this.is_err)
         {
-            pretty.constructor("err", error);
+            pretty.constructor("err", this.error);
             return;
         }
 
         static if (is(T == void))
             pretty.constructor("ok");
         else
-            pretty.constructor("ok", value);
+            pretty.constructor("ok", this.value);
     }
 
     /// Converts to true exactly when this Result is successful.
     bool opCast(U : bool)() const pure @safe
     {
-        return isOk;
+        return this.is_ok;
     }
 
-    private void discardActive()
+    private void discard_active()
     {
-        if (state_ == ResultState.ok)
+        if (this.state == ResultState.ok)
         {
             static if (!is(T == void))
             {
-                static if (valueNeedsCleanup)
-                    finalize(valuePayload());
+                static if (Result.value_needs_cleanup)
+                    finalize(this.value_payload());
             }
         }
         else
         {
-            static if (errorNeedsCleanup)
-                finalize(errorPayload());
+            static if (Result.error_needs_cleanup)
+                finalize(this.error_payload());
         }
     }
 
-    static if (payloadNeedsCleanup)
+    static if (Result.payload_needs_cleanup)
     {
         /// Explicitly ends this Result's lifetime by cleaning only its active
         /// branch. A moved-from active payload is safe to deinitialize.
         void deinit()
         {
-            discardActive();
+            this.discard_active();
         }
     }
 
@@ -257,10 +298,10 @@ nothrow @nogc:
         {
             version (XTB_Checked)
             {
-                require(!consumed_, "consumed Result has no usable value");
-                require(isOk, "Result does not contain a value");
+                require(!this.consumed, "consumed Result has no usable value");
             }
-            return valuePayload();
+            require(this.is_ok, "Result does not contain a value");
+            return this.value_payload();
         }
 
         /// Transfers the success value out. The Result stays logically `Ok`
@@ -269,13 +310,16 @@ nothrow @nogc:
         {
             version (XTB_Checked)
             {
-                require(!consumed_, "cannot take from a consumed Result");
-                require(isOk, "cannot take the value of a non-ok Result");
+                require(!this.consumed, "cannot take from a consumed Result");
             }
+            require(this.is_ok, "cannot take the value of a non-ok Result");
+
             T result = void;
-            move_emplace(valuePayload(), result);
+            move_emplace(this.value_payload(), result);
             version (XTB_Checked)
-                consumed_ = true;
+            {
+                this.consumed = true;
+            }
             return result;
         }
 
@@ -283,22 +327,28 @@ nothrow @nogc:
         T unwrap()
         {
             version (XTB_Checked)
-                if (consumed_)
-                    panic("called Result.unwrap() on a consumed Result");
-            if (!isOk)
-                panic("called Result.unwrap() on err");
-            return take();
+            {
+                if (this.consumed)
+                    panic("cannot unwrap a consumed Result");
+            }
+            if (!this.is_ok)
+                panic("cannot unwrap an error Result");
+
+            return this.take();
         }
 
         /// Transfers the success value out or panics with `message` unless ok.
         T expect(String message)
         {
             version (XTB_Checked)
-                if (consumed_)
+            {
+                if (this.consumed)
                     panic(message);
-            if (!isOk)
+            }
+            if (!this.is_ok)
                 panic(message);
-            return take();
+
+            return this.take();
         }
     }
     else
@@ -309,9 +359,12 @@ nothrow @nogc:
         {
             version (XTB_Checked)
             {
-                require(!consumed_, "cannot take from a consumed Result");
-                require(isOk, "cannot take the value of a non-ok Result");
-                consumed_ = true;
+                require(!this.consumed, "cannot take from a consumed Result");
+            }
+            require(this.is_ok, "cannot take the value of a non-ok Result");
+            version (XTB_Checked)
+            {
+                this.consumed = true;
             }
         }
 
@@ -319,22 +372,28 @@ nothrow @nogc:
         void unwrap()
         {
             version (XTB_Checked)
-                if (consumed_)
-                    panic("called Result.unwrap() on a consumed Result");
-            if (!isOk)
-                panic("called Result.unwrap() on err");
-            take();
+            {
+                if (this.consumed)
+                    panic("cannot unwrap a consumed Result");
+            }
+            if (!this.is_ok)
+                panic("cannot unwrap an error Result");
+
+            this.take();
         }
 
         /// Consumes this Result or panics with `message` unless it is ok.
         void expect(String message)
         {
             version (XTB_Checked)
-                if (consumed_)
+            {
+                if (this.consumed)
                     panic(message);
-            if (!isOk)
+            }
+            if (!this.is_ok)
                 panic(message);
-            take();
+
+            this.take();
         }
     }
 
@@ -342,48 +401,57 @@ nothrow @nogc:
     {
         version (XTB_Checked)
         {
-            require(!consumed_, "consumed Result has no usable error");
-            require(isErr, "Result does not contain an error");
+            require(!this.consumed, "consumed Result has no usable error");
         }
-        return errorPayload();
+        require(this.is_err, "Result does not contain an error");
+        return this.error_payload();
     }
 
     /// Transfers the error out. The Result stays logically `Err` with a
     /// moved-from payload.
-    E takeError()
+    E take_error()
     {
         version (XTB_Checked)
         {
-            require(!consumed_, "cannot take from a consumed Result");
-            require(isErr, "cannot take the error of a non-error Result");
+            require(!this.consumed, "cannot take from a consumed Result");
         }
+        require(this.is_err, "cannot take the error of a non-error Result");
+
         E result = void;
-        move_emplace(errorPayload(), result);
+        move_emplace(this.error_payload(), result);
         version (XTB_Checked)
-            consumed_ = true;
+        {
+            this.consumed = true;
+        }
         return result;
     }
 
     /// Transfers the error out or panics unless this Result is an error.
-    E unwrapError()
+    E unwrap_error()
     {
         version (XTB_Checked)
-            if (consumed_)
-                panic("called Result.unwrapError() on a consumed Result");
-        if (!isErr)
-            panic("called Result.unwrapError() on ok");
-        return takeError();
+        {
+            if (this.consumed)
+                panic("cannot unwrap the error of a consumed Result");
+        }
+        if (!this.is_err)
+            panic("cannot unwrap the error of an ok Result");
+
+        return this.take_error();
     }
 
     /// Transfers the error out or panics with `message` unless this Result is an error.
-    E expectError(String message)
+    E expect_error(String message)
     {
         version (XTB_Checked)
-            if (consumed_)
+        {
+            if (this.consumed)
                 panic(message);
-        if (!isErr)
+        }
+        if (!this.is_err)
             panic(message);
-        return takeError();
+
+        return this.take_error();
     }
 }
 
@@ -400,31 +468,35 @@ auto map(alias transform, T, E, Args...)(
     auto ref Args args,
 )
 {
-    static assert(isMonadicValue!T && isMonadicValue!E,
-        "Result.map currently supports only payloads without deinit or D destructor semantics");
+    static assert(
+        is_monadic_value!T && is_monadic_value!E,
+        "Result.map currently supports only payloads without deinit or D destructor semantics",
+    );
 
     static if (is(T == void))
-        alias U = typeof(transform(forward!args));
+        alias U = typeof(transform(d_lifetime.forward!args));
     else
-        alias U = typeof(transform(result.take(), forward!args));
-    static assert(isMonadicValue!U,
-        "Result.map currently supports only result payloads without deinit or D destructor semantics");
+        alias U = typeof(transform(result.take(), d_lifetime.forward!args));
+    static assert(
+        is_monadic_value!U,
+        "Result.map currently supports only result payloads without deinit or D destructor semantics",
+    );
 
     alias Mapped = Result!(U, E);
-    if (result.isErr)
-        return Mapped.err(result.takeError());
+    if (result.is_err)
+        return Mapped.err(result.take_error());
 
     static if (is(T == void))
     {
         result.take();
         static if (is(U == void))
         {
-            transform(forward!args);
+            transform(d_lifetime.forward!args);
             return Mapped.ok();
         }
         else
         {
-            U value = transform(forward!args);
+            U value = transform(d_lifetime.forward!args);
             return Mapped.ok(move(value));
         }
     }
@@ -432,34 +504,38 @@ auto map(alias transform, T, E, Args...)(
     {
         static if (is(U == void))
         {
-            transform(result.take(), forward!args);
+            transform(result.take(), d_lifetime.forward!args);
             return Mapped.ok();
         }
         else
         {
-            U value = transform(result.take(), forward!args);
+            U value = transform(result.take(), d_lifetime.forward!args);
             return Mapped.ok(move(value));
         }
     }
 }
 
 /// Transforms a simple error while preserving a simple success type.
-auto mapError(alias transform, T, E, Args...)(
+auto map_error(alias transform, T, E, Args...)(
     Result!(T, E) result,
     auto ref Args args,
 )
 {
-    static assert(isMonadicValue!T && isMonadicValue!E,
-        "Result.mapError currently supports only payloads without deinit or D destructor semantics");
-    alias F = typeof(transform(result.takeError(), forward!args));
-    static assert(!is(F == void), "Result.mapError transform must return an error value");
-    static assert(isMonadicValue!F,
-        "Result.mapError currently supports only result payloads without deinit or D destructor semantics");
+    static assert(
+        is_monadic_value!T && is_monadic_value!E,
+        "Result.map_error currently supports only payloads without deinit or D destructor semantics",
+    );
+    alias F = typeof(transform(result.take_error(), d_lifetime.forward!args));
+    static assert(!is(F == void), "Result.map_error transform must return an error value");
+    static assert(
+        is_monadic_value!F,
+        "Result.map_error currently supports only result payloads without deinit or D destructor semantics",
+    );
     alias Mapped = Result!(T, F);
 
-    if (result.isErr)
+    if (result.is_err)
     {
-        F error = transform(result.takeError(), forward!args);
+        F error = transform(result.take_error(), d_lifetime.forward!args);
         return Mapped.err(move(error));
     }
 
@@ -475,56 +551,68 @@ auto mapError(alias transform, T, E, Args...)(
 }
 
 /// Chains a Result-producing operation after a successful simple Result.
-auto andThen(alias transform, T, E, Args...)(
+auto and_then(alias transform, T, E, Args...)(
     Result!(T, E) result,
     auto ref Args args,
 )
 {
-    static assert(isMonadicValue!T && isMonadicValue!E,
-        "Result.andThen currently supports only payloads without deinit or D destructor semantics");
+    static assert(
+        is_monadic_value!T && is_monadic_value!E,
+        "Result.and_then currently supports only payloads without deinit or D destructor semantics",
+    );
 
     static if (is(T == void))
-        alias Next = typeof(transform(forward!args));
+        alias Next = typeof(transform(d_lifetime.forward!args));
     else
-        alias Next = typeof(transform(result.take(), forward!args));
+        alias Next = typeof(transform(result.take(), d_lifetime.forward!args));
 
-    static assert(isResultType!Next, "Result.andThen transform must return Result");
-    static assert(is(ResultError!Next == E),
-        "Result.andThen transform must preserve the error type; use mapError to convert errors");
-    static assert(isMonadicValue!(ResultValue!Next) && isMonadicValue!(ResultError!Next),
-        "Result.andThen currently supports only result payloads without deinit or D destructor semantics");
+    static assert(is_result_type!Next, "Result.and_then transform must return Result");
+    static assert(
+        is(ResultError!Next == E),
+        "Result.and_then transform must preserve the error type; use map_error to convert errors",
+    );
+    static assert(
+        is_monadic_value!(ResultValue!Next) && is_monadic_value!(ResultError!Next),
+        "Result.and_then currently supports only result payloads without deinit or D destructor semantics",
+    );
 
-    if (result.isErr)
-        return Next.err(result.takeError());
+    if (result.is_err)
+        return Next.err(result.take_error());
 
     static if (is(T == void))
     {
         result.take();
-        return transform(forward!args);
+        return transform(d_lifetime.forward!args);
     }
     else
     {
-        return transform(result.take(), forward!args);
+        return transform(result.take(), d_lifetime.forward!args);
     }
 }
 
 /// Recovers from a simple error with another simple Result-producing operation.
-auto orElse(alias transform, T, E, Args...)(
+auto or_else(alias transform, T, E, Args...)(
     Result!(T, E) result,
     auto ref Args args,
 )
 {
-    static assert(isMonadicValue!T && isMonadicValue!E,
-        "Result.orElse currently supports only payloads without deinit or D destructor semantics");
-    alias Next = typeof(transform(result.takeError(), forward!args));
-    static assert(isResultType!Next, "Result.orElse transform must return Result");
-    static assert(is(ResultValue!Next == T),
-        "Result.orElse transform must preserve the success type; use map to convert values");
-    static assert(isMonadicValue!(ResultValue!Next) && isMonadicValue!(ResultError!Next),
-        "Result.orElse currently supports only result payloads without deinit or D destructor semantics");
+    static assert(
+        is_monadic_value!T && is_monadic_value!E,
+        "Result.or_else currently supports only payloads without deinit or D destructor semantics",
+    );
+    alias Next = typeof(transform(result.take_error(), d_lifetime.forward!args));
+    static assert(is_result_type!Next, "Result.or_else transform must return Result");
+    static assert(
+        is(ResultValue!Next == T),
+        "Result.or_else transform must preserve the success type; use map to convert values",
+    );
+    static assert(
+        is_monadic_value!(ResultValue!Next) && is_monadic_value!(ResultError!Next),
+        "Result.or_else currently supports only result payloads without deinit or D destructor semantics",
+    );
 
-    if (result.isErr)
-        return transform(result.takeError(), forward!args);
+    if (result.is_err)
+        return transform(result.take_error(), d_lifetime.forward!args);
 
     static if (is(T == void))
     {
@@ -537,223 +625,241 @@ auto orElse(alias transform, T, E, Args...)(
     }
 }
 
-version (unittest) private struct TrackedResultValue
+version (unittest)
 {
-nothrow @nogc:
-
-    int* deinits;
-    int value;
-    bool armed;
-
-    @disable this(this);
-
-    void deinit()
+    private struct TrackedResultValue
     {
-        if (armed)
+    nothrow @nogc:
+
+        i32* deinits;
+        i32 value;
+        bool armed;
+
+        @disable this(this);
+
+        void deinit()
         {
-            ++*deinits;
-            armed = false;
+            if (this.armed)
+            {
+                ++*this.deinits;
+                this.armed = false;
+            }
         }
     }
-}
 
-version (unittest) private struct DestructorResultValue
-{
-nothrow @nogc:
-
-    int* destructions;
-    bool armed;
-
-    @disable this(this);
-
-    ~this()
+    private struct DestructorResultValue
     {
-        if (armed)
+    nothrow @nogc:
+
+        i32* destructions;
+        bool armed;
+
+        @disable this(this);
+
+        ~this()
         {
-            ++*destructions;
-            armed = false;
+            if (this.armed)
+            {
+                ++*this.destructions;
+                this.armed = false;
+            }
         }
     }
-}
 
-version (unittest) private enum ResultTestError
-{
-    first,
-    second,
-}
+    private enum ResultTestError
+    {
+        first,
+        second,
+    }
 
-version (unittest) private Result!(int, ResultTestError) resultTestSource(bool fail)
-{
-    mixin ResultReturns;
-    if (fail)
-        return err(ResultTestError.first);
-    return ok(20);
-}
+    private Result!(i32, ResultTestError) result_test_source(bool fail)
+    {
+        mixin ResultReturns;
+        if (fail) return err(ResultTestError.first);
+        return ok(20);
+    }
 
-version (unittest) private Result!(long, ResultTestError) resultTestPropagate(bool fail)
-{
-    mixin ResultReturns;
-    auto source = resultTestSource(fail);
-    if (!source)
-        return err(source);
-    return ok(source.take() + 2L);
+    private Result!(i64, ResultTestError) result_test_propagate(bool fail)
+    {
+        mixin ResultReturns;
+        auto source = result_test_source(fail);
+        if (!source) return err(source);
+        return ok(source.take() + 2L);
+    }
 }
 
 unittest
 {
-    static assert(!__traits(compiles, () { Result!(int, ResultTestError) value; }));
+    static assert(!__traits(compiles, ()
+    {
+        Result!(i32, ResultTestError) value;
+    }));
 
-    auto success = Result!(int, ResultTestError).ok(42);
-    assert(success.isOk && !success.isErr);
+    auto success = Result!(i32, ResultTestError).ok(42);
+    assert(success.is_ok && !success.is_err);
     assert(success);
     assert(success.value == 42);
     success.value += 1;
     assert(success.unwrap() == 43);
-    assert(success.isOk);
+    assert(success.is_ok);
 
-    auto expectedSuccess = Result!(int, ResultTestError).ok(44);
-    assert(expectedSuccess.expect("expected success") == 44);
-    assert(expectedSuccess.isOk);
+    auto expected_success = Result!(i32, ResultTestError).ok(44);
+    assert(expected_success.expect("expected success") == 44);
+    assert(expected_success.is_ok);
 
-    auto failure = Result!(int, ResultTestError).err(ResultTestError.second);
+    auto failure = Result!(i32, ResultTestError).err(ResultTestError.second);
     assert(!failure);
-    assert(failure.isErr && failure.error == ResultTestError.second);
-    assert(failure.unwrapError() == ResultTestError.second);
-    assert(failure.isErr);
+    assert(failure.is_err && failure.error == ResultTestError.second);
+    assert(failure.unwrap_error() == ResultTestError.second);
+    assert(failure.is_err);
 
-    auto expectedFailure = Result!(int, ResultTestError).err(ResultTestError.first);
-    assert(expectedFailure.expectError("expected error") == ResultTestError.first);
-    assert(expectedFailure.isErr);
+    auto expected_failure = Result!(i32, ResultTestError).err(ResultTestError.first);
+    assert(expected_failure.expect_error("expected error") == ResultTestError.first);
+    assert(expected_failure.is_err);
 
-    auto propagatedSuccess = resultTestPropagate(false);
-    assert(propagatedSuccess && propagatedSuccess.value == 22);
-    auto propagatedFailure = resultTestPropagate(true);
-    assert(!propagatedFailure && propagatedFailure.error == ResultTestError.first);
+    auto propagated_success = result_test_propagate(false);
+    assert(propagated_success && propagated_success.value == 22);
 
-    const constSuccess = Result!(int, ResultTestError).ok(7);
-    static assert(is(typeof(constSuccess.value()) == const(int)));
-    assert(constSuccess.value == 7);
+    auto propagated_failure = result_test_propagate(true);
+    assert(!propagated_failure && propagated_failure.error == ResultTestError.first);
 
-    immutable immutableSuccess = Result!(int, ResultTestError).ok(9);
-    static assert(is(typeof(immutableSuccess.value()) == immutable(int)));
-    assert(immutableSuccess.value == 9);
+    const const_success = Result!(i32, ResultTestError).ok(7);
+    static assert(is(typeof(const_success.value()) == const(i32)));
+    assert(const_success.value == 7);
+
+    immutable immutable_success = Result!(i32, ResultTestError).ok(9);
+    static assert(is(typeof(immutable_success.value()) == immutable(i32)));
+    assert(immutable_success.value == 9);
 }
 
 unittest
 {
-    auto mapped = resultTestSource(false).map!(value => value * 2);
+    auto mapped = result_test_source(false).map!(value => value * 2);
     assert(mapped && mapped.value == 40);
 
-    auto mappedFailure = resultTestSource(true).map!(value => value * 2);
-    assert(mappedFailure.isErr && mappedFailure.error == ResultTestError.first);
+    auto mapped_failure = result_test_source(true).map!(value => value * 2);
+    assert(mapped_failure.is_err && mapped_failure.error == ResultTestError.first);
 
-    auto mappedError = resultTestSource(true).mapError!(error => cast(int) error + 10);
-    static assert(is(typeof(mappedError) == Result!(int, int)));
-    assert(mappedError.isErr && mappedError.error == 10);
+    auto mapped_error = result_test_source(true).map_error!(error => cast(i32) error + 10);
+    static assert(is(typeof(mapped_error) == Result!(i32, i32)));
+    assert(mapped_error.is_err && mapped_error.error == 10);
 
-    auto chained = resultTestSource(false).andThen!(value =>
-            Result!(long, ResultTestError).ok(value + 5L));
+    auto chained = result_test_source(false).and_then!(
+        value => Result!(i64, ResultTestError).ok(value + 5L),
+    );
     assert(chained && chained.value == 25L);
 
-    int offset = 3;
-    auto captured = resultTestSource(false).map!(value => value + offset);
+    i32 offset = 3;
+    auto captured = result_test_source(false).map!(value => value + offset);
     assert(captured && captured.value == 23);
 
-    auto recovered = resultTestSource(true).orElse!(error =>
-            Result!(int, int)
-                .ok(error == ResultTestError.first ? 99 : 0));
-    static assert(is(typeof(recovered) == Result!(int, int)));
+    auto recovered = result_test_source(true).or_else!(
+        error => Result!(i32, i32).ok(error == ResultTestError.first ? 99 : 0),
+    );
+    static assert(is(typeof(recovered) == Result!(i32, i32)));
     assert(recovered && recovered.value == 99);
 }
 
 unittest
 {
     alias VoidResult = Result!(void, ResultTestError);
+
     auto success = VoidResult.ok();
     assert(success);
     success.unwrap();
-    assert(success.isOk);
+    assert(success.is_ok);
 
-    auto expectedSuccess = VoidResult.ok();
-    expectedSuccess.expect("expected void success");
-    assert(expectedSuccess.isOk);
+    auto expected_success = VoidResult.ok();
+    expected_success.expect("expected void success");
+    assert(expected_success.is_ok);
 
-    int calls;
+    i32 calls;
     success = VoidResult.ok();
-    auto mapped = move(success).map!(() { ++calls; return 5; });
+    auto mapped = move(success).map!(
+        ()
+        {
+            ++calls;
+            return 5;
+        },
+    );
     assert(mapped && mapped.value == 5 && calls == 1);
 
-    auto chained = VoidResult.ok().andThen!(() => Result!(int, ResultTestError).ok(8));
+    auto chained = VoidResult.ok().and_then!(
+        () => Result!(i32, ResultTestError).ok(8),
+    );
     assert(chained && chained.value == 8);
 
     auto failure = VoidResult.err(ResultTestError.second);
-    auto untouched = move(failure).map!(() { ++calls; });
+    auto untouched = move(failure).map!(
+        ()
+        {
+            ++calls;
+        },
+    );
     static assert(is(typeof(untouched) == VoidResult));
-    assert(untouched.isErr && untouched.error == ResultTestError.second);
+    assert(untouched.is_err && untouched.error == ResultTestError.second);
     assert(calls == 1);
 }
 
 unittest
 {
-    int deinits;
+    i32 deinits;
     TrackedResultValue source = TrackedResultValue(&deinits, 7, true);
     auto result = Result!(TrackedResultValue, ResultTestError).ok(move(source));
     assert(result.value.value == 7);
+
     TrackedResultValue extracted = result.take();
-    assert(result.isOk);
+    assert(result.is_ok);
     assert(deinits == 0);
-    deinitValue(result);
+    xtb.lifetime.deinit(result);
     assert(deinits == 0);
-    deinitValue(extracted);
+    xtb.lifetime.deinit(extracted);
     assert(deinits == 1);
 
-    TrackedResultValue replacementValue = TrackedResultValue(&deinits, 8, true);
-    auto replacement = Result!(TrackedResultValue, ResultTestError).ok(move(replacementValue));
-    TrackedResultValue oldValue = TrackedResultValue(&deinits, 9, true);
-    auto target = Result!(TrackedResultValue, ResultTestError).ok(move(oldValue));
+    TrackedResultValue replacement_value = TrackedResultValue(&deinits, 8, true);
+    auto replacement = Result!(TrackedResultValue, ResultTestError).ok(move(replacement_value));
+    TrackedResultValue old_value = TrackedResultValue(&deinits, 9, true);
+    auto target = Result!(TrackedResultValue, ResultTestError).ok(move(old_value));
     target = move(replacement);
     assert(deinits == 2);
     assert(target.value.value == 8);
-    deinitValue(target);
+    xtb.lifetime.deinit(target);
     assert(deinits == 3);
 
     static assert(!__traits(compiles,
-            (ref Result!(TrackedResultValue, ResultTestError) value) {
+        (ref Result!(TrackedResultValue, ResultTestError) value)
+        {
             Result!(TrackedResultValue, ResultTestError) copy = value;
-        }));
+        },
+    ));
     static assert(!__traits(compiles,
-            (Result!(TrackedResultValue, ResultTestError) value) {
+        (Result!(TrackedResultValue, ResultTestError) value)
+        {
             return value.map!(item => item.value);
-        }));
+        },
+    ));
 }
 
 unittest
 {
-    static assert(!hasElaborateDestructor!(
-            Result!(DestructorResultValue, ResultTestError)));
-    static assert(!hasElaborateDestructor!(
-            Result!(int, DestructorResultValue)));
+    static assert(!hasElaborateDestructor!(Result!(DestructorResultValue, ResultTestError)));
+    static assert(!hasElaborateDestructor!(Result!(i32, DestructorResultValue)));
 
-    int destructions;
-    DestructorResultValue successValue =
-        DestructorResultValue(&destructions, true);
-    auto success = Result!(DestructorResultValue, ResultTestError)
-        .ok(move(successValue));
-    deinitValue(success);
+    i32 destructions;
+    DestructorResultValue success_value = DestructorResultValue(&destructions, true);
+    auto success = Result!(DestructorResultValue, ResultTestError).ok(move(success_value));
+    xtb.lifetime.deinit(success);
     assert(destructions == 1);
 
-    DestructorResultValue errorValue =
-        DestructorResultValue(&destructions, true);
-    auto failure = Result!(int, DestructorResultValue).err(move(errorValue));
-    deinitValue(failure);
+    DestructorResultValue error_value = DestructorResultValue(&destructions, true);
+    auto failure = Result!(i32, DestructorResultValue).err(move(error_value));
+    xtb.lifetime.deinit(failure);
     assert(destructions == 2);
 
-    DestructorResultValue transferredValue =
-        DestructorResultValue(&destructions, true);
-    auto transferred = Result!(DestructorResultValue, ResultTestError)
-        .ok(move(transferredValue));
+    DestructorResultValue transferred_value = DestructorResultValue(&destructions, true);
+    auto transferred = Result!(DestructorResultValue, ResultTestError).ok(move(transferred_value));
     DestructorResultValue extracted = transferred.take();
-    deinitValue(transferred);
+    xtb.lifetime.deinit(transferred);
     assert(destructions == 2);
     destroy(extracted);
     assert(destructions == 3);

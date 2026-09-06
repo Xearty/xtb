@@ -38,27 +38,27 @@ Construct it with `ok` or `err`. `mixin ResultReturns` introduces short aliases
 for the enclosing function's result type.
 
 ```d
-Result!(long, ParseError) loadValue()
+Result!(i64, ParseError) load_value()
 {
     mixin ResultReturns;
 
-    auto parsed = parseValue();
+    auto parsed = parse_value();
     if (!parsed)
         return err(parsed); // transfers the same error type
 
-    return ok(cast(long) parsed.take());
+    return ok(cast(i64) parsed.take());
 }
 ```
 
-Test `isOk` / `isErr`, or use the boolean conversion. `value` and `error` borrow
-the active payload. `take` and `takeError` transfer it. `unwrap`, `expect`,
-`unwrapError`, and `expectError` panic when the result is in the wrong branch;
+Test `is_ok` / `is_err`, or use the boolean conversion. `value` and `error` borrow
+the active payload. `take` and `take_error` transfer it. `unwrap`, `expect`,
+`unwrap_error`, and `expect_error` panic when the result is in the wrong branch;
 they are not error-propagation operators.
 
 Like `Option`, `Result` owns its active payload and cleans it when necessary.
-After `take` or `takeError`, responsibility for the transferred value belongs to
+After `take` or `take_error`, responsibility for the transferred value belongs to
 the caller.
 
-`map`, `mapError`, `andThen`, and `orElse` are convenient for cleanup-free
+`map`, `map_error`, `and_then`, and `or_else` are convenient for cleanup-free
 payloads. For owning values, prefer an explicit branch and `take` so ownership
 transfer stays visible.

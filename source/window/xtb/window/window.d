@@ -429,7 +429,7 @@ nothrow @nogc:
                 return;
 
             auto mode_result = target.video_mode();
-            if (mode_result.isErr)
+            if (mode_result.is_err)
                 return;
             const mode = mode_result.take();
 

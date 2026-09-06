@@ -18,7 +18,7 @@ import xtb.window.opengl;
 
 OpenGLConfig glConfig;
 auto windowResult = system.create_opengl_window(WindowConfig.init, glConfig);
-if (windowResult.isErr)
+if (windowResult.is_err)
     return 1;
 Window* window = windowResult.take();
 scope (exit) window.deinit();

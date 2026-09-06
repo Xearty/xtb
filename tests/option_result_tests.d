@@ -197,7 +197,7 @@ private void testResultTransitions(Allocator* allocator)
     HeapOwner b = HeapOwner.create(allocator, 2, &deinits);
     auto source = Result!(HeapOwner, HeapOwner).ok(move(b));
     target = move(source);
-    assert(target.isOk && target.value.id == 2);
+    assert(target.is_ok && target.value.id == 2);
     assert(deinits == 1);
     deinit(target);
     assert(deinits == 2);
@@ -208,7 +208,7 @@ private void testResultTransitions(Allocator* allocator)
     HeapOwner d = HeapOwner.create(allocator, 4, &deinits);
     source = Result!(HeapOwner, HeapOwner).err(move(d));
     target = move(source);
-    assert(target.isErr && target.error.id == 4);
+    assert(target.is_err && target.error.id == 4);
     assert(deinits == 3);
     deinit(target);
     assert(deinits == 4);
@@ -219,7 +219,7 @@ private void testResultTransitions(Allocator* allocator)
     HeapOwner f = HeapOwner.create(allocator, 6, &deinits);
     source = Result!(HeapOwner, HeapOwner).ok(move(f));
     target = move(source);
-    assert(target.isOk && target.value.id == 6);
+    assert(target.is_ok && target.value.id == 6);
     assert(deinits == 5);
     deinit(target);
     assert(deinits == 6);
@@ -230,11 +230,11 @@ private void testResultTransitions(Allocator* allocator)
     HeapOwner h = HeapOwner.create(allocator, 8, &deinits);
     source = Result!(HeapOwner, HeapOwner).err(move(h));
     target = move(source);
-    assert(target.isErr && target.error.id == 8);
+    assert(target.is_err && target.error.id == 8);
     assert(deinits == 7);
 
-    HeapOwner extracted = target.takeError();
-    assert(target.isErr);
+    HeapOwner extracted = target.take_error();
+    assert(target.is_err);
     deinit(target);
     assert(deinits == 7);
     deinit(extracted);
@@ -331,13 +331,13 @@ private void testSimpleMonads()
 
     auto result = Result!(int, int).ok(5)
         .map!(value => value * 2)
-        .andThen!(value => Result!(long, int).ok(value + 7L))
-        .mapError!(error => error + 1);
-    assert(result.isOk && result.value == 17L);
+        .and_then!(value => Result!(long, int).ok(value + 7L))
+        .map_error!(error => error + 1);
+    assert(result.is_ok && result.value == 17L);
 
     auto recovered = Result!(int, int).err(9)
-        .orElse!(error => Result!(int, long).ok(error + 1));
-    assert(recovered.isOk && recovered.value == 10);
+        .or_else!(error => Result!(int, long).ok(error + 1));
+    assert(recovered.is_ok && recovered.value == 10);
 }
 
 extern (C) int main()

@@ -78,7 +78,7 @@ static assert(__traits(hasMember, Option!int, "unwrap"));
 static assert(__traits(hasMember, Option!int, "expect"));
 static assert(__traits(hasMember, Result!(int, int), "take"));
 static assert(__traits(hasMember, Result!(int, int), "unwrap"));
-static assert(__traits(hasMember, Result!(int, int), "unwrapError"));
+static assert(__traits(hasMember, Result!(int, int), "unwrap_error"));
 static assert(__traits(hasMember, OwnedString, "view"));
 static assert(__traits(hasMember, HashMap!(int, int), "set"));
 static assert(__traits(hasMember, HashSet!int, "contains"));
@@ -363,12 +363,12 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "result-unwrap-error-ok"))
     {
         auto result = Result!(int, int).ok(1);
-        result.unwrapError();
+        result.unwrap_error();
     }
     if (cStringEqual(name, "result-expect-error-ok"))
     {
         auto result = Result!(int, int).ok(1);
-        result.expectError("expected result error");
+        result.expect_error("expected result error");
     }
     if (cStringEqual(name, "scratch-without-context"))
         ScratchScope.acquire();

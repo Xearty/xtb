@@ -242,7 +242,7 @@ version (unittest)
                     &observed[index],
                 );
                 auto started = Thread.start!waitForGeneration(&contexts[index]);
-                assert(started.isOk);
+                assert(started.is_ok);
                 waiter = started.unwrap();
             }
 
@@ -280,7 +280,7 @@ version (unittest)
             );
 
             auto started = Thread.start!stressGenerationWait(&context);
-            assert(started.isOk);
+            assert(started.is_ok);
             Thread waiter = started.unwrap();
 
             foreach (round; 0 .. rounds)
@@ -313,7 +313,7 @@ version (unittest)
             );
 
             auto started = Thread.start!waitForGeneration(&context);
-            assert(started.isOk);
+            assert(started.is_ok);
             Thread waiter = started.unwrap();
             waitUntilAtLeast(&entered, 1);
             state.advance();

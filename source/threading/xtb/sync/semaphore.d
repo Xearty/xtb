@@ -410,7 +410,7 @@ version (unittest)
             context.semaphore = &semaphore;
 
             auto started = Thread.start!storedPermitPublicationWorker(&context);
-            assert(started.isOk);
+            assert(started.is_ok);
             Thread worker = started.unwrap();
             assert(waitForSemaphoreTestFlag(&context.entered));
 
@@ -431,7 +431,7 @@ version (unittest)
             context.semaphore = &semaphore;
 
             auto started = Thread.start!directHandoffPublicationWorker(&context);
-            assert(started.isOk);
+            assert(started.is_ok);
             Thread worker = started.unwrap();
             assert(waitForQueuedSemaphoreWaiter(&semaphore));
 
@@ -492,12 +492,12 @@ version (unittest)
             context.waiter = &waiter;
 
             auto releaserStarted = Thread.start!delayedSemaphoreSignal(&context);
-            assert(releaserStarted.isOk);
+            assert(releaserStarted.is_ok);
             Thread releaser = releaserStarted.unwrap();
             assert(waitForSemaphoreTestFlag(&context.signalStored));
 
             auto barrierStarted = Thread.start!crossSemaphoreLifetimeBarrier(&context);
-            assert(barrierStarted.isOk);
+            assert(barrierStarted.is_ok);
             Thread barrier = barrierStarted.unwrap();
 
             foreach (_; 0 .. 32)

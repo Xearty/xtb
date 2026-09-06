@@ -867,7 +867,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     auto closedPipeStarted = Thread.start!closedPipeWriteWorker(
         &closedPipe.writer,
     );
-    assert(closedPipeStarted.isOk);
+    assert(closedPipeStarted.is_ok);
     Thread closedPipeThread = closedPipeStarted.unwrap();
     assert(closedPipeThread.join() == 0);
 

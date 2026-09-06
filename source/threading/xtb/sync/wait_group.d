@@ -307,7 +307,7 @@ version (unittest)
                     &observed[index],
                 );
                 auto started = Thread.start!waitOnWaitGroup(&waiterContexts[index]);
-                assert(started.isOk);
+                assert(started.is_ok);
                 waiter = started.unwrap();
             }
             waitForRound(&entered, waiterCount);
@@ -325,7 +325,7 @@ version (unittest)
                 auto started = Thread.start!completeWaitGroupWork(
                     &workerContexts[index],
                 );
-                assert(started.isOk);
+                assert(started.is_ok);
                 worker = started.unwrap();
             }
 
@@ -355,7 +355,7 @@ version (unittest)
             );
 
             auto started = Thread.start!reuseWaitGroupWorker(&context);
-            assert(started.isOk);
+            assert(started.is_ok);
             Thread worker = started.unwrap();
 
             foreach (round; 0 .. rounds)
@@ -387,7 +387,7 @@ version (unittest)
             );
 
             auto started = Thread.start!dynamicallyAddWaitGroupWork(&context);
-            assert(started.isOk);
+            assert(started.is_ok);
             Thread worker = started.unwrap();
             waitForRound(&registered, 1);
             assert(!group.tryWait());
