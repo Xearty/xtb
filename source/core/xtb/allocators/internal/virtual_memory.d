@@ -80,7 +80,7 @@ nothrow @nogc:
     /// `VirtualMemoryRegion.init`.
     bool try_region(usize offset, usize bytes, scope VirtualMemoryRegion* output) @system
     {
-        require(output !is null, "VirtualMemoryRegion output is null");
+        require(output !is null, "virtual-memory region output is null");
         return try_make_virtual_memory_region(this.base, this.bytes, offset, bytes, output);
     }
 }
@@ -121,7 +121,7 @@ nothrow @nogc:
     /// region.
     bool try_region(usize offset, usize bytes, scope VirtualMemoryRegion* output) @system
     {
-        require(output !is null, "VirtualMemoryRegion output is null");
+        require(output !is null, "virtual-memory region output is null");
         return try_make_virtual_memory_region(
             this.base,
             this.reserved_bytes,
@@ -203,8 +203,8 @@ package(xtb) bool try_reserve_virtual_memory(
     scope VirtualMemoryReservation* output,
 ) @system
 {
-    require(output !is null, "VirtualMemoryReservation output is null");
-    require(!output.active, "VirtualMemoryReservation output is active");
+    require(output !is null, "virtual-memory reservation output is null");
+    require(!output.active, "virtual-memory reservation output is active");
 
     if (bytes == 0) return true;
     if (!virtual_memory_supported) return false;
