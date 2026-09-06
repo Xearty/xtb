@@ -5,8 +5,8 @@ nothrow @nogc:
 import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
     VirtualMemoryReservation;
 import xtb.numeric : add_overflows;
-import xtb.containers.virtual_array : tryAlignAddressUp,
-    tryVirtualArrayRegionGeometry, VirtualArrayRegionGeometry;
+import xtb.containers.virtual_array : try_align_address_up,
+    try_virtual_array_region_geometry, VirtualArrayRegionGeometry;
 
 /// Shared fixed-capacity three-region geometry for indexed Pool containers.
 ///
@@ -40,19 +40,19 @@ package(xtb.containers) bool tryIndexedPoolStorageLayout(T, State)(
     IndexedPoolStorageLayout result;
     result.valueCapacity = capacityAsSize + 1;
     result.stateCapacity = stateCapacity;
-    if (!tryVirtualArrayRegionGeometry!T(
+    if (!try_virtual_array_region_geometry!T(
             result.valueCapacity,
             pageSize,
             &result.values,
         ))
         return false;
-    if (!tryVirtualArrayRegionGeometry!State(
+    if (!try_virtual_array_region_geometry!State(
             stateCapacity,
             pageSize,
             &result.states,
         ))
         return false;
-    if (!tryVirtualArrayRegionGeometry!uint(
+    if (!try_virtual_array_region_geometry!uint(
             capacityAsSize,
             pageSize,
             &result.freeIndices,
@@ -84,9 +84,9 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     size_t cursor = reservationBase;
 
     void* valuesBase;
-    if (!tryAlignAddressUp(
+    if (!try_align_address_up(
             cast(void*) cursor,
-            layout.values.baseAlignment,
+            layout.values.base_alignment,
             &valuesBase,
         ))
         return false;
@@ -94,16 +94,16 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     if (valuesAddress < reservationBase)
         return false;
     const valuesOffset = valuesAddress - reservationBase;
-    if (!reservation.try_region(valuesOffset, layout.values.regionBytes, values))
+    if (!reservation.try_region(valuesOffset, layout.values.region_bytes, values))
         return false;
-    if (add_overflows(valuesAddress, layout.values.regionBytes))
+    if (add_overflows(valuesAddress, layout.values.region_bytes))
         return false;
-    cursor = valuesAddress + layout.values.regionBytes;
+    cursor = valuesAddress + layout.values.region_bytes;
 
     void* statesBase;
-    if (!tryAlignAddressUp(
+    if (!try_align_address_up(
             cast(void*) cursor,
-            layout.states.baseAlignment,
+            layout.states.base_alignment,
             &statesBase,
         ))
         return false;
@@ -113,18 +113,18 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     const statesOffset = statesAddress - reservationBase;
     if (!reservation.try_region(
             statesOffset,
-            layout.states.regionBytes,
+            layout.states.region_bytes,
             states,
         ))
         return false;
-    if (add_overflows(statesAddress, layout.states.regionBytes))
+    if (add_overflows(statesAddress, layout.states.region_bytes))
         return false;
-    cursor = statesAddress + layout.states.regionBytes;
+    cursor = statesAddress + layout.states.region_bytes;
 
     void* freeBase;
-    if (!tryAlignAddressUp(
+    if (!try_align_address_up(
             cast(void*) cursor,
-            layout.freeIndices.baseAlignment,
+            layout.freeIndices.base_alignment,
             &freeBase,
         ))
         return false;
@@ -134,7 +134,7 @@ package(xtb.containers) bool tryIndexedPoolStorageRegions(
     const freeOffset = freeAddress - reservationBase;
     if (!reservation.try_region(
             freeOffset,
-            layout.freeIndices.regionBytes,
+            layout.freeIndices.region_bytes,
             freeIndices,
         ))
         return false;
@@ -147,11 +147,11 @@ private bool tryAddRegionBytes(
     scope const VirtualArrayRegionGeometry geometry,
 ) pure @safe
 {
-    if (add_overflows(total, geometry.alignmentSlack))
+    if (add_overflows(total, geometry.alignment_slack))
         return false;
-    total += geometry.alignmentSlack;
-    if (add_overflows(total, geometry.regionBytes))
+    total += geometry.alignment_slack;
+    if (add_overflows(total, geometry.region_bytes))
         return false;
-    total += geometry.regionBytes;
+    total += geometry.region_bytes;
     return true;
 }

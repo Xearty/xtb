@@ -14,11 +14,11 @@ They are explicit owners and must be `deinit`ed.
 ## `VirtualArray`
 
 ```d
-VirtualArray!int values = VirtualArray!int.create(1_000_000);
-scope(exit) values.deinit();
+auto values = VirtualArray!i32.create(1_000_000);
+scope (exit) values.deinit();
 
 values.append(10);
-int* first = &values[0];
+i32* first = &values[0];
 values.resize(10_000);
 assert(first is &values[0]);
 ```

@@ -14,7 +14,7 @@ import xtb.numeric : add_overflows;
 import xtb.panic : panic;
 import xtb.containers.internal.pool_storage : IndexedPoolStorageLayout,
     tryIndexedPoolStorageLayout, tryIndexedPoolStorageRegions;
-import xtb.containers.virtual_array : defaultVirtualCommitGranularity, VirtualArrayView;
+import xtb.containers.virtual_array : default_virtual_commit_granularity, VirtualArrayView;
 
 version (XTB_Checked) import xtb.panic : require;
 
@@ -98,10 +98,10 @@ public:
             return false;
 
         VirtualArrayView!T values;
-        if (!VirtualArrayView!T.tryCreate(
+        if (!VirtualArrayView!T.try_create(
                 valuesRegion,
                 layout.valueCapacity,
-                defaultVirtualCommitGranularity,
+                default_virtual_commit_granularity,
                 &values,
             ))
             return false;
@@ -109,10 +109,10 @@ public:
             values.deinit();
 
         VirtualArrayView!size_t occupiedWords;
-        if (!VirtualArrayView!size_t.tryCreate(
+        if (!VirtualArrayView!size_t.try_create(
                 occupiedRegion,
                 layout.stateCapacity,
-                defaultVirtualCommitGranularity,
+                default_virtual_commit_granularity,
                 &occupiedWords,
             ))
             return false;
@@ -120,10 +120,10 @@ public:
             occupiedWords.deinit();
 
         VirtualArrayView!uint freeIndices;
-        if (!VirtualArrayView!uint.tryCreate(
+        if (!VirtualArrayView!uint.try_create(
                 freeRegion,
                 capacity,
-                defaultVirtualCommitGranularity,
+                default_virtual_commit_granularity,
                 &freeIndices,
             ))
             return false;
@@ -251,7 +251,7 @@ public:
             index = checkedPhysicalIndex(value);
             require(index != 0, "Pool deallocation pointer does not belong to Pool");
             require(occupied(index), "Pool slot is already inactive");
-            require(freeCount_ < freeIndices_.provisionedLength,
+            require(freeCount_ < freeIndices_.provisioned_length,
                 "Pool free-index provisioning invariant violated");
         }
         else
@@ -378,7 +378,7 @@ public:
     /// Previously provisioned pages remain committed and reusable.
     void clear() @trusted
     {
-        const wordCount = occupiedWords_.provisionedLength;
+        const wordCount = occupiedWords_.provisioned_length;
         if (wordCount != 0)
             memset(occupiedWords_.ptr, 0, wordCount * size_t.sizeof);
 
@@ -430,11 +430,11 @@ private:
         // before publishing the index. Advancing one view's raw high-water is
         // harmless if a later view fails: Pool logical state remains unchanged
         // and a retry reuses the already committed prefix.
-        if (!values_.tryEnsureAccessible(valueCount))
+        if (!values_.try_ensure_accessible(valueCount))
             return false;
-        if (!occupiedWords_.tryEnsureAccessible(wordIndex + 1))
+        if (!occupiedWords_.try_ensure_accessible(wordIndex + 1))
             return false;
-        if (!freeIndices_.tryEnsureAccessible(index))
+        if (!freeIndices_.try_ensure_accessible(index))
             return false;
         return true;
     }
@@ -445,7 +445,7 @@ private:
             return false;
 
         const wordIndex = occupiedWordIndex(index);
-        if (wordIndex >= occupiedWords_.provisionedLength)
+        if (wordIndex >= occupiedWords_.provisioned_length)
             return false;
 
         return (occupiedWords_[wordIndex] & occupiedBit(index)) != 0;
@@ -463,7 +463,7 @@ private:
 
     uint physicalIndex(scope const T* value) const @trusted
     {
-        if (value is null || values_.ptr is null || values_.provisionedLength <= 1)
+        if (value is null || values_.ptr is null || values_.provisioned_length <= 1)
             return 0;
 
         const baseAddress = cast(size_t) values_.ptr;
@@ -476,7 +476,7 @@ private:
             return 0;
 
         const index = byteOffset / T.sizeof;
-        if (index == 0 || index >= values_.provisionedLength || index > capacity_)
+        if (index == 0 || index >= values_.provisioned_length || index > capacity_)
             return 0;
         return cast(uint) index;
     }
@@ -859,7 +859,7 @@ private:
         result.values_ = pool.values_.ptr;
         result.occupiedWords_ = pool.occupiedWords_.ptr;
         result.index_ = 1;
-        result.endIndex_ = pool.values_.provisionedLength;
+        result.endIndex_ = pool.values_.provisioned_length;
         version (XTB_Checked)
         {
             result.owner_ = pool;
@@ -933,7 +933,7 @@ private:
         result.values_ = pool.values_.ptr;
         result.occupiedWords_ = pool.occupiedWords_.ptr;
         result.index_ = 1;
-        result.endIndex_ = pool.values_.provisionedLength;
+        result.endIndex_ = pool.values_.provisioned_length;
         version (XTB_Checked)
         {
             result.owner_ = pool;
@@ -1004,7 +1004,7 @@ private:
     {
         PoolOccupiedCursor result;
         result.occupiedWords_ = pool.occupiedWords_.ptr;
-        result.wordCount_ = pool.occupiedWords_.provisionedLength;
+        result.wordCount_ = pool.occupiedWords_.provisioned_length;
         version (XTB_Checked)
         {
             result.owner_ = pool;
@@ -1185,22 +1185,22 @@ unittest
     assert(pool.get(2) is second);
     assert(pool.liveCount == 2);
 
-    const valueCommitted = pool.values_.committedBytes;
-    const occupiedCommitted = pool.occupiedWords_.committedBytes;
-    const freeCommitted = pool.freeIndices_.committedBytes;
+    const valueCommitted = pool.values_.committed_bytes;
+    const occupiedCommitted = pool.occupiedWords_.committed_bytes;
+    const freeCommitted = pool.freeIndices_.committed_bytes;
     pool.deallocate(first);
-    assert(pool.values_.committedBytes == valueCommitted);
-    assert(pool.occupiedWords_.committedBytes == occupiedCommitted);
-    assert(pool.freeIndices_.committedBytes == freeCommitted);
+    assert(pool.values_.committed_bytes == valueCommitted);
+    assert(pool.occupiedWords_.committed_bytes == occupiedCommitted);
+    assert(pool.freeIndices_.committed_bytes == freeCommitted);
     assert(pool.indexOf(first) == 0);
     assert(pool.get(1) is null);
     assert(pool.liveCount == 1);
 
     int* recycled = pool.tryAllocate();
     assert(recycled is first);
-    assert(pool.values_.committedBytes == valueCommitted);
-    assert(pool.occupiedWords_.committedBytes == occupiedCommitted);
-    assert(pool.freeIndices_.committedBytes == freeCommitted);
+    assert(pool.values_.committed_bytes == valueCommitted);
+    assert(pool.occupiedWords_.committed_bytes == occupiedCommitted);
+    assert(pool.freeIndices_.committed_bytes == freeCommitted);
     assert(*recycled == 11);
     pool.deallocate(recycled);
 
@@ -1263,13 +1263,13 @@ unittest
         commitBoundary.deinit();
     foreach (index; 1 .. freeCommitBoundary)
         commitBoundary.allocate();
-    const freeBytesBeforeBoundary = commitBoundary.freeIndices_.committedBytes;
+    const freeBytesBeforeBoundary = commitBoundary.freeIndices_.committed_bytes;
     ubyte* boundaryValue = commitBoundary.allocate();
     assert(commitBoundary.indexOf(boundaryValue) == freeCommitBoundary);
-    assert(commitBoundary.freeIndices_.committedBytes > freeBytesBeforeBoundary);
-    const freeBytesAfterBoundary = commitBoundary.freeIndices_.committedBytes;
+    assert(commitBoundary.freeIndices_.committed_bytes > freeBytesBeforeBoundary);
+    const freeBytesAfterBoundary = commitBoundary.freeIndices_.committed_bytes;
     commitBoundary.deallocate(boundaryValue);
-    assert(commitBoundary.freeIndices_.committedBytes == freeBytesAfterBoundary);
+    assert(commitBoundary.freeIndices_.committed_bytes == freeBytesAfterBoundary);
 
     Pool!int reuseOrder = Pool!int.create(4);
     scope (exit)

@@ -12,7 +12,7 @@ import xtb.numeric : add_overflows;
 import xtb.panic : panic;
 import xtb.containers.internal.pool_storage : IndexedPoolStorageLayout,
     tryIndexedPoolStorageLayout, tryIndexedPoolStorageRegions;
-import xtb.containers.virtual_array : defaultVirtualCommitGranularity, VirtualArrayView;
+import xtb.containers.virtual_array : default_virtual_commit_granularity, VirtualArrayView;
 
 version (XTB_Checked) import xtb.panic : require;
 
@@ -128,10 +128,10 @@ public:
             return false;
 
         VirtualArrayView!T values;
-        if (!VirtualArrayView!T.tryCreate(
+        if (!VirtualArrayView!T.try_create(
                 valuesRegion,
                 layout.valueCapacity,
-                defaultVirtualCommitGranularity,
+                default_virtual_commit_granularity,
                 &values,
             ))
             return false;
@@ -139,10 +139,10 @@ public:
             values.deinit();
 
         VirtualArrayView!uint states;
-        if (!VirtualArrayView!uint.tryCreate(
+        if (!VirtualArrayView!uint.try_create(
                 statesRegion,
                 layout.stateCapacity,
-                defaultVirtualCommitGranularity,
+                default_virtual_commit_granularity,
                 &states,
             ))
             return false;
@@ -150,10 +150,10 @@ public:
             states.deinit();
 
         VirtualArrayView!uint freeIndices;
-        if (!VirtualArrayView!uint.tryCreate(
+        if (!VirtualArrayView!uint.try_create(
                 freeRegion,
                 capacity,
-                defaultVirtualCommitGranularity,
+                default_virtual_commit_granularity,
                 &freeIndices,
             ))
             return false;
@@ -204,7 +204,7 @@ public:
             {
                 require(index != 0 && index <= capacity_,
                     "GenerationalPool free-index stack is corrupt");
-                require(index < states_.provisionedLength,
+                require(index < states_.provisioned_length,
                     "GenerationalPool free-index stack exceeds provisioned state");
                 require(!stateActive(states_[index]),
                     "GenerationalPool free-index stack contains an active slot");
@@ -418,7 +418,7 @@ public:
     /// Previously provisioned pages and per-slot generations remain reusable.
     void clear() @trusted
     {
-        const provisioned = states_.provisionedLength;
+        const provisioned = states_.provisioned_length;
         foreach (index; 1 .. provisioned)
         {
             const state = states_[index];
@@ -472,11 +472,11 @@ private:
         // Provision every region needed by this slot's entire future lifecycle
         // before publishing the index. Later deallocation therefore cannot
         // allocate or commit virtual memory.
-        if (!values_.tryEnsureAccessible(elementCount))
+        if (!values_.try_ensure_accessible(elementCount))
             return false;
-        if (!states_.tryEnsureAccessible(elementCount))
+        if (!states_.try_ensure_accessible(elementCount))
             return false;
-        if (!freeIndices_.tryEnsureAccessible(index))
+        if (!freeIndices_.try_ensure_accessible(index))
             return false;
         return true;
     }
@@ -487,7 +487,7 @@ private:
             return false;
 
         const index = cast(size_t) handle.index;
-        if (index >= states_.provisionedLength)
+        if (index >= states_.provisioned_length)
             return false;
 
         const state = states_[index];
@@ -1125,7 +1125,7 @@ private:
         result.values_ = pool.values_.ptr;
         result.states_ = pool.states_.ptr;
         result.index_ = 1;
-        result.endIndex_ = pool.states_.provisionedLength;
+        result.endIndex_ = pool.states_.provisioned_length;
         version (XTB_Checked)
         {
             result.owner_ = pool;
@@ -1204,7 +1204,7 @@ private:
         result.values_ = pool.values_.ptr;
         result.states_ = pool.states_.ptr;
         result.index_ = 1;
-        result.endIndex_ = pool.states_.provisionedLength;
+        result.endIndex_ = pool.states_.provisioned_length;
         version (XTB_Checked)
         {
             result.owner_ = pool;
@@ -1280,7 +1280,7 @@ private:
         GenerationalPoolOccupiedCursor result;
         result.states_ = pool.states_.ptr;
         result.index_ = 1;
-        result.endIndex_ = pool.states_.provisionedLength;
+        result.endIndex_ = pool.states_.provisioned_length;
         version (XTB_Checked)
         {
             result.owner_ = pool;
@@ -1470,24 +1470,24 @@ unittest
     assert(*pool.get(second) == 22);
     assert(pool.liveCount == 2);
 
-    const valueCommitted = pool.values_.committedBytes;
-    const stateCommitted = pool.states_.committedBytes;
-    const freeCommitted = pool.freeIndices_.committedBytes;
+    const valueCommitted = pool.values_.committed_bytes;
+    const stateCommitted = pool.states_.committed_bytes;
+    const freeCommitted = pool.freeIndices_.committed_bytes;
     assert(pool.tryDeallocate(first));
     assert(first.valid); // non-null representation; pool-relative membership is stale
     assert(!pool.contains(first));
     assert(pool.get(first) is null);
     assert(!pool.tryDeallocate(first));
-    assert(pool.values_.committedBytes == valueCommitted);
-    assert(pool.states_.committedBytes == stateCommitted);
-    assert(pool.freeIndices_.committedBytes == freeCommitted);
+    assert(pool.values_.committed_bytes == valueCommitted);
+    assert(pool.states_.committed_bytes == stateCommitted);
+    assert(pool.freeIndices_.committed_bytes == freeCommitted);
 
     IntHandle recycled = pool.allocate();
     assert(recycled.index == first.index);
     assert(recycled.generation == first.generation + 1);
-    assert(pool.values_.committedBytes == valueCommitted);
-    assert(pool.states_.committedBytes == stateCommitted);
-    assert(pool.freeIndices_.committedBytes == freeCommitted);
+    assert(pool.values_.committed_bytes == valueCommitted);
+    assert(pool.states_.committed_bytes == stateCommitted);
+    assert(pool.freeIndices_.committed_bytes == freeCommitted);
     assert(pool.get(first) is null);
     assert(pool.get(recycled) !is null);
 
@@ -1498,17 +1498,17 @@ unittest
         commitBoundary.deinit();
     foreach (_; 1 .. freeCommitBoundary)
         commitBoundary.allocate();
-    const freeBytesBeforeBoundary = commitBoundary.freeIndices_.committedBytes;
+    const freeBytesBeforeBoundary = commitBoundary.freeIndices_.committed_bytes;
     auto boundaryHandle = commitBoundary.allocate();
     assert(boundaryHandle.index == freeCommitBoundary);
-    assert(commitBoundary.freeIndices_.committedBytes > freeBytesBeforeBoundary);
-    const boundaryValuesCommitted = commitBoundary.values_.committedBytes;
-    const boundaryStatesCommitted = commitBoundary.states_.committedBytes;
-    const boundaryFreeCommitted = commitBoundary.freeIndices_.committedBytes;
+    assert(commitBoundary.freeIndices_.committed_bytes > freeBytesBeforeBoundary);
+    const boundaryValuesCommitted = commitBoundary.values_.committed_bytes;
+    const boundaryStatesCommitted = commitBoundary.states_.committed_bytes;
+    const boundaryFreeCommitted = commitBoundary.freeIndices_.committed_bytes;
     commitBoundary.deallocate(boundaryHandle);
-    assert(commitBoundary.values_.committedBytes == boundaryValuesCommitted);
-    assert(commitBoundary.states_.committedBytes == boundaryStatesCommitted);
-    assert(commitBoundary.freeIndices_.committedBytes == boundaryFreeCommitted);
+    assert(commitBoundary.values_.committed_bytes == boundaryValuesCommitted);
+    assert(commitBoundary.states_.committed_bytes == boundaryStatesCommitted);
+    assert(commitBoundary.freeIndices_.committed_bytes == boundaryFreeCommitted);
 
     IntHandle third = pool.allocateInit();
     assert(third.index == 3);
@@ -1540,14 +1540,14 @@ unittest
     representation.first = 0x1234_5678;
     representation.second = 0x9abc_def0;
     Representation snapshot = *representation;
-    const representationValueCommitted = representations.values_.committedBytes;
-    const representationStateCommitted = representations.states_.committedBytes;
-    const representationFreeCommitted = representations.freeIndices_.committedBytes;
+    const representationValueCommitted = representations.values_.committed_bytes;
+    const representationStateCommitted = representations.states_.committed_bytes;
+    const representationFreeCommitted = representations.freeIndices_.committed_bytes;
     assert(representations.tryDeallocate(representationHandle));
     assert(memcmp(representation, &snapshot, Representation.sizeof) == 0);
-    assert(representations.values_.committedBytes == representationValueCommitted);
-    assert(representations.states_.committedBytes == representationStateCommitted);
-    assert(representations.freeIndices_.committedBytes == representationFreeCommitted);
+    assert(representations.values_.committed_bytes == representationValueCommitted);
+    assert(representations.states_.committed_bytes == representationStateCommitted);
+    assert(representations.freeIndices_.committed_bytes == representationFreeCommitted);
 
     auto representationReused = representations.allocate();
     assert(representationReused.index == representationHandle.index);
