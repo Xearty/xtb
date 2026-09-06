@@ -2263,7 +2263,7 @@ private void decodeArray(Container)(
         return;
     }
     Container values = Container.create(parser.allocator);
-    if (!values.tryResize(count))
+    if (!values.try_resize(count))
     {
         values.deinit();
         parser.fail(SerdeErrorKind.allocationFailure);

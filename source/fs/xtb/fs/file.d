@@ -296,7 +296,7 @@ OsError readEntireFile(Path path, ref Array!u8 output) @system
     if ((&file).metadata(&information).succeeded && information.size != 0)
     {
         if (information.size > size_t.max ||
-            !output.tryReserve(cast(size_t) information.size))
+            !output.try_reserve(cast(size_t) information.size))
             return OsError(OsErrorKind.system, 0);
     }
 
@@ -311,7 +311,7 @@ OsError readEntireFile(Path path, ref Array!u8 output) @system
         }
         if (result.transferred == 0)
             return OsError.init;
-        if (!output.tryAppend(chunk[0 .. result.transferred]))
+        if (!output.try_append(chunk[0 .. result.transferred]))
         {
             output.clear();
             return OsError(OsErrorKind.system, 0);

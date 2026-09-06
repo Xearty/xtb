@@ -952,7 +952,7 @@ private void testOwnedArrayIntegration(InstrumentedAllocator* tracked)
     foreach (text; integrationKeys)
     {
         StringBuf value = StringBuf.fromString(tracked.allocator, text);
-        assert(values.tryAppend(&value));
+        assert(values.try_append(&value));
         assert(value.allocator is null && value.empty);
     }
     assert(values.length == integrationKeys.length);
@@ -961,7 +961,7 @@ private void testOwnedArrayIntegration(InstrumentedAllocator* tracked)
     StringBuf popped = values.pop();
     assert(popped == "key-23");
     deinit(popped);
-    values.removeAt(0);
+    values.remove_at(0);
     assert(values.length == integrationKeys.length - 2);
 
     values.clear();
@@ -972,7 +972,7 @@ private void testOwnedArrayIntegration(InstrumentedAllocator* tracked)
     OwnedArray!StringBuf failing = OwnedArray!StringBuf.create(tracked.allocator);
     StringBuf retained = StringBuf.fromString(tracked.allocator, "retained-array-value");
     tracked.fail_after(0);
-    assert(!failing.tryAppend(&retained));
+    assert(!failing.try_append(&retained));
     assert(retained.view == "retained-array-value");
     assert(failing.empty);
     tracked.allow_allocations();

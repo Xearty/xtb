@@ -171,17 +171,17 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "unmanaged-null-fallible-factory"))
     {
         ArrayUnmanaged!int output;
-        ArrayUnmanaged!int.tryWithCapacity(null, 0, &output);
+        ArrayUnmanaged!int.try_with_capacity(null, 0, &output);
     }
     if (cStringEqual(name, "unmanaged-null-returning-factory"))
-        ArrayUnmanaged!int.withCapacity(null, 0);
+        cast(void) ArrayUnmanaged!int.with_capacity(null, 0);
     if (cStringEqual(name, "managed-null-fallible-factory"))
     {
         Array!int output;
-        Array!int.tryWithCapacity(null, 0, &output);
+        Array!int.try_with_capacity(null, 0, &output);
     }
     if (cStringEqual(name, "managed-null-returning-factory"))
-        Array!int.withCapacity(null, 0);
+        cast(void) Array!int.with_capacity(null, 0);
     if (cStringEqual(name, "owned-string-null-pointer"))
         (cast(OwnedString*) null).deinit();
     if (cStringEqual(name, "generational-pool-stale-handle"))

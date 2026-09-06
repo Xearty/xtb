@@ -140,7 +140,7 @@ package(xtb.fs) OsError currentDirectory(ref StringBuf output) @system
 package(xtb.fs) OsError executablePath(ref StringBuf output) @system
 {
     ScratchScope scratch = ScratchScope.acquire(output.allocator);
-    Array!char buffer = Array!char.withLength(scratch.allocator, 256);
+    Array!char buffer = Array!char.with_length(scratch.allocator, 256);
     for (;;)
     {
         const amount = readlink("/proc/self/exe".ptr, buffer.slice.ptr, buffer.length);

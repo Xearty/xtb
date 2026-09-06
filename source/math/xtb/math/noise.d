@@ -44,7 +44,7 @@ nothrow @nogc:
         output.deinit();
         Array!float values = Array!float.create(allocator);
         move_emplace(values, output.values_);
-        if (!output.values_.tryResize(period))
+        if (!output.values_.try_resize(period))
         {
             output.deinit();
             return false;

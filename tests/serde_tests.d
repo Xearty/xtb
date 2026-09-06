@@ -2649,7 +2649,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
         OwnedStringArrayHashMap preserved = OwnedStringArrayHashMap.create(
             allocator.allocator);
         OwnedString key = OwnedString.fromString(allocator.allocator, "preserved");
-        OwnedArray!int value = OwnedArray!int.fromSlice(
+        OwnedArray!int value = OwnedArray!int.from_slice(
             allocator.allocator,
             [42],
         );

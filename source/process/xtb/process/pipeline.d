@@ -358,8 +358,8 @@ private ProcessError spawnPipelineSlice(Stage)(
     move_emplace(children, created.children_);
     move_emplace(statuses, created.statuses_);
     created.success_ = options.success;
-    if (!created.children_.tryResize(stages.length) ||
-        !created.statuses_.tryResize(stages.length))
+    if (!created.children_.try_resize(stages.length) ||
+        !created.statuses_.try_resize(stages.length))
         return ProcessError(
             OsError(OsErrorKind.resourceExhausted, 0),
             ProcessOperation.pipelineSpawn,

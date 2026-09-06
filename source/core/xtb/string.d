@@ -372,7 +372,7 @@ bool trySplitWhen(
 
         String token = value[tokenBegin .. index];
         if ((!discardEmpty || token.length != 0) &&
-            !output.tryAppend(&token))
+            !output.try_append(&token))
         {
             output.deinit();
             return false;
@@ -383,7 +383,7 @@ bool trySplitWhen(
 
     String token = value[tokenBegin .. $];
     if ((!discardEmpty || token.length != 0) &&
-        !output.tryAppend(&token))
+        !output.try_append(&token))
     {
         output.deinit();
         return false;
@@ -496,7 +496,7 @@ public:
                 "StringBufUnmanaged output is not empty");
         }
         StringBufUnmanaged temporary;
-        if (!temporary.bytes_.tryReserve(allocator, byteCapacity))
+        if (!temporary.bytes_.try_reserve(allocator, byteCapacity))
             return false;
         move_emplace(temporary, *output);
         return true;
@@ -571,7 +571,7 @@ public:
                 "StringBufUnmanaged output is not empty");
         }
         StringBufUnmanaged temporary;
-        if (!temporary.bytes_.tryAppend(
+        if (!temporary.bytes_.try_append(
                 allocator,
                 bytes.asStringUnchecked,
             ))
@@ -601,7 +601,7 @@ package(xtb):
         version (XTB_Checked)
             require(byteCapacity == byteLength,
                 "StringBuf storage is not exact-sized");
-        return bytes_.releaseRaw();
+        return bytes_.release_raw();
     }
 
 public:
@@ -612,7 +612,7 @@ public:
 
     void resetAndRelease(Allocator* allocator)
     {
-        bytes_.resetAndRelease(allocator);
+        bytes_.reset_and_release(allocator);
     }
 
     size_t byteLength() const pure @safe
@@ -667,17 +667,17 @@ public:
 
     bool tryReserve(Allocator* allocator, size_t byteCapacity)
     {
-        return bytes_.tryReserve(allocator, byteCapacity);
+        return bytes_.try_reserve(allocator, byteCapacity);
     }
 
     bool tryShrinkToFit(Allocator* allocator)
     {
-        return bytes_.tryShrinkToFit(allocator);
+        return bytes_.try_shrink_to_fit(allocator);
     }
 
     void shrinkToFit(Allocator* allocator)
     {
-        bytes_.shrinkToFit(allocator);
+        bytes_.shrink_to_fit(allocator);
     }
 
     void append(Value)(
@@ -693,7 +693,7 @@ public:
         scope auto ref Value value,
     ) if (isStringBufArgument!value)
     {
-        return bytes_.tryAppend(allocator, stringBufInput(value));
+        return bytes_.try_append(allocator, stringBufInput(value));
     }
 
     void append(Allocator* allocator, char value)
@@ -709,7 +709,7 @@ public:
         version (XTB_Checked)
             require(cast(u8) value <= 0x7f,
                 "non-ASCII char appended to StringBuf; use dchar");
-        return bytes_.tryAppend(allocator, &value);
+        return bytes_.try_append(allocator, &value);
     }
 
     void append(Allocator* allocator, dchar value)
@@ -722,7 +722,7 @@ public:
     {
         const encoded = encode_utf8(value);
         const codeUnits = encoded.bytes;
-        return bytes_.tryAppend(
+        return bytes_.try_append(
             allocator,
             codeUnits[0 .. encoded.byte_length],
         );
@@ -730,7 +730,7 @@ public:
 
     void appendAssumeCapacity(Value)(scope auto ref Value value) if (isStringBufArgument!value)
     {
-        bytes_.appendAssumeCapacity(stringBufInput(value));
+        bytes_.append_assume_capacity(stringBufInput(value));
     }
 
     void appendAssumeCapacity(char value)
@@ -738,14 +738,14 @@ public:
         version (XTB_Checked)
             require(cast(u8) value <= 0x7f,
                 "non-ASCII char appended to StringBuf; use dchar");
-        bytes_.appendAssumeCapacity(value);
+        bytes_.append_assume_capacity(value);
     }
 
     void appendAssumeCapacity(dchar value)
     {
         const encoded = encode_utf8(value);
         const codeUnits = encoded.bytes;
-        bytes_.appendAssumeCapacity(codeUnits[0 .. encoded.byte_length]);
+        bytes_.append_assume_capacity(codeUnits[0 .. encoded.byte_length]);
     }
 
     bool tryInsert(Value)(
@@ -761,7 +761,7 @@ public:
             require(view.is_code_point_boundary(byteOffset),
                 "StringBuf insertion byte offset is inside UTF-8 code point");
         }
-        return bytes_.tryInsert(
+        return bytes_.try_insert(
             allocator,
             byteOffset,
             stringBufInput(value),
@@ -803,7 +803,7 @@ public:
             require(view.is_code_point_boundary(newByteLength),
                 "StringBuf truncation splits UTF-8 code point");
         }
-        bytes_.removeRange(newByteLength, byteLength - newByteLength);
+        bytes_.remove_range(newByteLength, byteLength - newByteLength);
     }
 
     void clear()
@@ -855,7 +855,7 @@ public:
                 appendAssumeCapacity(escaped);
             }
             else
-                bytes_.appendAssumeCapacity(character);
+                bytes_.append_assume_capacity(character);
         }
         return true;
     }
@@ -967,7 +967,7 @@ public:
                 writeOffset += to.length;
                 readOffset += found + from.length;
             }
-            bytes_.removeRange(newLength, oldLength - newLength);
+            bytes_.remove_range(newLength, oldLength - newLength);
             return true;
         }
 
@@ -1065,12 +1065,12 @@ public:
             require(output !is null, "C string output pointer is null");
         const oldLength = byteLength;
         if (oldLength == size_t.max ||
-            !bytes_.tryResize(allocator, oldLength + 1))
+            !bytes_.try_resize(allocator, oldLength + 1))
             return false;
 
         bytes_[oldLength] = '\0';
         const(char)* result = bytes_.slice.ptr;
-        bytes_.removeRange(oldLength, 1);
+        bytes_.remove_range(oldLength, 1);
         *output = result;
         return true;
     }
@@ -1845,7 +1845,7 @@ public:
             if (input.length != 0 && sourceOffset != 0)
                 memmove(storage_.bytes_.slice.ptr, input.ptr, input.length);
             if (input.length < current.length)
-                storage_.bytes_.removeRange(
+                storage_.bytes_.remove_range(
                     input.length,
                     current.length - input.length,
                 );
@@ -1872,7 +1872,7 @@ public:
         if (!storage_.view.startsWith(input))
             return false;
         if (input.length != 0)
-            storage_.bytes_.removeRange(0, input.length);
+            storage_.bytes_.remove_range(0, input.length);
         return true;
     }
 
@@ -1893,7 +1893,7 @@ public:
         const trimmed = storage_.view.trimAsciiStart();
         const removed = storage_.byteLength - trimmed.length;
         if (removed != 0)
-            storage_.bytes_.removeRange(0, removed);
+            storage_.bytes_.remove_range(0, removed);
     }
 
     /// Removes trailing ASCII whitespace in place.
@@ -1911,7 +1911,7 @@ public:
         const begin = trimmed.length == 0
             ? original.length : cast(size_t) trimmed.ptr - cast(size_t) original.ptr;
         if (begin != 0)
-            storage_.bytes_.removeRange(0, begin);
+            storage_.bytes_.remove_range(0, begin);
         storage_.truncateBytes(trimmed.length);
     }
 

@@ -56,15 +56,15 @@ nothrow @nogc:
     }
 }
 
-static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "withLength"));
+static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "with_length"));
 static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "resize"));
-static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "tryResize"));
-static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "withLength"));
+static assert(!__traits(hasMember, ArrayUnmanaged!DisabledDefaultOwner, "try_resize"));
+static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "with_length"));
 static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "resize"));
-static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "tryResize"));
-static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "withLength"));
+static assert(!__traits(hasMember, Array!DisabledDefaultOwner, "try_resize"));
+static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "with_length"));
 static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "resize"));
-static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "tryResize"));
+static assert(!__traits(hasMember, OwnedArray!DisabledDefaultOwner, "try_resize"));
 
 private void assertClean(ref const InstrumentedAllocator allocator)
 {
@@ -82,7 +82,7 @@ private void testPointerMoveConsumesExplicitPodOwner() @system
 
     OwnedArray!PodOwner values = OwnedArray!PodOwner.create(tracked.allocator);
     PodOwner source = PodOwner.create(tracked.allocator, 31);
-    assert(values.tryAppend(&source));
+    assert(values.try_append(&source));
     assert(source.allocator is null);
     assert(source.bytes.ptr is null);
     assert(values.length == 1);
@@ -102,14 +102,14 @@ private void testDisabledDefaultOwnerMoves() @system
     );
 
     OwnedArray!DisabledDefaultOwner values =
-        OwnedArray!DisabledDefaultOwner.withCapacity(tracked.allocator, 1);
+        OwnedArray!DisabledDefaultOwner.with_capacity(tracked.allocator, 1);
     DisabledDefaultOwner source = DisabledDefaultOwner(tracked.allocator, 37);
-    assert(values.tryAppend(&source));
+    assert(values.try_append(&source));
     assert(source.allocator is null && source.bytes.ptr is null);
     assert(values.length == 1 && values[0].bytes.length == 37);
 
     DisabledDefaultOwner second = DisabledDefaultOwner(tracked.allocator, 41);
-    assert(values.tryAppend(&second));
+    assert(values.try_append(&second));
     assert(second.allocator is null && second.bytes.ptr is null);
     assert(values.length == 2);
     assert(values[0].bytes.length == 37);
@@ -143,7 +143,7 @@ private void testRepeatedOwnedArrayCleanup() @system
             values.append(move(value));
         }
 
-        values.removeAt(1);
+        values.remove_at(1);
         values.resize(2);
         StringBuf transferred = values.pop();
         assert(transferred == "alpha");
@@ -162,7 +162,7 @@ private void testFallibleAppendPreservesOwnership() @system
         records[],
     );
 
-    OwnedArray!StringBuf values = OwnedArray!StringBuf.withCapacity(
+    OwnedArray!StringBuf values = OwnedArray!StringBuf.with_capacity(
         tracked.allocator,
         1,
     );
@@ -171,16 +171,16 @@ private void testFallibleAppendPreservesOwnership() @system
     while (values.length < values.capacity)
     {
         StringBuf filler = StringBuf.fromString(tracked.allocator, "filler");
-        values.appendAssumeCapacity(move(filler));
+        values.append_assume_capacity(move(filler));
     }
 
     StringBuf candidate = StringBuf.fromString(tracked.allocator, "candidate");
     const oldLength = values.length;
     tracked.fail_after(0);
-    assert(!values.tryAppend(&candidate));
+    assert(!values.try_append(&candidate));
     assert(candidate == "candidate");
     assert(values.length == oldLength);
-    assert(!values.tryInsert(0, &candidate));
+    assert(!values.try_insert(0, &candidate));
     assert(candidate == "candidate");
     assert(values.length == oldLength && values[0] == "first");
     tracked.allow_allocations();
@@ -199,13 +199,13 @@ private void testAliasingPointerMovesDoNotLeak() @system
             records[],
         );
 
-        OwnedArray!PodOwner values = OwnedArray!PodOwner.withCapacity(
+        OwnedArray!PodOwner values = OwnedArray!PodOwner.with_capacity(
             tracked.allocator,
             1,
         );
         PodOwner owner = PodOwner.create(tracked.allocator, 17);
         values.append(move(owner));
-        assert(values.tryAppend(&values[0]));
+        assert(values.try_append(&values[0]));
         assert(values.length == 2);
         assert(values[0].allocator is null && values[0].bytes.ptr is null);
         assert(values[1].bytes.length == 17);
@@ -220,7 +220,7 @@ private void testAliasingPointerMovesDoNotLeak() @system
             records[],
         );
 
-        OwnedArray!PodOwner values = OwnedArray!PodOwner.withCapacity(
+        OwnedArray!PodOwner values = OwnedArray!PodOwner.with_capacity(
             tracked.allocator,
             2,
         );
@@ -230,7 +230,7 @@ private void testAliasingPointerMovesDoNotLeak() @system
         values.append(move(second));
         assert(first.allocator is null && first.bytes.ptr is null);
         assert(second.allocator is null && second.bytes.ptr is null);
-        assert(values.tryInsert(0, &values[1]));
+        assert(values.try_insert(0, &values[1]));
         assert(values.length == 3);
         assert(values[0].bytes.length == 23);
         assert(values[1].bytes.length == 11);
@@ -249,8 +249,8 @@ private void testMoveAssignmentReleasesReplacedOwners() @system
             records[],
         );
 
-        Array!int source = Array!int.fromSlice(tracked.allocator, [1, 2, 3]);
-        Array!int target = Array!int.fromSlice(tracked.allocator, [9]);
+        Array!int source = Array!int.from_slice(tracked.allocator, [1, 2, 3]);
+        Array!int target = Array!int.from_slice(tracked.allocator, [9]);
         assert(tracked.stats.outstanding_allocations == 2);
         move_assign(source, target);
         assert(source.allocator is null && source.empty);
@@ -298,7 +298,7 @@ private void testReleasedStorageNeedsExplicitCleanup() @system
         records[],
     );
 
-    Array!int values = Array!int.fromSlice(tracked.allocator, [1, 2, 3]);
+    Array!int values = Array!int.from_slice(tracked.allocator, [1, 2, 3]);
     Array!int.Released released = values.release();
     assert(tracked.stats.outstanding_allocations == 1);
     deinit(released);

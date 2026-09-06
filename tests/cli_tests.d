@@ -786,7 +786,7 @@ CliValueError parseHexBytes(
         if (high < 0 || low < 0)
             return CliValueError.invalid("expected hexadecimal digits");
         ubyte value = cast(ubyte)((high << 4) | low);
-        if (!decoded.tryAppend(&value))
+        if (!decoded.try_append(&value))
             return CliValueError.allocationFailed("could not store decoded bytes");
     }
 
@@ -913,7 +913,7 @@ CliValueError parseOwnedValue(
     Array!String values = Array!String.create(allocator);
     move_assign(values, output.values);
     String value = input;
-    if (!output.values.tryAppend(&value))
+    if (!output.values.try_append(&value))
         return CliValueError.allocationFailed("could not store parsed value");
     return CliValueError.init;
 }

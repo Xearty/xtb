@@ -1143,7 +1143,7 @@ private bool assignFieldValue(T, size_t index)(
             Field created = Field.create(state.allocator);
             move_assign(created, field);
         }
-        if (!field.tryAppend(&value))
+        if (!field.try_append(&value))
         {
             state.fail(CliErrorKind.allocationFailed, text, detail, commandDepth, fieldIndex);
             return false;

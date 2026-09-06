@@ -17,8 +17,8 @@ replaced, cleared, or the container itself is deinitialized. Use it for trivial
 or borrowed values, or when element lifetime is managed elsewhere.
 
 ```d
-Array!int values = Array!int.create(heap);
-scope(exit) values.deinit();
+Array!i32 values = Array!int.create(heap);
+scope (exit) values.deinit();
 values.append(1);
 values.append(2);
 ```
@@ -27,11 +27,11 @@ Use an owned container when the container should destroy discarded values:
 
 ```d
 OwnedArray!OwnedString names = OwnedArray!OwnedString.create(heap);
-scope(exit) names.deinit();
+scope (exit) names.deinit();
 
 names.append("alpha".copy(heap));
 names.append("beta".copy(heap));
-names.removeAt(0); // deinitializes "alpha"
+names.remove_at(0); // deinitializes "alpha"
 ```
 
 Owned containers require elements that can be finalized without extra cleanup
