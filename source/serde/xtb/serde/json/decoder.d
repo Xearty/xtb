@@ -9,7 +9,8 @@ import core.stdc.stdlib : strtod;
 import xtb.lifetime : has_d_destructor, move_emplace;
 import xtb.containers.array;
 import xtb.containers.hash_map;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateInit, tryAllocateInitArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array,
+    try_allocate_init, try_allocate_init_array;
 import xtb.option : Option;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -326,7 +327,7 @@ private void decodeExternalTaggedUnion(T)(
         decodeTaggedEnumName(parser, name,
             &output.tupleof[discriminantIndex!U]);
     if (owned)
-        parser.allocator.deallocateArray(name.ptr[0 .. name.length + 1]);
+        parser.allocator.deallocate_array(name.ptr[0 .. name.length + 1]);
     if (!parser.error.ok)
         return;
     parser.skipWhitespace();
@@ -391,7 +392,7 @@ private void scanTaggedDiscriminant(T)(
         else if (parser.error.ok)
             skipValue(parser, depth + 1);
         if (owned)
-            parser.allocator.deallocateArray(key.ptr[0 .. key.length + 1]);
+            parser.allocator.deallocate_array(key.ptr[0 .. key.length + 1]);
         if (!parser.error.ok)
             return;
         parser.skipWhitespace();
@@ -501,7 +502,7 @@ private void decodeAdjacentTaggedCase(T, size_t caseIndex)(
                 parser.fail(SerdeErrorKind.unknownField, key);
         }
         if (owned)
-            parser.allocator.deallocateArray(key.ptr[0 .. key.length + 1]);
+            parser.allocator.deallocate_array(key.ptr[0 .. key.length + 1]);
         if (!parser.error.ok)
             return;
         parser.skipWhitespace();
@@ -589,7 +590,7 @@ private void decodeInternalTaggedCase(T, size_t caseIndex)(
             }
         }
         if (owned)
-            parser.allocator.deallocateArray(key.ptr[0 .. key.length + 1]);
+            parser.allocator.deallocate_array(key.ptr[0 .. key.length + 1]);
         if (!parser.error.ok)
             return;
         parser.skipWhitespace();
@@ -655,7 +656,7 @@ private void decodeObject(T)(ref JsonParser parser, T* output, size_t depth)
         if (!parser.consume(':'))
         {
             if (keyOwned)
-                parser.allocator.deallocateArray(key.ptr[0 .. key.length + 1]);
+                parser.allocator.deallocate_array(key.ptr[0 .. key.length + 1]);
             parser.fail(SerdeErrorKind.invalidSyntax);
             return;
         }
@@ -665,7 +666,7 @@ private void decodeObject(T)(ref JsonParser parser, T* output, size_t depth)
         if (keyOwned && parser.error.field.ptr is key.ptr)
             parser.error.field = rawKey;
         if (keyOwned)
-            parser.allocator.deallocateArray(key.ptr[0 .. key.length + 1]);
+            parser.allocator.deallocate_array(key.ptr[0 .. key.length + 1]);
         if (!parser.error.ok)
             return;
         if (!matched)
@@ -760,7 +761,7 @@ private void decodeAdaptedValue(T, size_t index, F)(
                 parser.fail(kind);
         }
         if (owned)
-            parser.allocator.deallocateArray(representation.ptr[0 .. representation.length + 1]);
+            parser.allocator.deallocate_array(representation.ptr[0 .. representation.length + 1]);
     }
     else
     {
@@ -803,7 +804,7 @@ private void decodePointer(T)(ref JsonParser parser, T** output, size_t depth)
         *output = null;
         return;
     }
-    T* value = parser.allocator.tryAllocateInit!T();
+    T* value = parser.allocator.try_allocate_init!T();
     if (value is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
@@ -981,7 +982,7 @@ private void decodeEnum(T)(ref JsonParser parser, T* output)
             parser.options.variantCase, output))
         parser.fail(SerdeErrorKind.typeMismatch);
     if (owned)
-        parser.allocator.deallocateArray(name.ptr[0 .. name.length + 1]);
+        parser.allocator.deallocate_array(name.ptr[0 .. name.length + 1]);
 }
 
 private void decodeTaggedEnum(T)(ref JsonParser parser, T* output)
@@ -992,7 +993,7 @@ private void decodeTaggedEnum(T)(ref JsonParser parser, T* output)
     if (parser.error.ok)
         decodeTaggedEnumName(parser, name, output);
     if (owned)
-        parser.allocator.deallocateArray(name.ptr[0 .. name.length + 1]);
+        parser.allocator.deallocate_array(name.ptr[0 .. name.length + 1]);
 }
 
 private void decodeTaggedEnumName(T)(
@@ -1029,7 +1030,7 @@ private void decodeDynamicArray(T)(ref JsonParser parser, T* output, size_t dept
         parser.error = counter.error;
         return;
     }
-    Element[] values = parser.allocator.tryAllocateInitArray!Element(count);
+    Element[] values = parser.allocator.try_allocate_init_array!Element(count);
     if (count != 0 && values.ptr is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
@@ -1492,7 +1493,7 @@ private void skipValue(ref JsonParser parser, size_t depth)
         bool owned;
         decodeStringToken(parser, &ignored, &owned);
         if (owned)
-            parser.allocator.deallocateArray(ignored.ptr[0 .. ignored.length + 1]);
+            parser.allocator.deallocate_array(ignored.ptr[0 .. ignored.length + 1]);
         return;
     }
     if (parser.peek == '{')
@@ -1518,7 +1519,7 @@ private void skipValue(ref JsonParser parser, size_t depth)
             bool owned;
             decodeStringToken(parser, &key, &owned);
             if (owned)
-                parser.allocator.deallocateArray(key.ptr[0 .. key.length + 1]);
+                parser.allocator.deallocate_array(key.ptr[0 .. key.length + 1]);
             parser.skipWhitespace();
             if (!parser.consume(':'))
             {
@@ -1675,7 +1676,7 @@ private void decodeStringToken(
     const allocationLength = decodedLength + terminatorLength;
     char* destination;
     if (allocationLength != 0)
-        destination = parser.allocator.tryAllocateArray!char(allocationLength).ptr;
+        destination = parser.allocator.try_allocate_array!char(allocationLength).ptr;
     if (allocationLength != 0 && destination is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);

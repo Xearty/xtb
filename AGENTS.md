@@ -91,10 +91,10 @@ Before changing public APIs, inspect their existing call sites.
   sibling namespaces; do not use it as a default friend mechanism.
 - Preserve the existing public API unless the task explicitly requires a change.
 - Keep allocator vocabulary explicit: `allocate!T()` is raw storage for one
-  object, `allocateArray!T(n)` returns raw array storage as a slice,
-  `allocateInit*` establishes `T.init`, and `create!T(args)` allocates and
-  constructs. General allocators pair raw `deallocate`/`deallocateArray` with
-  lifetime-aware `dispose`/`disposeArray`. Arena mirrors allocation and
+  object, `allocate_array!T(n)` returns raw array storage as a slice,
+  `allocate_init*` establishes `T.init`, and `create!T(args)` allocates and
+  constructs. General allocators pair raw `deallocate`/`deallocate_array` with
+  lifetime-aware `dispose`/`dispose_array`. Arena mirrors allocation and
   construction helpers but never pretends to individually free or destroy
   arena allocations; `clear`/`deinit` do not run element destructors. Stateful
   allocator adapters expose their `Allocator*` consistently as `.allocator`.

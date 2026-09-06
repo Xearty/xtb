@@ -3,7 +3,7 @@ module xtb.window.window;
 nothrow @nogc:
 
 import xtb.flag_set;
-import xtb.memory : Allocator, deallocate, tryAllocateInit;
+import xtb.memory : Allocator, deallocate, try_allocate_init;
 import xtb.string : StringBuf;
 import xtb.thread_context : ScratchScope;
 import xtb.option : Option;
@@ -167,7 +167,7 @@ nothrow @nogc:
             }
         }
 
-        Window* window = allocator.tryAllocateInit!Window();
+        Window* window = allocator.try_allocate_init!Window();
         if (window is null)
         {
             glfwDestroyWindow(handle);

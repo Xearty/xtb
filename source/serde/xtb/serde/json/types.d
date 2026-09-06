@@ -9,7 +9,8 @@ import core.stdc.stdlib : strtod;
 import xtb.lifetime : has_d_destructor, move_emplace;
 import xtb.containers.array;
 import xtb.containers.hash_map;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateInit, tryAllocateInitArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array,
+    try_allocate_init, try_allocate_init_array;
 import xtb.option : Option;
 
 version (XTB_Checked) import xtb.panic : require;

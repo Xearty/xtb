@@ -12,7 +12,7 @@ import xtb.window.monitor : Monitor;
 import xtb.window.native : NativeDisplayHandle, NativeWindowPlatform,
     WaylandDisplayHandle, Win32DisplayHandle, X11DisplayHandle;
 import xtb.window.window : Window, WindowConfig;
-import xtb.memory : Allocator, deallocate, tryAllocateInit;
+import xtb.memory : Allocator, deallocate, try_allocate_init;
 
 version (XTB_Checked) import xtb.panic : require;
 
@@ -155,7 +155,7 @@ nothrow @nogc:
                     consume_glfw_error(),
             ));
 
-        WindowSystem* result = allocator.tryAllocateInit!WindowSystem();
+        WindowSystem* result = allocator.try_allocate_init!WindowSystem();
         if (result is null)
         {
             glfwTerminate();

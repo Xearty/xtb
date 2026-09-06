@@ -3,8 +3,8 @@ module tests.lifetime_tests;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.lifetime;
-import xtb.memory : Allocator, allocateInit, allocateInitArray,
-    deallocateArray, dispose, disposeArray, tryAllocateArray;
+import xtb.memory : Allocator, allocate_init, allocate_init_array,
+    deallocate_array, dispose, dispose_array, try_allocate_array;
 
 private struct AllocationOwner
 {
@@ -21,7 +21,7 @@ nothrow @nogc:
         AllocationOwner* output,
     )
     {
-        ubyte[] allocation = allocator.tryAllocateArray!ubyte(size);
+        ubyte[] allocation = allocator.try_allocate_array!ubyte(size);
         if (allocation.ptr is null)
             return false;
         output.allocator = allocator;
@@ -40,7 +40,7 @@ nothrow @nogc:
     {
         if (storage.ptr is null)
             return;
-        allocator.deallocateArray(storage);
+        allocator.deallocate_array(storage);
     }
 }
 
@@ -204,17 +204,17 @@ private void testAllocatorDisposalCleanup() @system
     );
     Allocator* allocator = tracked.allocator();
 
-    AllocationOwner* single = allocator.allocateInit!AllocationOwner();
+    AllocationOwner* single = allocator.allocate_init!AllocationOwner();
     emplaceOwner(*single, allocator, 47);
     assert(tracked.stats.outstandingAllocations == 2);
     allocator.dispose(single);
     assertAllocatorClean(tracked);
 
-    AllocationOwner[] values = allocator.allocateInitArray!AllocationOwner(3);
+    AllocationOwner[] values = allocator.allocate_init_array!AllocationOwner(3);
     foreach (index; 0 .. values.length)
         emplaceOwner(values[index], allocator, 53 + index);
     assert(tracked.stats.outstandingAllocations == values.length + 1);
-    allocator.disposeArray(values);
+    allocator.dispose_array(values);
     assertAllocatorClean(tracked);
 }
 

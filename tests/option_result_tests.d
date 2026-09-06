@@ -7,7 +7,7 @@ import core.internal.traits : hasElaborateDestructor;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.lifetime : deinit, move, needs_deinit;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array;
 import xtb.option;
 import xtb.result;
 
@@ -64,7 +64,7 @@ nothrow @nogc:
         result.allocator = allocator;
         result.id = id;
         result.deinits = deinits;
-        result.bytes = allocator.tryAllocateArray!ubyte(16 + cast(size_t) id);
+        result.bytes = allocator.try_allocate_array!ubyte(16 + cast(size_t) id);
         assert(result.bytes.ptr !is null);
         return result;
     }
@@ -73,7 +73,7 @@ nothrow @nogc:
     {
         if (bytes.ptr is null)
             return;
-        allocator.deallocateArray(bytes);
+        allocator.deallocate_array(bytes);
         bytes = null;
         if (deinits !is null)
             ++*deinits;

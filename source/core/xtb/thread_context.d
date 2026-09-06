@@ -3,7 +3,7 @@ module xtb.thread_context;
 nothrow @nogc:
 
 import xtb.allocators.arena : Arena, TempArena, pop, push;
-import xtb.memory : Allocator, allocateInit, dispose;
+import xtb.memory : Allocator, allocate_init, dispose;
 import xtb.lifetime : move_emplace;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.panic : panic;
@@ -85,7 +85,7 @@ nothrow @nogc:
         if (backingAllocator is null)
             backingAllocator = mallocAllocator();
 
-        ThreadContext* context = backingAllocator.allocateInit!ThreadContext();
+        ThreadContext* context = backingAllocator.allocate_init!ThreadContext();
         context.ownerAllocator = backingAllocator;
         context.arenaCount = scratchArenaCount;
         foreach (i; 0 .. scratchArenaCount)
@@ -214,7 +214,7 @@ unittest
     ThreadContextScope context = ThreadContextScope.acquire(3, 128);
     {
         ScratchScope first = ScratchScope.acquire();
-        int* value = first.allocator.allocateInit!int();
+        int* value = first.allocator.allocate_init!int();
         *value = 7;
 
         ScratchScope second = ScratchScope.acquire(first.allocator);

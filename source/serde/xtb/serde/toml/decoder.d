@@ -9,7 +9,8 @@ import core.stdc.stdlib : strtod;
 import xtb.lifetime : has_d_destructor, move_emplace;
 import xtb.containers.array;
 import xtb.containers.hash_map;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateInit, tryAllocateInitArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array,
+    try_allocate_init, try_allocate_init_array;
 import xtb.option : Option;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -244,7 +245,7 @@ nothrow @nogc:
         foreach (index; 0 .. tablePathLength)
         {
             if (tablePath[index].owned)
-                allocator.deallocateArray(
+                allocator.deallocate_array(
                     (cast(char*) tablePath[index].value.ptr)[
                     0 .. tablePath[index].value.length + 1
             ],
@@ -949,7 +950,7 @@ private void clearKeys(ref TomlParser parser, ParsedKey[] keys, size_t length)
     foreach (index; 0 .. length)
     {
         if (keys[index].owned)
-            parser.allocator.deallocateArray(
+            parser.allocator.deallocate_array(
                 keys[index].value.ptr[0 .. keys[index].value.length + 1],
             );
         keys[index] = ParsedKey.init;
@@ -960,7 +961,7 @@ private bool ownParsedKey(ref TomlParser parser, ParsedKey* key)
 {
     if (key.owned)
         return true;
-    char* copy = parser.allocator.tryAllocateArray!char(key.value.length + 1).ptr;
+    char* copy = parser.allocator.try_allocate_array!char(key.value.length + 1).ptr;
     if (copy is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
@@ -1054,7 +1055,7 @@ private void decodePathField(T, size_t index)(
         else static if (is(Unqualified!F == TaggedPointee*, TaggedPointee) &&
             isTaggedUnion!TaggedPointee)
         {
-            output.tupleof[index] = parser.allocator.tryAllocateInit!TaggedPointee();
+            output.tupleof[index] = parser.allocator.try_allocate_init!TaggedPointee();
             if (output.tupleof[index] is null)
             {
                 parser.fail(SerdeErrorKind.allocationFailure);
@@ -1076,7 +1077,7 @@ private void decodePathField(T, size_t index)(
         else static if (is(Unqualified!F == Pointee*, Pointee) &&
             isSerdeStruct!Pointee)
         {
-            output.tupleof[index] = parser.allocator.tryAllocateInit!Pointee();
+            output.tupleof[index] = parser.allocator.try_allocate_init!Pointee();
             if (output.tupleof[index] is null)
             {
                 parser.fail(SerdeErrorKind.allocationFailure);
@@ -1115,7 +1116,7 @@ private void decodePathField(T, size_t index)(
     {
         if (output.tupleof[index] is null)
         {
-            output.tupleof[index] = parser.allocator.tryAllocateInit!Pointee();
+            output.tupleof[index] = parser.allocator.try_allocate_init!Pointee();
             if (output.tupleof[index] is null)
             {
                 parser.fail(SerdeErrorKind.allocationFailure);
@@ -1263,7 +1264,7 @@ private void decodeAdaptedValue(T, size_t index, F)(
                 parser.fail(kind);
         }
         if (owned)
-            parser.allocator.deallocateArray(representation.ptr[0 .. representation.length + 1]);
+            parser.allocator.deallocate_array(representation.ptr[0 .. representation.length + 1]);
     }
     else
     {
@@ -1975,7 +1976,7 @@ private void decodeInlineTable(T)(
 
 private void decodePointer(T)(ref TomlParser parser, T** output, size_t depth)
 {
-    T* value = parser.allocator.tryAllocateInit!T();
+    T* value = parser.allocator.try_allocate_init!T();
     if (value is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
@@ -2165,7 +2166,7 @@ private void decodeEnum(T)(ref TomlParser parser, T* output)
             parser.options.variantCase, output))
         parser.fail(SerdeErrorKind.typeMismatch);
     if (owned)
-        parser.allocator.deallocateArray(name.ptr[0 .. name.length + 1]);
+        parser.allocator.deallocate_array(name.ptr[0 .. name.length + 1]);
 }
 
 private void decodeTaggedEnum(T)(ref TomlParser parser, T* output)
@@ -2176,7 +2177,7 @@ private void decodeTaggedEnum(T)(ref TomlParser parser, T* output)
     if (parser.error.ok)
         decodeTaggedEnumName(parser, name, output);
     if (owned)
-        parser.allocator.deallocateArray(name.ptr[0 .. name.length + 1]);
+        parser.allocator.deallocate_array(name.ptr[0 .. name.length + 1]);
 }
 
 private void decodeTaggedEnumName(T)(
@@ -2214,7 +2215,7 @@ private void decodeDynamicArray(T)(ref TomlParser parser, T* output, size_t dept
         parser.error = counter.error;
         return;
     }
-    Element[] values = parser.allocator.tryAllocateInitArray!Element(count);
+    Element[] values = parser.allocator.try_allocate_init_array!Element(count);
     if (count != 0 && values.ptr is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);
@@ -2381,7 +2382,7 @@ private void skipValue(ref TomlParser parser, size_t depth)
         bool owned;
         decodeStringToken(parser, &value, &owned);
         if (owned)
-            parser.allocator.deallocateArray(value.ptr[0 .. value.length + 1]);
+            parser.allocator.deallocate_array(value.ptr[0 .. value.length + 1]);
         return;
     }
     if (parser.peek == '[')
@@ -2562,7 +2563,7 @@ private void decodeStringToken(
     const allocationLength = decodedLength + terminatorLength;
     char* destination;
     if (allocationLength != 0)
-        destination = parser.allocator.tryAllocateArray!char(allocationLength).ptr;
+        destination = parser.allocator.try_allocate_array!char(allocationLength).ptr;
     if (allocationLength != 0 && destination is null)
     {
         parser.fail(SerdeErrorKind.allocationFailure);

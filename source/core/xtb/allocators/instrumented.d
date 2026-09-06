@@ -2,7 +2,7 @@ module xtb.allocators.instrumented;
 
 nothrow @nogc:
 
-import xtb.memory : Allocator, deallocate, tryReallocate;
+import xtb.memory : Allocator, deallocate, try_reallocate;
 
 version (XTB_Checked) import xtb.panic : require;
 
@@ -162,7 +162,7 @@ private extern (C) void* instrumentedAllocatorProcedure(
     else
         ++allocator.stats_.reallocationCalls;
 
-    void* replacement = allocator.backing.tryReallocate(
+    void* replacement = allocator.backing.try_reallocate(
         newSize,
         oldPointer,
         oldSize,
@@ -195,20 +195,20 @@ private extern (C) void* instrumentedAllocatorProcedure(
 unittest
 {
     import xtb.allocators.malloc : mallocAllocator;
-    import xtb.memory : allocateZeroedArray, deallocateArray, tryAllocate;
+    import xtb.memory : allocate_zeroed_array, deallocate_array, try_allocate;
 
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
         mallocAllocator(),
         records[],
     );
-    int[] values = tracked.allocator.allocateZeroedArray!int(4);
+    int[] values = tracked.allocator.allocate_zeroed_array!int(4);
     assert(values.length == 4);
     assert(values[3] == 0);
     assert(tracked.stats.outstandingBytes == 4 * int.sizeof);
     tracked.failAfter(0);
-    assert(tracked.allocator.tryAllocate!int() is null);
+    assert(tracked.allocator.try_allocate!int() is null);
     assert(tracked.stats.failedCalls == 1);
-    tracked.allocator.deallocateArray(values);
+    tracked.allocator.deallocate_array(values);
     assert(tracked.clean);
 }

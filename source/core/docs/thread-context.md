@@ -8,7 +8,7 @@ pushes a checkpoint, and automatically rewinds to it when the scope ends.
 ThreadContextScope context = ThreadContextScope.acquire(); // two scratch arenas
 
 ScratchScope scratch = ScratchScope.acquire();
-int[] temporary = scratch.allocator.allocateArray!int(256);
+int[] temporary = scratch.allocator.allocate_array!int(256);
 ```
 
 Request scratch with allocator conflicts when existing arena-backed values must
@@ -28,7 +28,7 @@ allocator and uses a non-conflicting scratch arena for child results**.
 ```d
 int[] add(int[] input, int amount, Allocator* output)
 {
-    int[] result = output.allocateArray!int(input.length);
+    int[] result = output.allocate_array!int(input.length);
     foreach (i, value; input)
         result[i] = value + amount;
     return result;
@@ -36,7 +36,7 @@ int[] add(int[] input, int amount, Allocator* output)
 
 int[] leaf(Allocator* output)
 {
-    int[] result = output.allocateArray!int(2);
+    int[] result = output.allocate_array!int(2);
     result[0] = 1;
     result[1] = 2;
     return result;
@@ -66,7 +66,7 @@ void main()
     Allocator* heap = mallocAllocator();
 
     int[] result = level1(heap);
-    scope(exit) heap.deallocateArray(result);
+    scope(exit) heap.deallocate_array(result);
 }
 ```
 

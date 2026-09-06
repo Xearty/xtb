@@ -7,7 +7,7 @@ import core.lifetime : emplace;
 import core.stdc.string : memmove;
 import xtb.lifetime : can_finalize_without_context, deinitValue = deinit,
     finalize, move, move_emplace, needs_deinit, needs_finalization;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryReallocateArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array, try_reallocate_array;
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -68,7 +68,7 @@ public:
         if (capacity != 0)
             requireValidAllocator(allocator);
         if (capacity != 0)
-            allocator.deallocateArray(data[0 .. capacity]);
+            allocator.deallocate_array(data[0 .. capacity]);
     }
 }
 
@@ -272,7 +272,7 @@ public:
         if (capacity_ != 0)
             requireValidAllocator(allocator);
         if (capacity_ != 0)
-            allocator.deallocateArray(data_[0 .. capacity_]);
+            allocator.deallocate_array(data_[0 .. capacity_]);
     }
 
     /// Releases backing storage and leaves this unmanaged array reusable.
@@ -281,7 +281,7 @@ public:
         if (capacity_ != 0)
             requireValidAllocator(allocator);
         if (capacity_ != 0)
-            allocator.deallocateArray(data_[0 .. capacity_]);
+            allocator.deallocate_array(data_[0 .. capacity_]);
         data_ = null;
         length_ = 0;
         capacity_ = 0;
@@ -754,7 +754,7 @@ private:
 
         static if (__traits(isPOD, T))
         {
-            T[] replacement = allocator.tryReallocateArray(
+            T[] replacement = allocator.try_reallocate_array(
                 data_[0 .. capacity_],
                 capacity,
             );
@@ -764,12 +764,12 @@ private:
         }
         else
         {
-            T* replacement = allocator.tryAllocateArray!T(capacity).ptr;
+            T* replacement = allocator.try_allocate_array!T(capacity).ptr;
             if (capacity != 0 && replacement is null)
                 return false;
             foreach (i; 0 .. length_)
                 constructMove(replacement + i, data_[i]);
-            allocator.deallocateArray(data_[0 .. capacity_]);
+            allocator.deallocate_array(data_[0 .. capacity_]);
             data_ = replacement;
         }
         capacity_ = capacity;

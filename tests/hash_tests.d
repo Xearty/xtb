@@ -7,7 +7,7 @@ import xtb.allocators.malloc : mallocAllocator;
 import xtb.containers.hash_map;
 import xtb.containers.hash_set;
 import xtb.lifetime : deinit, move;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array;
 import xtb.string : OwnedString, StringBuf;
 import xtb.containers.string_hash_map : OwnedStringHashMap, StringHashMap;
 import xtb.containers.string_hash_set : StringHashSet;
@@ -34,7 +34,7 @@ nothrow @nogc:
         result.id = id;
         result.deinits = deinits;
         const size = cast(size_t)(13 + (id & 7));
-        result.bytes = allocator.tryAllocateArray!ubyte(size);
+        result.bytes = allocator.try_allocate_array!ubyte(size);
         assert(result.bytes.ptr !is null);
         return result;
     }
@@ -50,7 +50,7 @@ nothrow @nogc:
     {
         if (bytes.ptr is null)
             return;
-        allocator.deallocateArray(bytes);
+        allocator.deallocate_array(bytes);
         if (deinits !is null)
             ++*deinits;
     }
@@ -97,7 +97,7 @@ nothrow @nogc:
         result.allocator = allocator;
         result.id = id;
         result.deinits = deinits;
-        result.bytes = allocator.tryAllocateArray!ubyte(9 + cast(size_t)(id & 3));
+        result.bytes = allocator.try_allocate_array!ubyte(9 + cast(size_t)(id & 3));
         assert(result.bytes.ptr !is null);
         return move(result);
     }
@@ -116,7 +116,7 @@ nothrow @nogc:
     {
         if (bytes.ptr is null)
             return;
-        allocator.deallocateArray(bytes);
+        allocator.deallocate_array(bytes);
         if (deinits !is null)
             ++*deinits;
     }

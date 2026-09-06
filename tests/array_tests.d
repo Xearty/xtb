@@ -4,7 +4,7 @@ import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.containers.array;
 import xtb.lifetime : deinit, move, move_assign;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array;
 import xtb.string : StringBuf;
 
 private struct PodOwner
@@ -18,7 +18,7 @@ nothrow @nogc:
     {
         PodOwner result;
         result.allocator = allocator;
-        result.bytes = allocator.tryAllocateArray!ubyte(size);
+        result.bytes = allocator.try_allocate_array!ubyte(size);
         assert(result.bytes.ptr !is null);
         return result;
     }
@@ -26,7 +26,7 @@ nothrow @nogc:
     void deinit()
     {
         if (bytes.ptr !is null)
-            allocator.deallocateArray(bytes);
+            allocator.deallocate_array(bytes);
     }
 }
 
@@ -45,14 +45,14 @@ nothrow @nogc:
     this(Allocator* allocator, size_t size)
     {
         this.allocator = allocator;
-        bytes = allocator.tryAllocateArray!ubyte(size);
+        bytes = allocator.try_allocate_array!ubyte(size);
         assert(bytes.ptr !is null);
     }
 
     void deinit()
     {
         if (bytes.ptr !is null)
-            allocator.deallocateArray(bytes);
+            allocator.deallocate_array(bytes);
     }
 }
 

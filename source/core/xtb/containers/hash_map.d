@@ -7,7 +7,7 @@ import xtb.lifetime : can_finalize_without_context, deinitValue = deinit,
     needs_finalization;
 import core.stdc.string : memset;
 import xtb.hash : HashSeed, hash_value;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray, tryAllocateZeroedArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array, try_allocate_zeroed_array;
 import xtb.numeric : multiply_overflows;
 import xtb.panic : panic;
 
@@ -374,8 +374,8 @@ public:
         clear(allocator);
         if (capacity_ != 0)
         {
-            allocator.deallocateArray(entries_[0 .. capacity_]);
-            allocator.deallocateArray(states_[0 .. capacity_]);
+            allocator.deallocate_array(entries_[0 .. capacity_]);
+            allocator.deallocate_array(states_[0 .. capacity_]);
         }
     }
 
@@ -386,8 +386,8 @@ public:
         clear(allocator);
         if (capacity_ != 0)
         {
-            allocator.deallocateArray(entries_[0 .. capacity_]);
-            allocator.deallocateArray(states_[0 .. capacity_]);
+            allocator.deallocate_array(entries_[0 .. capacity_]);
+            allocator.deallocate_array(states_[0 .. capacity_]);
         }
         entries_ = null;
         states_ = null;
@@ -1042,13 +1042,13 @@ private:
         if (multiply_overflows(Entry!(K, V).sizeof, capacity))
             return false;
 
-        SlotState* states = allocator.tryAllocateZeroedArray!SlotState(capacity).ptr;
+        SlotState* states = allocator.try_allocate_zeroed_array!SlotState(capacity).ptr;
         if (states is null)
             return false;
-        Entry!(K, V)* entries = allocator.tryAllocateArray!(Entry!(K, V))(capacity).ptr;
+        Entry!(K, V)* entries = allocator.try_allocate_array!(Entry!(K, V))(capacity).ptr;
         if (entries is null)
         {
-            allocator.deallocateArray(states[0 .. capacity]);
+            allocator.deallocate_array(states[0 .. capacity]);
             return false;
         }
 
@@ -1071,8 +1071,8 @@ private:
 
         if (capacity_ != 0)
         {
-            allocator.deallocateArray(entries_[0 .. capacity_]);
-            allocator.deallocateArray(states_[0 .. capacity_]);
+            allocator.deallocate_array(entries_[0 .. capacity_]);
+            allocator.deallocate_array(states_[0 .. capacity_]);
         }
         entries_ = entries;
         states_ = states;

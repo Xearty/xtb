@@ -31,7 +31,7 @@ inside it. Perform required cleanup before `clear`, `pop`, or `deinit`.
 TempArena temporary = (&arena).push();
 scope(exit) temporary.pop();
 
-int[] scratch = temporary.allocator.allocateArray!int(256);
+int[] scratch = temporary.allocator.allocate_array!int(256);
 ```
 
 Temporary arenas must pop in LIFO order. `ScratchScope` builds this checkpoint

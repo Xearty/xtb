@@ -10,7 +10,7 @@ import xtb.lifetime : finalize, has_d_destructor, lifetimeDeinit = deinit,
     lifetimeMoveEmplace = move_emplace,
     needs_deinit,
     needs_finalization;
-import xtb.memory : Allocator, deallocate, tryAllocate;
+import xtb.memory : Allocator, deallocate, try_allocate;
 import xtb.panic : panic;
 import xtb.result : Result, ResultReturns;
 import xtb.thread.thread : Thread,
@@ -414,7 +414,7 @@ Result!(JoinHandle!(ReturnType!function_), SpawnError) spawnWith(
     if (allocator is null || *allocator is null)
         panic("spawn requires a valid allocator");
 
-    State* state = allocator.tryAllocate!State();
+    State* state = allocator.try_allocate!State();
     if (state is null)
     {
         static foreach_reverse (index; 0 .. Args.length)

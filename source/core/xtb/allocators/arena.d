@@ -8,7 +8,7 @@ import core.stdc.string : memcpy, memset;
 import xtb.allocators.internal.virtual_memory : VirtualMemoryReservation,
     try_reserve_virtual_memory, virtual_memory_page_size, virtual_memory_supported;
 import xtb.lifetime : move_emplace, needs_deinit, structuralDeinit = deinit, tagged_by;
-import xtb.memory : Allocator, allocate, deallocate, tryAllocate;
+import xtb.memory : Allocator, allocate, deallocate, try_allocate;
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -801,7 +801,7 @@ nothrow @nogc:
             return null;
 
         const allocationSize = ArenaChunk.sizeof + padding + capacity;
-        ArenaChunk* chunk = cast(ArenaChunk*) storage_.data.chunked.backingAllocator.tryAllocate(
+        ArenaChunk* chunk = cast(ArenaChunk*) storage_.data.chunked.backingAllocator.try_allocate(
             allocationSize,
             ArenaChunk.alignof,
         );
@@ -1209,10 +1209,10 @@ unittest
     Constructed* constructed = arena.create!Constructed(91);
     assert(constructed.value == 91);
 
-    import xtb.memory : allocateInit, reallocate;
+    import xtb.memory : allocate_init, reallocate;
 
     Allocator* arenaAllocator = arena.allocator;
-    int* throughAllocator = arenaAllocator.allocateInit!int();
+    int* throughAllocator = arenaAllocator.allocate_init!int();
     assert(*throughAllocator == int.init);
     ubyte* allocatorBytes = cast(ubyte*) arenaAllocator.allocate(4, 1);
     allocatorBytes[0] = 0x12;
@@ -1353,7 +1353,7 @@ unittest
         assert(afterTrim[0] == 0);
 
         Allocator* virtualAllocator = virtualArena.allocator;
-        int* throughVirtualAllocator = virtualAllocator.allocateInit!int();
+        int* throughVirtualAllocator = virtualAllocator.allocate_init!int();
         assert(*throughVirtualAllocator == int.init);
         ubyte* virtualAllocatorBytes = cast(ubyte*) virtualAllocator.allocate(4, 1);
         virtualAllocatorBytes[0] = 0x56;
@@ -1505,7 +1505,7 @@ unittest
         }
     }
 
-    import xtb.memory : dispose, disposeArray;
+    import xtb.memory : dispose, dispose_array;
 
     int destructorCalls;
     Arena destructorArena = Arena.create(mallocAllocator(), 64);
@@ -1527,7 +1527,7 @@ unittest
         destructorArena.allocateInitArray!ArenaConstructed(2);
     foreach (ref value; initializedDestructors)
         value.destroyed = &destructorCalls;
-    destructorArena.allocator.disposeArray(initializedDestructors);
+    destructorArena.allocator.dispose_array(initializedDestructors);
     assert(destructorCalls == 4);
 
     ArenaConstructed[] tryInitializedDestructors =

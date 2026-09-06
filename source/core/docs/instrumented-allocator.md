@@ -28,7 +28,7 @@ calls. `allowAllocations()` disables failure injection again:
 
 ```d
 tracked.failAfter(0);
-assert(tracked.allocator.tryAllocate!int() is null);
+assert(tracked.allocator.try_allocate!int() is null);
 tracked.allowAllocations();
 ```
 

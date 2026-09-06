@@ -8,7 +8,7 @@ import xtb.containers.intrusive_list : ForwardListHook, IntrusiveForwardList;
 import xtb.lifetime : finalize, has_d_destructor,
     lifetimeDeinit = deinit, lifetimeMove = move, needs_deinit,
     needs_finalization;
-import xtb.memory : Allocator, deallocate, tryAllocate;
+import xtb.memory : Allocator, deallocate, try_allocate;
 import xtb.panic : panic;
 import xtb.result : Result, ResultReturns;
 import xtb.thread.spawn : SpawnError, SpawnErrorKind;
@@ -313,7 +313,7 @@ nothrow @nogc:
         if (currentThreadId() != owner_)
             panic("ThreadScope may only be used by its owning thread");
 
-        Node* node = allocator_.tryAllocate!Node();
+        Node* node = allocator_.try_allocate!Node();
         if (node is null)
         {
             static foreach_reverse (index; 0 .. Args.length)

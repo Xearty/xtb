@@ -12,7 +12,7 @@ import core.stdc.string : memcmp, memmove, strlen;
 import xtb.types : u8;
 import xtb.containers.array;
 import xtb.allocators.arena : Arena;
-import xtb.memory : Allocator, deallocateArray, tryAllocateArray;
+import xtb.memory : Allocator, deallocate_array, try_allocate_array;
 import xtb.hash : hash_value;
 import xtb.panic : panic;
 import xtb.fmt.writer : Writer;
@@ -2427,7 +2427,7 @@ public:
         if (value.length == 0)
             return true;
 
-        char* bytes = allocator.tryAllocateArray!char(value.length).ptr;
+        char* bytes = allocator.try_allocate_array!char(value.length).ptr;
         if (bytes is null)
             return false;
         memmove(bytes, value.ptr, value.length);
@@ -2473,7 +2473,7 @@ public:
         if (value_.length != 0)
         {
             requireValidOwnedStringAllocator(allocator);
-            allocator.deallocateArray(value_.ptr[0 .. value_.length]);
+            allocator.deallocate_array(value_.ptr[0 .. value_.length]);
         }
         value_ = String.init;
     }
@@ -3313,7 +3313,7 @@ private bool tryPrepareStringTransform(
 {
     if (length == 0)
         return true;
-    *allocation = allocator.tryAllocateArray!char(length);
+    *allocation = allocator.try_allocate_array!char(length);
     return allocation.ptr !is null;
 }
 

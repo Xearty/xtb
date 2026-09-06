@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import core.stdc.string : memcpy;
 import xtb.lifetime : needs_deinit;
-import xtb.memory : Allocator, tryAllocateInit;
+import xtb.memory : Allocator, try_allocate_init;
 import xtb.numeric : add_overflows;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -147,7 +147,7 @@ package(xtb.serde) bool prepareDeserialized(T)(
     }
     output.deinit();
     output.tracker_.initialize(allocator);
-    T* created = output.tracker_.allocator.tryAllocateInit!T();
+    T* created = output.tracker_.allocator.try_allocate_init!T();
     if (created is null)
     {
         output.tracker_.deinit();
