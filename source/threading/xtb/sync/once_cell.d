@@ -222,7 +222,7 @@ version (unittest)
     {
         OnceCell!int cell;
         assert(!cell.isInitialized());
-        assert(cell.tryGet().isNone);
+        assert(cell.tryGet().is_none);
 
         int calls;
         ref first = cell.getOrInit!initializeInt(&calls, 41);
@@ -236,14 +236,14 @@ version (unittest)
         assert(calls == 1);
 
         auto present = cell.tryGet();
-        assert(present.isSome);
+        assert(present.is_some);
         assert(present.value() is &first);
         *present.value() = 42;
         assert(first == 42);
 
         const OnceCell!int* readOnly = &cell;
         auto constPresent = readOnly.tryGet();
-        assert(constPresent.isSome);
+        assert(constPresent.is_some);
         assert(constPresent.value() is &first);
 
         OnceCell!int evaluatedCell;

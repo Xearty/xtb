@@ -487,7 +487,7 @@ private void deinitOwnedOptionalValues(ref OwnedOptionalValues value) nothrow @n
     // Option is migrated to explicit lifetime semantics in a later step. Until
     // then, explicitly release the OwnedArray nested in its Endpoint payload
     // before Option.reset invokes the payload's current D destruction path.
-    if (value.endpoint.isSome)
+    if (value.endpoint.is_some)
         value.endpoint.value.labels.deinit();
     value.endpoint.reset();
     value.title.reset();
@@ -1088,19 +1088,19 @@ private void testJsonOptions() nothrow @nogc
         &decoded,
     );
     assert(error.ok);
-    assert(decoded.value.title.isSome);
+    assert(decoded.value.title.is_some);
     assert(decoded.value.title.value.equal("deploy"));
-    assert(decoded.value.priority.isNone);
-    assert(decoded.value.child.isSome);
+    assert(decoded.value.priority.is_none);
+    assert(decoded.value.child.is_some);
     assert(decoded.value.child.value.label.equal("worker"));
     assert(decoded.value.child.value.value == 7);
-    assert(decoded.value.explicitToggle.isSome);
+    assert(decoded.value.explicitToggle.is_some);
     assert(!decoded.value.explicitToggle.value);
 
     // A required option requires the key, not a non-null JSON value.
     error = readJson("{\"explicit_toggle\":null}", mallocAllocator(), &decoded);
     assert(error.ok);
-    assert(decoded.value.explicitToggle.isNone);
+    assert(decoded.value.explicitToggle.is_none);
     error = readJson("{}", mallocAllocator(), &decoded);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
 
@@ -1258,13 +1258,13 @@ private void testTomlOptions() nothrow @nogc
         decoded.deinit();
     SerdeError error = readToml(input, mallocAllocator(), &decoded);
     assert(error.ok);
-    assert(decoded.value.title.isSome);
+    assert(decoded.value.title.is_some);
     assert(decoded.value.title.value.equal("deploy"));
-    assert(decoded.value.priority.isNone);
-    assert(decoded.value.child.isSome);
+    assert(decoded.value.priority.is_none);
+    assert(decoded.value.child.is_some);
     assert(decoded.value.child.value.label.equal("worker"));
     assert(decoded.value.child.value.value == 7);
-    assert(decoded.value.explicitToggle.isSome);
+    assert(decoded.value.explicitToggle.is_some);
     assert(!decoded.value.explicitToggle.value);
 
     OptionalValues value;
@@ -1303,8 +1303,8 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         OwnedOptionalValues value;
         SerdeError error = readJson(jsonInput, allocator.allocator, &value);
         assert(error.ok);
-        assert(value.title.isNone);
-        assert(value.endpoint.isSome);
+        assert(value.title.is_none);
+        assert(value.endpoint.is_some);
         assert(value.endpoint.value.hostName == "api.internal");
         assert(value.endpoint.value.labels[0] == "tls");
         assert(value.revision.value == 3);
@@ -1326,10 +1326,10 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         error = readToml(tomlInput, allocator.allocator, &value);
         assert(error.ok);
         assert(value.title.value == "scheduler");
-        assert(value.endpoint.isSome);
+        assert(value.endpoint.is_some);
         assert(value.endpoint.value.hostName == "jobs.internal");
         assert(value.endpoint.value.labels[0] == "stable");
-        assert(value.revision.isNone);
+        assert(value.revision.is_none);
         encoded.deinit();
         deinitOwnedOptionalValues(value);
     }
@@ -2346,7 +2346,7 @@ private void testSerdePartialOwnedConstruction() nothrow @nogc
         {
             assert(value.name.view == "config");
             assert(value.paths.length == 2);
-            assert(value.description.isSome);
+            assert(value.description.is_some);
             assert(value.description.value.view == "details");
             deinitValue(value);
             jsonReachedSuccess = true;
@@ -2373,7 +2373,7 @@ private void testSerdePartialOwnedConstruction() nothrow @nogc
         {
             assert(value.name.view == "config");
             assert(value.paths.length == 2);
-            assert(value.description.isSome);
+            assert(value.description.is_some);
             assert(value.description.value.view == "details");
             deinitValue(value);
             tomlReachedSuccess = true;
@@ -2401,7 +2401,7 @@ private void testSerdeOwnedStringOptionFailures() nothrow @nogc
         SerdeError error = readJson("\"payload\"", allocator.allocator, &value);
         if (error.ok)
         {
-            assert(value.isSome);
+            assert(value.is_some);
             assert(value.value.view == "payload");
             value.deinit();
             reachedSuccess = true;
@@ -2424,10 +2424,10 @@ private void testSerdeOwnedStringOptionFailures() nothrow @nogc
         SerdeError error = readJson(input, allocator.allocator, &value);
         assert(error.ok);
         if (input[0] == 'n')
-            assert(value.isNone);
+            assert(value.is_none);
         else
         {
-            assert(value.isSome);
+            assert(value.is_some);
             assert(value.value.view == "payload");
         }
         value.deinit();
@@ -2450,7 +2450,7 @@ private void testSerdeOwnedStringOptionFailures() nothrow @nogc
         );
         if (error.ok)
         {
-            assert(value.value.isSome);
+            assert(value.value.is_some);
             assert(value.value.value.view == "payload");
             deinitValue(value);
             tomlReachedSuccess = true;

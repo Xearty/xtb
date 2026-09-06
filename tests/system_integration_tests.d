@@ -462,7 +462,7 @@ version (linux) private void runCommunicateIntegration(
         assert(result.error.succeeded &&
                 result.state == CommunicateState.completed);
         assert(result.inputWritten == input.length &&
-                result.exitStatus.isSome && result.exitStatus.value.succeeded);
+                result.exitStatus.is_some && result.exitStatus.value.succeeded);
         assert(output.bytes == input[] && !output.truncated && child.empty);
         assert(openDescriptorCount() == baseline);
     }
@@ -612,7 +612,7 @@ version (linux) private void runCommunicateIntegration(
         const result = communicate(&child, null, null, null, options);
         assert(result.error.succeeded &&
                 result.state == CommunicateState.timedOutTerminated);
-        assert(result.exitStatus.isSome && result.exitStatus.value.signaled &&
+        assert(result.exitStatus.is_some && result.exitStatus.value.signaled &&
                 result.exitStatus.value.terminationSignal == SIGTERM);
         assert(child.empty);
     }

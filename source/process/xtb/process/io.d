@@ -159,7 +159,7 @@ CommunicateResult communicate(
         error = observeExit(child, &exitStatus);
         if (error.failed)
             return communicationFailure(error, inputWritten);
-        if (exitStatus.isSome && child.stdinPipe !is null)
+        if (exitStatus.is_some && child.stdinPipe !is null)
         {
             error = close(child.stdinPipe);
             if (error.failed)

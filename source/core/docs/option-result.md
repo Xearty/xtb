@@ -8,9 +8,8 @@ errors.
 `Option!T` is either `some(T)` or `none`. Its zero state is `none`.
 
 ```d
-Option!int index = findIndex();
-if (index)
-    use(index.value);
+Option!i32 index = find_index();
+if (index) use(index.value);
 ```
 
 Use `value` when presence is already established, or `pointer` when a nullable
@@ -19,11 +18,11 @@ option empty. `unwrap` and `expect` also transfer the value, but panic when it
 is absent.
 
 ```d
-Option!OwnedString name = loadName();
-if (name.isSome)
+Option!OwnedString name = load_name();
+if (name.is_some)
 {
     OwnedString owned = name.take();
-    scope(exit) owned.deinit();
+    scope (exit) owned.deinit();
     use(owned);
 }
 ```

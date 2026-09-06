@@ -885,14 +885,14 @@ private void testOptionResultComposition(InstrumentedAllocator* tracked)
 {
     StringBuf optionalValue = StringBuf.fromString(tracked.allocator, "option");
     Option!StringBuf optional = some(move(optionalValue));
-    assert(optional.isSome && optional.value == "option");
+    assert(optional.is_some && optional.value == "option");
     deinit(optional);
     deinit(optionalValue);
     assert(tracked.clean);
 
     OwnedString optionalText = OwnedString.fromString(tracked.allocator, "owned-option");
     Option!OwnedString ownedOptional = some(move(optionalText));
-    assert(ownedOptional.isSome && ownedOptional.value.view == "owned-option");
+    assert(ownedOptional.is_some && ownedOptional.value.view == "owned-option");
     deinit(ownedOptional);
     deinit(optionalText);
     assert(tracked.clean);

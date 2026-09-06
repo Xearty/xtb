@@ -715,7 +715,7 @@ private ProcessError validateCommand(scope const(Command) command) @system
         if (argument.containsNul || argument.length == size_t.max)
             return invalidProcessError(ProcessOperation.validate);
     }
-    if (command.workingDirectory_.isSome &&
+    if (command.workingDirectory_.is_some &&
         (command.workingDirectory_.value.view.containsNul ||
             command.workingDirectory_.value.view.length == size_t.max))
         return invalidProcessError(ProcessOperation.validate);
@@ -862,7 +862,7 @@ private ProcessError spawnPlatform(
         return ProcessError(environmentError, ProcessOperation.validate);
 
     const(char)* workingDirectory;
-    if (command.workingDirectory_.isSome)
+    if (command.workingDirectory_.is_some)
         workingDirectory = copyCString(
             command.workingDirectory_.value.view,
             scratch.allocator,

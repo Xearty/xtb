@@ -115,7 +115,7 @@ private void runBackendContract(Backend)()
     assert(roundTrip.value.serviceName.equal("api"));
     assert(roundTrip.value.retryCount == 2);
     assert(roundTrip.value.retryWindow == 3);
-    assert(roundTrip.value.priority.isNone);
+    assert(roundTrip.value.priority.is_none);
     assert(roundTrip.value.child.enabled);
 
     Deserialized!ContractDocument legacy;
@@ -126,7 +126,7 @@ private void runBackendContract(Backend)()
     assert(legacy.value.serviceName.equal("legacy"));
     assert(legacy.value.retryCount == 4);
     assert(legacy.value.retryWindow == 3);
-    assert(legacy.value.priority.isNone);
+    assert(legacy.value.priority.is_none);
     assert(!legacy.value.child.enabled);
 
     error = Backend.read(Backend.missingRequired, mallocAllocator(), &legacy);

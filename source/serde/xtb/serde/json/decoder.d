@@ -255,13 +255,13 @@ private void decodeOption(T)(
         // A JSON null keeps the Option absent, so that hidden storage must be
         // cleaned explicitly even though Option.reset() correctly sees no
         // active logical payload.
-        deinitOwnedValue(&(*output).storage());
+        deinitOwnedValue(&(*output).payload_storage());
         (*output).reset();
         return;
     }
-    decodeValue(parser, &(*output).storage(), depth);
+    decodeValue(parser, &(*output).payload_storage(), depth);
     if (parser.error.ok)
-        (*output).markPresent();
+        (*output).mark_present();
 }
 
 private void decodeTaggedUnion(T)(

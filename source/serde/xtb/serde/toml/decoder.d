@@ -1047,10 +1047,10 @@ private void decodePathField(T, size_t index)(
             decodeTaggedInline(parser, &output.tupleof[index], 0);
         else static if (isOption!F && isTaggedUnion!(OptionElement!F))
         {
-            applySchemaDefaults(&output.tupleof[index].storage());
-            decodeTaggedInline(parser, &output.tupleof[index].storage(), 0);
+            applySchemaDefaults(&output.tupleof[index].payload_storage());
+            decodeTaggedInline(parser, &output.tupleof[index].payload_storage(), 0);
             if (parser.error.ok)
-                output.tupleof[index].markPresent();
+                output.tupleof[index].mark_present();
         }
         else static if (is(Unqualified!F == TaggedPointee*, TaggedPointee) &&
             isTaggedUnion!TaggedPointee)
@@ -1068,11 +1068,11 @@ private void decodePathField(T, size_t index)(
             decodeInlineTable(parser, &output.tupleof[index], 0, seen + ordinal + 1);
         else static if (isOption!F && isSerdeStruct!(OptionElement!F))
         {
-            applySchemaDefaults(&output.tupleof[index].storage());
-            decodeInlineTable(parser, &output.tupleof[index].storage(), 0,
+            applySchemaDefaults(&output.tupleof[index].payload_storage());
+            decodeInlineTable(parser, &output.tupleof[index].payload_storage(), 0,
                 seen + ordinal + 1);
             if (parser.error.ok)
-                output.tupleof[index].markPresent();
+                output.tupleof[index].mark_present();
         }
         else static if (is(Unqualified!F == Pointee*, Pointee) &&
             isSerdeStruct!Pointee)
@@ -1102,13 +1102,13 @@ private void decodePathField(T, size_t index)(
     }
     else static if (isOption!F && isSerdeStruct!(OptionElement!F))
     {
-        if (output.tupleof[index].isNone)
+        if (output.tupleof[index].is_none)
         {
-            applySchemaDefaults(&output.tupleof[index].storage());
-            output.tupleof[index].markPresent();
+            applySchemaDefaults(&output.tupleof[index].payload_storage());
+            output.tupleof[index].mark_present();
         }
         seen[ordinal] = true;
-        decodePath(parser, &output.tupleof[index].storage(), prefix, prefixLength,
+        decodePath(parser, &output.tupleof[index].payload_storage(), prefix, prefixLength,
             suffix, suffixLength, nextPrefix, nextSuffix, seen, ordinal + 1,
             matched);
     }
@@ -1179,8 +1179,8 @@ private void validateRequiredField(T, size_t index)(
             }
             else static if (isOption!F && isSerdeStruct!(OptionElement!F))
             {
-                if (seen[ordinal] && output.tupleof[index].isSome)
-                    validateRequired(parser, &output.tupleof[index].storage(), seen,
+                if (seen[ordinal] && output.tupleof[index].is_some)
+                    validateRequired(parser, &output.tupleof[index].payload_storage(), seen,
                         ordinal + 1);
             }
             else static if (is(Unqualified!F == Pointee*, Pointee) &&
@@ -1284,9 +1284,9 @@ private void decodeOption(T)(
     size_t depth,
 )
 {
-    decodeValue(parser, &(*output).storage(), depth);
+    decodeValue(parser, &(*output).payload_storage(), depth);
     if (parser.error.ok)
-        (*output).markPresent();
+        (*output).mark_present();
 }
 
 private void decodeTaggedInline(T)(

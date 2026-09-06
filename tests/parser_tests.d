@@ -108,9 +108,9 @@ private void testCoreCombinators()
 
     auto optional = grammar.value('-').optional().then(grammar.integer!int());
     auto optionalPresent = optional.parse("-4");
-    assert(optionalPresent.ok && optionalPresent.value.first.isSome);
+    assert(optionalPresent.ok && optionalPresent.value.first.is_some);
     auto optionalAbsent = optional.parse("4");
-    assert(optionalAbsent.ok && optionalAbsent.value.first.isNone);
+    assert(optionalAbsent.ok && optionalAbsent.value.first.is_none);
 
     assert(grammar.digit().repeat1().skip().parse("12345").ok);
     assert(grammar.digit().repeat1().skip().parse("").failed);

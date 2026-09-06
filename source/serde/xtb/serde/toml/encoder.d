@@ -98,9 +98,9 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     }
     else static if (isOption!U)
     {
-        if (value.isSome != expected.isSome)
+        if (value.is_some != expected.is_some)
             return false;
-        return value.isNone || valuesEqual(value.value, expected.value);
+        return value.is_none || valuesEqual(value.value, expected.value);
     }
     else static if (isDynamicArray!U)
     {

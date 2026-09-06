@@ -1695,10 +1695,10 @@ private void testFlattenedArguments()
         assert(result.invocation.args.common.leaf.jobs == 4);
         assert(result.invocation.args.common.leaf.timeout.seconds == 30);
         assert(result.invocation.args.common.leaf.hiddenDefault.value == 7);
-        assert(result.invocation.args.common.leaf.color.isNone);
+        assert(result.invocation.args.common.leaf.color.is_none);
         assert(result.invocation.args.common.leaf.port.value == 443);
         assert(!result.invocation.args.common.leaf.internalTrace);
-        assert(result.invocation.args.common.config.isNone);
+        assert(result.invocation.args.common.config.is_none);
         assert(result.invocation.args.common.toolchain == "ldc2");
         assert(result.invocation.args.output == "build");
     }
@@ -1727,11 +1727,11 @@ private void testFlattenedArguments()
         assert(result.hasInvocation);
         assert(result.invocation.args.common.leaf.verbose);
         assert(result.invocation.args.common.leaf.jobs == 9);
-        assert(result.invocation.args.common.leaf.color.isSome);
+        assert(result.invocation.args.common.leaf.color.is_some);
         assert(!result.invocation.args.common.leaf.color.value);
         assert(result.invocation.args.common.leaf.port.value == 80);
         assert(result.invocation.args.common.leaf.internalTrace);
-        assert(result.invocation.args.common.config.isSome);
+        assert(result.invocation.args.common.config.is_some);
         assert(result.invocation.args.common.config.value == "xtb.conf");
         assert(result.invocation.args.common.toolchain == "ldc2");
         assert(result.invocation.args.output == "build");
@@ -1809,7 +1809,7 @@ private void testFlattenedArguments()
         assert(result.invocation.args.global.workers == 2);
         auto child = result.invocation.command!FlattenGlobalChildArgs;
         assert(child !is null);
-        assert(child.args.name.isSome);
+        assert(child.args.name.is_some);
         assert(child.args.name.value == "value");
 
         TextSink output;
@@ -1829,7 +1829,7 @@ private void testFlattenedArguments()
             result.deinit();
 
         assert(result.hasTerminal);
-        assert(result.parsed.args.terminal.explain.isSome);
+        assert(result.parsed.args.terminal.explain.is_some);
         assert(result.parsed.args.terminal.explain.value == "schema");
     }
 
@@ -1927,7 +1927,7 @@ private void testRequirednessAndDefaults()
 
         assert(result.hasInvocation);
         assert(result.invocation.args.required == 5);
-        assert(result.invocation.args.optional.isNone);
+        assert(result.invocation.args.optional.is_none);
         assert(result.invocation.args.zero == 0);
         assert(result.invocation.args.jobs == 8);
         assert(result.invocation.args.timeout.seconds == 30);
@@ -1955,7 +1955,7 @@ private void testRequirednessAndDefaults()
             result.deinit();
 
         assert(result.hasInvocation);
-        assert(result.invocation.args.optional.isSome);
+        assert(result.invocation.args.optional.is_some);
         assert(result.invocation.args.optional.value == 0);
         assert(result.invocation.args.zero == 2);
         assert(result.invocation.args.timeout.seconds == 60);
@@ -2091,7 +2091,7 @@ private void testExplicitTypedTraversal()
     assert(result.hasInvocation);
     ref root = result.invocation;
     assert(root.args.verbose == 3);
-    assert(root.args.directory.isNone);
+    assert(root.args.directory.is_none);
 
     auto build = root.command!BuildArgs;
     assert(build !is null);
@@ -2124,13 +2124,13 @@ private void testNestedCommandsAndChildVersionOption()
 
     auto dependency = root.command!DependencyArgs;
     assert(dependency !is null);
-    assert(dependency.args.registry.isSome);
+    assert(dependency.args.registry.is_some);
     assert(dependency.args.registry.value == "https://registry.test");
 
     auto add = dependency.command!DependencyAddArgs;
     assert(add !is null);
     assert(add.args.package_ == "pkg");
-    assert(add.args.version_.isSome);
+    assert(add.args.version_.is_some);
     assert(add.args.version_.value == "2.0");
 }
 
@@ -2145,7 +2145,7 @@ private void testDefaultsAndOptionalCommand()
     auto dependency = result.invocation.command!DependencyArgs;
     assert(dependency !is null);
     assert(!dependency.hasCommand);
-    assert(dependency.args.registry.isNone);
+    assert(dependency.args.registry.is_none);
 }
 
 private void testRequiredAndDuplicateErrors()
@@ -2449,7 +2449,7 @@ private void testNegatableBooleans()
         assert(result.hasInvocation);
         assert(!result.invocation.args.color);
         assert(result.invocation.args.feature);
-        assert(result.invocation.args.cache.isNone);
+        assert(result.invocation.args.cache.is_none);
     }
 
     {
@@ -2461,7 +2461,7 @@ private void testNegatableBooleans()
         assert(result.hasInvocation);
         assert(result.invocation.args.color);
         assert(!result.invocation.args.feature);
-        assert(result.invocation.args.cache.isSome);
+        assert(result.invocation.args.cache.is_some);
         assert(result.invocation.args.cache.value);
     }
 
@@ -2473,7 +2473,7 @@ private void testNegatableBooleans()
 
         assert(result.hasInvocation);
         assert(result.invocation.args.color);
-        assert(result.invocation.args.cache.isSome);
+        assert(result.invocation.args.cache.is_some);
         assert(!result.invocation.args.cache.value);
     }
 
@@ -2526,7 +2526,7 @@ private void testNegatableBooleans()
 
         assert(result.hasTerminal);
         assert(result.parsed.args.output.length == 0);
-        assert(result.parsed.args.diagnostics.isSome);
+        assert(result.parsed.args.diagnostics.is_some);
         assert(!result.parsed.args.diagnostics.value);
     }
 
@@ -2926,7 +2926,7 @@ private void testDisabledBuiltinVersion()
             result.deinit();
 
         assert(result.hasInvocation);
-        assert(result.invocation.args.version_.isSome);
+        assert(result.invocation.args.version_.is_some);
         assert(result.invocation.args.version_.value == "custom");
     }
 
@@ -2987,7 +2987,7 @@ private void testCustomValueParsers()
         auto result = parseArgs!CustomValueArgs(argv, allocator.allocator);
         assert(result.hasInvocation);
         assert(result.invocation.args.port.value == 80);
-        assert(result.invocation.args.optionalPort.isSome);
+        assert(result.invocation.args.optionalPort.is_some);
         assert(result.invocation.args.optionalPort.value.value == 443);
         assert(result.invocation.args.repeatedPort.length == 2);
         assert(result.invocation.args.repeatedPort[0].value == 80);
@@ -3015,7 +3015,7 @@ private void testCustomValueParsers()
         scope (exit)
             result.deinit();
         assert(result.hasInvocation);
-        assert(result.invocation.args.port.isNone);
+        assert(result.invocation.args.port.is_none);
     }
 
     {
@@ -3024,7 +3024,7 @@ private void testCustomValueParsers()
         scope (exit)
             result.deinit();
         assert(result.hasInvocation);
-        assert(result.invocation.args.port.isSome);
+        assert(result.invocation.args.port.is_some);
         assert(result.invocation.args.port.value.value == 443);
     }
 
@@ -3180,7 +3180,7 @@ private void testAllocatorCustomValueParserCleanup()
         String[3] argv = ["tool", "--value", "owned"];
         auto result = parseArgs!AllocatorCustomValueArgs(argv, allocator.allocator);
         assert(result.hasInvocation);
-        assert(result.invocation.args.value.isSome);
+        assert(result.invocation.args.value.is_some);
         assert(result.invocation.args.value.value.values.length == 1);
         assert(result.invocation.args.value.value.values[0] == "owned");
         result.deinit();

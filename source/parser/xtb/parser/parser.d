@@ -1941,10 +1941,10 @@ unittest
     auto optional = grammar.value('-').optional().then(grammar.integer!int());
     auto optionalPresent = optional.parse("-4");
     assert(optionalPresent.ok);
-    assert(optionalPresent.value.first.isSome);
+    assert(optionalPresent.value.first.is_some);
     auto optionalAbsent = optional.parse("4");
     assert(optionalAbsent.ok);
-    assert(optionalAbsent.value.first.isNone);
+    assert(optionalAbsent.value.first.is_none);
 
     auto digits = grammar.digit().repeat1().skip();
     assert(digits.parse("12345").ok);

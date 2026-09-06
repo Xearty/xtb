@@ -489,7 +489,7 @@ private ErrorRoute stageStderr(Stage)(
 {
     static if (is(Stage == PipelineStage))
     {
-        if (stage.stderrOverride.isSome)
+        if (stage.stderrOverride.is_some)
             return cast(ErrorRoute) stage.stderrOverride.value;
     }
     return defaultRoute;
@@ -543,7 +543,7 @@ unittest
         PipelineStage(commands[0]),
         PipelineStage(commands[1]).withStderr(ErrorRoute.nullDevice()),
     ];
-    assert(stages[1].stderrOverride.isSome);
+    assert(stages[1].stderrOverride.is_some);
     const options = PipelineOptions.init
         .withStdin(InputRoute.piped())
         .withStdout(OutputRoute.piped())

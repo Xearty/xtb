@@ -2,18 +2,15 @@ module xtb.option;
 
 nothrow @nogc:
 
-import core.attribute : mustuse;
-import core.internal.traits : hasElaborateCopyConstructor, hasElaborateDestructor;
-import core.lifetime : forward;
-import xtb.lifetime : can_finalize_without_context,
-    deinitValue = deinit, finalize, has_d_destructor, move, move_emplace,
-    needs_deinit, needs_finalization;
-import xtb.panic : panic;
-import xtb.types : String;
+import core.attribute;
+import core.internal.traits;
+import d_lifetime = core.lifetime;
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.lifetime;
+import xtb.panic;
+import xtb.types;
 
-private enum bool isOptionType(T) = is(T == Option!Value, Value);
+private enum bool is_option_type(T) = is(T == Option!Value, Value);
 
 private template OptionValue(T)
 {
@@ -21,50 +18,12 @@ private template OptionValue(T)
         alias OptionValue = Value;
 }
 
-private enum bool isMonadicValue(T) = !needs_deinit!T &&
+private enum bool is_monadic_value(T) = !needs_deinit!T &&
     !has_d_destructor!T && !hasElaborateCopyConstructor!T;
 
 /// Explicit absence token accepted by Option construction and assignment.
 struct None
 {
-}
-
-version (unittest) private struct TrackedOptionValue
-{
-nothrow @nogc:
-
-    int* deinits;
-    bool armed;
-
-    @disable this(this);
-
-    void deinit()
-    {
-        if (armed)
-        {
-            ++*deinits;
-            armed = false;
-        }
-    }
-}
-
-version (unittest) private struct DestructorOptionValue
-{
-nothrow @nogc:
-
-    int* destructions;
-    bool armed;
-
-    @disable this(this);
-
-    ~this()
-    {
-        if (armed)
-        {
-            ++*destructions;
-            armed = false;
-        }
-    }
 }
 
 /// An optional BetterC value. Option.init is absent.
@@ -74,33 +33,38 @@ nothrow @nogc:
 /// available and discard a present value. `take`, `unwrap`, and `expect`
 /// transfer the value out without cleaning it. Payloads must support
 /// context-free finalization because Option stores no cleanup context.
+///
+/// `present` and `storage` expose the representation as required for XTB
+/// structs. Callers that mutate them directly must preserve the invariant that
+/// `present == true` means `storage` contains exactly one live `T` object.
 @mustuse struct Option(T)
 {
 nothrow @nogc:
 
     static assert(!is(T == void), "Option value type cannot be void");
-    static assert(can_finalize_without_context!T,
-        "Option payload must support context-free finalization");
+    static assert(
+        can_finalize_without_context!T,
+        "Option payload must support context-free finalization",
+    );
 
-    private enum bool payloadNeedsCleanup = needs_finalization!T;
+    private enum bool payload_needs_cleanup = needs_finalization!T;
 
-    private bool present_;
-    align(T.alignof) private ubyte[T.sizeof] storage_;
+    bool present;
+    align(T.alignof) u8[T.sizeof] storage;
 
     // A cleanup-bearing payload must never acquire implicit owner copying just
     // because its representation happens to be copyable.
-    static if (!__traits(isCopyable, T) || needs_deinit!T ||
-        has_d_destructor!T || hasElaborateCopyConstructor!T)
+    static if (
+        !__traits(isCopyable, T) || needs_deinit!T ||
+        has_d_destructor!T || hasElaborateCopyConstructor!T
+    )
+    {
         @disable this(this);
+    }
 
     /// Explicitly constructs an absent Option from `none()`.
     this(None)
     {
-    }
-
-    private ref inout(T) payload() inout return @system
-    {
-        return *cast(inout(T)*) storage_.ptr;
     }
 
     /// Replaces this Option by consuming `source`.
@@ -110,12 +74,12 @@ nothrow @nogc:
     /// rvalue/moved source because their copy constructor is disabled.
     ref Option opAssign(Option source) return
     {
-        reset();
-        if (source.present_)
+        this.reset();
+        if (source.present)
         {
-            move_emplace(source.payload(), payload());
-            source.present_ = false;
-            present_ = true;
+            move_emplace(source.payload(), this.payload());
+            source.present = false;
+            this.present = true;
         }
         return this;
     }
@@ -123,7 +87,7 @@ nothrow @nogc:
     /// Explicitly clears this Option through `option = none()`.
     ref Option opAssign(None) return
     {
-        reset();
+        this.reset();
         return this;
     }
 
@@ -136,73 +100,62 @@ nothrow @nogc:
     {
         Option result;
         move_emplace(value, result.payload());
-        result.present_ = true;
+        result.present = true;
         return result;
     }
 
-    bool isSome() const pure @safe
+    bool is_some() const pure @safe
     {
-        return present_;
+        return this.present;
     }
 
-    bool isNone() const pure @safe
+    bool is_none() const pure @safe
     {
-        return !present_;
+        return !this.present;
     }
 
     /// Converts to true exactly when this Option contains a value.
     bool opCast(U : bool)() const pure @safe
     {
-        return isSome;
+        return this.is_some;
     }
 
     /// This function exists only for compatibility with range-oriented generic
-    /// code. Use `isNone` when directly inspecting an `Option`.
+    /// code. Use `is_none` when directly inspecting an `Option`.
     bool empty() const pure @safe
     {
-        return isNone;
+        return this.is_none;
     }
 
     ref inout(T) value() inout return @system
     {
-        version (XTB_Checked)
-            require(present_, "empty Option has no value");
-        return payload();
+        require(this.present, "empty Option has no value");
+        return this.payload();
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
     {
-        if (isNone)
+        if (this.is_none)
         {
             pretty.atom("none", pretty.nullRole);
             return;
         }
-        pretty.constructor("some", value);
+        pretty.constructor("some", this.value);
     }
 
     inout(T)* pointer() inout return @system
     {
-        return present_ ? &payload() : null;
+        return this.present ? &this.payload() : null;
     }
 
-    private void discardActive()
-    {
-        if (!present_)
-            return;
-
-        static if (payloadNeedsCleanup)
-            finalize(payload());
-        present_ = false;
-    }
-
-    static if (payloadNeedsCleanup)
+    static if (Option.payload_needs_cleanup)
     {
         /// Explicitly ends this cleanup-bearing Option's lifetime.
         ///
         /// Only the active payload is cleaned. Absence owns nothing.
         void deinit()
         {
-            discardActive();
+            this.discard_active();
         }
     }
 
@@ -210,17 +163,16 @@ nothrow @nogc:
     /// reusable.
     void reset()
     {
-        discardActive();
+        this.discard_active();
     }
 
     /// Transfers the current value out and leaves this Option absent.
     T take()
     {
-        version (XTB_Checked)
-            require(present_, "cannot take an empty Option");
+        require(this.present, "cannot take an empty Option");
         T result = void;
-        move_emplace(payload(), result);
-        present_ = false;
+        move_emplace(this.payload(), result);
+        this.present = false;
         return result;
     }
 
@@ -229,9 +181,10 @@ nothrow @nogc:
     /// Unlike checked contracts, this state check is always enabled.
     T unwrap()
     {
-        if (!present_)
+        if (!this.present)
             panic("called Option.unwrap() on none");
-        return take();
+
+        return this.take();
     }
 
     /// Transfers the value out or panics with `message` when absent.
@@ -239,19 +192,36 @@ nothrow @nogc:
     /// Unlike checked contracts, this state check is always enabled.
     T expect(String message)
     {
-        if (!present_)
+        if (!this.present)
             panic(message);
-        return take();
+
+        return this.take();
     }
 
-    package(xtb) ref T storage() return @system
+    private ref inout(T) payload() inout return @system
     {
-        return payload();
+        return *cast(inout(T)*) this.storage.ptr;
     }
 
-    package(xtb) void markPresent()
+    package(xtb) ref T payload_storage() return @system
     {
-        present_ = true;
+        return this.payload();
+    }
+
+    package(xtb) void mark_present()
+    {
+        this.present = true;
+    }
+
+    private void discard_active()
+    {
+        if (!this.present)
+            return;
+
+        static if (Option.payload_needs_cleanup)
+            finalize(this.payload());
+
+        this.present = false;
     }
 }
 
@@ -281,192 +251,312 @@ auto map(alias transform, T, Args...)(
     auto ref Args args,
 )
 {
-    static assert(isMonadicValue!T,
-        "Option.map currently supports only payloads without deinit or D destructor semantics");
-    alias U = typeof(transform(option.take(), forward!args));
+    static assert(
+        is_monadic_value!T,
+        "Option.map currently supports only payloads without deinit or D destructor semantics",
+    );
+    alias U = typeof(transform(option.take(), d_lifetime.forward!args));
     static assert(!is(U == void), "Option.map transform must return a value");
-    static assert(isMonadicValue!U,
-        "Option.map currently supports only result payloads without deinit or D destructor semantics");
+    static assert(
+        is_monadic_value!U,
+        "Option.map currently supports only result payloads without deinit or D " ~
+            "destructor semantics",
+    );
 
-    if (option.isNone)
+    if (option.is_none)
         return Option!U.none();
 
-    U value = transform(option.take(), forward!args);
+    U value = transform(option.take(), d_lifetime.forward!args);
     return Option!U.some(move(value));
 }
 
 /// Chains an Option-producing operation after a present simple Option.
-auto andThen(alias transform, T, Args...)(
+auto and_then(alias transform, T, Args...)(
     Option!T option,
     auto ref Args args,
 )
 {
-    static assert(isMonadicValue!T,
-        "Option.andThen currently supports only payloads without deinit or D destructor semantics");
-    alias Next = typeof(transform(option.take(), forward!args));
     static assert(
-        isOptionType!Next,
-        "Option.andThen transform must return Option",
+        is_monadic_value!T,
+        "Option.and_then currently supports only payloads without deinit or D destructor semantics",
     );
-    static assert(isMonadicValue!(OptionValue!Next),
-        "Option.andThen currently supports only result payloads without deinit or D destructor semantics");
+    alias Next = typeof(transform(option.take(), d_lifetime.forward!args));
+    static assert(
+        is_option_type!Next,
+        "Option.and_then transform must return Option",
+    );
+    static assert(
+        is_monadic_value!(OptionValue!Next),
+        "Option.and_then currently supports only result payloads without deinit or D " ~
+            "destructor semantics",
+    );
 
-    if (option.isNone)
+    if (option.is_none)
         return Next.none();
-    return transform(option.take(), forward!args);
+
+    return transform(option.take(), d_lifetime.forward!args);
 }
 
 /// Produces an alternate Option when this simple Option is absent.
-auto orElse(alias transform, T, Args...)(
+auto or_else(alias transform, T, Args...)(
     Option!T option,
     auto ref Args args,
 )
 {
-    static assert(isMonadicValue!T,
-        "Option.orElse currently supports only payloads without deinit or D destructor semantics");
-    alias Next = typeof(transform(forward!args));
+    static assert(
+        is_monadic_value!T,
+        "Option.or_else currently supports only payloads without deinit or D destructor semantics",
+    );
+    alias Next = typeof(transform(d_lifetime.forward!args));
     static assert(
         is(Next == Option!T),
-        "Option.orElse transform must return the same Option type",
+        "Option.or_else transform must return the same Option type",
     );
 
-    if (option.isNone)
-        return transform(forward!args);
+    if (option.is_none)
+        return transform(d_lifetime.forward!args);
+
     return Next.some(option.take());
 }
 
-version (unittest) private Option!int optionTestReturn(bool present)
+version (unittest)
 {
-    mixin OptionReturns;
-    if (!present)
-        return none();
-    return some(12);
+    import xtb.allocators.malloc;
+    import xtb.string;
+
+    private struct TrackedOptionValue
+    {
+    nothrow @nogc:
+
+        i32* deinits;
+        bool armed;
+
+        @disable this(this);
+
+        void deinit()
+        {
+            if (this.armed)
+            {
+                ++*this.deinits;
+                this.armed = false;
+            }
+        }
+    }
+
+    private struct DestructorOptionValue
+    {
+    nothrow @nogc:
+
+        i32* destructions;
+        bool armed;
+
+        @disable this(this);
+
+        ~this()
+        {
+            if (this.armed)
+            {
+                ++*this.destructions;
+                this.armed = false;
+            }
+        }
+    }
+
+    private Option!i32 option_test_return(bool present)
+    {
+        mixin OptionReturns;
+        if (!present) return none();
+        return some(12);
+    }
 }
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
-    import xtb.string;
+    static assert(!__traits(compiles, Option!i32(13)));
+    static assert(!__traits(compiles, ()
+    {
+        Option!i32 value = 13;
+    }));
+    static assert(!__traits(compiles, ()
+    {
+        Option!i32 value;
+        value = 13;
+    }));
 
-    static assert(!__traits(compiles, Option!int(13)));
-    static assert(!__traits(compiles, () { Option!int value = 13; }));
-    static assert(!__traits(compiles, () { Option!int value; value = 13; }));
-
-    Option!int number;
-    Option!int declaredSome = some(13);
-    Option!int declaredNone = none();
-    assert(declaredSome.isSome && declaredSome.value == 13);
-    assert(declaredNone.isNone);
-    declaredSome = none();
-    assert(declaredSome.isNone);
-    declaredNone = some(17);
-    assert(declaredNone.isSome && declaredNone.value == 17);
-
-    assert(number.isNone && number.empty);
+    Option!i32 number;
+    assert(number.is_none && number.empty);
     assert(!number);
     assert(number.pointer is null);
+
     number = some(42);
-    assert(number.isSome && number);
+    assert(number.is_some && number);
     assert(number.value == 42);
     assert(number.pointer is &number.value());
+
     assert(number.take == 42);
-    assert(number.isNone);
+    assert(number.is_none);
     assert(number.pointer is null);
 
     number = some(51);
     assert(number.unwrap() == 51);
-    assert(number.isNone);
+    assert(number.is_none);
+
     number = some(52);
     assert(number.expect("expected a number") == 52);
-    assert(number.isNone);
+    assert(number.is_none);
+}
 
-    Option!int copied = some(7);
-    Option!int copiedAgain = copied;
+unittest
+{
+    Option!i32 declared_some = some(13);
+    Option!i32 declared_none = none();
+    assert(declared_some.is_some && declared_some.value == 13);
+    assert(declared_none.is_none);
+
+    declared_some = none();
+    declared_none = some(17);
+    assert(declared_some.is_none);
+    assert(declared_none.is_some && declared_none.value == 17);
+
+    Option!i32 copied = some(7);
+    Option!i32 copied_again = copied;
     copied = some(9);
     assert(copied.value == 9);
-    assert(copiedAgain.value == 7);
+    assert(copied_again.value == 7);
+
     copied.reset();
-    assert(copied.isNone);
+    assert(copied.is_none);
+}
 
-    const Option!int readOnly = some(5);
-    static assert(is(typeof(readOnly.value()) == const(int)));
-    static assert(is(typeof(readOnly.pointer()) == const(int)*));
-    immutable Option!int immutableValue = Option!int.some(6);
-    static assert(is(typeof(immutableValue.value()) == immutable(int)));
-    static assert(is(typeof(immutableValue.pointer()) == immutable(int)*));
+unittest
+{
+    const Option!i32 read_only = some(5);
+    static assert(is(typeof(read_only.value()) == const(i32)));
+    static assert(is(typeof(read_only.pointer()) == const(i32)*));
 
-    assert(optionTestReturn(false).isNone);
-    assert(optionTestReturn(true).value == 12);
+    immutable Option!i32 immutable_value = Option!i32.some(6);
+    static assert(is(typeof(immutable_value.value()) == immutable(i32)));
+    static assert(is(typeof(immutable_value.pointer()) == immutable(i32)*));
+}
 
+unittest
+{
+    assert(option_test_return(false).is_none);
+    assert(option_test_return(true).value == 12);
+}
+
+unittest
+{
     StringBuf source = StringBuf.fromString(mallocAllocator(), "owned");
     Option!StringBuf text = some(move(source));
     assert(source.allocator is null);
     assert(text.value == "owned");
+
     text.value.append(" value");
     StringBuf extracted = text.unwrap();
-    assert(text.isNone);
+    assert(text.is_none);
     assert(extracted == "owned value");
+
     text = some(move(extracted));
     text.reset();
-    assert(text.isNone);
+    assert(text.is_none);
+}
 
-    int deinits;
+unittest
+{
+    i32 deinits;
     TrackedOptionValue first = TrackedOptionValue(&deinits, true);
     Option!TrackedOptionValue tracked = some(move(first));
+
     tracked.reset();
     assert(deinits == 1);
 
     TrackedOptionValue second = TrackedOptionValue(&deinits, true);
     tracked = some(move(second));
     TrackedOptionValue taken = tracked.take();
-    assert(tracked.isNone);
+    assert(tracked.is_none);
     assert(deinits == 1);
-    deinitValue(taken);
-    assert(deinits == 2);
 
-    int destructions;
+    xtb.lifetime.deinit(taken);
+    assert(deinits == 2);
+}
+
+unittest
+{
+    i32 destructions;
     {
-        DestructorOptionValue destructorValue =
+        DestructorOptionValue destructor_value =
             DestructorOptionValue(&destructions, true);
-        Option!DestructorOptionValue destructorOption =
-            some(move(destructorValue));
-        destructorOption.reset();
+        Option!DestructorOptionValue destructor_option = some(move(destructor_value));
+
+        destructor_option.reset();
         assert(destructions == 1);
     }
+
     assert(destructions == 1);
     static assert(!hasElaborateDestructor!(Option!DestructorOptionValue));
+}
 
+unittest
+{
     static assert(!__traits(compiles,
-            (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
+        (ref Option!StringBuf value)
+        {
+            Option!StringBuf copy = value;
+        }));
     static assert(!__traits(compiles,
-            (ref Option!TrackedOptionValue value) { Option!TrackedOptionValue copy = value; }));
+        (ref Option!TrackedOptionValue value)
+        {
+            Option!TrackedOptionValue copy = value;
+        }));
+}
 
-    Option!(int*) presentNull = some(cast(int*) null);
-    assert(presentNull.isSome && presentNull.value is null);
-    presentNull = none();
-    assert(presentNull.isNone);
+unittest
+{
+    Option!(i32*) present_null = some(cast(i32*) null);
+    assert(present_null.is_some && present_null.value is null);
+
+    present_null = none();
+    assert(present_null.is_none);
 }
 
 unittest
 {
     auto mapped = some(4).map!(value => value * 3);
-    assert(mapped.isSome && mapped.value == 12);
-    assert(Option!int.none().map!(value => value * 3).isNone);
+    assert(mapped.is_some && mapped.value == 12);
+    assert(Option!i32.none().map!(value => value * 3).is_none);
 
-    auto chained = some(4).andThen!(value => value > 0 ? some(value + 1) : Option!int.none());
-    assert(chained.isSome && chained.value == 5);
+    auto chained = some(4).and_then!(
+        value => value > 0 ? some(value + 1) : Option!i32.none(),
+    );
+    assert(chained.is_some && chained.value == 5);
 
-    int fallbackCalls;
-    auto retained = some(4).orElse!(() { ++fallbackCalls; return some(9); });
-    assert(retained.value == 4 && fallbackCalls == 0);
-    auto recovered = Option!int.none().orElse!(() { ++fallbackCalls; return some(9); });
-    assert(recovered.value == 9 && fallbackCalls == 1);
+    i32 fallback_calls;
+    auto retained = some(4).or_else!(
+        ()
+        {
+            ++fallback_calls;
+            return some(9);
+        },
+    );
+    assert(retained.value == 4 && fallback_calls == 0);
 
-    int offset = 10;
+    auto recovered = Option!i32.none().or_else!(
+        ()
+        {
+            ++fallback_calls;
+            return some(9);
+        },
+    );
+    assert(recovered.value == 9 && fallback_calls == 1);
+
+    i32 offset = 10;
     auto captured = some(2).map!(value => value + offset);
     assert(captured.value == 12);
 
-    static assert(!__traits(compiles, (Option!TrackedOptionValue value) {
+    static assert(!__traits(compiles,
+        (Option!TrackedOptionValue value)
+        {
             return value.map!(item => item);
         }));
 }

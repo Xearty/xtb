@@ -161,9 +161,9 @@ private void testOptionOwners(Allocator* allocator)
 
     HeapOwner first = HeapOwner.create(allocator, 1, &deinits);
     Option!HeapOwner option = some(move(first));
-    assert(option.isSome && option.value.id == 1);
+    assert(option.is_some && option.value.id == 1);
     option.reset();
-    assert(option.isNone && deinits == 1);
+    assert(option.is_none && deinits == 1);
 
     HeapOwner second = HeapOwner.create(allocator, 2, &deinits);
     option = some(move(second));
@@ -174,7 +174,7 @@ private void testOptionOwners(Allocator* allocator)
     assert(deinits == 2);
 
     HeapOwner extracted = option.take();
-    assert(option.isNone);
+    assert(option.is_none);
     deinit(option);
     assert(deinits == 2);
     deinit(extracted);
@@ -295,7 +295,7 @@ private void testDestructorPayloads()
     DestructorValue optionalValue = DestructorValue(&optionDestructions, true);
     Option!DestructorValue option = some(move(optionalValue));
     option.reset();
-    assert(option.isNone && optionDestructions == 1);
+    assert(option.is_none && optionDestructions == 1);
 
     size_t successDestructions;
     DestructorValue successValue = DestructorValue(&successDestructions, true);
@@ -326,8 +326,8 @@ private void testDestructorPayloads()
 
 private void testSimpleMonads()
 {
-    auto option = some(4).map!(value => value * 3).andThen!(value => some(value + 1));
-    assert(option.isSome && option.value == 13);
+    auto option = some(4).map!(value => value * 3).and_then!(value => some(value + 1));
+    assert(option.is_some && option.value == 13);
 
     auto result = Result!(int, int).ok(5)
         .map!(value => value * 2)

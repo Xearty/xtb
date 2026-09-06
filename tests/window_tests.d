@@ -27,7 +27,7 @@ private bool same_size(WindowSize left, WindowSize right) pure @safe
 private bool has_position(Window* window, WindowPosition expected) @system
 {
     auto position = window.position();
-    return position.isSome && position.value == expected;
+    return position.is_some && position.value == expected;
 }
 
 private struct EventLog
@@ -520,7 +520,7 @@ extern (C) int main() @system
         FakeGLFWOperation.get_window_position,
         fake_feature_unavailable,
     );
-    if (!first.position().isNone || !has_position(first, WindowPosition.init))
+    if (!first.position().is_none || !has_position(first, WindowPosition.init))
         return 102;
 
     fail_next_operation(FakeGLFWOperation.set_window_size);

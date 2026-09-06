@@ -957,7 +957,7 @@ package(xtb.serde) void initializeOwnedValue(T)(
         move_emplace(created, *cast(U*) output);
     }
     else static if (isOption!U)
-        initializeOwnedValue(allocator, &(*output).storage());
+        initializeOwnedValue(allocator, &(*output).payload_storage());
     else static if (isArray!U)
     {
         U created = U.create(allocator);
@@ -981,7 +981,7 @@ package(xtb.serde) void deinitOwnedValue(T)(T* value)
         // Direct serde decoding initializes Option storage before the payload
         // has necessarily decoded far enough to become `Some`. Clean the
         // storage regardless of the logical tag so partial values cannot leak.
-        deinitOwnedValue(&(*value).storage());
+        deinitOwnedValue(&(*value).payload_storage());
     }
     else static if (isStringBuf!U || isOwnedString!U ||
         isStringHashMap!U || isOwnedHashMap!U || isArray!U)
