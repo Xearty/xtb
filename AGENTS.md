@@ -56,7 +56,7 @@ Before changing public APIs, inspect their existing call sites.
   back live input/output in the conflict list. Never let scratch-backed memory
   escape its scope or store a scratch allocator in longer-lived state.
 - Prefer the non-copyable RAII `ScratchScope`; its destructor owns rewind and
-  needs no `scope(exit)`. Lower-level code may manually `push`/`pop` a
+  needs no `scope (exit)`. Lower-level code may manually `push`/`pop` a
   `TempArena` when RAII is unsuitable, but must balance it on every path.
   Failure to obtain a non-conflicting arena is a panic, not a recoverable API
   result.
