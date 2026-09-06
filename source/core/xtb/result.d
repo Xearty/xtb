@@ -153,9 +153,13 @@ nothrow @nogc:
         static if (!is(T == void))
         {
             if (source.state == ResultState.ok)
+            {
                 move_emplace(source.value_payload(), this.value_payload());
+            }
             else
+            {
                 move_emplace(source.error_payload(), this.error_payload());
+            }
         }
         else
         {
@@ -254,9 +258,13 @@ nothrow @nogc:
         }
 
         static if (is(T == void))
+        {
             pretty.constructor("ok");
+        }
         else
+        {
             pretty.constructor("ok", this.value);
+        }
     }
 
     /// Converts to true exactly when this Result is successful.
@@ -300,7 +308,7 @@ nothrow @nogc:
             {
                 require(!this.consumed, "consumed Result has no usable value");
             }
-            require(this.is_ok, "Result does not contain a value");
+            require(this.is_ok, "result does not contain a value");
             return this.value_payload();
         }
 
@@ -403,7 +411,7 @@ nothrow @nogc:
         {
             require(!this.consumed, "consumed Result has no usable error");
         }
-        require(this.is_err, "Result does not contain an error");
+        require(this.is_err, "result does not contain an error");
         return this.error_payload();
     }
 
@@ -474,12 +482,17 @@ auto map(alias transform, T, E, Args...)(
     );
 
     static if (is(T == void))
+    {
         alias U = typeof(transform(d_lifetime.forward!args));
+    }
     else
+    {
         alias U = typeof(transform(result.take(), d_lifetime.forward!args));
+    }
     static assert(
         is_monadic_value!U,
-        "Result.map currently supports only result payloads without deinit or D destructor semantics",
+        "Result.map currently supports only result payloads without deinit or D "
+            ~ "destructor semantics",
     );
 
     alias Mapped = Result!(U, E);
@@ -523,13 +536,15 @@ auto map_error(alias transform, T, E, Args...)(
 {
     static assert(
         is_monadic_value!T && is_monadic_value!E,
-        "Result.map_error currently supports only payloads without deinit or D destructor semantics",
+        "Result.map_error currently supports only payloads without deinit or D "
+            ~ "destructor semantics",
     );
     alias F = typeof(transform(result.take_error(), d_lifetime.forward!args));
     static assert(!is(F == void), "Result.map_error transform must return an error value");
     static assert(
         is_monadic_value!F,
-        "Result.map_error currently supports only result payloads without deinit or D destructor semantics",
+        "Result.map_error currently supports only result payloads without deinit or D "
+            ~ "destructor semantics",
     );
     alias Mapped = Result!(T, F);
 
@@ -562,9 +577,13 @@ auto and_then(alias transform, T, E, Args...)(
     );
 
     static if (is(T == void))
+    {
         alias Next = typeof(transform(d_lifetime.forward!args));
+    }
     else
+    {
         alias Next = typeof(transform(result.take(), d_lifetime.forward!args));
+    }
 
     static assert(is_result_type!Next, "Result.and_then transform must return Result");
     static assert(
@@ -573,7 +592,8 @@ auto and_then(alias transform, T, E, Args...)(
     );
     static assert(
         is_monadic_value!(ResultValue!Next) && is_monadic_value!(ResultError!Next),
-        "Result.and_then currently supports only result payloads without deinit or D destructor semantics",
+        "Result.and_then currently supports only result payloads without deinit or D "
+            ~ "destructor semantics",
     );
 
     if (result.is_err)
@@ -608,7 +628,8 @@ auto or_else(alias transform, T, E, Args...)(
     );
     static assert(
         is_monadic_value!(ResultValue!Next) && is_monadic_value!(ResultError!Next),
-        "Result.or_else currently supports only result payloads without deinit or D destructor semantics",
+        "Result.or_else currently supports only result payloads without deinit or D "
+            ~ "destructor semantics",
     );
 
     if (result.is_err)
@@ -690,10 +711,13 @@ version (unittest)
 
 unittest
 {
-    static assert(!__traits(compiles, ()
-    {
-        Result!(i32, ResultTestError) value;
-    }));
+    static assert(!__traits(
+        compiles,
+        ()
+        {
+            Result!(i32, ResultTestError) value;
+        },
+    ));
 
     auto success = Result!(i32, ResultTestError).ok(42);
     assert(success.is_ok && !success.is_err);
@@ -804,7 +828,7 @@ unittest
 unittest
 {
     i32 deinits;
-    TrackedResultValue source = TrackedResultValue(&deinits, 7, true);
+    auto source = TrackedResultValue(&deinits, 7, true);
     auto result = Result!(TrackedResultValue, ResultTestError).ok(move(source));
     assert(result.value.value == 7);
 
@@ -816,9 +840,9 @@ unittest
     xtb.lifetime.deinit(extracted);
     assert(deinits == 1);
 
-    TrackedResultValue replacement_value = TrackedResultValue(&deinits, 8, true);
+    auto replacement_value = TrackedResultValue(&deinits, 8, true);
     auto replacement = Result!(TrackedResultValue, ResultTestError).ok(move(replacement_value));
-    TrackedResultValue old_value = TrackedResultValue(&deinits, 9, true);
+    auto old_value = TrackedResultValue(&deinits, 9, true);
     auto target = Result!(TrackedResultValue, ResultTestError).ok(move(old_value));
     target = move(replacement);
     assert(deinits == 2);
@@ -826,13 +850,15 @@ unittest
     xtb.lifetime.deinit(target);
     assert(deinits == 3);
 
-    static assert(!__traits(compiles,
+    static assert(!__traits(
+        compiles,
         (ref Result!(TrackedResultValue, ResultTestError) value)
         {
             Result!(TrackedResultValue, ResultTestError) copy = value;
         },
     ));
-    static assert(!__traits(compiles,
+    static assert(!__traits(
+        compiles,
         (Result!(TrackedResultValue, ResultTestError) value)
         {
             return value.map!(item => item.value);
@@ -846,17 +872,17 @@ unittest
     static assert(!hasElaborateDestructor!(Result!(i32, DestructorResultValue)));
 
     i32 destructions;
-    DestructorResultValue success_value = DestructorResultValue(&destructions, true);
+    auto success_value = DestructorResultValue(&destructions, true);
     auto success = Result!(DestructorResultValue, ResultTestError).ok(move(success_value));
     xtb.lifetime.deinit(success);
     assert(destructions == 1);
 
-    DestructorResultValue error_value = DestructorResultValue(&destructions, true);
+    auto error_value = DestructorResultValue(&destructions, true);
     auto failure = Result!(i32, DestructorResultValue).err(move(error_value));
     xtb.lifetime.deinit(failure);
     assert(destructions == 2);
 
-    DestructorResultValue transferred_value = DestructorResultValue(&destructions, true);
+    auto transferred_value = DestructorResultValue(&destructions, true);
     auto transferred = Result!(DestructorResultValue, ResultTestError).ok(move(transferred_value));
     DestructorResultValue extracted = transferred.take();
     xtb.lifetime.deinit(transferred);
