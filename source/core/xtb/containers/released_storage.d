@@ -135,7 +135,7 @@ nothrow @nogc:
         );
         *allocator_output = this.allocator;
         this.allocator = null;
-        return take_storage(&this.storage);
+        return ReleasedStorage.take_storage(&this.storage);
     }
 
     package(xtb) static ReleasedStorage from_owned_parts(

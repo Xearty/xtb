@@ -635,9 +635,11 @@ such as `_ptr`, `_count`, or `_bytes` is appropriate only when it communicates
 real meaning that the unsuffixed name would omit.
 
 All struct fields are public. Do not use access protection to prevent callers
-from inspecting or modifying representation state. Document invariants,
-ownership rules, lifetime requirements, and the consequences of invalid
-mutation as caller responsibilities.
+from inspecting or modifying representation state. Document non-obvious
+invariants, ownership rules, lifetime requirements, or mutation hazards when a
+field actually participates in them. Do not add defensive warnings or mutation
+caveats mechanically to ordinary self-explanatory fields merely because they
+are public.
 
 Do not rename a field to make room for a read-only getter, and do not add
 trivial getters or setters solely to restrict direct access. Methods should
