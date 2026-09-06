@@ -151,12 +151,16 @@ struct IntrusiveList(Node, string hook_member = "list_hook")
         require(node !is null, "cannot insert a null list node");
         ref link = list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
 
         link.previous = this.back;
         link.next = null;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         if (this.back is null)
         {
             this.front = node;
@@ -173,12 +177,16 @@ struct IntrusiveList(Node, string hook_member = "list_hook")
         require(node !is null, "cannot insert a null list node");
         ref link = list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
 
         link.previous = null;
         link.next = this.front;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         if (this.front is null)
         {
             this.back = node;
@@ -206,11 +214,15 @@ struct IntrusiveList(Node, string hook_member = "list_hook")
         ref position_link = list_hook_of!(Node, hook_member)(position);
         ref link = list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
         link.previous = position;
         link.next = position_link.next;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         list_hook_of!(Node, hook_member)(position_link.next).previous = node;
         position_link.next = node;
     }
@@ -231,11 +243,15 @@ struct IntrusiveList(Node, string hook_member = "list_hook")
         ref position_link = list_hook_of!(Node, hook_member)(position);
         ref link = list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
         link.next = position;
         link.previous = position_link.previous;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         list_hook_of!(Node, hook_member)(position_link.previous).next = node;
         position_link.previous = node;
     }
@@ -267,6 +283,7 @@ struct IntrusiveList(Node, string hook_member = "list_hook")
         link = ListHook!Node.init;
     }
 
+    /// Removes and returns the non-null front node. The list must not be empty.
     Node* pop_front()
     {
         require(this.front !is null, "cannot pop an empty list");
@@ -275,6 +292,7 @@ struct IntrusiveList(Node, string hook_member = "list_hook")
         return result;
     }
 
+    /// Removes and returns the non-null back node. The list must not be empty.
     Node* pop_back()
     {
         require(this.back !is null, "cannot pop an empty list");
@@ -329,6 +347,7 @@ struct IntrusiveListCursor(Node, string hook_member)
         return this.node !is null;
     }
 
+    /// Returns the non-null current node. The cursor must be valid.
     Node* current() return
     {
         require(this.valid, "invalid list cursor");
@@ -421,11 +440,15 @@ struct IntrusiveForwardList(Node, string hook_member = "forward_list_hook")
         require(node !is null, "cannot insert a null forward-list node");
         ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
 
         link.next = this.front;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         this.front = node;
         if (this.back is null) this.back = node;
     }
@@ -436,11 +459,15 @@ struct IntrusiveForwardList(Node, string hook_member = "forward_list_hook")
         require(node !is null, "cannot insert a null forward-list node");
         ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
 
         link.next = null;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         if (this.back is null)
         {
             this.front = node;
@@ -472,14 +499,18 @@ struct IntrusiveForwardList(Node, string hook_member = "forward_list_hook")
         ref position_link = forward_list_hook_of!(Node, hook_member)(position);
         ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
         link.next = position_link.next;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         position_link.next = node;
     }
 
-    /// Removes and returns the node immediately after `position`.
+    /// Removes and returns the non-null node immediately after `position`.
     ///
     /// This is O(1); checked builds verify that `position` belongs to this
     /// list, which requires an O(n) validation walk.
@@ -499,7 +530,7 @@ struct IntrusiveForwardList(Node, string hook_member = "forward_list_hook")
         return result;
     }
 
-    /// Removes and returns the first node in O(1).
+    /// Removes and returns the non-null first node in O(1). The list must not be empty.
     Node* pop_front()
     {
         require(this.front !is null, "cannot pop an empty forward list");
@@ -571,6 +602,7 @@ struct IntrusiveForwardListCursor(Node, string hook_member)
         return this.node !is null;
     }
 
+    /// Returns the non-null current node. The cursor must be valid.
     Node* current() return
     {
         require(this.valid, "invalid forward-list cursor");
@@ -589,7 +621,10 @@ struct IntrusiveForwardListCursor(Node, string hook_member)
 /// IntrusiveQueue provides queue operations over an `IntrusiveForwardList`.
 ///
 /// The public `list` field is representation state. Direct mutation must
-/// preserve the queue's membership and ordering invariants.
+/// preserve the queue's membership and ordering invariants. Node pointer
+/// parameters are required to be non-null. `front()` and `back()` return null
+/// exactly when the queue is empty; `pop_front()` returns a non-null node and
+/// requires a non-empty queue.
 struct IntrusiveQueue(Node, string hook_member = "forward_list_hook")
 {
     static assert(
@@ -651,7 +686,8 @@ struct IntrusiveQueue(Node, string hook_member = "forward_list_hook")
 /// Intrusive LIFO stack using `Node.hook_member` as its membership hook.
 ///
 /// `top` is null exactly when the stack is empty. Direct mutation must preserve
-/// the hook chain and membership invariants. `push` requires a non-null node.
+/// the hook chain and membership invariants. `push` requires a non-null node;
+/// `pop` returns a non-null node and requires a non-empty stack.
 struct IntrusiveStack(Node, string hook_member = "forward_list_hook")
 {
     static assert(
@@ -709,11 +745,15 @@ struct IntrusiveStack(Node, string hook_member = "forward_list_hook")
         require(node !is null, "cannot insert a null stack node");
         ref link = forward_list_hook_of!(Node, hook_member)(node);
         version (XTB_Checked)
+        {
             require_unlinked(link);
+        }
 
         link.next = this.top;
         version (XTB_Checked)
+        {
             link.linked = true;
+        }
         this.top = node;
     }
 
@@ -805,7 +845,9 @@ unittest
     assert(list.back.value == 2 && list.front.list_hook.next is &middle);
     assert(list.pop_front() is &first);
     version (XTB_Checked)
+    {
         assert(!first.list_hook.linked);
+    }
     assert(list.pop_back() is &second);
     list.remove(&middle);
     assert(list.empty);
@@ -826,7 +868,10 @@ unittest
     assert(sum == 3);
     left.pop_front();
     left.pop_front();
+}
 
+unittest
+{
     struct MultiListNode
     {
         ListHook!MultiListNode first_hook;
@@ -839,10 +884,15 @@ unittest
     first_list.push_back(&shared_node);
     second_list.push_back(&shared_node);
     version (XTB_Checked)
+    {
         assert(shared_node.first_hook.linked && shared_node.second_hook.linked);
+    }
     first_list.pop_front();
     second_list.pop_front();
+}
 
+unittest
+{
     struct SingleNode
     {
         ForwardListHook!SingleNode forward_list_hook;
@@ -908,18 +958,24 @@ unittest
     assert(first.forward_list_hook.next is &third);
     assert(list.back is &third);
     version (XTB_Checked)
+    {
         assert(!second.forward_list_hook.linked);
+    }
 
     list.insert_after(&third, &second);
     assert(list.back is &second);
     assert(third.forward_list_hook.next is &second);
     version (XTB_Checked)
+    {
         assert(second.forward_list_hook.linked);
+    }
 
     assert(list.remove_after(&third) is &second);
     assert(list.back is &third && third.forward_list_hook.next is null);
     version (XTB_Checked)
+    {
         assert(!second.forward_list_hook.linked);
+    }
 
     // Splitting transfers a suffix without detaching its hooks. Concatenating
     // the result restores the chain in O(1).
@@ -1068,7 +1124,9 @@ unittest
     ready.push_front(&first);
     assert(ready.front is &first && ready.back is &second);
     version (XTB_Checked)
+    {
         assert(first.ready_hook.linked);
+    }
 
     ready.remove(&first);
     ready.remove(&second);
@@ -1202,22 +1260,22 @@ unittest
     list.push_back(&second);
     list.push_back(&third);
 
-    i32 listvalue;
+    i32 list_value;
     foreach (node; list)
     {
         static assert(is(typeof(node) == ListNode*));
-        listvalue = listvalue * 10 + node.value;
+        list_value = list_value * 10 + node.value;
     }
-    assert(listvalue == 123);
+    assert(list_value == 123);
 
     const(IntrusiveList!ListNode)* const_list = &list;
-    i32 const_listvalue;
+    i32 const_list_value;
     foreach (node; *const_list)
     {
         static assert(is(typeof(node) == const(ListNode)*));
-        const_listvalue += node.value;
+        const_list_value += node.value;
     }
-    assert(const_listvalue == 6);
+    assert(const_list_value == 6);
 
     // The implementation snapshots the next hook before the body runs, so
     // removing the current node is explicitly supported.
