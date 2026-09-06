@@ -41,7 +41,8 @@ nothrow @nogc:
     @disable this(this);
 
     /// Creates an allocator backed by `backing` and caller-owned record storage.
-    /// `backing` must not be null, and both inputs must outlive the result.
+    /// `backing` and its allocator procedure must not be null.
+    /// Both inputs must outlive the result.
     static InstrumentedAllocator create(
         Allocator* backing,
         return scope AllocationRecord[] records,
@@ -49,7 +50,7 @@ nothrow @nogc:
     {
         require(
             backing !is null && *backing !is null,
-            "instrumented allocator requires a valid backing allocator",
+            "backing allocator and its procedure must not be null",
         );
 
         InstrumentedAllocator result;
@@ -62,7 +63,8 @@ nothrow @nogc:
         return result;
     }
 
-    /// Returns the non-null embedded allocator slot borrowed from this wrapper.
+    /// Returns the non-null embedded allocator slot.
+    /// The returned pointer is valid while this wrapper remains alive and unmoved.
     Allocator* allocator() return
     {
         return &this.allocator_procedure;
@@ -84,23 +86,26 @@ nothrow @nogc:
     }
 }
 
+// The callback receives the allocator slot address as context. Keep the slot first
+// so that address is also the wrapper address.
 static assert(InstrumentedAllocator.allocator_procedure.offsetof == 0);
 
-private AllocationRecord* find_record(
-    InstrumentedAllocator* allocator,
-    void* pointer,
-)
+private AllocationRecord* find_record(InstrumentedAllocator* allocator, void* pointer)
 {
     foreach (ref record; allocator.records)
+    {
         if (record.pointer is pointer) return &record;
+    }
 
     return null;
 }
 
-private AllocationRecord* free_record(InstrumentedAllocator* allocator)
+private AllocationRecord* find_free_record(InstrumentedAllocator* allocator)
 {
     foreach (ref record; allocator.records)
+    {
         if (record.pointer is null) return &record;
+    }
 
     return null;
 }
@@ -111,7 +116,7 @@ private extern (C) void* instrumented_allocator_procedure(
     void* old_pointer,
     usize old_size,
     usize alignment,
-) @system
+)
 {
     InstrumentedAllocator* allocator = cast(InstrumentedAllocator*) context;
     AllocationRecord* old_record;
@@ -155,7 +160,7 @@ private extern (C) void* instrumented_allocator_procedure(
     AllocationRecord* destination_record = old_record;
     if (destination_record is null)
     {
-        destination_record = free_record(allocator);
+        destination_record = find_free_record(allocator);
         if (destination_record is null)
         {
             ++allocator.stats.failed_calls;
@@ -181,8 +186,7 @@ private extern (C) void* instrumented_allocator_procedure(
         return null;
     }
 
-    if (allocator.successes_before_failure != usize.max)
-        --allocator.successes_before_failure;
+    if (allocator.successes_before_failure != usize.max) --allocator.successes_before_failure;
 
     if (old_record is null)
     {
@@ -207,17 +211,17 @@ unittest
     import xtb.allocators.malloc;
 
     AllocationRecord[8] records;
-    InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        malloc_allocator(),
-        records[],
-    );
+    auto tracked = InstrumentedAllocator.create(malloc_allocator(), records[]);
     i32[] values = tracked.allocator.allocate_zeroed_array!i32(4);
+
     assert(values.length == 4);
     assert(values[3] == 0);
     assert(tracked.stats.outstanding_bytes == 4 * i32.sizeof);
+
     tracked.fail_after(0);
     assert(tracked.allocator.try_allocate!i32() is null);
     assert(tracked.stats.failed_calls == 1);
+
     tracked.allocator.deallocate_array(values);
     assert(tracked.clean);
 }
