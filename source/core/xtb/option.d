@@ -18,8 +18,9 @@ private template OptionValue(T)
         alias OptionValue = Value;
 }
 
-private enum bool is_monadic_value(T) = !needs_deinit!T &&
-    !has_d_destructor!T && !hasElaborateCopyConstructor!T;
+private enum bool is_monadic_value(T) = !needs_deinit!T
+    && !has_d_destructor!T
+    && !hasElaborateCopyConstructor!T;
 
 /// Explicit absence token accepted by Option construction and assignment.
 struct None
@@ -55,8 +56,10 @@ nothrow @nogc:
     // A cleanup-bearing payload must never acquire implicit owner copying just
     // because its representation happens to be copyable.
     static if (
-        !__traits(isCopyable, T) || needs_deinit!T ||
-        has_d_destructor!T || hasElaborateCopyConstructor!T
+        !__traits(isCopyable, T)
+        || needs_deinit!T
+        || has_d_destructor!T
+        || hasElaborateCopyConstructor!T
     )
     {
         @disable this(this);
@@ -182,7 +185,7 @@ nothrow @nogc:
     T unwrap()
     {
         if (!this.present)
-            panic("called Option.unwrap() on none");
+            panic("cannot unwrap an empty Option");
 
         return this.take();
     }
@@ -259,8 +262,8 @@ auto map(alias transform, T, Args...)(
     static assert(!is(U == void), "Option.map transform must return a value");
     static assert(
         is_monadic_value!U,
-        "Option.map currently supports only result payloads without deinit or D " ~
-            "destructor semantics",
+        "Option.map currently supports only result payloads without deinit or D "
+            ~ "destructor semantics",
     );
 
     if (option.is_none)
@@ -287,8 +290,8 @@ auto and_then(alias transform, T, Args...)(
     );
     static assert(
         is_monadic_value!(OptionValue!Next),
-        "Option.and_then currently supports only result payloads without deinit or D " ~
-            "destructor semantics",
+        "Option.and_then currently supports only result payloads without deinit or D "
+            ~ "destructor semantics",
     );
 
     if (option.is_none)
