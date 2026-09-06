@@ -11,8 +11,12 @@ import xtb.types;
 private __gshared Allocator malloc_allocator_slot = &malloc_allocator_procedure;
 
 /// Returns XTB's process-wide libc-backed allocator.
+///
+/// The returned pointer is never null and remains valid for process lifetime.
 Allocator* malloc_allocator() @trusted
 {
+    // Accessing `__gshared` is not accepted in @safe code, but this slot has
+    // static lifetime, so exposing its address cannot produce a dangling pointer.
     return &malloc_allocator_slot;
 }
 
@@ -39,8 +43,7 @@ private void* allocate_aligned(usize size, usize alignment) @system
     // importing the malloc allocator remains portable across XTB targets.
     const header_size = (void*).sizeof;
     const extra = alignment - 1;
-    if (add_overflows(size, extra) || add_overflows(size + extra, header_size))
-        return null;
+    if (add_overflows(size, extra) || add_overflows(size + extra, header_size)) return null;
 
     void* base = malloc(size + extra + header_size);
     if (base is null) return null;
@@ -82,8 +85,7 @@ private extern (C) void* malloc_allocator_procedure(
         return null;
     }
 
-    if (alignment <= (void*).alignof)
-        return realloc(old_pointer, new_size);
+    if (alignment <= (void*).alignof) return realloc(old_pointer, new_size);
 
     void* replacement = allocate_aligned(new_size, alignment);
     if (replacement is null) return null;
