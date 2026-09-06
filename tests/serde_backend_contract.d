@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.memory : Allocator;
 
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.option : Option;
 import xtb.fmt.writer : Writer;
 import xtb.string;
@@ -101,7 +101,7 @@ private void runBackendContract(Backend)()
     value.retryWindow = 3;
     value.child.enabled = true;
 
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = Backend.write(writer, value);
     assert(error.ok);
@@ -110,7 +110,7 @@ private void runBackendContract(Backend)()
     Deserialized!ContractDocument roundTrip;
     scope (exit)
         roundTrip.deinit();
-    error = Backend.read(encoded.view, mallocAllocator(), &roundTrip);
+    error = Backend.read(encoded.view, malloc_allocator(), &roundTrip);
     assert(error.ok);
     assert(roundTrip.value.serviceName.equal("api"));
     assert(roundTrip.value.retryCount == 2);
@@ -121,7 +121,7 @@ private void runBackendContract(Backend)()
     Deserialized!ContractDocument legacy;
     scope (exit)
         legacy.deinit();
-    error = Backend.read(Backend.legacy, mallocAllocator(), &legacy);
+    error = Backend.read(Backend.legacy, malloc_allocator(), &legacy);
     assert(error.ok);
     assert(legacy.value.serviceName.equal("legacy"));
     assert(legacy.value.retryCount == 4);
@@ -129,11 +129,11 @@ private void runBackendContract(Backend)()
     assert(legacy.value.priority.is_none);
     assert(!legacy.value.child.enabled);
 
-    error = Backend.read(Backend.missingRequired, mallocAllocator(), &legacy);
+    error = Backend.read(Backend.missingRequired, malloc_allocator(), &legacy);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
     assert(legacy.empty);
 
-    error = Backend.read(Backend.unknown, mallocAllocator(), &legacy);
+    error = Backend.read(Backend.unknown, malloc_allocator(), &legacy);
     assert(error.kind == SerdeErrorKind.unknownField);
     assert(legacy.empty);
     encoded.deinit();

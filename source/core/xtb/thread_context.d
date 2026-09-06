@@ -5,7 +5,7 @@ nothrow @nogc:
 import xtb.allocators.arena : Arena, TempArena, pop, push;
 import xtb.memory : Allocator, allocate_init, dispose;
 import xtb.lifetime : move_emplace;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -83,7 +83,7 @@ nothrow @nogc:
         }
 
         if (backingAllocator is null)
-            backingAllocator = mallocAllocator();
+            backingAllocator = malloc_allocator();
 
         ThreadContext* context = backingAllocator.allocate_init!ThreadContext();
         context.ownerAllocator = backingAllocator;

@@ -91,7 +91,7 @@ Command[2] commands = [
 
 Pipeline pipeline;
 ProcessError error = spawnPipeline(commands[], PipelineOptions.init,
-    mallocAllocator(), &pipeline);
+    malloc_allocator(), &pipeline);
 assert(!error.failed);
 
 error = waitPipeline(&pipeline);

@@ -5,7 +5,7 @@ handles into that grammar, so the grammar must outlive every parser built from
 it.
 
 ```d
-Grammar grammar = Grammar.create(mallocAllocator(), 512);
+Grammar grammar = Grammar.create(malloc_allocator(), 512);
 scope(exit) grammar.deinit();
 
 auto assignment = grammar.identifier()
@@ -61,7 +61,7 @@ Parsing itself does not allocate unless a combinator or semantic action creates
 output. Operations such as `collect()` use `ParseContext.outputArena`:
 
 ```d
-Arena output = Arena.create(mallocAllocator(), 1024);
+Arena output = Arena.create(malloc_allocator(), 1024);
 scope(exit) output.deinit();
 
 ParseContext context = ParseContext.create(&output);

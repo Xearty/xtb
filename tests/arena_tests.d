@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.allocators.arena;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.thread_context;
 import xtb.thread_context : ScratchScope, ThreadContextScope;
 
@@ -12,7 +12,7 @@ private void testArenaExplicitCleanup()
 {
     AllocationRecord[32] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -34,7 +34,7 @@ private void testThreadContextReleasesArenas()
 {
     AllocationRecord[64] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 

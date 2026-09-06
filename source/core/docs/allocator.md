@@ -79,7 +79,7 @@ private extern (C) void* counting_allocator_procedure(
 XTB passes the address of the callback slot back as `allocator`, so placing the
 slot at offset zero lets the callback cast that address back to the allocator
 object. The object must therefore stay alive and at a stable address while its
-`Allocator*` is in use. `mallocAllocator()` is process-wide and does not have
+`Allocator*` is in use. `malloc_allocator()` is process-wide and does not have
 that lifetime restriction.
 
 Prefer the typed helpers from `xtb.memory` instead of calling the allocator
@@ -89,7 +89,7 @@ callback directly:
 import xtb.memory;
 import xtb.types;
 
-Allocator* allocator = mallocAllocator();
+Allocator* allocator = malloc_allocator();
 
 i32* value = allocator.allocate_init!i32();
 i32[] values = allocator.allocate_array!i32(32);

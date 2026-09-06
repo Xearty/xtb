@@ -1201,7 +1201,7 @@ public:
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.string : empty;
 
     static assert(is(StringViewHashMap!int == HashMap!(String, int)));
@@ -1215,8 +1215,8 @@ unittest
     static assert(!__traits(compiles,
             (scope const StringHashMap!int* value) @safe { Allocator* allocator = value.allocator; }));
 
-    StringHashMap!int values = StringHashMap!int.create(mallocAllocator());
-    StringBuf source = StringBuf.fromString(mallocAllocator(), "alpha");
+    StringHashMap!int values = StringHashMap!int.create(malloc_allocator());
+    StringBuf source = StringBuf.fromString(malloc_allocator(), "alpha");
     source.shrinkToFit();
     const sourcePointer = source.view.ptr;
     int first = 1;
@@ -1229,7 +1229,7 @@ unittest
     assert(cursor.valid && *cursor.key == "alpha");
     assert((*cursor.key).ptr is sourcePointer);
 
-    StringBuf duplicate = StringBuf.fromString(mallocAllocator(), "alpha");
+    StringBuf duplicate = StringBuf.fromString(malloc_allocator(), "alpha");
     int duplicateValue = 2;
     assert(values.tryAddMove(&duplicate, &duplicateValue) ==
             AddStatus.alreadyPresent);
@@ -1246,12 +1246,12 @@ unittest
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     OwnedStringHashMap!StringBuf values =
-        OwnedStringHashMap!StringBuf.create(mallocAllocator());
-    StringBuf key = StringBuf.fromString(mallocAllocator(), "self");
-    StringBuf payload = StringBuf.fromString(mallocAllocator(), "payload");
+        OwnedStringHashMap!StringBuf.create(malloc_allocator());
+    StringBuf key = StringBuf.fromString(malloc_allocator(), "self");
+    StringBuf payload = StringBuf.fromString(malloc_allocator(), "payload");
     assert(values.addMove(&key, &payload));
 
     StringBuf* stored = values.find("self");
@@ -1259,7 +1259,7 @@ unittest
     assert(values.tryAdd("self", stored) == AddStatus.alreadyPresent);
     assert(values.trySet("self", stored) == SetStatus.replaced);
     StringBuf replacementKey =
-        StringBuf.fromString(mallocAllocator(), "self");
+        StringBuf.fromString(malloc_allocator(), "self");
     assert(values.trySetMove(&replacementKey, stored) == SetStatus.replaced);
     assert(stored.view == "payload");
     assert(replacementKey.view == "self" && replacementKey.allocator !is null);
@@ -1270,9 +1270,9 @@ unittest
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
-    Allocator* allocator = mallocAllocator();
+    Allocator* allocator = malloc_allocator();
     StringHashMapUnmanaged!int values;
     StringBuf source = StringBuf.fromString(allocator, "unmanaged");
     source.shrinkToFit();
@@ -1299,16 +1299,16 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     AllocationRecord[128] mapRecords;
     AllocationRecord[32] foreignRecords;
     InstrumentedAllocator mapAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         mapRecords[],
     );
     InstrumentedAllocator foreignAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         foreignRecords[],
     );
 
@@ -1411,11 +1411,11 @@ unittest
     AllocationRecord[16] failedMapRecords;
     AllocationRecord[8] retainedRecords;
     InstrumentedAllocator failedMapAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         failedMapRecords[],
     );
     InstrumentedAllocator retainedAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         retainedRecords[],
     );
     StringHashMap!int failing = StringHashMap!int.create(

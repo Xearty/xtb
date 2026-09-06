@@ -1982,11 +1982,11 @@ struct ConstHashMapPointerRange(K, V)
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.types : String;
 
     HashMap!(String, int) counts = HashMap!(String, int).create(
-        mallocAllocator(),
+        malloc_allocator(),
     );
     assert(counts.empty);
     assert(counts.find("missing") is null);
@@ -2071,14 +2071,14 @@ unittest
     counts.resetAndRelease();
     assert(counts.capacity == 0);
 
-    HashMap!(int, int) numbers = HashMap!(int, int).create(mallocAllocator());
+    HashMap!(int, int) numbers = HashMap!(int, int).create(malloc_allocator());
     foreach (value; 0 .. 256)
         assert(numbers.set(value, value * 2));
     foreach (value; 0 .. 256)
         assert(*numbers.find(value) == value * 2);
 
     HashMap!(int, int) preallocated = HashMap!(int, int).withCapacity(
-        mallocAllocator(),
+        malloc_allocator(),
         32,
     );
     assert(preallocated.capacity >= 32);
@@ -2086,7 +2086,7 @@ unittest
     int first;
     int second;
     HashMap!(int*, int) pointers = HashMap!(int*, int).create(
-        mallocAllocator(),
+        malloc_allocator(),
     );
     pointers.set(&first, 1);
     pointers.set(&second, 2);
@@ -2101,10 +2101,10 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     alias CollisionMap = HashMap!(int, int, ConstantIntHash, DefaultEqual!int);
-    CollisionMap collisions = CollisionMap.create(mallocAllocator());
+    CollisionMap collisions = CollisionMap.create(malloc_allocator());
     foreach (value; 0 .. 128)
         assert(collisions.add(value, value * 3));
     foreach (value; 0 .. 128)
@@ -2121,7 +2121,7 @@ unittest
 
     AllocationRecord[16] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     CollisionMap failing = CollisionMap.create(allocator.allocator);
@@ -2155,12 +2155,12 @@ unittest
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     int destructions;
     {
         OwnedHashMap!(int, TrackedHashValue) values =
-            OwnedHashMap!(int, TrackedHashValue).create(mallocAllocator());
+            OwnedHashMap!(int, TrackedHashValue).create(malloc_allocator());
         int key1 = 1;
         int key2 = 2;
         TrackedHashValue value1 = TrackedHashValue(&destructions, 10, true);
@@ -2187,7 +2187,7 @@ unittest
             TrackedKeyHash,
             TrackedKeyEqual,
         );
-        TrackedMap trackedKeys = TrackedMap.create(mallocAllocator());
+        TrackedMap trackedKeys = TrackedMap.create(malloc_allocator());
         foreach (value; 0 .. 32)
         {
             TrackedHashKey tracked = TrackedHashKey(value, &liveKeys);
@@ -2206,7 +2206,7 @@ unittest
     assert(liveKeys == 0);
 
     HashSet!int values = HashSet!int.seeded(
-        mallocAllocator(),
+        malloc_allocator(),
         HashSeed.from_value(123),
     );
     assert(values.add(3));
@@ -2251,7 +2251,7 @@ unittest
     assert(values.empty && values.capacity == 0);
 
     HashSet!int preallocated = HashSet!int.withCapacity(
-        mallocAllocator(),
+        malloc_allocator(),
         48,
     );
     assert(preallocated.capacity >= 48);
@@ -2267,7 +2267,7 @@ unittest
 {
     import xtb.memory : Allocator;
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.lifetime : deinit;
 
     alias IntMap = HashMap!(int, int);
@@ -2320,7 +2320,7 @@ unittest
 
     AllocationRecord[32] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -2390,7 +2390,7 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.lifetime : deinit;
 
     alias IntMap = HashMap!(int, int);
@@ -2401,7 +2401,7 @@ unittest
     {
         AllocationRecord[8] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         IntMapStorage output;
@@ -2436,7 +2436,7 @@ unittest
     {
         AllocationRecord[8] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         IntMap output;
@@ -2465,7 +2465,7 @@ unittest
     {
         AllocationRecord[8] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         IntSetStorage output;
@@ -2492,7 +2492,7 @@ unittest
     {
         AllocationRecord[8] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         IntSet output;
@@ -2522,7 +2522,7 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     alias ManagedMap = HashMap!(int, int);
     alias UnmanagedMap = HashMapUnmanaged!(int, int);
@@ -2530,11 +2530,11 @@ unittest
     AllocationRecord[128] managedRecords;
     AllocationRecord[128] unmanagedRecords;
     InstrumentedAllocator managedAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         managedRecords[],
     );
     InstrumentedAllocator unmanagedAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         unmanagedRecords[],
     );
 
@@ -2601,7 +2601,7 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     alias PolicyMap = HashMap!(int, int, ParityHash, ParityEqual);
     alias PolicyStorage = HashMapUnmanaged!(
@@ -2613,7 +2613,7 @@ unittest
 
     AllocationRecord[32] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 

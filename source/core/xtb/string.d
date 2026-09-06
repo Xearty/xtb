@@ -2008,7 +2008,7 @@ private size_t stringBufWriterSink(
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     String text = "  hello world  ";
     assert(text.trimAscii().equal("hello world"));
@@ -2033,7 +2033,7 @@ unittest
     assert(unchecked.findCodePoint(0xe9) == 1 && unchecked[3] == '\0');
 
     StringBuf copiedBytes = StringBuf.fromBytesUnchecked(
-        mallocAllocator(),
+        malloc_allocator(),
         encoded[],
     );
     encoded[0] = 'b';
@@ -2043,21 +2043,21 @@ unittest
     assert(copiedBytes.view[3] == '\0');
 
     StringBuf emptyBytes = StringBuf.fromBytesUnchecked(
-        mallocAllocator(),
+        malloc_allocator(),
         null,
     );
     assert(emptyBytes.empty);
 
-    Array!String tokens = "a::b::".split("::", mallocAllocator());
+    Array!String tokens = "a::b::".split("::", malloc_allocator());
     assert(tokens.length == 3);
     assert(tokens[0].equal("a") && tokens[1].equal("b") && tokens[2].empty);
-    Array!String words = "  alpha\t beta  ".splitWhitespace(mallocAllocator());
+    Array!String words = "  alpha\t beta  ".splitWhitespace(malloc_allocator());
     assert(words.length == 2);
     assert(words[0].equal("alpha") && words[1].equal("beta"));
     words.deinit();
     tokens.deinit();
 
-    StringBuf buffer = StringBuf.fromString(mallocAllocator(), "hello");
+    StringBuf buffer = StringBuf.fromString(malloc_allocator(), "hello");
     assert(buffer == "hello");
     assert(buffer.equal("hello"));
     assert("hello" == buffer);
@@ -2067,14 +2067,14 @@ unittest
     assert(buffer == mutableText[]);
     assert(mutableText[] == buffer);
 
-    StringBuf same = StringBuf.fromString(mallocAllocator(), "hello");
-    StringBuf different = StringBuf.fromString(mallocAllocator(), "Hello");
+    StringBuf same = StringBuf.fromString(malloc_allocator(), "hello");
+    StringBuf different = StringBuf.fromString(malloc_allocator(), "Hello");
     assert(buffer == same && same == buffer);
     assert(buffer.equal(same));
     assert(buffer != different && different != buffer);
     assert(buffer.toHash == same.toHash);
 
-    StringBuf emptyBuffer = StringBuf.create(mallocAllocator());
+    StringBuf emptyBuffer = StringBuf.create(malloc_allocator());
     String emptyString;
     assert(emptyBuffer == emptyString);
     assert(emptyString == emptyBuffer);
@@ -2107,7 +2107,7 @@ unittest
     assert(buffer.view.endsWith("!"));
     assert(terminated[buffer.byteLength] == '\0');
 
-    StringBuf unicode = StringBuf.fromString(mallocAllocator(), "Aé🙂");
+    StringBuf unicode = StringBuf.fromString(malloc_allocator(), "Aé🙂");
     assert(unicode.byteLength == 7);
     assert(unicode.byteCapacity >= unicode.byteLength);
     unicode.insert(3, "界");
@@ -2115,7 +2115,7 @@ unittest
     unicode.truncateBytes(6);
     assert(unicode == "Aé界");
 
-    StringBuf scalarWidths = StringBuf.withCapacity(mallocAllocator(), 1);
+    StringBuf scalarWidths = StringBuf.withCapacity(malloc_allocator(), 1);
     scalarWidths.append(cast(dchar) 0x7f);
     scalarWidths.append(cast(dchar) 0x80);
     scalarWidths.append(cast(dchar) 0x800);
@@ -2123,14 +2123,14 @@ unittest
     assert(scalarWidths.view == "\x7f\u0080\u0800\U00010000");
 
     StringBuf selfPrepend = StringBuf.fromString(
-        mallocAllocator(),
+        malloc_allocator(),
         "abcdefgh",
     );
     selfPrepend.prepend(selfPrepend.view);
     assert(selfPrepend == "abcdefghabcdefgh");
 
     StringBuf selfEscape = StringBuf.fromString(
-        mallocAllocator(),
+        malloc_allocator(),
         "a\nbcdefg",
     );
     selfEscape.appendEscaped(selfEscape.view);
@@ -2138,7 +2138,7 @@ unittest
 
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
-        mallocAllocator(), records[],
+        malloc_allocator(), records[],
     );
     failing.failAfter(0);
     StringBuf failedBytes;
@@ -2159,7 +2159,7 @@ unittest
     assert(unchanged is sentinel);
     assert(failedScalar.empty && failing.clean);
 
-    StringBuf emptyCString = StringBuf.create(mallocAllocator());
+    StringBuf emptyCString = StringBuf.create(malloc_allocator());
     const(char)* emptyPointer;
     assert(emptyCString.tryCString(&emptyPointer));
     assert(emptyPointer !is null && emptyPointer[0] == '\0');
@@ -2185,7 +2185,7 @@ unittest
     import core.internal.traits : hasElaborateDestructor;
     import xtb.memory : Allocator;
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.lifetime : deinit, needs_deinit;
 
     static assert(StringBufUnmanaged.sizeof == ArrayUnmanaged!char.sizeof);
@@ -2225,7 +2225,7 @@ unittest
 
     AllocationRecord[16] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -2273,16 +2273,16 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     AllocationRecord[32] managedRecords;
     AllocationRecord[32] unmanagedRecords;
     InstrumentedAllocator managedAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         managedRecords[],
     );
     InstrumentedAllocator unmanagedAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         unmanagedRecords[],
     );
 
@@ -2332,10 +2332,10 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     StringBuf text = StringBuf.fromString(
-        mallocAllocator(),
+        malloc_allocator(),
         "  alpha/beta/🙂  ",
     );
     StringBuf* pointer = &text;
@@ -2368,7 +2368,7 @@ unittest
     assert(text == "value");
 
     pointer.assign("a,b,c");
-    Array!String parts = pointer.split(',', mallocAllocator());
+    Array!String parts = pointer.split(',', malloc_allocator());
     assert(parts.length == 3);
     assert(parts[0] == "a" && parts[1] == "b" && parts[2] == "c");
     parts.deinit();
@@ -2381,7 +2381,7 @@ unittest
 
     AllocationRecord[8] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     StringBuf retained = StringBuf.fromString(failing.allocator, "small");
@@ -3404,13 +3404,13 @@ unittest
     import core.internal.traits : hasElaborateDestructor;
     import xtb.lifetime : needs_deinit;
     import xtb.allocators.instrumented : InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
-    OwnedString empty = OwnedString.fromString(mallocAllocator(), "");
+    OwnedString empty = OwnedString.fromString(malloc_allocator(), "");
     assert(empty.empty);
-    assert(empty.allocator is mallocAllocator());
+    assert(empty.allocator is malloc_allocator());
 
-    OwnedString text = OwnedString.fromString(mallocAllocator(), "hello");
+    OwnedString text = OwnedString.fromString(malloc_allocator(), "hello");
     assert(text.view == "hello");
     assert(text.equal("hello"));
     assert(text.byteLength == 5);
@@ -3427,42 +3427,42 @@ unittest
     static assert(!__traits(compiles,
             OwnedStringUnmanaged.adoptExact(cast(String) "borrowed")));
 
-    OwnedString copy = text.clone(mallocAllocator());
+    OwnedString copy = text.clone(malloc_allocator());
     assert(copy == text);
     assert(copy.equal(text));
     assert(copy.view.ptr !is text.view.ptr);
 
-    StringBuf exact = StringBuf.fromString(mallocAllocator(), "exact");
+    StringBuf exact = StringBuf.fromString(malloc_allocator(), "exact");
     const(char)* exactPointer;
     {
         exact.shrinkToFit();
         exactPointer = exact.view.ptr;
     }
-    OwnedString bufferCopy = exact.copy(mallocAllocator());
+    OwnedString bufferCopy = exact.copy(malloc_allocator());
     assert(bufferCopy.view == exact.view);
     assert(bufferCopy.view.ptr !is exactPointer);
     assert(exact.view.ptr is exactPointer);
 
     StringBufUnmanaged unmanaged = StringBufUnmanaged.fromString(
-        mallocAllocator(),
+        malloc_allocator(),
         "unmanaged exact",
     );
-    unmanaged.shrinkToFit(mallocAllocator());
+    unmanaged.shrinkToFit(malloc_allocator());
     RawArrayStorage!char raw = unmanaged.releaseExactStorage();
     OwnedStringUnmanaged exactUnmanaged =
         OwnedStringUnmanaged.adoptExact(&raw);
     assert(raw.data is null && raw.length == 0 && raw.capacity == 0);
     assert(exactUnmanaged.view == "unmanaged exact");
-    exactUnmanaged.deinit(mallocAllocator());
+    exactUnmanaged.deinit(malloc_allocator());
 
     import xtb.allocators.instrumented : AllocationRecord;
 
     AllocationRecord[8] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
-    StringBuf source = StringBuf.fromString(mallocAllocator(), "retained");
+    StringBuf source = StringBuf.fromString(malloc_allocator(), "retained");
     failing.failAfter(0);
     OwnedString failed;
     assert(!source.tryCopy(failing.allocator, &failed));
@@ -3484,11 +3484,11 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     AllocationRecord[16] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -3522,7 +3522,7 @@ unittest
 
     AllocationRecord[8] foreignRecords;
     InstrumentedAllocator foreign = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         foreignRecords[],
     );
     StringBuf foreignBuffer = StringBuf.fromString(
@@ -3552,20 +3552,20 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
-    static assert(is(typeof("copy".copy(mallocAllocator())) == OwnedString));
-    static assert(is(typeof("a".concat("b", mallocAllocator())) == OwnedString));
-    static assert(is(typeof("a".replace("a", "b", mallocAllocator())) == OwnedString));
-    static assert(is(typeof("a".escape(mallocAllocator())) == OwnedString));
+    static assert(is(typeof("copy".copy(malloc_allocator())) == OwnedString));
+    static assert(is(typeof("a".concat("b", malloc_allocator())) == OwnedString));
+    static assert(is(typeof("a".replace("a", "b", malloc_allocator())) == OwnedString));
+    static assert(is(typeof("a".escape(malloc_allocator())) == OwnedString));
     static assert(!is(typeof("copy".tryCopy(
-            mallocAllocator(),
+            malloc_allocator(),
             cast(String*) null,
             ))));
 
     AllocationRecord[32] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 

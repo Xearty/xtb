@@ -3,7 +3,7 @@ module tests.hash_tests;
 nothrow @nogc:
 
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.containers.hash_map;
 import xtb.containers.hash_set;
 import xtb.lifetime : deinit, move;
@@ -292,8 +292,8 @@ private alias DestructorOwnerSet = OwnedHashSet!(
     DestructorOwnerEqual,
 );
 
-static assert(__traits(compiles, StringBufOwnerMap.create(mallocAllocator())));
-static assert(__traits(compiles, StringBufOwnerSet.create(mallocAllocator())));
+static assert(__traits(compiles, StringBufOwnerMap.create(malloc_allocator())));
+static assert(__traits(compiles, StringBufOwnerSet.create(malloc_allocator())));
 static assert(!__traits(isCopyable, OwnerMap));
 static assert(!__traits(compiles,
         (ref HashMapUnmanaged!(int, int) left, ref HashMapUnmanaged!(int, int) right) {
@@ -336,7 +336,7 @@ private void assertClean(ref const InstrumentedAllocator allocator)
 
 private void testSafeSelfValueReplacement() @system
 {
-    HashMap!(int, int) map = HashMap!(int, int).create(mallocAllocator());
+    HashMap!(int, int) map = HashMap!(int, int).create(malloc_allocator());
     assert(map.set(1, 10));
     int key = 1;
     int* stored = map.find(1);
@@ -352,7 +352,7 @@ private void testOwnedMapRelocationAndDiscard() @system
 {
     AllocationRecord[128] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -386,7 +386,7 @@ private void testOwnedMapFailurePreservesInputs() @system
 {
     AllocationRecord[64] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -434,7 +434,7 @@ private void testOwnedMapReplacementAndTransfer() @system
 {
     AllocationRecord[32] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -470,7 +470,7 @@ private void testOwnedSetFailurePreservesInput() @system
 {
     AllocationRecord[48] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -505,7 +505,7 @@ private void testOwnedSetTransferAndDiscard() @system
 {
     AllocationRecord[64] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -537,7 +537,7 @@ private void testOwnedSetTransferAndDiscard() @system
 private void testShallowMapDoesNotCleanElements() @system
 {
     size_t deinits;
-    ShallowCountingMap map = ShallowCountingMap.create(mallocAllocator());
+    ShallowCountingMap map = ShallowCountingMap.create(malloc_allocator());
     foreach (id; 0 .. 8)
     {
         CountingOwner key = CountingOwner(id, &deinits);
@@ -555,7 +555,7 @@ private void testShallowMapTransfersBeforeDiscard() @system
 {
     AllocationRecord[96] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -589,7 +589,7 @@ private void testDisabledDefaultOwnedMap() @system
 {
     AllocationRecord[64] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -618,7 +618,7 @@ private void testCollisionStressAgainstReference() @system
 {
     AllocationRecord[256] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     alias CollisionMap = HashMap!(int, int, ConstantCollisionHash, DefaultEqual!int);
@@ -699,7 +699,7 @@ private void testRepeatedOwnedMapCleanup() @system
 {
     AllocationRecord[96] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -735,7 +735,7 @@ private void testMoveOnlyStringBufKeys() @system
 {
     AllocationRecord[64] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(), records[]);
+        malloc_allocator(), records[]);
     StringBufOwnerMap map = StringBufOwnerMap.create(tracked.allocator);
 
     static immutable keys = ["alpha", "beta", "gamma", "delta"];
@@ -771,7 +771,7 @@ private void testOwnedStringMapValueOwnership() @system
 {
     AllocationRecord[96] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     size_t deinits;
@@ -803,7 +803,7 @@ private void testOwnedStringMapValueOwnership() @system
 
     map.reserve(128);
     tracked.failAfter(0);
-    HeapOwner retained = HeapOwner.create(mallocAllocator(), 101, null);
+    HeapOwner retained = HeapOwner.create(malloc_allocator(), 101, null);
     assert(map.tryAdd("allocation-fails", &retained) == AddStatus.outOfMemory);
     assert(retained.bytes.ptr !is null);
     tracked.allowAllocations();
@@ -820,7 +820,7 @@ private void testOwnedStringMapValueOwnership() @system
 private void testShallowStringMapDoesNotCleanValues() @system
 {
     size_t deinits;
-    auto map = StringHashMap!CountingOwner.create(mallocAllocator());
+    auto map = StringHashMap!CountingOwner.create(malloc_allocator());
     CountingOwner first = CountingOwner(1, &deinits);
     CountingOwner second = CountingOwner(2, &deinits);
     assert(map.add("first", &first));
@@ -835,7 +835,7 @@ private void testDestructorOwnedContainers() @system
 {
     size_t destructions;
 
-    DestructorOwnerMap map = DestructorOwnerMap.create(mallocAllocator());
+    DestructorOwnerMap map = DestructorOwnerMap.create(malloc_allocator());
     int firstKey = 1;
     DestructorOwner firstValue = DestructorOwner(1, &destructions, true);
     assert(map.add(&firstKey, &firstValue));
@@ -849,7 +849,7 @@ private void testDestructorOwnedContainers() @system
     deinit(map);
     assert(destructions == 2);
 
-    DestructorOwnerSet set = DestructorOwnerSet.create(mallocAllocator());
+    DestructorOwnerSet set = DestructorOwnerSet.create(malloc_allocator());
     DestructorOwner setValue = DestructorOwner(3, &destructions, true);
     assert(set.add(&setValue));
     DestructorOwner setProbe = DestructorOwner(3, null, false);
@@ -858,7 +858,7 @@ private void testDestructorOwnedContainers() @system
     deinit(set);
 
     auto stringMap =
-        OwnedStringHashMap!DestructorOwner.create(mallocAllocator());
+        OwnedStringHashMap!DestructorOwner.create(malloc_allocator());
     DestructorOwner stringValue = DestructorOwner(4, &destructions, true);
     assert(stringMap.add("value", &stringValue));
     assert(stringMap.remove("value"));
@@ -870,7 +870,7 @@ private void testStringSetExplicitCleanup() @system
 {
     AllocationRecord[64] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(), records[]);
+        malloc_allocator(), records[]);
     StringHashSet set = StringHashSet.create(tracked.allocator);
     assert(set.add("alpha"));
     assert(set.add("beta"));

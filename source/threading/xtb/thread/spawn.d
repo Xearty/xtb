@@ -493,10 +493,10 @@ unittest
         }
         else
         {
-            import xtb.allocators.malloc : mallocAllocator;
+            import xtb.allocators.malloc : malloc_allocator;
 
             auto scalarStarted = spawn!addSpawnedValues(
-                mallocAllocator(),
+                malloc_allocator(),
                 19,
                 23,
             );
@@ -508,7 +508,7 @@ unittest
 
             int published;
             auto voidStarted = spawn!publishSpawnedVoid(
-                mallocAllocator(),
+                malloc_allocator(),
                 &published,
             );
             assert(voidStarted.is_ok);
@@ -517,7 +517,7 @@ unittest
             assert(published == 42);
 
             auto aggregateStarted = spawn!makeSpawnedPair(
-                mallocAllocator(),
+                malloc_allocator(),
                 7,
             );
             assert(aggregateStarted.is_ok);

@@ -314,7 +314,7 @@ version (unittest)
 
 unittest
 {
-    Allocator* allocator = mallocAllocator();
+    Allocator* allocator = malloc_allocator();
 
     i32* single = allocator.allocate!i32();
     assert(single !is null);
@@ -419,77 +419,77 @@ unittest
     }
 
     static assert(__traits(isPOD, PODWithInitializer));
-    static assert(!__traits(compiles, mallocAllocator().allocate_zeroed!Owning()));
-    static assert(!__traits(compiles, mallocAllocator().allocate_zeroed_array!Owning(2)));
+    static assert(!__traits(compiles, malloc_allocator().allocate_zeroed!Owning()));
+    static assert(!__traits(compiles, malloc_allocator().allocate_zeroed_array!Owning(2)));
     static assert(!__traits(
         compiles,
-        mallocAllocator().reallocate_array!Owning(cast(Owning[]) null, 1),
+        malloc_allocator().reallocate_array!Owning(cast(Owning[]) null, 1),
     ));
-    static assert(!__traits(compiles, mallocAllocator().allocate!i32(4)));
+    static assert(!__traits(compiles, malloc_allocator().allocate!i32(4)));
 
-    PODWithInitializer* zeroed = mallocAllocator().allocate_zeroed!PODWithInitializer();
+    PODWithInitializer* zeroed = malloc_allocator().allocate_zeroed!PODWithInitializer();
     assert(zeroed.value == 0);
-    mallocAllocator().deallocate(zeroed);
+    malloc_allocator().deallocate(zeroed);
 
-    PODWithInitializer* initialized = mallocAllocator().allocate_init!PODWithInitializer();
+    PODWithInitializer* initialized = malloc_allocator().allocate_init!PODWithInitializer();
     assert(initialized.value == PODWithInitializer.init.value);
-    mallocAllocator().deallocate(initialized);
+    malloc_allocator().deallocate(initialized);
 
     PODWithInitializer source;
     source.value = 17;
-    PODWithInitializer* copied = mallocAllocator().create!PODWithInitializer(source);
+    PODWithInitializer* copied = malloc_allocator().create!PODWithInitializer(source);
     assert(copied.value == 17);
-    mallocAllocator().dispose(copied);
+    malloc_allocator().dispose(copied);
 
     MoveOnly movable;
     movable.value = 29;
-    MoveOnly* moved = mallocAllocator().create!MoveOnly(core_lifetime.move(movable));
+    MoveOnly* moved = malloc_allocator().create!MoveOnly(core_lifetime.move(movable));
     assert(moved.value == 29);
-    mallocAllocator().dispose(moved);
+    malloc_allocator().dispose(moved);
 
-    PODWithInitializer[] initialized_values = mallocAllocator()
+    PODWithInitializer[] initialized_values = malloc_allocator()
         .allocate_init_array!PODWithInitializer(3);
     assert(initialized_values.length == 3);
     foreach (value; initialized_values)
         assert(value.value == PODWithInitializer.init.value);
-    mallocAllocator().deallocate_array(initialized_values);
+    malloc_allocator().deallocate_array(initialized_values);
 
-    PODWithInitializer[] zeroed_values = mallocAllocator()
+    PODWithInitializer[] zeroed_values = malloc_allocator()
         .allocate_zeroed_array!PODWithInitializer(3);
     foreach (value; zeroed_values)
         assert(value.value == 0);
-    mallocAllocator().deallocate_array(zeroed_values);
+    malloc_allocator().deallocate_array(zeroed_values);
 
     i32 destroyed;
-    Constructed* constructed = mallocAllocator().create!Constructed(73, &destroyed);
+    Constructed* constructed = malloc_allocator().create!Constructed(73, &destroyed);
     assert(constructed.value == 73);
     assert(constructed.destroyed is &destroyed);
-    mallocAllocator().dispose(constructed);
+    malloc_allocator().dispose(constructed);
     assert(destroyed == 1);
 
     AllocationRecord[2] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     failing.failAfter(0);
     assert(failing.allocator.try_create!Constructed(1, &destroyed) is null);
 
-    TrackedInit[] tracked = mallocAllocator().allocate_init_array!TrackedInit(3);
+    TrackedInit[] tracked = malloc_allocator().allocate_init_array!TrackedInit(3);
     foreach (ref value; tracked)
         value.destroyed = &destroyed;
-    mallocAllocator().dispose_array(tracked);
+    malloc_allocator().dispose_array(tracked);
     assert(destroyed == 4);
 
     i32 explicit_deinits;
-    ExplicitOwner* explicit_owner = mallocAllocator().allocate_init!ExplicitOwner();
+    ExplicitOwner* explicit_owner = malloc_allocator().allocate_init!ExplicitOwner();
     explicit_owner.deinitialized = &explicit_deinits;
-    mallocAllocator().dispose(explicit_owner);
+    malloc_allocator().dispose(explicit_owner);
     assert(explicit_deinits == 1);
 
-    ExplicitOwner[] explicit_owners = mallocAllocator().allocate_init_array!ExplicitOwner(3);
+    ExplicitOwner[] explicit_owners = malloc_allocator().allocate_init_array!ExplicitOwner(3);
     foreach (ref owner; explicit_owners)
         owner.deinitialized = &explicit_deinits;
-    mallocAllocator().dispose_array(explicit_owners);
+    malloc_allocator().dispose_array(explicit_owners);
     assert(explicit_deinits == 4);
 }

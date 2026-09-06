@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.cli;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.containers.array : Array;
 import xtb.lifetime : move_assign;
 import xtb.memory : Allocator;
@@ -1274,7 +1274,7 @@ static assert(!__traits(compiles,
 static assert(!__traits(compiles,
         parseArgs!InvalidTerminalCountArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
-        parseArgs!InvalidTerminalArrayArgs(cast(String[]) null, mallocAllocator())));
+        parseArgs!InvalidTerminalArrayArgs(cast(String[]) null, malloc_allocator())));
 static assert(!__traits(compiles,
         parseArgs!InvalidDuplicateTerminalArgs(cast(String[]) null)));
 static assert(!__traits(compiles, parseArgs!InvalidRootAliasArgs(cast(String[]) null)));
@@ -1332,11 +1332,11 @@ static assert(!cliNeedsAllocator!WholeOptionCustomValueArgs);
 static assert(!__traits(compiles,
         parseArgs!WholeArrayCustomValueArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
-        parseArgs!InvalidWholeArrayRestArgs(cast(String[]) null, mallocAllocator())));
+        parseArgs!InvalidWholeArrayRestArgs(cast(String[]) null, malloc_allocator())));
 static assert(!__traits(compiles,
-        parseArgs!InvalidAmbiguousCustomParserArgs(cast(String[]) null, mallocAllocator())));
+        parseArgs!InvalidAmbiguousCustomParserArgs(cast(String[]) null, malloc_allocator())));
 static assert(!__traits(compiles,
-        parseArgs!InvalidOwningArrayCustomValueArgs(cast(String[]) null, mallocAllocator())));
+        parseArgs!InvalidOwningArrayCustomValueArgs(cast(String[]) null, malloc_allocator())));
 static assert(!__traits(compiles,
         parseArgs!AllocatorCustomValueArgs(cast(String[]) null)));
 static assert(!__traits(compiles,
@@ -1876,7 +1876,7 @@ private void testFlattenedArguments()
     {
         AllocationRecord[8] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         String[5] argv = ["tool", "app", "--", "-x", "value"];
@@ -1893,7 +1893,7 @@ private void testFlattenedArguments()
     {
         AllocationRecord[8] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         String[5] argv = ["tool", "-Da", "-Db", "-Dc", "-Dd"];
@@ -2970,7 +2970,7 @@ private void testCustomValueParsers()
 {
     AllocationRecord[32] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -3139,7 +3139,7 @@ private void testCustomValueParserErrors()
     {
         AllocationRecord[16] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         String[3] argv = ["tool", "--bytes", "00gg"];
@@ -3154,7 +3154,7 @@ private void testCustomValueParserErrors()
     {
         AllocationRecord[16] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         allocator.failAfter(0);
@@ -3172,7 +3172,7 @@ private void testAllocatorCustomValueParserCleanup()
 {
     AllocationRecord[32] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -3650,7 +3650,7 @@ private void testTerminalCleanup()
 {
     AllocationRecord[16] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -3676,7 +3676,7 @@ private void testRepeatedAndRestArgumentsCleanUp()
 {
     AllocationRecord[16] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -3720,7 +3720,7 @@ private void testAllocationFailureCleansUp()
 {
     AllocationRecord[8] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     allocator.failAfter(0);

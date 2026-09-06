@@ -85,9 +85,9 @@ bool flushStderr()
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
-    StringBuf buffer = StringBuf.create(mallocAllocator());
+    StringBuf buffer = StringBuf.create(malloc_allocator());
     int answer = 42;
     buffer.write("answer=", answer, ", hex=", hexadecimal(255));
     assert(buffer == "answer=42, hex=0xff");
@@ -139,7 +139,7 @@ unittest
 
     StringBuf fallibleSplitScalar;
     assert(tryFormatString!"{}{}"(
-            mallocAllocator(),
+            malloc_allocator(),
             &fallibleSplitScalar,
             splitScalarPrefixString,
             "🙂",
@@ -172,7 +172,7 @@ unittest
     assert(exactScalarResult.required == 5);
     assert(exactScalar[0 .. 5] == "A🙂");
 
-    StringBuf allocated = formatString!"{}:{}"(mallocAllocator(), "item", 9);
+    StringBuf allocated = formatString!"{}:{}"(malloc_allocator(), "item", 9);
     assert(allocated == "item:9");
     buffer.clear();
     buffer.write("owned=", allocated);
@@ -194,7 +194,7 @@ unittest
     size_t calls;
     StatefulValue value = StatefulValue(&calls);
     StringBuf stateful = formatString!"{}"(
-        mallocAllocator(),
+        malloc_allocator(),
         value,
     );
     assert(stateful == "stateful");
@@ -266,14 +266,14 @@ unittest
     assert(truncatedInterpolation[7] == '\0');
 
     StringBuf interpolated = formatString(
-        mallocAllocator(),
+        malloc_allocator(),
         i"owned: $(answer), $(fixed(1.25, 2))",
     );
     assert(interpolated == "owned: 42, 1.25");
 
     StringBuf fallibleInterpolated;
     assert(tryFormatString(
-            mallocAllocator(),
+            malloc_allocator(),
             &fallibleInterpolated,
             i"try: $(binary(5))",
     ));
@@ -281,7 +281,7 @@ unittest
 
     AllocationRecord[4] transactionalRecords;
     InstrumentedAllocator transactionalAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         transactionalRecords[],
     );
     StringBuf transactional = StringBuf.withCapacity(
@@ -299,7 +299,7 @@ unittest
 
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     failing.failAfter(0);

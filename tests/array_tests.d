@@ -1,7 +1,7 @@
 module tests.array_tests;
 
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.containers.array;
 import xtb.lifetime : deinit, move, move_assign;
 import xtb.memory : Allocator, deallocate_array, try_allocate_array;
@@ -76,7 +76,7 @@ private void testPointerMoveConsumesExplicitPodOwner() @system
 {
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -97,7 +97,7 @@ private void testDisabledDefaultOwnerMoves() @system
 {
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -125,7 +125,7 @@ private void testRepeatedOwnedArrayCleanup() @system
 {
     AllocationRecord[32] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -158,7 +158,7 @@ private void testFallibleAppendPreservesOwnership() @system
 {
     AllocationRecord[16] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -195,7 +195,7 @@ private void testAliasingPointerMovesDoNotLeak() @system
     {
         AllocationRecord[16] records;
         InstrumentedAllocator tracked = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
 
@@ -216,7 +216,7 @@ private void testAliasingPointerMovesDoNotLeak() @system
     {
         AllocationRecord[16] records;
         InstrumentedAllocator tracked = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
 
@@ -245,7 +245,7 @@ private void testMoveAssignmentReleasesReplacedOwners() @system
     {
         AllocationRecord[16] records;
         InstrumentedAllocator tracked = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
 
@@ -264,7 +264,7 @@ private void testMoveAssignmentReleasesReplacedOwners() @system
     {
         AllocationRecord[16] records;
         InstrumentedAllocator tracked = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
 
@@ -294,7 +294,7 @@ private void testReleasedStorageNeedsExplicitCleanup() @system
 {
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 

@@ -194,12 +194,12 @@ private extern (C) void* instrumentedAllocatorProcedure(
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.memory : allocate_zeroed_array, deallocate_array, try_allocate;
 
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     int[] values = tracked.allocator.allocate_zeroed_array!int(4);

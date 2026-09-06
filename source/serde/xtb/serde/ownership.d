@@ -312,7 +312,7 @@ version (unittest)
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.fmt.pretty_print : PrettyPrintOptions, pretty;
     import xtb.fmt.fixed_buffer : writeBuffer;
     import xtb.string;
@@ -327,7 +327,7 @@ unittest
     assert(emptyStorage[0 .. emptyResult.written].equal("null"));
 
     PrettyPrintOwnershipRecord* value;
-    assert(prepareDeserialized(mallocAllocator(), &decoded, &value));
+    assert(prepareDeserialized(malloc_allocator(), &decoded, &value));
     assert(value !is null);
     value.id = 17;
 
@@ -360,7 +360,7 @@ unittest
     PrettyPrintDecodedHolder decodedHolder;
     PrettyPrintOwnershipRecord* nestedValue;
     assert(prepareDeserialized(
-            mallocAllocator(),
+            malloc_allocator(),
             &decodedHolder.item,
             &nestedValue,
     ));

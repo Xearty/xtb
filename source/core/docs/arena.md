@@ -4,7 +4,7 @@
 ignored; storage is reclaimed by rewinding or destroying the arena.
 
 ```d
-Allocator* heap = mallocAllocator();
+Allocator* heap = malloc_allocator();
 Arena arena = Arena.create(heap);
 scope(exit) arena.deinit();
 

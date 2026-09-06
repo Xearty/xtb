@@ -7,7 +7,7 @@ import xtb.containers.hash_set;
 import xtb.lifetime : deinitValue = deinit, move, move_emplace;
 import xtb.memory : Allocator;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.option : Option, some;
 import xtb.fmt.writer : Writer;
 import xtb.string;
@@ -572,7 +572,7 @@ private void testSharedPolicies() nothrow @nogc
     value.mode = DeploymentMode.rollingUpdate;
     value.retryLimit = 7;
 
-    StringBuf json = StringBuf.create(mallocAllocator());
+    StringBuf json = StringBuf.create(malloc_allocator());
     Writer jsonWriter = Writer.fromSink(&bufferSink, &json);
     SerdeError error = writeJson(jsonWriter, value);
     assert(error.ok);
@@ -581,13 +581,13 @@ private void testSharedPolicies() nothrow @nogc
     Deserialized!PolicyDocument fromJson;
     scope (exit)
         fromJson.deinit();
-    error = readJson("{\"mode\":\"rolling\"}", mallocAllocator(),
+    error = readJson("{\"mode\":\"rolling\"}", malloc_allocator(),
         &fromJson);
     assert(error.ok);
     assert(fromJson.value.mode == DeploymentMode.rollingUpdate);
     assert(fromJson.value.retryLimit == 7);
 
-    StringBuf toml = StringBuf.create(mallocAllocator());
+    StringBuf toml = StringBuf.create(malloc_allocator());
     Writer tomlWriter = Writer.fromSink(&bufferSink, &toml);
     error = writeToml(tomlWriter, value);
     assert(error.ok);
@@ -596,7 +596,7 @@ private void testSharedPolicies() nothrow @nogc
     Deserialized!PolicyDocument fromToml;
     scope (exit)
         fromToml.deinit();
-    error = readToml("mode = \"blue_green\"", mallocAllocator(),
+    error = readToml("mode = \"blue_green\"", malloc_allocator(),
         &fromToml);
     assert(error.ok);
     assert(fromToml.value.mode == DeploymentMode.blueGreen);
@@ -609,7 +609,7 @@ private void testSharedPolicies() nothrow @nogc
     assert(error.ok);
     assert(json == "{\"percentage\":75}");
     AdapterDocument ownedJson;
-    error = readJson(json.view, mallocAllocator(), &ownedJson);
+    error = readJson(json.view, malloc_allocator(), &ownedJson);
     assert(error.ok);
     assert(ownedJson.percentage.value == 75);
 
@@ -619,18 +619,18 @@ private void testSharedPolicies() nothrow @nogc
     assert(error.ok);
     assert(toml == "percentage = 75");
     AdapterDocument ownedToml;
-    error = readToml(toml.view, mallocAllocator(), &ownedToml);
+    error = readToml(toml.view, malloc_allocator(), &ownedToml);
     assert(error.ok);
     assert(ownedToml.percentage.value == 75);
 
-    error = readJson("{\"percentage\":101}", mallocAllocator(), &ownedJson);
+    error = readJson("{\"percentage\":101}", malloc_allocator(), &ownedJson);
     assert(error.kind == SerdeErrorKind.numberOutOfRange);
-    error = readToml("percentage = 101", mallocAllocator(), &ownedToml);
+    error = readToml("percentage = 101", malloc_allocator(), &ownedToml);
     assert(error.kind == SerdeErrorKind.numberOutOfRange);
 
     AllocationRecord[16] adapterRecords;
     InstrumentedAllocator adapterAllocator = InstrumentedAllocator.create(
-        mallocAllocator(), adapterRecords[]);
+        malloc_allocator(), adapterRecords[]);
     {
         StringAdapterDocument stringAdapted;
         error = readJson("{\"state\":\"en\\u0061bled\"}",
@@ -649,7 +649,7 @@ private void testSharedPolicies() nothrow @nogc
     scope (exit)
         jsonDefaults.deinit();
     error = readJson("{\"pointer\":{},\"items\":[{}]}",
-        mallocAllocator(), &jsonDefaults);
+        malloc_allocator(), &jsonDefaults);
     assert(error.ok);
     assert(jsonDefaults.value.pointer.value == 11);
     assert(jsonDefaults.value.items[0].value == 11);
@@ -658,7 +658,7 @@ private void testSharedPolicies() nothrow @nogc
     scope (exit)
         tomlDefaults.deinit();
     error = readToml("pointer = {}\nitems = [{}]\n",
-        mallocAllocator(), &tomlDefaults);
+        malloc_allocator(), &tomlDefaults);
     assert(error.ok);
     assert(tomlDefaults.value.pointer.value == 11);
     assert(tomlDefaults.value.items[0].value == 11);
@@ -671,7 +671,7 @@ private void testJsonTaggedUnions() nothrow @nogc
     ExternalEvent external;
     external.kind = EventKind.recordCreated;
     external.data.created = CreatedEvent(17, "new record");
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, external);
     assert(error.ok);
@@ -681,7 +681,7 @@ private void testJsonTaggedUnions() nothrow @nogc
     Deserialized!ExternalEvent decodedExternal;
     scope (exit)
         decodedExternal.deinit();
-    error = readJson(encoded.view, mallocAllocator(), &decodedExternal);
+    error = readJson(encoded.view, malloc_allocator(), &decodedExternal);
     assert(error.ok);
     assert(decodedExternal.value.kind == EventKind.recordCreated);
     assert(decodedExternal.value.data.created.id == 17);
@@ -702,7 +702,7 @@ private void testJsonTaggedUnions() nothrow @nogc
         decodedInternal.deinit();
     error = readJson(
         "{\"permanent\":true,\"id\":9,\"event_type\":\"record_deleted\"}",
-        mallocAllocator(), &decodedInternal);
+        malloc_allocator(), &decodedInternal);
     assert(error.ok);
     assert(decodedInternal.value.kind == EventKind.recordDeleted);
     assert(decodedInternal.value.data.deleted.id == 9);
@@ -725,14 +725,14 @@ private void testJsonTaggedUnions() nothrow @nogc
     error = readJson(
         "{\"event_data\":{\"id\":23,\"displayName\":\"adjacent\"}," ~
             "\"event_type\":\"record_created\"}",
-        mallocAllocator(), &decodedAdjacent);
+        malloc_allocator(), &decodedAdjacent);
     assert(error.ok);
     assert(decodedAdjacent.value.kind == EventKind.recordCreated);
     assert(decodedAdjacent.value.data.created.id == 23);
 
     error = readJson(
         "{\"event_type\":\"missing\",\"event_data\":{}}",
-        mallocAllocator(), &decodedAdjacent);
+        malloc_allocator(), &decodedAdjacent);
     assert(error.kind == SerdeErrorKind.unknownVariant);
     assert(decodedAdjacent.empty);
     encoded.deinit();
@@ -743,7 +743,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     ExternalEnvelope external;
     external.event.kind = EventKind.recordCreated;
     external.event.data.created = CreatedEvent(17, "new record");
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, external);
     assert(error.ok);
@@ -754,7 +754,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     Deserialized!ExternalEnvelope decodedExternal;
     scope (exit)
         decodedExternal.deinit();
-    error = readToml(encoded.view, mallocAllocator(), &decodedExternal);
+    error = readToml(encoded.view, malloc_allocator(), &decodedExternal);
     assert(error.ok);
     assert(decodedExternal.value.event.kind == EventKind.recordCreated);
     assert(decodedExternal.value.event.data.created.id == 17);
@@ -775,7 +775,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     error = readToml(
         "event = { permanent = true, id = 9, " ~
             "event_type = \"record_deleted\" }",
-        mallocAllocator(), &decodedInternal);
+        malloc_allocator(), &decodedInternal);
     assert(error.ok);
     assert(decodedInternal.value.event.kind == EventKind.recordDeleted);
     assert(decodedInternal.value.event.data.deleted.permanent);
@@ -797,14 +797,14 @@ private void testTomlTaggedUnions() nothrow @nogc
     error = readToml(
         "event = { event_data = { id = 23, displayName = \"adjacent\" }, " ~
             "event_type = \"record_created\" }",
-        mallocAllocator(), &decodedAdjacent);
+        malloc_allocator(), &decodedAdjacent);
     assert(error.ok);
     assert(decodedAdjacent.value.event.kind == EventKind.recordCreated);
     assert(decodedAdjacent.value.event.data.created.id == 23);
 
     error = readToml(
         "event = { event_type = \"missing\", event_data = {} }",
-        mallocAllocator(), &decodedAdjacent);
+        malloc_allocator(), &decodedAdjacent);
     assert(error.kind == SerdeErrorKind.unknownVariant);
     assert(decodedAdjacent.empty);
 
@@ -821,7 +821,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     error = readToml(
         "event_data = { id = 23, displayName = \"adjacent\" }\n" ~
             "event_type = \"record_created\"\n",
-        mallocAllocator(), &rootAdjacent);
+        malloc_allocator(), &rootAdjacent);
     assert(error.ok);
     assert(rootAdjacent.value.data.created.id == 23);
 
@@ -832,7 +832,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     Deserialized!ExternalEvent rootExternal;
     scope (exit)
         rootExternal.deinit();
-    error = readToml(encoded.view, mallocAllocator(), &rootExternal);
+    error = readToml(encoded.view, malloc_allocator(), &rootExternal);
     assert(error.ok);
     assert(rootExternal.value.data.created.id == 17);
 
@@ -843,7 +843,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     Deserialized!InternalEvent rootInternal;
     scope (exit)
         rootInternal.deinit();
-    error = readToml(encoded.view, mallocAllocator(), &rootInternal);
+    error = readToml(encoded.view, malloc_allocator(), &rootInternal);
     assert(error.ok);
     assert(rootInternal.value.data.deleted.id == 9);
     encoded.deinit();
@@ -861,7 +861,7 @@ private void testJsonRoundTrip() nothrow @nogc
     settings.ports = ports[];
     settings.pair = [7, 9];
 
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     JsonWriteOptions writeOptions;
     writeOptions.pretty = true;
@@ -888,7 +888,7 @@ private void testJsonRoundTrip() nothrow @nogc
     Deserialized!Settings decoded;
     scope (exit)
         decoded.deinit();
-    error = readJson(encoded.view, mallocAllocator(), &decoded);
+    error = readJson(encoded.view, malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.apiVersion == 3);
     assert(decoded.value.active);
@@ -909,7 +909,7 @@ private void testJsonPolicies() nothrow @nogc
     SerdeError error = readJson(
         "{\"api-version\":1,\"enabled\":true,\"display_name\":\"x\"," ~
             "\"user_id\":1,\"mode\":\"quiet\",\"ports\":[],\"pair\":[1,2]}",
-        mallocAllocator(),
+        malloc_allocator(),
         &decoded,
     );
     assert(error.ok);
@@ -917,18 +917,18 @@ private void testJsonPolicies() nothrow @nogc
 
     error = readJson(
         "{\"api-version\":1,\"display_name\":\"x\",\"display_name\":\"y\"}",
-        mallocAllocator(),
+        malloc_allocator(),
         &decoded,
     );
     assert(error.kind == SerdeErrorKind.duplicateField);
     assert(decoded.empty);
 
-    error = readJson("{\"api-version\":1}", mallocAllocator(), &decoded);
+    error = readJson("{\"api-version\":1}", malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
 
     error = readJson(
         "{\"api-version\":1,\"display_name\":\"x\",\"mystery\":1}",
-        mallocAllocator(),
+        malloc_allocator(),
         &decoded,
     );
     assert(error.kind == SerdeErrorKind.unknownField);
@@ -937,7 +937,7 @@ private void testJsonPolicies() nothrow @nogc
     options.limits.ignoreUnknownFields = true;
     error = readJson(
         "{\"api-version\":1,\"display_name\":\"x\",\"unknown\":[1,{\"x\":2}]}",
-        mallocAllocator(),
+        malloc_allocator(),
         &decoded,
         options,
     );
@@ -953,7 +953,7 @@ private void testJsonUnicodeAndNumbers() nothrow @nogc
         decoded.deinit();
     SerdeError error = readJson(
         "{\"child\":{\"label\":\"A\\u00df\\u6771\\ud834\\udd1e\",\"value\":-2147483648}}",
-        mallocAllocator(),
+        malloc_allocator(),
         &decoded,
     );
     assert(error.ok);
@@ -962,15 +962,15 @@ private void testJsonUnicodeAndNumbers() nothrow @nogc
     assert(decoded.value.child.value == int.min);
 
     error = readJson("{\"child\":{\"label\":\"\\ud800\"}}",
-        mallocAllocator(), &decoded);
+        malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.invalidEscape);
     assert(decoded.empty);
 
     error = readJson("{\"child\":{\"label\":\"x\",\"value\":2147483648}}",
-        mallocAllocator(), &decoded);
+        malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.numberOutOfRange);
 
-    error = readJson("{\"child\":null}", mallocAllocator(), &decoded);
+    error = readJson("{\"child\":null}", malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.child is null);
 
@@ -980,7 +980,7 @@ private void testJsonUnicodeAndNumbers() nothrow @nogc
     invalidJson[0 .. invalidPrefix.length] = invalidPrefix;
     invalidJson[invalidPrefix.length] = cast(char) 0xff;
     invalidJson[invalidPrefix.length + 1 .. $] = invalidSuffix;
-    error = readJson(invalidJson[], mallocAllocator(), &decoded);
+    error = readJson(invalidJson[], malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.invalidUtf8);
     assert(error.offset == invalidPrefix.length);
     document.child = null;
@@ -989,7 +989,7 @@ private void testJsonUnicodeAndNumbers() nothrow @nogc
 private void testJsonCasingAndOutputFailure() nothrow @nogc
 {
     CasingDocument value = CasingDocument(7, 9);
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     JsonWriteOptions options;
     options.keyCase = KeyCase.snake;
@@ -1002,7 +1002,7 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
         decoded.deinit();
     JsonReadOptions readOptions;
     readOptions.keyCase = KeyCase.snake;
-    error = readJson(encoded.view, mallocAllocator(), &decoded, readOptions);
+    error = readJson(encoded.view, malloc_allocator(), &decoded, readOptions);
     assert(error.ok);
     assert(decoded.value.httpServerID == 7);
 
@@ -1011,7 +1011,7 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
     assert(error.kind == SerdeErrorKind.outputFailure);
 
     DefaultsDocument defaults;
-    StringBuf omitted = StringBuf.create(mallocAllocator());
+    StringBuf omitted = StringBuf.create(malloc_allocator());
     Writer omittedWriter = Writer.fromSink(&bufferSink, &omitted);
     error = writeJson(omittedWriter, defaults);
     assert(error.ok);
@@ -1034,7 +1034,7 @@ private void testJsonAllocationFailures() nothrow @nogc
     {
         AllocationRecord[16] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!OptionalDocument decoded;
         SerdeError error = readJson(input, allocator.allocator, &decoded);
@@ -1058,7 +1058,7 @@ private void testJsonAllocationFailures() nothrow @nogc
 
     AllocationRecord[8] defaultRecords;
     InstrumentedAllocator defaultAllocator = InstrumentedAllocator.create(
-        mallocAllocator(), defaultRecords[]);
+        malloc_allocator(), defaultRecords[]);
     Deserialized!StaticInitializer initialized;
     SerdeError error = readJson("{}", defaultAllocator.allocator, &initialized);
     assert(error.ok);
@@ -1084,7 +1084,7 @@ private void testJsonOptions() nothrow @nogc
         "{\"title\":\"deploy\",\"priority\":null," ~
             "\"child\":{\"label\":\"worker\",\"value\":7}," ~
             "\"explicit_toggle\":false}",
-        mallocAllocator(),
+        malloc_allocator(),
         &decoded,
     );
     assert(error.ok);
@@ -1098,17 +1098,17 @@ private void testJsonOptions() nothrow @nogc
     assert(!decoded.value.explicitToggle.value);
 
     // A required option requires the key, not a non-null JSON value.
-    error = readJson("{\"explicit_toggle\":null}", mallocAllocator(), &decoded);
+    error = readJson("{\"explicit_toggle\":null}", malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.explicitToggle.is_none);
-    error = readJson("{}", mallocAllocator(), &decoded);
+    error = readJson("{}", malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
 
     OptionalValues value;
     value.title = Option!String.some("release");
     value.priority = some(4);
     value.explicitToggle = some(true);
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, value);
     assert(error.ok);
@@ -1130,7 +1130,7 @@ private void testTomlRoundTrip() nothrow @nogc
     document.servers = servers[];
     document.ratio = 0.125;
 
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, document);
     assert(error.ok);
@@ -1144,7 +1144,7 @@ private void testTomlRoundTrip() nothrow @nogc
     Deserialized!TomlDocument decoded;
     scope (exit)
         decoded.deinit();
-    error = readToml(encoded.view, mallocAllocator(), &decoded);
+    error = readToml(encoded.view, malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.applicationName.equal("demo"));
     assert(decoded.value.database.hostName.equal("db.local"));
@@ -1159,7 +1159,7 @@ private void testTomlRoundTrip() nothrow @nogc
     invalidToml[0 .. invalidPrefix.length] = invalidPrefix;
     invalidToml[invalidPrefix.length] = cast(char) 0xff;
     invalidToml[$ - 1] = '"';
-    error = readToml(invalidToml[], mallocAllocator(), &decoded);
+    error = readToml(invalidToml[], malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.invalidUtf8);
     assert(error.offset == invalidPrefix.length);
     encoded.deinit();
@@ -1179,7 +1179,7 @@ private void testTomlTablesAndSyntax() nothrow @nogc
     Deserialized!TomlDocument decoded;
     scope (exit)
         decoded.deinit();
-    SerdeError error = readToml(input, mallocAllocator(), &decoded);
+    SerdeError error = readToml(input, malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.applicationName.equal("table demo"));
     assert(decoded.value.database.hostName.equal("localhost.internal"));
@@ -1189,21 +1189,21 @@ private void testTomlTablesAndSyntax() nothrow @nogc
 
     error = readToml(
         "application_name = \"x\"\napplication_name = \"y\"\n",
-        mallocAllocator(), &decoded);
+        malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.duplicateField);
 
-    error = readToml("ratio = 2026-08-01\n", mallocAllocator(), &decoded);
+    error = readToml("ratio = 2026-08-01\n", malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.unsupportedValue);
 
     error = readToml("[[database]]\nhost_name = \"x\"\n",
-        mallocAllocator(), &decoded);
+        malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.unsupportedValue);
 
     Deserialized!OptionalDocument optional;
     scope (exit)
         optional.deinit();
     error = readToml("[child]\nlabel = \"nested\"\nvalue = 17\n",
-        mallocAllocator(), &optional);
+        malloc_allocator(), &optional);
     assert(error.ok);
     assert(optional.value.child !is null);
     assert(optional.value.child.label.equal("nested"));
@@ -1222,7 +1222,7 @@ private void testTomlAllocationFailures() nothrow @nogc
     {
         AllocationRecord[32] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!TomlDocument decoded;
         SerdeError error = readToml(input, allocator.allocator, &decoded);
@@ -1256,7 +1256,7 @@ private void testTomlOptions() nothrow @nogc
     Deserialized!OptionalValues decoded;
     scope (exit)
         decoded.deinit();
-    SerdeError error = readToml(input, mallocAllocator(), &decoded);
+    SerdeError error = readToml(input, malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.title.is_some);
     assert(decoded.value.title.value.equal("deploy"));
@@ -1270,13 +1270,13 @@ private void testTomlOptions() nothrow @nogc
     OptionalValues value;
     value.priority = some(4);
     value.explicitToggle = some(true);
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, value);
     assert(error.ok);
     assert(encoded == "priority = 4\nexplicit_toggle = true");
 
-    error = readToml("priority = 1\n", mallocAllocator(), &decoded);
+    error = readToml("priority = 1\n", malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.missingRequiredField);
     encoded.deinit();
 }
@@ -1298,7 +1298,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
 
     AllocationRecord[128] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(), records[]);
+        malloc_allocator(), records[]);
     {
         OwnedOptionalValues value;
         SerdeError error = readJson(jsonInput, allocator.allocator, &value);
@@ -1341,7 +1341,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
     {
         AllocationRecord[128] failureRecords;
         InstrumentedAllocator failureAllocator = InstrumentedAllocator.create(
-            mallocAllocator(), failureRecords[]);
+            malloc_allocator(), failureRecords[]);
         failureAllocator.failAfter(allowed);
         {
             OwnedOptionalValues value;
@@ -1376,7 +1376,7 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
         "\"retry_delays\":[1,5,30],\"tracing_enabled\":true}";
 
     OwnedDocument document;
-    SerdeError error = readJson(input, mallocAllocator(), &document);
+    SerdeError error = readJson(input, malloc_allocator(), &document);
     assert(error.ok);
     assert(document.applicationName == "control plane");
     assert(document.primaryEndpoint.hostName == "api.internal");
@@ -1390,12 +1390,12 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
     document.primaryEndpoint.hostName.append(".test");
     document.featureFlags[1].clear();
     document.featureFlags[1].append("telemetry");
-    StringBuf addedFlag = StringBuf.fromString(mallocAllocator(), "compression");
+    StringBuf addedFlag = StringBuf.fromString(malloc_allocator(), "compression");
     document.featureFlags.append(move(addedFlag));
     document.retryDelays[2] = 60;
     document.tracingEnabled = false;
 
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, document);
     assert(error.ok);
@@ -1433,12 +1433,12 @@ private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
         "tracing_enabled = true\n";
 
     OwnedDocument document;
-    SerdeError error = readToml(first, mallocAllocator(), &document);
+    SerdeError error = readToml(first, malloc_allocator(), &document);
     assert(error.ok);
     assert(document.applicationName == "scheduler");
     assert(document.replicaEndpoints.length == 1);
 
-    error = readToml(replacement, mallocAllocator(), &document);
+    error = readToml(replacement, malloc_allocator(), &document);
     assert(error.ok);
     assert(document.applicationName == "worker");
     assert(document.primaryEndpoint.hostName == "worker.internal");
@@ -1447,7 +1447,7 @@ private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
     assert(document.tracingEnabled);
 
     document.featureFlags[0].append("-v2");
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, document);
     assert(error.ok);
@@ -1467,7 +1467,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
 {
     AllocationRecord[128] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(), records[]);
+        malloc_allocator(), records[]);
     OwnedDocument document;
     StringBuf preserved = StringBuf.fromString(allocator.allocator, "preserved");
     move_emplace(preserved, document.applicationName);
@@ -1527,7 +1527,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         {
             OwnedDocument document;
@@ -1559,7 +1559,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         {
             OwnedDocument document;
@@ -1584,7 +1584,7 @@ private void testOwnedAllocationFailures() nothrow @nogc
 private void testJsonTopLevelValues() nothrow @nogc
 {
     int[3] fixedValues = [1, 2, 3];
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, fixedValues);
     assert(error.ok);
@@ -1601,7 +1601,7 @@ private void testJsonTopLevelValues() nothrow @nogc
     error = readJson(
         "[{\"display_name\":\"alpha\",\"value\":1}," ~
             "{\"display_name\":\"beta\",\"value\":2}]",
-        mallocAllocator(),
+        malloc_allocator(),
         &borrowedItems,
     );
     assert(error.ok);
@@ -1611,7 +1611,7 @@ private void testJsonTopLevelValues() nothrow @nogc
     borrowedItems.deinit();
 
     Deserialized!(int[]) emptyValues;
-    error = readJson("[]", mallocAllocator(), &emptyValues);
+    error = readJson("[]", malloc_allocator(), &emptyValues);
     assert(error.ok);
     assert(emptyValues.value.length == 0);
     emptyValues.deinit();
@@ -1621,33 +1621,33 @@ private void testJsonTopLevelValues() nothrow @nogc
     Deserialized!(int[]) limitedValues;
     scope (exit)
         limitedValues.deinit();
-    error = readJson("[1,2]", mallocAllocator(), &limitedValues,
+    error = readJson("[1,2]", malloc_allocator(), &limitedValues,
         limitedOptions);
     assert(error.kind == SerdeErrorKind.collectionLimit);
     assert(limitedValues.empty);
 
     int scalar;
-    error = readJson("42", mallocAllocator(), &scalar);
+    error = readJson("42", malloc_allocator(), &scalar);
     assert(error.ok);
     assert(scalar == 42);
 
-    StringBuf text = StringBuf.create(mallocAllocator());
-    error = readJson("\"root text\"", mallocAllocator(), &text);
+    StringBuf text = StringBuf.create(malloc_allocator());
+    error = readJson("\"root text\"", malloc_allocator(), &text);
     assert(error.ok);
     assert(text == "root text");
 
     int[3] decodedFixed = [9, 9, 9];
-    error = readJson("[4,5,6]", mallocAllocator(), &decodedFixed);
+    error = readJson("[4,5,6]", malloc_allocator(), &decodedFixed);
     assert(error.ok);
     assert(decodedFixed == [4, 5, 6]);
-    error = readJson("[7,8]", mallocAllocator(), &decodedFixed);
+    error = readJson("[7,8]", malloc_allocator(), &decodedFixed);
     assert(error.kind == SerdeErrorKind.typeMismatch);
     assert(decodedFixed == [4, 5, 6]);
 
     OwnedArray!TopLevelOwnedItem ownedItems;
     error = readJson(
         "[{\"display_name\":\"owned\",\"value\":7}]",
-        mallocAllocator(),
+        malloc_allocator(),
         &ownedItems,
     );
     assert(error.ok);
@@ -1656,7 +1656,7 @@ private void testJsonTopLevelValues() nothrow @nogc
     assert(ownedItems[0].value == 7);
     error = readJson(
         "[{\"display_name\":8,\"value\":9}]",
-        mallocAllocator(),
+        malloc_allocator(),
         &ownedItems,
     );
     assert(error.kind == SerdeErrorKind.typeMismatch);
@@ -1669,7 +1669,7 @@ private void testJsonTopLevelValues() nothrow @nogc
     {
         AllocationRecord[48] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!(int[]) allocatedValues;
         error = readJson("[1,2,3]", allocator.allocator, &allocatedValues);
@@ -1699,16 +1699,16 @@ private void testJsonTopLevelValues() nothrow @nogc
 private void testJsonHashMaps() nothrow @nogc
 {
     HashMap!(String, int) source = HashMap!(String, int).create(
-        mallocAllocator());
+        malloc_allocator());
     assert(source.tryAdd("one", 1) == AddStatus.inserted);
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, source);
     assert(error.ok);
     assert(encoded == "{\"one\":1}");
 
     HashMap!(String, int) emptySource = HashMap!(String, int).create(
-        mallocAllocator());
+        malloc_allocator());
     encoded.clear();
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, emptySource);
@@ -1716,13 +1716,13 @@ private void testJsonHashMaps() nothrow @nogc
     assert(encoded == "{}");
 
     Deserialized!(HashMap!(String, int)) decoded;
-    error = readJson("{}", mallocAllocator(), &decoded);
+    error = readJson("{}", malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.empty);
     decoded.deinit();
 
     error = readJson("{\"one\":1,\"two\":2,\"a\\tb\":3}",
-        mallocAllocator(), &decoded);
+        malloc_allocator(), &decoded);
     assert(error.ok);
     const one = decoded.value.find("one");
     const two = decoded.value.find("two");
@@ -1732,25 +1732,25 @@ private void testJsonHashMaps() nothrow @nogc
     assert(escaped !is null && *escaped == 3);
     decoded.deinit();
 
-    error = readJson("{\"same\":1,\"same\":2}", mallocAllocator(),
+    error = readJson("{\"same\":1,\"same\":2}", malloc_allocator(),
         &decoded);
     assert(error.kind == SerdeErrorKind.duplicateField);
     assert(decoded.empty);
     error = readJson("{\"same\":1,\"s\\u0061me\":2}",
-        mallocAllocator(), &decoded);
+        malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.duplicateField);
     assert(decoded.empty);
 
     JsonReadOptions limited;
     limited.limits.maxCollectionLength = 1;
-    error = readJson("{\"one\":1,\"two\":2}", mallocAllocator(),
+    error = readJson("{\"one\":1,\"two\":2}", malloc_allocator(),
         &decoded, limited);
     assert(error.kind == SerdeErrorKind.collectionLimit);
     assert(decoded.empty);
 
     alias NestedMap = HashMap!(String, HashMap!(String, int));
     Deserialized!NestedMap nested;
-    error = readJson("{\"outer\":{\"inner\":7}}", mallocAllocator(),
+    error = readJson("{\"outer\":{\"inner\":7}}", malloc_allocator(),
         &nested);
     assert(error.ok);
     const innerMap = nested.value.find("outer");
@@ -1762,7 +1762,7 @@ private void testJsonHashMaps() nothrow @nogc
     Deserialized!(HashMap!(String, TopLevelBorrowedItem)) itemMap;
     error = readJson(
         "{\"item\":{\"display_name\":\"mapped\",\"value\":9}}",
-        mallocAllocator(), &itemMap);
+        malloc_allocator(), &itemMap);
     assert(error.ok);
     const item = itemMap.value.find("item");
     assert(item !is null);
@@ -1774,7 +1774,7 @@ private void testJsonHashMaps() nothrow @nogc
     error = readJson(
         "{\"values\":[{\"first\":1},{\"second\":2}]," ~
             "\"pointer\":{\"third\":3}}",
-        mallocAllocator(), &containers);
+        malloc_allocator(), &containers);
     assert(error.ok);
     assert(containers.value.values.length == 2);
     const first = containers.value.values[0].find("first");
@@ -1790,7 +1790,7 @@ private void testJsonHashMaps() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!HashMapContainers allocatedContainers;
         error = readJson(
@@ -1819,7 +1819,7 @@ private void testJsonHashMaps() nothrow @nogc
     {
         AllocationRecord[64] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!(HashMap!(String, int)) allocated;
         error = readJson("{\"one\":1,\"two\":2}", allocator.allocator,
@@ -1849,16 +1849,16 @@ private void testJsonHashMaps() nothrow @nogc
 private void testTomlHashMaps() nothrow @nogc
 {
     HashMap!(String, int) source = HashMap!(String, int).create(
-        mallocAllocator());
+        malloc_allocator());
     assert(source.tryAdd("one", 1) == AddStatus.inserted);
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, source);
     assert(error.ok);
     assert(encoded == "one = 1");
 
     HashMap!(String, int) emptySource = HashMap!(String, int).create(
-        mallocAllocator());
+        malloc_allocator());
     encoded.clear();
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, emptySource);
@@ -1866,12 +1866,12 @@ private void testTomlHashMaps() nothrow @nogc
     assert(encoded.empty);
 
     Deserialized!(HashMap!(String, int)) decoded;
-    error = readToml("", mallocAllocator(), &decoded);
+    error = readToml("", malloc_allocator(), &decoded);
     assert(error.ok);
     assert(decoded.value.empty);
     decoded.deinit();
 
-    error = readToml("one = 1\n\"a.b\" = 2\n", mallocAllocator(),
+    error = readToml("one = 1\n\"a.b\" = 2\n", malloc_allocator(),
         &decoded);
     assert(error.ok);
     const one = decoded.value.find("one");
@@ -1880,27 +1880,27 @@ private void testTomlHashMaps() nothrow @nogc
     assert(dotted !is null && *dotted == 2);
     decoded.deinit();
 
-    error = readToml("same = 1\nsame = 2\n", mallocAllocator(), &decoded);
+    error = readToml("same = 1\nsame = 2\n", malloc_allocator(), &decoded);
     assert(error.kind == SerdeErrorKind.duplicateField);
     assert(decoded.empty);
-    error = readToml("same = 1\n\"same\" = 2\n", mallocAllocator(),
+    error = readToml("same = 1\n\"same\" = 2\n", malloc_allocator(),
         &decoded);
     assert(error.kind == SerdeErrorKind.duplicateField);
     assert(decoded.empty);
 
     TomlReadOptions limited;
     limited.limits.maxCollectionLength = 1;
-    error = readToml("one = 1\ntwo = 2\n", mallocAllocator(), &decoded,
+    error = readToml("one = 1\ntwo = 2\n", malloc_allocator(), &decoded,
         limited);
     assert(error.kind == SerdeErrorKind.collectionLimit);
     assert(decoded.empty);
-    error = readToml("[section]\nvalue = 1\n", mallocAllocator(),
+    error = readToml("[section]\nvalue = 1\n", malloc_allocator(),
         &decoded);
     assert(error.kind == SerdeErrorKind.unsupportedValue);
     assert(decoded.empty);
 
     HashMapDocument document;
-    auto documentValues = HashMap!(String, int).create(mallocAllocator());
+    auto documentValues = HashMap!(String, int).create(malloc_allocator());
     move_emplace(documentValues, document.values);
     assert(document.values.tryAdd("one", 1) == AddStatus.inserted);
     encoded.clear();
@@ -1911,7 +1911,7 @@ private void testTomlHashMaps() nothrow @nogc
 
     Deserialized!HashMapDocument decodedDocument;
     error = readToml("values = { one = 1, \"a.b\" = 2 }",
-        mallocAllocator(), &decodedDocument);
+        malloc_allocator(), &decodedDocument);
     assert(error.ok);
     const nestedOne = decodedDocument.value.values.find("one");
     const nestedDotted = decodedDocument.value.values.find("a.b");
@@ -1922,7 +1922,7 @@ private void testTomlHashMaps() nothrow @nogc
     Deserialized!(HashMap!(String, TopLevelBorrowedItem)) itemMap;
     error = readToml(
         "item = { display_name = \"mapped\", value = 9 }\n",
-        mallocAllocator(), &itemMap);
+        malloc_allocator(), &itemMap);
     assert(error.ok);
     const item = itemMap.value.find("item");
     assert(item !is null);
@@ -1934,7 +1934,7 @@ private void testTomlHashMaps() nothrow @nogc
     error = readToml(
         "values = [{ first = 1 }, { second = 2 }]\n" ~
             "pointer = { third = 3 }\n",
-        mallocAllocator(), &containers);
+        malloc_allocator(), &containers);
     assert(error.ok);
     assert(containers.value.values.length == 2);
     const first = containers.value.values[0].find("first");
@@ -1950,7 +1950,7 @@ private void testTomlHashMaps() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!HashMapContainers allocatedContainers;
         error = readToml(
@@ -1979,7 +1979,7 @@ private void testTomlHashMaps() nothrow @nogc
     {
         AllocationRecord[64] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Deserialized!(HashMap!(String, int)) allocated;
         error = readToml("one = 1\ntwo = 2\n", allocator.allocator,
@@ -2014,13 +2014,13 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     OwnedString text;
     SerdeError error = readJson(
         "\"owned \\u03bb\"",
-        mallocAllocator(),
+        malloc_allocator(),
         &text,
     );
     assert(error.ok);
     assert(text.view == "owned λ");
 
-    StringBuf encoded = StringBuf.create(mallocAllocator());
+    StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeJson(writer, text);
     assert(error.ok);
@@ -2029,7 +2029,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     StringHashMap!int jsonMap;
     error = readJson(
         "{\"alpha\":1,\"a\\u0062\":2,\"\":3,\"λ\":4}",
-        mallocAllocator(),
+        malloc_allocator(),
         &jsonMap,
     );
     assert(error.ok);
@@ -2044,7 +2044,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
 
     error = readJson(
         "{\"same\":1,\"s\\u0061me\":2}",
-        mallocAllocator(),
+        malloc_allocator(),
         &jsonMap,
     );
     assert(error.kind == SerdeErrorKind.duplicateField);
@@ -2052,7 +2052,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     assert(jsonMap.find("alpha") !is null);
 
     StringHashMap!int singleJson = StringHashMap!int.create(
-        mallocAllocator());
+        malloc_allocator());
     assert(singleJson.add("one", 1));
     encoded.clear();
     writer = Writer.fromSink(&bufferSink, &encoded);
@@ -2063,7 +2063,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     StringHashMap!int tomlMap;
     error = readToml(
         "alpha = 1\n\"a.b\" = 2\n\"\" = 3\n\"λ\" = 4\n",
-        mallocAllocator(),
+        malloc_allocator(),
         &tomlMap,
     );
     assert(error.ok);
@@ -2078,7 +2078,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
 
     error = readToml(
         "same = 1\n\"same\" = 2\n",
-        mallocAllocator(),
+        malloc_allocator(),
         &tomlMap,
     );
     assert(error.kind == SerdeErrorKind.duplicateField);
@@ -2086,7 +2086,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     assert(tomlMap.find("a.b") !is null);
 
     StringHashMap!int singleToml = StringHashMap!int.create(
-        mallocAllocator());
+        malloc_allocator());
     assert(singleToml.add("one", 1));
     encoded.clear();
     writer = Writer.fromSink(&bufferSink, &encoded);
@@ -2097,7 +2097,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     OwnedStringMapDocument nestedJson;
     error = readJson(
         "{\"values\":{\"name\":\"value\"}}",
-        mallocAllocator(),
+        malloc_allocator(),
         &nestedJson,
     );
     assert(error.ok);
@@ -2108,7 +2108,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     OwnedStringMapDocument nestedToml;
     error = readToml(
         "values = { name = \"value\" }\n",
-        mallocAllocator(),
+        malloc_allocator(),
         &nestedToml,
     );
     assert(error.ok);
@@ -2121,7 +2121,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     {
         AllocationRecord[96] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         StringHashMap!int allocated;
         error = readJson(
@@ -2149,7 +2149,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     {
         AllocationRecord[96] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         StringHashMap!int allocated;
         error = readToml(
@@ -2178,7 +2178,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         OwnedStringArrayMap allocated;
         error = readJson(
             "{\"same\":[1,2],\"same\":[3,4]}",
@@ -2194,7 +2194,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         OwnedStringArrayMap allocated;
         error = readToml(
             "same = [1, 2]\nsame = [3, 4]\n",
@@ -2212,7 +2212,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         OwnedStringArrayMap allocated;
         error = readJson(
@@ -2243,7 +2243,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         OwnedStringArrayMap allocated;
         error = readToml(
@@ -2338,7 +2338,7 @@ private void testSerdePartialOwnedConstruction() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         PartialOwnedConfig value;
         SerdeError error = readJson(jsonInput, allocator.allocator, &value);
@@ -2365,7 +2365,7 @@ private void testSerdePartialOwnedConstruction() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         PartialOwnedConfig value;
         SerdeError error = readToml(tomlInput, allocator.allocator, &value);
@@ -2395,7 +2395,7 @@ private void testSerdeOwnedStringOptionFailures() nothrow @nogc
     {
         AllocationRecord[64] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         Option!OwnedString value;
         SerdeError error = readJson("\"payload\"", allocator.allocator, &value);
@@ -2419,7 +2419,7 @@ private void testSerdeOwnedStringOptionFailures() nothrow @nogc
     {
         AllocationRecord[32] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         Option!OwnedString value;
         SerdeError error = readJson(input, allocator.allocator, &value);
         assert(error.ok);
@@ -2440,7 +2440,7 @@ private void testSerdeOwnedStringOptionFailures() nothrow @nogc
     {
         AllocationRecord[64] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         TomlOwnedStringOptionDocument value;
         SerdeError error = readToml(
@@ -2482,7 +2482,7 @@ private void testSerdeOwnedMapFailureInjection() nothrow @nogc
     {
         AllocationRecord[512] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         OwnedStringHashMap!OwnedString value;
         SerdeError error = readJson(stringMapJson, allocator.allocator, &value);
@@ -2506,7 +2506,7 @@ private void testSerdeOwnedMapFailureInjection() nothrow @nogc
     {
         AllocationRecord[512] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         OwnedStringHashMap!OwnedString value;
         SerdeError error = readToml(stringMapToml, allocator.allocator, &value);
@@ -2529,7 +2529,7 @@ private void testSerdeOwnedMapFailureInjection() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         OwnedStringHashMap!OwnedString value;
         SerdeError error = json
             ? readJson(
@@ -2564,7 +2564,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
     {
         AllocationRecord[512] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         OwnedStringArrayHashMap value;
         SerdeError error = readJson(jsonInput, allocator.allocator, &value);
@@ -2598,7 +2598,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
     {
         AllocationRecord[512] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         OwnedStringArrayHashMap value;
         SerdeError error = readToml(tomlInput, allocator.allocator, &value);
@@ -2624,7 +2624,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         OwnedStringArrayHashMap value;
         SerdeError error = json
             ? readJson(
@@ -2645,7 +2645,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         OwnedStringArrayHashMap preserved = OwnedStringArrayHashMap.create(
             allocator.allocator);
         OwnedString key = OwnedString.fromString(allocator.allocator, "preserved");
@@ -2670,7 +2670,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
     {
         AllocationRecord[128] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         OwnedHashMapDocument document;
         SerdeError error = readToml(
             "values = { alpha = [1, 2], beta = [3] }\n",
@@ -2691,7 +2691,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
 
     AllocationRecord[128] records;
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
-        mallocAllocator(), records[]);
+        malloc_allocator(), records[]);
     OwnedStringArrayHashMap roundTrip;
     SerdeError error = readJson(
         "{\"alpha\":[1,2],\"beta\":[3]}",
@@ -2723,7 +2723,7 @@ private void testSerdeDeepOwnedFailureInjection() nothrow @nogc
     {
         AllocationRecord[512] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         DeepOwnedSerde value;
         SerdeError error = readJson(jsonInput, allocator.allocator, &value);
@@ -2749,7 +2749,7 @@ private void testSerdeDeepOwnedFailureInjection() nothrow @nogc
     {
         AllocationRecord[256] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         PartialOptionArray value;
         SerdeError error = readJson(
@@ -2779,7 +2779,7 @@ private void testSerdeDeepOwnedFailureInjection() nothrow @nogc
     {
         AllocationRecord[512] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(), records[]);
+            malloc_allocator(), records[]);
         allocator.failAfter(allowed);
         TomlDeepOwnedDocument value;
         SerdeError error = readToml(tomlInput, allocator.allocator, &value);

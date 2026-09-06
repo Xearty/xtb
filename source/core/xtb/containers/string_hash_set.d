@@ -630,7 +630,7 @@ private void requireValidStringHashSetAllocator(Allocator* allocator) @trusted
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.string : OwnedString, StringBuf;
 
     static assert(is(StringViewHashSet == HashSet!String));
@@ -644,7 +644,7 @@ unittest
     static assert(!__traits(compiles,
             (scope const StringHashSet* value) @safe { Allocator* allocator = value.allocator; }));
 
-    StringViewHashSet borrowed = StringViewHashSet.create(mallocAllocator());
+    StringViewHashSet borrowed = StringViewHashSet.create(malloc_allocator());
     {
         assert(borrowed.add("borrowed"));
         assert(borrowed.contains("borrowed"));
@@ -653,19 +653,19 @@ unittest
 
     StringHashSetUnmanaged unmanaged;
     StringHashSetUnmanaged* unmanagedPointer = &unmanaged;
-    assert(unmanagedPointer.add(mallocAllocator(), "unmanaged"));
+    assert(unmanagedPointer.add(malloc_allocator(), "unmanaged"));
     assert(unmanagedPointer.length == 1);
     assert(unmanagedPointer.contains("unmanaged"));
-    unmanagedPointer.deinit(mallocAllocator());
+    unmanagedPointer.deinit(malloc_allocator());
 
-    StringHashSet values = StringHashSet.create(mallocAllocator());
+    StringHashSet values = StringHashSet.create(malloc_allocator());
     StringHashSet* valuesPointer = &values;
     assert(valuesPointer.add("alpha"));
     assert(!values.add("alpha"));
     assert(values.contains("alpha"));
     assert(valuesPointer.contains("alpha"));
 
-    StringBuf buffer = StringBuf.fromString(mallocAllocator(), "beta");
+    StringBuf buffer = StringBuf.fromString(malloc_allocator(), "beta");
     const(char)* bufferPointer;
     {
         buffer.shrinkToFit();
@@ -678,7 +678,7 @@ unittest
         assert(buffer.allocator is null && buffer.empty);
     }
 
-    OwnedString owned = OwnedString.fromString(mallocAllocator(), "gamma");
+    OwnedString owned = OwnedString.fromString(malloc_allocator(), "gamma");
     const(char)* ownedPointer;
     {
         ownedPointer = owned.view.ptr;
@@ -707,7 +707,7 @@ unittest
     }
     assert(sawBuffer && sawOwned);
 
-    StringBuf duplicate = StringBuf.fromString(mallocAllocator(), "beta");
+    StringBuf duplicate = StringBuf.fromString(malloc_allocator(), "beta");
     assert(values.tryAddMove(&duplicate) == AddStatus.alreadyPresent);
     {
         assert(duplicate.view == "beta");
@@ -743,17 +743,17 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.string : OwnedString;
 
     AllocationRecord[16] setRecords;
     AllocationRecord[8] sourceRecords;
     InstrumentedAllocator setAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         setRecords[],
     );
     InstrumentedAllocator sourceAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         sourceRecords[],
     );
 

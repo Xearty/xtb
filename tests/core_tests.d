@@ -115,7 +115,7 @@ version (Posix) private extern (C) void* panicOnOtherThread(void*) nothrow @nogc
 
 version (Posix) private extern (C) void* captureMallocAllocator(void* context) nothrow @nogc
 {
-    *cast(Allocator**) context = mallocAllocator();
+    *cast(Allocator**) context = malloc_allocator();
     return null;
 }
 
@@ -167,7 +167,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "duration-division-by-zero"))
         seconds(1) / 0;
     if (cStringEqual(name, "string-bytes-null-output"))
-        StringBuf.tryFromBytesUnchecked(mallocAllocator(), null, null);
+        StringBuf.tryFromBytesUnchecked(malloc_allocator(), null, null);
     if (cStringEqual(name, "unmanaged-null-fallible-factory"))
     {
         ArrayUnmanaged!int output;
@@ -316,17 +316,17 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         "é".sliceBytes(1, 2);
     if (cStringEqual(name, "string-split-insert"))
     {
-        StringBuf text = StringBuf.fromString(mallocAllocator(), "é");
+        StringBuf text = StringBuf.fromString(malloc_allocator(), "é");
         text.insert(1, "x");
     }
     if (cStringEqual(name, "string-split-truncate"))
     {
-        StringBuf text = StringBuf.fromString(mallocAllocator(), "é");
+        StringBuf text = StringBuf.fromString(malloc_allocator(), "é");
         text.truncateBytes(1);
     }
     if (cStringEqual(name, "string-non-ascii-char"))
     {
-        StringBuf text = StringBuf.create(mallocAllocator());
+        StringBuf text = StringBuf.create(malloc_allocator());
         text.append(cast(char) 0xc3);
     }
     if (cStringEqual(name, "print-invalid-code-point"))
@@ -407,14 +407,14 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     }
     if (cStringEqual(name, "double-pop"))
     {
-        Arena arena = Arena.create(mallocAllocator(), 64);
+        Arena arena = Arena.create(malloc_allocator(), 64);
         TempArena temporary = (&arena).push();
         temporary.pop();
         temporary.pop();
     }
     if (cStringEqual(name, "non-lifo-pop"))
     {
-        Arena arena = Arena.create(mallocAllocator(), 64);
+        Arena arena = Arena.create(malloc_allocator(), 64);
         TempArena outer = (&arena).push();
         TempArena inner = (&arena).push();
         outer.pop();
@@ -537,7 +537,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     version (Posix)
         if (cStringEqual(name, "cross-thread-pop"))
         {
-            Arena arena = Arena.create(mallocAllocator(), 64);
+            Arena arena = Arena.create(malloc_allocator(), 64);
             TempArena temporary = (&arena).push();
             pthread_t thread;
             if (pthread_create(&thread, null, &popOnOtherThread, &temporary) != 0)
@@ -681,7 +681,7 @@ extern (C) int main(int argumentCount, char** arguments)
                 &workerAllocator,
         ) == 0);
         assert(pthread_join(allocatorThread, null) == 0);
-        assert(workerAllocator is mallocAllocator());
+        assert(workerAllocator is malloc_allocator());
 
         expectDeath(arguments[0], "panic");
         expectDeath(arguments[0], "ensure");

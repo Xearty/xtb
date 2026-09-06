@@ -1,7 +1,7 @@
 # Thread context and scratch arenas
 
 `ThreadContextScope` installs per-thread scratch storage. By default it creates
-**two arenas**, each backed by `mallocAllocator()`. `ScratchScope` selects one,
+**two arenas**, each backed by `malloc_allocator()`. `ScratchScope` selects one,
 pushes a checkpoint, and automatically rewinds to it when the scope ends.
 
 ```d
@@ -63,7 +63,7 @@ int[] level1(Allocator* output)
 void main()
 {
     ThreadContextScope context = ThreadContextScope.acquire();
-    Allocator* heap = mallocAllocator();
+    Allocator* heap = malloc_allocator();
 
     int[] result = level1(heap);
     scope(exit) heap.deallocate_array(result);

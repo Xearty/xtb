@@ -1,7 +1,7 @@
 module tests.lifetime_tests;
 
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.lifetime;
 import xtb.memory : Allocator, allocate_init, allocate_init_array,
     deallocate_array, dispose, dispose_array, try_allocate_array;
@@ -112,7 +112,7 @@ private void testStructuralAndTaggedCleanup() @system
 
     AllocationRecord[16] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Allocator* allocator = tracked.allocator();
@@ -169,7 +169,7 @@ private void testMoveReplacementCleanup() @system
 {
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Allocator* allocator = tracked.allocator();
@@ -199,7 +199,7 @@ private void testAllocatorDisposalCleanup() @system
 {
     AllocationRecord[16] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Allocator* allocator = tracked.allocator();
@@ -222,7 +222,7 @@ private void testAllocationFailureDoesNotLeak() @system
 {
     AllocationRecord[4] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Allocator* allocator = tracked.allocator();
@@ -247,7 +247,7 @@ private void testMovementStress() @system
 {
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Allocator* allocator = tracked.allocator();
@@ -290,7 +290,7 @@ private void testRepeatedCleanup() @system
 {
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Allocator* allocator = tracked.allocator();

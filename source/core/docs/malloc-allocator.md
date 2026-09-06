@@ -1,11 +1,11 @@
 # Malloc allocator
 
-`mallocAllocator()` returns XTB's process-wide libc-backed allocator. Use it
+`malloc_allocator()` returns XTB's process-wide libc-backed allocator. Use it
 when allocations should have independent lifetimes and be released
 individually.
 
 ```d
-Allocator* heap = mallocAllocator();
+Allocator* heap = malloc_allocator();
 
 OwnedString name = "xtb".copy(heap);
 scope(exit) name.deinit();

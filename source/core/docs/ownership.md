@@ -15,7 +15,7 @@ Register cleanup next to an owning value when it survives the current
 expression:
 
 ```d
-Allocator* heap = mallocAllocator();
+Allocator* heap = malloc_allocator();
 OwnedString name = "xtb".copy(heap);
 scope(exit) name.deinit();
 ```

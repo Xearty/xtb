@@ -552,18 +552,18 @@ unittest
         }
         else
         {
-            import xtb.allocators.malloc : mallocAllocator;
+            import xtb.allocators.malloc : malloc_allocator;
 
-            threadScope!emptyScopeBody(mallocAllocator());
+            threadScope!emptyScopeBody(malloc_allocator());
 
             BasicScopeContext context = BasicScopeContext(41, 0, 0);
-            threadScope!basicScopeBody(mallocAllocator(), &context);
+            threadScope!basicScopeBody(malloc_allocator(), &context);
             assert(context.value == 42);
             assert(context.left + context.right == 42);
 
             int inlineValue = 41;
             threadScope(
-                mallocAllocator(),
+                malloc_allocator(),
                 (scope ref ThreadScope scope_) nothrow @nogc {
                 scope_.spawn!incrementScopedValue(inlineValue).unwrap();
             },

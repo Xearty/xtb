@@ -110,11 +110,11 @@ private Allocator rejectingAllocator = &rejectingAllocation;
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     AllocationRecord[4] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     ValueNoise1D trackedNoise = ValueNoise1D.create(
@@ -127,10 +127,10 @@ unittest
     assert(tracked.clean());
     assert(tracked.stats.invalidCalls == 0);
 
-    ValueNoise1D a = ValueNoise1D.create(mallocAllocator(), 8, 1234);
+    ValueNoise1D a = ValueNoise1D.create(malloc_allocator(), 8, 1234);
     scope (exit)
         a.deinit();
-    ValueNoise1D b = ValueNoise1D.create(mallocAllocator(), 8, 1234);
+    ValueNoise1D b = ValueNoise1D.create(malloc_allocator(), 8, 1234);
     scope (exit)
         b.deinit();
     assert(a.period == 8);

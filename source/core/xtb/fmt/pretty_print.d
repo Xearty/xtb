@@ -3057,23 +3057,23 @@ unittest
     text.expectPretty("\"a\\n\\\"b\\\\c\\x01\"", plain);
     text.expectWidthEstimateCovers(plain);
 
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
-    StringBuf buffer = StringBuf.fromString(mallocAllocator(), "owned\ntext");
+    StringBuf buffer = StringBuf.fromString(malloc_allocator(), "owned\ntext");
     buffer.expectPretty("\"owned\\ntext\"", plain);
     buffer.expectWidthEstimateCovers(plain);
     buffer.deinit();
 
     StringBufUnmanaged unmanagedBuffer = StringBufUnmanaged.fromString(
-        mallocAllocator(),
+        malloc_allocator(),
         "owned\ntext",
     );
     unmanagedBuffer.expectPretty("\"owned\\ntext\"", plain);
     unmanagedBuffer.expectWidthEstimateCovers(plain);
-    unmanagedBuffer.deinit(mallocAllocator());
+    unmanagedBuffer.deinit(malloc_allocator());
 
     OwnedString ownedString = OwnedString.fromString(
-        mallocAllocator(),
+        malloc_allocator(),
         "owned\ntext",
     );
     ownedString.expectPretty("\"owned\\ntext\"", plain);
@@ -3081,10 +3081,10 @@ unittest
     ownedString.deinit();
 
     OwnedStringUnmanaged unmanagedOwnedString =
-        OwnedStringUnmanaged.fromString(mallocAllocator(), "owned\ntext");
+        OwnedStringUnmanaged.fromString(malloc_allocator(), "owned\ntext");
     unmanagedOwnedString.expectPretty("\"owned\\ntext\"", plain);
     unmanagedOwnedString.expectWidthEstimateCovers(plain);
-    unmanagedOwnedString.deinit(mallocAllocator());
+    unmanagedOwnedString.deinit(malloc_allocator());
 
     char quote = '\'';
     quote.expectPretty("'\\''", plain);
@@ -3391,11 +3391,11 @@ unittest
     {
         import xtb.allocators.instrumented : AllocationRecord,
             InstrumentedAllocator;
-        import xtb.allocators.malloc : mallocAllocator;
+        import xtb.allocators.malloc : malloc_allocator;
 
         AllocationRecord[4] records;
         InstrumentedAllocator allocator = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         {
@@ -3667,7 +3667,7 @@ unittest
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     PrettyPrintOptions noTypes = plainOptions();
     noTypes.showTypeNames = false;
@@ -3680,7 +3680,7 @@ unittest
     customSet.expectPretty("{3}", noTypes);
     customSet.expectWidthEstimateCovers(noTypes);
 
-    Array!int values = Array!int.create(mallocAllocator());
+    Array!int values = Array!int.create(malloc_allocator());
     values.expectPretty("[]", noTypes);
     values.append(1);
     values.append(2);
@@ -3691,14 +3691,14 @@ unittest
     values.expectPretty("[... (2 more)]", noneShown);
     values.deinit();
 
-    OwnedArray!int ownedValues = OwnedArray!int.create(mallocAllocator());
+    OwnedArray!int ownedValues = OwnedArray!int.create(malloc_allocator());
     ownedValues.append(3);
     ownedValues.append(4);
     ownedValues.expectPretty("[3, 4]", noTypes);
     ownedValues.expectWidthEstimateCovers(noTypes);
     ownedValues.deinit();
 
-    HashMap!(String, int) map = HashMap!(String, int).create(mallocAllocator());
+    HashMap!(String, int) map = HashMap!(String, int).create(malloc_allocator());
     map.expectPretty("{}", noTypes);
     assert(map.set("one", 1));
     map.expectPretty("{\"one\": 1}", noTypes);
@@ -3706,7 +3706,7 @@ unittest
     map.expectPretty("{... (1 more)}", noneShown);
     map.deinit();
 
-    HashSet!int hashSet = HashSet!int.create(mallocAllocator());
+    HashSet!int hashSet = HashSet!int.create(malloc_allocator());
     hashSet.expectPretty("{}", noTypes);
     assert(hashSet.add(7));
     hashSet.expectPretty("{7}", noTypes);
@@ -3715,7 +3715,7 @@ unittest
     hashSet.deinit();
 
     OwnedHashMap!(String, int) ownedMap =
-        OwnedHashMap!(String, int).create(mallocAllocator());
+        OwnedHashMap!(String, int).create(malloc_allocator());
     String ownedKey = "owned";
     int ownedValue = 9;
     assert(ownedMap.add(&ownedKey, &ownedValue));
@@ -3723,7 +3723,7 @@ unittest
     ownedMap.expectWidthEstimateCovers(noTypes);
     ownedMap.deinit();
 
-    OwnedHashSet!int ownedSet = OwnedHashSet!int.create(mallocAllocator());
+    OwnedHashSet!int ownedSet = OwnedHashSet!int.create(malloc_allocator());
     int ownedElement = 11;
     assert(ownedSet.add(&ownedElement));
     ownedSet.expectPretty("{11}", noTypes);
@@ -3731,50 +3731,50 @@ unittest
     ownedSet.deinit();
 
     ArrayUnmanaged!int unmanagedValues;
-    unmanagedValues.append(mallocAllocator(), 5);
-    unmanagedValues.append(mallocAllocator(), 6);
+    unmanagedValues.append(malloc_allocator(), 5);
+    unmanagedValues.append(malloc_allocator(), 6);
     unmanagedValues.expectPretty("[5, 6]", noTypes);
     unmanagedValues.expectWidthEstimateCovers(noTypes);
-    unmanagedValues.deinit(mallocAllocator());
+    unmanagedValues.deinit(malloc_allocator());
 
     HashMapUnmanaged!(String, int) unmanagedMap;
-    assert(unmanagedMap.set(mallocAllocator(), "unmanaged", 13));
+    assert(unmanagedMap.set(malloc_allocator(), "unmanaged", 13));
     unmanagedMap.expectPretty("{\"unmanaged\": 13}", noTypes);
     unmanagedMap.expectWidthEstimateCovers(noTypes);
-    unmanagedMap.deinit(mallocAllocator());
+    unmanagedMap.deinit(malloc_allocator());
 
     HashSetUnmanaged!int unmanagedSet;
-    assert(unmanagedSet.add(mallocAllocator(), 17));
+    assert(unmanagedSet.add(malloc_allocator(), 17));
     unmanagedSet.expectPretty("{17}", noTypes);
     unmanagedSet.expectWidthEstimateCovers(noTypes);
-    unmanagedSet.deinit(mallocAllocator());
+    unmanagedSet.deinit(malloc_allocator());
 
     StringHashMapUnmanaged!int unmanagedStringMap;
-    assert(unmanagedStringMap.set(mallocAllocator(), "string", 19));
+    assert(unmanagedStringMap.set(malloc_allocator(), "string", 19));
     unmanagedStringMap.expectPretty("{\"string\": 19}", noTypes);
     unmanagedStringMap.expectWidthEstimateCovers(noTypes);
-    unmanagedStringMap.deinit(mallocAllocator());
+    unmanagedStringMap.deinit(malloc_allocator());
 
-    StringHashMap!int stringMap = StringHashMap!int.create(mallocAllocator());
+    StringHashMap!int stringMap = StringHashMap!int.create(malloc_allocator());
     assert(stringMap.set("managed-string", 23));
     stringMap.expectPretty("{\"managed-string\": 23}", noTypes);
     stringMap.expectWidthEstimateCovers(noTypes);
     stringMap.deinit();
 
     OwnedStringHashMap!int ownedStringMap =
-        OwnedStringHashMap!int.create(mallocAllocator());
+        OwnedStringHashMap!int.create(malloc_allocator());
     assert(ownedStringMap.set("owned-string", 29));
     ownedStringMap.expectPretty("{\"owned-string\": 29}", noTypes);
     ownedStringMap.expectWidthEstimateCovers(noTypes);
     ownedStringMap.deinit();
 
     StringHashSetUnmanaged unmanagedStringSet;
-    assert(unmanagedStringSet.add(mallocAllocator(), "unmanaged-set"));
+    assert(unmanagedStringSet.add(malloc_allocator(), "unmanaged-set"));
     unmanagedStringSet.expectPretty("{\"unmanaged-set\"}", noTypes);
     unmanagedStringSet.expectWidthEstimateCovers(noTypes);
-    unmanagedStringSet.deinit(mallocAllocator());
+    unmanagedStringSet.deinit(malloc_allocator());
 
-    StringHashSet stringSet = StringHashSet.create(mallocAllocator());
+    StringHashSet stringSet = StringHashSet.create(malloc_allocator());
     assert(stringSet.add("managed-set"));
     stringSet.expectPretty("{\"managed-set\"}", noTypes);
     stringSet.expectWidthEstimateCovers(noTypes);

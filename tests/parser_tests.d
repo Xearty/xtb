@@ -3,7 +3,7 @@ module tests.parser_tests;
 nothrow @nogc:
 
 import xtb.allocators.arena : Arena;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.types : String;
 import xtb.parser;
 
@@ -32,7 +32,7 @@ private bool positive(int value) pure @safe
 
 private void testCoreCombinators()
 {
-    Grammar grammar = Grammar.create(mallocAllocator(), 512);
+    Grammar grammar = Grammar.create(malloc_allocator(), 512);
     scope (exit)
         grammar.deinit();
 
@@ -115,7 +115,7 @@ private void testCoreCombinators()
     assert(grammar.digit().repeat1().skip().parse("12345").ok);
     assert(grammar.digit().repeat1().skip().parse("").failed);
 
-    Arena output = Arena.create(mallocAllocator(), 256);
+    Arena output = Arena.create(malloc_allocator(), 256);
     ParseContext context = ParseContext.create(&output);
     auto collected = grammar.integer!int().sepBy(grammar.value(',')).collect();
     auto collectedResult = collected.parse("1,2,3,4", &context);
@@ -246,7 +246,7 @@ private int expressionUnary(
 
 private void testExpressionTable()
 {
-    Grammar grammar = Grammar.create(mallocAllocator(), 1024);
+    Grammar grammar = Grammar.create(malloc_allocator(), 1024);
     scope (exit)
         grammar.deinit();
     auto trivia = grammar.asciiWhitespace0().skip();
@@ -296,11 +296,11 @@ private void assertNumber(const ArithmeticExpression* node, double expected)
 
 private void testArithmeticParser()
 {
-    Grammar grammar = Grammar.create(mallocAllocator(), 1024);
+    Grammar grammar = Grammar.create(malloc_allocator(), 1024);
     scope (exit)
         grammar.deinit();
     Parser!(ArithmeticExpression*) parser = arithmeticExpression(&grammar);
-    Arena output = Arena.create(mallocAllocator(), 1024);
+    Arena output = Arena.create(malloc_allocator(), 1024);
     ParseContext context = ParseContext.create(&output);
 
     auto precedence = parser.parse("2 + 3 * 4", &context);
@@ -363,11 +363,11 @@ private void testArithmeticParser()
 
 private void testJsonParser()
 {
-    Grammar grammar = Grammar.create(mallocAllocator(), 2048);
+    Grammar grammar = Grammar.create(malloc_allocator(), 2048);
     scope (exit)
         grammar.deinit();
     Parser!JsonValue parser = jsonDocument(&grammar);
-    Arena output = Arena.create(mallocAllocator(), 2048);
+    Arena output = Arena.create(malloc_allocator(), 2048);
     ParseContext context = ParseContext.create(&output);
 
     auto nullResult = parser.parse("null", &context);

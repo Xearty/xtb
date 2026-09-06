@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 import xtb.allocators.arena : Arena;
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.containers.array : OwnedArray;
 import xtb.containers.hash_map : AddStatus, OwnedHashMap, SetStatus;
 import xtb.containers.hash_set : OwnedHashSet;
@@ -437,7 +437,7 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
 
     AllocationRecord[32] otherRecords;
     InstrumentedAllocator other = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         otherRecords[],
     );
 
@@ -814,7 +814,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
 
     AllocationRecord[16] foreignRecords;
     InstrumentedAllocator foreign = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         foreignRecords[],
     );
     {
@@ -853,7 +853,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
 
     AllocationRecord[8] failingRecords;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         failingRecords[],
     );
     {
@@ -1199,7 +1199,7 @@ extern (C) int main()
 {
     AllocationRecord[256] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 

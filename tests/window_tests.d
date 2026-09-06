@@ -13,7 +13,7 @@ import tests.support.fake_glfw : FakeGLFWOperation, fail_next_operation,
     queue_refresh, queue_scroll, queue_text, queue_window_position, queue_window_size,
     seed_backend_error, set_backend_version, set_default_content_scale, swap_count,
     swap_interval;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.memory : Allocator;
 import xtb.thread_context : ThreadContextScope;
 import xtb.window;
@@ -304,7 +304,7 @@ extern (C) int main() @system
         NativeDisplayHandle.init.platform != NativeWindowPlatform.none)
         return 132;
 
-    Allocator* allocator = mallocAllocator();
+    Allocator* allocator = malloc_allocator();
 
     WindowSystemConfig system_config;
     system_config.platform = WindowPlatform.headless;

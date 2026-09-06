@@ -68,7 +68,7 @@ Repeated `Array!T` fields and allocator-aware custom value parsers require the
 allocator overload of `parseArgs`:
 
 ```d
-auto result = parseArgs!Args(argc, argv, mallocAllocator());
+auto result = parseArgs!Args(argc, argv, malloc_allocator());
 scope(exit) result.deinit();
 ```
 

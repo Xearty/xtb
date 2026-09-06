@@ -2,120 +2,123 @@ module xtb.allocators.malloc;
 
 nothrow @nogc:
 
-import core.stdc.stdlib : free, malloc, realloc;
-import core.stdc.string : memcpy;
-import xtb.memory : Allocator;
+import core.stdc.stdlib;
+import core.stdc.string;
 
-private __gshared Allocator mallocAllocatorSlot = &mallocAllocatorProcedure;
+import xtb.memory;
+import xtb.types;
+
+private __gshared Allocator malloc_allocator_slot = &malloc_allocator_procedure;
 
 /// Returns XTB's process-wide libc-backed allocator.
-Allocator* mallocAllocator() @trusted
+Allocator* malloc_allocator() @trusted
 {
-    return &mallocAllocatorSlot;
+    return &malloc_allocator_slot;
 }
 
-private bool isPowerOfTwo(size_t value) pure @safe
+private bool is_power_of_two(usize value) pure @safe
 {
     return value != 0 && (value & (value - 1)) == 0;
 }
 
-private size_t normalizedAlignment(size_t alignment) pure @safe
+private usize normalized_alignment(usize alignment) pure @safe
 {
     const minimum = (void*).alignof;
     return alignment < minimum ? minimum : alignment;
 }
 
-private bool addOverflows(size_t left, size_t right) pure @safe
+private bool add_overflows(usize left, usize right) pure @safe
 {
-    return left > size_t.max - right;
+    return left > usize.max - right;
 }
 
-private void* allocateAligned(size_t size, size_t alignment) @system
+private void* allocate_aligned(usize size, usize alignment) @system
 {
     // Allocate enough room to align the returned address and retain the base
     // allocation immediately before it. This uses only ISO C malloc/free, so
     // importing the malloc allocator remains portable across XTB targets.
-    const headerSize = (void*).sizeof;
+    const header_size = (void*).sizeof;
     const extra = alignment - 1;
-    if (addOverflows(size, extra) || addOverflows(size + extra, headerSize))
+    if (add_overflows(size, extra) || add_overflows(size + extra, header_size))
         return null;
 
-    void* base = malloc(size + extra + headerSize);
-    if (base is null)
-        return null;
+    void* base = malloc(size + extra + header_size);
+    if (base is null) return null;
 
-    const raw = cast(size_t) base + headerSize;
+    const raw = cast(usize) base + header_size;
     const aligned = (raw + extra) & ~extra;
     void* result = cast(void*) aligned;
     (cast(void**) result)[-1] = base;
     return result;
 }
 
-private void freeAligned(void* pointer) @system
+private void free_aligned(void* pointer) @system
 {
-    if (pointer !is null)
-        free((cast(void**) pointer)[-1]);
+    if (pointer !is null) free((cast(void**) pointer)[-1]);
 }
 
-private extern (C) void* mallocAllocatorProcedure(
+private extern (C) void* malloc_allocator_procedure(
     void*,
-    size_t newSize,
-    void* oldPointer,
-    size_t oldSize,
-    size_t alignment,
+    usize new_size,
+    void* old_pointer,
+    usize old_size,
+    usize alignment,
 ) @system
 {
-    alignment = normalizedAlignment(alignment);
-    if (!isPowerOfTwo(alignment))
-        return null;
+    alignment = normalized_alignment(alignment);
+    if (!is_power_of_two(alignment)) return null;
 
-    if (newSize == 0)
+    if (new_size == 0)
     {
         if (alignment <= (void*).alignof)
-            free(oldPointer);
+        {
+            free(old_pointer);
+        }
         else
-            freeAligned(oldPointer);
+        {
+            free_aligned(old_pointer);
+        }
+
         return null;
     }
 
     if (alignment <= (void*).alignof)
-        return realloc(oldPointer, newSize);
+        return realloc(old_pointer, new_size);
 
-    void* replacement = allocateAligned(newSize, alignment);
-    if (replacement is null)
-        return null;
+    void* replacement = allocate_aligned(new_size, alignment);
+    if (replacement is null) return null;
 
-    if (oldPointer !is null)
+    if (old_pointer !is null)
     {
-        const copySize = oldSize < newSize ? oldSize : newSize;
-        if (copySize != 0)
-            memcpy(replacement, oldPointer, copySize);
-        freeAligned(oldPointer);
+        const copy_size = old_size < new_size ? old_size : new_size;
+        if (copy_size != 0) memcpy(replacement, old_pointer, copy_size);
+
+        free_aligned(old_pointer);
     }
+
     return replacement;
 }
 
 unittest
 {
-    import xtb.memory : allocate, deallocate, reallocate;
-
-    Allocator* allocator = mallocAllocator();
+    Allocator* allocator = malloc_allocator();
     assert(allocator !is null && *allocator !is null);
 
     void* ordinary = allocator.allocate(32, (void*).alignof);
     assert(ordinary !is null);
     allocator.deallocate(ordinary, 32, (void*).alignof);
 
-    enum size_t alignment = 64;
-    ubyte* aligned = cast(ubyte*) allocator.allocate(17, alignment);
+    enum usize alignment = 64;
+    u8* aligned = cast(u8*) allocator.allocate(17, alignment);
     assert(aligned !is null);
-    assert((cast(size_t) aligned & (alignment - 1)) == 0);
+    assert((cast(usize) aligned & (alignment - 1)) == 0);
     foreach (index; 0 .. 17)
-        aligned[index] = cast(ubyte)(index + 1);
+        aligned[index] = cast(u8)(index + 1);
 
-    aligned = cast(ubyte*) allocator.reallocate(97, aligned, 17, alignment);
-    assert((cast(size_t) aligned & (alignment - 1)) == 0);
+    aligned = cast(u8*) allocator.reallocate(97, aligned, 17, alignment);
+    assert((cast(usize) aligned & (alignment - 1)) == 0);
     foreach (index; 0 .. 17)
-        assert(aligned[index] == cast(ubyte)(index + 1));
+        assert(aligned[index] == cast(u8)(index + 1));
+
     allocator.deallocate(aligned, 97, alignment);
 }

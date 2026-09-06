@@ -1126,7 +1126,7 @@ void pop(ref TempArena temporary)
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.lifetime : move, move_assign;
 
     static assert(!__traits(hasMember, VirtualArenaStorage, "offset"));
@@ -1150,7 +1150,7 @@ unittest
         static assert(!__traits(hasMember, TempArena, "threadToken_"));
     }
 
-    Arena arena = Arena.create(mallocAllocator(), 64);
+    Arena arena = Arena.create(malloc_allocator(), 64);
     assert(arena.storage_.kind == ArenaStorageKind.chunked);
     assert(*arena.allocator == &chunkedArenaAllocatorProcedure);
     int* persistent = arena.allocate!int();
@@ -1227,7 +1227,7 @@ unittest
     assert(reallocatedBytes[0] == 0x12);
     assert(reallocatedBytes[3] == 0x34);
 
-    Arena reallocArena = Arena.create(mallocAllocator(), 64);
+    Arena reallocArena = Arena.create(malloc_allocator(), 64);
     Allocator* reallocAllocator = reallocArena.allocator;
     const chunkedUsedBefore = reallocArena.stats.usedBytes;
     ubyte* chunkedTail = cast(ubyte*) reallocAllocator.allocate(8, 1);
@@ -1463,7 +1463,7 @@ unittest
         movingVirtual.deinit();
         movedVirtual.deinit();
 
-        Arena replacementTarget = Arena.create(mallocAllocator(), 64);
+        Arena replacementTarget = Arena.create(malloc_allocator(), 64);
         assert(*replacementTarget.allocator == &chunkedArenaAllocatorProcedure);
         replacementTarget.allocate(8, 8);
         Arena replacementSource = Arena.createVirtual(pageSize * 2, pageSize);
@@ -1508,7 +1508,7 @@ unittest
     import xtb.memory : dispose, dispose_array;
 
     int destructorCalls;
-    Arena destructorArena = Arena.create(mallocAllocator(), 64);
+    Arena destructorArena = Arena.create(malloc_allocator(), 64);
 
     ArenaConstructed* initializedDestructor =
         destructorArena.allocateInit!ArenaConstructed();
@@ -1598,7 +1598,7 @@ unittest
         }
     }
 
-    Arena abandonment = Arena.create(mallocAllocator(), 64);
+    Arena abandonment = Arena.create(malloc_allocator(), 64);
     ExplicitOwner* abandoned = abandonment.create!ExplicitOwner();
     abandoned.deinits = &explicitDeinits;
     ArenaConstructed* abandonedDestructor =
@@ -1617,7 +1617,7 @@ unittest
 
     AllocationRecord[4] records;
     InstrumentedAllocator failing = InstrumentedAllocator.create(
-        mallocAllocator(), records[],
+        malloc_allocator(), records[],
     );
     failing.failAfter(0);
     Arena fallible = Arena.create(failing.allocator, 64);

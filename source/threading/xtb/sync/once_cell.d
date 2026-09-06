@@ -13,7 +13,7 @@ import xtb.sync.once : Once, callOnce;
 version (unittest)
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.memory : Allocator;
     import xtb.string : OwnedString;
     import xtb.sync.atomic : Atomic, MemoryOrder;
@@ -380,7 +380,7 @@ version (unittest)
     {
         AllocationRecord[8] records;
         InstrumentedAllocator tracked = InstrumentedAllocator.create(
-            mallocAllocator(),
+            malloc_allocator(),
             records[],
         );
         OnceCell!OwnedString cell;

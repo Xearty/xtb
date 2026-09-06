@@ -1860,9 +1860,9 @@ version (unittest)
 unittest
 {
     import xtb.allocators.arena : Arena;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
-    Grammar grammar = Grammar.create(mallocAllocator(), 256);
+    Grammar grammar = Grammar.create(malloc_allocator(), 256);
     scope (exit)
         grammar.deinit();
 
@@ -1950,7 +1950,7 @@ unittest
     assert(digits.parse("12345").ok);
     assert(digits.parse("").failed);
 
-    Arena output = Arena.create(mallocAllocator(), 128);
+    Arena output = Arena.create(malloc_allocator(), 128);
     ParseContext context = ParseContext.create(&output);
     auto collected = grammar.integer!int().sepBy(grammar.value(',')).collect();
     auto collectedResult = collected.parse("1,2,3,4", &context);

@@ -2,7 +2,7 @@ module tests.window_glfw_smoke_tests;
 
 nothrow @nogc:
 
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.memory : Allocator;
 import xtb.thread_context : ThreadContextScope;
 import xtb.window;
@@ -10,7 +10,7 @@ import xtb.window;
 extern (C) int main() @system
 {
     ThreadContextScope thread_context = ThreadContextScope.acquire();
-    Allocator* allocator = mallocAllocator();
+    Allocator* allocator = malloc_allocator();
 
     WindowSystemConfig system_config;
     system_config.platform = WindowPlatform.headless;

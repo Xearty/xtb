@@ -124,18 +124,18 @@ void appendComponent(ref StringBuf output, Path component)
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     Path path = Path.fromString("var");
     assert(path.view == "var" && !path.absolute);
     assert(Path.fromString("/tmp/file.txt/").fileName.view == "file.txt");
     assert(Path.fromString("/tmp/file.txt/").parent.view == "/tmp");
-    StringBuf joined = StringBuf.fromString(mallocAllocator(), "/tmp/");
+    StringBuf joined = StringBuf.fromString(malloc_allocator(), "/tmp/");
     joined.appendComponent(Path.fromString("/xtb/"));
     joined.appendComponent(Path.fromString("file"));
     assert(joined.view == "/tmp/xtb/file");
 
-    StringBuf selfJoined = StringBuf.fromString(mallocAllocator(), "root/abc");
+    StringBuf selfJoined = StringBuf.fromString(malloc_allocator(), "root/abc");
     selfJoined.appendComponent(Path.fromString(selfJoined.view[5 .. $]));
     assert(selfJoined.view == "root/abc/abc");
 

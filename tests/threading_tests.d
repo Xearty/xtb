@@ -8,7 +8,7 @@ import xtb.lifetime : has_d_destructor,
     lifetimeMove = move,
     needs_deinit;
 import xtb.memory : Allocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.panic : panic;
 import xtb.result : Result, ResultReturns;
 import xtb.sync;
@@ -761,7 +761,7 @@ version (linux) private void nestedTypedWorkerCompileCheck() nothrow @nogc @syst
 
     static assert(!__traits(compiles, Thread.start!nested(1)));
     static assert(!__traits(compiles,
-            Thread.startAlloc!nested(mallocAllocator(), 1)));
+            Thread.startAlloc!nested(malloc_allocator(), 1)));
 }
 
 version (linux) static assert(!__traits(compiles, Thread.start!refTypedWorker(1)));
@@ -783,70 +783,70 @@ version (linux) static assert(!__traits(compiles,
         Thread.start!constExplicitLifetimeWorker(ExplicitLifetimeCapture.init)));
 
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!refTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!refTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!outTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!outTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!lazyTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!lazyTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!inTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!inTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!sharedTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!sharedTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!wrongReturnTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!wrongReturnTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!refReturnTypedWorker(mallocAllocator())));
+        Thread.startAlloc!refReturnTypedWorker(malloc_allocator())));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!missingNothrowTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!missingNothrowTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!missingNogcTypedWorker(mallocAllocator(), 1)));
+        Thread.startAlloc!missingNogcTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!(MemberTypedWorker.run)(mallocAllocator(), 1)));
+        Thread.startAlloc!(MemberTypedWorker.run)(malloc_allocator(), 1)));
 version (linux) static assert(__traits(compiles,
-        Thread.startAlloc!(StaticMemberTypedWorker.run)(mallocAllocator(), 1)));
+        Thread.startAlloc!(StaticMemberTypedWorker.run)(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!constValueWorker(mallocAllocator())));
+        Thread.startAlloc!constValueWorker(malloc_allocator())));
 version (linux) static assert(!__traits(compiles,
-        Thread.startAlloc!constValueWorker(mallocAllocator(), 1, 2)));
+        Thread.startAlloc!constValueWorker(malloc_allocator(), 1, 2)));
 version (linux) static assert(!__traits(compiles,
         Thread.startAlloc!constExplicitLifetimeWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         ExplicitLifetimeCapture.init,
     )));
 
 version (linux) static assert(!__traits(compiles,
-        spawn!refTypedWorker(mallocAllocator(), 1)));
+        spawn!refTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!outTypedWorker(mallocAllocator(), 1)));
+        spawn!outTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!lazyTypedWorker(mallocAllocator(), 1)));
+        spawn!lazyTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!inTypedWorker(mallocAllocator(), 1)));
+        spawn!inTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!sharedTypedWorker(mallocAllocator(), 1)));
+        spawn!sharedTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!refReturnTypedWorker(mallocAllocator())));
+        spawn!refReturnTypedWorker(malloc_allocator())));
 version (linux) static assert(!__traits(compiles,
-        spawn!missingNothrowTypedWorker(mallocAllocator(), 1)));
+        spawn!missingNothrowTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!missingNogcTypedWorker(mallocAllocator(), 1)));
+        spawn!missingNogcTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!(MemberTypedWorker.run)(mallocAllocator(), 1)));
+        spawn!(MemberTypedWorker.run)(malloc_allocator(), 1)));
 version (linux) static assert(__traits(compiles,
-        spawn!(StaticMemberTypedWorker.run)(mallocAllocator(), 1)));
+        spawn!(StaticMemberTypedWorker.run)(malloc_allocator(), 1)));
 version (linux) static assert(__traits(compiles,
-        spawn!wrongReturnTypedWorker(mallocAllocator(), 1)));
+        spawn!wrongReturnTypedWorker(malloc_allocator(), 1)));
 version (linux) static assert(!__traits(compiles,
-        spawn!constValueWorker(mallocAllocator())));
+        spawn!constValueWorker(malloc_allocator())));
 version (linux) static assert(!__traits(compiles,
-        spawn!constValueWorker(mallocAllocator(), 1, 2)));
+        spawn!constValueWorker(malloc_allocator(), 1, 2)));
 version (linux) static assert(!__traits(compiles,
         spawn!constExplicitLifetimeWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         ExplicitLifetimeCapture.init,
     )));
 version (linux) static assert(!__traits(compiles,
-        spawn!makeConstExplicitLifetimeResult(mallocAllocator())));
+        spawn!makeConstExplicitLifetimeResult(malloc_allocator())));
 version (linux) static assert(!__traits(hasMember, JoinHandle!int, "detach"));
 
 version (linux) private struct StaticScopedWorker
@@ -938,11 +938,11 @@ version (linux) private void threadScopeCompileChecks() nothrow @nogc @system
     static assert(!__traits(hasMember, ThreadScope, "detach"));
 
     static assert(__traits(compiles,
-            threadScope!validThreadScopeCompileBody(mallocAllocator(), &value)));
+            threadScope!validThreadScopeCompileBody(malloc_allocator(), &value)));
     static assert(!__traits(compiles,
-            threadScope!missingScopeBody(mallocAllocator(), &value)));
+            threadScope!missingScopeBody(malloc_allocator(), &value)));
     static assert(!__traits(compiles,
-            threadScope!returningThreadScopeBody(mallocAllocator(), &value)));
+            threadScope!returningThreadScopeBody(malloc_allocator(), &value)));
     static assert(!__traits(compiles, () { ThreadScope source; ThreadScope copy = source; }));
     static assert(!__traits(compiles,
             (scope ref ThreadScope borrowed) nothrow @nogc @safe { escapedThreadScope = &borrowed; }));
@@ -1185,7 +1185,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
 
     Atomic!uint entered;
     auto voidStarted = Thread.startAlloc!allocatedVoidWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         &entered,
     );
     if (!voidStarted.is_ok)
@@ -1195,7 +1195,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
         return false;
 
     auto constStarted = Thread.startAlloc!constValueWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         73,
     );
     if (!constStarted.is_ok)
@@ -1206,7 +1206,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
 
     int[4] values = [3, 5, 7, 11];
     auto sliceStarted = Thread.startAlloc!sliceValueWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         values[],
     );
     if (!sliceStarted.is_ok)
@@ -1216,7 +1216,7 @@ version (linux) private bool allocatedTypedStartWorks() nothrow @nogc
         return false;
 
     auto alignedStarted = Thread.startAlloc!overAlignedWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         OverAlignedCapture(84),
     );
     if (!alignedStarted.is_ok)
@@ -1233,7 +1233,7 @@ version (linux) private bool allocatedTypedMoveLifetimeWorks() nothrow @nogc
     capture.value = 91;
 
     auto started = Thread.startAlloc!moveOnlyWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         move(capture),
     );
     if (!started.is_ok)
@@ -1323,7 +1323,7 @@ version (linux) private bool allocatedTypedConversionRunsOnParent() nothrow @nog
     const parent = currentThreadId();
 
     auto started = Thread.startAlloc!convertedCaptureWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         source,
         &workerThread,
     );
@@ -1413,7 +1413,7 @@ version (linux) private bool allocatedDetachCompletes() nothrow @nogc
 {
     DetachedContext rawContext;
     auto rawStarted = Thread.startRawAlloc(
-        mallocAllocator(),
+        malloc_allocator(),
         &detachedWorker,
         &rawContext,
     );
@@ -1433,7 +1433,7 @@ version (linux) private bool allocatedDetachCompletes() nothrow @nogc
 
     Atomic!uint typedDone;
     auto typedStarted = Thread.startAlloc!allocatedVoidWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         &typedDone,
     );
     if (!typedStarted.is_ok)
@@ -1456,7 +1456,7 @@ version (linux) private bool allocatedTypedStackOptionsWork() nothrow @nogc
     StackSizeContext context;
     auto started = Thread.startAllocWith!stackSizeWorker(
         ThreadStartOptions(requested),
-        mallocAllocator(),
+        malloc_allocator(),
         &context,
     );
     if (!started.is_ok)
@@ -1539,7 +1539,7 @@ version (linux) private int joinSpawnHandle(
 
 version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
 {
-    auto scalarStarted = spawn!oneCaptureSpawnWorker(mallocAllocator(), 41);
+    auto scalarStarted = spawn!oneCaptureSpawnWorker(malloc_allocator(), 41);
     if (!scalarStarted.is_ok)
         return false;
     JoinHandle!int handleSource = scalarStarted.unwrap();
@@ -1552,9 +1552,9 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
         assigned.joinable())
         return false;
 
-    auto firstLayout = spawn!oneCaptureSpawnWorker(mallocAllocator(), 8);
+    auto firstLayout = spawn!oneCaptureSpawnWorker(malloc_allocator(), 8);
     auto secondLayout = spawn!twoCaptureSpawnWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         20L,
         cast(short) 13,
     );
@@ -1565,7 +1565,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
     if (first.join() != 9 || second.join() != 33)
         return false;
 
-    auto nestedStarted = spawn!nestedSpawnResult(mallocAllocator(), -1);
+    auto nestedStarted = spawn!nestedSpawnResult(malloc_allocator(), -1);
     if (!nestedStarted.is_ok)
         return false;
     JoinHandle!(Result!(int, ubyte)) nestedHandle = nestedStarted.unwrap();
@@ -1574,7 +1574,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
         return false;
 
     auto alignedStarted = spawn!makeAlignedSpawnResult(
-        mallocAllocator(),
+        malloc_allocator(),
         OverAlignedCapture(71),
     );
     if (!alignedStarted.is_ok)
@@ -1588,7 +1588,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
     capture.destructions = &captureDestructions;
     capture.value = 64;
     auto captureStarted = spawn!consumeSpawnCapture(
-        mallocAllocator(),
+        malloc_allocator(),
         move(capture),
     );
     if (!captureStarted.is_ok)
@@ -1602,7 +1602,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
     ConversionSource source = ConversionSource(&convertedOn, 55);
     const parent = currentThreadId();
     auto convertedStarted = spawn!convertedCaptureWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         source,
         &workerThread,
     );
@@ -1616,7 +1616,7 @@ version (linux) private bool spawnResultsAndOwnershipWork() nothrow @nogc
     Atomic!uint resultDestructions;
     {
         auto resultStarted = spawn!makeSpawnMoveOnlyResult(
-            mallocAllocator(),
+            malloc_allocator(),
             &resultDestructions,
             91,
         );
@@ -1720,7 +1720,7 @@ version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
         true,
     );
     auto started = spawn!explicitLifetimeWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         lifetimeMove(capture),
     );
     if (!started.is_ok)
@@ -1731,7 +1731,7 @@ version (linux) private bool explicitSpawnOwnerLifecycleWorks() nothrow @nogc
 
     Atomic!uint resultDeinits;
     auto resultStarted = spawn!makeExplicitLifetimeResult(
-        mallocAllocator(),
+        malloc_allocator(),
         &resultDeinits,
         64,
     );
@@ -1789,7 +1789,7 @@ version (linux) private bool spawnOptionsWork() nothrow @nogc
     StackSizeContext context;
     auto started = spawnWith!stackSizeWorker(
         ThreadStartOptions(requested),
-        mallocAllocator(),
+        malloc_allocator(),
         &context,
     );
     if (!started.is_ok)
@@ -1839,7 +1839,7 @@ nothrow @nogc
 {
     SpawnHandoffContext* context = cast(SpawnHandoffContext*) opaque;
     auto started = spawn!blockedSpawnWorker(
-        mallocAllocator(),
+        malloc_allocator(),
         &context.workerEntered,
         &context.releaseWorker,
     );
@@ -1893,7 +1893,7 @@ version (linux) private bool spawnShortStress() nothrow @nogc
         foreach (index, ref handle; handles)
         {
             auto started = spawn!twoCaptureSpawnWorker(
-                mallocAllocator(),
+                malloc_allocator(),
                 cast(long) batch,
                 cast(short) index,
             );
@@ -2008,7 +2008,7 @@ version (linux) private bool threadScopeBorrowingAndManyChildren()
 nothrow @nogc
 {
     ThreadScopeManyContext many;
-    threadScope!manyThreadScopeBody(mallocAllocator(), &many);
+    threadScope!manyThreadScopeBody(malloc_allocator(), &many);
     if (many.failed)
         return false;
     foreach (index, value; many.values)
@@ -2022,7 +2022,7 @@ nothrow @nogc
     borrowed.destructions = &destructions;
     borrowed.capture.destructions = &destructions;
     borrowed.capture.value = 91;
-    threadScope!borrowedThreadScopeBody(mallocAllocator(), &borrowed);
+    threadScope!borrowedThreadScopeBody(malloc_allocator(), &borrowed);
     return borrowed.value == 42 && borrowed.observedConstant == 73 &&
         borrowed.observedMove == 91 && destructions.load() == 1;
 }
@@ -2236,7 +2236,7 @@ nothrow @nogc
         0,
         false,
     );
-    threadScope!explicitThreadScopeSuccessBody(mallocAllocator(), &success);
+    threadScope!explicitThreadScopeSuccessBody(malloc_allocator(), &success);
     if (success.observed != 71 || successDeinits.load() != 1)
         return false;
 
@@ -2298,7 +2298,7 @@ version (linux) private bool threadScopeOptionsWork() nothrow @nogc
 {
     enum requested = 256 * 1024 + 123;
     ThreadScopeOptionsContext context;
-    threadScope!optionsThreadScopeBody(mallocAllocator(), &context);
+    threadScope!optionsThreadScopeBody(malloc_allocator(), &context);
     return context.stack.observed >= requested;
 }
 
@@ -3565,7 +3565,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             _exit(80);
             return;
         case DeathCase.nullRawAllocFunction:
-            cast(void) Thread.startRawAlloc(mallocAllocator(), null);
+            cast(void) Thread.startRawAlloc(malloc_allocator(), null);
             _exit(84);
             return;
         case DeathCase.nullRawAllocAllocator:
@@ -3636,22 +3636,22 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             cast(void) handle.join();
             return;
         case DeathCase.spawnJoinTwice:
-            auto started = spawn!oneCaptureSpawnWorker(mallocAllocator(), 1);
+            auto started = spawn!oneCaptureSpawnWorker(malloc_allocator(), 1);
             JoinHandle!int handle = started.unwrap();
             cast(void) handle.join();
             cast(void) handle.join();
             return;
         case DeathCase.spawnDestroyJoinable:
-            auto started = spawn!oneCaptureSpawnWorker(mallocAllocator(), 1);
+            auto started = spawn!oneCaptureSpawnWorker(malloc_allocator(), 1);
             JoinHandle!int handle = started.unwrap();
             return;
         case DeathCase.spawnMoveAssignOverJoinable:
             auto firstStarted = spawn!oneCaptureSpawnWorker(
-                mallocAllocator(),
+                malloc_allocator(),
                 1,
             );
             auto secondStarted = spawn!oneCaptureSpawnWorker(
-                mallocAllocator(),
+                malloc_allocator(),
                 2,
             );
             JoinHandle!int first = firstStarted.unwrap();
@@ -3661,7 +3661,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
         case DeathCase.spawnSelfJoin:
             SpawnSelfJoinContext context;
             auto started = spawn!spawnSelfJoinWorker(
-                mallocAllocator(),
+                malloc_allocator(),
                 &context,
             );
             JoinHandle!int handle = started.unwrap();
@@ -3673,7 +3673,7 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             _exit(103);
             return;
         case DeathCase.spawnWorkerPanic:
-            auto started = spawn!panicRawWorker(mallocAllocator(), null);
+            auto started = spawn!panicRawWorker(malloc_allocator(), null);
             JoinHandle!int handle = started.unwrap();
             cast(void) handle.join();
             return;
@@ -3685,11 +3685,11 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             return;
         case DeathCase.threadScopeNullBody:
             ThreadScopeBody body;
-            threadScope(mallocAllocator(), body);
+            threadScope(malloc_allocator(), body);
             return;
         case DeathCase.threadScopeNullContext:
             threadScope!validThreadScopeCompileBody(
-                mallocAllocator(),
+                malloc_allocator(),
                 cast(int*) null,
             );
             return;
@@ -3699,11 +3699,11 @@ version (Posix) private void runDeathCase(DeathCase deathCase) nothrow @nogc
             return;
         case DeathCase.threadScopeWrongThread:
             WrongThreadScopeContext context;
-            threadScope!wrongThreadScopeBody(mallocAllocator(), &context);
+            threadScope!wrongThreadScopeBody(malloc_allocator(), &context);
             return;
         case DeathCase.threadScopeWorkerPanic:
             threadScope(
-                mallocAllocator(),
+                malloc_allocator(),
                 (scope ref ThreadScope scope_) nothrow @nogc {
                 scope_.spawn!scopedPanicWorker().unwrap();
             },

@@ -1,6 +1,6 @@
 module tests.pretty_print_tests;
 
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.memory : Allocator;
 import xtb.string : OwnedString, OwnedStringUnmanaged;
 import xtb.fmt.pretty_print;
@@ -93,7 +93,7 @@ private void testFormatRepresentation()
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "42");
 
-    auto allocator = mallocAllocator();
+    auto allocator = malloc_allocator();
 
     OwnedStringUnmanaged unmanagedOwned =
         OwnedStringUnmanaged.fromString(allocator, "owned-unmanaged");

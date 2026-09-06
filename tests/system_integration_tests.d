@@ -18,7 +18,7 @@ import xtb.allocators.arena : Arena, TempArena, pop, push;
 import xtb.lifetime : deinit, move, move_assign, needs_deinit;
 import xtb.option : Option;
 import xtb.result : Result;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.string;
 import xtb.thread_context : ThreadContextScope, scratchArena;
 import xtb.thread : Thread;
@@ -168,7 +168,7 @@ version (linux) private void runProcessIntegration(
         assert(spawn(command, pipedOutput, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
@@ -195,13 +195,13 @@ version (linux) private void runProcessIntegration(
         assert(spawn(command, pipedOutput, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
 
         StringBuf expected = StringBuf.fromString(
-            mallocAllocator(),
+            malloc_allocator(),
             "ONLY=value\0EMPTY=\0REMOVED\0PATH=",
         );
         expected.append(helperDirectory);
@@ -223,7 +223,7 @@ version (linux) private void runProcessIntegration(
         assert(spawn(command, pipedOutput, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
@@ -246,7 +246,7 @@ version (linux) private void runProcessIntegration(
         assert(close(child.stdinPipe).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
@@ -263,7 +263,7 @@ version (linux) private void runProcessIntegration(
                 arguments[]), options, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
@@ -280,10 +280,10 @@ version (linux) private void runProcessIntegration(
                 arguments[]), options, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
-        Array!u8 errorOutput = Array!u8.create(mallocAllocator());
+        Array!u8 errorOutput = Array!u8.create(malloc_allocator());
         scope (exit)
             errorOutput.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
@@ -309,7 +309,7 @@ version (linux) private void runProcessIntegration(
         assert(close(&external.writer).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
         readPipeEntirely(&external.reader, &output);
@@ -330,7 +330,7 @@ version (linux) private void runProcessIntegration(
     }
 
     {
-        StringBuf signalText = StringBuf.fromString(mallocAllocator(), "15");
+        StringBuf signalText = StringBuf.fromString(malloc_allocator(), "15");
         String[2] arguments = ["signal", signalText.view];
         ChildProcess child;
         scope (exit)
@@ -470,17 +470,17 @@ version (linux) private void runCommunicateIntegration(
     {
         enum floodBytes = 128 * 1024;
         enum inputBytes = 256 * 1024;
-        Array!u8 input = Array!u8.create(mallocAllocator());
+        Array!u8 input = Array!u8.create(malloc_allocator());
         scope (exit)
             input.deinit();
         input.resize(inputBytes);
         foreach (i, ref value; input.slice)
             value = cast(u8)(i % 251);
-        Array!u8 outputStorage = Array!u8.create(mallocAllocator());
+        Array!u8 outputStorage = Array!u8.create(malloc_allocator());
         scope (exit)
             outputStorage.deinit();
         outputStorage.resize(floodBytes + inputBytes);
-        Array!u8 errorStorage = Array!u8.create(mallocAllocator());
+        Array!u8 errorStorage = Array!u8.create(malloc_allocator());
         scope (exit)
             errorStorage.deinit();
         errorStorage.resize(floodBytes);
@@ -682,14 +682,14 @@ version (linux) private void runPipelineIntegration(
         scope (exit)
             pipeline.deinit();
         assert(spawnPipeline(
-                commands[], options, mallocAllocator(), &pipeline).succeeded);
+                commands[], options, malloc_allocator(), &pipeline).succeeded);
         assert(pipeline.length == 3 && pipeline.stdinPipe !is null &&
                 pipeline.stdoutPipe !is null);
         enum u8[8] input = [0, 1, 2, 255, 'p', 'i', 'p', 'e'];
         writePipeEntirely(pipeline.stdinPipe, input[]);
         assert(close(pipeline.stdinPipe).succeeded);
         assert(waitPipeline(&pipeline).succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
         readPipeEntirely(pipeline.stdoutPipe, &output);
@@ -698,7 +698,7 @@ version (linux) private void runPipelineIntegration(
         foreach (index; 0 .. pipeline.length)
         {
             assert(pipeline.status(index).succeeded);
-            Array!u8 errorOutput = Array!u8.create(mallocAllocator());
+            Array!u8 errorOutput = Array!u8.create(malloc_allocator());
             scope (exit)
                 errorOutput.deinit();
             readPipeEntirely(pipeline.stderrPipe(index), &errorOutput);
@@ -726,12 +726,12 @@ version (linux) private void runPipelineIntegration(
         scope (exit)
             pipeline.deinit();
         assert(spawnPipeline(
-                stages[], options, mallocAllocator(), &pipeline).succeeded);
+                stages[], options, malloc_allocator(), &pipeline).succeeded);
         assert(waitPipeline(&pipeline).succeeded && pipeline.succeeded);
-        Array!u8 output = Array!u8.create(mallocAllocator());
+        Array!u8 output = Array!u8.create(malloc_allocator());
         scope (exit)
             output.deinit();
-        Array!u8 errorOutput = Array!u8.create(mallocAllocator());
+        Array!u8 errorOutput = Array!u8.create(malloc_allocator());
         scope (exit)
             errorOutput.deinit();
         readPipeEntirely(pipeline.stdoutPipe, &output);
@@ -752,7 +752,7 @@ version (linux) private void runPipelineIntegration(
         scope (exit)
             pipeline.deinit();
         assert(spawnPipeline(commands[], PipelineOptions.init,
-                mallocAllocator(), &pipeline).succeeded);
+                malloc_allocator(), &pipeline).succeeded);
         assert(waitPipeline(&pipeline).succeeded);
         assert(pipeline.status(0).exitCode == 7 &&
                 pipeline.status(1).succeeded && pipeline.succeeded);
@@ -762,7 +762,7 @@ version (linux) private void runPipelineIntegration(
         Pipeline strictPipeline;
         scope (exit)
             strictPipeline.deinit();
-        assert(spawnPipeline(commands[], allStages, mallocAllocator(),
+        assert(spawnPipeline(commands[], allStages, malloc_allocator(),
                 &strictPipeline).succeeded);
         assert(waitPipeline(&strictPipeline).succeeded);
         assert(!strictPipeline.succeeded);
@@ -778,7 +778,7 @@ version (linux) private void runPipelineIntegration(
         scope (exit)
             pipeline.deinit();
         assert(spawnPipeline(commands[], PipelineOptions.init,
-                mallocAllocator(), &pipeline).succeeded);
+                malloc_allocator(), &pipeline).succeeded);
         const observed = tryWaitPipeline(&pipeline);
         assert(observed.error.succeeded &&
                 observed.state == PipelineWaitState.running &&
@@ -794,7 +794,7 @@ version (linux) private void runPipelineIntegration(
         ];
         Pipeline pipeline;
         assert(spawnPipeline(commands[], PipelineOptions.init,
-                mallocAllocator(), &pipeline).succeeded);
+                malloc_allocator(), &pipeline).succeeded);
         int[2] processIds = [
             cast(int) pipeline.stageId(0).value,
             cast(int) pipeline.stageId(1).value,
@@ -819,7 +819,7 @@ version (linux) private void runPipelineIntegration(
         const error = spawnPipeline(
             commands[],
             PipelineOptions.init,
-            mallocAllocator(),
+            malloc_allocator(),
             &pipeline,
         );
         assert(error.failed &&
@@ -836,7 +836,7 @@ version (linux) private void runPipelineIntegration(
             )];
         AllocationRecord[4] records;
         InstrumentedAllocator failing = InstrumentedAllocator.create(
-            mallocAllocator(), records[],
+            malloc_allocator(), records[],
         );
         failing.failAfter(0);
         Pipeline pipeline;
@@ -882,7 +882,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     const rootPath = Path.fromString(checkedRoot.value);
     OsError error;
 
-    StringBuf first = StringBuf.fromString(mallocAllocator(), rootPath.view);
+    StringBuf first = StringBuf.fromString(malloc_allocator(), rootPath.view);
     first.append("/first.bin");
     const firstPath = Path.fromString(first.view);
     const u8[6] contents = [0, 1, 2, 3, 0, 255];
@@ -903,7 +903,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(metadata(firstPath, SymlinkMode.follow, &information).succeeded);
     assert(information.type == FileType.regular && information.size == contents.length);
 
-    Array!u8 loaded = Array!u8.create(mallocAllocator());
+    Array!u8 loaded = Array!u8.create(malloc_allocator());
     scope (exit)
         loaded.deinit();
     assert(readEntireFile(firstPath, loaded).succeeded);
@@ -916,7 +916,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         const baseline = openDescriptorCount();
         AllocationRecord[2] records;
         InstrumentedAllocator failing = InstrumentedAllocator.create(
-            mallocAllocator(), records[],
+            malloc_allocator(), records[],
         );
         failing.failAfter(0);
         Array!u8 failedRead = Array!u8.create(failing.allocator);
@@ -963,7 +963,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
 
     {
         const baseline = openDescriptorCount();
-        OwnedArray!File files = OwnedArray!File.create(mallocAllocator());
+        OwnedArray!File files = OwnedArray!File.create(malloc_allocator());
         File firstFile;
         File secondFile;
         assert(open(firstPath, OpenOptions.init, &firstFile).succeeded);
@@ -1032,14 +1032,14 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(unmap(&mapping).succeeded);
     assert(unmap(&mapping).succeeded);
 
-    StringBuf second = StringBuf.fromString(mallocAllocator(), rootPath.view);
+    StringBuf second = StringBuf.fromString(malloc_allocator(), rootPath.view);
     second.append("/second.bin");
     const secondPath = Path.fromString(second.view);
     assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).succeeded);
     assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).kind ==
             OsErrorKind.alreadyExists);
 
-    StringBuf renamed = StringBuf.fromString(mallocAllocator(), rootPath.view);
+    StringBuf renamed = StringBuf.fromString(malloc_allocator(), rootPath.view);
     renamed.append("/renamed.bin");
     const renamedPath = Path.fromString(renamed.view);
     assert(rename(secondPath, renamedPath).succeeded);
@@ -1061,7 +1061,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(close(&iterator).succeeded);
     assert(close(&iterator).succeeded);
     size_t walked;
-    Arena walkArena = Arena.create(mallocAllocator(), 256);
+    Arena walkArena = Arena.create(malloc_allocator(), 256);
     const walkDescriptorBaseline = openDescriptorCount();
     assert(walkDirectory(rootPath, walkArena.allocator, &countEntry, &walked).succeeded);
     assert(walked == 2);
@@ -1071,15 +1071,15 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(queryAccess(firstPath, Access.exists, &exists).succeeded && exists);
     assert(queryAccess(firstPath, Access.read, &exists).succeeded && exists);
 
-    StringBuf cwd = StringBuf.create(mallocAllocator());
+    StringBuf cwd = StringBuf.create(malloc_allocator());
     assert(currentDirectory(cwd).succeeded && cwd.view.length != 0);
-    StringBuf canonical = StringBuf.create(mallocAllocator());
+    StringBuf canonical = StringBuf.create(malloc_allocator());
     assert(canonicalPath(rootPath, canonical).succeeded);
     assert(canonical.view.length != 0);
-    StringBuf executable = StringBuf.create(mallocAllocator());
+    StringBuf executable = StringBuf.create(malloc_allocator());
     assert(executablePath(executable).succeeded && executable.view.length != 0);
 
-    Array!u8 procStatus = Array!u8.create(mallocAllocator());
+    Array!u8 procStatus = Array!u8.create(malloc_allocator());
     scope (exit)
         procStatus.deinit();
     assert(readEntireFile(Path.fromString("/proc/self/status"), procStatus).succeeded);
@@ -1113,7 +1113,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
 
     const helperDirectory = Path.fromString(executable.view).parent;
     StringBuf helperExecutable = StringBuf.fromString(
-        mallocAllocator(),
+        malloc_allocator(),
         helperDirectory.view,
     );
     helperExecutable.appendComponent(Path.fromString("process_test_helper"));

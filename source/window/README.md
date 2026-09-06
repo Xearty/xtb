@@ -19,13 +19,13 @@ symbols. GLFW 3.4 and newer enable both Linux backends by default.
 ## Minimal use
 
 ```d
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.thread_context : ThreadContextScope;
 import xtb.window;
 
 ThreadContextScope thread_context = ThreadContextScope.acquire();
 
-auto system_result = WindowSystem.create(mallocAllocator());
+auto system_result = WindowSystem.create(malloc_allocator());
 if (system_result.is_err)
     return 1;
 WindowSystem* system = system_result.take();

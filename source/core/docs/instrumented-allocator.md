@@ -9,7 +9,7 @@ requires no `deinit`; both must outlive the wrapper.
 ```d
 AllocationRecord[64] records;
 InstrumentedAllocator tracked = InstrumentedAllocator.create(
-    mallocAllocator(),
+    malloc_allocator(),
     records[],
 );
 

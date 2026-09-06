@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.internal.traits : hasElaborateDestructor;
 
 import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.lifetime : deinit, move, needs_deinit;
 import xtb.memory : Allocator, deallocate_array, try_allocate_array;
 import xtb.option;
@@ -344,7 +344,7 @@ extern (C) int main()
 {
     AllocationRecord[128] records;
     InstrumentedAllocator instrumented = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 

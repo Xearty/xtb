@@ -1424,7 +1424,7 @@ private void constructCopy(T, U)(T* destination, ref U source)
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     static assert(ArrayUnmanaged!int.sizeof == 3 * size_t.sizeof);
     static assert(Array!int.sizeof ==
@@ -1473,7 +1473,7 @@ unittest
 
     size_t destructions;
     OwnedArray!DestructorOnly destructorValues =
-        OwnedArray!DestructorOnly.create(mallocAllocator());
+        OwnedArray!DestructorOnly.create(malloc_allocator());
     DestructorOnly discarded = DestructorOnly(&destructions, true);
     assert(destructorValues.tryAppend(&discarded));
     assert(!discarded.armed);
@@ -1490,7 +1490,7 @@ unittest
 
     AllocationRecord[8] rawRecords;
     InstrumentedAllocator rawAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         rawRecords[],
     );
     ArrayUnmanaged!int rawSource = ArrayUnmanaged!int.fromSlice(
@@ -1509,7 +1509,7 @@ unittest
     zero.deinit();
     zero.resetAndRelease();
 
-    Array!int values = Array!int.withCapacity(mallocAllocator(), 1);
+    Array!int values = Array!int.withCapacity(malloc_allocator(), 1);
     values.append(1);
     int[3] more = [2, 3, 4];
     values.append(more[]);
@@ -1530,7 +1530,7 @@ unittest
     assert(values.capacity == 0);
 
     Array!int selfInserted = Array!int.fromSlice(
-        mallocAllocator(),
+        malloc_allocator(),
         [1, 2, 3, 4, 5, 6, 7, 8],
     );
     selfInserted.insert(2, selfInserted.slice[1 .. 4]);
@@ -1539,7 +1539,7 @@ unittest
 
     AllocationRecord[8] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Array!int fallible = Array!int.withCapacity(tracked.allocator, 1);
@@ -1558,14 +1558,14 @@ unittest
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     trackedDeinits = 0;
     deinitOrder[] = 0;
 
     // Array is shallow: discard paths do not deinitialize elements.
     Array!TrackedOwner shallow = Array!TrackedOwner.withCapacity(
-        mallocAllocator(),
+        malloc_allocator(),
         4,
     );
     shallow.append(TrackedOwner(1));
@@ -1583,7 +1583,7 @@ unittest
     // OwnedArray deep-cleans every discard path in reverse order where a range
     // is discarded.
     OwnedArray!TrackedOwner owned = OwnedArray!TrackedOwner.withCapacity(
-        mallocAllocator(),
+        malloc_allocator(),
         4,
     );
     owned.append(TrackedOwner(10));
@@ -1613,11 +1613,11 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     AllocationRecord[32] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -1650,12 +1650,12 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
     import xtb.string : StringBuf;
 
     AllocationRecord[32] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
 
@@ -1689,14 +1689,14 @@ unittest
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     // tryAppend supports pointers into the array even when reserve relocates
     // storage. The original slot becomes the normal moved-from value.
     trackedDeinits = 0;
     deinitOrder[] = 0;
     OwnedArray!TrackedOwner values = OwnedArray!TrackedOwner.withCapacity(
-        mallocAllocator(),
+        malloc_allocator(),
         1,
     );
     values.append(TrackedOwner(7));
@@ -1712,7 +1712,7 @@ unittest
     // or after the insertion point it follows the shift before being consumed.
     trackedDeinits = 0;
     OwnedArray!TrackedOwner inserted = OwnedArray!TrackedOwner.withCapacity(
-        mallocAllocator(),
+        malloc_allocator(),
         2,
     );
     inserted.append(TrackedOwner(1));
@@ -1729,7 +1729,7 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     size_t deinits;
     CopyableOwner[2] source = [
@@ -1737,7 +1737,7 @@ unittest
         CopyableOwner(8, &deinits),
     ];
     OwnedArray!CopyableOwner values = OwnedArray!CopyableOwner.fromSlice(
-        mallocAllocator(),
+        malloc_allocator(),
         source[],
     );
     values.append(source[]);
@@ -1753,7 +1753,7 @@ unittest
 
     AllocationRecord[16] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         records[],
     );
     Array!int releasedSource = Array!int.fromSlice(
@@ -1772,16 +1772,16 @@ unittest
 unittest
 {
     import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     AllocationRecord[64] managedRecords;
     AllocationRecord[64] unmanagedRecords;
     InstrumentedAllocator managedAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         managedRecords[],
     );
     InstrumentedAllocator unmanagedAllocator = InstrumentedAllocator.create(
-        mallocAllocator(),
+        malloc_allocator(),
         unmanagedRecords[],
     );
 
