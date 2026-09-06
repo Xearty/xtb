@@ -61,10 +61,11 @@ package(xtb.containers) bool try_indexed_pool_storage_layout(T, State)(
 
 /// Produces non-owning regions for an indexed-pool reservation.
 ///
-/// Returns false when any output pointer is null. Each output is updated only
-/// when its respective region is created successfully.
+/// Returns false when any output pointer is null. On later failure, outputs for
+/// regions already created may have been updated; all returned regions are
+/// non-owning.
 package(xtb.containers) bool try_indexed_pool_storage_regions(
-    ref VirtualMemoryReservation reservation,
+    scope ref VirtualMemoryReservation reservation,
     IndexedPoolStorageLayout layout,
     scope VirtualMemoryRegion* values,
     scope VirtualMemoryRegion* states,
@@ -116,7 +117,10 @@ package(xtb.containers) bool try_indexed_pool_storage_regions(
     return true;
 }
 
-private bool try_add_region_bytes(ref usize total, VirtualArrayRegionGeometry geometry) pure @safe
+private bool try_add_region_bytes(
+    scope ref usize total,
+    VirtualArrayRegionGeometry geometry,
+) pure @safe
 {
     if (add_overflows(total, geometry.alignment_slack)) return false;
 
