@@ -2,73 +2,82 @@ module xtb.containers.hash_set;
 
 nothrow @nogc:
 
-import xtb.hash : HashSeed;
-import xtb.lifetime : can_finalize_without_context, move, move_emplace;
-import xtb.memory : Allocator;
-import xtb.panic : panic;
+import core.attribute;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.containers.hash_map : AddStatus, ConstHashMapCursor, DefaultEqual, DefaultHash,
-    DefaultHashMapElementOps, HashMapCursor, HashMapUnmanaged, is_default_equal_policy,
-    is_default_hash_policy, OwnedHashMapElementOps, is_simple_hash_value, require_valid_hash_allocator;
-import xtb.containers.released_storage : ReleasedStorage;
+import xtb.containers.hash_map;
+import xtb.containers.released_storage;
+import xtb.hash;
+import xtb.lifetime;
+import xtb.memory;
+import xtb.panic;
+import xtb.types;
 
 private struct SetMarker
 {
 }
 
-/// Allocator-owned set sharing the same probing and lifetime semantics as
-/// `HashMap`. Stored values are exposed only as const pointers.
-/// Allocator-explicit set sharing the same storage engine as `HashMapUnmanaged`.
-struct HashSetUnmanaged(
+/// Allocator-explicit set sharing the probing and lifetime semantics of
+/// `HashMapUnmanaged`. Stored values are exposed only as const pointers.
+@mustuse struct HashSetUnmanaged(
     K,
     Hasher = DefaultHash!K,
     Equal = DefaultEqual!K,
     ElementOps = DefaultHashMapElementOps!K,
 )
 {
-nothrow @nogc:
+    /// Backing map that owns the set's table storage through the supplied allocator.
+    HashMapUnmanaged!(
+        K,
+        SetMarker,
+        Hasher,
+        Equal,
+        K,
+        ElementOps,
+        DefaultHashMapElementOps!SetMarker,
+    ) map;
 
-private:
-    HashMapUnmanaged!(K, SetMarker, Hasher, Equal, K,
-        ElementOps, DefaultHashMapElementOps!SetMarker) map_;
-
-public:
     @disable this(this);
     @disable ref HashSetUnmanaged opAssign(HashSetUnmanaged source) return;
 
-    static HashSetUnmanaged withPolicies(Hasher hasher, Equal equal)
+    static HashSetUnmanaged with_policies(Hasher hasher, Equal equal)
     {
         HashSetUnmanaged result;
-        auto storage = typeof(result.map_).with_policies(move(hasher), move(equal));
-        move_emplace(storage, result.map_);
+        auto storage = typeof(result.map).with_policies(move(hasher), move(equal));
+        move_emplace(storage, result.map);
         return move(result);
     }
 
-    static bool tryWithCapacity(
+    /// Attempts to reserve unmanaged set storage for `requested` values.
+    ///
+    /// `output` must be non-null and point to an inert set. On allocation failure,
+    /// `output` remains unchanged.
+    static bool try_with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         scope HashSetUnmanaged* output,
-    )
+    ) @system
     {
-        version (XTB_Checked)
-        {
-            require(output !is null, "HashSetUnmanaged output pointer is null");
-            require(output.map_.capacity == 0 && output.map_.empty,
-                "HashSetUnmanaged output is not empty");
-        }
+        require(output !is null, "HashSetUnmanaged output pointer is null");
+        require(
+            output.map.states is null
+                && output.map.entries is null
+                && output.map.length == 0
+                && output.map.removed == 0
+                && output.map.capacity == 0,
+            "HashSetUnmanaged output is not inert",
+        );
         HashSetUnmanaged temporary;
-        if (!temporary.tryReserve(allocator, requested))
-            return false;
+        if (!temporary.try_reserve(allocator, requested)) return false;
         move_emplace(temporary, *output);
         return true;
     }
 
-    static HashSetUnmanaged withCapacity(Allocator* allocator, size_t requested)
+    static HashSetUnmanaged with_capacity(Allocator* allocator, usize requested)
     {
         HashSetUnmanaged result;
-        if (!tryWithCapacity(allocator, requested, &result))
+        if (!HashSetUnmanaged.try_with_capacity(allocator, requested, &result))
             panic("HashSet allocation failed");
+
         return move(result);
     }
 
@@ -77,18 +86,18 @@ public:
         static HashSetUnmanaged seeded(HashSeed seed)
         {
             HashSetUnmanaged result;
-            auto storage = typeof(result.map_).seeded(seed);
-            move_emplace(storage, result.map_);
+            auto storage = typeof(result.map).seeded(seed);
+            move_emplace(storage, result.map);
             return move(result);
         }
 
-        static HashSetUnmanaged withCapacity(
+        static HashSetUnmanaged with_capacity(
             Allocator* allocator,
-            size_t requested,
+            usize requested,
             HashSeed seed,
         )
         {
-            HashSetUnmanaged result = seeded(seed);
+            auto result = HashSetUnmanaged.seeded(seed);
             result.reserve(allocator, requested);
             return move(result);
         }
@@ -96,27 +105,27 @@ public:
 
     void deinit(Allocator* allocator)
     {
-        map_.deinit(allocator);
+        this.map.deinit(allocator);
     }
 
-    void resetAndRelease(Allocator* allocator)
+    void reset_and_release(Allocator* allocator)
     {
-        map_.reset_and_release(allocator);
+        this.map.reset_and_release(allocator);
     }
 
-    size_t length() const pure @safe
+    usize length() const pure @safe
     {
-        return map_.length;
+        return this.map.length;
     }
 
-    size_t capacity() const pure @safe
+    usize capacity() const pure @safe
     {
-        return map_.capacity;
+        return this.map.capacity;
     }
 
     bool empty() const pure @safe
     {
-        return map_.empty;
+        return this.map.empty;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
@@ -126,183 +135,200 @@ public:
 
     HashSetCursor!K cursor() return
     {
-        return HashSetCursor!K(map_.cursor());
+        return HashSetCursor!K(this.map.cursor());
     }
 
     ConstHashSetCursor!K cursor() const return
     {
-        return ConstHashSetCursor!K(map_.cursor());
+        return ConstHashSetCursor!K(this.map.cursor());
     }
 
-    HashSetPointerRange!K pointerItems() return
+    HashSetPointerRange!K pointer_items() return
     {
-        return HashSetPointerRange!K(cursor());
+        return HashSetPointerRange!K(this.cursor());
     }
 
-    ConstHashSetPointerRange!K pointerItems() const return
+    ConstHashSetPointerRange!K pointer_items() const return
     {
-        return ConstHashSetPointerRange!K(cursor());
+        return ConstHashSetPointerRange!K(this.cursor());
     }
 
-    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback)
+    // Foreach is a D language hook.
+    i32 opApply(scope i32 delegate(ref const(K)) nothrow @nogc callback)
     {
-        for (auto current = cursor(); current.valid; current.advance())
+        HashSetCursor!K current = this.cursor();
+        while (current.valid)
         {
-            const result = callback(*current.value);
-            if (result != 0)
-                return result;
+            const i32 result = callback(*current.value);
+            if (result != 0) return result;
+            current.advance();
         }
         return 0;
     }
 
-    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback) const
+    i32 opApply(scope i32 delegate(ref const(K)) nothrow @nogc callback) const
     {
-        for (auto current = cursor(); current.valid; current.advance())
+        ConstHashSetCursor!K current = this.cursor();
+        while (current.valid)
         {
-            const result = callback(*current.value);
-            if (result != 0)
-                return result;
+            const i32 result = callback(*current.value);
+            if (result != 0) return result;
+            current.advance();
         }
         return 0;
     }
 
-    AddStatus tryAdd(Allocator* allocator, scope K* value) @system
+    /// `value` must be non-null and is consumed only on insertion.
+    AddStatus try_add(Allocator* allocator, scope K* value) @system
     {
         SetMarker marker;
-        return map_.try_add(allocator, value, &marker);
+        return this.map.try_add(allocator, value, &marker);
     }
 
+    /// `value` must be non-null and is consumed only on insertion.
     bool add(Allocator* allocator, scope K* value) @system
     {
         SetMarker marker;
-        return map_.add(allocator, value, &marker);
+        return this.map.add(allocator, value, &marker);
     }
 
     static if (is_simple_hash_value!K)
     {
-        AddStatus tryAdd(Allocator* allocator, K value)
+        AddStatus try_add(Allocator* allocator, K value)
         {
-            return map_.try_add(allocator, value, SetMarker.init);
+            return this.map.try_add(allocator, value, SetMarker.init);
         }
 
         bool add(Allocator* allocator, K value)
         {
-            return map_.add(allocator, value, SetMarker.init);
+            return this.map.add(allocator, value, SetMarker.init);
         }
     }
 
     bool contains(scope const(K)* value) const
     {
-        return map_.contains(value);
+        return this.map.contains(value);
     }
 
     bool remove(Allocator* allocator, scope const(K)* value)
     {
-        return map_.remove(allocator, value);
+        return this.map.remove(allocator, value);
     }
 
+    /// Pointer and output-storage requirements match the underlying hash map `take`.
     bool take(scope const(K)* value, scope K* output) @system
     {
         SetMarker marker = void;
-        return map_.take(value, output, &marker);
+        return this.map.take(value, output, &marker);
     }
 
     static if (is_simple_hash_value!K)
     {
         bool contains(scope K value) const
         {
-            return map_.contains(value);
+            return this.map.contains(value);
         }
 
         bool remove(Allocator* allocator, scope K value)
         {
-            return map_.remove(allocator, value);
+            return this.map.remove(allocator, value);
         }
 
         bool take(scope K value, scope K* output) @system
         {
             SetMarker marker = void;
-            return map_.take(&value, output, &marker);
+            return this.map.take(&value, output, &marker);
         }
     }
 
-    bool tryReserve(Allocator* allocator, size_t requested)
+    bool try_reserve(Allocator* allocator, usize requested)
     {
-        return map_.try_reserve(allocator, requested);
+        return this.map.try_reserve(allocator, requested);
     }
 
-    void reserve(Allocator* allocator, size_t requested)
+    void reserve(Allocator* allocator, usize requested)
     {
-        map_.reserve(allocator, requested);
+        this.map.reserve(allocator, requested);
     }
 
     void clear(Allocator* allocator)
     {
-        map_.clear(allocator);
+        this.map.clear(allocator);
     }
 
-    bool tryShrinkToFit(Allocator* allocator)
+    bool try_shrink_to_fit(Allocator* allocator)
     {
-        return map_.try_shrink_to_fit(allocator);
+        return this.map.try_shrink_to_fit(allocator);
     }
 
-    void shrinkToFit(Allocator* allocator)
+    void shrink_to_fit(Allocator* allocator)
     {
-        map_.shrink_to_fit(allocator);
+        this.map.shrink_to_fit(allocator);
     }
 }
 
 /// Managed shallow hash set. Owns table storage but not element cleanup.
-struct HashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
+@mustuse struct HashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
-nothrow @nogc:
     alias Self = HashSet!(K, Hasher, Equal);
     alias Storage = HashSetUnmanaged!(K, Hasher, Equal);
     alias Released = ReleasedStorage!Storage;
-private:
-    Allocator* allocator_;
-    Storage storage_;
-public:
+
+    /// Allocator that owns `storage`; null only for an inert or released value.
+    Allocator* allocator;
+    /// Backing set storage owned through `allocator` while this value is live.
+    Storage storage;
+
     @disable this(this);
     @disable ref Self opAssign(Self source) return;
-    static Self create(Allocator* allocator) @trusted
+
+    static Self create(Allocator* allocator) @safe
     {
         require_valid_hash_allocator(allocator);
         Self result;
-        result.allocator_ = allocator;
+        result.allocator = allocator;
         return result;
     }
 
-    static Self withPolicies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
+    static Self with_policies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
     {
         require_valid_hash_allocator(allocator);
         Self result;
-        result.allocator_ = allocator;
-        Storage storage = Storage.withPolicies(move(hasher), move(equal));
-        move_emplace(storage, result.storage_);
+        result.allocator = allocator;
+        auto storage = Storage.with_policies(move(hasher), move(equal));
+        move_emplace(storage, result.storage);
         return move(result);
     }
 
-    static bool tryWithCapacity(Allocator* allocator, size_t requested, scope Self* output) @trusted
+    /// Attempts to create an empty managed set with capacity for `requested` values.
+    ///
+    /// `output` must be non-null and point to an inert set. On allocation failure,
+    /// `output` remains unchanged.
+    static bool try_with_capacity(Allocator* allocator, usize requested, scope Self* output) @system
     {
-        version (XTB_Checked)
-        {
-            require(output !is null, "HashSet output pointer is null");
-            require(output.allocator_ is null, "HashSet output is already initialized");
-        }
+        require(output !is null, "HashSet output pointer is null");
+        require(
+            output.allocator is null
+                && output.storage.map.states is null
+                && output.storage.map.entries is null
+                && output.storage.map.length == 0
+                && output.storage.map.removed == 0
+                && output.storage.map.capacity == 0,
+            "HashSet output is not inert",
+        );
         Storage storage;
-        if (!Storage.tryWithCapacity(allocator, requested, &storage))
-            return false;
-        output.allocator_ = allocator;
-        move_emplace(storage, output.storage_);
+        if (!Storage.try_with_capacity(allocator, requested, &storage)) return false;
+        output.allocator = allocator;
+        move_emplace(storage, output.storage);
         return true;
     }
 
-    static Self withCapacity(Allocator* allocator, size_t requested) @trusted
+    static Self with_capacity(Allocator* allocator, usize requested) @trusted
     {
         Self result;
-        if (!tryWithCapacity(allocator, requested, &result))
+        if (!Self.try_with_capacity(allocator, requested, &result))
             panic("HashSet allocation failed");
+
         return move(result);
     }
 
@@ -312,67 +338,68 @@ public:
         {
             require_valid_hash_allocator(allocator);
             Self result;
-            result.allocator_ = allocator;
-            Storage storage = Storage.seeded(seed);
-            move_emplace(storage, result.storage_);
+            result.allocator = allocator;
+            auto storage = Storage.seeded(seed);
+            move_emplace(storage, result.storage);
             return move(result);
         }
 
-        static Self withCapacity(Allocator* allocator, size_t requested, HashSeed seed) @trusted
+        static Self with_capacity(Allocator* allocator, usize requested, HashSeed seed) @trusted
         {
             Self result;
-            result.allocator_ = allocator;
-            Storage storage = Storage.withCapacity(allocator, requested, seed);
-            move_emplace(storage, result.storage_);
+            result.allocator = allocator;
+            auto storage = Storage.with_capacity(allocator, requested, seed);
+            move_emplace(storage, result.storage);
             return move(result);
         }
     }
-    static Self adopt(scope Released* released) @trusted
+
+    /// Adopts storage previously returned by `release`.
+    ///
+    /// `released` must be non-null and is consumed by this operation.
+    static Self adopt(scope Released* released) @system
     {
-        version (XTB_Checked)
-            require(released !is null, "released HashSet storage pointer is null");
+        require(released !is null, "released HashSet storage pointer is null");
         Allocator* allocator;
         Storage storage = released.extract(&allocator);
         Self result;
-        result.allocator_ = allocator;
-        move_emplace(storage, result.storage_);
+        result.allocator = allocator;
+        move_emplace(storage, result.storage);
         return move(result);
     }
 
     void deinit() @trusted
     {
-        if (allocator_ !is null)
-        {
-            storage_.deinit(allocator_);
-            allocator_ = null;
-        }
+        if (this.allocator is null) return;
+        this.storage.deinit(this.allocator);
+        this.allocator = null;
     }
 
-    void resetAndRelease() @trusted
+    void reset_and_release() @trusted
     {
-        storage_.resetAndRelease(allocator_);
+        this.storage.reset_and_release(this.allocator);
     }
 
     Released release() @trusted
     {
-        auto result = Released.from_owned_parts(allocator_, &storage_);
-        allocator_ = null;
+        auto result = Released.from_owned_parts(this.allocator, &this.storage);
+        this.allocator = null;
         return move(result);
     }
 
-    size_t length() const pure @trusted
+    usize length() const pure @safe
     {
-        return storage_.length;
+        return this.storage.length;
     }
 
-    size_t capacity() const pure @trusted
+    usize capacity() const pure @safe
     {
-        return storage_.capacity;
+        return this.storage.capacity;
     }
 
-    bool empty() const pure @trusted
+    bool empty() const pure @safe
     {
-        return storage_.empty;
+        return this.storage.empty;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
@@ -382,184 +409,200 @@ public:
 
     HashSetCursor!K cursor() return @trusted
     {
-        return storage_.cursor();
+        return this.storage.cursor();
     }
 
     ConstHashSetCursor!K cursor() const return @trusted
     {
-        return storage_.cursor();
+        return this.storage.cursor();
     }
 
-    HashSetPointerRange!K pointerItems() return @trusted
+    HashSetPointerRange!K pointer_items() return @trusted
     {
-        return storage_.pointerItems();
+        return this.storage.pointer_items();
     }
 
-    ConstHashSetPointerRange!K pointerItems() const return @trusted
+    ConstHashSetPointerRange!K pointer_items() const return @trusted
     {
-        return storage_.pointerItems();
+        return this.storage.pointer_items();
     }
 
-    AddStatus tryAdd(scope K* value) @system
+    /// `value` must be non-null and is consumed only on insertion.
+    AddStatus try_add(scope K* value) @system
     {
-        return storage_.tryAdd(allocator_, value);
+        return this.storage.try_add(this.allocator, value);
     }
 
+    /// `value` must be non-null and is consumed only on insertion.
     bool add(scope K* value) @system
     {
-        return storage_.add(allocator_, value);
+        return this.storage.add(this.allocator, value);
     }
 
     static if (is_simple_hash_value!K)
     {
-        AddStatus tryAdd(K value) @trusted
+        AddStatus try_add(K value) @trusted
         {
-            return storage_.tryAdd(allocator_, value);
+            return this.storage.try_add(this.allocator, value);
         }
 
         bool add(K value) @trusted
         {
-            return storage_.add(allocator_, value);
+            return this.storage.add(this.allocator, value);
         }
     }
+
+    /// `value` must be non-null.
     bool contains(scope const(K)* value) const @trusted
     {
-        return storage_.contains(value);
+        return this.storage.contains(value);
     }
 
+    /// `value` must be non-null.
     bool remove(scope const(K)* value) @trusted
     {
-        return storage_.remove(allocator_, value);
+        return this.storage.remove(this.allocator, value);
     }
 
+    /// Pointer and output-storage requirements match the underlying hash map `take`.
     bool take(scope const(K)* value, scope K* output) @system
     {
-        return storage_.take(value, output);
+        return this.storage.take(value, output);
     }
 
     static if (is_simple_hash_value!K)
     {
         bool contains(scope K value) const @trusted
         {
-            return storage_.contains(value);
+            return this.storage.contains(value);
         }
 
         bool remove(scope K value) @trusted
         {
-            return storage_.remove(allocator_, value);
+            return this.storage.remove(this.allocator, value);
         }
 
         bool take(scope K value, scope K* output) @system
         {
-            return storage_.take(value, output);
+            return this.storage.take(value, output);
         }
     }
-    bool tryReserve(size_t requested) @trusted
+
+    bool try_reserve(usize requested) @trusted
     {
-        return storage_.tryReserve(allocator_, requested);
+        return this.storage.try_reserve(this.allocator, requested);
     }
 
-    void reserve(size_t requested) @trusted
+    void reserve(usize requested) @trusted
     {
-        storage_.reserve(allocator_, requested);
+        this.storage.reserve(this.allocator, requested);
     }
 
     void clear() @trusted
     {
-        storage_.clear(allocator_);
+        this.storage.clear(this.allocator);
     }
 
-    bool tryShrinkToFit() @trusted
+    bool try_shrink_to_fit() @trusted
     {
-        return storage_.tryShrinkToFit(allocator_);
+        return this.storage.try_shrink_to_fit(this.allocator);
     }
 
-    void shrinkToFit() @trusted
+    void shrink_to_fit() @trusted
     {
-        storage_.shrinkToFit(allocator_);
+        this.storage.shrink_to_fit(this.allocator);
     }
 
-    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback)
+    i32 opApply(scope i32 delegate(ref const(K)) nothrow @nogc callback)
     {
-        return storage_.opApply(callback);
+        return this.storage.opApply(callback);
     }
 
-    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback) const
+    i32 opApply(scope i32 delegate(ref const(K)) nothrow @nogc callback) const
     {
-        return storage_.opApply(callback);
+        return this.storage.opApply(callback);
     }
 
-    Allocator* allocator() return pure @safe
-    {
-        return allocator_;
-    }
-
-package(xtb.containers):
-    static Self adoptUnmanaged(Allocator* allocator, scope Storage* storage) @system
+    package(xtb.containers) static Self adopt_unmanaged(
+        Allocator* allocator,
+        scope Storage* storage,
+    ) @system
     {
         require_valid_hash_allocator(allocator);
-        version (XTB_Checked)
-            require(storage !is null, "HashSetUnmanaged pointer is null");
+        require(storage !is null, "HashSetUnmanaged pointer is null");
         Self result;
-        result.allocator_ = allocator;
-        move_emplace(*storage, result.storage_);
+        result.allocator = allocator;
+        move_emplace(*storage, result.storage);
         return move(result);
     }
 }
 
 /// Managed hash set that owns cleanup of stored elements.
-struct OwnedHashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
+@mustuse struct OwnedHashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
-nothrow @nogc:
-    static assert(can_finalize_without_context!K,
-        "OwnedHashSet elements must support context-free finalization");
+    static assert(
+        can_finalize_without_context!K,
+        "OwnedHashSet elements must support context-free finalization",
+    );
     alias Self = OwnedHashSet!(K, Hasher, Equal);
     alias Storage = HashSetUnmanaged!(K, Hasher, Equal, OwnedHashMapElementOps!K);
-private:
-    Allocator* allocator_;
-    Storage storage_;
-public:
+
+    /// Allocator that owns `storage`; null only while this value is inert.
+    Allocator* allocator;
+    /// Backing set storage and elements owned through `allocator`.
+    Storage storage;
+
     @disable this(this);
     @disable ref Self opAssign(Self source) return;
-    static Self create(Allocator* allocator) @trusted
+
+    static Self create(Allocator* allocator) @safe
     {
         require_valid_hash_allocator(allocator);
-        Self r;
-        r.allocator_ = allocator;
-        return r;
+        Self result;
+        result.allocator = allocator;
+        return result;
     }
 
-    static Self withPolicies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
+    static Self with_policies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
     {
         require_valid_hash_allocator(allocator);
-        Self r;
-        r.allocator_ = allocator;
-        Storage st = Storage.withPolicies(move(hasher), move(equal));
-        move_emplace(st, r.storage_);
-        return move(r);
+        Self result;
+        result.allocator = allocator;
+        auto storage = Storage.with_policies(move(hasher), move(equal));
+        move_emplace(storage, result.storage);
+        return move(result);
     }
 
-    static bool tryWithCapacity(Allocator* allocator, size_t requested, scope Self* output) @trusted
+    /// Attempts to create an empty owned set with capacity for `requested` values.
+    ///
+    /// `output` must be non-null and point to an inert set. On allocation failure,
+    /// `output` remains unchanged.
+    static bool try_with_capacity(Allocator* allocator, usize requested, scope Self* output) @system
     {
-        version (XTB_Checked)
-        {
-            require(output !is null, "OwnedHashSet output pointer is null");
-            require(output.allocator_ is null, "OwnedHashSet output is already initialized");
-        }
-        Storage st;
-        if (!Storage.tryWithCapacity(allocator, requested, &st))
-            return false;
-        output.allocator_ = allocator;
-        move_emplace(st, output.storage_);
+        require(output !is null, "OwnedHashSet output pointer is null");
+        require(
+            output.allocator is null
+                && output.storage.map.states is null
+                && output.storage.map.entries is null
+                && output.storage.map.length == 0
+                && output.storage.map.removed == 0
+                && output.storage.map.capacity == 0,
+            "OwnedHashSet output is not inert",
+        );
+        Storage storage;
+        if (!Storage.try_with_capacity(allocator, requested, &storage)) return false;
+        output.allocator = allocator;
+        move_emplace(storage, output.storage);
         return true;
     }
 
-    static Self withCapacity(Allocator* allocator, size_t requested) @trusted
+    static Self with_capacity(Allocator* allocator, usize requested) @trusted
     {
-        Self r;
-        if (!tryWithCapacity(allocator, requested, &r))
+        Self result;
+        if (!Self.try_with_capacity(allocator, requested, &result))
             panic("OwnedHashSet allocation failed");
-        return move(r);
+
+        return move(result);
     }
 
     static if (is_default_hash_policy!(Hasher, K) && is_default_equal_policy!(Equal, K))
@@ -567,49 +610,48 @@ public:
         static Self seeded(Allocator* allocator, HashSeed seed) @trusted
         {
             require_valid_hash_allocator(allocator);
-            Self r;
-            r.allocator_ = allocator;
-            Storage st = Storage.seeded(seed);
-            move_emplace(st, r.storage_);
-            return move(r);
+            Self result;
+            result.allocator = allocator;
+            auto storage = Storage.seeded(seed);
+            move_emplace(storage, result.storage);
+            return move(result);
         }
 
-        static Self withCapacity(Allocator* allocator, size_t requested, HashSeed seed) @trusted
+        static Self with_capacity(Allocator* allocator, usize requested, HashSeed seed) @trusted
         {
-            Self r;
-            r.allocator_ = allocator;
-            Storage st = Storage.withCapacity(allocator, requested, seed);
-            move_emplace(st, r.storage_);
-            return move(r);
+            Self result;
+            result.allocator = allocator;
+            auto storage = Storage.with_capacity(allocator, requested, seed);
+            move_emplace(storage, result.storage);
+            return move(result);
         }
     }
+
     void deinit() @trusted
     {
-        if (allocator_ !is null)
-        {
-            storage_.deinit(allocator_);
-            allocator_ = null;
-        }
+        if (this.allocator is null) return;
+        this.storage.deinit(this.allocator);
+        this.allocator = null;
     }
 
-    void resetAndRelease() @trusted
+    void reset_and_release() @trusted
     {
-        storage_.resetAndRelease(allocator_);
+        this.storage.reset_and_release(this.allocator);
     }
 
-    size_t length() const pure @trusted
+    usize length() const pure @safe
     {
-        return storage_.length;
+        return this.storage.length;
     }
 
-    size_t capacity() const pure @trusted
+    usize capacity() const pure @safe
     {
-        return storage_.capacity;
+        return this.storage.capacity;
     }
 
-    bool empty() const pure @trusted
+    bool empty() const pure @safe
     {
-        return storage_.empty;
+        return this.storage.empty;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
@@ -619,195 +661,199 @@ public:
 
     HashSetCursor!K cursor() return @trusted
     {
-        return storage_.cursor();
+        return this.storage.cursor();
     }
 
     ConstHashSetCursor!K cursor() const return @trusted
     {
-        return storage_.cursor();
+        return this.storage.cursor();
     }
 
-    HashSetPointerRange!K pointerItems() return @trusted
+    HashSetPointerRange!K pointer_items() return @trusted
     {
-        return storage_.pointerItems();
+        return this.storage.pointer_items();
     }
 
-    ConstHashSetPointerRange!K pointerItems() const return @trusted
+    ConstHashSetPointerRange!K pointer_items() const return @trusted
     {
-        return storage_.pointerItems();
+        return this.storage.pointer_items();
     }
 
-    AddStatus tryAdd(scope K* value) @system
+    /// `value` must be non-null and is consumed only on insertion.
+    AddStatus try_add(scope K* value) @system
     {
-        return storage_.tryAdd(allocator_, value);
+        return this.storage.try_add(this.allocator, value);
     }
 
+    /// `value` must be non-null and is consumed only on insertion.
     bool add(scope K* value) @system
     {
-        return storage_.add(allocator_, value);
+        return this.storage.add(this.allocator, value);
     }
 
     static if (is_simple_hash_value!K)
     {
-        AddStatus tryAdd(K value) @trusted
+        AddStatus try_add(K value) @trusted
         {
-            return storage_.tryAdd(allocator_, value);
+            return this.storage.try_add(this.allocator, value);
         }
 
         bool add(K value) @trusted
         {
-            return storage_.add(allocator_, value);
+            return this.storage.add(this.allocator, value);
         }
     }
+
+    /// `value` must be non-null.
     bool contains(scope const(K)* value) const @trusted
     {
-        return storage_.contains(value);
+        return this.storage.contains(value);
     }
 
+    /// `value` must be non-null.
     bool remove(scope const(K)* value) @trusted
     {
-        return storage_.remove(allocator_, value);
+        return this.storage.remove(this.allocator, value);
     }
 
+    /// Pointer and output-storage requirements match the underlying hash map `take`.
     bool take(scope const(K)* value, scope K* output) @system
     {
-        return storage_.take(value, output);
+        return this.storage.take(value, output);
     }
 
     static if (is_simple_hash_value!K)
     {
         bool contains(scope K value) const @trusted
         {
-            return storage_.contains(value);
+            return this.storage.contains(value);
         }
 
         bool remove(scope K value) @trusted
         {
-            return storage_.remove(allocator_, value);
+            return this.storage.remove(this.allocator, value);
         }
 
         bool take(scope K value, scope K* output) @system
         {
-            return storage_.take(value, output);
+            return this.storage.take(value, output);
         }
     }
-    bool tryReserve(size_t requested) @trusted
+
+    bool try_reserve(usize requested) @trusted
     {
-        return storage_.tryReserve(allocator_, requested);
+        return this.storage.try_reserve(this.allocator, requested);
     }
 
-    void reserve(size_t requested) @trusted
+    void reserve(usize requested) @trusted
     {
-        storage_.reserve(allocator_, requested);
+        this.storage.reserve(this.allocator, requested);
     }
 
     void clear() @trusted
     {
-        storage_.clear(allocator_);
+        this.storage.clear(this.allocator);
     }
 
-    bool tryShrinkToFit() @trusted
+    bool try_shrink_to_fit() @trusted
     {
-        return storage_.tryShrinkToFit(allocator_);
+        return this.storage.try_shrink_to_fit(this.allocator);
     }
 
-    void shrinkToFit() @trusted
+    void shrink_to_fit() @trusted
     {
-        storage_.shrinkToFit(allocator_);
+        this.storage.shrink_to_fit(this.allocator);
     }
 
-    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback)
+    i32 opApply(scope i32 delegate(ref const(K)) nothrow @nogc callback)
     {
-        return storage_.opApply(callback);
+        return this.storage.opApply(callback);
     }
 
-    int opApply(scope int delegate(ref const(K)) nothrow @nogc callback) const
+    i32 opApply(scope i32 delegate(ref const(K)) nothrow @nogc callback) const
     {
-        return storage_.opApply(callback);
-    }
-
-    Allocator* allocator() return pure @safe
-    {
-        return allocator_;
+        return this.storage.opApply(callback);
     }
 }
 
 struct HashSetCursor(K)
 {
-    private HashMapCursor!(K, SetMarker) cursor_;
+    HashMapCursor!(K, SetMarker) cursor;
 
     bool valid() const pure @safe
     {
-        return cursor_.valid;
+        return this.cursor.valid;
     }
 
     const(K)* value() const return
     {
-        return cursor_.key;
+        return this.cursor.key;
     }
 
     void advance()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
 struct ConstHashSetCursor(K)
 {
-    private ConstHashMapCursor!(K, SetMarker) cursor_;
+    ConstHashMapCursor!(K, SetMarker) cursor;
 
     bool valid() const pure @safe
     {
-        return cursor_.valid;
+        return this.cursor.valid;
     }
 
     const(K)* value() const return
     {
-        return cursor_.key;
+        return this.cursor.key;
     }
 
     void advance()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
 struct HashSetPointerRange(K)
 {
-    private HashSetCursor!K cursor_;
+    HashSetCursor!K cursor;
 
     bool empty() const pure @safe
     {
-        return !cursor_.valid;
+        return !this.cursor.valid;
     }
 
     const(K)* front() const return
     {
-        return cursor_.value;
+        return this.cursor.value;
     }
 
+    // Input-range primitive required by D.
     void popFront()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
 struct ConstHashSetPointerRange(K)
 {
-    private ConstHashSetCursor!K cursor_;
+    ConstHashSetCursor!K cursor;
 
     bool empty() const pure @safe
     {
-        return !cursor_.valid;
+        return !this.cursor.valid;
     }
 
     const(K)* front() const return
     {
-        return cursor_.value;
+        return this.cursor.value;
     }
 
+    // Input-range primitive required by D.
     void popFront()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }

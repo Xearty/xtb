@@ -1051,13 +1051,13 @@ private void testOwnedHashSetStringIntegration(InstrumentedAllocator* tracked)
     foreach (text; integrationKeys)
     {
         StringBuf value = StringBuf.fromString(tracked.allocator, text);
-        assert(set.tryAdd(&value) == AddStatus.inserted);
+        assert(set.try_add(&value) == AddStatus.inserted);
         assert(value.allocator is null && value.empty);
     }
     assert(set.length == integrationKeys.length);
 
     StringBuf duplicate = StringBuf.fromString(tracked.allocator, "key-04");
-    assert(set.tryAdd(&duplicate) == AddStatus.already_present);
+    assert(set.try_add(&duplicate) == AddStatus.already_present);
     assert(duplicate.view == "key-04");
     deinit(duplicate);
 
@@ -1080,7 +1080,7 @@ private void testOwnedHashSetStringIntegration(InstrumentedAllocator* tracked)
     Set failing = Set.create(tracked.allocator);
     StringBuf retained = StringBuf.fromString(tracked.allocator, "oom-set-value");
     tracked.fail_after(0);
-    assert(failing.tryAdd(&retained) == AddStatus.out_of_memory);
+    assert(failing.try_add(&retained) == AddStatus.out_of_memory);
     assert(retained.view == "oom-set-value");
     assert(failing.empty);
     tracked.allow_allocations();

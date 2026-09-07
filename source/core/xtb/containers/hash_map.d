@@ -2103,7 +2103,7 @@ unittest
     auto values = HashSet!i32.seeded(malloc_allocator(), HashSeed.from_value(123));
     assert(values.add(3));
     assert(!values.add(3));
-    assert(values.tryAdd(7) == AddStatus.inserted);
+    assert(values.try_add(7) == AddStatus.inserted);
     assert(values.contains(3) && values.contains(7));
     usize visited;
     auto set_cursor = values.cursor();
@@ -2122,7 +2122,7 @@ unittest
     }
     assert(foreach_visited == values.length);
     usize pointer_visited;
-    foreach (value; values.pointerItems)
+    foreach (value; values.pointer_items)
     {
         assert(value !is null && (*value == 3 || *value == 7));
         ++pointer_visited;
@@ -2135,17 +2135,17 @@ unittest
         assert(value == 3 || value == 7);
         ++const_set_visited;
     }
-    foreach (value; (*read_only_values).pointerItems)
+    foreach (value; (*read_only_values).pointer_items)
         assert(value !is null && (*value == 3 || *value == 7));
 
     assert(const_set_visited == values.length);
     assert(values.remove(3));
     assert(!values.contains(3));
-    values.shrinkToFit();
-    values.resetAndRelease();
+    values.shrink_to_fit();
+    values.reset_and_release();
     assert(values.empty && values.capacity == 0);
 
-    auto preallocated = HashSet!i32.withCapacity(malloc_allocator(), 48);
+    auto preallocated = HashSet!i32.with_capacity(malloc_allocator(), 48);
     assert(preallocated.capacity >= 48);
     preallocated.deinit();
 
@@ -2215,7 +2215,7 @@ unittest
     IntSetStorage zero_set;
     zero_set.deinit(null);
     IntSetStorage reset_set;
-    reset_set.resetAndRelease(null);
+    reset_set.reset_and_release(null);
     assert(reset_set.empty && reset_set.capacity == 0);
 
     AllocationRecord[32] records;
@@ -2335,11 +2335,11 @@ unittest
         IntSetStorage output;
 
         allocator.fail_after(1);
-        assert(!IntSetStorage.tryWithCapacity(allocator.allocator, 32, &output));
+        assert(!IntSetStorage.try_with_capacity(allocator.allocator, 32, &output));
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
         allocator.allow_allocations();
-        assert(IntSetStorage.tryWithCapacity(allocator.allocator, 32, &output));
+        assert(IntSetStorage.try_with_capacity(allocator.allocator, 32, &output));
         assert(output.capacity >= 32);
         output.deinit(allocator.allocator);
         assert(allocator.clean && allocator.stats.invalid_calls == 0);
@@ -2351,12 +2351,12 @@ unittest
         IntSet output;
 
         allocator.fail_after(1);
-        assert(!IntSet.tryWithCapacity(allocator.allocator, 32, &output));
+        assert(!IntSet.try_with_capacity(allocator.allocator, 32, &output));
         assert(output.allocator is null);
         assert(output.empty && output.capacity == 0 && allocator.clean);
 
         allocator.allow_allocations();
-        assert(IntSet.tryWithCapacity(allocator.allocator, 32, &output));
+        assert(IntSet.try_with_capacity(allocator.allocator, 32, &output));
         assert(output.allocator is allocator.allocator);
         assert(output.capacity >= 32);
         output.deinit();

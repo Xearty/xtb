@@ -487,9 +487,9 @@ private void testOwnedSetFailurePreservesInput() @system
     const previousLength = set.length;
     const previousCapacity = set.capacity;
     tracked.fail_after(0);
-    assert(set.tryAdd(&duplicate) == AddStatus.already_present);
+    assert(set.try_add(&duplicate) == AddStatus.already_present);
     assert(duplicate.bytes.ptr !is null);
-    assert(set.tryAdd(&absent) == AddStatus.out_of_memory);
+    assert(set.try_add(&absent) == AddStatus.out_of_memory);
     assert(absent.bytes.ptr !is null);
     assert(set.length == previousLength && set.capacity == previousCapacity);
     tracked.allow_allocations();
