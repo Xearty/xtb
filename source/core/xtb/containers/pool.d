@@ -2,23 +2,20 @@ module xtb.containers.pool;
 
 nothrow @nogc:
 
-import core.bitop : bsf;
-import core.lifetime : emplace, forward;
-import core.stdc.string : memset;
-import xtb.allocators.internal.virtual_memory : VirtualMemoryRegion,
-    VirtualMemoryReservation, try_reserve_virtual_memory, virtual_memory_page_size,
-    virtual_memory_supported;
-import xtb.lifetime : can_finalize_without_context, finalize, move, move_emplace,
-    needs_deinit, needs_finalization;
-import xtb.numeric : add_overflows;
-import xtb.panic : panic;
-import xtb.containers.internal.pool_storage : IndexedPoolStorageLayout,
-    try_indexed_pool_storage_layout, try_indexed_pool_storage_regions;
-import xtb.containers.virtual_array : default_virtual_commit_granularity, VirtualArrayView;
+import core.attribute;
+import core.bitop;
+import core_lifetime = core.lifetime;
+import core.stdc.string;
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.allocators.internal.virtual_memory;
+import xtb.containers.internal.pool_storage;
+import xtb.containers.virtual_array;
+import xtb.lifetime;
+import xtb.numeric;
+import xtb.panic;
+import xtb.types;
 
-private enum size_t occupiedBitsPerWord = size_t.sizeof * 8;
+private enum usize occupied_bits_per_word = usize.sizeof * 8;
 
 /// Fixed-capacity stable-address typed recycling pool backed by one virtual
 /// memory reservation.
@@ -26,205 +23,198 @@ private enum size_t occupiedBitsPerWord = size_t.sizeof * 8;
 /// Index zero is permanently invalid. Live/dead state lives in a compact
 /// occupancy bitmap and recycled slots are tracked by integer indices, so Pool
 /// never stores allocator metadata in `T` and never overwrites an inactive
-/// element representation merely to recycle its storage.
-struct Pool(T)
+/// element representation merely to recycle its storage. The representation
+/// fields form one coupled ownership state: the three views borrow from
+/// `reservation`, and the counts/indices describe the logical state inside
+/// those provisioned views.
+@mustuse struct Pool(T)
 {
-nothrow @nogc:
-
     alias Self = Pool!T;
 
-private:
-    VirtualMemoryReservation reservation_;
-    VirtualArrayView!T values_;
-    VirtualArrayView!size_t occupiedWords_;
-    VirtualArrayView!uint freeIndices_;
+    VirtualMemoryReservation reservation;
+    VirtualArrayView!T values;
+    VirtualArrayView!usize occupied_words;
+    VirtualArrayView!u32 free_indices;
 
-    uint capacity_;
-    size_t nextIndex_;
-    size_t freeCount_;
-    size_t liveCount_;
+    u32 capacity;
+    usize next_index;
+    usize free_count;
+    usize live_count;
 
-    version (XTB_Checked) size_t mutationGeneration_ = 1;
+    version (XTB_Checked) usize mutation_generation = 1;
 
-public:
     @disable this(this);
     @disable ref Self opAssign(Self source) return;
 
     /// Attempts to create an empty Pool with `capacity` usable slots.
     ///
-    /// Capacity zero succeeds as the inert state without requiring virtual
-    /// memory support. Nonzero capacity reserves all address space up front but
-    /// commits no slot/state pages until the first virgin allocation.
-    static bool tryCreate(uint capacity, scope Self* output) @system
+    /// `output` must point to an inert Pool. Capacity zero succeeds without
+    /// requiring virtual-memory support. Nonzero capacity reserves all address
+    /// space up front but commits no slot/state pages until the first virgin
+    /// allocation. On success, `output` owns the reservation and its views. On
+    /// failure, `output` remains inert.
+    static bool try_create(u32 capacity, scope Self* output) @system
     {
-        version (XTB_Checked)
-        {
-            require(output !is null, "Pool output pointer is null");
-            require(output is null || output.inert,
-                "Pool output is already initialized");
-        }
+        require(output !is null, "Pool output pointer is null");
+        require(
+            output is null || output.inert,
+            "Pool output is already initialized",
+        );
 
-        if (output is null || !output.inert)
-            return false;
-        if (capacity == 0)
-            return true;
-        if (!virtual_memory_supported)
-            return false;
+        if (output is null || !output.inert) return false;
+        if (capacity == 0) return true;
+        if (!virtual_memory_supported) return false;
 
-        const pageSize = virtual_memory_page_size();
-        if (pageSize == 0)
-            return false;
+        const usize page_size = virtual_memory_page_size();
+        if (page_size == 0) return false;
 
         IndexedPoolStorageLayout layout;
-        if (!tryPoolLayout!T(capacity, pageSize, &layout))
-            return false;
+        if (!try_pool_layout!T(capacity, page_size, &layout)) return false;
 
         VirtualMemoryReservation reservation;
-        if (!try_reserve_virtual_memory(layout.reservation_bytes, &reservation))
-            return false;
-        scope (exit)
-            reservation.deinit();
+        if (!try_reserve_virtual_memory(layout.reservation_bytes, &reservation)) return false;
+        scope (exit) reservation.deinit();
 
-        VirtualMemoryRegion valuesRegion;
-        VirtualMemoryRegion occupiedRegion;
-        VirtualMemoryRegion freeRegion;
+        VirtualMemoryRegion values_region;
+        VirtualMemoryRegion occupied_region;
+        VirtualMemoryRegion free_region;
         if (!try_indexed_pool_storage_regions(
-                reservation,
-                layout,
-                &valuesRegion,
-                &occupiedRegion,
-                &freeRegion,
-            ))
+            reservation,
+            layout,
+            &values_region,
+            &occupied_region,
+            &free_region,
+        ))
+        {
             return false;
+        }
 
         VirtualArrayView!T values;
         if (!VirtualArrayView!T.try_create(
-                valuesRegion,
-                layout.value_capacity,
-                default_virtual_commit_granularity,
-                &values,
-            ))
+            values_region,
+            layout.value_capacity,
+            default_virtual_commit_granularity,
+            &values,
+        ))
+        {
             return false;
-        scope (exit)
-            values.deinit();
+        }
+        scope (exit) values.deinit();
 
-        VirtualArrayView!size_t occupiedWords;
-        if (!VirtualArrayView!size_t.try_create(
-                occupiedRegion,
-                layout.state_capacity,
-                default_virtual_commit_granularity,
-                &occupiedWords,
-            ))
+        VirtualArrayView!usize occupied_words;
+        if (!VirtualArrayView!usize.try_create(
+            occupied_region,
+            layout.state_capacity,
+            default_virtual_commit_granularity,
+            &occupied_words,
+        ))
+        {
             return false;
-        scope (exit)
-            occupiedWords.deinit();
+        }
+        scope (exit) occupied_words.deinit();
 
-        VirtualArrayView!uint freeIndices;
-        if (!VirtualArrayView!uint.try_create(
-                freeRegion,
-                capacity,
-                default_virtual_commit_granularity,
-                &freeIndices,
-            ))
+        VirtualArrayView!u32 free_indices;
+        if (!VirtualArrayView!u32.try_create(
+            free_region,
+            capacity,
+            default_virtual_commit_granularity,
+            &free_indices,
+        ))
+        {
             return false;
-        scope (exit)
-            freeIndices.deinit();
+        }
+        scope (exit) free_indices.deinit();
 
         Self result;
-        move_emplace(reservation, result.reservation_);
-        move_emplace(values, result.values_);
-        move_emplace(occupiedWords, result.occupiedWords_);
-        move_emplace(freeIndices, result.freeIndices_);
-        result.capacity_ = capacity;
-        result.nextIndex_ = 1;
+        move_emplace(reservation, result.reservation);
+        move_emplace(values, result.values);
+        move_emplace(occupied_words, result.occupied_words);
+        move_emplace(free_indices, result.free_indices);
+        result.capacity = capacity;
+        result.next_index = 1;
         move_emplace(result, *output);
         return true;
     }
 
     /// Creates an empty Pool or panics when its virtual reservation cannot be
     /// established.
-    static Self create(uint capacity) @system
+    static Self create(u32 capacity) @system
     {
         Self result;
-        if (!tryCreate(capacity, &result))
-            panic("Pool reservation failed");
+        if (!Self.try_create(capacity, &result)) panic("Pool reservation failed");
         return move(result);
     }
 
     /// Activates one raw slot and returns its stable storage address.
     ///
-    /// The returned storage is not initialized as `T`; callers must establish
-    /// the value before using semantic live-item APIs. Failure leaves Pool
-    /// logical state unchanged.
-    T* tryAllocate() @system
+    /// The returned non-null pointer borrows storage from this Pool until that
+    /// slot is recycled or the Pool is deinitialized. The storage is not
+    /// initialized as `T`; callers must establish the value before using
+    /// semantic live-item APIs. Failure returns null and leaves Pool logical
+    /// state unchanged.
+    T* try_allocate() @system
     {
-        uint index;
-        if (freeCount_ != 0)
+        u32 index;
+        if (this.free_count != 0)
         {
-            const stackIndex = freeCount_ - 1;
-            index = freeIndices_[stackIndex];
-            --freeCount_;
+            const stack_index = this.free_count - 1;
+            index = this.free_indices[stack_index];
+            --this.free_count;
 
-            version (XTB_Checked)
-            {
-                require(index != 0 && index <= capacity_,
-                    "Pool free-index stack is corrupt");
-                require(!occupied(index),
-                    "Pool free-index stack contains an occupied slot");
-            }
+            require(
+                index != 0 && index <= this.capacity,
+                "Pool free-index stack is corrupt",
+            );
+            require(!this.occupied(index), "Pool free-index stack contains an occupied slot");
         }
         else
         {
-            if (nextIndex_ == 0 || nextIndex_ > capacity_)
-                return null;
+            if (this.next_index == 0 || this.next_index > this.capacity) return null;
 
-            index = cast(uint) nextIndex_;
-            if (!tryProvisionVirgin(index))
-                return null;
-            ++nextIndex_;
+            index = cast(u32) this.next_index;
+            if (!this.try_provision_virgin(index)) return null;
+
+            ++this.next_index;
         }
 
-        setOccupied(index, true);
-        ++liveCount_;
+        this.set_occupied(index, true);
+        ++this.live_count;
         version (XTB_Checked)
-            ++mutationGeneration_;
-        return values_.ptr + index;
+            ++this.mutation_generation;
+        return this.values.ptr + index;
     }
 
     /// Activates one raw slot or panics when fixed capacity or virtual backing
     /// is exhausted.
     T* allocate() @system
     {
-        T* result = tryAllocate();
-        if (result is null)
-            panic("Pool capacity or commitment exceeded");
+        T* result = this.try_allocate();
+        if (result is null) panic("Pool capacity or commitment exceeded");
         return result;
     }
 
     /// Attempts to activate one slot and establish its `T.init` lifetime.
-    T* tryAllocateInit() @system
+    T* try_allocate_init() @system
     {
-        T* result = tryAllocate();
-        if (result !is null)
-            emplace(result);
+        T* result = this.try_allocate();
+        if (result !is null) core_lifetime.emplace(result);
         return result;
     }
 
     /// Activates one slot and establishes its `T.init` lifetime, or panics when
     /// fixed capacity or virtual backing is exhausted.
-    T* allocateInit() @system
+    T* allocate_init() @system
     {
-        T* result = allocate();
-        emplace(result);
+        T* result = this.allocate();
+        core_lifetime.emplace(result);
         return result;
     }
 
     /// Attempts to activate and construct one `T` with `emplace`.
-    T* tryConstruct(Args...)(auto ref Args arguments) @system
+    T* try_construct(Args...)(auto ref Args arguments) @system
     {
-        T* result = tryAllocate();
-        if (result !is null)
-            emplace(result, forward!arguments);
+        T* result = this.try_allocate();
+        if (result !is null) core_lifetime.emplace(result, core_lifetime.forward!arguments);
         return result;
     }
 
@@ -232,8 +222,8 @@ public:
     /// virtual backing is exhausted.
     T* construct(Args...)(auto ref Args arguments) @system
     {
-        T* result = allocate();
-        emplace(result, forward!arguments);
+        T* result = this.allocate();
+        core_lifetime.emplace(result, core_lifetime.forward!arguments);
         return result;
     }
 
@@ -241,83 +231,84 @@ public:
     ///
     /// Every virgin allocation provisions enough free-index storage for its
     /// future recycle before publishing the slot, so deallocation never needs
-    /// to allocate or commit virtual memory.
+    /// to allocate or commit virtual memory. `value` must be non-null and point
+    /// to a currently occupied slot owned by this Pool.
     void deallocate(T* value) @system
     {
-        uint index;
+        require(value !is null, "Pool deallocation pointer is null");
+
+        u32 index;
         version (XTB_Checked)
         {
-            require(value !is null, "Pool deallocation pointer is null");
-            index = checkedPhysicalIndex(value);
+            index = this.checked_physical_index(value);
             require(index != 0, "Pool deallocation pointer does not belong to Pool");
-            require(occupied(index), "Pool slot is already inactive");
-            require(freeCount_ < freeIndices_.provisioned_length,
-                "Pool free-index provisioning invariant violated");
+            require(this.occupied(index), "Pool slot is already inactive");
+            require(
+                this.free_count < this.free_indices.provisioned_length,
+                "Pool free-index provisioning invariant violated",
+            );
         }
         else
         {
-            const valueAddress = cast(size_t) value;
-            const baseAddress = cast(size_t) values_.ptr;
-            index = cast(uint)((valueAddress - baseAddress) / T.sizeof);
+            const value_address = cast(usize) value;
+            const base_address = cast(usize) this.values.ptr;
+            index = cast(u32)((value_address - base_address) / T.sizeof);
         }
 
-        setOccupied(index, false);
-        freeIndices_[freeCount_] = index;
-        ++freeCount_;
-        --liveCount_;
+        this.set_occupied(index, false);
+        this.free_indices[this.free_count] = index;
+        ++this.free_count;
+        --this.live_count;
         version (XTB_Checked)
-            ++mutationGeneration_;
+            ++this.mutation_generation;
     }
 
     /// Finalizes a live value without external cleanup context, then recycles
     /// its slot. The Pool itself does not overwrite the post-finalization
-    /// representation.
+    /// representation. `value` must be non-null and point to a currently
+    /// occupied slot owned by this Pool.
     static if (can_finalize_without_context!T)
     {
         void dispose(T* value) @system
         {
+            require(value !is null, "Pool disposal pointer is null");
+
             version (XTB_Checked)
             {
-                require(value !is null, "Pool disposal pointer is null");
-                const index = checkedPhysicalIndex(value);
-                require(index != 0 && occupied(index),
-                    "Pool disposal requires an occupied Pool slot");
+                const u32 index = this.checked_physical_index(value);
+                require(
+                    index != 0 && this.occupied(index),
+                    "Pool disposal requires an occupied Pool slot",
+                );
             }
 
             static if (needs_finalization!T)
                 finalize(*value);
-            deallocate(value);
+            this.deallocate(value);
         }
     }
 
     /// Returns the live value at `index`, or null for zero, out-of-capacity, or
-    /// inactive indices.
-    T* get(uint index) return @trusted
+    /// inactive indices. A non-null result borrows from this Pool and remains
+    /// valid until that slot is recycled or the Pool is deinitialized.
+    inout(T)* get(u32 index) inout return @trusted
     {
-        if (!occupied(index))
-            return null;
-        return values_.ptr + index;
-    }
-
-    const(T)* get(uint index) const return @trusted
-    {
-        if (!occupied(index))
-            return null;
-        return values_.ptr + index;
+        if (!this.occupied(index)) return null;
+        return this.values.ptr + index;
     }
 
     /// Returns the stable index of an occupied value owned by this Pool, or
     /// zero when the pointer is null, foreign, misaligned, or inactive.
-    uint indexOf(scope const T* value) const @trusted
+    u32 index_of(scope const T* value) const @trusted
     {
-        const index = physicalIndex(value);
-        return index != 0 && occupied(index) ? index : 0;
+        const u32 index = this.physical_index(value);
+        return index != 0 && this.occupied(index) ? index : 0;
     }
 
     /// Whether `index` currently denotes an occupied slot.
-    bool contains(uint index) const @trusted
+    bool contains(u32 index) const @trusted
     {
-        return occupied(index);
+        return this.occupied(index);
     }
 
     /// Returns an input range over occupied values in stable index order.
@@ -338,25 +329,25 @@ public:
     /// Returns occupied values together with their stable indices.
     ///
     /// This uses the same occupied-slot cursor as `items()` and
-    /// `occupiedSlots()` and performs no second bitmap scan.
-    PoolOccupiedSlotsRange!T indexedItems() return @trusted
+    /// `occupied_slots()` and performs no second bitmap scan.
+    PoolOccupiedSlotsRange!T indexed_items() return @trusted
     {
         return PoolOccupiedSlotsRange!T.create(&this);
     }
 
-    ConstPoolOccupiedSlotsRange!T indexedItems() const return @trusted
+    ConstPoolOccupiedSlotsRange!T indexed_items() const return @trusted
     {
         return ConstPoolOccupiedSlotsRange!T.create(&this);
     }
 
     /// Returns an input range over occupied slots in stable index order.
     /// Each slot exposes its index and live value by reference.
-    PoolOccupiedSlotsRange!T occupiedSlots() return @trusted
+    PoolOccupiedSlotsRange!T occupied_slots() return @trusted
     {
         return PoolOccupiedSlotsRange!T.create(&this);
     }
 
-    ConstPoolOccupiedSlotsRange!T occupiedSlots() const return @trusted
+    ConstPoolOccupiedSlotsRange!T occupied_slots() const return @trusted
     {
         return ConstPoolOccupiedSlotsRange!T.create(&this);
     }
@@ -378,15 +369,15 @@ public:
     /// Previously provisioned pages remain committed and reusable.
     void clear() @trusted
     {
-        const wordCount = occupiedWords_.provisioned_length;
-        if (wordCount != 0)
-            memset(occupiedWords_.ptr, 0, wordCount * size_t.sizeof);
+        const usize word_count = this.occupied_words.provisioned_length;
+        if (word_count != 0)
+            memset(this.occupied_words.ptr, 0, word_count * usize.sizeof);
 
-        freeCount_ = 0;
-        liveCount_ = 0;
-        nextIndex_ = capacity_ == 0 ? 0 : 1;
+        this.free_count = 0;
+        this.live_count = 0;
+        this.next_index = this.capacity == 0 ? 0 : 1;
         version (XTB_Checked)
-            ++mutationGeneration_;
+            ++this.mutation_generation;
     }
 
     /// Ends all local views and releases the complete virtual reservation.
@@ -394,168 +385,139 @@ public:
     void deinit() @system
     {
         version (XTB_Checked)
-            ++mutationGeneration_;
-        values_.deinit();
-        occupiedWords_.deinit();
-        freeIndices_.deinit();
-        reservation_.deinit();
-        capacity_ = 0;
-        nextIndex_ = 0;
-        freeCount_ = 0;
-        liveCount_ = 0;
-    }
-
-    uint capacity() const pure @safe
-    {
-        return capacity_;
-    }
-
-    size_t liveCount() const pure @safe
-    {
-        return liveCount_;
+            ++this.mutation_generation;
+        this.values.deinit();
+        this.occupied_words.deinit();
+        this.free_indices.deinit();
+        this.reservation.deinit();
+        this.capacity = 0;
+        this.next_index = 0;
+        this.free_count = 0;
+        this.live_count = 0;
     }
 
     bool empty() const pure @safe
     {
-        return liveCount_ == 0;
+        return this.live_count == 0;
     }
 
-private:
-    bool tryProvisionVirgin(uint index) @system
+    private bool try_provision_virgin(u32 index) @system
     {
-        const valueCount = cast(size_t) index + 1;
-        const wordIndex = occupiedWordIndex(index);
+        const value_count = cast(usize) index + 1;
+        const usize word_index = occupied_word_index(index);
 
         // Provision all storage needed by this slot's entire future lifecycle
         // before publishing the index. Advancing one view's raw high-water is
         // harmless if a later view fails: Pool logical state remains unchanged
         // and a retry reuses the already committed prefix.
-        if (!values_.try_ensure_accessible(valueCount))
-            return false;
-        if (!occupiedWords_.try_ensure_accessible(wordIndex + 1))
-            return false;
-        if (!freeIndices_.try_ensure_accessible(index))
-            return false;
+        if (!this.values.try_ensure_accessible(value_count)) return false;
+        if (!this.occupied_words.try_ensure_accessible(word_index + 1)) return false;
+        if (!this.free_indices.try_ensure_accessible(index)) return false;
         return true;
     }
 
-    bool occupied(uint index) const @trusted
+    private bool occupied(u32 index) const @trusted
     {
-        if (index == 0 || index > capacity_)
-            return false;
+        if (index == 0 || index > this.capacity) return false;
 
-        const wordIndex = occupiedWordIndex(index);
-        if (wordIndex >= occupiedWords_.provisioned_length)
-            return false;
+        const usize word_index = occupied_word_index(index);
+        if (word_index >= this.occupied_words.provisioned_length) return false;
 
-        return (occupiedWords_[wordIndex] & occupiedBit(index)) != 0;
+        return (this.occupied_words[word_index] & occupied_bit(index)) != 0;
     }
 
-    void setOccupied(uint index, bool value) @trusted
+    private void set_occupied(u32 index, bool value) @trusted
     {
-        const wordIndex = occupiedWordIndex(index);
-        const bit = occupiedBit(index);
+        const usize word_index = occupied_word_index(index);
+        const usize bit = occupied_bit(index);
         if (value)
-            occupiedWords_[wordIndex] |= bit;
+        {
+            this.occupied_words[word_index] |= bit;
+        }
         else
-            occupiedWords_[wordIndex] &= ~bit;
+        {
+            this.occupied_words[word_index] &= ~bit;
+        }
     }
 
-    uint physicalIndex(scope const T* value) const @trusted
+    private u32 physical_index(scope const T* value) const @trusted
     {
-        if (value is null || values_.ptr is null || values_.provisioned_length <= 1)
+        if (value is null || this.values.ptr is null || this.values.provisioned_length <= 1)
             return 0;
 
-        const baseAddress = cast(size_t) values_.ptr;
-        const valueAddress = cast(size_t) value;
-        if (valueAddress < baseAddress)
+        const base_address = cast(usize) this.values.ptr;
+        const value_address = cast(usize) value;
+        if (value_address < base_address) return 0;
+
+        const usize byte_offset = value_address - base_address;
+        if (byte_offset % T.sizeof != 0) return 0;
+
+        const usize index = byte_offset / T.sizeof;
+        if (index == 0 || index >= this.values.provisioned_length || index > this.capacity)
             return 0;
 
-        const byteOffset = valueAddress - baseAddress;
-        if (byteOffset % T.sizeof != 0)
-            return 0;
-
-        const index = byteOffset / T.sizeof;
-        if (index == 0 || index >= values_.provisioned_length || index > capacity_)
-            return 0;
-        return cast(uint) index;
+        return cast(u32) index;
     }
 
-    version (XTB_Checked) uint checkedPhysicalIndex(scope const T* value) const @trusted
+    version (XTB_Checked) private u32 checked_physical_index(scope const T* value) const @trusted
     {
-        return physicalIndex(value);
+        return this.physical_index(value);
     }
 
-    bool inert() const pure @safe
+    private bool inert() const pure @safe
     {
-        return !reservation_.active &&
-            values_.inert &&
-            occupiedWords_.inert &&
-            freeIndices_.inert &&
-            capacity_ == 0 &&
-            nextIndex_ == 0 &&
-            freeCount_ == 0 &&
-            liveCount_ == 0;
+        return !this.reservation.active
+            && this.values.inert
+            && this.occupied_words.inert
+            && this.free_indices.inert
+            && this.capacity == 0
+            && this.next_index == 0
+            && this.free_count == 0
+            && this.live_count == 0;
     }
 }
 
-/// Mutable occupied-slot view returned by `Pool.occupiedSlots`.
+/// Mutable occupied-slot view returned by `Pool.occupied_slots`.
 ///
 /// The view borrows Pool storage. Structural Pool mutation invalidates it.
 struct PoolOccupiedSlot(T)
 {
-nothrow @nogc:
-
-private:
-    T* value_;
-    uint index_;
+    T* value_ptr;
+    u32 index;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
-    }
-
-public:
-    uint index() const pure @safe
-    {
-        return index_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
     ref T value() return @system
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return *value_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return *this.value_ptr;
     }
 }
 
 /// Read-only occupied-slot view returned by a const Pool.
 struct ConstPoolOccupiedSlot(T)
 {
-nothrow @nogc:
-
-private:
-    const(T)* value_;
-    uint index_;
+    const(T)* value_ptr;
+    u32 index;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
-    }
-
-public:
-    uint index() const pure @safe
-    {
-        return index_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
     ref const(T) value() const return @system
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return *value_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return *this.value_ptr;
     }
 }
 
@@ -565,336 +527,299 @@ public:
 /// therefore deliberately `@system`. `value` additionally requires occupancy.
 struct PoolSlot(T)
 {
-nothrow @nogc:
-
-private:
-    T* storage_;
-    uint index_;
-    bool occupied_;
+    T* storage_ptr;
+    u32 index;
+    bool occupied_state;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
-    }
-
-public:
-    uint index() const pure @safe
-    {
-        return index_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
     bool occupied() const @trusted
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return occupied_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return this.occupied_state;
     }
 
     ref T value() return @system
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(occupied_, "inactive Pool slot has no live value");
-        }
-        return *storage_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.occupied_state, "inactive Pool slot has no live value");
+
+        return *this.storage_ptr;
     }
 
     ref T storage() return @system
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return *storage_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return *this.storage_ptr;
     }
 }
 
 /// Read-only view of one deliberately provisioned slot from a const Pool.
 struct ConstPoolSlot(T)
 {
-nothrow @nogc:
-
-private:
-    const(T)* storage_;
-    uint index_;
-    bool occupied_;
+    const(T)* storage_ptr;
+    u32 index;
+    bool occupied_state;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
-    }
-
-public:
-    uint index() const pure @safe
-    {
-        return index_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
     bool occupied() const @trusted
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return occupied_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return this.occupied_state;
     }
 
     ref const(T) value() const return @system
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(occupied_, "inactive Pool slot has no live value");
-        }
-        return *storage_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.occupied_state, "inactive Pool slot has no live value");
+
+        return *this.storage_ptr;
     }
 
     ref const(T) storage() const return @system
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return *storage_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return *this.storage_ptr;
     }
 }
 
 /// Input range yielding occupied Pool values directly by reference.
 struct PoolItemsRange(T)
 {
-nothrow @nogc:
+    PoolOccupiedCursor!T cursor;
+    T* values;
 
-private:
-    PoolOccupiedCursor!T cursor_;
-    T* values_;
-
-    static PoolItemsRange create(Pool!T* pool) @trusted
+    private static PoolItemsRange create(Pool!T* pool) @trusted
     {
         PoolItemsRange result;
-        result.cursor_ = PoolOccupiedCursor!T.create(pool);
-        result.values_ = pool.values_.ptr;
+        result.cursor = PoolOccupiedCursor!T.create(pool);
+        result.values = pool.values.ptr;
         return result;
     }
 
-public:
     bool empty() const @trusted
     {
-        return cursor_.empty;
+        return this.cursor.empty;
     }
 
     ref T front() return @system
     {
-        return values_[cursor_.index];
+        return this.values[this.cursor.index];
     }
 
     void popFront() @trusted
     {
-        cursor_.popFront();
+        this.cursor.popFront();
     }
 }
 
 /// Read-only input range yielding occupied Pool values by const reference.
 struct ConstPoolItemsRange(T)
 {
-nothrow @nogc:
+    PoolOccupiedCursor!T cursor;
+    const(T)* values;
 
-private:
-    PoolOccupiedCursor!T cursor_;
-    const(T)* values_;
-
-    static ConstPoolItemsRange create(const(Pool!T)* pool) @trusted
+    private static ConstPoolItemsRange create(const(Pool!T)* pool) @trusted
     {
         ConstPoolItemsRange result;
-        result.cursor_ = PoolOccupiedCursor!T.create(pool);
-        result.values_ = pool.values_.ptr;
+        result.cursor = PoolOccupiedCursor!T.create(pool);
+        result.values = pool.values.ptr;
         return result;
     }
 
-public:
     bool empty() const @trusted
     {
-        return cursor_.empty;
+        return this.cursor.empty;
     }
 
     ref const(T) front() const return @system
     {
-        return values_[cursor_.index];
+        return this.values[this.cursor.index];
     }
 
     void popFront() @trusted
     {
-        cursor_.popFront();
+        this.cursor.popFront();
     }
 }
 
 /// Input range yielding occupied slots with stable indices and live values.
 struct PoolOccupiedSlotsRange(T)
 {
-nothrow @nogc:
-
-private:
-    PoolOccupiedCursor!T cursor_;
-    T* values_;
+    PoolOccupiedCursor!T cursor;
+    T* values;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
-    static PoolOccupiedSlotsRange create(Pool!T* pool) @trusted
+    private static PoolOccupiedSlotsRange create(Pool!T* pool) @trusted
     {
         PoolOccupiedSlotsRange result;
-        result.cursor_ = PoolOccupiedCursor!T.create(pool);
-        result.values_ = pool.values_.ptr;
+        result.cursor = PoolOccupiedCursor!T.create(pool);
+        result.values = pool.values.ptr;
         version (XTB_Checked)
         {
-            result.owner_ = pool;
-            result.mutationGeneration_ = pool.mutationGeneration_;
-            result.valuesBase_ = pool.values_.ptr;
+            result.owner = pool;
+            result.mutation_generation = pool.mutation_generation;
+            result.values_base = pool.values.ptr;
         }
         return result;
     }
 
-public:
     bool empty() const @trusted
     {
-        return cursor_.empty;
+        return this.cursor.empty;
     }
 
     PoolOccupiedSlot!T front() return @system
     {
-        const index = cursor_.index;
+        const u32 index = this.cursor.index;
         PoolOccupiedSlot!T result;
-        result.value_ = values_ + index;
-        result.index_ = index;
+        result.value_ptr = this.values + index;
+        result.index = index;
         version (XTB_Checked)
         {
-            result.owner_ = owner_;
-            result.mutationGeneration_ = mutationGeneration_;
-            result.valuesBase_ = valuesBase_;
+            result.owner = this.owner;
+            result.mutation_generation = this.mutation_generation;
+            result.values_base = this.values_base;
         }
         return result;
     }
 
     void popFront() @trusted
     {
-        cursor_.popFront();
+        this.cursor.popFront();
     }
 }
 
 /// Read-only occupied-slot range for a const Pool.
 struct ConstPoolOccupiedSlotsRange(T)
 {
-nothrow @nogc:
-
-private:
-    PoolOccupiedCursor!T cursor_;
-    const(T)* values_;
+    PoolOccupiedCursor!T cursor;
+    const(T)* values;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
-    static ConstPoolOccupiedSlotsRange create(const(Pool!T)* pool) @trusted
+    private static ConstPoolOccupiedSlotsRange create(const(Pool!T)* pool) @trusted
     {
         ConstPoolOccupiedSlotsRange result;
-        result.cursor_ = PoolOccupiedCursor!T.create(pool);
-        result.values_ = pool.values_.ptr;
+        result.cursor = PoolOccupiedCursor!T.create(pool);
+        result.values = pool.values.ptr;
         version (XTB_Checked)
         {
-            result.owner_ = pool;
-            result.mutationGeneration_ = pool.mutationGeneration_;
-            result.valuesBase_ = pool.values_.ptr;
+            result.owner = pool;
+            result.mutation_generation = pool.mutation_generation;
+            result.values_base = pool.values.ptr;
         }
         return result;
     }
 
-public:
     bool empty() const @trusted
     {
-        return cursor_.empty;
+        return this.cursor.empty;
     }
 
     ConstPoolOccupiedSlot!T front() const return @system
     {
-        const index = cursor_.index;
+        const u32 index = this.cursor.index;
         ConstPoolOccupiedSlot!T result;
-        result.value_ = values_ + index;
-        result.index_ = index;
+        result.value_ptr = this.values + index;
+        result.index = index;
         version (XTB_Checked)
         {
-            result.owner_ = owner_;
-            result.mutationGeneration_ = mutationGeneration_;
-            result.valuesBase_ = valuesBase_;
+            result.owner = this.owner;
+            result.mutation_generation = this.mutation_generation;
+            result.values_base = this.values_base;
         }
         return result;
     }
 
     void popFront() @trusted
     {
-        cursor_.popFront();
+        this.cursor.popFront();
     }
 }
 
 /// Sequential input range over all deliberately provisioned Pool slots.
 struct PoolSlotsRange(T)
 {
-nothrow @nogc:
-
-private:
-    T* values_;
-    const(size_t)* occupiedWords_;
-    size_t index_;
-    size_t endIndex_;
+    T* values;
+    const(usize)* occupied_words;
+    usize current_index;
+    usize end_index;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
-    static PoolSlotsRange create(Pool!T* pool) @trusted
+    private static PoolSlotsRange create(Pool!T* pool) @trusted
     {
         PoolSlotsRange result;
-        result.values_ = pool.values_.ptr;
-        result.occupiedWords_ = pool.occupiedWords_.ptr;
-        result.index_ = 1;
-        result.endIndex_ = pool.values_.provisioned_length;
+        result.values = pool.values.ptr;
+        result.occupied_words = pool.occupied_words.ptr;
+        result.current_index = 1;
+        result.end_index = pool.values.provisioned_length;
         version (XTB_Checked)
         {
-            result.owner_ = pool;
-            result.mutationGeneration_ = pool.mutationGeneration_;
-            result.valuesBase_ = pool.values_.ptr;
+            result.owner = pool;
+            result.mutation_generation = pool.mutation_generation;
+            result.values_base = pool.values.ptr;
         }
         return result;
     }
 
-public:
     bool empty() const @trusted
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return index_ >= endIndex_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return this.current_index >= this.end_index;
     }
 
     PoolSlot!T front() return @system
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(index_ < endIndex_, "front of empty Pool slots range");
-        }
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.current_index < this.end_index, "front of empty Pool slots range");
 
-        const index = cast(uint) index_;
+        const u32 index = cast(u32) this.current_index;
         PoolSlot!T result;
-        result.storage_ = values_ + index;
-        result.index_ = index;
-        result.occupied_ = poolOccupiedBit(occupiedWords_, index);
+        result.storage_ptr = this.values + index;
+        result.index = index;
+        result.occupied_state = pool_occupied_bit(this.occupied_words, index);
         version (XTB_Checked)
         {
-            result.owner_ = owner_;
-            result.mutationGeneration_ = mutationGeneration_;
-            result.valuesBase_ = valuesBase_;
+            result.owner = this.owner;
+            result.mutation_generation = this.mutation_generation;
+            result.values_base = this.values_base;
         }
         return result;
     }
@@ -902,73 +827,67 @@ public:
     void popFront() @trusted
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(index_ < endIndex_, "popFront of empty Pool slots range");
-        }
-        ++index_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.current_index < this.end_index, "popFront of empty Pool slots range");
+
+        ++this.current_index;
     }
 }
 
 /// Read-only sequential range over all deliberately provisioned slots.
 struct ConstPoolSlotsRange(T)
 {
-nothrow @nogc:
-
-private:
-    const(T)* values_;
-    const(size_t)* occupiedWords_;
-    size_t index_;
-    size_t endIndex_;
+    const(T)* values;
+    const(usize)* occupied_words;
+    usize current_index;
+    usize end_index;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
-    static ConstPoolSlotsRange create(const(Pool!T)* pool) @trusted
+    private static ConstPoolSlotsRange create(const(Pool!T)* pool) @trusted
     {
         ConstPoolSlotsRange result;
-        result.values_ = pool.values_.ptr;
-        result.occupiedWords_ = pool.occupiedWords_.ptr;
-        result.index_ = 1;
-        result.endIndex_ = pool.values_.provisioned_length;
+        result.values = pool.values.ptr;
+        result.occupied_words = pool.occupied_words.ptr;
+        result.current_index = 1;
+        result.end_index = pool.values.provisioned_length;
         version (XTB_Checked)
         {
-            result.owner_ = pool;
-            result.mutationGeneration_ = pool.mutationGeneration_;
-            result.valuesBase_ = pool.values_.ptr;
+            result.owner = pool;
+            result.mutation_generation = pool.mutation_generation;
+            result.values_base = pool.values.ptr;
         }
         return result;
     }
 
-public:
     bool empty() const @trusted
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return index_ >= endIndex_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return this.current_index >= this.end_index;
     }
 
     ConstPoolSlot!T front() const return @system
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(index_ < endIndex_, "front of empty Pool slots range");
-        }
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.current_index < this.end_index, "front of empty Pool slots range");
 
-        const index = cast(uint) index_;
+        const u32 index = cast(u32) this.current_index;
         ConstPoolSlot!T result;
-        result.storage_ = values_ + index;
-        result.index_ = index;
-        result.occupied_ = poolOccupiedBit(occupiedWords_, index);
+        result.storage_ptr = this.values + index;
+        result.index = index;
+        result.occupied_state = pool_occupied_bit(this.occupied_words, index);
         version (XTB_Checked)
         {
-            result.owner_ = owner_;
-            result.mutationGeneration_ = mutationGeneration_;
-            result.valuesBase_ = valuesBase_;
+            result.owner = this.owner;
+            result.mutation_generation = this.mutation_generation;
+            result.values_base = this.values_base;
         }
         return result;
     }
@@ -976,594 +895,578 @@ public:
     void popFront() @trusted
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(index_ < endIndex_, "popFront of empty Pool slots range");
-        }
-        ++index_;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.current_index < this.end_index, "popFront of empty Pool slots range");
+
+        ++this.current_index;
     }
 }
 
 private struct PoolOccupiedCursor(T)
 {
-nothrow @nogc:
-
-private:
-    const(size_t)* occupiedWords_;
-    size_t wordCount_;
-    size_t wordIndex_;
-    size_t liveBits_;
+    const(usize)* occupied_words;
+    usize word_count;
+    usize word_index;
+    usize live_bits;
     version (XTB_Checked)
     {
-        const(Pool!T)* owner_;
-        size_t mutationGeneration_;
-        const(T)* valuesBase_;
+        const(Pool!T)* owner;
+        usize mutation_generation;
+        const(T)* values_base;
     }
 
-    static PoolOccupiedCursor create(const(Pool!T)* pool) @trusted
+    private static PoolOccupiedCursor create(const(Pool!T)* pool) @trusted
     {
         PoolOccupiedCursor result;
-        result.occupiedWords_ = pool.occupiedWords_.ptr;
-        result.wordCount_ = pool.occupiedWords_.provisioned_length;
+        result.occupied_words = pool.occupied_words.ptr;
+        result.word_count = pool.occupied_words.provisioned_length;
         version (XTB_Checked)
         {
-            result.owner_ = pool;
-            result.mutationGeneration_ = pool.mutationGeneration_;
-            result.valuesBase_ = pool.values_.ptr;
+            result.owner = pool;
+            result.mutation_generation = pool.mutation_generation;
+            result.values_base = pool.values.ptr;
         }
-        result.seekOccupiedWord();
+        result.seek_occupied_word();
         return result;
     }
 
-public:
     pragma(inline, true)
     bool empty() const @trusted
     {
         version (XTB_Checked)
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-        return liveBits_ == 0;
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+
+        return this.live_bits == 0;
     }
 
     pragma(inline, true)
-    uint index() const @trusted
+    u32 index() const @trusted
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(liveBits_ != 0, "front of empty Pool occupied range");
-        }
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.live_bits != 0, "front of empty Pool occupied range");
 
-        return cast(uint)(wordIndex_ * occupiedBitsPerWord + bsf(liveBits_));
+        return cast(u32)(this.word_index * occupied_bits_per_word + bsf(this.live_bits));
     }
 
     pragma(inline, true)
     void popFront() @trusted
     {
         version (XTB_Checked)
-        {
-            requirePoolViewValid(owner_, mutationGeneration_, valuesBase_);
-            require(liveBits_ != 0, "popFront of empty Pool occupied range");
-        }
+            require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
+        require(this.live_bits != 0, "popFront of empty Pool occupied range");
 
-        liveBits_ &= liveBits_ - 1;
-        if (liveBits_ == 0)
-        {
-            ++wordIndex_;
-            seekOccupiedWord();
-        }
+        this.live_bits &= this.live_bits - 1;
+        if (this.live_bits != 0) return;
+
+        ++this.word_index;
+        this.seek_occupied_word();
     }
 
-private:
-    pragma(inline, true)
-    void seekOccupiedWord() @trusted
+    private void seek_occupied_word() @trusted
     {
-        while (wordIndex_ < wordCount_)
+        while (this.word_index < this.word_count)
         {
-            liveBits_ = occupiedWords_[wordIndex_];
-            if (liveBits_ != 0)
-                return;
-            ++wordIndex_;
+            this.live_bits = this.occupied_words[this.word_index];
+            if (this.live_bits != 0) return;
+
+            ++this.word_index;
         }
-        liveBits_ = 0;
+        this.live_bits = 0;
     }
 }
 
-private bool poolOccupiedBit(scope const size_t* occupiedWords, uint index) @trusted
+private bool pool_occupied_bit(scope const usize* occupied_words, u32 index) @trusted
 {
-    return (occupiedWords[occupiedWordIndex(index)] & occupiedBit(index)) != 0;
+    return (occupied_words[occupied_word_index(index)] & occupied_bit(index)) != 0;
 }
 
-version (XTB_Checked) private void requirePoolViewValid(T)(
+version (XTB_Checked) private void require_pool_view_valid(T)(
     scope const Pool!T* owner,
-    size_t mutationGeneration,
-    scope const T* valuesBase,
+    usize mutation_generation,
+    scope const T* values_base,
 ) @trusted
 {
     require(owner !is null, "Pool range has no owner");
-    require(owner.mutationGeneration_ == mutationGeneration,
-        "Pool range was invalidated by structural mutation");
-    require(owner.values_.ptr is valuesBase,
-        "Pool range was invalidated by move or deinit");
+    require(
+        owner.mutation_generation == mutation_generation,
+        "Pool range was invalidated by structural mutation",
+    );
+    require(
+        owner.values.ptr is values_base,
+        "Pool range was invalidated by move or deinit",
+    );
 }
 
-static assert(needs_deinit!(Pool!ubyte));
+static assert(needs_deinit!(Pool!u8));
 
-private bool tryPoolLayout(T)(
-    uint capacity,
-    size_t pageSize,
+private bool try_pool_layout(T)(
+    u32 capacity,
+    usize page_size,
     scope IndexedPoolStorageLayout* output,
 ) pure @safe
 {
-    if (output is null || capacity == 0 || pageSize == 0)
-        return false;
+    if (output is null || capacity == 0 || page_size == 0) return false;
 
-    const capacityAsSize = cast(size_t) capacity;
-    if (add_overflows(capacityAsSize, 1))
-        return false;
-    const valueCapacity = capacityAsSize + 1;
+    const usize capacity_as_size = cast(usize) capacity;
+    if (add_overflows(capacity_as_size, 1)) return false;
+    const usize value_capacity = capacity_as_size + 1;
 
-    size_t occupiedWordCount = valueCapacity / occupiedBitsPerWord;
-    if (valueCapacity % occupiedBitsPerWord != 0)
-        ++occupiedWordCount;
+    usize occupied_word_count = value_capacity / occupied_bits_per_word;
+    if (value_capacity % occupied_bits_per_word != 0) ++occupied_word_count;
 
-    return try_indexed_pool_storage_layout!(T, size_t)(
+    return try_indexed_pool_storage_layout!(T, usize)(
         capacity,
-        occupiedWordCount,
-        pageSize,
+        occupied_word_count,
+        page_size,
         output,
     );
 }
 
-private size_t occupiedWordIndex(uint index) pure @safe
+private usize occupied_word_index(u32 index) pure @safe
 {
-    return cast(size_t) index / occupiedBitsPerWord;
+    return cast(usize) index / occupied_bits_per_word;
 }
 
-private size_t occupiedBit(uint index) pure @safe
+private usize occupied_bit(u32 index) pure @safe
 {
-    return size_t(1) << (cast(size_t) index % occupiedBitsPerWord);
+    return (cast(usize) 1) << (cast(usize) index % occupied_bits_per_word);
 }
 
+// Everything below here is test-only.
 unittest
 {
-    import core.stdc.string : memcmp;
-    import xtb.lifetime : move_assign;
-
-    static assert(__traits(compiles, (ref const Pool!int pool) {
-            const auto capacity = pool.capacity;
-            const auto count = pool.liveCount;
-            const auto isEmpty = pool.empty;
-            auto items = pool.items();
-            auto indexedItems = pool.indexedItems();
-            auto occupiedSlots = pool.occupiedSlots();
-            auto slots = pool.slots();
-            cast(void) capacity;
-            cast(void) count;
-            cast(void) isEmpty;
-            cast(void) items;
-            cast(void) indexedItems;
-            cast(void) occupiedSlots;
-            cast(void) slots;
-        }));
+    static assert(__traits(compiles, (ref const Pool!i32 pool)
+    {
+        const auto capacity = pool.capacity;
+        const auto count = pool.live_count;
+        const auto is_empty = pool.empty;
+        auto items = pool.items();
+        auto indexed_items = pool.indexed_items();
+        auto occupied_slots = pool.occupied_slots();
+        auto slots = pool.slots();
+        cast(void) capacity;
+        cast(void) count;
+        cast(void) is_empty;
+        cast(void) items;
+        cast(void) indexed_items;
+        cast(void) occupied_slots;
+        cast(void) slots;
+    }));
 
     version (XTB_Checked)
-        static assert(__traits(hasMember, Pool!int, "mutationGeneration_"));
+    {
+        static assert(__traits(hasMember, Pool!i32, "mutation_generation"));
+    }
     else
-        static assert(!__traits(hasMember, Pool!int, "mutationGeneration_"));
+    {
+        static assert(!__traits(hasMember, Pool!i32, "mutation_generation"));
+    }
 
-    Pool!int zero;
+    Pool!i32 zero;
     assert(zero.capacity == 0);
-    assert(zero.liveCount == 0);
+    assert(zero.live_count == 0);
     assert(zero.empty);
-    assert(zero.tryAllocate() is null);
+    assert(zero.try_allocate() is null);
     zero.clear();
     zero.deinit();
 
-    Pool!int zeroCreated = Pool!int.create(0);
-    assert(zeroCreated.capacity == 0);
-    zeroCreated.deinit();
+    Pool!i32 zero_created = Pool!i32.create(0);
+    assert(zero_created.capacity == 0);
+    zero_created.deinit();
 
     if (!virtual_memory_supported)
         return;
 
-    Pool!int pool = Pool!int.create(4);
-    scope (exit)
-        pool.deinit();
+    Pool!i32 pool = Pool!i32.create(4);
+    scope (exit) pool.deinit();
 
     assert(pool.capacity == 4);
-    assert(pool.liveCount == 0);
+    assert(pool.live_count == 0);
     assert(pool.get(0) is null);
     assert(!pool.contains(0));
 
-    int* first = pool.allocateInit();
-    int* second = pool.allocateInit();
+    i32* first = pool.allocate_init();
+    i32* second = pool.allocate_init();
     *first = 11;
     *second = 22;
-    assert(pool.indexOf(first) == 1);
-    assert(pool.indexOf(second) == 2);
+    assert(pool.index_of(first) == 1);
+    assert(pool.index_of(second) == 2);
     assert(pool.get(1) is first);
     assert(pool.get(2) is second);
-    assert(pool.liveCount == 2);
+    assert(pool.live_count == 2);
 
-    const valueCommitted = pool.values_.committed_bytes;
-    const occupiedCommitted = pool.occupiedWords_.committed_bytes;
-    const freeCommitted = pool.freeIndices_.committed_bytes;
+    const value_committed = pool.values.committed_bytes;
+    const occupied_committed = pool.occupied_words.committed_bytes;
+    const free_committed = pool.free_indices.committed_bytes;
     pool.deallocate(first);
-    assert(pool.values_.committed_bytes == valueCommitted);
-    assert(pool.occupiedWords_.committed_bytes == occupiedCommitted);
-    assert(pool.freeIndices_.committed_bytes == freeCommitted);
-    assert(pool.indexOf(first) == 0);
+    assert(pool.values.committed_bytes == value_committed);
+    assert(pool.occupied_words.committed_bytes == occupied_committed);
+    assert(pool.free_indices.committed_bytes == free_committed);
+    assert(pool.index_of(first) == 0);
     assert(pool.get(1) is null);
-    assert(pool.liveCount == 1);
+    assert(pool.live_count == 1);
 
-    int* recycled = pool.tryAllocate();
+    i32* recycled = pool.try_allocate();
     assert(recycled is first);
-    assert(pool.values_.committed_bytes == valueCommitted);
-    assert(pool.occupiedWords_.committed_bytes == occupiedCommitted);
-    assert(pool.freeIndices_.committed_bytes == freeCommitted);
+    assert(pool.values.committed_bytes == value_committed);
+    assert(pool.occupied_words.committed_bytes == occupied_committed);
+    assert(pool.free_indices.committed_bytes == free_committed);
     assert(*recycled == 11);
     pool.deallocate(recycled);
 
-    int* third = pool.allocateInit();
-    int* fourth = pool.allocateInit();
-    assert(pool.indexOf(third) == 1);
-    assert(pool.indexOf(fourth) == 3);
-    int* last = pool.allocateInit();
-    assert(pool.indexOf(last) == 4);
-    assert(pool.tryAllocate() is null);
-    assert(pool.tryAllocateInit() is null);
+    i32* third = pool.allocate_init();
+    i32* fourth = pool.allocate_init();
+    assert(pool.index_of(third) == 1);
+    assert(pool.index_of(fourth) == 3);
+    i32* last = pool.allocate_init();
+    assert(pool.index_of(last) == 4);
+    assert(pool.try_allocate() is null);
+    assert(pool.try_allocate_init() is null);
 
-    const uint bitmapCapacity = cast(uint)(occupiedBitsPerWord + 2);
-    Pool!ubyte bitmapPool = Pool!ubyte.create(bitmapCapacity);
-    scope (exit)
-        bitmapPool.deinit();
-    foreach (index; 1 .. bitmapCapacity + 1)
+    const u32 bitmap_capacity = cast(u32)(occupied_bits_per_word + 2);
+    Pool!u8 bitmap_pool = Pool!u8.create(bitmap_capacity);
+    scope (exit) bitmap_pool.deinit();
+    for (u32 index = 1; index <= bitmap_capacity; ++index)
     {
-        ubyte* value = bitmapPool.allocateInit();
-        assert(bitmapPool.indexOf(value) == index);
+        u8* value = bitmap_pool.allocate_init();
+        assert(bitmap_pool.index_of(value) == index);
     }
-    assert(bitmapPool.contains(cast(uint) occupiedBitsPerWord));
-    assert(bitmapPool.contains(cast(uint)(occupiedBitsPerWord + 1)));
+    assert(bitmap_pool.contains(cast(u32) occupied_bits_per_word));
+    assert(bitmap_pool.contains(cast(u32)(occupied_bits_per_word + 1)));
 
-    size_t denseRangeCount;
-    foreach (ref value; bitmapPool.items())
+    usize dense_range_count;
+    foreach (ref value; bitmap_pool.items())
     {
         cast(void) value;
-        ++denseRangeCount;
+        ++dense_range_count;
     }
-    assert(denseRangeCount == bitmapCapacity);
+    assert(dense_range_count == bitmap_capacity);
 
-    enum uint sparseCapacity = cast(uint)(occupiedBitsPerWord * 2 + 2);
-    Pool!uint sparseRanges = Pool!uint.create(sparseCapacity);
-    scope (exit)
-        sparseRanges.deinit();
-    uint*[sparseCapacity] sparseValues;
-    foreach (offset; 0 .. sparseCapacity)
+    enum u32 sparse_capacity = cast(u32)(occupied_bits_per_word * 2 + 2);
+    Pool!u32 sparse_ranges = Pool!u32.create(sparse_capacity);
+    scope (exit) sparse_ranges.deinit();
+    u32*[sparse_capacity] sparse_values;
+    for (u32 offset = 0; offset < sparse_capacity; ++offset)
     {
-        uint* value = sparseRanges.allocateInit();
-        *value = cast(uint)(offset + 1);
-        sparseValues[offset] = value;
+        u32* value = sparse_ranges.allocate_init();
+        *value = offset + 1;
+        sparse_values[offset] = value;
     }
-    foreach (index; 2 .. sparseCapacity + 1)
+    for (u32 index = 2; index <= sparse_capacity; ++index)
     {
-        if (index != occupiedBitsPerWord * 2 + 1)
-            sparseRanges.deallocate(sparseValues[index - 1]);
+        if (index != occupied_bits_per_word * 2 + 1)
+            sparse_ranges.deallocate(sparse_values[index - 1]);
     }
-    uint[2] sparseIndices;
-    size_t sparseCount;
-    foreach (slot; sparseRanges.occupiedSlots())
-        sparseIndices[sparseCount++] = slot.index;
-    assert(sparseCount == 2);
-    assert(sparseIndices[0] == 1);
-    assert(sparseIndices[1] == occupiedBitsPerWord * 2 + 1);
+    u32[2] sparse_indices;
+    usize sparse_count;
+    foreach (slot; sparse_ranges.occupied_slots())
+        sparse_indices[sparse_count++] = slot.index;
+    assert(sparse_count == 2);
+    assert(sparse_indices[0] == 1);
+    assert(sparse_indices[1] == occupied_bits_per_word * 2 + 1);
 
-    enum uint freeCommitBoundary = 16_385;
-    Pool!ubyte commitBoundary = Pool!ubyte.create(freeCommitBoundary);
-    scope (exit)
-        commitBoundary.deinit();
-    foreach (index; 1 .. freeCommitBoundary)
-        commitBoundary.allocate();
-    const freeBytesBeforeBoundary = commitBoundary.freeIndices_.committed_bytes;
-    ubyte* boundaryValue = commitBoundary.allocate();
-    assert(commitBoundary.indexOf(boundaryValue) == freeCommitBoundary);
-    assert(commitBoundary.freeIndices_.committed_bytes > freeBytesBeforeBoundary);
-    const freeBytesAfterBoundary = commitBoundary.freeIndices_.committed_bytes;
-    commitBoundary.deallocate(boundaryValue);
-    assert(commitBoundary.freeIndices_.committed_bytes == freeBytesAfterBoundary);
+    enum u32 free_commit_boundary = 16_385;
+    Pool!u8 commit_boundary = Pool!u8.create(free_commit_boundary);
+    scope (exit) commit_boundary.deinit();
+    foreach (_; 1 .. free_commit_boundary)
+        commit_boundary.allocate();
+    const free_bytes_before_boundary = commit_boundary.free_indices.committed_bytes;
+    u8* boundary_value = commit_boundary.allocate();
+    assert(commit_boundary.index_of(boundary_value) == free_commit_boundary);
+    assert(commit_boundary.free_indices.committed_bytes > free_bytes_before_boundary);
+    const free_bytes_after_boundary = commit_boundary.free_indices.committed_bytes;
+    commit_boundary.deallocate(boundary_value);
+    assert(commit_boundary.free_indices.committed_bytes == free_bytes_after_boundary);
 
-    Pool!int reuseOrder = Pool!int.create(4);
-    scope (exit)
-        reuseOrder.deinit();
-    int* reuseOne = reuseOrder.allocateInit();
-    int* reuseTwo = reuseOrder.allocateInit();
-    int* reuseThree = reuseOrder.allocateInit();
-    reuseOrder.deallocate(reuseOne);
-    reuseOrder.deallocate(reuseThree);
-    assert(reuseOrder.allocate() is reuseThree);
-    assert(reuseOrder.allocate() is reuseOne);
-    assert(reuseOrder.indexOf(reuseTwo) == 2);
+    Pool!i32 reuse_order = Pool!i32.create(4);
+    scope (exit) reuse_order.deinit();
+    i32* reuse_one = reuse_order.allocate_init();
+    i32* reuse_two = reuse_order.allocate_init();
+    i32* reuse_three = reuse_order.allocate_init();
+    reuse_order.deallocate(reuse_one);
+    reuse_order.deallocate(reuse_three);
+    assert(reuse_order.allocate() is reuse_three);
+    assert(reuse_order.allocate() is reuse_one);
+    assert(reuse_order.index_of(reuse_two) == 2);
 
     struct Representation
     {
-        uint first;
-        uint second;
+        u32 first;
+        u32 second;
     }
 
     Pool!Representation representations = Pool!Representation.create(3);
-    scope (exit)
-        representations.deinit();
-    Representation* representation = representations.allocateInit();
+    scope (exit) representations.deinit();
+    Representation* representation = representations.allocate_init();
     representation.first = 0x1234_5678;
-    representation.second = 0x9abc_def0;
+    representation.second = 0x9ABC_DEF0;
     Representation snapshot = *representation;
     representations.deallocate(representation);
     assert(memcmp(representation, &snapshot, Representation.sizeof) == 0);
-    Representation* sameRepresentation = representations.allocate();
-    assert(sameRepresentation is representation);
-    assert(memcmp(sameRepresentation, &snapshot, Representation.sizeof) == 0);
+    Representation* same_representation = representations.allocate();
+    assert(same_representation is representation);
+    assert(memcmp(same_representation, &snapshot, Representation.sizeof) == 0);
 
-    Representation* otherRepresentation = representations.allocateInit();
-    otherRepresentation.first = 7;
-    otherRepresentation.second = 9;
-    Representation otherSnapshot = *otherRepresentation;
+    Representation* other_representation = representations.allocate_init();
+    other_representation.first = 7;
+    other_representation.second = 9;
+    Representation other_snapshot = *other_representation;
     representations.clear();
-    assert(representations.liveCount == 0);
+    assert(representations.live_count == 0);
     assert(representations.empty);
-    assert(representations.indexOf(sameRepresentation) == 0);
-    assert(representations.indexOf(otherRepresentation) == 0);
-    assert(memcmp(sameRepresentation, &snapshot, Representation.sizeof) == 0);
-    assert(memcmp(otherRepresentation, &otherSnapshot, Representation.sizeof) == 0);
+    assert(representations.index_of(same_representation) == 0);
+    assert(representations.index_of(other_representation) == 0);
+    assert(memcmp(same_representation, &snapshot, Representation.sizeof) == 0);
+    assert(memcmp(other_representation, &other_snapshot, Representation.sizeof) == 0);
 
-    Pool!int ranges = Pool!int.create(8);
-    scope (exit)
-        ranges.deinit();
-    int* rangeOne = ranges.allocateInit();
-    int* rangeTwo = ranges.allocateInit();
-    int* rangeThree = ranges.allocateInit();
-    int* rangeFour = ranges.allocateInit();
-    *rangeOne = 10;
-    *rangeTwo = 20;
-    *rangeThree = 30;
-    *rangeFour = 40;
-    ranges.deallocate(rangeTwo);
-    ranges.deallocate(rangeFour);
+    Pool!i32 ranges = Pool!i32.create(8);
+    scope (exit) ranges.deinit();
+    i32* range_one = ranges.allocate_init();
+    i32* range_two = ranges.allocate_init();
+    i32* range_three = ranges.allocate_init();
+    i32* range_four = ranges.allocate_init();
+    *range_one = 10;
+    *range_two = 20;
+    *range_three = 30;
+    *range_four = 40;
+    ranges.deallocate(range_two);
+    ranges.deallocate(range_four);
 
-    size_t itemCount;
+    usize item_count;
     foreach (ref item; ranges.items())
     {
         item += 100;
-        ++itemCount;
+        ++item_count;
     }
-    assert(itemCount == 2);
-    assert(*rangeOne == 110);
-    assert(*rangeThree == 130);
-    assert(*rangeTwo == 20);
-    assert(*rangeFour == 40);
+    assert(item_count == 2);
+    assert(*range_one == 110);
+    assert(*range_three == 130);
+    assert(*range_two == 20);
+    assert(*range_four == 40);
 
-    uint[2] indexedIndices;
-    size_t indexedCount;
-    foreach (item; ranges.indexedItems())
+    u32[2] indexed_indices;
+    usize indexed_count;
+    foreach (item; ranges.indexed_items())
     {
-        indexedIndices[indexedCount++] = item.index;
+        indexed_indices[indexed_count++] = item.index;
         item.value += 1;
     }
-    assert(indexedCount == 2);
-    assert(indexedIndices == [1, 3]);
-    assert(*rangeOne == 111);
-    assert(*rangeThree == 131);
+    assert(indexed_count == 2);
+    assert(indexed_indices == [1, 3]);
+    assert(*range_one == 111);
+    assert(*range_three == 131);
 
-    uint[2] occupiedIndices;
-    size_t occupiedCount;
-    foreach (slot; ranges.occupiedSlots())
+    u32[2] occupied_indices;
+    usize occupied_count;
+    foreach (slot; ranges.occupied_slots())
     {
-        occupiedIndices[occupiedCount++] = slot.index;
+        occupied_indices[occupied_count++] = slot.index;
         slot.value += 1;
     }
-    assert(occupiedCount == 2);
-    assert(occupiedIndices == [1, 3]);
-    assert(*rangeOne == 112);
-    assert(*rangeThree == 132);
+    assert(occupied_count == 2);
+    assert(occupied_indices == [1, 3]);
+    assert(*range_one == 112);
+    assert(*range_three == 132);
 
-    uint[4] slotIndices;
-    bool[4] slotOccupancy;
-    int[4] slotRepresentations;
-    size_t slotCount;
+    u32[4] slot_indices;
+    bool[4] slot_occupancy;
+    i32[4] slot_representations;
+    usize slot_count;
     foreach (slot; ranges.slots())
     {
-        slotIndices[slotCount] = slot.index;
-        slotOccupancy[slotCount] = slot.occupied;
-        slotRepresentations[slotCount] = slot.storage;
-        ++slotCount;
+        slot_indices[slot_count] = slot.index;
+        slot_occupancy[slot_count] = slot.occupied;
+        slot_representations[slot_count] = slot.storage;
+        ++slot_count;
     }
-    assert(slotCount == 4);
-    assert(slotIndices == [1, 2, 3, 4]);
-    assert(slotOccupancy == [true, false, true, false]);
-    assert(slotRepresentations == [112, 20, 132, 40]);
+    assert(slot_count == 4);
+    assert(slot_indices == [1, 2, 3, 4]);
+    assert(slot_occupancy == [true, false, true, false]);
+    assert(slot_representations == [112, 20, 132, 40]);
 
     auto manual = ranges.items();
     assert(!manual.empty);
-    assert(&manual.front() is rangeOne);
+    assert(&manual.front() is range_one);
     manual.popFront();
     assert(!manual.empty);
-    assert(&manual.front() is rangeThree);
+    assert(&manual.front() is range_three);
     manual.popFront();
     assert(manual.empty);
 
-    auto independentLeft = ranges.items();
-    auto independentRight = ranges.items();
-    independentLeft.popFront();
-    assert(&independentLeft.front() is rangeThree);
-    assert(&independentRight.front() is rangeOne);
+    auto independent_left = ranges.items();
+    auto independent_right = ranges.items();
+    independent_left.popFront();
+    assert(&independent_left.front() is range_three);
+    assert(&independent_right.front() is range_one);
 
-    const(Pool!int)* constRanges = &ranges;
-    size_t constItemCount;
-    foreach (ref const item; constRanges.items())
+    const(Pool!i32)* const_ranges = &ranges;
+    usize const_item_count;
+    foreach (ref const item; const_ranges.items())
     {
         assert(item == 112 || item == 132);
-        ++constItemCount;
+        ++const_item_count;
     }
-    assert(constItemCount == 2);
+    assert(const_item_count == 2);
 
-    size_t constIndexedCount;
-    foreach (item; constRanges.indexedItems())
+    usize const_indexed_count;
+    foreach (item; const_ranges.indexed_items())
     {
         assert(item.index == 1 || item.index == 3);
         assert(item.value == 112 || item.value == 132);
-        ++constIndexedCount;
+        ++const_indexed_count;
     }
-    assert(constIndexedCount == 2);
+    assert(const_indexed_count == 2);
 
-    size_t constOccupiedCount;
-    foreach (slot; constRanges.occupiedSlots())
+    usize const_occupied_count;
+    foreach (slot; const_ranges.occupied_slots())
     {
         assert(slot.index == 1 || slot.index == 3);
         assert(slot.value == 112 || slot.value == 132);
-        ++constOccupiedCount;
+        ++const_occupied_count;
     }
-    assert(constOccupiedCount == 2);
+    assert(const_occupied_count == 2);
 
-    size_t constSlotCount;
-    foreach (slot; constRanges.slots())
+    usize const_slot_count;
+    foreach (slot; const_ranges.slots())
     {
         assert(slot.index >= 1 && slot.index <= 4);
         cast(void) slot.storage;
-        ++constSlotCount;
+        ++const_slot_count;
     }
-    assert(constSlotCount == 4);
+    assert(const_slot_count == 4);
 
     ranges.clear();
-    size_t clearedSlotCount;
+    usize cleared_slot_count;
     foreach (slot; ranges.slots())
     {
         assert(!slot.occupied);
-        ++clearedSlotCount;
+        ++cleared_slot_count;
     }
-    assert(clearedSlotCount == 4);
+    assert(cleared_slot_count == 4);
     assert(ranges.items().empty);
-    assert(ranges.occupiedSlots().empty);
+    assert(ranges.occupied_slots().empty);
 
     struct Tiny
     {
-        ubyte value;
+        u8 value;
     }
 
     Pool!Tiny tiny = Pool!Tiny.create(2);
-    scope (exit)
-        tiny.deinit();
-    Tiny* tinyValue = tiny.allocateInit();
-    assert(tiny.indexOf(tinyValue) == 1);
+    scope (exit) tiny.deinit();
+    Tiny* tiny_value = tiny.allocate_init();
+    assert(tiny.index_of(tiny_value) == 1);
 
     align(8_192) struct OverAligned
     {
-        ubyte value;
+        u8 value;
     }
 
-    Pool!OverAligned overAligned = Pool!OverAligned.create(2);
-    scope (exit)
-        overAligned.deinit();
-    OverAligned* alignedValue = overAligned.allocateInit();
-    assert(cast(size_t) alignedValue % OverAligned.alignof == 0);
-    assert(overAligned.indexOf(alignedValue) == 1);
+    Pool!OverAligned over_aligned = Pool!OverAligned.create(2);
+    scope (exit) over_aligned.deinit();
+    OverAligned* aligned_value = over_aligned.allocate_init();
+    assert(cast(usize) aligned_value % OverAligned.alignof == 0);
+    assert(over_aligned.index_of(aligned_value) == 1);
 
     struct ExplicitOwner
     {
-    nothrow @nogc:
-        size_t* deinitCount;
+        nothrow @nogc:
+        usize* deinit_count;
         bool active;
 
         @disable this(this);
 
-        this(size_t* deinitCount)
+        this(usize* deinit_count)
         {
-            this.deinitCount = deinitCount;
-            active = true;
+            this.deinit_count = deinit_count;
+            this.active = true;
         }
 
         void deinit()
         {
-            if (active)
+            if (this.active)
             {
-                ++*deinitCount;
-                active = false;
+                ++*this.deinit_count;
+                this.active = false;
             }
         }
     }
 
-    size_t explicitDeinits;
-    Pool!ExplicitOwner explicitPool = Pool!ExplicitOwner.create(2);
-    scope (exit)
-        explicitPool.deinit();
-    ExplicitOwner* explicitOwner = explicitPool.construct(&explicitDeinits);
-    explicitPool.dispose(explicitOwner);
-    assert(explicitDeinits == 1);
-    assert(!explicitOwner.active);
-    assert(explicitPool.liveCount == 0);
+    usize explicit_deinits;
+    Pool!ExplicitOwner explicit_pool = Pool!ExplicitOwner.create(2);
+    scope (exit) explicit_pool.deinit();
+    ExplicitOwner* explicit_owner = explicit_pool.construct(&explicit_deinits);
+    explicit_pool.dispose(explicit_owner);
+    assert(explicit_deinits == 1);
+    assert(!explicit_owner.active);
+    assert(explicit_pool.live_count == 0);
 
-    size_t shallowClearDeinits;
-    Pool!ExplicitOwner shallowClearPool = Pool!ExplicitOwner.create(1);
-    ExplicitOwner* shallowClearOwner = shallowClearPool.construct(&shallowClearDeinits);
-    shallowClearPool.clear();
-    assert(shallowClearDeinits == 0);
-    finalize(*shallowClearOwner);
-    assert(shallowClearDeinits == 1);
-    shallowClearPool.deinit();
+    usize shallow_clear_deinits;
+    Pool!ExplicitOwner shallow_clear_pool = Pool!ExplicitOwner.create(1);
+    ExplicitOwner* shallow_clear_owner = shallow_clear_pool.construct(&shallow_clear_deinits);
+    shallow_clear_pool.clear();
+    assert(shallow_clear_deinits == 0);
+    finalize(*shallow_clear_owner);
+    assert(shallow_clear_deinits == 1);
+    shallow_clear_pool.deinit();
 
-    size_t shallowDeinitCount;
-    Pool!ExplicitOwner shallowDeinitPool = Pool!ExplicitOwner.create(1);
-    shallowDeinitPool.construct(&shallowDeinitCount);
-    shallowDeinitPool.deinit();
-    assert(shallowDeinitCount == 0);
+    usize shallow_deinit_count;
+    Pool!ExplicitOwner shallow_deinit_pool = Pool!ExplicitOwner.create(1);
+    shallow_deinit_pool.construct(&shallow_deinit_count);
+    shallow_deinit_pool.deinit();
+    assert(shallow_deinit_count == 0);
 
     struct DestructorOnly
     {
-    nothrow @nogc:
-        size_t* destructions;
+        nothrow @nogc:
+        usize* destructions;
 
         @disable this(this);
 
-        this(size_t* destructions)
+        this(usize* destructions)
         {
             this.destructions = destructions;
         }
 
         ~this()
         {
-            ++*destructions;
+            ++*this.destructions;
         }
     }
 
-    size_t destructions;
-    Pool!DestructorOnly destructorPool = Pool!DestructorOnly.create(1);
-    scope (exit)
-        destructorPool.deinit();
-    DestructorOnly* destructorValue = destructorPool.construct(&destructions);
-    destructorPool.dispose(destructorValue);
+    usize destructions;
+    Pool!DestructorOnly destructor_pool = Pool!DestructorOnly.create(1);
+    scope (exit) destructor_pool.deinit();
+    DestructorOnly* destructor_value = destructor_pool.construct(&destructions);
+    destructor_pool.dispose(destructor_value);
     assert(destructions == 1);
 
     struct ContextOwner
     {
-    nothrow @nogc:
-        void deinit(int*)
+        nothrow @nogc:
+        void deinit(i32*)
         {
         }
     }
 
     static assert(!can_finalize_without_context!ContextOwner);
-    static assert(!__traits(compiles, (ref Pool!ContextOwner contextPool,
-            ContextOwner* value) { contextPool.dispose(value); }));
+    static assert(!__traits(compiles, (ref Pool!ContextOwner context_pool, ContextOwner* value)
+    {
+        context_pool.dispose(value);
+    }));
 
-    Pool!int source = Pool!int.create(8);
-    int* sourceValue = source.allocateInit();
-    *sourceValue = 77;
-    Pool!int moved = move(source);
+    Pool!i32 source = Pool!i32.create(8);
+    i32* source_value = source.allocate_init();
+    *source_value = 77;
+    Pool!i32 moved = move(source);
     assert(source.capacity == 0);
     assert(source.empty);
     assert(moved.capacity == 8);
     assert(moved.get(1) !is null && *moved.get(1) == 77);
     source.deinit();
 
-    Pool!int target = Pool!int.create(2);
-    target.allocateInit();
+    Pool!i32 target = Pool!i32.create(2);
+    target.allocate_init();
     move_assign(moved, target);
     assert(moved.capacity == 0);
     assert(target.capacity == 8);

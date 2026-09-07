@@ -249,7 +249,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             Pool!int pool = Pool!int.create(2);
             scope (exit)
                 pool.deinit();
-            int* value = pool.allocateInit();
+            int* value = pool.allocate_init();
             pool.deallocate(value);
             pool.deallocate(value);
         }
@@ -266,7 +266,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             Pool!ulong pool = Pool!ulong.create(2);
             scope (exit)
                 pool.deinit();
-            ulong* value = pool.allocateInit();
+            ulong* value = pool.allocate_init();
             pool.deallocate(cast(ulong*)(cast(ubyte*) value + 1));
         }
         if (cStringEqual(name, "pool-range-invalidated"))
@@ -274,15 +274,15 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             Pool!int pool = Pool!int.create(3);
             scope (exit)
                 pool.deinit();
-            pool.allocateInit();
+            pool.allocate_init();
             auto range = pool.items();
-            pool.allocateInit();
+            pool.allocate_init();
             cast(void) range.empty;
         }
         if (cStringEqual(name, "pool-range-moved"))
         {
             Pool!int pool = Pool!int.create(2);
-            pool.allocateInit();
+            pool.allocate_init();
             auto range = pool.items();
             Pool!int moved = move(pool);
             scope (exit)
@@ -294,8 +294,8 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             Pool!int pool = Pool!int.create(2);
             scope (exit)
                 pool.deinit();
-            int* value = pool.allocateInit();
-            auto range = pool.occupiedSlots();
+            int* value = pool.allocate_init();
+            auto range = pool.occupied_slots();
             auto slot = range.front;
             pool.deallocate(value);
             cast(void) slot.value;
@@ -305,7 +305,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             Pool!int pool = Pool!int.create(2);
             scope (exit)
                 pool.deinit();
-            int* value = pool.allocateInit();
+            int* value = pool.allocate_init();
             pool.deallocate(value);
             auto range = pool.slots();
             auto slot = range.front;

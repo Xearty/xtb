@@ -35,10 +35,10 @@ A recycled slot may later be reused with the **same index and address**, so use
 
 ```d
 Pool!Entity pool = Pool!Entity.create(100_000);
-scope(exit) pool.deinit();
+scope (exit) pool.deinit();
 
 Entity* entity = pool.construct(/* ... */);
-uint index = pool.indexOf(entity);
+u32 index = pool.index_of(entity);
 assert(pool.get(index) is entity);
 pool.deallocate(entity);
 ```
@@ -69,14 +69,10 @@ panic instead.
 
 ## Iteration
 
-Both pool types provide stable-index-order ranges:
-
-| Range | Contains |
-|---|---|
-| `items()` | live values |
-| `indexedItems()` | live values with indices |
-| `occupiedSlots()` | live slot metadata and values |
-| `slots()` | every provisioned slot, including inactive slots |
+Both pool types provide stable-index-order ranges. `Pool` currently exposes
+`indexed_items()` and `occupied_slots()`, while `GenerationalPool` still uses
+`indexedItems()` and `occupiedSlots()` until its own style-guide migration. Both
+provide `items()` and `slots()`.
 
 For a generational pool, `occupiedSlots()` also exposes the generation and
 handle. Use `slots()` only when inactive slot representation is relevant.

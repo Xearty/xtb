@@ -76,7 +76,7 @@ private PoolBitmapStats poolBitmapStats(ref Pool!uint pool)
     ubyte[occupancyWordCount] seen;
     PoolBitmapStats result;
 
-    foreach (slot; pool.occupiedSlots())
+    foreach (slot; pool.occupied_slots())
     {
         ++result.liveItems;
         const wordIndex = cast(size_t) slot.index / occupancyWordBits;
@@ -322,11 +322,11 @@ extern (C) int main(int argc, char** argv)
     GenerationalPool!uint.Handle[scanCapacity] sparseHandles;
     foreach (index; 1 .. scanCapacity + 1)
     {
-        uint* dense = densePool.allocateInit();
+        uint* dense = densePool.allocate_init();
         *dense = index;
-        uint* sparse = sparsePool.allocateInit();
+        uint* sparse = sparsePool.allocate_init();
         *sparse = index;
-        uint* clustered = clusteredPool.allocateInit();
+        uint* clustered = clusteredPool.allocate_init();
         *clustered = index;
 
         const denseHandle = denseGenerational.allocateInit();
@@ -511,7 +511,7 @@ extern (C) int main(int argc, char** argv)
     Pool!uint recycledPool = Pool!uint.create(1);
     scope (exit)
         recycledPool.deinit();
-    uint* recycledValue = recycledPool.allocateInit();
+    uint* recycledValue = recycledPool.allocate_init();
     *recycledValue = 7;
     elapsed = recyclePool(recycledPool, recycledValue, iterations);
     printTiming("Pool deallocate+recycle".ptr, elapsed, iterations);

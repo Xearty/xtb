@@ -121,11 +121,11 @@ public:
         }
 
         Record record = Record(entity, value);
-        Record* inserted = records_.tryConstruct(record);
+        Record* inserted = records_.try_construct(record);
         if (inserted is null)
             panic("ComponentStore component capacity exceeded");
 
-        const componentIndex = records_.indexOf(inserted);
+        const componentIndex = records_.index_of(inserted);
         assert(componentIndex != 0);
         byEntity_[entity.index] = componentIndex;
         return &inserted.value;
@@ -202,12 +202,12 @@ public:
 
     auto occupiedEntries() return @trusted
     {
-        return records_.occupiedSlots();
+        return records_.occupied_slots();
     }
 
     size_t liveCount() const pure @safe
     {
-        return records_.liveCount;
+        return records_.live_count;
     }
 }
 
@@ -469,7 +469,7 @@ extern (C) int main() nothrow @nogc
     assert(world.position(player).x > 4.9f);
     assert(world.projectiles_.liveCount == 0);
 
-    // When component-pool identity matters, occupiedSlots() exposes the stable
+    // When component-pool identity matters, occupied_slots() exposes the stable
     // Pool index without wrapping the common items() path in a proxy.
     auto positionSlots = world.positions_.occupiedEntries();
     assert(!positionSlots.empty);
