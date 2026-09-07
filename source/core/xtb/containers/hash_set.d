@@ -17,7 +17,8 @@ private struct SetMarker
 }
 
 /// Allocator-explicit set sharing the probing and lifetime semantics of
-/// `HashMapUnmanaged`. Stored values are exposed only as const pointers.
+/// `HashMapUnmanaged`. Stored values are exposed only as const pointers. Allocator
+/// arguments must be valid and must identify the backing map's owner when storage is live.
 @mustuse struct HashSetUnmanaged(
     K,
     Hasher = DefaultHash!K,
@@ -49,8 +50,9 @@ private struct SetMarker
 
     /// Attempts to reserve unmanaged set storage for `requested` values.
     ///
-    /// `output` must be non-null and point to an inert set. On allocation failure,
-    /// `output` remains unchanged.
+    /// `output` must be non-null and point to an inert set: its backing map must own
+    /// no table storage and have zero slot counts. On allocation failure, `output`
+    /// remains unchanged.
     static bool try_with_capacity(
         Allocator* allocator,
         usize requested,
@@ -91,11 +93,7 @@ private struct SetMarker
             return move(result);
         }
 
-        static HashSetUnmanaged with_capacity(
-            Allocator* allocator,
-            usize requested,
-            HashSeed seed,
-        )
+        static HashSetUnmanaged with_capacity(Allocator* allocator, usize requested, HashSeed seed)
         {
             auto result = HashSetUnmanaged.seeded(seed);
             result.reserve(allocator, requested);
@@ -178,14 +176,16 @@ private struct SetMarker
         return 0;
     }
 
-    /// `value` must be non-null and is consumed only on insertion.
+    /// `value` must be non-null, must not point into this set's live table storage,
+    /// and is consumed only on insertion.
     AddStatus try_add(Allocator* allocator, scope K* value) @system
     {
         SetMarker marker;
         return this.map.try_add(allocator, value, &marker);
     }
 
-    /// `value` must be non-null and is consumed only on insertion.
+    /// `value` must be non-null, must not point into this set's live table storage,
+    /// and is consumed only on insertion.
     bool add(Allocator* allocator, scope K* value) @system
     {
         SetMarker marker;
@@ -205,17 +205,23 @@ private struct SetMarker
         }
     }
 
+    /// `value` must be non-null.
     bool contains(scope const(K)* value) const
     {
         return this.map.contains(value);
     }
 
+    /// `value` must be non-null.
     bool remove(Allocator* allocator, scope const(K)* value)
     {
         return this.map.remove(allocator, value);
     }
 
-    /// Pointer and output-storage requirements match the underlying hash map `take`.
+    /// Transfers a stored value without running element cleanup.
+    ///
+    /// `value` and `output` must be non-null and must not overlap. `output` must
+    /// point to dead/uninitialized storage outside the set. If `value` is absent,
+    /// `output` remains untouched.
     bool take(scope const(K)* value, scope K* output) @system
     {
         SetMarker marker = void;
@@ -234,6 +240,8 @@ private struct SetMarker
             return this.map.remove(allocator, value);
         }
 
+        /// `output` must be non-null and point to dead/uninitialized storage outside
+        /// the set. If `value` is absent, `output` remains untouched.
         bool take(scope K value, scope K* output) @system
         {
             SetMarker marker = void;
@@ -267,7 +275,8 @@ private struct SetMarker
     }
 }
 
-/// Managed shallow hash set. Owns table storage but not element cleanup.
+/// Managed shallow hash set. Owns table storage but not element cleanup and retains
+/// the allocator supplied at construction until storage ownership is released.
 @mustuse struct HashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
     alias Self = HashSet!(K, Hasher, Equal);
@@ -302,7 +311,8 @@ private struct SetMarker
 
     /// Attempts to create an empty managed set with capacity for `requested` values.
     ///
-    /// `output` must be non-null and point to an inert set. On allocation failure,
+    /// `output` must be non-null and point to an inert set: it must have no allocator
+    /// binding or backing storage and zero slot counts. On allocation failure,
     /// `output` remains unchanged.
     static bool try_with_capacity(Allocator* allocator, usize requested, scope Self* output) @system
     {
@@ -427,13 +437,15 @@ private struct SetMarker
         return this.storage.pointer_items();
     }
 
-    /// `value` must be non-null and is consumed only on insertion.
+    /// `value` must be non-null, must not point into this set's live table storage,
+    /// and is consumed only on insertion.
     AddStatus try_add(scope K* value) @system
     {
         return this.storage.try_add(this.allocator, value);
     }
 
-    /// `value` must be non-null and is consumed only on insertion.
+    /// `value` must be non-null, must not point into this set's live table storage,
+    /// and is consumed only on insertion.
     bool add(scope K* value) @system
     {
         return this.storage.add(this.allocator, value);
@@ -453,18 +465,22 @@ private struct SetMarker
     }
 
     /// `value` must be non-null.
-    bool contains(scope const(K)* value) const @trusted
+    bool contains(scope const(K)* value) const @system
     {
         return this.storage.contains(value);
     }
 
     /// `value` must be non-null.
-    bool remove(scope const(K)* value) @trusted
+    bool remove(scope const(K)* value) @system
     {
         return this.storage.remove(this.allocator, value);
     }
 
-    /// Pointer and output-storage requirements match the underlying hash map `take`.
+    /// Transfers a stored value without running element cleanup.
+    ///
+    /// `value` and `output` must be non-null and must not overlap. `output` must
+    /// point to dead/uninitialized storage outside the set. If `value` is absent,
+    /// `output` remains untouched.
     bool take(scope const(K)* value, scope K* output) @system
     {
         return this.storage.take(value, output);
@@ -482,6 +498,8 @@ private struct SetMarker
             return this.storage.remove(this.allocator, value);
         }
 
+        /// `output` must be non-null and point to dead/uninitialized storage outside
+        /// the set. If `value` is absent, `output` remains untouched.
         bool take(scope K value, scope K* output) @system
         {
             return this.storage.take(value, output);
@@ -537,7 +555,8 @@ private struct SetMarker
     }
 }
 
-/// Managed hash set that owns cleanup of stored elements.
+/// Managed hash set that owns cleanup of stored elements and retains the allocator
+/// supplied at construction for storage and element cleanup.
 @mustuse struct OwnedHashSet(K, Hasher = DefaultHash!K, Equal = DefaultEqual!K)
 {
     static assert(
@@ -575,7 +594,8 @@ private struct SetMarker
 
     /// Attempts to create an empty owned set with capacity for `requested` values.
     ///
-    /// `output` must be non-null and point to an inert set. On allocation failure,
+    /// `output` must be non-null and point to an inert set: it must have no allocator
+    /// binding or backing storage and zero slot counts. On allocation failure,
     /// `output` remains unchanged.
     static bool try_with_capacity(Allocator* allocator, usize requested, scope Self* output) @system
     {
@@ -679,13 +699,15 @@ private struct SetMarker
         return this.storage.pointer_items();
     }
 
-    /// `value` must be non-null and is consumed only on insertion.
+    /// `value` must be non-null, must not point into this set's live table storage,
+    /// and is consumed only on insertion.
     AddStatus try_add(scope K* value) @system
     {
         return this.storage.try_add(this.allocator, value);
     }
 
-    /// `value` must be non-null and is consumed only on insertion.
+    /// `value` must be non-null, must not point into this set's live table storage,
+    /// and is consumed only on insertion.
     bool add(scope K* value) @system
     {
         return this.storage.add(this.allocator, value);
@@ -705,18 +727,22 @@ private struct SetMarker
     }
 
     /// `value` must be non-null.
-    bool contains(scope const(K)* value) const @trusted
+    bool contains(scope const(K)* value) const @system
     {
         return this.storage.contains(value);
     }
 
     /// `value` must be non-null.
-    bool remove(scope const(K)* value) @trusted
+    bool remove(scope const(K)* value) @system
     {
         return this.storage.remove(this.allocator, value);
     }
 
-    /// Pointer and output-storage requirements match the underlying hash map `take`.
+    /// Transfers a stored value without running element cleanup.
+    ///
+    /// `value` and `output` must be non-null and must not overlap. `output` must
+    /// point to dead/uninitialized storage outside the set. If `value` is absent,
+    /// `output` remains untouched.
     bool take(scope const(K)* value, scope K* output) @system
     {
         return this.storage.take(value, output);
@@ -734,6 +760,8 @@ private struct SetMarker
             return this.storage.remove(this.allocator, value);
         }
 
+        /// `output` must be non-null and point to dead/uninitialized storage outside
+        /// the set. If `value` is absent, `output` remains untouched.
         bool take(scope K value, scope K* output) @system
         {
             return this.storage.take(value, output);
@@ -776,6 +804,8 @@ private struct SetMarker
     }
 }
 
+/// Cursor borrowing a set. Structural mutation, storage release, or deinitialization
+/// of the originating set invalidates the cursor and pointers obtained from it.
 struct HashSetCursor(K)
 {
     HashMapCursor!(K, SetMarker) cursor;
@@ -785,6 +815,7 @@ struct HashSetCursor(K)
         return this.cursor.valid;
     }
 
+    /// Requires a valid cursor and returns a non-null pointer borrowed from the set.
     const(K)* value() const return
     {
         return this.cursor.key;
@@ -796,6 +827,8 @@ struct HashSetCursor(K)
     }
 }
 
+/// Read-only cursor borrowing a const set. Structural mutation, storage release, or
+/// deinitialization of the originating set invalidates the cursor and borrowed pointers.
 struct ConstHashSetCursor(K)
 {
     ConstHashMapCursor!(K, SetMarker) cursor;
@@ -805,6 +838,7 @@ struct ConstHashSetCursor(K)
         return this.cursor.valid;
     }
 
+    /// Requires a valid cursor and returns a non-null pointer borrowed from the set.
     const(K)* value() const return
     {
         return this.cursor.key;
@@ -816,6 +850,9 @@ struct ConstHashSetCursor(K)
     }
 }
 
+/// Input range borrowing a set and exposing non-null pointers to stored values.
+/// The originating set's structural mutation, storage release, or deinitialization
+/// invalidates the range and pointers obtained from it.
 struct HashSetPointerRange(K)
 {
     HashSetCursor!K cursor;
@@ -825,6 +862,7 @@ struct HashSetPointerRange(K)
         return !this.cursor.valid;
     }
 
+    /// Requires a non-empty range and returns a non-null pointer borrowed from the set.
     const(K)* front() const return
     {
         return this.cursor.value;
@@ -837,6 +875,9 @@ struct HashSetPointerRange(K)
     }
 }
 
+/// Input range borrowing a const set and exposing non-null pointers to stored values.
+/// The originating set's structural mutation, storage release, or deinitialization
+/// invalidates the range and pointers obtained from it.
 struct ConstHashSetPointerRange(K)
 {
     ConstHashSetCursor!K cursor;
@@ -846,6 +887,7 @@ struct ConstHashSetPointerRange(K)
         return !this.cursor.valid;
     }
 
+    /// Requires a non-empty range and returns a non-null pointer borrowed from the set.
     const(K)* front() const return
     {
         return this.cursor.value;
