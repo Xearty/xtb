@@ -303,10 +303,10 @@ static assert(!__traits(compiles,
         (ref HashSetUnmanaged!int left, ref HashSetUnmanaged!int right) { left = move(right); }));
 static assert(!__traits(isCopyable, OwnerSet));
 static assert(__traits(compiles, (ref OwnerMap map, HeapOwner* key, HeapOwner* value) {
-        map.tryAdd(key, value);
+        map.try_add(key, value);
     }));
 static assert(!__traits(compiles, (ref OwnerMap map, HeapOwner key, HeapOwner value) {
-        map.tryAdd(move(key), move(value));
+        map.try_add(move(key), move(value));
     }));
 static assert(!__traits(compiles, (ref OwnerMap left, ref OwnerMap right) { left = move(right); }));
 static assert(!__traits(hasMember, OwnerMap, "release"));
@@ -341,9 +341,9 @@ private void testSafeSelfValueReplacement() @system
     int key = 1;
     int* stored = map.find(1);
     assert(stored !is null && *stored == 10);
-    assert(map.trySet(&key, stored) == SetStatus.replaced);
+    assert(map.try_set(&key, stored) == SetStatus.replaced);
     assert(*stored == 10);
-    assert(map.tryAdd(&key, stored) == AddStatus.alreadyPresent);
+    assert(map.try_add(&key, stored) == AddStatus.already_present);
     assert(*stored == 10);
     deinit(map);
 }
@@ -374,7 +374,7 @@ private void testOwnedMapRelocationAndDiscard() @system
     assert(map.remove(&lookup));
     assert(deinits == 2);
 
-    map.shrinkToFit();
+    map.shrink_to_fit();
     assert(deinits == 2);
     map.clear();
     assert(deinits == 48);
@@ -407,14 +407,14 @@ private void testOwnedMapFailurePreservesInputs() @system
     HeapOwner setValue = HeapOwner.create(tracked.allocator, 1000, &deinits);
 
     tracked.fail_after(0);
-    assert(map.tryAdd(&duplicateKey, &duplicateValue) == AddStatus.alreadyPresent);
+    assert(map.try_add(&duplicateKey, &duplicateValue) == AddStatus.already_present);
     assert(duplicateKey.bytes.ptr !is null && duplicateValue.bytes.ptr !is null);
     const previousLength = map.length;
     const previousCapacity = map.capacity;
-    assert(map.tryAdd(&absentKey, &absentValue) == AddStatus.outOfMemory);
+    assert(map.try_add(&absentKey, &absentValue) == AddStatus.out_of_memory);
     assert(absentKey.bytes.ptr !is null && absentValue.bytes.ptr !is null);
     assert(map.length == previousLength && map.capacity == previousCapacity);
-    assert(map.trySet(&setKey, &setValue) == SetStatus.outOfMemory);
+    assert(map.try_set(&setKey, &setValue) == SetStatus.out_of_memory);
     assert(setKey.bytes.ptr !is null && setValue.bytes.ptr !is null);
     assert(map.length == previousLength && map.capacity == previousCapacity);
     tracked.allow_allocations();
@@ -446,7 +446,7 @@ private void testOwnedMapReplacementAndTransfer() @system
 
     HeapOwner replacementKey = HeapOwner.create(tracked.allocator, 1, &deinits);
     HeapOwner replacementValue = HeapOwner.create(tracked.allocator, 20, &deinits);
-    assert(map.trySet(&replacementKey, &replacementValue) == SetStatus.replaced);
+    assert(map.try_set(&replacementKey, &replacementValue) == SetStatus.replaced);
     assert(deinits == 1);
     assert(replacementKey.bytes.ptr !is null);
     assert(replacementValue.bytes.ptr is null);
@@ -487,9 +487,9 @@ private void testOwnedSetFailurePreservesInput() @system
     const previousLength = set.length;
     const previousCapacity = set.capacity;
     tracked.fail_after(0);
-    assert(set.tryAdd(&duplicate) == AddStatus.alreadyPresent);
+    assert(set.tryAdd(&duplicate) == AddStatus.already_present);
     assert(duplicate.bytes.ptr !is null);
-    assert(set.tryAdd(&absent) == AddStatus.outOfMemory);
+    assert(set.tryAdd(&absent) == AddStatus.out_of_memory);
     assert(absent.bytes.ptr !is null);
     assert(set.length == previousLength && set.capacity == previousCapacity);
     tracked.allow_allocations();
@@ -640,8 +640,8 @@ private void testCollisionStressAgainstReference() @system
         {
             case 0:
             {
-                const status = map.trySet(key, value);
-                assert(status != SetStatus.outOfMemory);
+                const status = map.try_set(key, value);
+                assert(status != SetStatus.out_of_memory);
                 assert((status == SetStatus.inserted) == !present[key]);
                 present[key] = true;
                 expected[key] = value;
@@ -649,8 +649,8 @@ private void testCollisionStressAgainstReference() @system
             }
             case 1:
             {
-                const status = map.tryAdd(key, value);
-                assert(status != AddStatus.outOfMemory);
+                const status = map.try_add(key, value);
+                assert(status != AddStatus.out_of_memory);
                 assert((status == AddStatus.inserted) == !present[key]);
                 if (!present[key])
                 {
@@ -672,10 +672,10 @@ private void testCollisionStressAgainstReference() @system
                 break;
             }
             case 4:
-                assert(map.tryReserve(cast(size_t)((state >> 16) & 255)));
+                assert(map.try_reserve(cast(size_t)((state >> 16) & 255)));
                 break;
             case 5:
-                assert(map.tryShrinkToFit());
+                assert(map.try_shrink_to_fit());
                 break;
         }
 
@@ -723,7 +723,7 @@ private void testRepeatedOwnedMapCleanup() @system
             HeapOwner lookup = HeapOwner.probe(id);
             assert(map.remove(&lookup));
         }
-        map.shrinkToFit();
+        map.shrink_to_fit();
         map.clear();
         deinit(map);
         assertClean(tracked);
@@ -798,13 +798,13 @@ private void testOwnedStringMapValueOwnership() @system
     assert(deinits == 1);
 
     HeapOwner duplicate = HeapOwner.create(tracked.allocator, 100, &deinits);
-    assert(map.tryAdd("a", &duplicate) == AddStatus.alreadyPresent);
+    assert(map.tryAdd("a", &duplicate) == AddStatus.already_present);
     assert(duplicate.bytes.ptr !is null);
 
     map.reserve(128);
     tracked.fail_after(0);
     HeapOwner retained = HeapOwner.create(malloc_allocator(), 101, null);
-    assert(map.tryAdd("allocation-fails", &retained) == AddStatus.outOfMemory);
+    assert(map.tryAdd("allocation-fails", &retained) == AddStatus.out_of_memory);
     assert(retained.bytes.ptr !is null);
     tracked.allow_allocations();
     deinit(retained);

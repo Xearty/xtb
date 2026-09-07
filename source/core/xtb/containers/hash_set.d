@@ -9,8 +9,8 @@ import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.containers.hash_map : AddStatus, ConstHashMapCursor, DefaultEqual, DefaultHash,
-    DefaultHashMapElementOps, HashMapCursor, HashMapUnmanaged, IsDefaultEqualPolicy,
-    IsDefaultHashPolicy, OwnedHashMapElementOps, isSimpleHashValue, requireValidHashAllocator;
+    DefaultHashMapElementOps, HashMapCursor, HashMapUnmanaged, is_default_equal_policy,
+    is_default_hash_policy, OwnedHashMapElementOps, is_simple_hash_value, require_valid_hash_allocator;
 import xtb.containers.released_storage : ReleasedStorage;
 
 private struct SetMarker
@@ -40,7 +40,7 @@ public:
     static HashSetUnmanaged withPolicies(Hasher hasher, Equal equal)
     {
         HashSetUnmanaged result;
-        auto storage = typeof(result.map_).withPolicies(move(hasher), move(equal));
+        auto storage = typeof(result.map_).with_policies(move(hasher), move(equal));
         move_emplace(storage, result.map_);
         return move(result);
     }
@@ -72,7 +72,7 @@ public:
         return move(result);
     }
 
-    static if (IsDefaultHashPolicy!(Hasher, K) && IsDefaultEqualPolicy!(Equal, K))
+    static if (is_default_hash_policy!(Hasher, K) && is_default_equal_policy!(Equal, K))
     {
         static HashSetUnmanaged seeded(HashSeed seed)
         {
@@ -101,7 +101,7 @@ public:
 
     void resetAndRelease(Allocator* allocator)
     {
-        map_.resetAndRelease(allocator);
+        map_.reset_and_release(allocator);
     }
 
     size_t length() const pure @safe
@@ -169,7 +169,7 @@ public:
     AddStatus tryAdd(Allocator* allocator, scope K* value) @system
     {
         SetMarker marker;
-        return map_.tryAdd(allocator, value, &marker);
+        return map_.try_add(allocator, value, &marker);
     }
 
     bool add(Allocator* allocator, scope K* value) @system
@@ -178,11 +178,11 @@ public:
         return map_.add(allocator, value, &marker);
     }
 
-    static if (isSimpleHashValue!K)
+    static if (is_simple_hash_value!K)
     {
         AddStatus tryAdd(Allocator* allocator, K value)
         {
-            return map_.tryAdd(allocator, value, SetMarker.init);
+            return map_.try_add(allocator, value, SetMarker.init);
         }
 
         bool add(Allocator* allocator, K value)
@@ -207,7 +207,7 @@ public:
         return map_.take(value, output, &marker);
     }
 
-    static if (isSimpleHashValue!K)
+    static if (is_simple_hash_value!K)
     {
         bool contains(scope K value) const
         {
@@ -228,7 +228,7 @@ public:
 
     bool tryReserve(Allocator* allocator, size_t requested)
     {
-        return map_.tryReserve(allocator, requested);
+        return map_.try_reserve(allocator, requested);
     }
 
     void reserve(Allocator* allocator, size_t requested)
@@ -243,12 +243,12 @@ public:
 
     bool tryShrinkToFit(Allocator* allocator)
     {
-        return map_.tryShrinkToFit(allocator);
+        return map_.try_shrink_to_fit(allocator);
     }
 
     void shrinkToFit(Allocator* allocator)
     {
-        map_.shrinkToFit(allocator);
+        map_.shrink_to_fit(allocator);
     }
 }
 
@@ -267,7 +267,7 @@ public:
     @disable ref Self opAssign(Self source) return;
     static Self create(Allocator* allocator) @trusted
     {
-        requireValidHashAllocator(allocator);
+        require_valid_hash_allocator(allocator);
         Self result;
         result.allocator_ = allocator;
         return result;
@@ -275,7 +275,7 @@ public:
 
     static Self withPolicies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
     {
-        requireValidHashAllocator(allocator);
+        require_valid_hash_allocator(allocator);
         Self result;
         result.allocator_ = allocator;
         Storage storage = Storage.withPolicies(move(hasher), move(equal));
@@ -306,11 +306,11 @@ public:
         return move(result);
     }
 
-    static if (IsDefaultHashPolicy!(Hasher, K) && IsDefaultEqualPolicy!(Equal, K))
+    static if (is_default_hash_policy!(Hasher, K) && is_default_equal_policy!(Equal, K))
     {
         static Self seeded(Allocator* allocator, HashSeed seed) @trusted
         {
-            requireValidHashAllocator(allocator);
+            require_valid_hash_allocator(allocator);
             Self result;
             result.allocator_ = allocator;
             Storage storage = Storage.seeded(seed);
@@ -410,7 +410,7 @@ public:
         return storage_.add(allocator_, value);
     }
 
-    static if (isSimpleHashValue!K)
+    static if (is_simple_hash_value!K)
     {
         AddStatus tryAdd(K value) @trusted
         {
@@ -437,7 +437,7 @@ public:
         return storage_.take(value, output);
     }
 
-    static if (isSimpleHashValue!K)
+    static if (is_simple_hash_value!K)
     {
         bool contains(scope K value) const @trusted
         {
@@ -497,7 +497,7 @@ public:
 package(xtb.containers):
     static Self adoptUnmanaged(Allocator* allocator, scope Storage* storage) @system
     {
-        requireValidHashAllocator(allocator);
+        require_valid_hash_allocator(allocator);
         version (XTB_Checked)
             require(storage !is null, "HashSetUnmanaged pointer is null");
         Self result;
@@ -523,7 +523,7 @@ public:
     @disable ref Self opAssign(Self source) return;
     static Self create(Allocator* allocator) @trusted
     {
-        requireValidHashAllocator(allocator);
+        require_valid_hash_allocator(allocator);
         Self r;
         r.allocator_ = allocator;
         return r;
@@ -531,7 +531,7 @@ public:
 
     static Self withPolicies(Allocator* allocator, Hasher hasher, Equal equal) @trusted
     {
-        requireValidHashAllocator(allocator);
+        require_valid_hash_allocator(allocator);
         Self r;
         r.allocator_ = allocator;
         Storage st = Storage.withPolicies(move(hasher), move(equal));
@@ -562,11 +562,11 @@ public:
         return move(r);
     }
 
-    static if (IsDefaultHashPolicy!(Hasher, K) && IsDefaultEqualPolicy!(Equal, K))
+    static if (is_default_hash_policy!(Hasher, K) && is_default_equal_policy!(Equal, K))
     {
         static Self seeded(Allocator* allocator, HashSeed seed) @trusted
         {
-            requireValidHashAllocator(allocator);
+            require_valid_hash_allocator(allocator);
             Self r;
             r.allocator_ = allocator;
             Storage st = Storage.seeded(seed);
@@ -647,7 +647,7 @@ public:
         return storage_.add(allocator_, value);
     }
 
-    static if (isSimpleHashValue!K)
+    static if (is_simple_hash_value!K)
     {
         AddStatus tryAdd(K value) @trusted
         {
@@ -674,7 +674,7 @@ public:
         return storage_.take(value, output);
     }
 
-    static if (isSimpleHashValue!K)
+    static if (is_simple_hash_value!K)
     {
         bool contains(scope K value) const @trusted
         {

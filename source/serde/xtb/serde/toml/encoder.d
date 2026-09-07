@@ -124,7 +124,10 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     {
         if (value.length != expected.length)
             return false;
-        auto items = value.pointerItems();
+        static if (isHashMap!U || isOwnedHashMap!U)
+            auto items = value.pointer_items();
+        else
+            auto items = value.pointerItems();
         while (!items.empty)
         {
             const expectedValue = expected.find(*items.front.key);
@@ -221,7 +224,11 @@ private void encodeHashMapRoot(T)(
     scope const ref T value,
 )
 {
-    auto items = value.pointerItems();
+    alias U = Unqualified!T;
+    static if (isHashMap!U || isOwnedHashMap!U)
+        auto items = value.pointer_items();
+    else
+        auto items = value.pointerItems();
     bool wrote;
     while (!items.empty)
     {
@@ -424,8 +431,12 @@ private void encodeHashMapInline(T)(
     size_t depth,
 )
 {
+    alias U = Unqualified!T;
     encoder.writer.put("{ ");
-    auto items = value.pointerItems();
+    static if (isHashMap!U || isOwnedHashMap!U)
+        auto items = value.pointer_items();
+    else
+        auto items = value.pointerItems();
     bool wrote;
     while (!items.empty)
     {

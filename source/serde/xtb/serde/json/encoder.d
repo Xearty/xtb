@@ -129,7 +129,10 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     {
         if (value.length != expected.length)
             return false;
-        auto items = value.pointerItems();
+        static if (isHashMap!U || isOwnedHashMap!U)
+            auto items = value.pointer_items();
+        else
+            auto items = value.pointerItems();
         while (!items.empty)
         {
             const expectedValue = expected.find(*items.front.key);
@@ -453,13 +456,17 @@ private void encodeHashMap(T)(
     size_t depth,
 )
 {
+    alias U = Unqualified!T;
     if (depth >= encoder.options.maxDepth)
     {
         encoder.fail(SerdeErrorKind.depthLimit);
         return;
     }
     encoder.writer.put('{');
-    auto items = value.pointerItems();
+    static if (isHashMap!U || isOwnedHashMap!U)
+        auto items = value.pointer_items();
+    else
+        auto items = value.pointerItems();
     size_t index;
     while (!items.empty)
     {

@@ -626,15 +626,15 @@ private void parseHashMapDocument(K, V, Hasher, Equal)(
             decodeValue(parser, &value, 0);
         if (parser.error.ok)
         {
-            final switch (values.tryAdd(&key[0].value, &value))
+            final switch (values.try_add(&key[0].value, &value))
             {
                 case AddStatus.inserted:
                     key[0].owned = false;
                     break;
-                case AddStatus.alreadyPresent:
+                case AddStatus.already_present:
                     parser.fail(SerdeErrorKind.duplicateField, key[0].value);
                     break;
-                case AddStatus.outOfMemory:
+                case AddStatus.out_of_memory:
                     parser.fail(SerdeErrorKind.allocationFailure);
                     break;
             }
@@ -702,14 +702,14 @@ private void parseOwnedHashMapDocument(K, V, Hasher, Equal)(
             decodeValue(parser, &value, 0);
         if (parser.error.ok)
         {
-            final switch (values.tryAdd(&ownedKey, &value))
+            final switch (values.try_add(&ownedKey, &value))
             {
                 case AddStatus.inserted:
                     break;
-                case AddStatus.alreadyPresent:
+                case AddStatus.already_present:
                     parser.fail(SerdeErrorKind.duplicateField, key[0].value);
                     break;
-                case AddStatus.outOfMemory:
+                case AddStatus.out_of_memory:
                     parser.fail(SerdeErrorKind.allocationFailure);
                     break;
             }
@@ -780,10 +780,10 @@ private void parseStringHashMapDocument(Map)(
             {
                 case AddStatus.inserted:
                     break;
-                case AddStatus.alreadyPresent:
+                case AddStatus.already_present:
                     parser.fail(SerdeErrorKind.duplicateField, key[0].value);
                     break;
-                case AddStatus.outOfMemory:
+                case AddStatus.out_of_memory:
                     parser.fail(SerdeErrorKind.allocationFailure);
                     break;
             }
@@ -1684,15 +1684,15 @@ private void decodeHashMapInline(K, V, Hasher, Equal)(
             decodeValue(parser, &value, depth + 1);
         if (parser.error.ok)
         {
-            final switch (values.tryAdd(&key[0].value, &value))
+            final switch (values.try_add(&key[0].value, &value))
             {
                 case AddStatus.inserted:
                     key[0].owned = false;
                     break;
-                case AddStatus.alreadyPresent:
+                case AddStatus.already_present:
                     parser.fail(SerdeErrorKind.duplicateField, key[0].value);
                     break;
-                case AddStatus.outOfMemory:
+                case AddStatus.out_of_memory:
                     parser.fail(SerdeErrorKind.allocationFailure);
                     break;
             }
@@ -1778,14 +1778,14 @@ private void decodeOwnedHashMapInline(K, V, Hasher, Equal)(
             decodeValue(parser, &value, depth + 1);
         if (parser.error.ok)
         {
-            final switch (values.tryAdd(&ownedKey, &value))
+            final switch (values.try_add(&ownedKey, &value))
             {
                 case AddStatus.inserted:
                     break;
-                case AddStatus.alreadyPresent:
+                case AddStatus.already_present:
                     parser.fail(SerdeErrorKind.duplicateField, key[0].value);
                     break;
-                case AddStatus.outOfMemory:
+                case AddStatus.out_of_memory:
                     parser.fail(SerdeErrorKind.allocationFailure);
                     break;
             }
@@ -1874,10 +1874,10 @@ private void decodeStringHashMapInline(Map)(
             {
                 case AddStatus.inserted:
                     break;
-                case AddStatus.alreadyPresent:
+                case AddStatus.already_present:
                     parser.fail(SerdeErrorKind.duplicateField, key[0].value);
                     break;
-                case AddStatus.outOfMemory:
+                case AddStatus.out_of_memory:
                     parser.fail(SerdeErrorKind.allocationFailure);
                     break;
             }

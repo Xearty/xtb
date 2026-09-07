@@ -32,7 +32,7 @@ extern (C) int main() nothrow @nogc
         formatln!"  {}"(label);
 
     // Choose pointer-oriented foreach when pointer access is more convenient.
-    foreach (item; inventory.pointerItems)
+    foreach (item; inventory.pointer_items)
         assert(item.key !is null && item.value !is null);
 
     // StringViewHashMap keys are borrowed. These literals live for the

@@ -937,7 +937,7 @@ private void testOwnedContainers(InstrumentedAllocator* tracked)
     Map map = Map.create(tracked.allocator);
     StringBuf key = StringBuf.fromString(tracked.allocator, "key");
     OwnedString value = OwnedString.fromString(tracked.allocator, "value");
-    assert(map.tryAdd(&key, &value) == AddStatus.inserted);
+    assert(map.try_add(&key, &value) == AddStatus.inserted);
     assert(key.allocator is null && key.empty);
     assert(value.allocator is null && value.empty);
     deinit(map);
@@ -989,7 +989,7 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
     {
         StringBuf key = StringBuf.fromString(tracked.allocator, text);
         StringBuf value = StringBuf.fromString(tracked.allocator, text);
-        assert(map.tryAdd(&key, &value) == AddStatus.inserted);
+        assert(map.try_add(&key, &value) == AddStatus.inserted);
         assert(key.allocator is null && key.empty);
         assert(value.allocator is null && value.empty);
     }
@@ -997,7 +997,7 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
 
     StringBuf replacementKey = StringBuf.fromString(tracked.allocator, "key-03");
     StringBuf replacementValue = StringBuf.fromString(tracked.allocator, "replacement");
-    assert(map.trySet(&replacementKey, &replacementValue) == SetStatus.replaced);
+    assert(map.try_set(&replacementKey, &replacementValue) == SetStatus.replaced);
     assert(replacementKey.view == "key-03");
     assert(replacementValue.allocator is null && replacementValue.empty);
     StringBuf* storedReplacement = map.find(&replacementKey);
@@ -1007,7 +1007,7 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
 
     StringBuf duplicateKey = StringBuf.fromString(tracked.allocator, "key-04");
     StringBuf duplicateValue = StringBuf.fromString(tracked.allocator, "duplicate");
-    assert(map.tryAdd(&duplicateKey, &duplicateValue) == AddStatus.alreadyPresent);
+    assert(map.try_add(&duplicateKey, &duplicateValue) == AddStatus.already_present);
     assert(duplicateKey.view == "key-04" && duplicateValue.view == "duplicate");
     deinit(duplicateKey);
     deinit(duplicateValue);
@@ -1034,7 +1034,7 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
     StringBuf retainedKey = StringBuf.fromString(tracked.allocator, "oom-key");
     StringBuf retainedValue = StringBuf.fromString(tracked.allocator, "oom-value");
     tracked.fail_after(0);
-    assert(failing.tryAdd(&retainedKey, &retainedValue) == AddStatus.outOfMemory);
+    assert(failing.try_add(&retainedKey, &retainedValue) == AddStatus.out_of_memory);
     assert(retainedKey.view == "oom-key" && retainedValue.view == "oom-value");
     assert(failing.empty);
     tracked.allow_allocations();
@@ -1057,7 +1057,7 @@ private void testOwnedHashSetStringIntegration(InstrumentedAllocator* tracked)
     assert(set.length == integrationKeys.length);
 
     StringBuf duplicate = StringBuf.fromString(tracked.allocator, "key-04");
-    assert(set.tryAdd(&duplicate) == AddStatus.alreadyPresent);
+    assert(set.tryAdd(&duplicate) == AddStatus.already_present);
     assert(duplicate.view == "key-04");
     deinit(duplicate);
 
@@ -1080,7 +1080,7 @@ private void testOwnedHashSetStringIntegration(InstrumentedAllocator* tracked)
     Set failing = Set.create(tracked.allocator);
     StringBuf retained = StringBuf.fromString(tracked.allocator, "oom-set-value");
     tracked.fail_after(0);
-    assert(failing.tryAdd(&retained) == AddStatus.outOfMemory);
+    assert(failing.tryAdd(&retained) == AddStatus.out_of_memory);
     assert(retained.view == "oom-set-value");
     assert(failing.empty);
     tracked.allow_allocations();
@@ -1107,7 +1107,7 @@ private void testOwnedStringHashMapIntegration(InstrumentedAllocator* tracked)
     assert(stored !is null && stored.view == "replacement");
 
     OwnedString duplicate = OwnedString.fromString(tracked.allocator, "duplicate");
-    assert(map.tryAdd("key-04", &duplicate) == AddStatus.alreadyPresent);
+    assert(map.tryAdd("key-04", &duplicate) == AddStatus.already_present);
     assert(duplicate.view == "duplicate");
     deinit(duplicate);
 
@@ -1123,7 +1123,7 @@ private void testOwnedStringHashMapIntegration(InstrumentedAllocator* tracked)
     OwnedString retained = OwnedString.fromString(tracked.allocator, "oom-value");
     const failedBefore = tracked.stats.failed_calls;
     tracked.fail_after(0);
-    assert(failing.tryAdd("oom-key", &retained) == AddStatus.outOfMemory);
+    assert(failing.tryAdd("oom-key", &retained) == AddStatus.out_of_memory);
     assert(tracked.stats.failed_calls == failedBefore + 1);
     assert(retained.view == "oom-value");
     assert(failing.empty);
@@ -1170,7 +1170,7 @@ private void testNestedOwnedStringHashMapIntegration(InstrumentedAllocator* trac
     deinit(replacement);
 
     Value duplicate = makeStringArray(tracked.allocator, "duplicate-array");
-    assert(map.tryAdd("key-04", &duplicate) == AddStatus.alreadyPresent);
+    assert(map.tryAdd("key-04", &duplicate) == AddStatus.already_present);
     assert(duplicate.length == 2 && duplicate[0] == "duplicate-array");
     deinit(duplicate);
 
@@ -1185,7 +1185,7 @@ private void testNestedOwnedStringHashMapIntegration(InstrumentedAllocator* trac
     Value retained = makeStringArray(tracked.allocator, "oom-array");
     const failedBefore = tracked.stats.failed_calls;
     tracked.fail_after(0);
-    assert(failing.tryAdd("oom-nested-key", &retained) == AddStatus.outOfMemory);
+    assert(failing.tryAdd("oom-nested-key", &retained) == AddStatus.out_of_memory);
     assert(tracked.stats.failed_calls == failedBefore + 1);
     assert(retained.length == 2 && retained[0] == "oom-array");
     assert(failing.empty);

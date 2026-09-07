@@ -157,7 +157,7 @@ public:
     bool add(Allocator* allocator, scope String value) @trusted
     {
         const status = tryAdd(allocator, value);
-        if (status == AddStatus.outOfMemory)
+        if (status == AddStatus.out_of_memory)
             panic("StringHashSet allocation failed");
         return status == AddStatus.inserted;
     }
@@ -183,7 +183,7 @@ public:
     bool addMove(Allocator* allocator, scope OwnedString* value) @trusted
     {
         const status = tryAddMove(allocator, value);
-        if (status == AddStatus.outOfMemory)
+        if (status == AddStatus.out_of_memory)
             panic("StringHashSet allocation failed");
         return status == AddStatus.inserted;
     }
@@ -191,7 +191,7 @@ public:
     bool addMove(Allocator* allocator, scope StringBuf* value) @trusted
     {
         const status = tryAddMove(allocator, value);
-        if (status == AddStatus.outOfMemory)
+        if (status == AddStatus.out_of_memory)
             panic("StringHashSet allocation failed");
         return status == AddStatus.inserted;
     }
@@ -708,7 +708,7 @@ unittest
     assert(sawBuffer && sawOwned);
 
     StringBuf duplicate = StringBuf.fromString(malloc_allocator(), "beta");
-    assert(values.tryAddMove(&duplicate) == AddStatus.alreadyPresent);
+    assert(values.tryAddMove(&duplicate) == AddStatus.already_present);
     {
         assert(duplicate.view == "beta");
         duplicate.deinit();
@@ -764,14 +764,14 @@ unittest
     );
 
     setAllocator.fail_after(0);
-    assert(values.tryAddMove(&retained) == AddStatus.outOfMemory);
+    assert(values.tryAddMove(&retained) == AddStatus.out_of_memory);
     {
         assert(retained.view == "retained");
     }
     assert(values.empty && setAllocator.clean);
 
     setAllocator.fail_after(2);
-    assert(values.tryAddMove(&retained) == AddStatus.outOfMemory);
+    assert(values.tryAddMove(&retained) == AddStatus.out_of_memory);
     {
         assert(retained.view == "retained");
     }

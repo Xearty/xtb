@@ -1700,7 +1700,7 @@ private void testJsonHashMaps() nothrow @nogc
 {
     HashMap!(String, int) source = HashMap!(String, int).create(
         malloc_allocator());
-    assert(source.tryAdd("one", 1) == AddStatus.inserted);
+    assert(source.try_add("one", 1) == AddStatus.inserted);
     StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, source);
@@ -1850,7 +1850,7 @@ private void testTomlHashMaps() nothrow @nogc
 {
     HashMap!(String, int) source = HashMap!(String, int).create(
         malloc_allocator());
-    assert(source.tryAdd("one", 1) == AddStatus.inserted);
+    assert(source.try_add("one", 1) == AddStatus.inserted);
     StringBuf encoded = StringBuf.create(malloc_allocator());
     Writer writer = Writer.fromSink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, source);
@@ -1902,7 +1902,7 @@ private void testTomlHashMaps() nothrow @nogc
     HashMapDocument document;
     auto documentValues = HashMap!(String, int).create(malloc_allocator());
     move_emplace(documentValues, document.values);
-    assert(document.values.tryAdd("one", 1) == AddStatus.inserted);
+    assert(document.values.try_add("one", 1) == AddStatus.inserted);
     encoded.clear();
     writer = Writer.fromSink(&bufferSink, &encoded);
     error = writeToml(writer, document);
@@ -2571,7 +2571,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
         if (error.ok)
         {
             assert(value.length == 10);
-            auto items = value.pointerItems();
+            auto items = value.pointer_items();
             while (!items.empty)
             {
                 assert(!items.front.key.empty);
@@ -2653,7 +2653,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
             allocator.allocator,
             [42],
         );
-        assert(preserved.tryAdd(&key, &value) == AddStatus.inserted);
+        assert(preserved.try_add(&key, &value) == AddStatus.inserted);
         allocator.fail_after(0);
         SerdeError error = readJson(
             "{\"replacement\":[1,2,3]}",
