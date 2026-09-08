@@ -8,7 +8,7 @@ import xtb.cli.internal.traits;
 import xtb.cli.parser : CliError, CliErrorKind, CliOutcomeKind, CliParseResult, ParsedCommand, normalizeProgramName;
 import xtb.cli.value : CliValueErrorKind;
 import xtb.ansi : ANSIColor, ANSIStyle;
-import xtb.fmt.ansi : AnsiWriter;
+import xtb.fmt.ansi : ANSIWriter;
 import xtb.fmt.buffered_writer : BufferedWriter;
 import xtb.fmt.print : file_writer;
 import xtb.fmt.writer : Writer;
@@ -34,7 +34,7 @@ void writeHelp(Root, Path...)(
     static assert(ValidateCliSchema!Root);
     alias Target = HelpPathTarget!(Root, Path);
     String programName = normalizeProgramName(programPath);
-    AnsiWriter writer = AnsiWriter.fromWriter(&output, ansi);
+    ANSIWriter writer = ANSIWriter.from_writer(&output, ansi);
 
     writeHelpAbout!Target(writer);
     writeStaticUsage!(Root, Path)(writer, programName);
@@ -71,8 +71,8 @@ int writeCliResult(T)(
     bool errorAnsi = false,
 ) @system
 {
-    AnsiWriter styledOutput = AnsiWriter.fromWriter(&output, outputAnsi);
-    AnsiWriter styledError = AnsiWriter.fromWriter(&errorOutput, errorAnsi);
+    ANSIWriter styledOutput = ANSIWriter.from_writer(&output, outputAnsi);
+    ANSIWriter styledError = ANSIWriter.from_writer(&errorOutput, errorAnsi);
 
     final switch (result.outcome)
     {
@@ -141,7 +141,7 @@ int handleCliResult(T)(
 }
 
 private void writeSelectedHelp(T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     String programName,
     ref ParsedCommand!T root,
 ) @system
@@ -150,7 +150,7 @@ private void writeSelectedHelp(T)(
 }
 
 private void writeSelectedHelpAt(Root, T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     String programName,
     ref ParsedCommand!Root tree,
     ref ParsedCommand!T node,
@@ -196,7 +196,7 @@ private void writeSelectedHelpAt(Root, T)(
     }
 }
 
-private void writeHelpAbout(T)(ref AnsiWriter writer) @system
+private void writeHelpAbout(T)(ref ANSIWriter writer) @system
 {
     enum aboutText = typeAbout!T;
     static if (aboutText.length != 0)
@@ -206,7 +206,7 @@ private void writeHelpAbout(T)(ref AnsiWriter writer) @system
     }
 }
 
-private void writeHelpSections(Root, T)(ref AnsiWriter writer) @system
+private void writeHelpSections(Root, T)(ref ANSIWriter writer) @system
 {
     static if (hasVisiblePositionals!T)
     {
@@ -278,18 +278,18 @@ private enum commandHelpColumnWidth(T) = () {
     return result;
 }();
 
-private void writeHelpGap(ref AnsiWriter writer, size_t labelWidth, size_t columnWidth) @system
+private void writeHelpGap(ref ANSIWriter writer, size_t labelWidth, size_t columnWidth) @system
 {
     writer.repeat(' ', columnWidth - labelWidth + 2);
 }
 
-private void writeHelpMetadataIndent(ref AnsiWriter writer, size_t columnWidth) @system
+private void writeHelpMetadataIndent(ref ANSIWriter writer, size_t columnWidth) @system
 {
     writer.repeat(' ', columnWidth + 4);
 }
 
 private void writeHelpDetailPrefix(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     size_t labelWidth,
     size_t columnWidth,
     ref bool firstDetail,
@@ -304,7 +304,7 @@ private void writeHelpDetailPrefix(
         writeHelpMetadataIndent(writer, columnWidth);
 }
 
-private void writeCommandHelpLine(T)(ref AnsiWriter writer, size_t columnWidth) @system
+private void writeCommandHelpLine(T)(ref ANSIWriter writer, size_t columnWidth) @system
 {
     writer.put("  ");
     writer.styled(commandName!T, cliCanonicalStyle);
@@ -361,7 +361,7 @@ private template HelpPathTarget(Parent, Path...)
 }
 
 private void writeRequiredNamedOptionUsageAt(T, size_t index, bool global)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
 ) @system
 {
     static if (!fieldHas!(T, index, CliPositional) &&
@@ -390,25 +390,25 @@ private void writeRequiredNamedOptionUsageAt(T, size_t index, bool global)(
     }
 }
 
-private void writeRequiredLocalOptionUsage(T)(ref AnsiWriter writer) @system
+private void writeRequiredLocalOptionUsage(T)(ref ANSIWriter writer) @system
 {
     static foreach (index; 0 .. cliFieldCount!T)
         writeRequiredNamedOptionUsageAt!(T, index, false)(writer);
 }
 
-private void writeRequiredGlobalOptionUsage(T)(ref AnsiWriter writer) @system
+private void writeRequiredGlobalOptionUsage(T)(ref ANSIWriter writer) @system
 {
     static foreach (index; 0 .. cliFieldCount!T)
         writeRequiredNamedOptionUsageAt!(T, index, true)(writer);
 }
 
-private void writeOptionalOptionsUsage(ref AnsiWriter writer) @system
+private void writeOptionalOptionsUsage(ref ANSIWriter writer) @system
 {
     writer.put(' ');
     writer.styled("[OPTIONS]", cliValueStyle);
 }
 
-private void writeStaticLocalUsagePath(Current, Path...)(ref AnsiWriter writer) @system
+private void writeStaticLocalUsagePath(Current, Path...)(ref ANSIWriter writer) @system
 {
     writeRequiredLocalOptionUsage!Current(writer);
     static if (Path.length != 0)
@@ -424,7 +424,7 @@ private void writeStaticLocalUsagePath(Current, Path...)(ref AnsiWriter writer) 
 }
 
 private void writeStaticUsage(Root, Path...)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     String programName,
 ) @system
 {
@@ -445,7 +445,7 @@ private void writeStaticUsage(Root, Path...)(
 }
 
 private void writeRequiredGlobalsOnStaticPathUsage(Parent, Path...)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
 ) @system
 {
     writeRequiredGlobalOptionUsage!Parent(writer);
@@ -483,7 +483,7 @@ private template globalsOnStaticPathHelpColumnWidth(bool required, Parent, Path.
 }
 
 private void writeGlobalsOnStaticPath(bool required, Parent, Path...)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     size_t columnWidth,
     ref bool first,
 ) @system
@@ -498,7 +498,7 @@ private void writeGlobalsOnStaticPath(bool required, Parent, Path...)(
 }
 
 private void writeSelectedUsage(T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     String programName,
     ref ParsedCommand!T root,
 ) @system
@@ -511,7 +511,7 @@ private void writeSelectedUsage(T)(
 }
 
 private void writeActiveUsagePath(Root, T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     ref ParsedCommand!Root tree,
     ref ParsedCommand!T node,
 ) @system
@@ -540,7 +540,7 @@ private void writeActiveUsagePath(Root, T)(
 }
 
 private void writeRequiredGlobalsAlongActivePathUsage(T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     ref ParsedCommand!T node,
 ) @system
 {
@@ -556,7 +556,7 @@ private void writeRequiredGlobalsAlongActivePathUsage(T)(
 }
 
 private void writeProgramPath(T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     String programName,
     ref ParsedCommand!T node,
 ) @system
@@ -565,7 +565,7 @@ private void writeProgramPath(T)(
     writeChildPath!T(writer, node);
 }
 
-private void writeChildPath(T)(ref AnsiWriter writer, ref ParsedCommand!T node)
+private void writeChildPath(T)(ref ANSIWriter writer, ref ParsedCommand!T node)
 @system
 {
     static foreach (Child; CommandTypes!T)
@@ -580,7 +580,7 @@ private void writeChildPath(T)(ref AnsiWriter writer, ref ParsedCommand!T node)
     }
 }
 
-private void writeCommandOrPositionalUsage(T)(ref AnsiWriter writer) @system
+private void writeCommandOrPositionalUsage(T)(ref ANSIWriter writer) @system
 {
     static if (hasSubcommands!T)
     {
@@ -595,14 +595,14 @@ private void writeCommandOrPositionalUsage(T)(ref AnsiWriter writer) @system
         writePositionalUsage!T(writer);
 }
 
-private void writePositionalUsage(T)(ref AnsiWriter writer) @system
+private void writePositionalUsage(T)(ref ANSIWriter writer) @system
 {
     static foreach (index; 0 .. cliFieldCount!T)
         writePositionalUsageAt!(T, index)(writer);
 }
 
 pragma(inline, true)
-private void writePositionalUsageAt(T, size_t index)(ref AnsiWriter writer) @system
+private void writePositionalUsageAt(T, size_t index)(ref ANSIWriter writer) @system
 {
     static if (fieldHas!(T, index, CliPositional) &&
         !fieldHas!(T, index, CliHidden))
@@ -662,7 +662,7 @@ private enum positionalHelpColumnWidth(T) = () {
     return result;
 }();
 
-private void writePositionals(T)(ref AnsiWriter writer, size_t columnWidth) @system
+private void writePositionals(T)(ref ANSIWriter writer, size_t columnWidth) @system
 {
     bool first = true;
     static foreach (index; 0 .. cliFieldCount!T)
@@ -680,7 +680,7 @@ private void writePositionals(T)(ref AnsiWriter writer, size_t columnWidth) @sys
 
 pragma(inline, true)
 private void writePositionalLine(T, size_t index)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     size_t columnWidth,
 ) @system
 {
@@ -754,7 +754,7 @@ private enum optionalLocalOptionHelpColumnWidth(Root, T) = () {
 }();
 
 private void writeLocalOptions(T, bool required)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     size_t columnWidth,
 ) @system
 {
@@ -776,7 +776,7 @@ private void writeLocalOptions(T, bool required)(
 
 pragma(inline, true)
 private void writeOptionLine(T, size_t index)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     size_t columnWidth,
 ) @system
 {
@@ -802,7 +802,7 @@ private void writeOptionLine(T, size_t index)(
 }
 
 private void writeBuiltinOptionLine(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     String label,
     String helpText,
     size_t columnWidth,
@@ -816,7 +816,7 @@ private void writeBuiltinOptionLine(
 }
 
 private void writeFieldHelpBlock(T, size_t index)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     size_t labelWidth,
     size_t columnWidth,
 ) @system
@@ -909,7 +909,7 @@ nothrow @nogc:
     }
 }
 
-private void writeFieldHelpDefault(T, size_t index)(ref AnsiWriter writer) @system
+private void writeFieldHelpDefault(T, size_t index)(ref ANSIWriter writer) @system
 {
     static assert(fieldHasHelpDefault!(T, index));
     static if (fieldHasDefaultInput!(T, index))
@@ -967,7 +967,7 @@ private enum hasVisibleOptionalGlobalOptions(T) = () {
 }();
 
 private void writeVisibleGlobals(T, bool required)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     size_t columnWidth,
     ref bool first,
 ) @system
@@ -1014,7 +1014,7 @@ private size_t globalsAlongActivePathHelpColumnWidth(T, bool required)(
 }
 
 private void writeGlobalsAlongActivePath(T, bool required)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     ref ParsedCommand!T node,
     size_t columnWidth,
     ref bool first,
@@ -1031,7 +1031,7 @@ private void writeGlobalsAlongActivePath(T, bool required)(
     }
 }
 
-private void writeVersion(T)(ref AnsiWriter writer, String programName) @system
+private void writeVersion(T)(ref ANSIWriter writer, String programName) @system
 {
     writer.styled(programName, cliCanonicalStyle);
     writer.put(' ');
@@ -1040,7 +1040,7 @@ private void writeVersion(T)(ref AnsiWriter writer, String programName) @system
 }
 
 private void writeErrorFieldName(T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     ref ParsedCommand!T node,
     size_t targetDepth,
     size_t fieldIndex,
@@ -1082,7 +1082,7 @@ private void writeErrorFieldName(T)(
 }
 
 private void writeError(T)(
-    ref AnsiWriter writer,
+    ref ANSIWriter writer,
     CliError error,
     ref ParsedCommand!T root,
 ) @system

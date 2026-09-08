@@ -1,7 +1,7 @@
 module examples.pretty_print_demo;
 
 import xtb.ansi : ANSIColor, ANSIStyle;
-import xtb.fmt.ansi : beginAnsi, endAnsi, styled;
+import xtb.fmt.ansi : begin_ansi, end_ansi, styled;
 import xtb.containers.array;
 import xtb.flag_set : FlagSet;
 import xtb.containers.hash_map;
@@ -121,10 +121,10 @@ private void writeDemoStyled(
 {
     const styled = options.colored && style.enabled;
     if (styled)
-        beginAnsi(writer, style);
+        begin_ansi(writer, style);
     writer.put(value);
     if (styled)
-        endAnsi(writer, style);
+        end_ansi(writer, style);
 }
 
 /// A type can replace its structural debug representation without changing its

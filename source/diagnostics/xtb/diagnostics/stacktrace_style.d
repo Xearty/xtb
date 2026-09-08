@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.diagnostics.demangle : SignatureDetail;
 public import xtb.ansi : ANSIColor;
-import xtb.fmt.ansi : beginAnsi, endAnsi;
+import xtb.fmt.ansi : begin_ansi, end_ansi;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.fmt.writer : Writer;
@@ -397,9 +397,9 @@ void writeSignature(
     const parameters = outerParameterList(signature);
     if (!parameters.found)
     {
-        writer.beginAnsi(activeColors.functionName);
+        writer.begin_ansi(activeColors.functionName);
         writer.put(signature);
-        writer.endAnsi(activeColors.functionName);
+        writer.end_ansi(activeColors.functionName);
         return;
     }
 
@@ -467,9 +467,9 @@ void writeSignature(
             case SignatureTokenKind.space:
                 break;
         }
-        writer.beginAnsi(color);
+        writer.begin_ansi(color);
         writer.put(token.source);
-        writer.endAnsi(color);
+        writer.end_ansi(color);
         offset = token.end;
         if (!multiline || token.kind != SignatureTokenKind.punctuation)
             continue;

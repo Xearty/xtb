@@ -3,7 +3,7 @@ module xtb.fmt.pretty_print;
 nothrow @nogc:
 
 import xtb.ansi : ANSIColor, ANSIStyle;
-import xtb.fmt.ansi : beginAnsi, endAnsi;
+import xtb.fmt.ansi : begin_ansi, end_ansi;
 import xtb.lifetime : lifetimeDeinit = deinit,
     is_tagged_payload_field,
     move,
@@ -1814,7 +1814,7 @@ private void beginStyle(
 )
 {
     if (options.colored && style.enabled)
-        writer.beginAnsi(style);
+        writer.begin_ansi(style);
 }
 
 private void endStyle(
@@ -1824,7 +1824,7 @@ private void endStyle(
 )
 {
     if (options.colored && style.enabled)
-        writer.endAnsi(style);
+        writer.end_ansi(style);
 }
 
 private void writeIndent(

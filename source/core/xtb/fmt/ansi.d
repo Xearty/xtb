@@ -2,26 +2,24 @@ module xtb.fmt.ansi;
 
 nothrow @nogc:
 
-import core.lifetime : forward;
-import xtb.ansi : ANSIColor, ANSISequence, ANSIStyle, ansi_reset_sequence, ansi_sequence;
-import xtb.fmt.writer : Writer;
-import xtb.types : String, u8;
+import core.lifetime;
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.ansi;
+import xtb.fmt.writer;
+import xtb.panic;
+import xtb.types;
 
-version (unittest) import xtb.string : equal;
-
-struct AnsiReset
+struct ANSIReset
 {
 nothrow @nogc:
 
     void format_to(ref Writer writer) const
     {
-        writer.resetAnsi();
+        writer.reset_ansi();
     }
 }
 
-enum ansiReset = AnsiReset.init;
+enum ansi_reset = ANSIReset.init;
 
 /// Printable values rendered under one ANSI style scope.
 ///
@@ -37,18 +35,18 @@ nothrow @nogc:
 
     void format_to(ref Writer writer)
     {
-        writer.beginAnsi(style);
+        writer.begin_ansi(this.style);
         static foreach (index; 0 .. Values.length)
-            writer.value(values[index]);
-        writer.endAnsi(style);
+            writer.value(this.values[index]);
+        writer.end_ansi(this.style);
     }
 
     void format_to(ref Writer writer) const
     {
-        writer.beginAnsi(style);
+        writer.begin_ansi(this.style);
         static foreach (index; 0 .. Values.length)
-            writer.value(values[index]);
-        writer.endAnsi(style);
+            writer.value(this.values[index]);
+        writer.end_ansi(this.style);
     }
 }
 
@@ -60,62 +58,54 @@ auto styled(Values...)(auto ref Values values, ANSIStyle style) if (Values.lengt
 
 /// A non-owning view over a `Writer` that conditionally emits ANSI SGR styling.
 ///
-/// `ansiEnabled` is an explicit rendering decision made by the caller; this
+/// `ansi_enabled` is an explicit rendering decision made by the caller; this
 /// type does not inspect the output destination or environment. The referenced
 /// `Writer` must remain valid for the lifetime of this view.
-struct AnsiWriter
+struct ANSIWriter
 {
 nothrow @nogc:
 
-    private Writer* writer_;
-    private bool ansiEnabled_;
+    /// Borrowed destination. It must remain non-null and live while this view is used.
+    Writer* writer;
+    /// Whether ANSI SGR styling is emitted by `styled`.
+    bool ansi_enabled;
 
     /// Creates an ANSI-capable view over `writer`.
-    /// `ansiEnabled` is deliberately required: policy belongs to the caller.
-    static AnsiWriter fromWriter(Writer* writer, bool ansiEnabled)
+    /// `ansi_enabled` is deliberately required: policy belongs to the caller.
+    static ANSIWriter from_writer(return scope Writer* writer, bool ansi_enabled) @safe
     {
-        version (XTB_Checked)
-            require(writer !is null, "AnsiWriter requires a non-null Writer pointer");
-
-        AnsiWriter result;
-        result.writer_ = writer;
-        result.ansiEnabled_ = ansiEnabled;
-        return result;
-    }
-
-    bool ansiEnabled() const pure @safe
-    {
-        return ansiEnabled_;
+        require(writer !is null, "ANSI writer is null");
+        return ANSIWriter(writer, ansi_enabled);
     }
 
     bool ok() const pure @safe
     {
-        return writer_.ok;
+        return this.writer.ok;
     }
 
-    size_t written() const pure @safe
+    usize written() const pure @safe
     {
-        return writer_.written;
+        return this.writer.written;
     }
 
     void put(char value)
     {
-        writer_.put(value);
+        this.writer.put(value);
     }
 
     void put(scope String value)
     {
-        writer_.put(value);
+        this.writer.put(value);
     }
 
-    void repeat(char value, size_t count)
+    void repeat(char value, usize count)
     {
-        writer_.repeat(value, count);
+        this.writer.repeat(value, count);
     }
 
     void value(T)(auto ref T value)
     {
-        writer_.value(value);
+        this.writer.value(value);
     }
 
     /// Writes one or more ordinary `Writer.value` values under trailing `style`.
@@ -124,105 +114,109 @@ nothrow @nogc:
     /// intentionally does not expose nestable begin/end style scopes.
     void styled(Values...)(auto ref Values values, ANSIStyle style) if (Values.length != 0)
     {
-        if (ansiEnabled_)
-            beginAnsi(*writer_, style);
+        if (this.ansi_enabled) begin_ansi(*this.writer, style);
 
         static foreach (index; 0 .. Values.length)
-            writer_.value(values[index]);
+            this.writer.value(values[index]);
 
-        if (ansiEnabled_)
-            endAnsi(*writer_, style);
+        if (this.ansi_enabled) end_ansi(*this.writer, style);
     }
 }
 
-void beginAnsi(ref Writer writer, ANSIStyle style)
+void begin_ansi(ref Writer writer, ANSIStyle style)
 {
     const sequence = ansi_sequence(style);
     writer.put(sequence.view);
 }
 
-void beginAnsi(ref Writer writer, ANSIColor foreground)
+void begin_ansi(ref Writer writer, ANSIColor foreground)
 {
-    writer.beginAnsi(ANSIStyle.foreground(foreground));
+    writer.begin_ansi(ANSIStyle.foreground(foreground));
 }
 
-void resetAnsi(ref Writer writer)
+void reset_ansi(ref Writer writer)
 {
     const sequence = ansi_reset_sequence();
     writer.put(sequence.view);
 }
 
-void endAnsi(ref Writer writer, ANSIStyle style)
+void end_ansi(ref Writer writer, ANSIStyle style)
 {
     if (style.enabled)
-        writer.resetAnsi();
+        writer.reset_ansi();
 }
 
-void endAnsi(ref Writer writer, ANSIColor foreground)
+void end_ansi(ref Writer writer, ANSIColor foreground)
 {
     if (foreground.enabled)
-        writer.resetAnsi();
+        writer.reset_ansi();
 }
 
-version (unittest) private struct AnsiWriterTestSinkState
+version (unittest)
 {
-    char[256] storage;
-    size_t length;
-}
+    import xtb.fmt.fixed_buffer;
+    import xtb.fmt.format;
+    import xtb.string;
 
-version (unittest) private size_t ansiWriterTestSink(
-    void* context,
-    scope const(ubyte)[] bytes,
-)
-{
-    AnsiWriterTestSinkState* state = cast(AnsiWriterTestSinkState*) context;
-    if (state is null || bytes.length > state.storage.length - state.length)
-        return 0;
+    private struct ANSIWriterTestSinkState
+    {
+        char[256] storage;
+        usize length;
+    }
 
-    foreach (index, value; bytes)
-        state.storage[state.length + index] = cast(char) value;
-    state.length += bytes.length;
-    return bytes.length;
+    private usize ansi_writer_test_sink(
+        void* context,
+        scope const(u8)[] bytes,
+    ) @system
+    {
+        // Tests pass a live ANSIWriterTestSinkState as the opaque sink context.
+        auto state = cast(ANSIWriterTestSinkState*) context;
+        if (state is null || bytes.length > state.storage.length - state.length) return 0;
+
+        foreach (index, value; bytes)
+            state.storage[state.length + index] = cast(char) value;
+
+        state.length += bytes.length;
+        return bytes.length;
+    }
 }
 
 unittest
 {
-    import xtb.fmt.writer : hexadecimal;
+    ANSIWriterTestSinkState state;
+    auto output = Writer.from_sink(&ansi_writer_test_sink, &state);
 
-    AnsiWriterTestSinkState state;
-    Writer output = Writer.from_sink(&ansiWriterTestSink, &state);
+    static assert(!__traits(compiles, ANSIWriter.from_writer(&output)));
+    static assert(__traits(compiles, ANSIWriter.from_writer(&output, false)));
 
-    static assert(!__traits(compiles, AnsiWriter.fromWriter(&output)));
-    static assert(__traits(compiles, AnsiWriter.fromWriter(&output, false)));
-
-    AnsiWriter plain = AnsiWriter.fromWriter(&output, false);
-    assert(!plain.ansiEnabled);
+    auto plain = ANSIWriter.from_writer(&output, false);
+    assert(!plain.ansi_enabled);
     assert(plain.ok);
     assert(plain.written == 0);
 
     plain.put('A');
     plain.put("B");
     plain.repeat('c', 2);
-    const plainStyle = ANSIStyle.foreground(ANSIColor.bright_red).bold;
-    plain.styled(" value=", hexadecimal(42), plainStyle);
+    const plain_style = ANSIStyle.foreground(ANSIColor.bright_red).bold;
+    plain.styled(" value=", hexadecimal(42), plain_style);
     assert(state.length != 0);
     assert(plain.written == state.length);
     assert(state.storage[0 .. state.length].equal("ABcc value=0x2a"));
 
-    const plainResult = output.result;
-    assert(plainResult.ok);
-    assert(plainResult.written == state.length);
+    const plain_result = output.result;
+    assert(plain_result.ok);
+    assert(plain_result.written == state.length);
 
-    state = AnsiWriterTestSinkState.init;
-    output = Writer.from_sink(&ansiWriterTestSink, &state);
-    AnsiWriter styled = AnsiWriter.fromWriter(&output, true);
-    assert(styled.ansiEnabled);
+    state = ANSIWriterTestSinkState.init;
+    output = Writer.from_sink(&ansi_writer_test_sink, &state);
+    auto styled_writer = ANSIWriter.from_writer(&output, true);
+    assert(styled_writer.ansi_enabled);
 
     const style = ANSIStyle.foreground(ANSIColor.bright_red).bold;
-    styled.styled("value=", 42, '!', style);
-    const styledResult = output.result;
-    assert(styledResult.ok);
-    assert(styledResult.written == state.length);
+    styled_writer.styled("value=", 42, '!', style);
+    const styled_result = output.result;
+    assert(styled_result.ok);
+    assert(styled_result.written == state.length);
     assert(state.storage[0 .. state.length].equal(
             "\x1b[1;91mvalue=42!\x1b[0m",
     ));
@@ -230,46 +224,41 @@ unittest
 
 unittest
 {
-    import xtb.fmt.fixed_buffer : write_buffer;
-    import xtb.string;
-
-    AnsiWriterTestSinkState state;
+    ANSIWriterTestSinkState state;
     char[128] storage;
     const style = ANSIStyle.foreground(ANSIColor.bright_red)
         .with_background(ANSIColor.indexed(17))
         .bold
         .underline;
-    Writer styleWriter = Writer.from_sink(&ansiWriterTestSink, &state);
-    beginAnsi(styleWriter, style);
-    styleWriter.put("failure");
-    resetAnsi(styleWriter);
-    assert(styleWriter.ok);
+    auto style_writer = Writer.from_sink(&ansi_writer_test_sink, &state);
+    begin_ansi(style_writer, style);
+    style_writer.put("failure");
+    reset_ansi(style_writer);
+    assert(style_writer.ok);
     assert(state.storage[0 .. state.length].equal(
             "\x1b[1;4;91;48;5;17mfailure\x1b[0m",
     ));
-    state = AnsiWriterTestSinkState.init;
+    state = ANSIWriterTestSinkState.init;
 
-    import xtb.fmt.format : formatted;
+    const plain_styled_result = write_buffer(storage[], styled(42, ANSIStyle.init));
+    assert(plain_styled_result.ok);
+    assert(storage[0 .. plain_styled_result.written].equal("42"));
 
-    const plainStyledResult = write_buffer(storage[], styled(42, ANSIStyle.init));
-    assert(plainStyledResult.ok);
-    assert(storage[0 .. plainStyledResult.written].equal("42"));
-
-    const groupedStyledResult = write_buffer(
+    const grouped_styled_result = write_buffer(
         storage[],
         styled("value=", 42, '!', ANSIColor.bright_red.foreground),
     );
-    assert(groupedStyledResult.ok);
-    assert(storage[0 .. groupedStyledResult.written].equal(
+    assert(grouped_styled_result.ok);
+    assert(storage[0 .. grouped_styled_result.written].equal(
             "\x1b[91mvalue=42!\x1b[0m",
     ));
 
-    const styledResult = write_buffer(
+    const styled_result = write_buffer(
         storage[],
         styled(formatted!"#{}:{}"(7u, 3u), ANSIColor.bright_cyan.foreground.bold),
     );
-    assert(styledResult.ok);
-    assert(storage[0 .. styledResult.written].equal(
+    assert(styled_result.ok);
+    assert(storage[0 .. styled_result.written].equal(
             "\x1b[1;96m#7:3\x1b[0m",
     ));
 }

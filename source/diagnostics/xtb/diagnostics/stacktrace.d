@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.stdc.string : memcpy;
 import xtb.diagnostics.demangle : tryDemangleD;
 import xtb.ansi : ANSIColor;
-import xtb.fmt.ansi : beginAnsi, endAnsi;
+import xtb.fmt.ansi : begin_ansi, end_ansi;
 import xtb.fmt.writer : Writer, hexadecimal;
 import xtb.string;
 import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
@@ -86,7 +86,7 @@ private size_t decimalDigits(size_t value) pure @safe
 
 private void beginColor(ref Writer writer, ANSIColor color)
 {
-    writer.beginAnsi(color);
+    writer.begin_ansi(color);
 }
 
 private void endColor(
@@ -95,7 +95,7 @@ private void endColor(
     ANSIColor color,
 )
 {
-    writer.endAnsi(color);
+    writer.end_ansi(color);
 }
 
 /// Renders a stack trace without appending a trailing newline.
