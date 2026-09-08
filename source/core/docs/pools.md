@@ -63,18 +63,16 @@ pool.deallocate(handle);
 assert(pool.get(handle) is null);
 ```
 
-Handles belong to the pool instance that created them. `tryDeallocate` and
-`tryDispose` return `false` for invalid/stale handles; their non-`try` variants
+Handles belong to the pool instance that created them. `try_deallocate` and
+`try_dispose` return `false` for invalid/stale handles; their non-`try` variants
 panic instead.
 
 ## Iteration
 
-Both pool types provide stable-index-order ranges. `Pool` currently exposes
-`indexed_items()` and `occupied_slots()`, while `GenerationalPool` still uses
-`indexedItems()` and `occupiedSlots()` until its own style-guide migration. Both
-provide `items()` and `slots()`.
+Both pool types provide stable-index-order ranges through `items()`,
+`indexed_items()`, `occupied_slots()`, and `slots()`.
 
-For a generational pool, `occupiedSlots()` also exposes the generation and
+For a generational pool, `occupied_slots()` also exposes the generation and
 handle. Use `slots()` only when inactive slot representation is relevant.
 Structural mutation invalidates an existing range; checked builds diagnose use
 after invalidation.

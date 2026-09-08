@@ -279,7 +279,7 @@ private u64 largeReserveSmallLive(size_t iterations)
         auto pool = GenerationalPool!uint.create(largeCapacity);
         foreach (__; 0 .. largeLiveCount)
         {
-            const handle = pool.allocateInit();
+            const handle = pool.allocate_init();
             *pool.get(handle) = handle.index;
             sum += handle.index;
         }
@@ -329,10 +329,10 @@ extern (C) int main(int argc, char** argv)
         uint* clustered = clusteredPool.allocate_init();
         *clustered = index;
 
-        const denseHandle = denseGenerational.allocateInit();
+        const denseHandle = denseGenerational.allocate_init();
         *denseGenerational.get(denseHandle) = index;
         denseHandles[index - 1] = denseHandle;
-        const sparseHandle = sparseGenerational.allocateInit();
+        const sparseHandle = sparseGenerational.allocate_init();
         *sparseGenerational.get(sparseHandle) = index;
         sparseHandles[index - 1] = sparseHandle;
     }
@@ -519,7 +519,7 @@ extern (C) int main(int argc, char** argv)
     GenerationalPool!uint recycledGenerational = GenerationalPool!uint.create(1);
     scope (exit)
         recycledGenerational.deinit();
-    auto recycledHandle = recycledGenerational.allocateInit();
+    auto recycledHandle = recycledGenerational.allocate_init();
     *recycledGenerational.get(recycledHandle) = 9;
     elapsed = recycleGenerational(recycledGenerational, recycledHandle, iterations);
     printTiming("Generational deallocate+recycle".ptr, elapsed, iterations);

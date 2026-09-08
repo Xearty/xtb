@@ -189,7 +189,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         GenerationalPool!int pool = GenerationalPool!int.create(1);
         scope (exit)
             pool.deinit();
-        auto handle = pool.allocateInit();
+        auto handle = pool.allocate_init();
         pool.deallocate(handle);
         pool.deallocate(handle);
     }
@@ -207,15 +207,15 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             GenerationalPool!int pool = GenerationalPool!int.create(3);
             scope (exit)
                 pool.deinit();
-            pool.allocateInit();
+            pool.allocate_init();
             auto range = pool.items();
-            pool.allocateInit();
+            pool.allocate_init();
             cast(void) range.empty;
         }
         if (cStringEqual(name, "generational-pool-range-moved"))
         {
             GenerationalPool!int pool = GenerationalPool!int.create(2);
-            pool.allocateInit();
+            pool.allocate_init();
             auto range = pool.items();
             GenerationalPool!int moved = move(pool);
             scope (exit)
@@ -227,8 +227,8 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             GenerationalPool!int pool = GenerationalPool!int.create(2);
             scope (exit)
                 pool.deinit();
-            auto handle = pool.allocateInit();
-            auto range = pool.occupiedSlots();
+            auto handle = pool.allocate_init();
+            auto range = pool.occupied_slots();
             auto slot = range.front;
             pool.deallocate(handle);
             cast(void) slot.value;
@@ -238,7 +238,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
             GenerationalPool!int pool = GenerationalPool!int.create(2);
             scope (exit)
                 pool.deinit();
-            auto handle = pool.allocateInit();
+            auto handle = pool.allocate_init();
             pool.deallocate(handle);
             auto range = pool.slots();
             auto slot = range.front;

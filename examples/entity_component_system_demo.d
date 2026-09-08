@@ -277,12 +277,12 @@ public:
         health_.remove(entity);
         velocities_.remove(entity);
         positions_.remove(entity);
-        return entities_.tryDeallocate(entity);
+        return entities_.try_deallocate(entity);
     }
 
     size_t entityCount() const pure @safe
     {
-        return entities_.liveCount;
+        return entities_.live_count;
     }
 
     Position* setPosition(EntityId entity, Position value) @system

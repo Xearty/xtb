@@ -184,11 +184,11 @@ private void destroyEntity(scope World* world, EntityId id) @system
     // Entity owns these component handles. Deallocation preserves their
     // representations while advancing each pool's generation.
     if (entity.attack.valid)
-        cast(void) world.attacks.tryDeallocate(entity.attack);
-    cast(void) world.renders.tryDeallocate(entity.render);
-    cast(void) world.health.tryDeallocate(entity.health);
-    cast(void) world.positions.tryDeallocate(entity.position);
-    cast(void) world.entities.tryDeallocate(id);
+        cast(void) world.attacks.try_deallocate(entity.attack);
+    cast(void) world.renders.try_deallocate(entity.render);
+    cast(void) world.health.try_deallocate(entity.health);
+    cast(void) world.positions.try_deallocate(entity.position);
+    cast(void) world.entities.try_deallocate(id);
 }
 
 // Position is deliberately plain numerical state. Freshly provisioned pages
@@ -212,7 +212,7 @@ private void tickPositions(scope PositionPool* positions, float seconds) @system
 // generational HealthId. A stale target simply stops receiving damage.
 private void tickAttacks(scope AttackPool* attacks, scope HealthPool* health) @system
 {
-    foreach (item; attacks.indexedItems())
+    foreach (item; attacks.indexed_items())
     {
         ref attack = item.value;
         Health* target = health.get(attack.target);
@@ -245,7 +245,7 @@ private size_t cullDeadEntities(scope World* world) @system
 
     // Structural mutation would invalidate this range, so collect handles
     // first and destroy them after entity iteration has finished.
-    foreach (slot; world.entities.occupiedSlots())
+    foreach (slot; world.entities.occupied_slots())
     {
         const Entity* entity = &slot.value();
         const(Health)* health = world.health.get(entity.health);
@@ -268,7 +268,7 @@ private size_t cullDeadEntities(scope World* world) @system
 
 private void renderWorld(scope const World* world) @system
 {
-    foreach (item; world.renders.indexedItems())
+    foreach (item; world.renders.indexed_items())
     {
         ref const render = item.value;
         const(Position)* position = world.positions.get(render.position);
@@ -310,7 +310,7 @@ private size_t tickWorld(scope World* world, uint tick, float seconds) @system
     const removedStyle = removed == 0 ? stateStyle : cullStyle;
     formatln!"  {} live entities={}, removed={}"(
         styled("[state]", stateStyle),
-        styled(world.entities.liveCount, entityIdStyle),
+        styled(world.entities.live_count, entityIdStyle),
         styled(removed, removedStyle),
     );
     return removed;
