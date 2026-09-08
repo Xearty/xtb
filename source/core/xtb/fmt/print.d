@@ -8,7 +8,7 @@ import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
 
 import xtb.types : String, u8;
 
-version (unittest) import xtb.fmt.fixed_buffer : formatBuffer, writeBuffer;
+version (unittest) import xtb.fmt.fixed_buffer : format_buffer, write_buffer;
 
 version (unittest) import xtb.fmt.format : format, formatln, formatString, tryFormatString;
 
@@ -148,7 +148,7 @@ unittest
     assert(fallibleSplitScalar.view[511 .. $] == "🙂");
 
     char[8] fixedBuffer;
-    const result = fixedBuffer[].writeBuffer("abcdefghi");
+    const result = fixedBuffer[].write_buffer("abcdefghi");
     assert(result.ok);
     assert(result.truncated);
     assert(result.written == 7);
@@ -156,7 +156,7 @@ unittest
     assert(fixedBuffer[7] == '\0');
 
     char[4] truncatedScalar;
-    const scalarResult = truncatedScalar[].writeBuffer("A🙂");
+    const scalarResult = truncatedScalar[].write_buffer("A🙂");
     assert(scalarResult.ok);
     assert(scalarResult.truncated);
     assert(scalarResult.written == 1);
@@ -165,7 +165,7 @@ unittest
     assert(truncatedScalar[1] == '\0');
 
     char[6] exactScalar;
-    const exactScalarResult = exactScalar[].writeBuffer("A🙂");
+    const exactScalarResult = exactScalar[].write_buffer("A🙂");
     assert(exactScalarResult.ok);
     assert(!exactScalarResult.truncated);
     assert(exactScalarResult.written == 5);
@@ -244,7 +244,7 @@ unittest
     assert(buffer.empty);
 
     char[12] interpolatedFixed;
-    const interpolatedFixedResult = interpolatedFixed[].formatBuffer(
+    const interpolatedFixedResult = interpolatedFixed[].format_buffer(
         i"value=$(answer)",
     );
     assert(interpolatedFixedResult.ok);
@@ -255,7 +255,7 @@ unittest
     assert(interpolatedFixed[8] == '\0');
 
     char[8] truncatedInterpolation;
-    const truncatedInterpolationResult = truncatedInterpolation[].formatBuffer(
+    const truncatedInterpolationResult = truncatedInterpolation[].format_buffer(
         i"value=$(answer)",
     );
     assert(truncatedInterpolationResult.ok);

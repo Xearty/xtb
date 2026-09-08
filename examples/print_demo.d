@@ -48,7 +48,7 @@ extern (C) int main() nothrow @nogc
     writeln(builder);
 
     char[24] storage;
-    const fixedResult = storage[].formatBuffer(i"fixed output: $(count)");
+    const fixedResult = storage[].format_buffer(i"fixed output: $(count)");
     writeln(
         "fixed buffer: ",
         storage[0 .. fixedResult.written],

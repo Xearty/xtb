@@ -314,14 +314,14 @@ unittest
 {
     import xtb.allocators.malloc : malloc_allocator;
     import xtb.fmt.pretty_print : PrettyPrintOptions, pretty;
-    import xtb.fmt.fixed_buffer : writeBuffer;
+    import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string;
 
     const plain = PrettyPrintOptions.init.withoutColors();
 
     Deserialized!PrettyPrintOwnershipRecord decoded;
     char[16] emptyStorage;
-    const emptyResult = writeBuffer(emptyStorage[], decoded.pretty(plain));
+    const emptyResult = write_buffer(emptyStorage[], decoded.pretty(plain));
     assert(emptyResult.ok);
     assert(!emptyResult.truncated);
     assert(emptyStorage[0 .. emptyResult.written].equal("null"));
@@ -332,7 +332,7 @@ unittest
     value.id = 17;
 
     char[128] valueStorage;
-    const valueResult = writeBuffer(valueStorage[], decoded.pretty(plain));
+    const valueResult = write_buffer(valueStorage[], decoded.pretty(plain));
     assert(valueResult.ok);
     assert(!valueResult.truncated);
     assert(valueStorage[0 .. valueResult.written].equal(
@@ -347,7 +347,7 @@ unittest
         9,
     );
     char[128] directStorage;
-    const directResult = writeBuffer(
+    const directResult = write_buffer(
         directStorage[],
         directHolder.pretty(automatic),
     );
@@ -367,7 +367,7 @@ unittest
     nestedValue.id = 17;
     decodedHolder.tail = 9;
     char[128] decodedStorage;
-    const decodedResult = writeBuffer(
+    const decodedResult = write_buffer(
         decodedStorage[],
         decodedHolder.pretty(automatic),
     );
@@ -380,7 +380,7 @@ unittest
 
     decoded.deinit();
     char[16] releasedStorage;
-    const releasedResult = writeBuffer(
+    const releasedResult = write_buffer(
         releasedStorage[],
         decoded.pretty(plain),
     );

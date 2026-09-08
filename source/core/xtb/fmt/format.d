@@ -166,7 +166,7 @@ WriteResult formatln(Sequence...)(
 
 unittest
 {
-    import xtb.fmt.fixed_buffer : writeBuffer;
+    import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string : equal;
     import xtb.fmt.writer : fixed, hexadecimal;
 
@@ -175,13 +175,13 @@ unittest
     uint captured = 7;
     const id = formatted!"#{}:{}"(captured, 3u);
     captured = 9;
-    const result = writeBuffer(storage[], "id=", id);
+    const result = write_buffer(storage[], "id=", id);
     assert(result.ok);
     assert(!result.truncated);
     assert(storage[0 .. result.written].equal("id=#7:3"));
 
     const nested = formatted!"{} / {}"(fixed(1.25, 2), hexadecimal(16));
-    const nestedResult = writeBuffer(storage[], nested);
+    const nestedResult = write_buffer(storage[], nested);
     assert(nestedResult.ok);
     assert(storage[0 .. nestedResult.written].equal("1.25 / 0x10"));
 
@@ -199,7 +199,7 @@ unittest
     }
 
     auto moved = formatted!"<{}>"(MoveOnly(11));
-    const movedResult = writeBuffer(storage[], moved);
+    const movedResult = write_buffer(storage[], moved);
     assert(movedResult.ok);
     assert(storage[0 .. movedResult.written].equal("<11>"));
 }

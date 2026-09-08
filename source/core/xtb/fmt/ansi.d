@@ -230,7 +230,7 @@ unittest
 
 unittest
 {
-    import xtb.fmt.fixed_buffer : writeBuffer;
+    import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string;
 
     AnsiWriterTestSinkState state;
@@ -251,11 +251,11 @@ unittest
 
     import xtb.fmt.format : formatted;
 
-    const plainStyledResult = writeBuffer(storage[], styled(42, AnsiStyle.init));
+    const plainStyledResult = write_buffer(storage[], styled(42, AnsiStyle.init));
     assert(plainStyledResult.ok);
     assert(storage[0 .. plainStyledResult.written].equal("42"));
 
-    const groupedStyledResult = writeBuffer(
+    const groupedStyledResult = write_buffer(
         storage[],
         styled("value=", 42, '!', AnsiColor.brightRed.foreground),
     );
@@ -264,7 +264,7 @@ unittest
             "\x1b[91mvalue=42!\x1b[0m",
     ));
 
-    const styledResult = writeBuffer(
+    const styledResult = write_buffer(
         storage[],
         styled(formatted!"#{}:{}"(7u, 3u), AnsiColor.brightCyan.foreground.bold),
     );

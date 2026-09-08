@@ -191,7 +191,7 @@ private void writePrettyPointer(T)(
     writePrettyImpl(writer, *value, options, PrettyPrintContext.init);
 }
 
-/// Borrows an lvalue for `write`, `writeln`, `writeBuffer`, and the other
+/// Borrows an lvalue for `write`, `writeln`, `write_buffer`, and the other
 /// `xtb.fmt.print` APIs. This overload is preferred for lvalues and does not
 /// copy the source value.
 PrettyValue!T pretty(T)(
@@ -210,7 +210,7 @@ PrettyValue!T pretty(T)(
     return result;
 }
 
-/// Owns an rvalue for `write`, `writeln`, `writeBuffer`, and the other
+/// Owns an rvalue for `write`, `writeln`, `write_buffer`, and the other
 /// `xtb.fmt.print` APIs. This overload is preferred for temporaries.
 OwnedPrettyValue!T pretty(T)(
     return scope T value,
@@ -2936,11 +2936,11 @@ version (unittest)
         PrettyPrintOptions options = PrettyPrintOptions.init.withoutColors(),
     ) nothrow @nogc
     {
-        import xtb.fmt.fixed_buffer : writeBuffer;
+        import xtb.fmt.fixed_buffer : write_buffer;
         import xtb.string;
 
         char[4096] storage;
-        const result = writeBuffer(storage[], pretty(value, options));
+        const result = write_buffer(storage[], pretty(value, options));
         assert(result.ok);
         assert(!result.truncated);
         assert(storage[0 .. result.written].equal(expected));
@@ -2952,11 +2952,11 @@ version (unittest)
         PrettyPrintOptions options = PrettyPrintOptions.init.withoutColors(),
     ) nothrow @nogc
     {
-        import xtb.fmt.fixed_buffer : writeBuffer;
+        import xtb.fmt.fixed_buffer : write_buffer;
         import xtb.string;
 
         char[4096] storage;
-        const result = writeBuffer(storage[], pretty(move(value), options));
+        const result = write_buffer(storage[], pretty(move(value), options));
         assert(result.ok);
         assert(!result.truncated);
         assert(storage[0 .. result.written].equal(expected));
@@ -2967,13 +2967,13 @@ version (unittest)
         PrettyPrintOptions options = PrettyPrintOptions.init.withoutColors(),
     ) nothrow @nogc
     {
-        import xtb.fmt.fixed_buffer : writeBuffer;
+        import xtb.fmt.fixed_buffer : write_buffer;
 
         options.colored = false;
         options.layout = PrettyPrintLayout.compact;
 
         char[4096] storage;
-        const rendered = writeBuffer(storage[], pretty(value, options));
+        const rendered = write_buffer(storage[], pretty(value, options));
         assert(rendered.ok);
         assert(!rendered.truncated);
 
@@ -3307,18 +3307,18 @@ unittest
 
     PrettyValue!PrettyPrintTestRecord emptyWrapper;
     emptyWrapper.options = plain;
-    import xtb.fmt.fixed_buffer : writeBuffer;
+    import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string;
 
     char[32] emptyStorage;
-    const emptyResult = writeBuffer(emptyStorage[], emptyWrapper);
+    const emptyResult = write_buffer(emptyStorage[], emptyWrapper);
     assert(emptyResult.ok);
     assert(emptyStorage[0 .. emptyResult.written].equal("null"));
 
     const PrettyValue!PrettyPrintTestRecord borrowedWrapper =
         pretty(record, plain);
     char[128] constWrapperStorage;
-    const constWrapperResult = writeBuffer(
+    const constWrapperResult = write_buffer(
         constWrapperStorage[],
         borrowedWrapper,
     );
@@ -3331,7 +3331,7 @@ unittest
     auto liveBorrow = record.pretty(plain);
     record.id = 8;
     char[128] liveBorrowStorage;
-    const liveBorrowResult = writeBuffer(liveBorrowStorage[], liveBorrow);
+    const liveBorrowResult = write_buffer(liveBorrowStorage[], liveBorrow);
     assert(liveBorrowResult.ok);
     assert(!liveBorrowResult.truncated);
     assert(liveBorrowStorage[0 .. liveBorrowResult.written].equal(
@@ -3347,7 +3347,7 @@ unittest
     const OwnedPrettyValue!PrettyPrintTestEnumHolder constOwnedWrapper =
         pretty(PrettyPrintTestEnumHolder.init, plain);
     char[160] constOwnedStorage;
-    const constOwnedResult = writeBuffer(
+    const constOwnedResult = write_buffer(
         constOwnedStorage[],
         constOwnedWrapper,
     );
@@ -3413,7 +3413,7 @@ unittest
     PrettyPrintTestRecord interpolatedRecord =
         PrettyPrintTestRecord(9, "Lin");
     char[192] interpolationStorage;
-    const interpolationResult = writeBuffer(
+    const interpolationResult = write_buffer(
         interpolationStorage[],
         i"record=$(interpolatedRecord.pretty(plain))",
     );
@@ -3461,13 +3461,13 @@ unittest
     noTypes.showTypeNames = false;
     withOptions.expectPretty("<pretty without types>", noTypes);
 
-    import xtb.fmt.fixed_buffer : writeBuffer;
+    import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string;
 
     PrettyPrintTestBothOverrides both = PrettyPrintTestBothOverrides(1);
     both.expectPretty("<pretty wins>", plain);
     char[64] bothNormalStorage;
-    const bothNormalResult = writeBuffer(bothNormalStorage[], both);
+    const bothNormalResult = write_buffer(bothNormalStorage[], both);
     assert(bothNormalResult.ok);
     assert(bothNormalStorage[0 .. bothNormalResult.written].equal(
             "<normal format>",
@@ -3478,7 +3478,7 @@ unittest
     // const-compatible `prettyFormatTo` hook.
     PrettyPrintTestFormatOverride displayOnly = PrettyPrintTestFormatOverride(9);
     char[64] normalStorage;
-    const normalResult = writeBuffer(normalStorage[], displayOnly);
+    const normalResult = write_buffer(normalStorage[], displayOnly);
     assert(normalResult.ok);
     assert(normalStorage[0 .. normalResult.written].equal("<format override>"));
     displayOnly.expectPretty(
@@ -3546,11 +3546,11 @@ unittest
     int* nullPointer;
     nullPointer.expectPretty("null", noTypes);
 
-    import xtb.fmt.fixed_buffer : writeBuffer;
+    import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string;
 
     char[128] addressStorage;
-    const addressResult = writeBuffer(addressStorage[], pointer.pretty(noTypes));
+    const addressResult = write_buffer(addressStorage[], pointer.pretty(noTypes));
     assert(addressResult.ok);
     assert(addressResult.written > 3);
     assert(addressStorage[0 .. 3].equal("@0x"));
@@ -3558,7 +3558,7 @@ unittest
     alias TestFunctionPointer = extern (C) int function(int) nothrow @nogc;
     TestFunctionPointer functionPointer = &prettyPrintTestFunction;
     char[256] functionStorage;
-    const functionResult = writeBuffer(
+    const functionResult = write_buffer(
         functionStorage[],
         functionPointer.pretty(dereferenced),
     );
@@ -3571,7 +3571,7 @@ unittest
 
     void* opaque = cast(void*) pointer;
     char[128] opaqueStorage;
-    const opaqueResult = writeBuffer(
+    const opaqueResult = write_buffer(
         opaqueStorage[],
         opaque.pretty(dereferenced),
     );
@@ -3804,12 +3804,12 @@ unittest
 
 unittest
 {
-    import xtb.fmt.fixed_buffer : writeBuffer;
+    import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string;
 
     int number = 42;
     char[64] storage;
-    const defaultResult = writeBuffer(storage[], number.pretty);
+    const defaultResult = write_buffer(storage[], number.pretty);
     assert(defaultResult.ok);
     assert(storage[0 .. defaultResult.written].equal("\x1b[34m42\x1b[0m"));
 
@@ -3817,14 +3817,14 @@ unittest
     scheme.numberValue = AnsiStyle.foreground(AnsiColor.brightRed);
     PrettyPrintOptions custom = PrettyPrintOptions.init.withColorScheme(scheme);
     char[64] customStorage;
-    const customResult = writeBuffer(customStorage[], number.pretty(custom));
+    const customResult = write_buffer(customStorage[], number.pretty(custom));
     assert(customResult.ok);
     assert(customStorage[0 .. customResult.written].equal(
             "\x1b[91m42\x1b[0m",
     ));
 
     char[2] tiny;
-    const truncated = writeBuffer(tiny[], number.pretty(custom.withoutColors()));
+    const truncated = write_buffer(tiny[], number.pretty(custom.withoutColors()));
     assert(truncated.ok);
     assert(truncated.truncated);
     assert(truncated.written == 1);

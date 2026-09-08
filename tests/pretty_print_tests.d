@@ -5,7 +5,7 @@ import xtb.memory : Allocator;
 import xtb.string : OwnedString, OwnedStringUnmanaged;
 import xtb.fmt.pretty_print;
 import xtb.fmt.writer : Writer;
-import xtb.fmt.fixed_buffer : writeBuffer;
+import xtb.fmt.fixed_buffer : write_buffer;
 import xtb.string : StringBuf, StringBufUnmanaged;
 
 private struct FormatRepresentationTestValue
@@ -69,27 +69,27 @@ private struct BorrowedOwningFormatRepresentationTestValue
 }
 
 static assert(!__traits(compiles,
-        (ref ConflictingFormatTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
+        (ref ConflictingFormatTestValue value) { char[16] storage; cast(void) write_buffer(storage[], value); }));
 static assert(!__traits(compiles,
-        (ref RecursiveFormatTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
+        (ref RecursiveFormatTestValue value) { char[16] storage; cast(void) write_buffer(storage[], value); }));
 static assert(!__traits(compiles,
-        (ref NonVoidFormatToTestValue value) { char[16] storage; writeBuffer(storage[], value); }));
+        (ref NonVoidFormatToTestValue value) { char[16] storage; cast(void) write_buffer(storage[], value); }));
 static assert(!__traits(compiles,
         (ref OwningFormatRepresentationTestValue value) {
         char[32] storage;
-        writeBuffer(storage[], value);
+        cast(void) write_buffer(storage[], value);
     }));
 static assert(__traits(compiles,
         (ref BorrowedOwningFormatRepresentationTestValue value) {
         char[32] storage;
-        writeBuffer(storage[], value);
+        cast(void) write_buffer(storage[], value);
     }));
 
 private void testFormatRepresentation()
 {
     char[32] storage;
     FormatRepresentationTestValue value = FormatRepresentationTestValue(42);
-    auto result = writeBuffer(storage[], value);
+    auto result = write_buffer(storage[], value);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "42");
 
@@ -97,18 +97,18 @@ private void testFormatRepresentation()
 
     OwnedStringUnmanaged unmanagedOwned =
         OwnedStringUnmanaged.fromString(allocator, "owned-unmanaged");
-    result = writeBuffer(storage[], unmanagedOwned);
+    result = write_buffer(storage[], unmanagedOwned);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "owned-unmanaged");
     unmanagedOwned.deinit(allocator);
 
     OwnedString owned = OwnedString.fromString(allocator, "owned");
-    result = writeBuffer(storage[], owned);
+    result = write_buffer(storage[], owned);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "owned");
 
     auto borrowedRepresentation = BorrowedOwningFormatRepresentationTestValue(&owned);
-    result = writeBuffer(storage[], borrowedRepresentation);
+    result = write_buffer(storage[], borrowedRepresentation);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "owned");
 
@@ -116,13 +116,13 @@ private void testFormatRepresentation()
 
     StringBufUnmanaged unmanagedBuffer =
         StringBufUnmanaged.fromString(allocator, "buffer-unmanaged");
-    result = writeBuffer(storage[], unmanagedBuffer);
+    result = write_buffer(storage[], unmanagedBuffer);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "buffer-unmanaged");
     unmanagedBuffer.deinit(allocator);
 
     StringBuf buffer = StringBuf.fromString(allocator, "buffer");
-    result = writeBuffer(storage[], buffer);
+    result = write_buffer(storage[], buffer);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "buffer");
     buffer.deinit();

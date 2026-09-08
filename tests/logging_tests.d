@@ -181,7 +181,7 @@ extern (C) int main() nothrow @nogc
         return 1;
 
     char[512] expectedSourceStorage;
-    const expectedSource = formatBuffer!"[error]   callsite routing  ({}:{})\n"(
+    const expectedSource = format_buffer!"[error]   callsite routing  ({}:{})\n"(
         expectedSourceStorage[],
         sourceFunction,
         sourceLine,

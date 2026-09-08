@@ -14,7 +14,7 @@ version (unittest)
 {
     import xtb.fmt.pretty_print : PrettyPrintLayout, PrettyPrintOptions, pretty;
     import xtb.fmt.writer : Writer;
-    import xtb.fmt.fixed_buffer : formatBuffer, writeBuffer;
+    import xtb.fmt.fixed_buffer : format_buffer, write_buffer;
 
     private struct CapturedEvent
     {
@@ -423,7 +423,7 @@ version (unittest)
         assert(capture.events[next++].style == callsiteStyle);
 
         char[32] suffixStorage;
-        const suffix = formatBuffer!":{})"(suffixStorage[], line);
+        const suffix = format_buffer!":{})"(suffixStorage[], line);
         assert(!suffix.truncated);
         assertEvent(
             capture,
@@ -1052,7 +1052,7 @@ unittest
     options.maxItems = cast(uint) values.length;
 
     char[8192] expectedStorage;
-    const expected = writeBuffer(expectedStorage[], values.pretty(options));
+    const expected = write_buffer(expectedStorage[], values.pretty(options));
     assert(expected.ok);
     assert(!expected.truncated);
 
@@ -2000,7 +2000,7 @@ unittest
         char[256] output;
         const length = readFileContents(file, output[]);
         char[256] expectedStorage;
-        const expected = formatBuffer!"prefix [info]    plain callsite  ({}:{})\n"(
+        const expected = format_buffer!"prefix [info]    plain callsite  ({}:{})\n"(
             expectedStorage[],
             callsiteFunction,
             callsiteLine,
@@ -2030,7 +2030,7 @@ unittest
         char[512] output;
         const length = readFileContents(file, output[]);
         char[384] expectedStorage;
-        const expected = formatBuffer!(
+        const expected = format_buffer!(
             "\x1b[38;5;42m[info]\x1b[0m \x1b[38;5;246mansi callsite\x1b[0m" ~
                 "\x1b[2m  (\x1b[0m\x1b[2m{}\x1b[0m" ~
                 "\x1b[2m:{})\x1b[0m\n",

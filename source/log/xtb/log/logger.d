@@ -10,7 +10,7 @@ import xtb.log.internal.sgr : safeSgrPrefixLength;
 import xtb.log.sink : LogFlush, LogRecordInfo, LogRecordRef, LogSink, LogSinkRef,
     LogSourceLocation;
 import xtb.log.message_writer : LogMessageWriter, createLogMessageWriter;
-import xtb.fmt.fixed_buffer : BufferWriteResult, formatBuffer, writeBuffer;
+import xtb.fmt.fixed_buffer : BufferWriteResult, format_buffer, write_buffer;
 import xtb.string : String;
 
 struct Logger
@@ -376,7 +376,7 @@ package LogResult logAt(Args...)(
         return LogResult(LogStatus.filtered, 0, 0);
     if (logger.delivering_)
         return LogResult(LogStatus.recursive, 0, 0);
-    const formatted = writeBuffer(logger.messageBuffer_, args);
+    const formatted = write_buffer(logger.messageBuffer_, args);
     return logger.deliver(level, formatted, callsite);
 }
 
@@ -393,7 +393,7 @@ package LogResult logfAt(string pattern, Args...)(
         return LogResult(LogStatus.filtered, 0, 0);
     if (logger.delivering_)
         return LogResult(LogStatus.recursive, 0, 0);
-    const formatted = formatBuffer!pattern(logger.messageBuffer_, args);
+    const formatted = format_buffer!pattern(logger.messageBuffer_, args);
     return logger.deliver(level, formatted, callsite);
 }
 
