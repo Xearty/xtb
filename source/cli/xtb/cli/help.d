@@ -10,7 +10,7 @@ import xtb.cli.value : CliValueErrorKind;
 import xtb.ansi : AnsiColor, AnsiStyle;
 import xtb.fmt.ansi : AnsiWriter;
 import xtb.fmt.buffered_writer : BufferedWriter;
-import xtb.fmt.print : fileWriter;
+import xtb.fmt.print : file_writer;
 import xtb.fmt.writer : Writer;
 import xtb.types : String;
 
@@ -110,8 +110,8 @@ int handleCliResult(T)(
     bool errorAnsi = false,
 ) @system
 {
-    Writer outputDestination = fileWriter(cast(typeof(stdout)) stdout);
-    Writer errorDestination = fileWriter(cast(typeof(stderr)) stderr);
+    Writer outputDestination = file_writer(cast(typeof(stdout)) stdout);
+    Writer errorDestination = file_writer(cast(typeof(stderr)) stderr);
 
     // CLI help and diagnostics emit many small fragments, so coalesce them for
     // this stdout/stderr convenience path. Keep writeCliResult destination-neutral.

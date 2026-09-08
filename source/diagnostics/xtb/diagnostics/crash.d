@@ -8,7 +8,7 @@ import xtb.panic : PanicHook, panic, set_panic_handler;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.fmt.writer : Writer;
-import xtb.fmt.print : fileWriter;
+import xtb.fmt.print : file_writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
@@ -116,7 +116,7 @@ private void tracePanic(String message, void*)
             message,
             globalState.previousPanic.context,
         );
-    Writer writer = fileWriter(cast(FILE*) stderr);
+    Writer writer = file_writer(cast(FILE*) stderr);
     writer.put('\n');
     StackFrame[64] frames;
     char[16 * 1024] text;

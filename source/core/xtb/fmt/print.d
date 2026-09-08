@@ -4,102 +4,104 @@ nothrow @nogc:
 
 public import xtb.fmt.writer;
 
-import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
+import core.stdc.stdio;
 
-import xtb.types : String, u8;
+import xtb.types;
 
-version (unittest) import xtb.fmt.fixed_buffer : format_buffer, write_buffer;
-
-version (unittest) import xtb.fmt.format : format, formatln, formatString, tryFormatString;
-
-version (unittest) import xtb.string : StringBuf;
-
-version (unittest) private template InterpolationTestSequence(Values...)
+private usize file_sink(void* context, scope const(u8)[] bytes)
 {
-    alias InterpolationTestSequence = Values;
-}
+    auto file = cast(FILE*) context;
+    if (file is null) return 0;
 
-version (unittest) private void writeHeader(ref Writer writer, String name)
-{
-    writer.write("[", name, "] ");
-}
-
-private size_t fileSink(void* context, scope const(u8)[] bytes)
-{
-    FILE* file = cast(FILE*) context;
-    if (file is null)
-        return 0;
     return fwrite(bytes.ptr, 1, bytes.length, file);
 }
 
 /// Creates an immediate non-owning writer over a libc `FILE*`.
-Writer fileWriter(FILE* file)
+///
+/// `file` must remain open and valid until the returned writer is no longer used.
+Writer file_writer(FILE* file) @system
 {
-    return Writer.from_sink(&fileSink, cast(void*) file);
+    return Writer.from_sink(&file_sink, cast(void*) file);
 }
 
 WriteResult write(Args...)(auto ref Args args)
 {
-    return writeFile(cast(FILE*) stdout, args);
+    return write_file(cast(FILE*) stdout, args);
 }
 
 WriteResult writeln(Args...)(auto ref Args args)
 {
-    return writelnFile(cast(FILE*) stdout, args);
+    return writeln_file(cast(FILE*) stdout, args);
 }
 
 WriteResult ewrite(Args...)(auto ref Args args)
 {
-    return writeFile(cast(FILE*) stderr, args);
+    return write_file(cast(FILE*) stderr, args);
 }
 
 WriteResult ewriteln(Args...)(auto ref Args args)
 {
-    return writelnFile(cast(FILE*) stderr, args);
+    return writeln_file(cast(FILE*) stderr, args);
 }
 
-WriteResult writeFile(Args...)(FILE* file, auto ref Args args)
+WriteResult write_file(Args...)(FILE* file, auto ref Args args)
 {
-    Writer writer = fileWriter(file);
+    auto writer = file_writer(file);
     writer.write(args);
     return writer.result;
 }
 
-WriteResult writelnFile(Args...)(FILE* file, auto ref Args args)
+WriteResult writeln_file(Args...)(FILE* file, auto ref Args args)
 {
-    Writer writer = fileWriter(file);
+    auto writer = file_writer(file);
     writer.writeln(args);
     return writer.result;
 }
 
-bool flushStdout()
+bool flush_stdout()
 {
     return fflush(cast(FILE*) stdout) == 0;
 }
 
-bool flushStderr()
+bool flush_stderr()
 {
     return fflush(cast(FILE*) stderr) == 0;
 }
 
+version (unittest)
+{
+    import xtb.allocators.instrumented;
+    import xtb.allocators.malloc;
+    import xtb.fmt.fixed_buffer;
+    import xtb.fmt.format;
+    import xtb.string;
+
+    private template interpolation_test_sequence(values...)
+    {
+        alias interpolation_test_sequence = values;
+    }
+
+    private void write_header(ref Writer writer, String name)
+    {
+        writer.write("[", name, "] ");
+    }
+}
+
 unittest
 {
-    import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : malloc_allocator;
+    auto buffer = StringBuf.create(malloc_allocator());
+    scope (exit) buffer.deinit();
 
-    StringBuf buffer = StringBuf.create(malloc_allocator());
-    int answer = 42;
+    const i32 answer = 42;
     buffer.write("answer=", answer, ", hex=", hexadecimal(255));
     assert(buffer == "answer=42, hex=0xff");
-    const uint constantInteger = 255;
-    const double constantFloat = 1.25;
+
+    const u32 constant_integer = 255;
+    const f64 constant_float = 1.25;
     buffer.clear();
-    buffer.write(
-        hexadecimal(constantInteger).upper,
-        ", ",
-        fixed(constantFloat, 2),
-    );
+    buffer.write(hexadecimal(constant_integer).upper, ", ", fixed(constant_float, 2));
     assert(buffer == "0XFF, 1.25");
+
     buffer.clear();
     buffer.format!"{} + {} = {}"(2, 3, 5);
     assert(buffer == "2 + 3 = 5");
@@ -113,112 +115,133 @@ unittest
     buffer.formatln!"{} + {} = {}"(2, 3, 5);
     buffer.formatln(i"answer=$(answer)");
     assert(buffer == "2 + 3 = 5\nanswer=42\n");
+}
 
-    // StringBuf can be exposed as an immediate generic Writer. Bytes are visible
-    // as soon as each writer call returns; there is no finish obligation.
-    char[511] splitScalarPrefix;
-    splitScalarPrefix[] = 'a';
-    const String splitScalarPrefixString = splitScalarPrefix[];
+unittest
+{
+    auto buffer = StringBuf.create(malloc_allocator());
+    scope (exit) buffer.deinit();
 
-    buffer.clear();
-    Writer bufferWriter = buffer.writer();
-    bufferWriter.put(splitScalarPrefixString);
-    bufferWriter.put("🙂");
-    assert(bufferWriter.result.ok);
-    assert(bufferWriter.result.written == 515);
+    // StringBuf exposes an immediate Writer. Each call reaches the destination
+    // before returning, so no finish operation is required.
+    char[511] split_scalar_prefix;
+    split_scalar_prefix[] = 'a';
+    const String split_scalar_prefix_string = split_scalar_prefix[];
+
+    auto buffer_writer = buffer.writer();
+    buffer_writer.put(split_scalar_prefix_string);
+    buffer_writer.put("🙂");
+    assert(buffer_writer.result.ok);
+    assert(buffer_writer.result.written == 515);
     assert(buffer.byteLength == 515);
-    assert(buffer.view[0 .. 511] == splitScalarPrefixString);
+    assert(buffer.view[0 .. 511] == split_scalar_prefix_string);
     assert(buffer.view[511 .. $] == "🙂");
 
     buffer.clear();
-    Writer headerWriter = buffer.writer();
-    writeHeader(headerWriter, "HTTP");
-    headerWriter.writeln("status=", 200);
-    assert(headerWriter.ok);
+    auto header_writer = buffer.writer();
+    write_header(header_writer, "HTTP");
+    header_writer.writeln("status=", 200);
+    assert(header_writer.ok);
     assert(buffer == "[HTTP] status=200\n");
+}
 
-    StringBuf fallibleSplitScalar;
-    assert(tryFormatString!"{}{}"(
-            malloc_allocator(),
-            &fallibleSplitScalar,
-            splitScalarPrefixString,
-            "🙂",
-    ));
-    assert(fallibleSplitScalar.byteLength == 515);
-    assert(fallibleSplitScalar.view[511 .. $] == "🙂");
-
-    char[8] fixedBuffer;
-    const result = fixedBuffer[].write_buffer("abcdefghi");
+unittest
+{
+    char[8] fixed_buffer;
+    const result = fixed_buffer[].write_buffer("abcdefghi");
     assert(result.ok);
     assert(result.truncated);
     assert(result.written == 7);
     assert(result.required == 9);
-    assert(fixedBuffer[7] == '\0');
+    assert(fixed_buffer[7] == '\0');
 
-    char[4] truncatedScalar;
-    const scalarResult = truncatedScalar[].write_buffer("A🙂");
-    assert(scalarResult.ok);
-    assert(scalarResult.truncated);
-    assert(scalarResult.written == 1);
-    assert(scalarResult.required == 5);
-    assert(truncatedScalar[0 .. 1] == "A");
-    assert(truncatedScalar[1] == '\0');
+    char[4] truncated_scalar;
+    const scalar_result = truncated_scalar[].write_buffer("A🙂");
+    assert(scalar_result.ok);
+    assert(scalar_result.truncated);
+    assert(scalar_result.written == 1);
+    assert(scalar_result.required == 5);
+    assert(truncated_scalar[0 .. 1] == "A");
+    assert(truncated_scalar[1] == '\0');
 
-    char[6] exactScalar;
-    const exactScalarResult = exactScalar[].write_buffer("A🙂");
-    assert(exactScalarResult.ok);
-    assert(!exactScalarResult.truncated);
-    assert(exactScalarResult.written == 5);
-    assert(exactScalarResult.required == 5);
-    assert(exactScalar[0 .. 5] == "A🙂");
+    char[6] exact_scalar;
+    const exact_scalar_result = exact_scalar[].write_buffer("A🙂");
+    assert(exact_scalar_result.ok);
+    assert(!exact_scalar_result.truncated);
+    assert(exact_scalar_result.written == 5);
+    assert(exact_scalar_result.required == 5);
+    assert(exact_scalar[0 .. 5] == "A🙂");
+}
 
-    StringBuf allocated = formatString!"{}:{}"(malloc_allocator(), "item", 9);
-    assert(allocated == "item:9");
-    buffer.clear();
-    buffer.write("owned=", allocated);
-    assert(buffer == "owned=item:9");
+unittest
+{
+    const i32 answer = 42;
 
+    char[12] interpolated_fixed;
+    const interpolated_fixed_result = interpolated_fixed[].format_buffer(i"value=$(answer)");
+    assert(interpolated_fixed_result.ok);
+    assert(!interpolated_fixed_result.truncated);
+    assert(interpolated_fixed_result.written == 8);
+    assert(interpolated_fixed_result.required == 8);
+    assert(interpolated_fixed[0 .. 8] == "value=42");
+    assert(interpolated_fixed[8] == '\0');
+
+    char[8] truncated_interpolation;
+    const truncated_interpolation_result = truncated_interpolation[]
+        .format_buffer(i"value=$(answer)");
+    assert(truncated_interpolation_result.ok);
+    assert(truncated_interpolation_result.truncated);
+    assert(truncated_interpolation_result.written == 7);
+    assert(truncated_interpolation_result.required == 8);
+    assert(truncated_interpolation[0 .. 7] == "value=4");
+    assert(truncated_interpolation[7] == '\0');
+}
+
+unittest
+{
     struct StatefulValue
     {
     nothrow @nogc:
 
-        size_t* calls;
+        usize* calls;
 
         void format_to(ref Writer writer)
         {
-            ++*calls;
+            ++*this.calls;
             writer.put("stateful");
         }
     }
-
-    size_t calls;
-    StatefulValue value = StatefulValue(&calls);
-    StringBuf stateful = formatString!"{}"(
-        malloc_allocator(),
-        value,
-    );
-    assert(stateful == "stateful");
-    assert(calls == 1);
-
-    buffer.clear();
-    buffer.write(i"answer=$(answer), hex=$(hexadecimal(answer))");
-    assert(buffer == "answer=42, hex=0x2a");
 
     struct CountedExpression
     {
     nothrow @nogc:
 
-        size_t* evaluations;
+        usize* evaluations;
 
-        int evaluate()
+        i32 evaluate()
         {
-            ++*evaluations;
+            ++*this.evaluations;
             return 7;
         }
     }
 
-    size_t evaluations;
-    CountedExpression counted = CountedExpression(&evaluations);
+    auto buffer = StringBuf.create(malloc_allocator());
+    scope (exit) buffer.deinit();
+
+    const i32 answer = 42;
+    usize calls;
+    auto value = StatefulValue(&calls);
+    auto stateful = formatString!"{}"(malloc_allocator(), value);
+    scope (exit) stateful.deinit();
+
+    assert(stateful == "stateful");
+    assert(calls == 1);
+
+    buffer.write(i"answer=$(answer), hex=$(hexadecimal(answer))");
+    assert(buffer == "answer=42, hex=0x2a");
+
+    usize evaluations;
+    auto counted = CountedExpression(&evaluations);
     buffer.clear();
     buffer.format(i"once=$(counted.evaluate()), custom=$(value)");
     assert(buffer == "once=7, custom=stateful");
@@ -234,89 +257,81 @@ unittest
     assert(buffer == "prefix 42 suffix");
 
     buffer.clear();
-    buffer.write(
-        i"expanded=$(InterpolationTestSequence!(answer, answer))",
-    );
+    buffer.write(i"expanded=$(interpolation_test_sequence!(answer, answer))");
     assert(buffer == "expanded=4242");
 
     buffer.clear();
     buffer.write(i"");
     assert(buffer.empty);
+}
 
-    char[12] interpolatedFixed;
-    const interpolatedFixedResult = interpolatedFixed[].format_buffer(
-        i"value=$(answer)",
-    );
-    assert(interpolatedFixedResult.ok);
-    assert(!interpolatedFixedResult.truncated);
-    assert(interpolatedFixedResult.written == 8);
-    assert(interpolatedFixedResult.required == 8);
-    assert(interpolatedFixed[0 .. 8] == "value=42");
-    assert(interpolatedFixed[8] == '\0');
+unittest
+{
+    const i32 answer = 42;
 
-    char[8] truncatedInterpolation;
-    const truncatedInterpolationResult = truncatedInterpolation[].format_buffer(
-        i"value=$(answer)",
-    );
-    assert(truncatedInterpolationResult.ok);
-    assert(truncatedInterpolationResult.truncated);
-    assert(truncatedInterpolationResult.written == 7);
-    assert(truncatedInterpolationResult.required == 8);
-    assert(truncatedInterpolation[0 .. 7] == "value=4");
-    assert(truncatedInterpolation[7] == '\0');
+    auto allocated = formatString!"{}:{}"(malloc_allocator(), "item", 9);
+    scope (exit) allocated.deinit();
+    assert(allocated == "item:9");
 
-    StringBuf interpolated = formatString(
+    StringBuf fallible_split_scalar;
+    scope (exit) fallible_split_scalar.deinit();
+
+    char[511] split_scalar_prefix;
+    split_scalar_prefix[] = 'a';
+    const String split_scalar_prefix_string = split_scalar_prefix[];
+    assert(tryFormatString!"{}{}"(
         malloc_allocator(),
-        i"owned: $(answer), $(fixed(1.25, 2))",
-    );
+        &fallible_split_scalar,
+        split_scalar_prefix_string,
+        "🙂",
+    ));
+    assert(fallible_split_scalar.byteLength == 515);
+    assert(fallible_split_scalar.view[511 .. $] == "🙂");
+
+    auto interpolated = formatString(malloc_allocator(), i"owned: $(answer), $(fixed(1.25, 2))");
+    scope (exit) interpolated.deinit();
     assert(interpolated == "owned: 42, 1.25");
 
-    StringBuf fallibleInterpolated;
-    assert(tryFormatString(
-            malloc_allocator(),
-            &fallibleInterpolated,
-            i"try: $(binary(5))",
-    ));
-    assert(fallibleInterpolated == "try: 0b101");
+    StringBuf fallible_interpolated;
+    scope (exit) fallible_interpolated.deinit();
+    assert(tryFormatString(malloc_allocator(), &fallible_interpolated, i"try: $(binary(5))"));
+    assert(fallible_interpolated == "try: 0b101");
+}
 
-    AllocationRecord[4] transactionalRecords;
-    InstrumentedAllocator transactionalAllocator = InstrumentedAllocator.create(
+unittest
+{
+    AllocationRecord[4] transactional_records;
+    auto transactional_allocator = InstrumentedAllocator.create(
         malloc_allocator(),
-        transactionalRecords[],
+        transactional_records[],
     );
-    StringBuf transactional = StringBuf.withCapacity(
-        transactionalAllocator.allocator,
-        8,
-    );
+    auto transactional = StringBuf.withCapacity(transactional_allocator.allocator, 8);
+
     transactional.write("keep");
-    transactionalAllocator.fail_after(0);
+    transactional_allocator.fail_after(0);
     char[128] oversized;
     oversized[] = 'x';
     assert(!transactional.tryWrite("++", cast(String) oversized[]));
     assert(transactional == "keep");
+
     transactional.deinit();
-    assert(transactionalAllocator.clean);
+    assert(transactional_allocator.clean);
+}
 
+unittest
+{
+    const i32 answer = 42;
     AllocationRecord[4] records;
-    InstrumentedAllocator failing = InstrumentedAllocator.create(
-        malloc_allocator(),
-        records[],
-    );
+    auto failing = InstrumentedAllocator.create(malloc_allocator(), records[]);
     failing.fail_after(0);
-    StringBuf failedInterpolated;
-    assert(!tryFormatString(
-            failing.allocator,
-            &failedInterpolated,
-            i"allocation required: $(answer)",
-    ));
-    assert(failedInterpolated.empty);
-    assert(failing.clean);
 
-    failedInterpolated.deinit();
-    fallibleInterpolated.deinit();
-    interpolated.deinit();
-    stateful.deinit();
-    allocated.deinit();
-    fallibleSplitScalar.deinit();
-    buffer.deinit();
+    StringBuf failed_interpolated;
+    scope (exit) failed_interpolated.deinit();
+    assert(!tryFormatString(
+        failing.allocator,
+        &failed_interpolated,
+        i"allocation required: $(answer)",
+    ));
+    assert(failed_interpolated.empty);
+    assert(failing.clean);
 }

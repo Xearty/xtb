@@ -4,7 +4,7 @@ import core.stdc.stdio : FILE, stdout;
 import xtb.diagnostics.crash : CrashHandlerScope;
 import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.fmt.writer : Writer;
-import xtb.fmt.print : fileWriter;
+import xtb.fmt.print : file_writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;
@@ -89,7 +89,7 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
     char[64 * 1024] text;
     StackTrace trace = context.capture(frames[], text[], 1);
 
-    Writer writer = fileWriter(cast(FILE*) stdout);
+    Writer writer = file_writer(cast(FILE*) stdout);
     StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
     style.signatureDetail = SignatureDetail.overloadIdentityAndReturn;
     char[64 * 1024] signatureStorage;

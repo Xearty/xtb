@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.interpolation : InterpolationFooter, InterpolationHeader;
 import core.lifetime : forward;
 import core.stdc.stdio : FILE, stdout;
-import xtb.fmt.print : fileWriter;
+import xtb.fmt.print : file_writer;
 import xtb.fmt.writer : WriteResult, Writer;
 import xtb.lifetime : move, move_emplace;
 import xtb.memory : Allocator;
@@ -130,7 +130,7 @@ StringBuf formatString(Sequence...)(
 
 WriteResult format(string pattern, Args...)(auto ref Args args)
 {
-    Writer writer = fileWriter(cast(FILE*) stdout);
+    Writer writer = file_writer(cast(FILE*) stdout);
     writer.format!pattern(args);
     return writer.result;
 }
@@ -141,14 +141,14 @@ WriteResult format(Sequence...)(
     InterpolationFooter footer,
 )
 {
-    Writer writer = fileWriter(cast(FILE*) stdout);
+    Writer writer = file_writer(cast(FILE*) stdout);
     writer.format(header, sequence, footer);
     return writer.result;
 }
 
 WriteResult formatln(string pattern, Args...)(auto ref Args args)
 {
-    Writer writer = fileWriter(cast(FILE*) stdout);
+    Writer writer = file_writer(cast(FILE*) stdout);
     writer.formatln!pattern(args);
     return writer.result;
 }
@@ -159,7 +159,7 @@ WriteResult formatln(Sequence...)(
     InterpolationFooter footer,
 )
 {
-    Writer writer = fileWriter(cast(FILE*) stdout);
+    Writer writer = file_writer(cast(FILE*) stdout);
     writer.formatln(header, sequence, footer);
     return writer.result;
 }
