@@ -61,26 +61,26 @@ struct Entity
 alias EntityPool = GenerationalPool!Entity;
 alias EntityId = EntityPool.Handle;
 
-private enum tickStyle = AnsiColor.brightCyan.foreground.bold;
-private enum moveStyle = AnsiColor.brightBlue.foreground;
-private enum attackStyle = AnsiColor.brightYellow.foreground;
-private enum staleStyle = AnsiColor.brightBlack.foreground.dim;
-private enum cullStyle = AnsiColor.brightRed.foreground.bold;
-private enum renderStyle = AnsiColor.brightMagenta.foreground;
-private enum spawnStyle = AnsiColor.brightGreen.foreground.bold;
-private enum stateStyle = AnsiColor.brightWhite.foreground.dim;
+private enum tickStyle = ANSIColor.bright_cyan.foreground.bold;
+private enum moveStyle = ANSIColor.bright_blue.foreground;
+private enum attackStyle = ANSIColor.bright_yellow.foreground;
+private enum staleStyle = ANSIColor.bright_black.foreground.dim;
+private enum cullStyle = ANSIColor.bright_red.foreground.bold;
+private enum renderStyle = ANSIColor.bright_magenta.foreground;
+private enum spawnStyle = ANSIColor.bright_green.foreground.bold;
+private enum stateStyle = ANSIColor.bright_white.foreground.dim;
 
 // Pool identities keep a stable color throughout the trace so relationships
 // remain easy to follow across systems and generations.
-private enum entityIdStyle = AnsiColor.brightCyan.foreground;
-private enum positionIdStyle = AnsiColor.brightBlue.foreground;
-private enum healthIdStyle = AnsiColor.brightGreen.foreground;
-private enum renderIdStyle = AnsiColor.brightMagenta.foreground;
-private enum attackIdStyle = AnsiColor.brightYellow.foreground;
-private enum positionValueStyle = AnsiColor.cyan.foreground;
-private enum healthValueStyle = AnsiColor.green.foreground;
-private enum damageStyle = AnsiColor.brightRed.foreground.bold;
-private enum countStyle = AnsiColor.brightWhite.foreground;
+private enum entityIdStyle = ANSIColor.bright_cyan.foreground;
+private enum positionIdStyle = ANSIColor.bright_blue.foreground;
+private enum healthIdStyle = ANSIColor.bright_green.foreground;
+private enum renderIdStyle = ANSIColor.bright_magenta.foreground;
+private enum attackIdStyle = ANSIColor.bright_yellow.foreground;
+private enum positionValueStyle = ANSIColor.cyan.foreground;
+private enum healthValueStyle = ANSIColor.green.foreground;
+private enum damageStyle = ANSIColor.bright_red.foreground.bold;
+private enum countStyle = ANSIColor.bright_white.foreground;
 
 private auto poolId(Handle)(Handle handle)
 {

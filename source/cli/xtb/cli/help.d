@@ -7,20 +7,20 @@ import xtb.cli.attributes;
 import xtb.cli.internal.traits;
 import xtb.cli.parser : CliError, CliErrorKind, CliOutcomeKind, CliParseResult, ParsedCommand, normalizeProgramName;
 import xtb.cli.value : CliValueErrorKind;
-import xtb.ansi : AnsiColor, AnsiStyle;
+import xtb.ansi : ANSIColor, ANSIStyle;
 import xtb.fmt.ansi : AnsiWriter;
 import xtb.fmt.buffered_writer : BufferedWriter;
 import xtb.fmt.print : file_writer;
 import xtb.fmt.writer : Writer;
 import xtb.types : String;
 
-private enum cliHeadingStyle = AnsiStyle.init.bold;
-private enum cliCanonicalStyle = AnsiStyle.foreground(AnsiColor.brightCyan).bold;
-private enum cliSecondaryStyle = AnsiStyle.foreground(AnsiColor.cyan).dim;
-private enum cliValueStyle = AnsiStyle.foreground(AnsiColor.brightYellow);
-private enum cliDefaultStyle = AnsiStyle.foreground(AnsiColor.brightGreen);
-private enum cliMetadataStyle = AnsiStyle.init.dim;
-private enum cliErrorStyle = AnsiStyle.foreground(AnsiColor.brightRed).bold;
+private enum cliHeadingStyle = ANSIStyle.init.bold;
+private enum cliCanonicalStyle = ANSIStyle.foreground(ANSIColor.bright_cyan).bold;
+private enum cliSecondaryStyle = ANSIStyle.foreground(ANSIColor.cyan).dim;
+private enum cliValueStyle = ANSIStyle.foreground(ANSIColor.bright_yellow);
+private enum cliDefaultStyle = ANSIStyle.foreground(ANSIColor.bright_green);
+private enum cliMetadataStyle = ANSIStyle.init.dim;
+private enum cliErrorStyle = ANSIStyle.foreground(ANSIColor.bright_red).bold;
 
 /// Writes generated help for the root command or a statically selected command path.
 /// `Path` must list direct descendants starting at `Root`.

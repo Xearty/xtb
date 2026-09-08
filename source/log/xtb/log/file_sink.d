@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
 import core.stdc.string : memchr;
-import xtb.ansi : AnsiStyle, ansiResetSequence, ansiSequence;
+import xtb.ansi : ANSIStyle, ansi_reset_sequence, ansi_sequence;
 import xtb.log.internal.sgr : SgrParseKind, parseSgrPrefix;
 import xtb.log.level : LogLevel;
 import xtb.log.logger : Logger;
@@ -58,7 +58,7 @@ private bool writePlainText(FILE* file, scope String bytes)
     return writeAll(file, bytes[plainStart .. $]);
 }
 
-private bool writeAnsiText(FILE* file, scope String bytes, AnsiStyle baseStyle)
+private bool writeAnsiText(FILE* file, scope String bytes, ANSIStyle baseStyle)
 {
     if (!baseStyle.enabled)
         return writeAll(file, bytes);
@@ -67,7 +67,7 @@ private bool writeAnsiText(FILE* file, scope String bytes, AnsiStyle baseStyle)
     if (firstEscape == bytes.length)
         return writeAll(file, bytes);
 
-    const baseSequence = ansiSequence(baseStyle);
+    const baseSequence = ansi_sequence(baseStyle);
     size_t spanStart;
     size_t searchStart = firstEscape;
     while (searchStart < bytes.length)
@@ -124,7 +124,7 @@ private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event
     if (file is null || event is null)
         return false;
 
-    const reset = ansiResetSequence();
+    const reset = ansi_reset_sequence();
     final switch (event.kind)
     {
         case LogSinkEventKind.beginRecord:
@@ -132,7 +132,7 @@ private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event
             return true;
         case LogSinkEventKind.text:
         {
-            const opening = ansiSequence(event.style);
+            const opening = ansi_sequence(event.style);
             bool accepted = true;
             if (!opening.empty)
                 accepted = writeAll(file, opening.view) && accepted;
@@ -146,7 +146,7 @@ private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event
         }
         case LogSinkEventKind.beginMessage:
         {
-            const opening = ansiSequence(event.style);
+            const opening = ansi_sequence(event.style);
             return opening.empty || writeAll(file, opening.view);
         }
         case LogSinkEventKind.messageChunk:

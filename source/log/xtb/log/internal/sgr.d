@@ -2,7 +2,7 @@ module xtb.log.internal.sgr;
 
 nothrow @nogc:
 
-import xtb.ansi : AnsiSequence;
+import xtb.ansi : ANSISequence;
 import xtb.string : String;
 
 package(xtb.log) enum SgrParseKind : ubyte
@@ -19,7 +19,7 @@ package(xtb.log) struct SgrParseResult
     bool fullReset;
 }
 
-package(xtb.log) enum maxSupportedSgrLength = AnsiSequence.capacity;
+package(xtb.log) enum maxSupportedSgrLength = ANSISequence.capacity;
 
 package(xtb.log) SgrParseResult parseSgrPrefix(scope String bytes)
 pure @safe

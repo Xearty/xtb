@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.string : memcpy;
 import xtb.diagnostics.demangle : tryDemangleD;
-import xtb.ansi : AnsiColor;
+import xtb.ansi : ANSIColor;
 import xtb.fmt.ansi : beginAnsi, endAnsi;
 import xtb.fmt.writer : Writer, hexadecimal;
 import xtb.string;
@@ -84,7 +84,7 @@ private size_t decimalDigits(size_t value) pure @safe
     return result;
 }
 
-private void beginColor(ref Writer writer, AnsiColor color)
+private void beginColor(ref Writer writer, ANSIColor color)
 {
     writer.beginAnsi(color);
 }
@@ -92,7 +92,7 @@ private void beginColor(ref Writer writer, AnsiColor color)
 private void endColor(
     ref Writer writer,
     scope const StackTraceColors*,
-    AnsiColor color,
+    ANSIColor color,
 )
 {
     writer.endAnsi(color);

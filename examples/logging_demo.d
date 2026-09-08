@@ -64,7 +64,7 @@ nothrow @nogc
 
     return output.write(
         "semantic-prefix ",
-        AnsiStyle.foreground(AnsiColor.brightCyan).dim,
+        ANSIStyle.foreground(ANSIColor.bright_cyan).dim,
     ) && output.writeAnsi("\x1b[35membedded-SGR\x1b[0m ");
 }
 
@@ -91,7 +91,7 @@ nothrow @nogc
         ": ",
         styled(
             RequestId(0x2a),
-            AnsiStyle.foreground(AnsiColor.brightRed),
+            ANSIStyle.foreground(ANSIColor.bright_red),
     ),
     " failed",
     ).delivered && delivered;
@@ -105,7 +105,7 @@ nothrow @nogc
 private bool logTimestampPalette(
     LogSinkRef presentation,
     LogPalettePreset preset,
-    AnsiStyle timestampStyle,
+    ANSIStyle timestampStyle,
     String paletteName,
 )
 nothrow @nogc
@@ -151,7 +151,7 @@ extern (C) int main() nothrow @nogc
             "plain sink: ",
             styled(
             "formatter ANSI is stripped",
-            AnsiStyle.foreground(AnsiColor.brightRed).bold,
+            ANSIStyle.foreground(ANSIColor.bright_red).bold,
         ),
         " but the text remains",
         ).delivered || !plain.flush())
@@ -226,8 +226,8 @@ extern (C) int main() nothrow @nogc
         return 1;
 
     LogPalette palette = LogPalette.preset(LogPalettePreset.trueColor);
-    palette.warning.label = AnsiStyle.foreground(AnsiColor.brightMagenta).bold;
-    palette.warning.message = AnsiStyle.foreground(AnsiColor.rgb(210, 215, 225));
+    palette.warning.label = ANSIStyle.foreground(ANSIColor.bright_magenta).bold;
+    palette.warning.message = ANSIStyle.foreground(ANSIColor.rgb(210, 215, 225));
     terminal.setPalette(palette);
     if (!terminal.warning("custom palette: warning label and message override").delivered)
         return 1;
@@ -242,19 +242,19 @@ extern (C) int main() nothrow @nogc
     if (!logTimestampPalette(
             terminalPresentation,
             LogPalettePreset.basic,
-            AnsiStyle.foreground(AnsiColor.brightBlack)
+            ANSIStyle.foreground(ANSIColor.bright_black)
             .dim,
             "basic timestamp",
         ) || !logTimestampPalette(
             terminalPresentation,
             LogPalettePreset.extended,
-            AnsiStyle.foreground(AnsiColor.indexed(110))
+            ANSIStyle.foreground(ANSIColor.indexed(110))
             .dim,
             "extended timestamp",
         ) || !logTimestampPalette(
             terminalPresentation,
             LogPalettePreset.trueColor,
-            AnsiStyle.foreground(AnsiColor.rgb(130, 170, 190)).dim,
+            ANSIStyle.foreground(ANSIColor.rgb(130, 170, 190)).dim,
             "true-color timestamp",
         ))
         return 1;
@@ -280,7 +280,7 @@ extern (C) int main() nothrow @nogc
             "message styling: ",
             styled(
             "inline magenta",
-            AnsiStyle.foreground(AnsiColor.brightMagenta)
+            ANSIStyle.foreground(ANSIColor.bright_magenta)
             .bold,
         ),
         " then the base message style resumes",
@@ -390,7 +390,7 @@ extern (C) int main() nothrow @nogc
     timestampOptions.zone = LogTimestampZone.utc;
     timestampOptions.milliseconds = true;
     timestampOptions.separator = " | ";
-    timestampOptions.style = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
+    timestampOptions.style = ANSIStyle.foreground(ANSIColor.bright_black).dim;
     TimestampLogPrefix terminalTimestamp = TimestampLogPrefix.create(timestampOptions);
     PrefixLogSink timestampedTerminal = PrefixLogSink.create(
         terminalPresentation,

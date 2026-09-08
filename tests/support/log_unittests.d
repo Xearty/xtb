@@ -3,7 +3,7 @@ module xtb.log.tests;
 nothrow @nogc:
 
 import core.stdc.stdio : FILE;
-import xtb.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
+import xtb.ansi : ANSIColor, ANSIStyle, ansi_reset_sequence, ansi_sequence;
 import xtb.log;
 import xtb.log.internal.sgr : SgrParseKind, maxSupportedSgrLength, parseSgrPrefix, safeSgrPrefixLength;
 import xtb.log.file_sink : fileFlush;
@@ -23,7 +23,7 @@ version (unittest)
         LogSinkEventKind kind;
         char[64] bytes;
         size_t length;
-        AnsiStyle style;
+        ANSIStyle style;
         const(char)* source;
 
         String text() const return @trusted
@@ -89,13 +89,13 @@ version (unittest)
         return captureSink(context, event);
     }
 
-    private LogRecordInfo testRecordInfo(AnsiStyle messageStyle = AnsiStyle.init)
+    private LogRecordInfo testRecordInfo(ANSIStyle messageStyle = ANSIStyle.init)
     pure @safe
     {
         return LogRecordInfo(
             LogLevel.info,
             null,
-            AnsiStyle.init,
+            ANSIStyle.init,
             messageStyle,
         );
     }
@@ -201,7 +201,7 @@ version (unittest)
     {
         size_t calls;
         bool accepted = true;
-        AnsiStyle style;
+        ANSIStyle style;
     }
 
     private struct StreamProducerProbe
@@ -259,7 +259,7 @@ version (unittest)
     {
         if (output is null)
             return false;
-        const style = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
+        const style = ANSIStyle.foreground(ANSIColor.bright_black).dim;
         if (!output.writeAnsi("base \x1b[31mred\x1b[0m base ", style))
             return false;
         return output.writeAnsi("\x1b[35mtail ");
@@ -350,8 +350,8 @@ version (unittest)
         scope const ref Capture capture,
         scope String label,
         scope String message,
-        AnsiStyle labelStyle,
-        AnsiStyle messageStyle,
+        ANSIStyle labelStyle,
+        ANSIStyle messageStyle,
         bool aligned = true,
         size_t maximumLabelWidth = "[warning]".length,
     )
@@ -386,8 +386,8 @@ version (unittest)
         scope const ref Capture capture,
         scope String label,
         scope String message,
-        AnsiStyle labelStyle,
-        AnsiStyle messageStyle,
+        ANSIStyle labelStyle,
+        ANSIStyle messageStyle,
         scope String functionName,
         size_t line,
         bool aligned = true,
@@ -416,7 +416,7 @@ version (unittest)
         }
         assertEvent(capture, next++, LogSinkEventKind.endMessage);
 
-        const callsiteStyle = AnsiStyle.init.dim;
+        const callsiteStyle = ANSIStyle.init.dim;
         assertEvent(capture, next, LogSinkEventKind.text, "  (");
         assert(capture.events[next++].style == callsiteStyle);
         assertEvent(capture, next, LogSinkEventKind.text, functionName);
@@ -622,7 +622,7 @@ static assert(!__traits(isCopyable, Logger));
 
 unittest
 {
-    const prefixStyle = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
+    const prefixStyle = ANSIStyle.foreground(ANSIColor.bright_black).dim;
     PrefixProbe probe;
     probe.style = prefixStyle;
     Capture capture;
@@ -693,7 +693,7 @@ unittest
 // combining them or assuming the first chunk is special.
 unittest
 {
-    const style = AnsiStyle.foreground(AnsiColor.brightBlack);
+    const style = ANSIStyle.foreground(ANSIColor.bright_black);
     PrefixProbe probe;
     Capture first;
     Capture second;
@@ -742,7 +742,7 @@ unittest
 // slice path for large input without changing the sink's message lifecycle.
 unittest
 {
-    const style = AnsiStyle.foreground(AnsiColor.brightBlack);
+    const style = ANSIStyle.foreground(ANSIColor.bright_black);
     Capture capture;
     char[8] staging;
     const info = testRecordInfo(style);
@@ -1116,7 +1116,7 @@ unittest
 unittest
 {
     import core.stdc.stdio : fclose, tmpfile;
-    import xtb.ansi : AnsiAttribute, AnsiColor, AnsiStyle;
+    import xtb.ansi : ANSIAttribute, ANSIColor, ANSIStyle;
     import xtb.fmt.ansi : styled;
     import xtb.utf8 : is_valid_utf8;
     import xtb.string;
@@ -1140,7 +1140,7 @@ unittest
 
     LogRecordRef directRecord = sink.beginRecord(directInfo);
     assert(directRecord.valid);
-    const directStyle = AnsiStyle.foreground(AnsiColor.cyan);
+    const directStyle = ANSIStyle.foreground(ANSIColor.cyan);
     assert(directRecord.writeText("direct", directStyle));
     assert(directRecord.endRecord());
     assert(!directRecord.valid);
@@ -1813,8 +1813,8 @@ unittest
             .fatal.message);
 
     LogPalette palette = defaults;
-    palette.warning.label = AnsiStyle.foreground(AnsiColor.rgb(1, 20, 255)).underline;
-    palette.warning.message = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
+    palette.warning.label = ANSIStyle.foreground(ANSIColor.rgb(1, 20, 255)).underline;
+    palette.warning.message = ANSIStyle.foreground(ANSIColor.bright_black).dim;
     logger.setPalette(palette);
     capture.clear();
     assert(logger.warning("styled").delivered);
@@ -2117,10 +2117,10 @@ unittest
         assert(!custom.trace.message.enabled && !custom.debug_.message.enabled &&
                 !custom.info.message.enabled && !custom.warning.message.enabled &&
                 !custom.error.message.enabled && !custom.fatal.message.enabled);
-        assert(custom.fatal.label.has(AnsiAttribute.bold));
-        custom.warning.label = AnsiStyle.foreground(AnsiColor.rgb(1, 20, 255))
+        assert(custom.fatal.label.has(ANSIAttribute.bold));
+        custom.warning.label = ANSIStyle.foreground(ANSIColor.rgb(1, 20, 255))
             .underline;
-        custom.warning.message = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
+        custom.warning.message = ANSIStyle.foreground(ANSIColor.bright_black).dim;
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
@@ -2144,8 +2144,8 @@ unittest
 
     {
         LogPalette custom = LogPalette.defaults();
-        custom.error.label = AnsiStyle.foreground(AnsiColor.brightMagenta);
-        custom.error.message = AnsiStyle.foreground(AnsiColor.brightBlack);
+        custom.error.label = ANSIStyle.foreground(ANSIColor.bright_magenta);
+        custom.error.message = ANSIStyle.foreground(ANSIColor.bright_black);
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
@@ -2263,15 +2263,15 @@ unittest
             fileMessage[],
             LogLevel.info,
         );
-        const embedded = AnsiStyle.foreground(AnsiColor.red)
-            .withBackground(AnsiColor.blue)
+        const embedded = ANSIStyle.foreground(ANSIColor.red)
+            .with_background(ANSIColor.blue)
             .bold
             .underline;
         assert(plain.info(
                 "ordinary ",
                 styled("styled", embedded),
                 " ordinary ",
-                styled("green", AnsiStyle.foreground(AnsiColor.green)),
+                styled("green", ANSIStyle.foreground(ANSIColor.green)),
         ).delivered);
         assert(plain.flush());
         char[128] output;
@@ -2294,8 +2294,8 @@ unittest
             fileMessage[],
             LogLevel.info,
         );
-        const embedded = AnsiStyle.foreground(AnsiColor.red)
-            .withBackground(AnsiColor.blue)
+        const embedded = ANSIStyle.foreground(ANSIColor.red)
+            .with_background(ANSIColor.blue)
             .bold
             .underline;
         assert(ansi.info(
@@ -2317,7 +2317,7 @@ unittest
     // but partial resets such as 39m retain their ordinary SGR semantics.
     {
         LogPalette custom = LogPalette.defaults();
-        custom.info.message = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
+        custom.info.message = ANSIStyle.foreground(ANSIColor.bright_black).dim;
         FILE* file = tmpfile();
         assert(file !is null);
         char[192] fileMessage;
@@ -2329,7 +2329,7 @@ unittest
         );
         assert(ansi.info(
                 "base ",
-                styled("red", AnsiStyle.foreground(AnsiColor.red)),
+                styled("red", ANSIStyle.foreground(ANSIColor.red)),
                 " base ",
                 "\x1b[39m",
                 "default foreground",
@@ -2348,7 +2348,7 @@ unittest
     // Presentation remains correct when the protocol carries several message
     // chunks. The base style is not tied to a first-chunk heuristic.
     {
-        const base = AnsiStyle.foreground(AnsiColor.brightBlack);
+        const base = ANSIStyle.foreground(ANSIColor.bright_black);
         FILE* file = tmpfile();
         assert(file !is null);
         LogSinkRef ansi = ansiFileLogSink(file);
@@ -2396,12 +2396,12 @@ unittest
     // label style while message styles remain optional.
     {
         LogPalette custom;
-        custom.trace.label = AnsiStyle.foreground(AnsiColor.red);
-        custom.debug_.label = AnsiStyle.foreground(AnsiColor.green);
-        custom.info.label = AnsiStyle.foreground(AnsiColor.yellow);
-        custom.warning.label = AnsiStyle.foreground(AnsiColor.blue);
-        custom.error.label = AnsiStyle.foreground(AnsiColor.magenta);
-        custom.fatal.label = AnsiStyle.foreground(AnsiColor.cyan);
+        custom.trace.label = ANSIStyle.foreground(ANSIColor.red);
+        custom.debug_.label = ANSIStyle.foreground(ANSIColor.green);
+        custom.info.label = ANSIStyle.foreground(ANSIColor.yellow);
+        custom.warning.label = ANSIStyle.foreground(ANSIColor.blue);
+        custom.error.label = ANSIStyle.foreground(ANSIColor.magenta);
+        custom.fatal.label = ANSIStyle.foreground(ANSIColor.cyan);
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
@@ -2473,8 +2473,8 @@ unittest
             LogSinkRef.create(&captureSink, &safeCapture),
             smallBuffer[],
         );
-        const rgb = AnsiStyle.foreground(AnsiColor.rgb(1, 20, 255));
-        const sequence = ansiSequence(rgb);
+        const rgb = ANSIStyle.foreground(ANSIColor.rgb(1, 20, 255));
+        const sequence = ansi_sequence(rgb);
         const safeResult = safeLogger.info("abc", sequence.view, "tail");
         assert(safeResult.status == LogStatus.truncated);
         assert(safeResult.written == 3);
@@ -2493,7 +2493,7 @@ unittest
             LogSinkRef.create(&captureSink, &boundaryCapture),
             exactBuffer[],
         );
-        const redSequence = ansiSequence(AnsiStyle.foreground(AnsiColor.red));
+        const redSequence = ansi_sequence(ANSIStyle.foreground(ANSIColor.red));
         const boundaryResult = boundaryLogger.info("abc", redSequence.view, "x");
         assert(boundaryResult.status == LogStatus.truncated);
         assert(boundaryResult.written == 8);
@@ -2515,7 +2515,7 @@ unittest
             LogSinkRef.create(&captureSink, &utf8Capture),
             utf8Buffer[],
         );
-        const redSequence = ansiSequence(AnsiStyle.foreground(AnsiColor.red));
+        const redSequence = ansi_sequence(ANSIStyle.foreground(ANSIColor.red));
         const utf8Result = utf8Logger.info("🙂", redSequence.view, "x");
         assert(utf8Result.status == LogStatus.truncated);
         assert(utf8Result.written == "🙂".length);
@@ -2534,8 +2534,8 @@ unittest
             truncatedBuffer[],
             LogLevel.info,
         );
-        const rgbSequence = ansiSequence(
-            AnsiStyle.foreground(AnsiColor.rgb(1, 20, 255)),
+        const rgbSequence = ansi_sequence(
+            ANSIStyle.foreground(ANSIColor.rgb(1, 20, 255)),
         );
         const truncationResult = ansi.info("abc", rgbSequence.view, "tail");
         assert(truncationResult.status == LogStatus.truncated);
@@ -2553,7 +2553,7 @@ unittest
 unittest
 {
     import core.stdc.stdio : fclose, tmpfile;
-    import xtb.ansi : AnsiColor, AnsiStyle;
+    import xtb.ansi : ANSIColor, ANSIStyle;
     import xtb.fmt.ansi : styled;
     import xtb.string;
 
@@ -2808,7 +2808,7 @@ unittest
             LogSinkRef.create(&captureSink, &healthy),
         );
         LogPalette palette;
-        palette.info.message = AnsiStyle.foreground(AnsiColor.green);
+        palette.info.message = ANSIStyle.foreground(ANSIColor.green);
         char[64] storage;
         Logger logger = Logger.create(
             tee.sinkRef(),
@@ -2828,8 +2828,8 @@ unittest
 
         char[128] output;
         const length = readFileContents(file, output[]);
-        const opening = ansiSequence(palette.info.message);
-        const reset = ansiResetSequence();
+        const opening = ansi_sequence(palette.info.message);
+        const reset = ansi_reset_sequence();
         size_t offset;
         assert(output[offset .. offset + "[info]    ".length].equal("[info]    "));
         offset += "[info]    ".length;
@@ -3061,8 +3061,8 @@ unittest
         assert(logfile !is null);
 
         LogPalette palette = LogPalette.defaults();
-        palette.warning.label = AnsiStyle.foreground(AnsiColor.yellow).bold;
-        palette.warning.message = AnsiStyle.foreground(AnsiColor.brightBlack);
+        palette.warning.label = ANSIStyle.foreground(ANSIColor.yellow).bold;
+        palette.warning.message = ANSIStyle.foreground(ANSIColor.bright_black);
         TeeLogSink tee = TeeLogSink.create(
             ansiFileLogSink(terminal),
             plainFileLogSink(logfile),
@@ -3076,7 +3076,7 @@ unittest
         );
         assert(logger.warning(
                 "base ",
-                styled("green", AnsiStyle.foreground(AnsiColor.green)),
+                styled("green", ANSIStyle.foreground(ANSIColor.green)),
                 " base",
         ).delivered);
         assert(logger.flush());

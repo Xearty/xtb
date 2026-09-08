@@ -2,7 +2,7 @@ module xtb.fmt.pretty_print;
 
 nothrow @nogc:
 
-import xtb.ansi : AnsiColor, AnsiStyle;
+import xtb.ansi : ANSIColor, ANSIStyle;
 import xtb.fmt.ansi : beginAnsi, endAnsi;
 import xtb.lifetime : lifetimeDeinit = deinit,
     is_tagged_payload_field,
@@ -49,20 +49,20 @@ enum PrettyPrintLayout : ubyte
 /// individual fields or pass a different scheme through `PrettyPrintOptions`.
 struct PrettyPrintColorScheme
 {
-    AnsiStyle typeName = AnsiStyle.foreground(AnsiColor.brightMagenta);
-    AnsiStyle fieldName = AnsiStyle.foreground(AnsiColor.brightCyan);
-    AnsiStyle stringValue = AnsiStyle.foreground(AnsiColor.green);
-    AnsiStyle characterValue = AnsiStyle.foreground(AnsiColor.green);
-    AnsiStyle numberValue = AnsiStyle.foreground(AnsiColor.blue);
-    AnsiStyle booleanValue = AnsiStyle.foreground(AnsiColor.yellow);
-    AnsiStyle constructorName = AnsiStyle.foreground(AnsiColor.brightYellow);
-    AnsiStyle enumValue = AnsiStyle.foreground(AnsiColor.brightGreen);
-    AnsiStyle nullValue = AnsiStyle.foreground(AnsiColor.brightBlack);
-    AnsiStyle pointerValue = AnsiStyle.foreground(AnsiColor.magenta);
-    AnsiStyle punctuation;
-    AnsiStyle truncation = AnsiStyle.foreground(AnsiColor.brightBlack);
-    AnsiStyle depthLimit = AnsiStyle.foreground(AnsiColor.brightRed);
-    AnsiStyle unsupported = AnsiStyle.foreground(AnsiColor.brightRed);
+    ANSIStyle typeName = ANSIStyle.foreground(ANSIColor.bright_magenta);
+    ANSIStyle fieldName = ANSIStyle.foreground(ANSIColor.bright_cyan);
+    ANSIStyle stringValue = ANSIStyle.foreground(ANSIColor.green);
+    ANSIStyle characterValue = ANSIStyle.foreground(ANSIColor.green);
+    ANSIStyle numberValue = ANSIStyle.foreground(ANSIColor.blue);
+    ANSIStyle booleanValue = ANSIStyle.foreground(ANSIColor.yellow);
+    ANSIStyle constructorName = ANSIStyle.foreground(ANSIColor.bright_yellow);
+    ANSIStyle enumValue = ANSIStyle.foreground(ANSIColor.bright_green);
+    ANSIStyle nullValue = ANSIStyle.foreground(ANSIColor.bright_black);
+    ANSIStyle pointerValue = ANSIStyle.foreground(ANSIColor.magenta);
+    ANSIStyle punctuation;
+    ANSIStyle truncation = ANSIStyle.foreground(ANSIColor.bright_black);
+    ANSIStyle depthLimit = ANSIStyle.foreground(ANSIColor.bright_red);
+    ANSIStyle unsupported = ANSIStyle.foreground(ANSIColor.bright_red);
 
     static PrettyPrintColorScheme defaults()
     pure nothrow @nogc @safe
@@ -617,7 +617,7 @@ private void writeSemanticTypePrefix(Described)(
     writePunctuation(writer, separator, options);
 }
 
-private AnsiStyle prettyRoleStyle(
+private ANSIStyle prettyRoleStyle(
     PrettyRole role,
     scope const ref PrettyPrintOptions options,
 )
@@ -1774,7 +1774,7 @@ private void writePunctuation(
 private void writeStyledText(
     ref Writer writer,
     scope String value,
-    AnsiStyle style,
+    ANSIStyle style,
     scope const ref PrettyPrintOptions options,
 )
 {
@@ -1786,7 +1786,7 @@ private void writeStyledText(
 private void writeStyledCharacter(
     ref Writer writer,
     char value,
-    AnsiStyle style,
+    ANSIStyle style,
     scope const ref PrettyPrintOptions options,
 )
 {
@@ -1798,7 +1798,7 @@ private void writeStyledCharacter(
 private void writeStyledValue(T)(
     ref Writer writer,
     T value,
-    AnsiStyle style,
+    ANSIStyle style,
     scope const ref PrettyPrintOptions options,
 )
 {
@@ -1809,7 +1809,7 @@ private void writeStyledValue(T)(
 
 private void beginStyle(
     ref Writer writer,
-    AnsiStyle style,
+    ANSIStyle style,
     scope const ref PrettyPrintOptions options,
 )
 {
@@ -1819,7 +1819,7 @@ private void beginStyle(
 
 private void endStyle(
     ref Writer writer,
-    AnsiStyle style,
+    ANSIStyle style,
     scope const ref PrettyPrintOptions options,
 )
 {
@@ -2913,20 +2913,20 @@ version (unittest)
     pure nothrow @nogc @safe
     {
         PrettyPrintColorScheme result = PrettyPrintColorScheme.init;
-        result.typeName = AnsiStyle.init;
-        result.fieldName = AnsiStyle.init;
-        result.stringValue = AnsiStyle.init;
-        result.characterValue = AnsiStyle.init;
-        result.numberValue = AnsiStyle.init;
-        result.booleanValue = AnsiStyle.init;
-        result.constructorName = AnsiStyle.init;
-        result.enumValue = AnsiStyle.init;
-        result.nullValue = AnsiStyle.init;
-        result.pointerValue = AnsiStyle.init;
-        result.punctuation = AnsiStyle.init;
-        result.truncation = AnsiStyle.init;
-        result.depthLimit = AnsiStyle.init;
-        result.unsupported = AnsiStyle.init;
+        result.typeName = ANSIStyle.init;
+        result.fieldName = ANSIStyle.init;
+        result.stringValue = ANSIStyle.init;
+        result.characterValue = ANSIStyle.init;
+        result.numberValue = ANSIStyle.init;
+        result.booleanValue = ANSIStyle.init;
+        result.constructorName = ANSIStyle.init;
+        result.enumValue = ANSIStyle.init;
+        result.nullValue = ANSIStyle.init;
+        result.pointerValue = ANSIStyle.init;
+        result.punctuation = ANSIStyle.init;
+        result.truncation = ANSIStyle.init;
+        result.depthLimit = ANSIStyle.init;
+        result.unsupported = ANSIStyle.init;
         return result;
     }
 
@@ -3009,9 +3009,9 @@ unittest
     assert(defaultScheme.numberValue.enabled);
     assert(defaultScheme.booleanValue.enabled);
     assert(defaultScheme.constructorName.enabled);
-    assert(defaultScheme.booleanValue.foregroundColor == AnsiColor.yellow);
-    assert(defaultScheme.constructorName.foregroundColor ==
-            AnsiColor.brightYellow);
+    assert(defaultScheme.booleanValue.foreground_color == ANSIColor.yellow);
+    assert(defaultScheme.constructorName.foreground_color ==
+            ANSIColor.bright_yellow);
     assert(defaultScheme.enumValue.enabled);
     assert(defaultScheme.nullValue.enabled);
     assert(defaultScheme.pointerValue.enabled);
@@ -3027,7 +3027,7 @@ unittest
             PrettyPrintLayout.expanded);
 
     PrettyPrintColorScheme scheme = PrettyPrintColorScheme.init;
-    scheme.numberValue = AnsiStyle.foreground(AnsiColor.brightRed);
+    scheme.numberValue = ANSIStyle.foreground(ANSIColor.bright_red);
     const changed = defaults.withColorScheme(scheme);
     assert(changed.maxDepth == defaults.maxDepth);
     assert(changed.colored == defaults.colored);
@@ -3814,7 +3814,7 @@ unittest
     assert(storage[0 .. defaultResult.written].equal("\x1b[34m42\x1b[0m"));
 
     PrettyPrintColorScheme scheme = PrettyPrintColorScheme.init;
-    scheme.numberValue = AnsiStyle.foreground(AnsiColor.brightRed);
+    scheme.numberValue = ANSIStyle.foreground(ANSIColor.bright_red);
     PrettyPrintOptions custom = PrettyPrintOptions.init.withColorScheme(scheme);
     char[64] customStorage;
     const customResult = write_buffer(customStorage[], number.pretty(custom));
@@ -3836,7 +3836,7 @@ unittest
     // Every configurable semantic style is exercised through public pretty
     // output. Keeping all unrelated styles disabled makes each expectation
     // prove exactly which category owns the emitted token.
-    AnsiStyle red = AnsiStyle.foreground(AnsiColor.brightRed);
+    ANSIStyle red = ANSIStyle.foreground(ANSIColor.bright_red);
     PrettyPrintOptions base = PrettyPrintOptions.init.withLayout(
         PrettyPrintLayout.compact,
     );

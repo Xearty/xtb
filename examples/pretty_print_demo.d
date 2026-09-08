@@ -1,6 +1,6 @@
 module examples.pretty_print_demo;
 
-import xtb.ansi : AnsiColor, AnsiStyle;
+import xtb.ansi : ANSIColor, ANSIStyle;
 import xtb.fmt.ansi : beginAnsi, endAnsi, styled;
 import xtb.containers.array;
 import xtb.flag_set : FlagSet;
@@ -115,7 +115,7 @@ private extern (C) int demoCallback(int value) nothrow @nogc
 private void writeDemoStyled(
     ref Writer writer,
     scope String value,
-    AnsiStyle style,
+    ANSIStyle style,
     scope const ref PrettyPrintOptions options,
 ) nothrow @nogc
 {
@@ -186,20 +186,20 @@ struct DisplayName
 private PrettyPrintColorScheme vividColorScheme()
 {
     PrettyPrintColorScheme scheme = PrettyPrintColorScheme.defaults();
-    scheme.typeName = AnsiStyle.foreground(AnsiColor.brightMagenta).bold;
-    scheme.fieldName = AnsiStyle.foreground(AnsiColor.brightCyan);
-    scheme.stringValue = AnsiStyle.foreground(AnsiColor.brightGreen);
-    scheme.characterValue = AnsiStyle.foreground(AnsiColor.green);
-    scheme.numberValue = AnsiStyle.foreground(AnsiColor.brightBlue);
-    scheme.booleanValue = AnsiStyle.foreground(AnsiColor.yellow);
-    scheme.constructorName = AnsiStyle.foreground(AnsiColor.brightYellow);
-    scheme.enumValue = AnsiStyle.foreground(AnsiColor.brightGreen);
-    scheme.nullValue = AnsiStyle.foreground(AnsiColor.brightBlack).italic;
-    scheme.pointerValue = AnsiStyle.foreground(AnsiColor.brightMagenta);
-    scheme.punctuation = AnsiStyle.foreground(AnsiColor.brightBlack);
-    scheme.truncation = AnsiStyle.foreground(AnsiColor.brightYellow).italic;
-    scheme.depthLimit = AnsiStyle.foreground(AnsiColor.brightRed).bold;
-    scheme.unsupported = AnsiStyle.foreground(AnsiColor.brightRed).bold;
+    scheme.typeName = ANSIStyle.foreground(ANSIColor.bright_magenta).bold;
+    scheme.fieldName = ANSIStyle.foreground(ANSIColor.bright_cyan);
+    scheme.stringValue = ANSIStyle.foreground(ANSIColor.bright_green);
+    scheme.characterValue = ANSIStyle.foreground(ANSIColor.green);
+    scheme.numberValue = ANSIStyle.foreground(ANSIColor.bright_blue);
+    scheme.booleanValue = ANSIStyle.foreground(ANSIColor.yellow);
+    scheme.constructorName = ANSIStyle.foreground(ANSIColor.bright_yellow);
+    scheme.enumValue = ANSIStyle.foreground(ANSIColor.bright_green);
+    scheme.nullValue = ANSIStyle.foreground(ANSIColor.bright_black).italic;
+    scheme.pointerValue = ANSIStyle.foreground(ANSIColor.bright_magenta);
+    scheme.punctuation = ANSIStyle.foreground(ANSIColor.bright_black);
+    scheme.truncation = ANSIStyle.foreground(ANSIColor.bright_yellow).italic;
+    scheme.depthLimit = ANSIStyle.foreground(ANSIColor.bright_red).bold;
+    scheme.unsupported = ANSIStyle.foreground(ANSIColor.bright_red).bold;
     return scheme;
 }
 
@@ -207,8 +207,8 @@ private PrettyPrintColorScheme vividColorScheme()
 /// printer and only makes the showcase easier to scan in a terminal.
 private void heading(String title)
 {
-    const style = AnsiStyle.foreground(AnsiColor.brightWhite)
-        .withBackground(AnsiColor.blue)
+    const style = ANSIStyle.foreground(ANSIColor.bright_white)
+        .with_background(ANSIColor.blue)
         .bold;
     writeln("\n", styled(formatted!"  {}  "(title), style));
 }

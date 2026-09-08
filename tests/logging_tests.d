@@ -25,7 +25,7 @@ private struct FormatProbe
 private struct FixedPrefix
 {
     String text;
-    AnsiStyle style;
+    ANSIStyle style;
 }
 
 private bool writeFixedPrefix(void* context, LogPrefixWriter* output) nothrow @nogc
@@ -84,7 +84,7 @@ extern (C) int main() nothrow @nogc
     );
     FixedPrefix sharedPrefix = FixedPrefix(
         "shared ",
-        AnsiStyle.foreground(AnsiColor.brightBlack).dim,
+        ANSIStyle.foreground(ANSIColor.bright_black).dim,
     );
     PrefixLogSink sharedOutput = PrefixLogSink.create(
         outputs.sinkRef(),
@@ -108,7 +108,7 @@ extern (C) int main() nothrow @nogc
     FormatProbe probe = FormatProbe(&formatCalls);
     const result = logger.warning(
         "prefix ",
-        styled(longText[], AnsiStyle.foreground(AnsiColor.green)),
+        styled(longText[], ANSIStyle.foreground(ANSIColor.green)),
         " ",
         probe,
         " suffix",

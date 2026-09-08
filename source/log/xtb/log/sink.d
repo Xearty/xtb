@@ -2,7 +2,7 @@ module xtb.log.sink;
 
 nothrow @nogc:
 
-import xtb.ansi : AnsiStyle;
+import xtb.ansi : ANSIStyle;
 import xtb.log.level : LogLevel;
 import xtb.string : String;
 
@@ -44,7 +44,7 @@ nothrow @nogc:
 
     LogSinkEventKind kind;
     String bytes;
-    AnsiStyle style;
+    ANSIStyle style;
     bool mayContainAnsi;
 
     static LogSinkEvent beginRecord()
@@ -55,7 +55,7 @@ nothrow @nogc:
 
     static LogSinkEvent text(
         return scope String bytes,
-        AnsiStyle style = AnsiStyle.init,
+        ANSIStyle style = ANSIStyle.init,
         bool mayContainAnsi = false,
     )
     pure @safe
@@ -63,7 +63,7 @@ nothrow @nogc:
         return LogSinkEvent(LogSinkEventKind.text, bytes, style, mayContainAnsi);
     }
 
-    static LogSinkEvent beginMessage(AnsiStyle style = AnsiStyle.init)
+    static LogSinkEvent beginMessage(ANSIStyle style = ANSIStyle.init)
     pure @safe
     {
         return LogSinkEvent(LogSinkEventKind.beginMessage, null, style);
@@ -71,7 +71,7 @@ nothrow @nogc:
 
     static LogSinkEvent messageChunk(
         return scope String bytes,
-        AnsiStyle baseStyle = AnsiStyle.init,
+        ANSIStyle baseStyle = ANSIStyle.init,
     )
     pure @safe
     {
@@ -115,8 +115,8 @@ struct LogRecordInfo
 {
     LogLevel level;
     String levelLabel;
-    AnsiStyle labelStyle;
-    AnsiStyle messageStyle;
+    ANSIStyle labelStyle;
+    ANSIStyle messageStyle;
     size_t messagePadding = 1;
 }
 
@@ -229,7 +229,7 @@ nothrow @nogc:
 
     /// Emits ANSI-free setup/framing text through this resolved output path.
     /// Use `writeAnsiText` when `bytes` may contain embedded ANSI SGR.
-    bool writeText(return scope String bytes, AnsiStyle style = AnsiStyle.init)
+    bool writeText(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
         LogSinkEvent event = LogSinkEvent.text(bytes, style, false);
         return submit(&event);
@@ -240,7 +240,7 @@ nothrow @nogc:
     /// ANSI presentation preserves supported SGR and terminates the span with a
     /// full reset; plain presentation removes supported SGR. A supported SGR
     /// sequence must not be split across two writes.
-    bool writeAnsiText(return scope String bytes, AnsiStyle style = AnsiStyle.init)
+    bool writeAnsiText(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
         LogSinkEvent event = LogSinkEvent.text(bytes, style, true);
         return submit(&event);
@@ -293,7 +293,7 @@ nothrow @nogc:
         // destinations ignore the semantic style.
         if (framesMessage_ && callsite_ !is null)
         {
-            const callsiteStyle = AnsiStyle.init.dim;
+            const callsiteStyle = ANSIStyle.init.dim;
             if (!writeText("  (", callsiteStyle))
                 return false;
             if (!writeText(callsite_.functionName, callsiteStyle))

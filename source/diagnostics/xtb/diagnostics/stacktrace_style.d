@@ -3,7 +3,7 @@ module xtb.diagnostics.stacktrace_style;
 nothrow @nogc:
 
 import xtb.diagnostics.demangle : SignatureDetail;
-public import xtb.ansi : AnsiColor;
+public import xtb.ansi : ANSIColor;
 import xtb.fmt.ansi : beginAnsi, endAnsi;
 
 version (XTB_Checked) import xtb.panic : require;
@@ -55,16 +55,16 @@ struct StackTraceColors
 {
 nothrow @nogc:
 
-    AnsiColor functionName;
-    AnsiColor typeName;
-    AnsiColor moduleName;
-    AnsiColor filePath;
-    AnsiColor lineNumber;
-    AnsiColor keyword;
-    AnsiColor punctuation;
-    AnsiColor decoration;
-    AnsiColor address;
-    AnsiColor warning;
+    ANSIColor functionName;
+    ANSIColor typeName;
+    ANSIColor moduleName;
+    ANSIColor filePath;
+    ANSIColor lineNumber;
+    ANSIColor keyword;
+    ANSIColor punctuation;
+    ANSIColor decoration;
+    ANSIColor address;
+    ANSIColor warning;
 
     static StackTraceColors fromTheme(StackTraceTheme theme)
     @safe
@@ -91,17 +91,17 @@ nothrow @nogc:
     ) pure @safe
     {
         return StackTraceColors(
-            AnsiColor.indexed(functionColor),
-            AnsiColor.indexed(typeColor),
-            AnsiColor.indexed(moduleColor),
-            AnsiColor.indexed(pathColor),
-            AnsiColor.indexed(
+            ANSIColor.indexed(functionColor),
+            ANSIColor.indexed(typeColor),
+            ANSIColor.indexed(moduleColor),
+            ANSIColor.indexed(pathColor),
+            ANSIColor.indexed(
                 lineColor),
-            AnsiColor.indexed(keywordColor),
-            AnsiColor.indexed(punctuationColor),
-            AnsiColor.indexed(decorationColor),
-            AnsiColor.indexed(addressColor),
-            AnsiColor.indexed(warningColor),
+            ANSIColor.indexed(keywordColor),
+            ANSIColor.indexed(punctuationColor),
+            ANSIColor.indexed(decorationColor),
+            ANSIColor.indexed(addressColor),
+            ANSIColor.indexed(warningColor),
         );
     }
 }
@@ -445,7 +445,7 @@ void writeSignature(
             offset = token.end;
             continue;
         }
-        AnsiColor color;
+        ANSIColor color;
         final switch (token.kind)
         {
             case SignatureTokenKind.identifier:
@@ -542,7 +542,7 @@ unittest
     TestSink rgbOutput = TestSink(rgbStorage[]);
     Writer rgbWriter = Writer.from_sink(&testSink, &rgbOutput);
     StackTraceColors rgbColors;
-    rgbColors.functionName = AnsiColor.rgb(1, 2, 3);
+    rgbColors.functionName = ANSIColor.rgb(1, 2, 3);
     rgbWriter.writeSignature("call(int)", &rgbColors);
     assert(rgbWriter.result.ok);
     assert(rgbStorage[0 .. rgbOutput.written].equal(

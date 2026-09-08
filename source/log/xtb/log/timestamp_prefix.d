@@ -2,7 +2,7 @@ module xtb.log.timestamp_prefix;
 
 nothrow @nogc:
 
-import xtb.ansi : AnsiColor, AnsiStyle;
+import xtb.ansi : ANSIColor, ANSIStyle;
 import xtb.log.prefix_sink : LogPrefixRef, LogPrefixWriter;
 
 version (unittest)
@@ -30,7 +30,7 @@ nothrow @nogc:
 
     LogTimestampZone zone;
     bool milliseconds;
-    AnsiStyle style;
+    ANSIStyle style;
     String separator;
 
     static LogTimestampOptions defaults()
@@ -38,7 +38,7 @@ nothrow @nogc:
     {
         LogTimestampOptions result;
         result.zone = LogTimestampZone.local;
-        result.style = AnsiStyle.foreground(AnsiColor.brightBlack).dim;
+        result.style = ANSIStyle.foreground(ANSIColor.bright_black).dim;
         result.separator = " ";
         return result;
     }
@@ -220,7 +220,7 @@ version (unittest)
     {
         char[64] bytes;
         size_t length;
-        AnsiStyle style;
+        ANSIStyle style;
         size_t writes;
     }
 
@@ -254,12 +254,12 @@ unittest
     assert(defaultOptions.zone == LogTimestampZone.local);
     assert(!defaultOptions.milliseconds);
     assert(defaultOptions.separator.equal(" "));
-    assert(defaultOptions.style == AnsiStyle.foreground(AnsiColor.brightBlack).dim);
+    assert(defaultOptions.style == ANSIStyle.foreground(ANSIColor.bright_black).dim);
 
     LogTimestampOptions options = defaultOptions;
     options.zone = LogTimestampZone.utc;
     options.milliseconds = true;
-    options.style = AnsiStyle.foreground(AnsiColor.rgb(120, 130, 140));
+    options.style = ANSIStyle.foreground(ANSIColor.rgb(120, 130, 140));
     options.separator = " | ";
 
     TimestampLogPrefix timestamp = TimestampLogPrefix.create(options);
@@ -325,7 +325,7 @@ unittest
     ).length == 23);
 
     LogTimestampOptions unstyledOptions = options;
-    unstyledOptions.style = AnsiStyle.init;
+    unstyledOptions.style = ANSIStyle.init;
     unstyledOptions.separator = null;
     FixedTimestampPrefix unstyled;
     unstyled.options = unstyledOptions;
@@ -362,7 +362,7 @@ unittest
 
     LogTimestampOptions options = LogTimestampOptions.defaults();
     options.zone = LogTimestampZone.utc;
-    options.style = AnsiStyle.foreground(AnsiColor.rgb(90, 100, 110)).dim;
+    options.style = ANSIStyle.foreground(ANSIColor.rgb(90, 100, 110)).dim;
 
     TimestampLogPrefix sharedTimestamp = TimestampLogPrefix.create(options);
 

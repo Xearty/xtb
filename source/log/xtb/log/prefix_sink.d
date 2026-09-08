@@ -2,7 +2,7 @@ module xtb.log.prefix_sink;
 
 nothrow @nogc:
 
-import xtb.ansi : AnsiStyle;
+import xtb.ansi : ANSIStyle;
 import xtb.lifetime : move;
 import xtb.log.sink : LogRecordInfo, LogRecordRef, LogSinkRef, LogSourceLocation;
 import xtb.string : String;
@@ -11,7 +11,7 @@ import xtb.string : String;
 ///
 /// Each write goes through the already-resolved child record before the
 /// logger's standard level/message framing begins. `write` uses semantic
-/// `AnsiStyle` with ANSI-free bytes and stays on the direct presentation path;
+/// `ANSIStyle` with ANSI-free bytes and stays on the direct presentation path;
 /// `writeAnsi` additionally allows supported embedded SGR and lets the
 /// destination preserve or strip it. The writer owns no storage and may only be
 /// used for the duration of the prefix callback.
@@ -23,7 +23,7 @@ nothrow @nogc:
     private bool failed_;
 
     /// Writes ANSI-free prefix bytes with an optional semantic style.
-    bool write(return scope String bytes, AnsiStyle style = AnsiStyle.init)
+    bool write(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
         return writeImpl(bytes, style, false);
     }
@@ -32,14 +32,14 @@ nothrow @nogc:
     /// ANSI presentation terminates the span with a full reset, so embedded
     /// style state does not carry into a later prefix write or logger framing.
     /// One supported SGR sequence must not be split across two calls.
-    bool writeAnsi(return scope String bytes, AnsiStyle style = AnsiStyle.init)
+    bool writeAnsi(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
         return writeImpl(bytes, style, true);
     }
 
     private bool writeImpl(
         return scope String bytes,
-        AnsiStyle style,
+        ANSIStyle style,
         bool mayContainAnsi,
     )
     {

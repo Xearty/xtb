@@ -3,7 +3,7 @@ module xtb.fmt.ansi;
 nothrow @nogc:
 
 import core.lifetime : forward;
-import xtb.ansi : AnsiColor, AnsiSequence, AnsiStyle, ansiResetSequence, ansiSequence;
+import xtb.ansi : ANSIColor, ANSISequence, ANSIStyle, ansi_reset_sequence, ansi_sequence;
 import xtb.fmt.writer : Writer;
 import xtb.types : String, u8;
 
@@ -33,7 +33,7 @@ struct Styled(Values...)
 nothrow @nogc:
 
     Values values;
-    AnsiStyle style;
+    ANSIStyle style;
 
     void format_to(ref Writer writer)
     {
@@ -53,7 +53,7 @@ nothrow @nogc:
 }
 
 /// Wraps one or more printable `values` in `style` without allocating.
-auto styled(Values...)(auto ref Values values, AnsiStyle style) if (Values.length != 0)
+auto styled(Values...)(auto ref Values values, ANSIStyle style) if (Values.length != 0)
 {
     return Styled!Values(forward!values, style);
 }
@@ -122,7 +122,7 @@ nothrow @nogc:
     /// When ANSI is disabled, this is exactly equivalent to writing the values
     /// without styling. The emitted reset is a full SGR reset, so this helper
     /// intentionally does not expose nestable begin/end style scopes.
-    void styled(Values...)(auto ref Values values, AnsiStyle style) if (Values.length != 0)
+    void styled(Values...)(auto ref Values values, ANSIStyle style) if (Values.length != 0)
     {
         if (ansiEnabled_)
             beginAnsi(*writer_, style);
@@ -135,30 +135,30 @@ nothrow @nogc:
     }
 }
 
-void beginAnsi(ref Writer writer, AnsiStyle style)
+void beginAnsi(ref Writer writer, ANSIStyle style)
 {
-    const sequence = ansiSequence(style);
+    const sequence = ansi_sequence(style);
     writer.put(sequence.view);
 }
 
-void beginAnsi(ref Writer writer, AnsiColor foreground)
+void beginAnsi(ref Writer writer, ANSIColor foreground)
 {
-    writer.beginAnsi(AnsiStyle.foreground(foreground));
+    writer.beginAnsi(ANSIStyle.foreground(foreground));
 }
 
 void resetAnsi(ref Writer writer)
 {
-    const sequence = ansiResetSequence();
+    const sequence = ansi_reset_sequence();
     writer.put(sequence.view);
 }
 
-void endAnsi(ref Writer writer, AnsiStyle style)
+void endAnsi(ref Writer writer, ANSIStyle style)
 {
     if (style.enabled)
         writer.resetAnsi();
 }
 
-void endAnsi(ref Writer writer, AnsiColor foreground)
+void endAnsi(ref Writer writer, ANSIColor foreground)
 {
     if (foreground.enabled)
         writer.resetAnsi();
@@ -203,7 +203,7 @@ unittest
     plain.put('A');
     plain.put("B");
     plain.repeat('c', 2);
-    const plainStyle = AnsiStyle.foreground(AnsiColor.brightRed).bold;
+    const plainStyle = ANSIStyle.foreground(ANSIColor.bright_red).bold;
     plain.styled(" value=", hexadecimal(42), plainStyle);
     assert(state.length != 0);
     assert(plain.written == state.length);
@@ -218,7 +218,7 @@ unittest
     AnsiWriter styled = AnsiWriter.fromWriter(&output, true);
     assert(styled.ansiEnabled);
 
-    const style = AnsiStyle.foreground(AnsiColor.brightRed).bold;
+    const style = ANSIStyle.foreground(ANSIColor.bright_red).bold;
     styled.styled("value=", 42, '!', style);
     const styledResult = output.result;
     assert(styledResult.ok);
@@ -235,8 +235,8 @@ unittest
 
     AnsiWriterTestSinkState state;
     char[128] storage;
-    const style = AnsiStyle.foreground(AnsiColor.brightRed)
-        .withBackground(AnsiColor.indexed(17))
+    const style = ANSIStyle.foreground(ANSIColor.bright_red)
+        .with_background(ANSIColor.indexed(17))
         .bold
         .underline;
     Writer styleWriter = Writer.from_sink(&ansiWriterTestSink, &state);
@@ -251,13 +251,13 @@ unittest
 
     import xtb.fmt.format : formatted;
 
-    const plainStyledResult = write_buffer(storage[], styled(42, AnsiStyle.init));
+    const plainStyledResult = write_buffer(storage[], styled(42, ANSIStyle.init));
     assert(plainStyledResult.ok);
     assert(storage[0 .. plainStyledResult.written].equal("42"));
 
     const groupedStyledResult = write_buffer(
         storage[],
-        styled("value=", 42, '!', AnsiColor.brightRed.foreground),
+        styled("value=", 42, '!', ANSIColor.bright_red.foreground),
     );
     assert(groupedStyledResult.ok);
     assert(storage[0 .. groupedStyledResult.written].equal(
@@ -266,7 +266,7 @@ unittest
 
     const styledResult = write_buffer(
         storage[],
-        styled(formatted!"#{}:{}"(7u, 3u), AnsiColor.brightCyan.foreground.bold),
+        styled(formatted!"#{}:{}"(7u, 3u), ANSIColor.bright_cyan.foreground.bold),
     );
     assert(styledResult.ok);
     assert(storage[0 .. styledResult.written].equal(

@@ -3,7 +3,7 @@ module xtb.diagnostics.internal.linux.crash;
 nothrow @nogc:
 
 import core.stdc.signal : sig_atomic_t;
-import xtb.ansi : AnsiColor, AnsiStyle, ansiResetSequence, ansiSequence;
+import xtb.ansi : ANSIColor, ANSIStyle, ansi_reset_sequence, ansi_sequence;
 import xtb.diagnostics.stacktrace_style : StackTraceColors;
 import xtb.os.linux.execinfo : backtrace;
 import xtb.os.posix.file : STDERR_FILENO, write;
@@ -190,22 +190,22 @@ private void rawSpaces(size_t count) @system
     }
 }
 
-private void rawAnsi(AnsiColor color) @system
+private void rawAnsi(ANSIColor color) @system
 {
-    const sequence = ansiSequence(AnsiStyle.foreground(color));
+    const sequence = ansi_sequence(ANSIStyle.foreground(color));
     rawWrite(sequence.view);
 }
 
-private void rawAnsiReset(AnsiColor color) @system
+private void rawAnsiReset(ANSIColor color) @system
 {
     if (color.enabled)
     {
-        const sequence = ansiResetSequence();
+        const sequence = ansi_reset_sequence();
         rawWrite(sequence.view);
     }
 }
 
-private void rawStyled(String text, AnsiColor color) @system
+private void rawStyled(String text, ANSIColor color) @system
 {
     rawAnsi(color);
     rawWrite(text);
