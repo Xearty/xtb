@@ -56,10 +56,7 @@ private enum usize occupied_bits_per_word = usize.sizeof * 8;
     static bool try_create(u32 capacity, scope Self* output) @system
     {
         require(output !is null, "Pool output pointer is null");
-        require(
-            output is null || output.inert,
-            "Pool output is already initialized",
-        );
+        require(output is null || output.inert, "Pool output is already initialized");
 
         if (output is null || !output.inert) return false;
         if (capacity == 0) return true;
@@ -161,10 +158,7 @@ private enum usize occupied_bits_per_word = usize.sizeof * 8;
             index = this.free_indices[stack_index];
             --this.free_count;
 
-            require(
-                index != 0 && index <= this.capacity,
-                "Pool free-index stack is corrupt",
-            );
+            require(index != 0 && index <= this.capacity, "Pool free-index stack is corrupt");
             require(!this.occupied(index), "Pool free-index stack contains an occupied slot");
         }
         else
@@ -810,7 +804,7 @@ struct PoolSlotsRange(T)
             require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
         require(this.current_index < this.end_index, "front of empty Pool slots range");
 
-        const u32 index = cast(u32) this.current_index;
+        const index = cast(u32) this.current_index;
         PoolSlot!T result;
         result.storage_ptr = this.values + index;
         result.index = index;
@@ -878,7 +872,7 @@ struct ConstPoolSlotsRange(T)
             require_pool_view_valid(this.owner, this.mutation_generation, this.values_base);
         require(this.current_index < this.end_index, "front of empty Pool slots range");
 
-        const u32 index = cast(u32) this.current_index;
+        const index = cast(u32) this.current_index;
         ConstPoolSlot!T result;
         result.storage_ptr = this.values + index;
         result.index = index;
@@ -992,10 +986,7 @@ version (XTB_Checked) private void require_pool_view_valid(T)(
         owner.mutation_generation == mutation_generation,
         "Pool range was invalidated by structural mutation",
     );
-    require(
-        owner.values.ptr is values_base,
-        "Pool range was invalidated by move or deinit",
-    );
+    require(owner.values.ptr is values_base, "Pool range was invalidated by move or deinit");
 }
 
 static assert(needs_deinit!(Pool!u8));
@@ -1008,7 +999,7 @@ private bool try_pool_layout(T)(
 {
     if (output is null || capacity == 0 || page_size == 0) return false;
 
-    const usize capacity_as_size = cast(usize) capacity;
+    const capacity_as_size = cast(usize) capacity;
     if (add_overflows(capacity_as_size, 1)) return false;
     const usize value_capacity = capacity_as_size + 1;
 
@@ -1038,9 +1029,9 @@ unittest
 {
     static assert(__traits(compiles, (ref const Pool!i32 pool)
     {
-        const auto capacity = pool.capacity;
-        const auto count = pool.live_count;
-        const auto is_empty = pool.empty;
+        const capacity = pool.capacity;
+        const count = pool.live_count;
+        const is_empty = pool.empty;
         auto items = pool.items();
         auto indexed_items = pool.indexed_items();
         auto occupied_slots = pool.occupied_slots();
@@ -1071,14 +1062,16 @@ unittest
     zero.clear();
     zero.deinit();
 
-    Pool!i32 zero_created = Pool!i32.create(0);
+    auto zero_created = Pool!i32.create(0);
     assert(zero_created.capacity == 0);
     zero_created.deinit();
+}
 
-    if (!virtual_memory_supported)
-        return;
+unittest
+{
+    if (!virtual_memory_supported) return;
 
-    Pool!i32 pool = Pool!i32.create(4);
+    auto pool = Pool!i32.create(4);
     scope (exit) pool.deinit();
 
     assert(pool.capacity == 4);
@@ -1123,10 +1116,16 @@ unittest
     assert(pool.index_of(last) == 4);
     assert(pool.try_allocate() is null);
     assert(pool.try_allocate_init() is null);
+}
 
-    const u32 bitmap_capacity = cast(u32)(occupied_bits_per_word + 2);
-    Pool!u8 bitmap_pool = Pool!u8.create(bitmap_capacity);
+unittest
+{
+    if (!virtual_memory_supported) return;
+
+    const bitmap_capacity = cast(u32)(occupied_bits_per_word + 2);
+    auto bitmap_pool = Pool!u8.create(bitmap_capacity);
     scope (exit) bitmap_pool.deinit();
+
     for (u32 index = 1; index <= bitmap_capacity; ++index)
     {
         u8* value = bitmap_pool.allocate_init();
@@ -1144,8 +1143,9 @@ unittest
     assert(dense_range_count == bitmap_capacity);
 
     enum u32 sparse_capacity = cast(u32)(occupied_bits_per_word * 2 + 2);
-    Pool!u32 sparse_ranges = Pool!u32.create(sparse_capacity);
+    auto sparse_ranges = Pool!u32.create(sparse_capacity);
     scope (exit) sparse_ranges.deinit();
+
     u32*[sparse_capacity] sparse_values;
     for (u32 offset = 0; offset < sparse_capacity; ++offset)
     {
@@ -1158,29 +1158,45 @@ unittest
         if (index != occupied_bits_per_word * 2 + 1)
             sparse_ranges.deallocate(sparse_values[index - 1]);
     }
+
     u32[2] sparse_indices;
     usize sparse_count;
     foreach (slot; sparse_ranges.occupied_slots())
         sparse_indices[sparse_count++] = slot.index;
+
     assert(sparse_count == 2);
     assert(sparse_indices[0] == 1);
     assert(sparse_indices[1] == occupied_bits_per_word * 2 + 1);
+}
+
+unittest
+{
+    if (!virtual_memory_supported) return;
 
     enum u32 free_commit_boundary = 16_385;
-    Pool!u8 commit_boundary = Pool!u8.create(free_commit_boundary);
+    auto commit_boundary = Pool!u8.create(free_commit_boundary);
     scope (exit) commit_boundary.deinit();
+
     foreach (_; 1 .. free_commit_boundary)
-        commit_boundary.allocate();
+        cast(void) commit_boundary.allocate();
+
     const free_bytes_before_boundary = commit_boundary.free_indices.committed_bytes;
     u8* boundary_value = commit_boundary.allocate();
     assert(commit_boundary.index_of(boundary_value) == free_commit_boundary);
     assert(commit_boundary.free_indices.committed_bytes > free_bytes_before_boundary);
+
     const free_bytes_after_boundary = commit_boundary.free_indices.committed_bytes;
     commit_boundary.deallocate(boundary_value);
     assert(commit_boundary.free_indices.committed_bytes == free_bytes_after_boundary);
+}
 
-    Pool!i32 reuse_order = Pool!i32.create(4);
+unittest
+{
+    if (!virtual_memory_supported) return;
+
+    auto reuse_order = Pool!i32.create(4);
     scope (exit) reuse_order.deinit();
+
     i32* reuse_one = reuse_order.allocate_init();
     i32* reuse_two = reuse_order.allocate_init();
     i32* reuse_three = reuse_order.allocate_init();
@@ -1189,6 +1205,11 @@ unittest
     assert(reuse_order.allocate() is reuse_three);
     assert(reuse_order.allocate() is reuse_one);
     assert(reuse_order.index_of(reuse_two) == 2);
+}
+
+unittest
+{
+    if (!virtual_memory_supported) return;
 
     struct Representation
     {
@@ -1196,14 +1217,16 @@ unittest
         u32 second;
     }
 
-    Pool!Representation representations = Pool!Representation.create(3);
+    auto representations = Pool!Representation.create(3);
     scope (exit) representations.deinit();
+
     Representation* representation = representations.allocate_init();
     representation.first = 0x1234_5678;
     representation.second = 0x9ABC_DEF0;
     Representation snapshot = *representation;
     representations.deallocate(representation);
     assert(memcmp(representation, &snapshot, Representation.sizeof) == 0);
+
     Representation* same_representation = representations.allocate();
     assert(same_representation is representation);
     assert(memcmp(same_representation, &snapshot, Representation.sizeof) == 0);
@@ -1219,9 +1242,15 @@ unittest
     assert(representations.index_of(other_representation) == 0);
     assert(memcmp(same_representation, &snapshot, Representation.sizeof) == 0);
     assert(memcmp(other_representation, &other_snapshot, Representation.sizeof) == 0);
+}
 
-    Pool!i32 ranges = Pool!i32.create(8);
+unittest
+{
+    if (!virtual_memory_supported) return;
+
+    auto ranges = Pool!i32.create(8);
     scope (exit) ranges.deinit();
+
     i32* range_one = ranges.allocate_init();
     i32* range_two = ranges.allocate_init();
     i32* range_three = ranges.allocate_init();
@@ -1346,14 +1375,20 @@ unittest
     assert(cleared_slot_count == 4);
     assert(ranges.items().empty);
     assert(ranges.occupied_slots().empty);
+}
+
+unittest
+{
+    if (!virtual_memory_supported) return;
 
     struct Tiny
     {
         u8 value;
     }
 
-    Pool!Tiny tiny = Pool!Tiny.create(2);
+    auto tiny = Pool!Tiny.create(2);
     scope (exit) tiny.deinit();
+
     Tiny* tiny_value = tiny.allocate_init();
     assert(tiny.index_of(tiny_value) == 1);
 
@@ -1362,11 +1397,17 @@ unittest
         u8 value;
     }
 
-    Pool!OverAligned over_aligned = Pool!OverAligned.create(2);
+    auto over_aligned = Pool!OverAligned.create(2);
     scope (exit) over_aligned.deinit();
+
     OverAligned* aligned_value = over_aligned.allocate_init();
     assert(cast(usize) aligned_value % OverAligned.alignof == 0);
     assert(over_aligned.index_of(aligned_value) == 1);
+}
+
+unittest
+{
+    if (!virtual_memory_supported) return;
 
     struct ExplicitOwner
     {
@@ -1393,8 +1434,9 @@ unittest
     }
 
     usize explicit_deinits;
-    Pool!ExplicitOwner explicit_pool = Pool!ExplicitOwner.create(2);
+    auto explicit_pool = Pool!ExplicitOwner.create(2);
     scope (exit) explicit_pool.deinit();
+
     ExplicitOwner* explicit_owner = explicit_pool.construct(&explicit_deinits);
     explicit_pool.dispose(explicit_owner);
     assert(explicit_deinits == 1);
@@ -1402,7 +1444,7 @@ unittest
     assert(explicit_pool.live_count == 0);
 
     usize shallow_clear_deinits;
-    Pool!ExplicitOwner shallow_clear_pool = Pool!ExplicitOwner.create(1);
+    auto shallow_clear_pool = Pool!ExplicitOwner.create(1);
     ExplicitOwner* shallow_clear_owner = shallow_clear_pool.construct(&shallow_clear_deinits);
     shallow_clear_pool.clear();
     assert(shallow_clear_deinits == 0);
@@ -1411,8 +1453,8 @@ unittest
     shallow_clear_pool.deinit();
 
     usize shallow_deinit_count;
-    Pool!ExplicitOwner shallow_deinit_pool = Pool!ExplicitOwner.create(1);
-    shallow_deinit_pool.construct(&shallow_deinit_count);
+    auto shallow_deinit_pool = Pool!ExplicitOwner.create(1);
+    cast(void) shallow_deinit_pool.construct(&shallow_deinit_count);
     shallow_deinit_pool.deinit();
     assert(shallow_deinit_count == 0);
 
@@ -1435,8 +1477,9 @@ unittest
     }
 
     usize destructions;
-    Pool!DestructorOnly destructor_pool = Pool!DestructorOnly.create(1);
+    auto destructor_pool = Pool!DestructorOnly.create(1);
     scope (exit) destructor_pool.deinit();
+
     DestructorOnly* destructor_value = destructor_pool.construct(&destructions);
     destructor_pool.dispose(destructor_value);
     assert(destructions == 1);
@@ -1454,10 +1497,16 @@ unittest
     {
         context_pool.dispose(value);
     }));
+}
 
-    Pool!i32 source = Pool!i32.create(8);
+unittest
+{
+    if (!virtual_memory_supported) return;
+
+    auto source = Pool!i32.create(8);
     i32* source_value = source.allocate_init();
     *source_value = 77;
+
     Pool!i32 moved = move(source);
     assert(source.capacity == 0);
     assert(source.empty);
@@ -1465,8 +1514,8 @@ unittest
     assert(moved.get(1) !is null && *moved.get(1) == 77);
     source.deinit();
 
-    Pool!i32 target = Pool!i32.create(2);
-    target.allocate_init();
+    auto target = Pool!i32.create(2);
+    cast(void) target.allocate_init();
     move_assign(moved, target);
     assert(moved.capacity == 0);
     assert(target.capacity == 8);
