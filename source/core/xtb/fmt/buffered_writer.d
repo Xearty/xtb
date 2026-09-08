@@ -2,10 +2,11 @@ module xtb.fmt.buffered_writer;
 
 nothrow @nogc:
 
-import xtb.fmt.writer : Writer;
-import xtb.types : String, u8;
+import core.stdc.string;
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.fmt.writer;
+import xtb.panic;
+import xtb.types;
 
 /// Explicit caller-buffered decorator over an immediate `Writer`.
 ///
@@ -17,8 +18,11 @@ version (XTB_Checked) import xtb.panic : require;
 ///
 /// The decorator borrows both the destination writer and staging storage. Neither
 /// may be moved, destroyed, or reused while this object or a writer returned by
-/// `writer()` remains live. Do not write directly through the destination while
-/// bytes are pending here, because doing so would reorder output.
+/// `writer()` remains live. The four fields form coupled buffering state:
+/// `destination` and `staging` identify the borrowed output path and storage, while
+/// `pending` and `failed` track buffered delivery. Do not write directly through
+/// the destination while bytes are pending here, because doing so would reorder
+/// output.
 ///
 /// A writer returned by `writer()` reports bytes accepted by this buffering layer.
 /// Final delivery of staged bytes is checked explicitly through `flush()` / `ok`.
@@ -27,10 +31,10 @@ struct BufferedWriter
 {
 nothrow @nogc:
 
-    private Writer* destination_;
-    private char[] staging_;
-    private size_t staged_;
-    private bool failed_;
+    Writer* destination;
+    char[] staging;
+    usize pending;
+    bool failed;
 
     @disable this(this);
     @disable ref BufferedWriter opAssign(BufferedWriter source) return;
@@ -43,26 +47,19 @@ nothrow @nogc:
         return scope char[] staging,
     ) @safe
     {
-        version (XTB_Checked)
-            require(destination !is null, "BufferedWriter destination is null");
+        require(destination !is null, "BufferedWriter destination is null");
 
         BufferedWriter result;
-        result.destination_ = destination;
-        result.staging_ = staging;
-        result.failed_ = destination is null || !destination.ok;
+        result.destination = destination;
+        result.staging = staging;
+        result.failed = destination is null || !destination.ok;
         return result;
     }
 
     /// Returns whether this decorator and its destination remain writable.
     bool ok() const pure @safe
     {
-        return !failed_ && destination_ !is null && destination_.ok;
-    }
-
-    /// Number of accepted bytes still staged locally.
-    size_t pending() const pure @safe
-    {
-        return staged_;
+        return !this.failed && this.destination !is null && this.destination.ok;
     }
 
     /// Returns an immediate generic Writer view over this buffering decorator.
@@ -70,7 +67,9 @@ nothrow @nogc:
     /// The returned writer borrows this object and must not outlive or move past it.
     Writer writer() return @trusted
     {
-        return Writer.from_sink(&bufferedWriterSink, &this);
+        // The callback and context are paired here, and `return` keeps the
+        // returned writer from outliving this buffering decorator.
+        return Writer.from_sink(&buffered_writer_sink, &this);
     }
 
     /// Delivers all staged bytes to the underlying writer.
@@ -80,160 +79,158 @@ nothrow @nogc:
     /// Failure is sticky and later writes are rejected.
     bool flush()
     {
-        return flushPending();
+        return this.flush_pending();
     }
 
-    private size_t accept(scope const(u8)[] bytes)
+    private usize accept(scope const(u8)[] bytes)
     {
-        if (bytes.length == 0 || !ok)
-            return 0;
+        if (bytes.length == 0 || !this.ok) return 0;
+        if (this.staging.length == 0) return this.forward(bytes);
 
-        if (staging_.length == 0)
-            return forward(bytes);
-
-        const remaining = staging_.length - staged_;
-        if (staged_ != 0 && bytes.length > remaining)
+        const remaining = this.staging.length - this.pending;
+        if (this.pending != 0 && bytes.length > remaining)
         {
-            if (!flushPending())
-                return 0;
+            if (!this.flush_pending()) return 0;
         }
 
         // Once earlier bytes are drained, avoid copying a fragment that is at
         // least as large as the whole staging area.
-        if (staged_ == 0 && bytes.length >= staging_.length)
-            return forward(bytes);
+        if (this.pending == 0 && bytes.length >= this.staging.length)
+            return this.forward(bytes);
 
-        import core.stdc.string : memcpy;
-
-        memcpy(staging_.ptr + staged_, bytes.ptr, bytes.length);
-        staged_ += bytes.length;
+        cast(void) memcpy(this.staging.ptr + this.pending, bytes.ptr, bytes.length);
+        this.pending += bytes.length;
         return bytes.length;
     }
 
-    private size_t forward(scope const(u8)[] bytes)
+    private usize forward(scope const(u8)[] bytes)
     {
-        if (!ok || bytes.length == 0)
-            return 0;
+        if (!this.ok || bytes.length == 0) return 0;
 
-        const accepted = destination_.emit_bytes(bytes);
-        if (!destination_.ok)
-            failed_ = true;
+        const accepted = this.destination.emit_bytes(bytes);
+        if (!this.destination.ok) this.failed = true;
         return accepted;
     }
 
-    private bool flushPending()
+    private bool flush_pending()
     {
-        if (!ok)
+        if (!this.ok)
         {
-            failed_ = true;
+            this.failed = true;
             return false;
         }
-        if (staged_ == 0)
-            return true;
+        if (this.pending == 0) return true;
 
-        const delivered = destination_.emit_bytes(
-            cast(const(u8)[]) staging_[0 .. staged_],
+        const delivered = this.destination.emit_bytes(
+            cast(const(u8)[]) this.staging[0 .. this.pending],
         );
 
         if (delivered != 0)
         {
-            if (delivered < staged_)
+            if (delivered < this.pending)
             {
-                import core.stdc.string : memmove;
-
-                memmove(staging_.ptr, staging_.ptr + delivered, staged_ - delivered);
+                cast(void) memmove(
+                    this.staging.ptr,
+                    this.staging.ptr + delivered,
+                    this.pending - delivered,
+                );
             }
-            staged_ -= delivered;
+            this.pending -= delivered;
         }
 
-        if (!destination_.ok || staged_ != 0)
-            failed_ = true;
-        return !failed_;
+        if (!this.destination.ok || this.pending != 0) this.failed = true;
+        return !this.failed;
     }
 }
 
-private size_t bufferedWriterSink(
-    void* context,
-    scope const(u8)[] bytes,
-)
-@trusted
+private usize buffered_writer_sink(void* context, scope const(u8)[] bytes) @system
 {
-    BufferedWriter* buffered = cast(BufferedWriter*) context;
-    if (buffered is null)
-        return 0;
+    auto buffered = cast(BufferedWriter*) context;
+    if (buffered is null) return 0;
     return buffered.accept(bytes);
 }
 
-version (unittest) private struct BufferedWriterTestSinkState
+version (unittest)
 {
-    char[256] storage;
-    size_t length;
-    size_t maxPerCall = size_t.max;
-    size_t successfulCallLimit = size_t.max;
-    size_t calls;
-    const(u8)* firstPointer;
-    size_t firstLength;
-    bool reject;
-}
-
-version (unittest) private size_t bufferedWriterTestDestinationSink(
-    void* context,
-    scope const(u8)[] bytes,
-)
-@trusted
-{
-    import core.stdc.string : memcpy;
-
-    BufferedWriterTestSinkState* state = cast(BufferedWriterTestSinkState*) context;
-    if (state is null || state.reject || bytes.length == 0 ||
-        state.calls >= state.successfulCallLimit)
-        return 0;
-
-    if (state.calls == 0)
+    private struct BufferedWriterTestSinkState
     {
-        state.firstPointer = bytes.ptr;
-        state.firstLength = bytes.length;
+        char[256] storage;
+        usize length;
+        usize max_per_call = usize.max;
+        usize successful_call_limit = usize.max;
+        usize calls;
+        const(u8)* first_pointer;
+        usize first_length;
+        bool reject;
     }
 
-    size_t amount = bytes.length < state.maxPerCall
-        ? bytes.length : state.maxPerCall;
-    const available = state.storage.length - state.length;
-    if (amount > available)
-        amount = available;
-    if (amount == 0)
-        return 0;
+    private usize buffered_writer_test_destination_sink(
+        void* context,
+        scope const(u8)[] bytes,
+    ) @system
+    {
+        // Tests pass a live BufferedWriterTestSinkState as the opaque sink context.
+        auto state = cast(BufferedWriterTestSinkState*) context;
+        if (
+            state is null
+            || state.reject
+            || bytes.length == 0
+            || state.calls >= state.successful_call_limit
+        )
+        {
+            return 0;
+        }
 
-    memcpy(state.storage.ptr + state.length, bytes.ptr, amount);
-    state.length += amount;
-    ++state.calls;
-    return amount;
+        if (state.calls == 0)
+        {
+            state.first_pointer = bytes.ptr;
+            state.first_length = bytes.length;
+        }
+
+        auto amount = bytes.length < state.max_per_call
+            ? bytes.length
+            : state.max_per_call;
+        const available = state.storage.length - state.length;
+        if (amount > available) amount = available;
+        if (amount == 0) return 0;
+
+        cast(void) memcpy(state.storage.ptr + state.length, bytes.ptr, amount);
+        state.length += amount;
+        ++state.calls;
+        return amount;
+    }
 }
 
 unittest
 {
-    static assert(!__traits(compiles, {
-            BufferedWriterTestSinkState state;
-            Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
-            char[8] storage;
-            BufferedWriter first = BufferedWriter.create(&destination, storage[]);
-            BufferedWriter second = first;
-        }));
+    static assert(!__traits(compiles, () @system
+    {
+        BufferedWriterTestSinkState state;
+        auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
+        char[8] storage;
+        auto first = BufferedWriter.create(&destination, storage[]);
+        auto second = first;
+    }));
 
-    static assert(!__traits(compiles, {
-            BufferedWriterTestSinkState state;
-            Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
-            char[8] firstStorage;
-            char[8] secondStorage;
-            BufferedWriter first = BufferedWriter.create(&destination, firstStorage[]);
-            BufferedWriter second = BufferedWriter.create(&destination, secondStorage[]);
-            second = first;
-        }));
+    static assert(!__traits(compiles, () @system
+    {
+        BufferedWriterTestSinkState state;
+        auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
+        char[8] first_storage;
+        char[8] second_storage;
+        auto first = BufferedWriter.create(&destination, first_storage[]);
+        auto second = BufferedWriter.create(&destination, second_storage[]);
+        second = first;
+    }));
+}
 
+unittest
+{
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[8] staging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-    Writer output = buffered.writer();
+    auto buffered = BufferedWriter.create(&destination, staging[]);
+    auto output = buffered.writer();
 
     output.write("ab", "cd", "ef");
     assert(output.ok);
@@ -253,10 +250,10 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[4] staging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-    Writer output = buffered.writer();
+    auto buffered = BufferedWriter.create(&destination, staging[]);
+    auto output = buffered.writer();
 
     output.write("ab", "cd", "ef");
     assert(output.ok);
@@ -272,10 +269,10 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[4] staging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-    Writer output = buffered.writer();
+    auto buffered = BufferedWriter.create(&destination, staging[]);
+    auto output = buffered.writer();
     String large = "0123456789";
 
     output.put(large);
@@ -283,37 +280,37 @@ unittest
     assert(buffered.pending == 0);
     assert(destination.written == large.length);
     assert(state.calls == 1);
-    assert(state.firstPointer == cast(const(u8)*) large.ptr);
-    assert(state.firstLength == large.length);
+    assert(state.first_pointer == cast(const(u8)*) large.ptr);
+    assert(state.first_length == large.length);
     assert(state.storage[0 .. state.length] == large);
 }
 
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[4] staging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-    Writer output = buffered.writer();
-    String exactCapacity = "abcd";
+    auto buffered = BufferedWriter.create(&destination, staging[]);
+    auto output = buffered.writer();
+    String exact_capacity = "abcd";
 
-    output.put(exactCapacity);
+    output.put(exact_capacity);
     assert(output.ok);
     assert(buffered.pending == 0);
-    assert(destination.written == exactCapacity.length);
+    assert(destination.written == exact_capacity.length);
     assert(state.calls == 1);
-    assert(state.firstPointer == cast(const(u8)*) exactCapacity.ptr);
-    assert(state.firstLength == exactCapacity.length);
-    assert(state.storage[0 .. state.length] == exactCapacity);
+    assert(state.first_pointer == cast(const(u8)*) exact_capacity.ptr);
+    assert(state.first_length == exact_capacity.length);
+    assert(state.storage[0 .. state.length] == exact_capacity);
 }
 
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[4] staging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-    Writer output = buffered.writer();
+    auto buffered = BufferedWriter.create(&destination, staging[]);
+    auto output = buffered.writer();
 
     output.put("ab");
     output.put("0123456789");
@@ -326,11 +323,11 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    state.maxPerCall = 2;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    state.max_per_call = 2;
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[8] staging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-    Writer output = buffered.writer();
+    auto buffered = BufferedWriter.create(&destination, staging[]);
+    auto output = buffered.writer();
 
     output.put("abcdef");
     assert(state.calls == 0);
@@ -343,12 +340,12 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    state.maxPerCall = 2;
-    state.successfulCallLimit = 1;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    state.max_per_call = 2;
+    state.successful_call_limit = 1;
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[8] staging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-    Writer output = buffered.writer();
+    auto buffered = BufferedWriter.create(&destination, staging[]);
+    auto output = buffered.writer();
 
     output.put("abcd");
     assert(output.ok);
@@ -361,20 +358,20 @@ unittest
     assert(staging[0 .. 2] == "cd");
     assert(state.storage[0 .. state.length] == "ab");
 
-    const acceptedBefore = output.written;
+    const accepted_before = output.written;
     output.put("ignored");
     assert(!output.ok);
-    assert(output.written == acceptedBefore);
+    assert(output.written == accepted_before);
     assert(buffered.pending == 2);
 }
 
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
-    char[] noStaging;
-    BufferedWriter buffered = BufferedWriter.create(&destination, noStaging);
-    Writer output = buffered.writer();
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
+    char[] no_staging;
+    auto buffered = BufferedWriter.create(&destination, no_staging);
+    auto output = buffered.writer();
 
     output.put("direct");
     assert(output.ok);
@@ -387,12 +384,12 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
+    auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
     char[8] staging;
 
     {
-        BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
-        Writer output = buffered.writer();
+        auto buffered = BufferedWriter.create(&destination, staging[]);
+        auto output = buffered.writer();
         output.put("pending");
         assert(buffered.pending == 7);
     }
