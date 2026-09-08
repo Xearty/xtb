@@ -20,9 +20,10 @@ import xtb.types;
 /// may be moved, destroyed, or reused while this object or a writer returned by
 /// `writer()` remains live. The four fields form coupled buffering state:
 /// `destination` and `staging` identify the borrowed output path and storage, while
-/// `pending` and `failed` track buffered delivery. Do not write directly through
-/// the destination while bytes are pending here, because doing so would reorder
-/// output.
+/// `pending` counts the bytes in `staging[0 .. pending]` and must not exceed the
+/// staging length. `failed` tracks sticky delivery failure. Do not write directly
+/// through the destination while bytes are pending here, because doing so would
+/// reorder output.
 ///
 /// A writer returned by `writer()` reports bytes accepted by this buffering layer.
 /// Final delivery of staged bytes is checked explicitly through `flush()` / `ok`.
@@ -41,7 +42,8 @@ nothrow @nogc:
 
     /// Creates a buffering decorator over `destination` using caller-owned storage.
     ///
-    /// `destination` must be non-null and outlive the returned decorator.
+    /// `destination` must be non-null. Both `destination` and `staging` must
+    /// outlive the returned decorator and every writer view obtained from it.
     static BufferedWriter create(
         return scope Writer* destination,
         return scope char[] staging,
@@ -187,9 +189,7 @@ version (unittest)
             state.first_length = bytes.length;
         }
 
-        auto amount = bytes.length < state.max_per_call
-            ? bytes.length
-            : state.max_per_call;
+        auto amount = bytes.length < state.max_per_call ? bytes.length : state.max_per_call;
         const available = state.storage.length - state.length;
         if (amount > available) amount = available;
         if (amount == 0) return 0;
@@ -221,6 +221,24 @@ unittest
         auto first = BufferedWriter.create(&destination, first_storage[]);
         auto second = BufferedWriter.create(&destination, second_storage[]);
         second = first;
+    }));
+}
+
+unittest
+{
+    static assert(!__traits(compiles, () @safe
+    {
+        Writer destination;
+        char[8] staging;
+        return BufferedWriter.create(&destination, staging[]);
+    }));
+
+    static assert(!__traits(compiles, () @system
+    {
+        Writer destination;
+        char[8] staging;
+        auto buffered = BufferedWriter.create(&destination, staging[]);
+        return buffered.writer();
     }));
 }
 
@@ -273,16 +291,16 @@ unittest
     char[4] staging;
     auto buffered = BufferedWriter.create(&destination, staging[]);
     auto output = buffered.writer();
-    String large = "0123456789";
+    const String large_fragment = "0123456789";
 
-    output.put(large);
+    output.put(large_fragment);
     assert(output.ok);
     assert(buffered.pending == 0);
-    assert(destination.written == large.length);
+    assert(destination.written == large_fragment.length);
     assert(state.calls == 1);
-    assert(state.first_pointer == cast(const(u8)*) large.ptr);
-    assert(state.first_length == large.length);
-    assert(state.storage[0 .. state.length] == large);
+    assert(state.first_pointer == cast(const(u8)*) large_fragment.ptr);
+    assert(state.first_length == large_fragment.length);
+    assert(state.storage[0 .. state.length] == large_fragment);
 }
 
 unittest
@@ -292,7 +310,7 @@ unittest
     char[4] staging;
     auto buffered = BufferedWriter.create(&destination, staging[]);
     auto output = buffered.writer();
-    String exact_capacity = "abcd";
+    const String exact_capacity = "abcd";
 
     output.put(exact_capacity);
     assert(output.ok);
