@@ -6,11 +6,12 @@ public import xtb.fmt.writer;
 
 import core.stdc.stdio;
 
+import xtb.panic;
 import xtb.types;
 
-private usize file_sink(void* context, scope const(u8)[] bytes)
+private usize file_sink(void* context, scope const(u8)[] bytes) @system
 {
-    auto file = cast(FILE*) context;
+    FILE* file = cast(FILE*) context;
     if (file is null) return 0;
 
     return fwrite(bytes.ptr, 1, bytes.length, file);
@@ -18,9 +19,11 @@ private usize file_sink(void* context, scope const(u8)[] bytes)
 
 /// Creates an immediate non-owning writer over a libc `FILE*`.
 ///
-/// `file` must remain open and valid until the returned writer is no longer used.
+/// `file` must be non-null and remain open and valid until the returned writer
+/// is no longer used.
 Writer file_writer(FILE* file) @system
 {
+    require(file !is null, "file is null");
     return Writer.from_sink(&file_sink, cast(void*) file);
 }
 
@@ -44,14 +47,20 @@ WriteResult ewriteln(Args...)(auto ref Args args)
     return writeln_file(cast(FILE*) stderr, args);
 }
 
-WriteResult write_file(Args...)(FILE* file, auto ref Args args)
+/// Writes values synchronously to a non-null libc `FILE*`.
+///
+/// `file` must remain open and valid for the duration of the call.
+WriteResult write_file(Args...)(FILE* file, auto ref Args args) @system
 {
     auto writer = file_writer(file);
     writer.write(args);
     return writer.result;
 }
 
-WriteResult writeln_file(Args...)(FILE* file, auto ref Args args)
+/// Writes values and a newline synchronously to a non-null libc `FILE*`.
+///
+/// `file` must remain open and valid for the duration of the call.
+WriteResult writeln_file(Args...)(FILE* file, auto ref Args args) @system
 {
     auto writer = file_writer(file);
     writer.writeln(args);
@@ -75,16 +84,27 @@ version (unittest)
     import xtb.fmt.fixed_buffer;
     import xtb.fmt.format;
     import xtb.string;
+}
 
-    private template interpolation_test_sequence(values...)
-    {
-        alias interpolation_test_sequence = values;
-    }
+unittest
+{
+    FILE* file = tmpfile();
+    assert(file !is null);
+    scope (exit) assert(fclose(file) == 0);
 
-    private void write_header(ref Writer writer, String name)
-    {
-        writer.write("[", name, "] ");
-    }
+    const WriteResult write_result = write_file(file, "value=", 42);
+    const WriteResult line_result = writeln_file(file, "!");
+    assert(write_result.ok);
+    assert(write_result.written == 8);
+    assert(line_result.ok);
+    assert(line_result.written == 2);
+
+    assert(fflush(file) == 0);
+    rewind(file);
+    char[10] output;
+    const usize read = fread(output.ptr, 1, output.length, file);
+    assert(read == output.length);
+    assert(output[] == "value=42!\n");
 }
 
 unittest
@@ -139,7 +159,7 @@ unittest
 
     buffer.clear();
     auto header_writer = buffer.writer();
-    write_header(header_writer, "HTTP");
+    header_writer.write("[HTTP] ");
     header_writer.writeln("status=", 200);
     assert(header_writer.ok);
     assert(buffer == "[HTTP] status=200\n");
@@ -199,6 +219,11 @@ unittest
 
 unittest
 {
+    template interpolation_test_sequence(values...)
+    {
+        alias interpolation_test_sequence = values;
+    }
+
     struct StatefulValue
     {
     nothrow @nogc:
@@ -231,7 +256,7 @@ unittest
     const i32 answer = 42;
     usize calls;
     auto value = StatefulValue(&calls);
-    auto stateful = formatString!"{}"(malloc_allocator(), value);
+    StringBuf stateful = formatString!"{}"(malloc_allocator(), value);
     scope (exit) stateful.deinit();
 
     assert(stateful == "stateful");
@@ -269,10 +294,20 @@ unittest
 {
     const i32 answer = 42;
 
-    auto allocated = formatString!"{}:{}"(malloc_allocator(), "item", 9);
+    StringBuf allocated = formatString!"{}:{}"(malloc_allocator(), "item", 9);
     scope (exit) allocated.deinit();
     assert(allocated == "item:9");
 
+    StringBuf interpolated = formatString(
+        malloc_allocator(),
+        i"owned: $(answer), $(fixed(1.25, 2))",
+    );
+    scope (exit) interpolated.deinit();
+    assert(interpolated == "owned: 42, 1.25");
+}
+
+unittest
+{
     StringBuf fallible_split_scalar;
     scope (exit) fallible_split_scalar.deinit();
 
@@ -287,10 +322,6 @@ unittest
     ));
     assert(fallible_split_scalar.byteLength == 515);
     assert(fallible_split_scalar.view[511 .. $] == "🙂");
-
-    auto interpolated = formatString(malloc_allocator(), i"owned: $(answer), $(fixed(1.25, 2))");
-    scope (exit) interpolated.deinit();
-    assert(interpolated == "owned: 42, 1.25");
 
     StringBuf fallible_interpolated;
     scope (exit) fallible_interpolated.deinit();
