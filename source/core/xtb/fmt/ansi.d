@@ -164,10 +164,7 @@ version (unittest)
         usize length;
     }
 
-    private usize ansi_writer_test_sink(
-        void* context,
-        scope const(u8)[] bytes,
-    ) @system
+    private usize ansi_writer_test_sink(void* context, scope const(u8)[] bytes) @system
     {
         // Tests pass a live ANSIWriterTestSinkState as the opaque sink context.
         auto state = cast(ANSIWriterTestSinkState*) context;
@@ -188,8 +185,19 @@ unittest
 
     static assert(!__traits(compiles, ANSIWriter.from_writer(&output)));
     static assert(__traits(compiles, ANSIWriter.from_writer(&output, false)));
+    static assert(!__traits(compiles, () @safe
+    {
+        Writer local_output;
+        return ANSIWriter.from_writer(&local_output, false);
+    }));
+}
 
+unittest
+{
+    ANSIWriterTestSinkState state;
+    auto output = Writer.from_sink(&ansi_writer_test_sink, &state);
     auto plain = ANSIWriter.from_writer(&output, false);
+
     assert(!plain.ansi_enabled);
     assert(plain.ok);
     assert(plain.written == 0);
@@ -197,68 +205,80 @@ unittest
     plain.put('A');
     plain.put("B");
     plain.repeat('c', 2);
-    const plain_style = ANSIStyle.foreground(ANSIColor.bright_red).bold;
-    plain.styled(" value=", hexadecimal(42), plain_style);
+    const style = ANSIStyle.foreground(ANSIColor.bright_red).bold;
+    plain.styled(" value=", hexadecimal(42), style);
+
     assert(state.length != 0);
     assert(plain.written == state.length);
     assert(state.storage[0 .. state.length].equal("ABcc value=0x2a"));
 
-    const plain_result = output.result;
-    assert(plain_result.ok);
-    assert(plain_result.written == state.length);
-
-    state = ANSIWriterTestSinkState.init;
-    output = Writer.from_sink(&ansi_writer_test_sink, &state);
-    auto styled_writer = ANSIWriter.from_writer(&output, true);
-    assert(styled_writer.ansi_enabled);
-
-    const style = ANSIStyle.foreground(ANSIColor.bright_red).bold;
-    styled_writer.styled("value=", 42, '!', style);
-    const styled_result = output.result;
-    assert(styled_result.ok);
-    assert(styled_result.written == state.length);
-    assert(state.storage[0 .. state.length].equal(
-            "\x1b[1;91mvalue=42!\x1b[0m",
-    ));
+    const result = output.result;
+    assert(result.ok);
+    assert(result.written == state.length);
 }
 
 unittest
 {
     ANSIWriterTestSinkState state;
-    char[128] storage;
+    auto output = Writer.from_sink(&ansi_writer_test_sink, &state);
+    auto ansi_writer = ANSIWriter.from_writer(&output, true);
+    const style = ANSIStyle.foreground(ANSIColor.bright_red).bold;
+
+    assert(ansi_writer.ansi_enabled);
+    ansi_writer.styled("value=", 42, '!', style);
+
+    const result = output.result;
+    assert(result.ok);
+    assert(result.written == state.length);
+    assert(state.storage[0 .. state.length].equal("\x1b[1;91mvalue=42!\x1b[0m"));
+}
+
+unittest
+{
+    ANSIWriterTestSinkState state;
+    auto output = Writer.from_sink(&ansi_writer_test_sink, &state);
     const style = ANSIStyle.foreground(ANSIColor.bright_red)
         .with_background(ANSIColor.indexed(17))
         .bold
         .underline;
-    auto style_writer = Writer.from_sink(&ansi_writer_test_sink, &state);
-    begin_ansi(style_writer, style);
-    style_writer.put("failure");
-    reset_ansi(style_writer);
-    assert(style_writer.ok);
-    assert(state.storage[0 .. state.length].equal(
-            "\x1b[1;4;91;48;5;17mfailure\x1b[0m",
-    ));
-    state = ANSIWriterTestSinkState.init;
 
-    const plain_styled_result = write_buffer(storage[], styled(42, ANSIStyle.init));
-    assert(plain_styled_result.ok);
-    assert(storage[0 .. plain_styled_result.written].equal("42"));
+    begin_ansi(output, style);
+    output.put("failure");
+    reset_ansi(output);
 
-    const grouped_styled_result = write_buffer(
+    assert(output.ok);
+    assert(state.storage[0 .. state.length].equal("\x1b[1;4;91;48;5;17mfailure\x1b[0m"));
+}
+
+unittest
+{
+    char[128] storage;
+
+    const plain_result = write_buffer(storage[], styled(42, ANSIStyle.init));
+    assert(plain_result.ok);
+    assert(storage[0 .. plain_result.written].equal("42"));
+
+    const grouped_result = write_buffer(
         storage[],
         styled("value=", 42, '!', ANSIColor.bright_red.foreground),
     );
-    assert(grouped_styled_result.ok);
-    assert(storage[0 .. grouped_styled_result.written].equal(
-            "\x1b[91mvalue=42!\x1b[0m",
-    ));
+    assert(grouped_result.ok);
+    assert(storage[0 .. grouped_result.written].equal("\x1b[91mvalue=42!\x1b[0m"));
 
-    const styled_result = write_buffer(
+    const formatted_result = write_buffer(
         storage[],
         styled(formatted!"#{}:{}"(7u, 3u), ANSIColor.bright_cyan.foreground.bold),
     );
-    assert(styled_result.ok);
-    assert(storage[0 .. styled_result.written].equal(
-            "\x1b[1;96m#7:3\x1b[0m",
-    ));
+    assert(formatted_result.ok);
+    assert(storage[0 .. formatted_result.written].equal("\x1b[1;96m#7:3\x1b[0m"));
+}
+
+unittest
+{
+    char[32] storage;
+
+    const result = write_buffer(storage[], "value", ansi_reset);
+
+    assert(result.ok);
+    assert(storage[0 .. result.written].equal("value\x1b[0m"));
 }
