@@ -635,7 +635,7 @@ public:
         return bytes_.slice;
     }
 
-    String formatRepresentation() const return pure @trusted
+    String format_representation() const return pure @trusted
     {
         return view;
     }
@@ -1278,7 +1278,7 @@ public:
         return storage_.view;
     }
 
-    String formatRepresentation() const return pure @trusted
+    String format_representation() const return pure @trusted
     {
         return view;
     }
@@ -1355,7 +1355,7 @@ public:
     /// writer failure; no explicit flush or finalization is required.
     Writer writer() return @trusted
     {
-        return Writer.fromSink(&stringBufWriterSink, &this);
+        return Writer.from_sink(&stringBufWriterSink, &this);
     }
 
     /// Writes ordinary XTB printable values transactionally.
@@ -2488,7 +2488,7 @@ public:
         return value_;
     }
 
-    String formatRepresentation() const return pure @safe
+    String format_representation() const return pure @safe
     {
         return view;
     }
@@ -2686,7 +2686,7 @@ public:
         return storage_.view;
     }
 
-    String formatRepresentation() const return pure @trusted
+    String format_representation() const return pure @trusted
     {
         return view;
     }

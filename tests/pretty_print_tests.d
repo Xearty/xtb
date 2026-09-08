@@ -12,7 +12,7 @@ private struct FormatRepresentationTestValue
 {
     int value;
 
-    int formatRepresentation() const pure nothrow @nogc @safe
+    int format_representation() const pure nothrow @nogc @safe
     {
         return value;
     }
@@ -20,12 +20,12 @@ private struct FormatRepresentationTestValue
 
 private struct ConflictingFormatTestValue
 {
-    int formatRepresentation() const pure nothrow @nogc @safe
+    int format_representation() const pure nothrow @nogc @safe
     {
         return 1;
     }
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writer.put("conflict");
     }
@@ -33,7 +33,7 @@ private struct ConflictingFormatTestValue
 
 private struct RecursiveFormatTestValue
 {
-    RecursiveFormatTestValue formatRepresentation() const pure nothrow @nogc @safe
+    RecursiveFormatTestValue format_representation() const pure nothrow @nogc @safe
     {
         return this;
     }
@@ -41,7 +41,7 @@ private struct RecursiveFormatTestValue
 
 private struct NonVoidFormatToTestValue
 {
-    int formatTo(ref Writer writer) const nothrow @nogc
+    int format_to(ref Writer writer) const nothrow @nogc
     {
         writer.put("invalid");
         return 1;
@@ -52,7 +52,7 @@ private struct OwningFormatRepresentationTestValue
 {
     Allocator* allocator;
 
-    OwnedString formatRepresentation() nothrow @nogc
+    OwnedString format_representation() nothrow @nogc
     {
         return OwnedString.fromString(allocator, "owned representation");
     }
@@ -62,7 +62,7 @@ private struct BorrowedOwningFormatRepresentationTestValue
 {
     OwnedString* representation;
 
-    ref const(OwnedString) formatRepresentation() const return pure nothrow @nogc @trusted
+    ref const(OwnedString) format_representation() const return pure nothrow @nogc @trusted
     {
         return *representation;
     }

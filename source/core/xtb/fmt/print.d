@@ -35,7 +35,7 @@ private size_t fileSink(void* context, scope const(u8)[] bytes)
 /// Creates an immediate non-owning writer over a libc `FILE*`.
 Writer fileWriter(FILE* file)
 {
-    return Writer.fromSink(&fileSink, cast(void*) file);
+    return Writer.from_sink(&fileSink, cast(void*) file);
 }
 
 WriteResult write(Args...)(auto ref Args args)
@@ -184,7 +184,7 @@ unittest
 
         size_t* calls;
 
-        void formatTo(ref Writer writer)
+        void format_to(ref Writer writer)
         {
             ++*calls;
             writer.put("stateful");

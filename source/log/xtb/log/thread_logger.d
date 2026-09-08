@@ -349,7 +349,7 @@ unittest
 
         size_t* calls;
 
-        void formatTo(ref Writer writer)
+        void format_to(ref Writer writer)
         {
             ++*calls;
             writer.put("probe");

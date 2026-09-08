@@ -903,7 +903,7 @@ nothrow @nogc:
 
     const(T)* value;
 
-    void formatTo(ref Writer writer) const
+    void format_to(ref Writer writer) const
     {
         Representation.format(writer, value);
     }

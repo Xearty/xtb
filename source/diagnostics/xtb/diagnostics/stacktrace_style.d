@@ -520,7 +520,7 @@ unittest
 {
     char[512] storage;
     TestSink output = TestSink(storage[]);
-    Writer writer = Writer.fromSink(&testSink, &output);
+    Writer writer = Writer.from_sink(&testSink, &output);
     const colors = StackTraceColors.fromTheme(StackTraceTheme.gruvbox);
     const defaultStyle = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
     assert(defaultStyle.signatureDetail == SignatureDetail.overloadIdentity);
@@ -540,7 +540,7 @@ unittest
 
     char[128] rgbStorage;
     TestSink rgbOutput = TestSink(rgbStorage[]);
-    Writer rgbWriter = Writer.fromSink(&testSink, &rgbOutput);
+    Writer rgbWriter = Writer.from_sink(&testSink, &rgbOutput);
     StackTraceColors rgbColors;
     rgbColors.functionName = AnsiColor.rgb(1, 2, 3);
     rgbWriter.writeSignature("call(int)", &rgbColors);
@@ -551,7 +551,7 @@ unittest
 
     char[128] bareStorage;
     TestSink bareOutput = TestSink(bareStorage[]);
-    Writer bareWriter = Writer.fromSink(&testSink, &bareOutput);
+    Writer bareWriter = Writer.from_sink(&testSink, &bareOutput);
     bareWriter.writeSignature("main", &rgbColors);
     assert(bareWriter.result.ok);
     assert(bareStorage[0 .. bareOutput.written].equal(
@@ -560,7 +560,7 @@ unittest
 
     char[128] cStorage;
     TestSink cOutput = TestSink(cStorage[]);
-    Writer cWriter = Writer.fromSink(&testSink, &cOutput);
+    Writer cWriter = Writer.from_sink(&testSink, &cOutput);
     cWriter.writeSignature("__libc_start_main", &rgbColors);
     assert(cWriter.result.ok);
     assert(cStorage[0 .. cOutput.written].equal(
@@ -569,14 +569,14 @@ unittest
 
     char[1] emptyStorage;
     TestSink emptyOutput = TestSink(emptyStorage[]);
-    Writer emptyWriter = Writer.fromSink(&testSink, &emptyOutput);
+    Writer emptyWriter = Writer.from_sink(&testSink, &emptyOutput);
     emptyWriter.writeSignature("", &rgbColors);
     assert(emptyWriter.result.ok);
     assert(emptyOutput.written == 0);
 
     char[128] plainStorage;
     TestSink plainOutput = TestSink(plainStorage[]);
-    Writer plainWriter = Writer.fromSink(&testSink, &plainOutput);
+    Writer plainWriter = Writer.from_sink(&testSink, &plainOutput);
     const plain = StackTraceColors.fromTheme(StackTraceTheme.plain);
     plainWriter.writeSignature("pkg.module.call(int)", &plain);
     assert(plainWriter.result.ok);
@@ -584,14 +584,14 @@ unittest
 
     char[128] fullStorage;
     TestSink fullOutput = TestSink(fullStorage[]);
-    Writer fullWriter = Writer.fromSink(&testSink, &fullOutput);
+    Writer fullWriter = Writer.from_sink(&testSink, &fullOutput);
     fullWriter.writeSignature("pkg.module.Type.call(int)", &plain, ModuleDisplay.full);
     assert(fullWriter.result.ok);
     assert(fullStorage[0 .. fullOutput.written].equal("pkg.module.Type.call(int)"));
 
     char[256] multilineStorage;
     TestSink multilineOutput = TestSink(multilineStorage[]);
-    Writer multilineWriter = Writer.fromSink(&testSink, &multilineOutput);
+    Writer multilineWriter = Writer.from_sink(&testSink, &multilineOutput);
     multilineWriter.writeSignature(
         "render(int, delegate(int, long) -> void, const(char)[]) -> bool nothrow",
         &plain,
@@ -606,7 +606,7 @@ unittest
 
     char[128] singleStorage;
     TestSink singleOutput = TestSink(singleStorage[]);
-    Writer singleWriter = Writer.fromSink(&testSink, &singleOutput);
+    Writer singleWriter = Writer.from_sink(&testSink, &singleOutput);
     singleWriter.writeSignature(
         "call(int, const(char)[], long)",
         &plain,
@@ -621,7 +621,7 @@ unittest
     enum boundarySignature = "call(int, const(char)[], long)";
     char[128] boundaryStorage;
     TestSink boundaryOutput = TestSink(boundaryStorage[]);
-    Writer boundaryWriter = Writer.fromSink(&testSink, &boundaryOutput);
+    Writer boundaryWriter = Writer.from_sink(&testSink, &boundaryOutput);
     boundaryWriter.writeSignature(
         boundarySignature,
         &plain,

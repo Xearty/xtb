@@ -13,7 +13,7 @@ formatln!"id={}, hex={}"(7, hexadecimal(255));
 formatln(i"name=$(name), count=$(count)");
 ```
 
-Custom types participate by implementing `formatTo`:
+Custom types participate by implementing `format_to`:
 
 ```d
 struct Point
@@ -21,7 +21,7 @@ struct Point
     int x;
     int y;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writer.format!"({}, {})"(x, y);
     }

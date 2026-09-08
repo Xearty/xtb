@@ -22,12 +22,12 @@ struct Formatted(string pattern, Args...)
 {
     Args arguments;
 
-    void formatTo(ref Writer writer)
+    void format_to(ref Writer writer)
     {
         writer.format!pattern(arguments);
     }
 
-    void formatTo(ref Writer writer) const
+    void format_to(ref Writer writer) const
     {
         writer.format!pattern(arguments);
     }
@@ -192,7 +192,7 @@ unittest
         @disable this(this);
         int value;
 
-        void formatTo(ref Writer writer) const
+        void format_to(ref Writer writer) const
         {
             writer.value(value);
         }

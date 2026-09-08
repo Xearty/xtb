@@ -221,7 +221,7 @@ version (unittest)
     {
         int value;
 
-        void formatTo(ref Writer writer) nothrow @nogc
+        void format_to(ref Writer writer) nothrow @nogc
         {
             writer.put("probe(");
             writer.value(value);
@@ -481,7 +481,7 @@ version (unittest)
 
         size_t* calls;
 
-        void formatTo(ref Writer writer) const @trusted
+        void format_to(ref Writer writer) const @trusted
         {
             ++*cast(size_t*) calls;
             writer.put("formatted-once");
@@ -1037,7 +1037,7 @@ unittest
     assert(!writer.finish());
 }
 
-// Pretty printing needs no logging-specific formatter. `PrettyValue.formatTo`
+// Pretty printing needs no logging-specific formatter. `PrettyValue.format_to`
 // already targets the generic Writer returned by `LogMessageWriter.writer`, so
 // pretty output streams exactly across many message chunks.
 unittest

@@ -9,7 +9,7 @@ private struct RequestId
 {
     uint value;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writer.put("request-");
         writer.value(hexadecimal(value).digits(8).upper);
@@ -20,7 +20,7 @@ private struct FormatProbe
 {
     size_t* calls;
 
-    void formatTo(ref Writer writer) nothrow @nogc
+    void format_to(ref Writer writer) nothrow @nogc
     {
         ++*calls;
         writer.put("expensive value");
@@ -165,7 +165,7 @@ extern (C) int main() nothrow @nogc
     );
 
     // Level-specific helpers, format-string helpers, interpolation, ordinary
-    // variadic values, and custom `formatTo` values all share the same path.
+    // variadic values, and custom `format_to` values all share the same path.
     if (!terminalSection(terminalFile, "levels and formatting"))
         return 1;
     terminal.setCallsitesEnabled(true);

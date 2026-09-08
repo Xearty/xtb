@@ -11,7 +11,7 @@ struct Point
     int x;
     int y;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writer.put("Point(");
         writer.value(x);

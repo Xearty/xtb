@@ -206,7 +206,7 @@ private bool demonstrateSerde(Allocator* allocator)
     StringBuf json = StringBuf.create(allocator);
     scope (exit)
         json.deinit();
-    Writer jsonWriter = Writer.fromSink(&appendSink, &json);
+    Writer jsonWriter = Writer.from_sink(&appendSink, &json);
     SerdeError error = writeJson(jsonWriter, config);
     if (!error.ok)
         return false;
@@ -219,7 +219,7 @@ private bool demonstrateSerde(Allocator* allocator)
     StringBuf toml = StringBuf.create(allocator);
     scope (exit)
         toml.deinit();
-    Writer tomlWriter = Writer.fromSink(&appendSink, &toml);
+    Writer tomlWriter = Writer.from_sink(&appendSink, &toml);
     error = writeToml(tomlWriter, config);
     if (!error.ok)
         return false;

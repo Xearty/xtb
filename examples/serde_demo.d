@@ -146,7 +146,7 @@ private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
     StringBuf json = StringBuf.create(mallocAllocator());
     scope (exit)
         json.deinit();
-    Writer jsonWriter = Writer.fromSink(&appendSink, &json);
+    Writer jsonWriter = Writer.from_sink(&appendSink, &json);
     SerdeError error = writeJson(jsonWriter, config);
     if (!error.ok)
         return false;
@@ -154,7 +154,7 @@ private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
     StringBuf toml = StringBuf.create(mallocAllocator());
     scope (exit)
         toml.deinit();
-    Writer tomlWriter = Writer.fromSink(&appendSink, &toml);
+    Writer tomlWriter = Writer.from_sink(&appendSink, &toml);
     error = writeToml(tomlWriter, config);
     if (!error.ok)
         return false;
@@ -302,7 +302,7 @@ private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
     StringBuf toml = StringBuf.create(mallocAllocator());
     scope (exit)
         toml.deinit();
-    Writer tomlWriter = Writer.fromSink(&appendSink, &toml);
+    Writer tomlWriter = Writer.from_sink(&appendSink, &toml);
     error = writeToml(tomlWriter, stopped);
     if (!error.ok)
         return false;

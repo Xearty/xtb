@@ -15,7 +15,7 @@ struct AnsiReset
 {
 nothrow @nogc:
 
-    void formatTo(ref Writer writer) const
+    void format_to(ref Writer writer) const
     {
         writer.resetAnsi();
     }
@@ -35,7 +35,7 @@ nothrow @nogc:
     Values values;
     AnsiStyle style;
 
-    void formatTo(ref Writer writer)
+    void format_to(ref Writer writer)
     {
         writer.beginAnsi(style);
         static foreach (index; 0 .. Values.length)
@@ -43,7 +43,7 @@ nothrow @nogc:
         writer.endAnsi(style);
     }
 
-    void formatTo(ref Writer writer) const
+    void format_to(ref Writer writer) const
     {
         writer.beginAnsi(style);
         static foreach (index; 0 .. Values.length)
@@ -190,7 +190,7 @@ unittest
     import xtb.fmt.writer : hexadecimal;
 
     AnsiWriterTestSinkState state;
-    Writer output = Writer.fromSink(&ansiWriterTestSink, &state);
+    Writer output = Writer.from_sink(&ansiWriterTestSink, &state);
 
     static assert(!__traits(compiles, AnsiWriter.fromWriter(&output)));
     static assert(__traits(compiles, AnsiWriter.fromWriter(&output, false)));
@@ -214,7 +214,7 @@ unittest
     assert(plainResult.written == state.length);
 
     state = AnsiWriterTestSinkState.init;
-    output = Writer.fromSink(&ansiWriterTestSink, &state);
+    output = Writer.from_sink(&ansiWriterTestSink, &state);
     AnsiWriter styled = AnsiWriter.fromWriter(&output, true);
     assert(styled.ansiEnabled);
 
@@ -239,7 +239,7 @@ unittest
         .withBackground(AnsiColor.indexed(17))
         .bold
         .underline;
-    Writer styleWriter = Writer.fromSink(&ansiWriterTestSink, &state);
+    Writer styleWriter = Writer.from_sink(&ansiWriterTestSink, &state);
     beginAnsi(styleWriter, style);
     styleWriter.put("failure");
     resetAnsi(styleWriter);

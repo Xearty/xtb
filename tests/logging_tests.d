@@ -15,7 +15,7 @@ private struct FormatProbe
 {
     size_t* calls;
 
-    void formatTo(ref Writer writer) nothrow @nogc
+    void format_to(ref Writer writer) nothrow @nogc
     {
         ++*calls;
         writer.put("formatted-once");

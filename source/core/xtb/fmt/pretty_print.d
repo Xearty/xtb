@@ -136,7 +136,7 @@ struct PrettyValue(T)
     private const(T)* value_;
     PrettyPrintOptions options;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writePrettyPointer!T(writer, value_, options);
     }
@@ -166,7 +166,7 @@ struct OwnedPrettyValue(T)
         }
     }
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writePrettyImpl(writer, value_, options, PrettyPrintContext.init);
     }
@@ -236,7 +236,7 @@ OwnedPrettyValue!T pretty(T)(
 /// remains the low-level escape hatch for syntax that cannot use those
 /// semantic forms. Its automatic width is unknown. A type must not define both
 /// pretty hooks.
-/// Ordinary `formatRepresentation` and `formatTo` are separate normal-display
+/// Ordinary `format_representation` and `format_to` are separate normal-display
 /// customization points and are deliberately ignored here.
 void writePretty(T)(
     ref Writer writer,
@@ -2852,7 +2852,7 @@ version (unittest)
             writer.put("<pretty wins>");
         }
 
-        void formatTo(ref Writer writer) const nothrow @nogc
+        void format_to(ref Writer writer) const nothrow @nogc
         {
             writer.put("<normal format>");
         }
@@ -2862,7 +2862,7 @@ version (unittest)
     {
         int ignored;
 
-        void formatTo(ref Writer writer) const nothrow @nogc
+        void format_to(ref Writer writer) const nothrow @nogc
         {
             writer.put("<format override>");
         }
@@ -3474,7 +3474,7 @@ unittest
     ));
 
     // Normal display formatting and structural debug formatting are separate.
-    // `formatTo` is ignored by `.pretty` unless the type also opts into the
+    // `format_to` is ignored by `.pretty` unless the type also opts into the
     // const-compatible `prettyFormatTo` hook.
     PrettyPrintTestFormatOverride displayOnly = PrettyPrintTestFormatOverride(9);
     char[64] normalStorage;

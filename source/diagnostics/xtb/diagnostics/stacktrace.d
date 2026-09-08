@@ -281,7 +281,7 @@ unittest
     trace.frames = frames[];
     StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.plain);
     TraceCapture capture;
-    Writer writer = Writer.fromSink(&traceCaptureSink, &capture);
+    Writer writer = Writer.from_sink(&traceCaptureSink, &capture);
     char[256] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &style);
     assert(writer.result.ok);

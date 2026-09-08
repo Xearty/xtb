@@ -70,7 +70,7 @@ nothrow @nogc:
     /// The returned writer borrows this object and must not outlive or move past it.
     Writer writer() return @trusted
     {
-        return Writer.fromSink(&bufferedWriterSink, &this);
+        return Writer.from_sink(&bufferedWriterSink, &this);
     }
 
     /// Delivers all staged bytes to the underlying writer.
@@ -115,7 +115,7 @@ nothrow @nogc:
         if (!ok || bytes.length == 0)
             return 0;
 
-        const accepted = destination_.emitBytes(bytes);
+        const accepted = destination_.emit_bytes(bytes);
         if (!destination_.ok)
             failed_ = true;
         return accepted;
@@ -131,7 +131,7 @@ nothrow @nogc:
         if (staged_ == 0)
             return true;
 
-        const delivered = destination_.emitBytes(
+        const delivered = destination_.emit_bytes(
             cast(const(u8)[]) staging_[0 .. staged_],
         );
 
@@ -213,7 +213,7 @@ unittest
 {
     static assert(!__traits(compiles, {
             BufferedWriterTestSinkState state;
-            Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+            Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
             char[8] storage;
             BufferedWriter first = BufferedWriter.create(&destination, storage[]);
             BufferedWriter second = first;
@@ -221,7 +221,7 @@ unittest
 
     static assert(!__traits(compiles, {
             BufferedWriterTestSinkState state;
-            Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+            Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
             char[8] firstStorage;
             char[8] secondStorage;
             BufferedWriter first = BufferedWriter.create(&destination, firstStorage[]);
@@ -230,7 +230,7 @@ unittest
         }));
 
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[8] staging;
     BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
     Writer output = buffered.writer();
@@ -253,7 +253,7 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[4] staging;
     BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
     Writer output = buffered.writer();
@@ -272,7 +272,7 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[4] staging;
     BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
     Writer output = buffered.writer();
@@ -291,7 +291,7 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[4] staging;
     BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
     Writer output = buffered.writer();
@@ -310,7 +310,7 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[4] staging;
     BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
     Writer output = buffered.writer();
@@ -327,7 +327,7 @@ unittest
 {
     BufferedWriterTestSinkState state;
     state.maxPerCall = 2;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[8] staging;
     BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
     Writer output = buffered.writer();
@@ -345,7 +345,7 @@ unittest
     BufferedWriterTestSinkState state;
     state.maxPerCall = 2;
     state.successfulCallLimit = 1;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[8] staging;
     BufferedWriter buffered = BufferedWriter.create(&destination, staging[]);
     Writer output = buffered.writer();
@@ -371,7 +371,7 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[] noStaging;
     BufferedWriter buffered = BufferedWriter.create(&destination, noStaging);
     Writer output = buffered.writer();
@@ -387,7 +387,7 @@ unittest
 unittest
 {
     BufferedWriterTestSinkState state;
-    Writer destination = Writer.fromSink(&bufferedWriterTestDestinationSink, &state);
+    Writer destination = Writer.from_sink(&bufferedWriterTestDestinationSink, &state);
     char[8] staging;
 
     {

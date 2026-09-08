@@ -71,7 +71,7 @@ nothrow @nogc:
     /// staging and SGR-safe message chunk boundaries.
     Writer writer() return @trusted
     {
-        return Writer.fromSink(
+        return Writer.from_sink(
             &logMessageWriterSink,
             cast(void*)&this,
         );

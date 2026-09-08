@@ -168,13 +168,13 @@ struct Credential
     }
 }
 
-/// `formatTo` remains the concise normal display representation. Calling
+/// `format_to` remains the concise normal display representation. Calling
 /// `.pretty` deliberately ignores it and shows the structural representation.
 struct DisplayName
 {
     String value;
 
-    void formatTo(ref Writer writer) const nothrow @nogc
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writer.put(value);
     }
@@ -436,7 +436,7 @@ extern (C) int main()
     writeln("structural view: ", displayName.pretty(vivid));
 
     // Pretty wrappers work in interpolation sequences because `print.d` sees
-    // their ordinary `formatTo(ref Writer)` extension hook.
+    // their ordinary `format_to(ref Writer)` extension hook.
     Endpoint interpolated = Endpoint("localhost", 7070);
     writeln(i"interpolated: $(interpolated.pretty(vivid))");
 

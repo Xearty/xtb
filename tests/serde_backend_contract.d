@@ -102,7 +102,7 @@ private void runBackendContract(Backend)()
     value.child.enabled = true;
 
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     SerdeError error = Backend.write(writer, value);
     assert(error.ok);
     assert(encoded == Backend.expected);

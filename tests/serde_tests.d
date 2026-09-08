@@ -573,7 +573,7 @@ private void testSharedPolicies() nothrow @nogc
     value.retryLimit = 7;
 
     StringBuf json = StringBuf.create(malloc_allocator());
-    Writer jsonWriter = Writer.fromSink(&bufferSink, &json);
+    Writer jsonWriter = Writer.from_sink(&bufferSink, &json);
     SerdeError error = writeJson(jsonWriter, value);
     assert(error.ok);
     assert(json == "{\"mode\":\"rolling-update\"}");
@@ -588,7 +588,7 @@ private void testSharedPolicies() nothrow @nogc
     assert(fromJson.value.retryLimit == 7);
 
     StringBuf toml = StringBuf.create(malloc_allocator());
-    Writer tomlWriter = Writer.fromSink(&bufferSink, &toml);
+    Writer tomlWriter = Writer.from_sink(&bufferSink, &toml);
     error = writeToml(tomlWriter, value);
     assert(error.ok);
     assert(toml == "mode = \"rolling-update\"");
@@ -604,7 +604,7 @@ private void testSharedPolicies() nothrow @nogc
 
     AdapterDocument adapted = AdapterDocument(Percentage(75));
     json.clear();
-    jsonWriter = Writer.fromSink(&bufferSink, &json);
+    jsonWriter = Writer.from_sink(&bufferSink, &json);
     error = writeJson(jsonWriter, adapted);
     assert(error.ok);
     assert(json == "{\"percentage\":75}");
@@ -614,7 +614,7 @@ private void testSharedPolicies() nothrow @nogc
     assert(ownedJson.percentage.value == 75);
 
     toml.clear();
-    tomlWriter = Writer.fromSink(&bufferSink, &toml);
+    tomlWriter = Writer.from_sink(&bufferSink, &toml);
     error = writeToml(tomlWriter, adapted);
     assert(error.ok);
     assert(toml == "percentage = 75");
@@ -672,7 +672,7 @@ private void testJsonTaggedUnions() nothrow @nogc
     external.kind = EventKind.recordCreated;
     external.data.created = CreatedEvent(17, "new record");
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, external);
     assert(error.ok);
     assert(encoded ==
@@ -691,7 +691,7 @@ private void testJsonTaggedUnions() nothrow @nogc
     internal.kind = EventKind.recordDeleted;
     internal.data.deleted = DeletedEvent(9, true);
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, internal);
     assert(error.ok);
     assert(encoded ==
@@ -712,7 +712,7 @@ private void testJsonTaggedUnions() nothrow @nogc
     adjacent.kind = EventKind.recordCreated;
     adjacent.data.created = CreatedEvent(23, "adjacent");
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, adjacent);
     assert(error.ok);
     assert(encoded ==
@@ -744,7 +744,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     external.event.kind = EventKind.recordCreated;
     external.event.data.created = CreatedEvent(17, "new record");
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, external);
     assert(error.ok);
     assert(encoded ==
@@ -763,7 +763,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     internal.event.kind = EventKind.recordDeleted;
     internal.event.data.deleted = DeletedEvent(9, true);
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, internal);
     assert(error.ok);
     assert(encoded ==
@@ -784,7 +784,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     adjacent.event.kind = EventKind.recordCreated;
     adjacent.event.data.created = CreatedEvent(23, "adjacent");
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, adjacent);
     assert(error.ok);
     assert(encoded ==
@@ -809,7 +809,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     assert(decodedAdjacent.empty);
 
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, adjacent.event);
     assert(error.ok);
     assert(encoded ==
@@ -826,7 +826,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     assert(rootAdjacent.value.data.created.id == 23);
 
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, external.event);
     assert(error.ok);
     Deserialized!ExternalEvent rootExternal;
@@ -837,7 +837,7 @@ private void testTomlTaggedUnions() nothrow @nogc
     assert(rootExternal.value.data.created.id == 17);
 
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, internal.event);
     assert(error.ok);
     Deserialized!InternalEvent rootInternal;
@@ -862,7 +862,7 @@ private void testJsonRoundTrip() nothrow @nogc
     settings.pair = [7, 9];
 
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     JsonWriteOptions writeOptions;
     writeOptions.pretty = true;
     SerdeError error = writeJson(writer, settings, writeOptions);
@@ -990,7 +990,7 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
 {
     CasingDocument value = CasingDocument(7, 9);
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     JsonWriteOptions options;
     options.keyCase = KeyCase.snake;
     SerdeError error = writeJson(writer, value, options);
@@ -1006,19 +1006,19 @@ private void testJsonCasingAndOutputFailure() nothrow @nogc
     assert(error.ok);
     assert(decoded.value.httpServerID == 7);
 
-    Writer failed = Writer.fromSink(&failingSink, null);
+    Writer failed = Writer.from_sink(&failingSink, null);
     error = writeJson(failed, value, options);
     assert(error.kind == SerdeErrorKind.outputFailure);
 
     DefaultsDocument defaults;
     StringBuf omitted = StringBuf.create(malloc_allocator());
-    Writer omittedWriter = Writer.fromSink(&bufferSink, &omitted);
+    Writer omittedWriter = Writer.from_sink(&bufferSink, &omitted);
     error = writeJson(omittedWriter, defaults);
     assert(error.ok);
     assert(omitted == "{\"enabled\":false}");
     defaults.retryCount = 0;
     omitted.clear();
-    omittedWriter = Writer.fromSink(&bufferSink, &omitted);
+    omittedWriter = Writer.from_sink(&bufferSink, &omitted);
     error = writeJson(omittedWriter, defaults);
     assert(error.ok);
     assert(omitted == "{\"retryCount\":0,\"enabled\":false}");
@@ -1109,7 +1109,7 @@ private void testJsonOptions() nothrow @nogc
     value.priority = some(4);
     value.explicitToggle = some(true);
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, value);
     assert(error.ok);
     assert(encoded ==
@@ -1131,7 +1131,7 @@ private void testTomlRoundTrip() nothrow @nogc
     document.ratio = 0.125;
 
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, document);
     assert(error.ok);
     assert(encoded ==
@@ -1271,7 +1271,7 @@ private void testTomlOptions() nothrow @nogc
     value.priority = some(4);
     value.explicitToggle = some(true);
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, value);
     assert(error.ok);
     assert(encoded == "priority = 4\nexplicit_toggle = true");
@@ -1314,7 +1314,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         value.endpoint.value.hostName.append(".test");
 
         StringBuf encoded = StringBuf.create(allocator.allocator);
-        Writer writer = Writer.fromSink(&bufferSink, &encoded);
+        Writer writer = Writer.from_sink(&bufferSink, &encoded);
         error = writeJson(writer, value);
         assert(error.ok);
         assert(encoded ==
@@ -1396,7 +1396,7 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
     document.tracingEnabled = false;
 
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, document);
     assert(error.ok);
     assert(encoded ==
@@ -1448,7 +1448,7 @@ private void testOwnedTomlRoundTripAndReplacement() nothrow @nogc
 
     document.featureFlags[0].append("-v2");
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, document);
     assert(error.ok);
     assert(encoded ==
@@ -1585,14 +1585,14 @@ private void testJsonTopLevelValues() nothrow @nogc
 {
     int[3] fixedValues = [1, 2, 3];
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, fixedValues);
     assert(error.ok);
     assert(encoded == "[1,2,3]");
 
     int[] borrowedValues = fixedValues[];
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, borrowedValues);
     assert(error.ok);
     assert(encoded == "[1,2,3]");
@@ -1702,7 +1702,7 @@ private void testJsonHashMaps() nothrow @nogc
         malloc_allocator());
     assert(source.try_add("one", 1) == AddStatus.inserted);
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     SerdeError error = writeJson(writer, source);
     assert(error.ok);
     assert(encoded == "{\"one\":1}");
@@ -1710,7 +1710,7 @@ private void testJsonHashMaps() nothrow @nogc
     HashMap!(String, int) emptySource = HashMap!(String, int).create(
         malloc_allocator());
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, emptySource);
     assert(error.ok);
     assert(encoded == "{}");
@@ -1852,7 +1852,7 @@ private void testTomlHashMaps() nothrow @nogc
         malloc_allocator());
     assert(source.try_add("one", 1) == AddStatus.inserted);
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     SerdeError error = writeToml(writer, source);
     assert(error.ok);
     assert(encoded == "one = 1");
@@ -1860,7 +1860,7 @@ private void testTomlHashMaps() nothrow @nogc
     HashMap!(String, int) emptySource = HashMap!(String, int).create(
         malloc_allocator());
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, emptySource);
     assert(error.ok);
     assert(encoded.empty);
@@ -1904,7 +1904,7 @@ private void testTomlHashMaps() nothrow @nogc
     move_emplace(documentValues, document.values);
     assert(document.values.try_add("one", 1) == AddStatus.inserted);
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, document);
     assert(error.ok);
     assert(encoded == "values = { one = 1 }");
@@ -2021,7 +2021,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
     assert(text.view == "owned λ");
 
     StringBuf encoded = StringBuf.create(malloc_allocator());
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, text);
     assert(error.ok);
     assert(encoded == "\"owned λ\"");
@@ -2055,7 +2055,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
         malloc_allocator());
     assert(singleJson.add("one", 1));
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, singleJson);
     assert(error.ok);
     assert(encoded == "{\"one\":1}");
@@ -2089,7 +2089,7 @@ private void testOwnedStringsAndStringHashMaps() nothrow @nogc
         malloc_allocator());
     assert(singleToml.add("one", 1));
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, singleToml);
     assert(error.ok);
     assert(encoded == "one = 1");
@@ -2680,7 +2680,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
         assert(error.ok);
         assert(document.values.length == 2);
         StringBuf encoded = StringBuf.create(allocator.allocator);
-        Writer writer = Writer.fromSink(&bufferSink, &encoded);
+        Writer writer = Writer.from_sink(&bufferSink, &encoded);
         error = writeToml(writer, document);
         assert(error.ok);
         encoded.deinit();
@@ -2700,11 +2700,11 @@ private void testSerdeOwnedHashMap() nothrow @nogc
     );
     assert(error.ok);
     StringBuf encoded = StringBuf.create(allocator.allocator);
-    Writer writer = Writer.fromSink(&bufferSink, &encoded);
+    Writer writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeJson(writer, roundTrip);
     assert(error.ok);
     encoded.clear();
-    writer = Writer.fromSink(&bufferSink, &encoded);
+    writer = Writer.from_sink(&bufferSink, &encoded);
     error = writeToml(writer, roundTrip);
     assert(error.ok);
     encoded.deinit();

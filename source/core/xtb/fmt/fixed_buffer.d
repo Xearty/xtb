@@ -72,7 +72,7 @@ BufferWriteResult writeBuffer(Args...)(char[] destination, auto ref Args args)
     if (destination.length != 0)
         destination[0] = '\0';
 
-    Writer writer = Writer.fromSink(&fixedBufferSink, &state);
+    Writer writer = Writer.from_sink(&fixedBufferSink, &state);
     writer.write(args);
     const result = writer.result;
     finishFixedBuffer(&state);
@@ -94,7 +94,7 @@ BufferWriteResult formatBuffer(string pattern, Args...)(
     if (destination.length != 0)
         destination[0] = '\0';
 
-    Writer writer = Writer.fromSink(&fixedBufferSink, &state);
+    Writer writer = Writer.from_sink(&fixedBufferSink, &state);
     writer.format!pattern(args);
     const result = writer.result;
     finishFixedBuffer(&state);
@@ -118,7 +118,7 @@ BufferWriteResult formatBuffer(Sequence...)(
     if (destination.length != 0)
         destination[0] = '\0';
 
-    Writer writer = Writer.fromSink(&fixedBufferSink, &state);
+    Writer writer = Writer.from_sink(&fixedBufferSink, &state);
     writer.format(header, sequence, footer);
     const result = writer.result;
     finishFixedBuffer(&state);
