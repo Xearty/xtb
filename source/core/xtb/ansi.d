@@ -219,12 +219,12 @@ nothrow @nogc @safe:
     char[capacity] bytes;
     usize length;
 
-    String view() const return pure @trusted
+    String view() const return pure
     {
         // `length` is public representation state. Clamp a malformed value so
-        // this trusted view remains memory-safe in builds without bounds checks.
+        // the returned slice remains within `bytes` in every build mode.
         const end = this.length <= ANSISequence.capacity
-            ? cast(usize) this.length
+            ? this.length
             : ANSISequence.capacity;
         return this.bytes[0 .. end];
     }
@@ -309,10 +309,7 @@ ANSISequence ansi_sequence(ANSIStyle style) @safe
     {
         if (style.has(__traits(getMember, ANSIAttribute, name)))
         {
-            result.append_parameter(
-                cast(u8) __traits(getMember, ANSIAttribute, name),
-                &first,
-            );
+            result.append_parameter(cast(u8) __traits(getMember, ANSIAttribute, name), &first);
         }
     }
 
@@ -374,5 +371,17 @@ unittest
 unittest
 {
     assert(ansi_sequence(ANSIStyle.init).empty);
+}
+
+unittest
+{
     assert(ansi_reset_sequence().view.equal("\x1b[0m"));
+}
+
+unittest
+{
+    ANSISequence malformed;
+    malformed.length = ANSISequence.capacity + 1;
+
+    assert(malformed.view.length == ANSISequence.capacity);
 }
