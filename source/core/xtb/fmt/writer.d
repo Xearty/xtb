@@ -55,7 +55,12 @@ nothrow @nogc:
         return this;
     }
 
-    static Writer from_sink(WriterSink sink, void* context)
+    /// Creates a writer for `sink` and its opaque `context`.
+    ///
+    /// The caller must ensure that `sink` can safely interpret `context` and
+    /// keep `context` valid until the writer is no longer used. A null sink
+    /// creates an already-failed writer.
+    static Writer from_sink(WriterSink sink, void* context) @system
     {
         Writer result;
         result.sink = sink;
@@ -78,11 +83,10 @@ nothrow @nogc:
     void put(char value)
     {
         require(
-            cast(u8) value <= 0x7f,
+            cast(u8) value <= 0x7F,
             "non-ASCII char written as a complete code point; use dchar",
         );
-        if (this.failed)
-            return;
+        if (this.failed) return;
 
         char[1] bytes = [value];
         this.emit(bytes[]);
@@ -91,8 +95,7 @@ nothrow @nogc:
     /// Writes one complete Unicode scalar encoded as UTF-8.
     void put(dchar value)
     {
-        if (this.failed)
-            return;
+        if (this.failed) return;
 
         const encoded = encode_utf8(value);
         const code_units = encoded.bytes;
@@ -102,8 +105,7 @@ nothrow @nogc:
     /// Writes borrowed UTF-8 text synchronously.
     void put(scope String text)
     {
-        if (this.failed || text.length == 0)
-            return;
+        if (this.failed || text.length == 0) return;
 
         this.emit(text);
     }
@@ -112,11 +114,10 @@ nothrow @nogc:
     void repeat(char value, usize count)
     {
         require(
-            cast(u8) value <= 0x7f,
+            cast(u8) value <= 0x7F,
             "non-ASCII char written as a complete code point; use dchar",
         );
-        if (this.failed || count == 0)
-            return;
+        if (this.failed || count == 0) return;
 
         char[64] block;
         block[] = value;
@@ -125,29 +126,26 @@ nothrow @nogc:
             this.emit(block[]);
             count -= block.length;
         }
-        if (count != 0 && !this.failed)
-            this.emit(block[0 .. count]);
+        if (count != 0 && !this.failed) this.emit(block[0 .. count]);
     }
 
     /// Repeats one Unicode scalar.
     void repeat(dchar value, usize count)
     {
-        if (this.failed || count == 0)
-            return;
+        if (this.failed || count == 0) return;
+
         const encoded = encode_utf8(value);
         const code_units = encoded.bytes;
         const text = cast(String) code_units[0 .. encoded.byte_length];
-        while (count-- != 0 && !this.failed)
-            this.emit(text);
+        while (count-- != 0 && !this.failed) this.emit(text);
     }
 
     /// Repeats borrowed UTF-8 text.
     void repeat(scope String value, usize count)
     {
-        if (this.failed || value.length == 0 || count == 0)
-            return;
-        while (count-- != 0 && !this.failed)
-            this.emit(value);
+        if (this.failed || value.length == 0 || count == 0) return;
+
+        while (count-- != 0 && !this.failed) this.emit(value);
     }
 
     /// Writes one ordinary XTB printable value.
@@ -176,11 +174,7 @@ nothrow @nogc:
     }
 
     /// Writes a D interpolated-string sequence.
-    void format(Sequence...)(
-        InterpolationHeader,
-        auto ref Sequence sequence,
-        InterpolationFooter,
-    )
+    void format(Sequence...)(InterpolationHeader, auto ref Sequence sequence, InterpolationFooter)
     {
         write_arguments(this, sequence);
     }
@@ -193,20 +187,17 @@ nothrow @nogc:
     }
 
     /// Writes an interpolated-string sequence followed by one newline.
-    void formatln(Sequence...)(
-        InterpolationHeader,
-        auto ref Sequence sequence,
-        InterpolationFooter,
-    )
+    void formatln(Sequence...)(InterpolationHeader, auto ref Sequence sequence, InterpolationFooter)
     {
         write_arguments(this, sequence);
         this.put('\n');
     }
 
     private void emit(scope String text)
-    @trusted
     {
-        this.emit_bytes(cast(const(u8)[]) text);
+        // char and u8 have the same size, and the scoped input is consumed
+        // synchronously without widening its access or lifetime.
+        cast(void) this.emit_bytes(cast(const(u8)[]) text);
     }
 
     package(xtb.fmt) usize emit_bytes(scope const(u8)[] bytes)
@@ -270,6 +261,7 @@ private void write_value(T)(ref Writer writer, auto ref T value)
     alias U = Unqualified!T;
     static if (is(U == InterpolationHeader) || is(U == InterpolationFooter))
     {
+        // Interpolation boundary markers carry no output.
     }
     else static if (is(U == InterpolatedLiteral!text, String text))
     {
@@ -345,7 +337,7 @@ private void write_value(T)(ref Writer writer, auto ref T value)
     {
         writer.put(cast(String) value);
     }
-    else static if (is(U == char[N], usize N))
+    else static if (is(U == char[array_length], usize array_length))
     {
         writer.put(cast(String) value[]);
     }
@@ -374,8 +366,7 @@ private void write_integer(T)(
 )
 {
     static assert(__traits(isIntegral, T) && T.sizeof <= u64.sizeof);
-    if (radix < 2 || radix > 36)
-        radix = 10;
+    if (radix < 2 || radix > 36) radix = 10;
 
     bool negative;
     u64 magnitude;
@@ -393,7 +384,7 @@ private void write_integer(T)(
 
     char[65] digits_buffer;
     usize start = digits_buffer.length;
-    String digits = uppercase
+    const digits = uppercase
         ? "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         : "0123456789abcdefghijklmnopqrstuvwxyz";
     do
@@ -670,12 +661,10 @@ private void write_format(
     }
 }
 
-private usize next_special(String pattern, usize start)
-pure @safe
+private usize next_special(String pattern, usize start) pure @safe
 {
     usize result = start;
-    while (result < pattern.length && pattern[result] != '{' && pattern[result] != '}')
-        ++result;
+    while (result < pattern.length && pattern[result] != '{' && pattern[result] != '}') ++result;
 
     return result;
 }
@@ -696,12 +685,10 @@ version (unittest)
         bool reject;
     }
 
-    private usize writer_test_sink(
-        void* context,
-        scope const(u8)[] bytes,
-    ) @trusted
+    private usize writer_test_sink(void* context, scope const(u8)[] bytes) @system
     {
-        WriterTestSinkState* state = cast(WriterTestSinkState*) context;
+        // Tests pass a live WriterTestSinkState as the opaque sink context.
+        auto state = cast(WriterTestSinkState*) context;
         if (
             state is null
             || state.reject
@@ -718,14 +705,14 @@ version (unittest)
             state.first_length = bytes.length;
         }
 
-        usize amount = bytes.length < state.max_per_call
+        auto amount = bytes.length < state.max_per_call
             ? bytes.length
             : state.max_per_call;
         const available = state.storage.length - state.length;
         if (amount > available) amount = available;
         if (amount == 0) return 0;
 
-        memcpy(state.storage.ptr + state.length, bytes.ptr, amount);
+        cast(void) memcpy(state.storage.ptr + state.length, bytes.ptr, amount);
         state.length += amount;
         ++state.calls;
         return amount;
@@ -734,14 +721,14 @@ version (unittest)
 
 unittest
 {
-    static assert(!__traits(compiles,
+    static assert(!__traits(compiles, () @system
     {
         WriterTestSinkState state;
         auto first = Writer.from_sink(&writer_test_sink, &state);
         auto second = first;
     }));
 
-    static assert(!__traits(compiles,
+    static assert(!__traits(compiles, () @system
     {
         WriterTestSinkState state;
         auto first = Writer.from_sink(&writer_test_sink, &state);
@@ -766,9 +753,17 @@ unittest
     writer.writeln();
     assert(state.storage[state.length - 1] == '\n');
     assert(writer.result.written == state.length);
+}
+
+unittest
+{
+    WriterTestSinkState state;
+    auto writer = Writer.from_sink(&writer_test_sink, &state);
+    writer.put("accepted");
+    assert(writer.ok);
+    const before = writer.written;
 
     state.reject = true;
-    const before = writer.written;
     writer.put("rejected");
     assert(!writer.ok);
     assert(writer.written == before);
