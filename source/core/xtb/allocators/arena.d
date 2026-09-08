@@ -1310,12 +1310,15 @@ unittest
 unittest
 {
     Arena arena = Arena.create(malloc_allocator(), 64);
-    arena.set_rewind_poisoning(true);
-    TempArena poisoned = (&arena).push();
-    u8* bytes = cast(u8*) arena.allocate(8, 1);
-    bytes[0] = 1;
-    poisoned.pop();
-    assert(bytes[0] == 0xDD);
+    version (XTB_Checked)
+    {
+        arena.set_rewind_poisoning(true);
+        TempArena poisoned = (&arena).push();
+        u8* bytes = cast(u8*) arena.allocate(8, 1);
+        bytes[0] = 1;
+        poisoned.pop();
+        assert(bytes[0] == 0xDD);
+    }
     arena.set_retention_limit(64);
     arena.trim();
     arena.deinit();
@@ -1363,13 +1366,16 @@ unittest
         );
         assert(reused_temporary is temporary_bytes);
 
-        virtual_arena.set_rewind_poisoning(true);
-        TempArena poisoned_virtual = (&virtual_arena).push();
-        u8* poisoned_virtual_bytes = cast(u8*) virtual_arena.allocate(8, 1);
-        poisoned_virtual_bytes[0] = 1;
-        poisoned_virtual.pop();
-        assert(poisoned_virtual_bytes[0] == 0xDD);
-        virtual_arena.set_rewind_poisoning(false);
+        version (XTB_Checked)
+        {
+            virtual_arena.set_rewind_poisoning(true);
+            TempArena poisoned_virtual = (&virtual_arena).push();
+            u8* poisoned_virtual_bytes = cast(u8*) virtual_arena.allocate(8, 1);
+            poisoned_virtual_bytes[0] = 1;
+            poisoned_virtual.pop();
+            assert(poisoned_virtual_bytes[0] == 0xDD);
+            virtual_arena.set_rewind_poisoning(false);
+        }
 
         virtual_arena.clear();
         assert(virtual_arena.stats.used_bytes == 0);
