@@ -13,7 +13,7 @@ import xtb.numeric;
 import xtb.panic;
 import xtb.types;
 
-private enum u32 active_bit = u32(1) << 31;
+private enum u32 active_bit = (cast(u32) 1) << 31;
 private enum u32 generation_mask = active_bit - 1;
 
 /// Fixed-capacity stable-address typed recycling pool with generational handles.
@@ -21,7 +21,9 @@ private enum u32 generation_mask = active_bit - 1;
 /// Index zero is permanently invalid. Each usable slot stores its active bit and
 /// generation in a separate packed state word, leaving `T` untouched while the
 /// slot is inactive. Stale-handle rejection is semantic and remains enabled in
-/// every build mode.
+/// every build mode. The representation fields form one coupled ownership
+/// state: the three views borrow from `reservation`, while the indices and
+/// counts describe the logical state inside those provisioned views.
 @mustuse struct GenerationalPool(T)
 {
     alias Self = GenerationalPool!T;
@@ -72,10 +74,7 @@ private enum u32 generation_mask = active_bit - 1;
     static bool try_create(u32 capacity, scope Self* output) @system
     {
         require(output !is null, "GenerationalPool output pointer is null");
-        require(
-            output is null || output.inert,
-            "GenerationalPool output is already initialized",
-        );
+        require(output is null || output.inert, "GenerationalPool output is already initialized");
 
         if (output is null || !output.inert) return false;
         if (capacity == 0) return true;
@@ -84,7 +83,7 @@ private enum u32 generation_mask = active_bit - 1;
         const usize page_size = virtual_memory_page_size();
         if (page_size == 0) return false;
 
-        const usize capacity_as_size = cast(usize) capacity;
+        const capacity_as_size = cast(usize) capacity;
         if (add_overflows(capacity_as_size, 1)) return false;
         const usize state_capacity = capacity_as_size + 1;
 
@@ -186,19 +185,19 @@ private enum u32 generation_mask = active_bit - 1;
         u32 index;
         if (this.free_count != 0)
         {
-            const usize stack_index = this.free_count - 1;
+            const stack_index = this.free_count - 1;
             index = this.free_indices[stack_index];
             --this.free_count;
 
-            require(
+            ensure(
                 index != 0 && index <= this.capacity,
                 "GenerationalPool free-index stack is corrupt",
             );
-            require(
+            ensure(
                 index < this.states.provisioned_length,
                 "GenerationalPool free-index stack exceeds provisioned state",
             );
-            require(
+            ensure(
                 !state_active(this.states[index]),
                 "GenerationalPool free-index stack contains an active slot",
             );
@@ -226,7 +225,7 @@ private enum u32 generation_mask = active_bit - 1;
     /// is exhausted.
     Handle allocate() @system
     {
-        Handle result = Handle.init;
+        auto result = Handle.init;
         if (!this.try_allocate(&result)) panic("GenerationalPool capacity or commitment exceeded");
         return result;
     }
@@ -238,7 +237,7 @@ private enum u32 generation_mask = active_bit - 1;
         require(output !is null, "GenerationalPool handle output is null");
         if (output is null) return false;
 
-        Handle result = Handle.init;
+        auto result = Handle.init;
         if (!this.try_allocate(&result)) return false;
         core_lifetime.emplace(this.values.ptr + result.index);
         *output = result;
@@ -256,12 +255,12 @@ private enum u32 generation_mask = active_bit - 1;
 
     /// Attempts to activate and construct one `T` with `emplace`.
     /// `output` must be non-null and remains unchanged on failure.
-    bool try_construct(Args...)(scope Handle* output, auto ref Args arguments) @system
+    bool try_construct(Args...)(auto ref Args arguments, scope Handle* output) @system
     {
         require(output !is null, "GenerationalPool handle output is null");
         if (output is null) return false;
 
-        Handle result = Handle.init;
+        auto result = Handle.init;
         if (!this.try_allocate(&result)) return false;
         core_lifetime.emplace(
             this.values.ptr + result.index,
@@ -363,7 +362,7 @@ private enum u32 generation_mask = active_bit - 1;
     {
         if (!this.valid_handle(handle)) return false;
 
-        const u32 index = handle.index;
+        const index = handle.index;
         this.states[index] = deactivate_and_advance(this.states[index]);
         this.free_indices[this.free_count] = index;
         ++this.free_count;
@@ -440,7 +439,7 @@ private enum u32 generation_mask = active_bit - 1;
 
     private bool try_provision_virgin(u32 index) @system
     {
-        const usize element_count = cast(usize) index + 1;
+        const element_count = cast(usize) index + 1;
 
         // Provision every region needed by this slot's entire future lifecycle
         // before publishing the index. Later deallocation therefore cannot
@@ -455,7 +454,7 @@ private enum u32 generation_mask = active_bit - 1;
     {
         if (handle.index == 0 || handle.index > this.capacity) return false;
 
-        const usize index = cast(usize) handle.index;
+        const index = cast(usize) handle.index;
         if (index >= this.states.provisioned_length) return false;
 
         const u32 state = this.states[index];
@@ -1096,7 +1095,7 @@ struct GenerationalPoolSlotsRange(T)
             );
         require(this.current_index < this.end_index, "front of empty GenerationalPool slots range");
 
-        const u32 index = cast(u32) this.current_index;
+        const index = cast(u32) this.current_index;
         const u32 state = this.states[index];
         GenerationalPoolSlot!T result;
         result.storage_ptr = this.values + index;
@@ -1186,7 +1185,7 @@ struct ConstGenerationalPoolSlotsRange(T)
             );
         require(this.current_index < this.end_index, "front of empty GenerationalPool slots range");
 
-        const u32 index = cast(u32) this.current_index;
+        const index = cast(u32) this.current_index;
         const u32 state = this.states[index];
         ConstGenerationalPoolSlot!T result;
         result.storage_ptr = this.values + index;
@@ -1414,7 +1413,10 @@ unittest
         static assert(!__traits(hasMember, IntPool, "mutation_generation"));
         static assert(!__traits(hasMember, GenerationalPoolSlot!i32, "owner"));
     }
+}
 
+unittest
+{
     assert(!state_active(0));
     assert(state_generation(0) == 0);
     assert(state_active(activate_state(0)));
@@ -1432,7 +1434,7 @@ unittest
     assert(zero.get(IntHandle.init) is null);
     assert(!zero.contains(IntHandle.init));
 
-    IntHandle unchanged = IntHandle(17, 19);
+    auto unchanged = IntHandle(17, 19);
     assert(!zero.try_allocate(&unchanged));
     assert(unchanged == IntHandle(17, 19));
 
@@ -1448,6 +1450,22 @@ unittest
 {
     if (!virtual_memory_supported) return;
 
+    auto pool = IntPool.create(1);
+    scope (exit) pool.deinit();
+
+    auto handle = IntHandle.init;
+    assert(pool.try_construct(42, &handle));
+    assert(*pool.get(handle) == 42);
+
+    auto unchanged = IntHandle(17, 19);
+    assert(!pool.try_construct(7, &unchanged));
+    assert(unchanged == IntHandle(17, 19));
+}
+
+unittest
+{
+    if (!virtual_memory_supported) return;
+
     auto pool = IntPool.create(3);
     scope (exit) pool.deinit();
 
@@ -1455,8 +1473,8 @@ unittest
     assert(pool.live_count == 0);
     assert(pool.get(IntHandle.init) is null);
 
-    IntHandle first = pool.allocate_init();
-    IntHandle second = pool.allocate_init();
+    const IntHandle first = pool.allocate_init();
+    const IntHandle second = pool.allocate_init();
     *pool.get(first) = 11;
     *pool.get(second) = 22;
     assert(first.index == 1 && first.generation == 0);
@@ -1481,7 +1499,7 @@ unittest
     assert(pool.states.committed_bytes == state_committed);
     assert(pool.free_indices.committed_bytes == free_committed);
 
-    IntHandle recycled = pool.allocate();
+    const IntHandle recycled = pool.allocate();
     assert(recycled.index == first.index);
     assert(recycled.generation == first.generation + 1);
     assert(pool.values.committed_bytes == value_committed);
@@ -1490,19 +1508,19 @@ unittest
     assert(pool.get(first) is null);
     assert(pool.get(recycled) !is null);
 
-    IntHandle third = pool.allocate_init();
+    const IntHandle third = pool.allocate_init();
     assert(third.index == 3);
-    IntHandle sentinel = IntHandle(77, 88);
+    auto sentinel = IntHandle(77, 88);
     assert(!pool.try_allocate(&sentinel));
     assert(sentinel == IntHandle(77, 88));
 
     // Exercise generation wrap through the public deallocation path.
     pool.states[recycled.index] = active_bit | generation_mask;
-    IntHandle wrap_handle = IntHandle(recycled.index, generation_mask);
+    const wrap_handle = IntHandle(recycled.index, generation_mask);
     assert(pool.try_deallocate(wrap_handle));
     assert(pool.states[wrap_handle.index] == 0);
 
-    IntHandle wrapped = pool.allocate();
+    const IntHandle wrapped = pool.allocate();
     assert(wrapped.index == wrap_handle.index);
     assert(wrapped.generation == 0);
 }
@@ -1594,10 +1612,10 @@ unittest
     auto pool = IntPool.create(6);
     scope (exit) pool.deinit();
 
-    IntHandle one = pool.allocate_init();
-    IntHandle two = pool.allocate_init();
-    IntHandle three = pool.allocate_init();
-    IntHandle four = pool.allocate_init();
+    const IntHandle one = pool.allocate_init();
+    const IntHandle two = pool.allocate_init();
+    const IntHandle three = pool.allocate_init();
+    const IntHandle four = pool.allocate_init();
     assert(one.valid);
     *pool.get(one) = 10;
     *pool.get(two) = 20;
@@ -1750,7 +1768,7 @@ unittest
     IntHandle[sparse_range_capacity] handles = void;
     foreach (offset; 0 .. sparse_range_capacity)
     {
-        IntHandle handle = pool.allocate_init();
+        const IntHandle handle = pool.allocate_init();
         *pool.get(handle) = cast(i32) handle.index;
         handles[offset] = handle;
     }
