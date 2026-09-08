@@ -15,7 +15,7 @@ import xtb.utf8;
 alias WriterSink = usize function(void* context, scope const(u8)[] bytes) nothrow @nogc;
 
 /// Snapshot of an immediate writer's sticky status and accepted byte count.
-@mustuse struct WriteResult
+struct WriteResult
 {
     bool ok;
     usize written;
