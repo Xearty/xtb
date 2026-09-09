@@ -316,9 +316,9 @@ static assert(!__traits(compiles, StringHashMap!(HeapOwner, DefaultHashMapElemen
 static assert(__traits(hasMember, StringHashMap!HeapOwner, "release"));
 static assert(!__traits(hasMember, OwnedStringHashMap!HeapOwner, "release"));
 static assert(__traits(compiles,
-        (ref OwnedStringHashMap!HeapOwner map, HeapOwner* value) { map.tryAdd("key", value); }));
+        (ref OwnedStringHashMap!HeapOwner map, HeapOwner* value) { map.try_add("key", value); }));
 static assert(!__traits(compiles,
-        (ref OwnedStringHashMap!HeapOwner map, HeapOwner value) { map.tryAdd("key", move(value)); }));
+        (ref OwnedStringHashMap!HeapOwner map, HeapOwner value) { map.try_add("key", move(value)); }));
 static assert(__traits(compiles, () { DestructorOwnerMap map; }));
 static assert(__traits(compiles, () { DestructorOwnerSet set; }));
 static assert(__traits(compiles, () { OwnedStringHashMap!DestructorOwner map; }));
@@ -793,18 +793,18 @@ private void testOwnedStringMapValueOwnership() @system
     assert(deinits == 0);
 
     HeapOwner replacement = HeapOwner.create(tracked.allocator, 99, &deinits);
-    assert(map.trySet("a", &replacement) == SetStatus.replaced);
+    assert(map.try_set("a", &replacement) == SetStatus.replaced);
     assert(replacement.bytes.ptr is null);
     assert(deinits == 1);
 
     HeapOwner duplicate = HeapOwner.create(tracked.allocator, 100, &deinits);
-    assert(map.tryAdd("a", &duplicate) == AddStatus.already_present);
+    assert(map.try_add("a", &duplicate) == AddStatus.already_present);
     assert(duplicate.bytes.ptr !is null);
 
     map.reserve(128);
     tracked.fail_after(0);
     HeapOwner retained = HeapOwner.create(malloc_allocator(), 101, null);
-    assert(map.tryAdd("allocation-fails", &retained) == AddStatus.out_of_memory);
+    assert(map.try_add("allocation-fails", &retained) == AddStatus.out_of_memory);
     assert(retained.bytes.ptr !is null);
     tracked.allow_allocations();
     deinit(retained);

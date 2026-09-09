@@ -2,17 +2,16 @@ module xtb.containers.string_hash_map;
 
 nothrow @nogc:
 
-import xtb.lifetime : can_finalize_without_context, finalize,
-    has_d_destructor, move, move_emplace, needs_deinit, needs_finalization;
-import xtb.hash : HashSeed, hash_value;
-import xtb.containers.hash_map;
-import xtb.memory : Allocator;
-import xtb.panic : panic;
+import core.attribute;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.containers.released_storage : ReleasedStorage;
+import xtb.containers.hash_map;
+import xtb.containers.released_storage;
+import xtb.hash;
+import xtb.lifetime;
+import xtb.memory;
+import xtb.panic;
 import xtb.string;
-import xtb.types : String;
+import xtb.types;
 
 /// Borrowing string-key map. The map owns the key descriptors but the caller
 /// must keep the bytes referenced by every inserted `String` alive.
@@ -27,14 +26,14 @@ nothrow @nogc:
 
     HashSeed seed;
 
-    size_t opCall(scope const(OwnedStringUnmanaged)* key) const pure @safe
+    usize opCall(scope const(OwnedStringUnmanaged)* key) const pure @safe
     {
-        return hash_value(key.view, seed);
+        return hash_value(key.view, this.seed);
     }
 
-    size_t opCall(scope const(String)* key) const pure @safe
+    usize opCall(scope const(String)* key) const pure @safe
     {
-        return hash_value(*key, seed);
+        return hash_value(*key, this.seed);
     }
 }
 
@@ -76,8 +75,10 @@ private struct OwnedStringHashMapValueOps(T)
 {
 nothrow @nogc:
 
-    static assert(can_finalize_without_context!T,
-        "OwnedStringHashMap values must support context-free finalization");
+    static assert(
+        can_finalize_without_context!T,
+        "OwnedStringHashMap values must support context-free finalization",
+    );
 
     static void destroy(Allocator*, T* value)
     {
@@ -86,10 +87,11 @@ nothrow @nogc:
     }
 }
 
-private template isSimpleStringHashValue(T)
+private template is_simple_string_hash_value(T)
 {
-    enum isSimpleStringHashValue = __traits(isCopyable, T) &&
-        !needs_deinit!T && !has_d_destructor!T;
+    enum is_simple_string_hash_value = __traits(isCopyable, T)
+        && !needs_deinit!T
+        && !has_d_destructor!T;
 }
 
 private template OwnedStringMapStorage(V, ValueOps)
@@ -105,31 +107,26 @@ private template OwnedStringMapStorage(V, ValueOps)
     );
 }
 
-private enum MoveKeyStatus : ubyte
+private enum MoveKeyStatus : u8
 {
     inserted,
     existing,
-    outOfMemory,
+    out_of_memory,
 }
 
 /// Allocator-explicit map that owns an exact immutable allocation for every
 /// nonempty string key while accepting borrowed `String` lookup values.
-struct StringHashMapUnmanaged(V, ValueOps = DefaultHashMapElementOps!V)
+@mustuse struct StringHashMapUnmanaged(V, ValueOps = DefaultHashMapElementOps!V)
 {
 nothrow @nogc:
 
-private:
-    OwnedStringMapStorage!(V, ValueOps) map_;
+    OwnedStringMapStorage!(V, ValueOps) map;
 
-    version (XTB_Checked)
+    invariant
     {
-        invariant
-        {
-            require(&this !is null, "StringHashMapUnmanaged pointer is null");
-        }
+        require(&this !is null, "StringHashMapUnmanaged pointer is null");
     }
 
-public:
     @disable this(this);
     @disable ref StringHashMapUnmanaged opAssign(StringHashMapUnmanaged source) return;
 
@@ -138,79 +135,80 @@ public:
         OwnedStringHash hasher;
         hasher.seed = seed;
         StringHashMapUnmanaged result;
-        auto map = typeof(result.map_).with_policies(
+        auto map = typeof(result.map).with_policies(
             hasher,
             OwnedStringEqual.init,
         );
-        move_emplace(map, result.map_);
+        move_emplace(map, result.map);
         return move(result);
     }
 
-    static bool tryWithCapacity(
+    static bool try_with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         scope StringHashMapUnmanaged* output,
     )
     {
-        version (XTB_Checked)
-        {
-            require(output !is null,
-                "StringHashMapUnmanaged output pointer is null");
-            require(output.map_.capacity == 0 && output.map_.empty,
-                "StringHashMapUnmanaged output is not empty");
-        }
+        require(
+            output !is null,
+            "StringHashMapUnmanaged output pointer is null",
+        );
+        require(
+            output.map.capacity == 0 && output.map.empty,
+            "StringHashMapUnmanaged output is not empty",
+        );
         StringHashMapUnmanaged temporary;
-        if (!temporary.tryReserve(allocator, requested))
+        if (!temporary.try_reserve(allocator, requested))
             return false;
         move_emplace(temporary, *output);
         return true;
     }
 
-    static StringHashMapUnmanaged withCapacity(
+    static StringHashMapUnmanaged with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
     )
     {
         StringHashMapUnmanaged result;
-        if (!tryWithCapacity(allocator, requested, &result))
+        if (!StringHashMapUnmanaged.try_with_capacity(allocator, requested, &result))
             panic("StringHashMap allocation failed");
         return move(result);
     }
 
-    static StringHashMapUnmanaged withCapacity(
+    static StringHashMapUnmanaged with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         HashSeed seed,
     )
     {
-        StringHashMapUnmanaged result = seeded(seed);
+        StringHashMapUnmanaged result = StringHashMapUnmanaged.seeded(seed);
         result.reserve(allocator, requested);
         return move(result);
     }
 
     void deinit(Allocator* allocator) @trusted
     {
-        map_.deinit(allocator);
+        this.map.deinit(allocator);
     }
 
-    void resetAndRelease(Allocator* allocator) @trusted
+    void reset_and_release(Allocator* allocator) @trusted
     {
-        map_.reset_and_release(allocator);
+        this.map.reset_and_release(allocator);
     }
 
-    size_t length() const pure @trusted
+    usize length() const pure @trusted
     {
-        return map_.length;
+        return this.map.length;
     }
 
-    size_t capacity() const pure @trusted
+    usize capacity() const pure @trusted
     {
-        return map_.capacity;
+        return this.map.capacity;
     }
 
     bool empty() const pure @trusted
     {
-        return map_.empty;
+        return this.map.empty;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
@@ -220,42 +218,39 @@ public:
 
     StringHashMapCursor!V cursor() return @trusted
     {
-        return StringHashMapCursor!V.create(map_.cursor());
+        return StringHashMapCursor!V.create(this.map.cursor());
     }
 
     ConstStringHashMapCursor!V cursor() const return @trusted
     {
-        return ConstStringHashMapCursor!V.create(map_.cursor());
+        return ConstStringHashMapCursor!V.create(this.map.cursor());
     }
 
-    StringHashMapPointerRange!V pointerItems() return @trusted
+    StringHashMapPointerRange!V pointer_items() return @trusted
     {
-        return StringHashMapPointerRange!V(cursor());
+        return StringHashMapPointerRange!V(this.cursor());
     }
 
-    ConstStringHashMapPointerRange!V pointerItems() const return @trusted
+    ConstStringHashMapPointerRange!V pointer_items() const return @trusted
     {
-        return ConstStringHashMapPointerRange!V(cursor());
+        return ConstStringHashMapPointerRange!V(this.cursor());
     }
 
     /// Fallible insertion that consumes `*value` only on success.
-    AddStatus tryAdd(
+    AddStatus try_add(
         Allocator* allocator,
         scope String key,
         scope V* value,
     ) @system
     {
-        version (XTB_Checked)
-        {
-            require(value !is null, "StringHashMap value pointer is null");
-            require(!map_.aliases_entry_storage(key.ptr),
-                "StringHashMap key bytes alias table storage");
-            if (map_.aliases_entry_storage(value))
-                require(map_.find(key) !is null,
-                    "StringHashMap insertion value aliases table storage");
-        }
+        require(value !is null, "StringHashMap value pointer is null");
+        require(!this.map.aliases_entry_storage(key.ptr),
+            "StringHashMap key bytes alias table storage");
+        if (this.map.aliases_entry_storage(value))
+            require(this.map.find(key) !is null,
+                "StringHashMap insertion value aliases table storage");
         PreparedHashMapInsert prepared;
-        final switch (map_.prepare_insert(allocator, key, &prepared))
+        final switch (this.map.prepare_insert(allocator, key, &prepared))
         {
             case PrepareInsertStatus.already_present:
                 return AddStatus.already_present;
@@ -268,7 +263,7 @@ public:
         OwnedStringUnmanaged owned;
         if (!OwnedStringUnmanaged.try_from_string(allocator, key, &owned))
             return AddStatus.out_of_memory;
-        map_.commit_prepared_insert(&prepared, &owned, value);
+        this.map.commit_prepared_insert(&prepared, &owned, value);
         return AddStatus.inserted;
     }
 
@@ -278,36 +273,33 @@ public:
         scope V* value,
     ) @system
     {
-        const status = tryAdd(allocator, key, value);
+        const status = this.try_add(allocator, key, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == AddStatus.inserted;
     }
 
     /// Fallible insert-or-replace. Replacement consumes only `*value`.
-    SetStatus trySet(
+    SetStatus try_set(
         Allocator* allocator,
         scope String key,
         scope V* value,
     ) @system
     {
-        version (XTB_Checked)
+        require(value !is null, "StringHashMap value pointer is null");
+        require(!this.map.aliases_entry_storage(key.ptr),
+            "StringHashMap key bytes alias table storage");
+        if (this.map.aliases_entry_storage(value))
         {
-            require(value !is null, "StringHashMap value pointer is null");
-            require(!map_.aliases_entry_storage(key.ptr),
-                "StringHashMap key bytes alias table storage");
-            if (map_.aliases_entry_storage(value))
-            {
-                V* destination = map_.find(key);
-                require(destination !is null && value is destination,
-                    "StringHashMap replacement value aliases another table entry");
-            }
+            V* destination = this.map.find(key);
+            require(destination !is null && value is destination,
+                "StringHashMap replacement value aliases another table entry");
         }
         PreparedHashMapInsert prepared;
-        final switch (map_.prepare_insert(allocator, key, &prepared))
+        final switch (this.map.prepare_insert(allocator, key, &prepared))
         {
             case PrepareInsertStatus.already_present:
-                map_.replace_prepared_value(allocator, &prepared, value);
+                this.map.replace_prepared_value(allocator, &prepared, value);
                 return SetStatus.replaced;
             case PrepareInsertStatus.out_of_memory:
                 return SetStatus.out_of_memory;
@@ -318,7 +310,7 @@ public:
         OwnedStringUnmanaged owned;
         if (!OwnedStringUnmanaged.try_from_string(allocator, key, &owned))
             return SetStatus.out_of_memory;
-        map_.commit_prepared_insert(&prepared, &owned, value);
+        this.map.commit_prepared_insert(&prepared, &owned, value);
         return SetStatus.inserted;
     }
 
@@ -328,201 +320,201 @@ public:
         scope V* value,
     ) @system
     {
-        const status = trySet(allocator, key, value);
+        const status = this.try_set(allocator, key, value);
         if (status == SetStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == SetStatus.inserted;
     }
 
-    static if (isSimpleStringHashValue!V)
+    static if (is_simple_string_hash_value!V)
     {
-        AddStatus tryAdd(Allocator* allocator, scope String key, V value) @trusted
+        AddStatus try_add(Allocator* allocator, scope String key, V value) @trusted
         {
-            return tryAdd(allocator, key, &value);
+            return this.try_add(allocator, key, &value);
         }
 
         bool add(Allocator* allocator, scope String key, V value) @trusted
         {
-            return add(allocator, key, &value);
+            return this.add(allocator, key, &value);
         }
 
-        SetStatus trySet(Allocator* allocator, scope String key, V value) @trusted
+        SetStatus try_set(Allocator* allocator, scope String key, V value) @trusted
         {
-            return trySet(allocator, key, &value);
+            return this.try_set(allocator, key, &value);
         }
 
         bool set(Allocator* allocator, scope String key, V value) @trusted
         {
-            return set(allocator, key, &value);
+            return this.set(allocator, key, &value);
         }
     }
 
     V* find(scope String key) return @trusted
     {
-        return map_.find(key);
+        return this.map.find(key);
     }
 
     const(V)* find(scope String key) const return @trusted
     {
-        return map_.find(key);
+        return this.map.find(key);
     }
 
     bool contains(scope String key) const @trusted
     {
-        return map_.contains(key);
+        return this.map.contains(key);
     }
 
     bool remove(Allocator* allocator, scope String key) @trusted
     {
-        return map_.remove(allocator, key);
+        return this.map.remove(allocator, key);
     }
 
     void clear(Allocator* allocator) @trusted
     {
-        map_.clear(allocator);
+        this.map.clear(allocator);
     }
 
-    bool tryReserve(Allocator* allocator, size_t requested) @trusted
+    bool try_reserve(Allocator* allocator, usize requested) @trusted
     {
-        return map_.try_reserve(allocator, requested);
+        return this.map.try_reserve(allocator, requested);
     }
 
-    void reserve(Allocator* allocator, size_t requested) @trusted
+    void reserve(Allocator* allocator, usize requested) @trusted
     {
-        map_.reserve(allocator, requested);
+        this.map.reserve(allocator, requested);
     }
 
-    bool tryShrinkToFit(Allocator* allocator) @trusted
+    bool try_shrink_to_fit(Allocator* allocator) @trusted
     {
-        return map_.try_shrink_to_fit(allocator);
+        return this.map.try_shrink_to_fit(allocator);
     }
 
-    void shrinkToFit(Allocator* allocator) @trusted
+    void shrink_to_fit(Allocator* allocator) @trusted
     {
-        map_.shrink_to_fit(allocator);
+        this.map.shrink_to_fit(allocator);
     }
 
-    AddStatus tryAddMove(
+    AddStatus try_add_move(
         Allocator* allocator,
         scope OwnedString* key,
         scope V* value,
     ) @trusted
     {
-        final switch (tryMoveOwnedString(allocator, key, value, false))
+        final switch (this.try_move_owned_string(allocator, key, value, false))
         {
             case MoveKeyStatus.inserted:
                 return AddStatus.inserted;
             case MoveKeyStatus.existing:
                 return AddStatus.already_present;
-            case MoveKeyStatus.outOfMemory:
+            case MoveKeyStatus.out_of_memory:
                 return AddStatus.out_of_memory;
         }
     }
 
-    bool addMove(
+    bool add_move(
         Allocator* allocator,
         scope OwnedString* key,
         scope V* value,
     ) @trusted
     {
-        const status = tryAddMove(allocator, key, value);
+        const status = this.try_add_move(allocator, key, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == AddStatus.inserted;
     }
 
-    SetStatus trySetMove(
+    SetStatus try_set_move(
         Allocator* allocator,
         scope OwnedString* key,
         scope V* value,
     ) @trusted
     {
-        final switch (tryMoveOwnedString(allocator, key, value, true))
+        final switch (this.try_move_owned_string(allocator, key, value, true))
         {
             case MoveKeyStatus.inserted:
                 return SetStatus.inserted;
             case MoveKeyStatus.existing:
                 return SetStatus.replaced;
-            case MoveKeyStatus.outOfMemory:
+            case MoveKeyStatus.out_of_memory:
                 return SetStatus.out_of_memory;
         }
     }
 
-    bool setMove(
+    bool set_move(
         Allocator* allocator,
         scope OwnedString* key,
         scope V* value,
     ) @trusted
     {
-        const status = trySetMove(allocator, key, value);
+        const status = this.try_set_move(allocator, key, value);
         if (status == SetStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == SetStatus.inserted;
     }
 
-    AddStatus tryAddMove(
+    AddStatus try_add_move(
         Allocator* allocator,
         scope StringBuf* key,
         scope V* value,
     ) @trusted
     {
-        final switch (tryMoveStringBuf(allocator, key, value, false))
+        final switch (this.try_move_string_buf(allocator, key, value, false))
         {
             case MoveKeyStatus.inserted:
                 return AddStatus.inserted;
             case MoveKeyStatus.existing:
                 return AddStatus.already_present;
-            case MoveKeyStatus.outOfMemory:
+            case MoveKeyStatus.out_of_memory:
                 return AddStatus.out_of_memory;
         }
     }
 
-    bool addMove(
+    bool add_move(
         Allocator* allocator,
         scope StringBuf* key,
         scope V* value,
     ) @trusted
     {
-        const status = tryAddMove(allocator, key, value);
+        const status = this.try_add_move(allocator, key, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == AddStatus.inserted;
     }
 
-    SetStatus trySetMove(
+    SetStatus try_set_move(
         Allocator* allocator,
         scope StringBuf* key,
         scope V* value,
     ) @trusted
     {
-        final switch (tryMoveStringBuf(allocator, key, value, true))
+        final switch (this.try_move_string_buf(allocator, key, value, true))
         {
             case MoveKeyStatus.inserted:
                 return SetStatus.inserted;
             case MoveKeyStatus.existing:
                 return SetStatus.replaced;
-            case MoveKeyStatus.outOfMemory:
+            case MoveKeyStatus.out_of_memory:
                 return SetStatus.out_of_memory;
         }
     }
 
-    bool setMove(
+    bool set_move(
         Allocator* allocator,
         scope StringBuf* key,
         scope V* value,
     ) @trusted
     {
-        const status = trySetMove(allocator, key, value);
+        const status = this.try_set_move(allocator, key, value);
         if (status == SetStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == SetStatus.inserted;
     }
 
-    int opApply(
-        scope int delegate(ref const(String), ref V) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String), ref V) nothrow @nogc callback,
     )
     {
-        auto current = map_.cursor();
+        auto current = this.map.cursor();
         while (current.valid)
         {
             const String key = current.key.view;
@@ -534,11 +526,11 @@ public:
         return 0;
     }
 
-    int opApply(
-        scope int delegate(ref const(String), ref const(V)) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String), ref const(V)) nothrow @nogc callback,
     ) const
     {
-        auto current = map_.cursor();
+        auto current = this.map.cursor();
         while (current.valid)
         {
             const String key = current.key.view;
@@ -550,53 +542,48 @@ public:
         return 0;
     }
 
-private:
-    MoveKeyStatus tryMoveOwnedString(
+    private MoveKeyStatus try_move_owned_string(
         Allocator* allocator,
         scope OwnedString* key,
         scope V* value,
         bool replace,
     ) @trusted
     {
-        requireValidStringHashMapAllocator(allocator);
-        version (XTB_Checked)
+        require_valid_string_hash_map_allocator(allocator);
+        require(key !is null, "OwnedString key pointer is null");
+        require(value !is null, "StringHashMap value pointer is null");
+        require(!string_hash_storage_overlaps(key, value),
+            "StringHashMap key and value storage overlap");
+        require(!this.map.aliases_entry_storage(key),
+            "StringHashMap move key aliases table storage");
+        if (this.map.aliases_entry_storage(value))
         {
-            require(key !is null, "OwnedString key pointer is null");
-            require(value !is null, "StringHashMap value pointer is null");
-            require(!stringHashStorageOverlaps(key, value),
-                "StringHashMap key and value storage overlap");
-            require(!map_.aliases_entry_storage(key),
-                "StringHashMap move key aliases table storage");
-            if (map_.aliases_entry_storage(value))
-            {
-                V* existingValue = map_.find(key.view);
-                require(existingValue !is null &&
-                        (!replace || value is existingValue),
-                    "StringHashMap value aliases incompatible table storage");
-            }
+            V* existing_value = this.map.find(key.view);
+            require(existing_value !is null &&
+                    (!replace || value is existing_value),
+                "StringHashMap value aliases incompatible table storage");
         }
 
         PreparedHashMapInsert prepared;
-        const status = map_.prepare_insert(allocator, key.view, &prepared);
+        const status = this.map.prepare_insert(allocator, key.view, &prepared);
         if (status == PrepareInsertStatus.already_present)
         {
             if (!replace)
                 return MoveKeyStatus.existing;
-            map_.replace_prepared_value(allocator, &prepared, value);
+            this.map.replace_prepared_value(allocator, &prepared, value);
             return MoveKeyStatus.existing;
         }
         if (status == PrepareInsertStatus.out_of_memory)
-            return MoveKeyStatus.outOfMemory;
+            return MoveKeyStatus.out_of_memory;
 
         OwnedStringUnmanaged owned;
         if (key.allocator is allocator)
         {
             auto released = key.release();
-            Allocator* sourceAllocator;
-            auto extracted = released.extract(&sourceAllocator);
+            Allocator* source_allocator;
+            auto extracted = released.extract(&source_allocator);
             move_emplace(extracted, owned);
-            version (XTB_Checked)
-                require(sourceAllocator is allocator,
+            require(source_allocator is allocator,
                     "OwnedString allocator changed during release");
         }
         else
@@ -606,51 +593,48 @@ private:
                     key.view,
                     &owned,
                 ))
-                return MoveKeyStatus.outOfMemory;
+                return MoveKeyStatus.out_of_memory;
         }
 
-        map_.commit_prepared_insert(&prepared, &owned, value);
+        this.map.commit_prepared_insert(&prepared, &owned, value);
         if (key.allocator !is null)
             key.deinit();
         return MoveKeyStatus.inserted;
     }
 
-    MoveKeyStatus tryMoveStringBuf(
+    private MoveKeyStatus try_move_string_buf(
         Allocator* destination,
         scope StringBuf* key,
         scope V* value,
         bool replace,
     ) @trusted
     {
-        requireValidStringHashMapAllocator(destination);
-        version (XTB_Checked)
+        require_valid_string_hash_map_allocator(destination);
+        require(key !is null, "StringBuf key pointer is null");
+        require(value !is null, "StringHashMap value pointer is null");
+        require(!string_hash_storage_overlaps(key, value),
+            "StringHashMap key and value storage overlap");
+        require(!this.map.aliases_entry_storage(key),
+            "StringHashMap move key aliases table storage");
+        if (this.map.aliases_entry_storage(value))
         {
-            require(key !is null, "StringBuf key pointer is null");
-            require(value !is null, "StringHashMap value pointer is null");
-            require(!stringHashStorageOverlaps(key, value),
-                "StringHashMap key and value storage overlap");
-            require(!map_.aliases_entry_storage(key),
-                "StringHashMap move key aliases table storage");
-            if (map_.aliases_entry_storage(value))
-            {
-                V* existingValue = map_.find(key.view);
-                require(existingValue !is null &&
-                        (!replace || value is existingValue),
-                    "StringHashMap value aliases incompatible table storage");
-            }
+            V* existing_value = this.map.find(key.view);
+            require(existing_value !is null &&
+                    (!replace || value is existing_value),
+                "StringHashMap value aliases incompatible table storage");
         }
 
         PreparedHashMapInsert prepared;
-        const status = map_.prepare_insert(destination, key.view, &prepared);
+        const status = this.map.prepare_insert(destination, key.view, &prepared);
         if (status == PrepareInsertStatus.already_present)
         {
             if (!replace)
                 return MoveKeyStatus.existing;
-            map_.replace_prepared_value(destination, &prepared, value);
+            this.map.replace_prepared_value(destination, &prepared, value);
             return MoveKeyStatus.existing;
         }
         if (status == PrepareInsertStatus.out_of_memory)
-            return MoveKeyStatus.outOfMemory;
+            return MoveKeyStatus.out_of_memory;
 
         OwnedStringUnmanaged owned;
         if (!key.empty &&
@@ -658,10 +642,9 @@ private:
             (key.byte_capacity == key.byte_length || key.try_shrink_to_fit()))
         {
             auto released = key.release();
-            Allocator* sourceAllocator;
-            StringBufUnmanaged raw = released.extract(&sourceAllocator);
-            version (XTB_Checked)
-                require(sourceAllocator is destination,
+            Allocator* source_allocator;
+            StringBufUnmanaged raw = released.extract(&source_allocator);
+            require(source_allocator is destination,
                     "StringBuf allocator changed during release");
             auto exact = raw.release_exact_storage();
             auto adopted = OwnedStringUnmanaged.adopt_exact(&exact);
@@ -674,160 +657,154 @@ private:
                     key.view,
                     &owned,
                 ))
-                return MoveKeyStatus.outOfMemory;
+                return MoveKeyStatus.out_of_memory;
         }
 
-        map_.commit_prepared_insert(&prepared, &owned, value);
+        this.map.commit_prepared_insert(&prepared, &owned, value);
         if (key.allocator !is null)
             key.deinit();
         return MoveKeyStatus.inserted;
     }
 }
 
-package(xtb) struct BasicStringHashMap(V, ValueOps, bool OwnsValues)
+@mustuse package(xtb) struct BasicStringHashMap(V, ValueOps, bool owns_values)
 {
 nothrow @nogc:
 
-    alias Self = BasicStringHashMap!(V, ValueOps, OwnsValues);
+    alias Self = BasicStringHashMap!(V, ValueOps, owns_values);
     alias Storage = StringHashMapUnmanaged!(V, ValueOps);
-    private enum ownsValues = OwnsValues;
-    static if (!ownsValues)
+    static if (!owns_values)
         alias Released = ReleasedStorage!Storage;
 
-private:
-        Allocator* allocator_;
-    Storage storage_;
+    Allocator* allocator;
+    Storage storage;
 
-    version (XTB_Checked)
+    invariant
     {
-        invariant
-        {
-            require(&this !is null, "StringHashMap pointer is null");
-        }
+        require(&this !is null, "StringHashMap pointer is null");
     }
 
-public:
     @disable this(this);
     @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @trusted
     {
-        requireValidStringHashMapAllocator(allocator);
+        require_valid_string_hash_map_allocator(allocator);
         Self result;
-        result.allocator_ = allocator;
+        result.allocator = allocator;
         return result;
     }
 
     static Self seeded(Allocator* allocator, HashSeed seed) @trusted
     {
-        requireValidStringHashMapAllocator(allocator);
+        require_valid_string_hash_map_allocator(allocator);
         Self result;
-        result.allocator_ = allocator;
+        result.allocator = allocator;
         Storage storage = Storage.seeded(seed);
-        move_emplace(storage, result.storage_);
+        move_emplace(storage, result.storage);
         return move(result);
     }
 
-    static bool tryWithCapacity(
+    static bool try_with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         scope Self* output,
     ) @trusted
     {
-        version (XTB_Checked)
-        {
-            require(output !is null, "StringHashMap output pointer is null");
-            require(output.allocator_ is null,
-                "StringHashMap output is already initialized");
-        }
+        require(output !is null, "StringHashMap output pointer is null");
+        require(
+            output.allocator is null,
+            "StringHashMap output is already initialized",
+        );
         Storage storage;
-        if (!Storage.tryWithCapacity(allocator, requested, &storage))
+        if (!Storage.try_with_capacity(allocator, requested, &storage))
             return false;
-        output.allocator_ = allocator;
-        move_emplace(storage, output.storage_);
+        output.allocator = allocator;
+        move_emplace(storage, output.storage);
         return true;
     }
 
-    static Self withCapacity(
+    static Self with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
     ) @trusted
     {
         Self result;
-        if (!tryWithCapacity(allocator, requested, &result))
+        if (!Self.try_with_capacity(allocator, requested, &result))
             panic("StringHashMap allocation failed");
         return move(result);
     }
 
-    static Self withCapacity(
+    static Self with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         HashSeed seed,
     ) @trusted
     {
         Self result;
-        result.allocator_ = allocator;
-        Storage storage = Storage.withCapacity(
+        result.allocator = allocator;
+        Storage storage = Storage.with_capacity(
             allocator,
             requested,
             seed,
         );
-        move_emplace(storage, result.storage_);
+        move_emplace(storage, result.storage);
         return move(result);
     }
 
-    static if (!ownsValues)
+    static if (!owns_values)
     {
         static Self adopt(scope Released* released) @trusted
         {
-            version (XTB_Checked)
-                require(released !is null,
-                    "released StringHashMap storage pointer is null");
+            require(
+                released !is null,
+                "released StringHashMap storage pointer is null",
+            );
             Allocator* allocator;
             Storage storage = released.extract(&allocator);
             Self result;
-            result.allocator_ = allocator;
-            move_emplace(storage, result.storage_);
+            result.allocator = allocator;
+            move_emplace(storage, result.storage);
             return move(result);
         }
     }
 
     void deinit() @trusted
     {
-        if (allocator_ is null)
+        if (this.allocator is null)
             return;
-        storage_.deinit(allocator_);
-        allocator_ = null;
+        this.storage.deinit(this.allocator);
+        this.allocator = null;
     }
 
-    void resetAndRelease() @trusted
+    void reset_and_release() @trusted
     {
-        storage_.resetAndRelease(allocator_);
+        this.storage.reset_and_release(this.allocator);
     }
 
-    static if (!ownsValues)
+    static if (!owns_values)
     {
         Released release() @trusted
         {
-            auto result = Released.from_owned_parts(allocator_, &storage_);
-            allocator_ = null;
+            auto result = Released.from_owned_parts(this.allocator, &this.storage);
+            this.allocator = null;
             return move(result);
         }
     }
 
-    size_t length() const pure @trusted
+    usize length() const pure @trusted
     {
-        return storage_.length;
+        return this.storage.length;
     }
 
-    size_t capacity() const pure @trusted
+    usize capacity() const pure @trusted
     {
-        return storage_.capacity;
+        return this.storage.capacity;
     }
 
     bool empty() const pure @trusted
     {
-        return storage_.empty;
+        return this.storage.empty;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
@@ -837,270 +814,269 @@ public:
 
     StringHashMapCursor!V cursor() return @trusted
     {
-        return storage_.cursor;
+        return this.storage.cursor;
     }
 
     ConstStringHashMapCursor!V cursor() const return @trusted
     {
-        return storage_.cursor;
+        return this.storage.cursor;
     }
 
-    StringHashMapPointerRange!V pointerItems() return @trusted
+    StringHashMapPointerRange!V pointer_items() return @trusted
     {
-        return storage_.pointerItems;
+        return this.storage.pointer_items;
     }
 
-    ConstStringHashMapPointerRange!V pointerItems() const return @trusted
+    ConstStringHashMapPointerRange!V pointer_items() const return @trusted
     {
-        return storage_.pointerItems;
+        return this.storage.pointer_items;
     }
 
-    AddStatus tryAdd(scope String key, scope V* value) @system
+    AddStatus try_add(scope String key, scope V* value) @system
     {
-        return storage_.tryAdd(allocator_, key, value);
+        return this.storage.try_add(this.allocator, key, value);
     }
 
     bool add(scope String key, scope V* value) @system
     {
-        return storage_.add(allocator_, key, value);
+        return this.storage.add(this.allocator, key, value);
     }
 
-    SetStatus trySet(scope String key, scope V* value) @system
+    SetStatus try_set(scope String key, scope V* value) @system
     {
-        return storage_.trySet(allocator_, key, value);
+        return this.storage.try_set(this.allocator, key, value);
     }
 
     bool set(scope String key, scope V* value) @system
     {
-        return storage_.set(allocator_, key, value);
+        return this.storage.set(this.allocator, key, value);
     }
 
-    static if (isSimpleStringHashValue!V)
+    static if (is_simple_string_hash_value!V)
     {
-        AddStatus tryAdd(scope String key, V value) @trusted
+        AddStatus try_add(scope String key, V value) @trusted
         {
-            return storage_.tryAdd(allocator_, key, value);
+            return this.storage.try_add(this.allocator, key, value);
         }
 
         bool add(scope String key, V value) @trusted
         {
-            return storage_.add(allocator_, key, value);
+            return this.storage.add(this.allocator, key, value);
         }
 
-        SetStatus trySet(scope String key, V value) @trusted
+        SetStatus try_set(scope String key, V value) @trusted
         {
-            return storage_.trySet(allocator_, key, value);
+            return this.storage.try_set(this.allocator, key, value);
         }
 
         bool set(scope String key, V value) @trusted
         {
-            return storage_.set(allocator_, key, value);
+            return this.storage.set(this.allocator, key, value);
         }
     }
 
     V* find(scope String key) return @trusted
     {
-        return storage_.find(key);
+        return this.storage.find(key);
     }
 
     const(V)* find(scope String key) const return @trusted
     {
-        return storage_.find(key);
+        return this.storage.find(key);
     }
 
     bool contains(scope String key) const @trusted
     {
-        return storage_.contains(key);
+        return this.storage.contains(key);
     }
 
     bool remove(scope String key) @trusted
     {
-        return storage_.remove(allocator_, key);
+        return this.storage.remove(this.allocator, key);
     }
 
     void clear() @trusted
     {
-        storage_.clear(allocator_);
+        this.storage.clear(this.allocator);
     }
 
-    bool tryReserve(size_t requested) @trusted
+    bool try_reserve(usize requested) @trusted
     {
-        return storage_.tryReserve(allocator_, requested);
+        return this.storage.try_reserve(this.allocator, requested);
     }
 
-    void reserve(size_t requested) @trusted
+    void reserve(usize requested) @trusted
     {
-        storage_.reserve(allocator_, requested);
+        this.storage.reserve(this.allocator, requested);
     }
 
-    bool tryShrinkToFit() @trusted
+    bool try_shrink_to_fit() @trusted
     {
-        return storage_.tryShrinkToFit(allocator_);
+        return this.storage.try_shrink_to_fit(this.allocator);
     }
 
-    void shrinkToFit() @trusted
+    void shrink_to_fit() @trusted
     {
-        storage_.shrinkToFit(allocator_);
+        this.storage.shrink_to_fit(this.allocator);
     }
 
-    AddStatus tryAddMove(scope OwnedString* key, scope V* value) @trusted
+    AddStatus try_add_move(scope OwnedString* key, scope V* value) @trusted
     {
-        return storage_.tryAddMove(allocator_, key, value);
+        return this.storage.try_add_move(this.allocator, key, value);
     }
 
-    bool addMove(scope OwnedString* key, scope V* value) @trusted
+    bool add_move(scope OwnedString* key, scope V* value) @trusted
     {
-        const status = tryAddMove(key, value);
+        const status = this.try_add_move(key, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == AddStatus.inserted;
     }
 
-    SetStatus trySetMove(scope OwnedString* key, scope V* value) @trusted
+    SetStatus try_set_move(scope OwnedString* key, scope V* value) @trusted
     {
-        return storage_.trySetMove(allocator_, key, value);
+        return this.storage.try_set_move(this.allocator, key, value);
     }
 
-    bool setMove(scope OwnedString* key, scope V* value) @trusted
+    bool set_move(scope OwnedString* key, scope V* value) @trusted
     {
-        const status = trySetMove(key, value);
+        const status = this.try_set_move(key, value);
         if (status == SetStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == SetStatus.inserted;
     }
 
-    AddStatus tryAddMove(scope StringBuf* key, scope V* value) @trusted
+    AddStatus try_add_move(scope StringBuf* key, scope V* value) @trusted
     {
-        return storage_.tryAddMove(allocator_, key, value);
+        return this.storage.try_add_move(this.allocator, key, value);
     }
 
-    bool addMove(scope StringBuf* key, scope V* value) @trusted
+    bool add_move(scope StringBuf* key, scope V* value) @trusted
     {
-        const status = tryAddMove(key, value);
+        const status = this.try_add_move(key, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == AddStatus.inserted;
     }
 
-    SetStatus trySetMove(scope StringBuf* key, scope V* value) @trusted
+    SetStatus try_set_move(scope StringBuf* key, scope V* value) @trusted
     {
-        return storage_.trySetMove(allocator_, key, value);
+        return this.storage.try_set_move(this.allocator, key, value);
     }
 
-    bool setMove(scope StringBuf* key, scope V* value) @trusted
+    bool set_move(scope StringBuf* key, scope V* value) @trusted
     {
-        const status = trySetMove(key, value);
+        const status = this.try_set_move(key, value);
         if (status == SetStatus.out_of_memory)
             panic("StringHashMap allocation failed");
         return status == SetStatus.inserted;
     }
 
-    int opApply(
-        scope int delegate(ref const(String), ref V) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String), ref V) nothrow @nogc callback,
     )
     {
-        return storage_.opApply(callback);
+        return this.storage.opApply(callback);
     }
 
-    int opApply(
-        scope int delegate(ref const(String), ref const(V)) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String), ref const(V)) nothrow @nogc callback,
     ) const
     {
-        return storage_.opApply(callback);
+        return this.storage.opApply(callback);
     }
 
-    Allocator* allocator() return pure @safe
+    static if (!owns_values)
     {
-        return allocator_;
-    }
-
-package(xtb.containers):
-    static if (!ownsValues)
-    {
-        static Self adoptUnmanaged(
+        package(xtb.containers) static Self adopt_unmanaged(
             Allocator* allocator,
             scope Storage* storage,
         ) @system
         {
-            requireValidStringHashMapAllocator(allocator);
-            version (XTB_Checked)
-                require(storage !is null,
-                    "StringHashMapUnmanaged pointer is null");
+            require_valid_string_hash_map_allocator(allocator);
+            require(
+                storage !is null,
+                "StringHashMapUnmanaged pointer is null",
+            );
             Self result;
-            result.allocator_ = allocator;
-            move_emplace(*storage, result.storage_);
+            result.allocator = allocator;
+            move_emplace(*storage, result.storage);
             return move(result);
         }
     }
 }
 
-private bool stringHashStorageOverlaps(A, B)(
+private bool string_hash_storage_overlaps(A, B)(
     scope const(A)* left,
     scope const(B)* right,
 ) pure @system
 {
-    const leftAddress = cast(size_t) left;
-    const rightAddress = cast(size_t) right;
-    if (leftAddress <= rightAddress)
-        return rightAddress - leftAddress < A.sizeof;
-    return leftAddress - rightAddress < B.sizeof;
+    const left_address = cast(usize) left;
+    const right_address = cast(usize) right;
+    if (left_address <= right_address)
+        return right_address - left_address < A.sizeof;
+    return left_address - right_address < B.sizeof;
 }
 
-private void requireValidStringHashMapAllocator(Allocator* allocator) @trusted
+private void require_valid_string_hash_map_allocator(Allocator* allocator) @trusted
 {
-    version (XTB_Checked)
-        require(allocator !is null && *allocator !is null,
-            "StringHashMap requires a valid allocator");
+    require(
+        allocator !is null && *allocator !is null,
+        "StringHashMap requires a valid allocator",
+    );
 }
 
 /// Explicit owner for string keys with shallow value-discard semantics.
 /// Owns exact immutable key allocations and backing storage, but never
 /// deinitializes values merely because an entry is discarded.
 alias StringHashMap(V) = BasicStringHashMap!(
-    V, DefaultHashMapElementOps!V, false);
+    V,
+    DefaultHashMapElementOps!V,
+    false,
+);
 
 /// Explicit owner for string keys and values. Values are deinitialized when
 /// entries are discarded; rehash and transfer operations only relocate them.
 alias OwnedStringHashMap(V) = BasicStringHashMap!(
-    V, OwnedStringHashMapValueOps!V, true);
+    V,
+    OwnedStringHashMapValueOps!V,
+    true,
+);
 
 struct StringHashMapCursor(V)
 {
 nothrow @nogc:
 
-private:
-    HashMapCursor!(OwnedStringUnmanaged, V) cursor_;
+    HashMapCursor!(OwnedStringUnmanaged, V) cursor;
 
-    static StringHashMapCursor create(
+    private static StringHashMapCursor create(
         HashMapCursor!(OwnedStringUnmanaged, V) cursor,
     )
     {
         StringHashMapCursor result;
-        result.cursor_ = cursor;
+        result.cursor = cursor;
         return result;
     }
 
-public:
     bool valid() const pure @safe
     {
-        return cursor_.valid;
+        return this.cursor.valid;
     }
 
     const(String)* key() const return @trusted
     {
-        version (XTB_Checked)
-            require(valid, "invalid StringHashMap cursor");
-        return cursor_.key.view_pointer;
+        require(this.valid, "invalid StringHashMap cursor");
+        return this.cursor.key.view_pointer;
     }
 
     V* value() return
     {
-        return cursor_.value;
+        return this.cursor.value;
     }
 
     void advance()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
@@ -1108,39 +1084,36 @@ struct ConstStringHashMapCursor(V)
 {
 nothrow @nogc:
 
-private:
-    ConstHashMapCursor!(OwnedStringUnmanaged, V) cursor_;
+    ConstHashMapCursor!(OwnedStringUnmanaged, V) cursor;
 
-    static ConstStringHashMapCursor create(
+    private static ConstStringHashMapCursor create(
         ConstHashMapCursor!(OwnedStringUnmanaged, V) cursor,
     )
     {
         ConstStringHashMapCursor result;
-        result.cursor_ = cursor;
+        result.cursor = cursor;
         return result;
     }
 
-public:
     bool valid() const pure @safe
     {
-        return cursor_.valid;
+        return this.cursor.valid;
     }
 
     const(String)* key() const return @trusted
     {
-        version (XTB_Checked)
-            require(valid, "invalid StringHashMap cursor");
-        return cursor_.key.view_pointer;
+        require(this.valid, "invalid StringHashMap cursor");
+        return this.cursor.key.view_pointer;
     }
 
     const(V)* value() const return
     {
-        return cursor_.value;
+        return this.cursor.value;
     }
 
     void advance()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
@@ -1158,86 +1131,89 @@ struct ConstStringHashMapPointerItem(V)
 
 struct StringHashMapPointerRange(V)
 {
-private:
-    StringHashMapCursor!V cursor_;
+    StringHashMapCursor!V cursor;
 
-public:
     bool empty() const pure @safe
     {
-        return !cursor_.valid;
+        return !this.cursor.valid;
     }
 
     StringHashMapPointerItem!V front() return
     {
-        return StringHashMapPointerItem!V(cursor_.key, cursor_.value);
+        return StringHashMapPointerItem!V(this.cursor.key, this.cursor.value);
     }
 
     void popFront()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
 struct ConstStringHashMapPointerRange(V)
 {
-private:
-    ConstStringHashMapCursor!V cursor_;
+    ConstStringHashMapCursor!V cursor;
 
-public:
     bool empty() const pure @safe
     {
-        return !cursor_.valid;
+        return !this.cursor.valid;
     }
 
     ConstStringHashMapPointerItem!V front() const return
     {
-        return ConstStringHashMapPointerItem!V(cursor_.key, cursor_.value);
+        return ConstStringHashMapPointerItem!V(this.cursor.key, this.cursor.value);
     }
 
     void popFront()
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
+}
+
+// Everything below here is test-only.
+version (unittest)
+{
+    import xtb.allocators.instrumented;
+    import xtb.allocators.malloc;
 }
 
 unittest
 {
-    import xtb.allocators.malloc : malloc_allocator;
-    import xtb.string : empty;
 
-    static assert(is(StringViewHashMap!int == HashMap!(String, int)));
-    static assert(!__traits(isCopyable, StringHashMap!int));
+    static assert(is(StringViewHashMap!i32 == HashMap!(String, i32)));
+    static assert(!__traits(isCopyable, StringHashMap!i32));
     static assert(!__traits(compiles,
-            (ref StringHashMapUnmanaged!int left, ref StringHashMapUnmanaged!int right) {
+            (ref StringHashMapUnmanaged!i32 left, ref StringHashMapUnmanaged!i32 right) {
             left = move(right);
         }));
     static assert(__traits(compiles,
-            (scope StringHashMap!int* value) @safe { Allocator* allocator = value.allocator; }));
+            (scope StringHashMap!i32* value) @safe { Allocator* allocator = value.allocator; }));
     static assert(!__traits(compiles,
-            (scope const StringHashMap!int* value) @safe { Allocator* allocator = value.allocator; }));
+            (scope const StringHashMap!i32* value) @safe {
+                Allocator* allocator = value.allocator;
+            }));
 
-    StringHashMap!int values = StringHashMap!int.create(malloc_allocator());
+    StringHashMap!i32 values = StringHashMap!i32.create(malloc_allocator());
     StringBuf source = StringBuf.from_string(malloc_allocator(), "alpha");
     source.shrink_to_fit();
-    const sourcePointer = source.view.ptr;
-    int first = 1;
-    assert(values.addMove(&source, &first));
-    assert(source.allocator is null &&
-            source.empty);
+    const source_pointer = source.view.ptr;
+    i32 first = 1;
+    assert(values.add_move(&source, &first));
+    assert(source.allocator is null && source.empty);
     assert(values.find("alpha") !is null && *values.find("alpha") == 1);
 
     auto cursor = values.cursor();
     assert(cursor.valid && *cursor.key == "alpha");
-    assert((*cursor.key).ptr is sourcePointer);
+    assert((*cursor.key).ptr is source_pointer);
 
     StringBuf duplicate = StringBuf.from_string(malloc_allocator(), "alpha");
-    int duplicateValue = 2;
-    assert(values.tryAddMove(&duplicate, &duplicateValue) ==
-            AddStatus.already_present);
-    assert(duplicate.view == "alpha" && duplicateValue == 2);
+    i32 duplicate_value = 2;
+    assert(
+        values.try_add_move(&duplicate, &duplicate_value) == AddStatus.already_present,
+    );
+    assert(duplicate.view == "alpha" && duplicate_value == 2);
 
-    String mutableSource = "beta";
-    assert(values.add(mutableSource, 3));
+    String mutable_source = "beta";
+    assert(values.add(mutable_source, 3));
     assert(values.contains("beta"));
     assert(values.remove("alpha"));
     assert(!values.contains("alpha"));
@@ -1247,198 +1223,194 @@ unittest
 
 unittest
 {
-    import xtb.allocators.malloc : malloc_allocator;
 
     OwnedStringHashMap!StringBuf values =
         OwnedStringHashMap!StringBuf.create(malloc_allocator());
     StringBuf key = StringBuf.from_string(malloc_allocator(), "self");
     StringBuf payload = StringBuf.from_string(malloc_allocator(), "payload");
-    assert(values.addMove(&key, &payload));
+    assert(values.add_move(&key, &payload));
 
     StringBuf* stored = values.find("self");
     assert(stored !is null && stored.view == "payload");
-    assert(values.tryAdd("self", stored) == AddStatus.already_present);
-    assert(values.trySet("self", stored) == SetStatus.replaced);
-    StringBuf replacementKey =
+    assert(values.try_add("self", stored) == AddStatus.already_present);
+    assert(values.try_set("self", stored) == SetStatus.replaced);
+    StringBuf replacement_key =
         StringBuf.from_string(malloc_allocator(), "self");
-    assert(values.trySetMove(&replacementKey, stored) == SetStatus.replaced);
+    assert(values.try_set_move(&replacement_key, stored) == SetStatus.replaced);
     assert(stored.view == "payload");
-    assert(replacementKey.view == "self" && replacementKey.allocator !is null);
+    assert(replacement_key.view == "self" && replacement_key.allocator !is null);
 
-    replacementKey.deinit();
+    replacement_key.deinit();
     values.deinit();
 }
 
 unittest
 {
-    import xtb.allocators.malloc : malloc_allocator;
 
     Allocator* allocator = malloc_allocator();
-    StringHashMapUnmanaged!int values;
+    StringHashMapUnmanaged!i32 values;
     StringBuf source = StringBuf.from_string(allocator, "unmanaged");
     source.shrink_to_fit();
-    const sourcePointer = source.view.ptr;
-    int value = 42;
+    const source_pointer = source.view.ptr;
+    i32 value = 42;
 
-    assert(values.tryAddMove(allocator, &source, &value) ==
-            AddStatus.inserted);
+    assert(values.try_add_move(allocator, &source, &value) == AddStatus.inserted);
     assert(source.allocator is null);
-    StringHashMapUnmanaged!int* valuesPointer = &values;
-    assert(valuesPointer.length == 1);
-    assert(valuesPointer.contains("unmanaged"));
-    assert(valuesPointer.find("unmanaged") !is null &&
-            *valuesPointer.find("unmanaged") == 42);
-    assert((*valuesPointer.cursor.key).ptr is sourcePointer);
+    StringHashMapUnmanaged!i32* values_pointer = &values;
+    assert(values_pointer.length == 1);
+    assert(values_pointer.contains("unmanaged"));
+    assert(values_pointer.find("unmanaged") !is null &&
+            *values_pointer.find("unmanaged") == 42);
+    assert((*values_pointer.cursor.key).ptr is source_pointer);
 
-    const(StringHashMapUnmanaged!int)* constValuesPointer = &values;
-    assert(constValuesPointer.length == 1);
-    assert(constValuesPointer.contains("unmanaged"));
+    const(StringHashMapUnmanaged!i32)* const_values_pointer = &values;
+    assert(const_values_pointer.length == 1);
+    assert(const_values_pointer.contains("unmanaged"));
 
-    valuesPointer.deinit(allocator);
+    values_pointer.deinit(allocator);
 }
 
 unittest
 {
-    import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : malloc_allocator;
 
-    AllocationRecord[128] mapRecords;
-    AllocationRecord[32] foreignRecords;
-    InstrumentedAllocator mapAllocator = InstrumentedAllocator.create(
+    AllocationRecord[128] map_records;
+    AllocationRecord[32] foreign_records;
+    InstrumentedAllocator map_allocator = InstrumentedAllocator.create(
         malloc_allocator(),
-        mapRecords[],
+        map_records[],
     );
-    InstrumentedAllocator foreignAllocator = InstrumentedAllocator.create(
+    InstrumentedAllocator foreign_allocator = InstrumentedAllocator.create(
         malloc_allocator(),
-        foreignRecords[],
+        foreign_records[],
     );
 
-    StringHashMap!int values = StringHashMap!int.create(mapAllocator.allocator);
-    StringBuf exact = StringBuf.from_string(mapAllocator.allocator, "stable");
-    const(char)* exactPointer;
+    StringHashMap!i32 values = StringHashMap!i32.create(map_allocator.allocator);
+    StringBuf exact = StringBuf.from_string(map_allocator.allocator, "stable");
+    const(char)* exact_pointer;
     {
         exact.shrink_to_fit();
-        exactPointer = exact.view.ptr;
+        exact_pointer = exact.view.ptr;
     }
-    int first = 1;
-    assert(values.tryAddMove(&exact, &first) == AddStatus.inserted);
+    i32 first = 1;
+    assert(values.try_add_move(&exact, &first) == AddStatus.inserted);
     {
-        import xtb.string : empty;
 
         assert(exact.allocator is null && exact.empty);
     }
-    assert((*values.cursor.key).ptr is exactPointer);
+    assert((*values.cursor.key).ptr is exact_pointer);
 
     String[12] additional = [
         "a", "b", "c", "d", "e", "f",
         "g", "h", "i", "j", "k", "l",
     ];
     foreach (index, key; additional)
-        assert(values.add(key, cast(int) index));
+        assert(values.add(key, cast(i32) index));
     const stable = values.find("stable");
     assert(stable !is null && *stable == 1);
     auto current = values.cursor();
-    const(char)* stablePointer;
+    const(char)* stable_pointer;
     while (current.valid)
     {
         if (*current.key == "stable")
-            stablePointer = current.key.ptr;
+            stable_pointer = current.key.ptr;
         current.advance();
     }
-    assert(stablePointer is exactPointer);
+    assert(stable_pointer is exact_pointer);
 
     OwnedString foreign = OwnedString.from_string(
-        foreignAllocator.allocator,
+        foreign_allocator.allocator,
         "foreign",
     );
-    int foreignValue = 10;
-    assert(values.tryAddMove(&foreign, &foreignValue) == AddStatus.inserted);
+    i32 foreign_value = 10;
+    assert(values.try_add_move(&foreign, &foreign_value) == AddStatus.inserted);
     {
         assert(foreign.allocator is null && foreign.empty);
     }
-    assert(foreignAllocator.clean);
+    assert(foreign_allocator.clean);
 
-    auto foreignCursor = values.cursor();
-    const(char)* foreignStoredPointer;
-    while (foreignCursor.valid)
+    auto foreign_cursor = values.cursor();
+    const(char)* foreign_stored_pointer;
+    while (foreign_cursor.valid)
     {
-        if (*foreignCursor.key == "foreign")
-            foreignStoredPointer = foreignCursor.key.ptr;
-        foreignCursor.advance();
+        if (*foreign_cursor.key == "foreign")
+            foreign_stored_pointer = foreign_cursor.key.ptr;
+        foreign_cursor.advance();
     }
-    assert(foreignStoredPointer !is null);
+    assert(foreign_stored_pointer !is null);
 
     OwnedString replacement = OwnedString.from_string(
-        foreignAllocator.allocator,
+        foreign_allocator.allocator,
         "foreign",
     );
-    int replacementValue = 20;
-    assert(values.trySetMove(&replacement, &replacementValue) ==
-            SetStatus.replaced);
+    i32 replacement_value = 20;
+    assert(values.try_set_move(&replacement, &replacement_value) == SetStatus.replaced);
     assert(replacement.view == "foreign" && replacement.allocator !is null);
-    assert(!foreignAllocator.clean);
+    assert(!foreign_allocator.clean);
     replacement.deinit();
-    assert(foreignAllocator.clean);
+    assert(foreign_allocator.clean);
     assert(*values.find("foreign") == 20);
-    foreignCursor = values.cursor();
-    while (foreignCursor.valid)
+    foreign_cursor = values.cursor();
+    while (foreign_cursor.valid)
     {
-        if (*foreignCursor.key == "foreign")
-            assert(foreignCursor.key.ptr is foreignStoredPointer);
-        foreignCursor.advance();
+        if (*foreign_cursor.key == "foreign")
+            assert(foreign_cursor.key.ptr is foreign_stored_pointer);
+        foreign_cursor.advance();
     }
 
     OwnedString duplicate = OwnedString.from_string(
-        foreignAllocator.allocator,
+        foreign_allocator.allocator,
         "foreign",
     );
-    int duplicateValue = 30;
-    assert(values.tryAddMove(&duplicate, &duplicateValue) ==
-            AddStatus.already_present);
+    i32 duplicate_value = 30;
+    assert(
+        values.try_add_move(&duplicate, &duplicate_value) == AddStatus.already_present,
+    );
     {
-        assert(duplicate.view == "foreign" && duplicateValue == 30);
+        assert(duplicate.view == "foreign" && duplicate_value == 30);
         duplicate.deinit();
     }
-    assert(foreignAllocator.clean);
+    assert(foreign_allocator.clean);
 
     assert(values.remove("stable"));
     assert(values.find("stable") is null);
     values.deinit();
-    assert(mapAllocator.clean);
-    assert(mapAllocator.stats.invalid_calls == 0);
-    assert(foreignAllocator.clean);
-    assert(foreignAllocator.stats.invalid_calls == 0);
+    assert(map_allocator.clean);
+    assert(map_allocator.stats.invalid_calls == 0);
+    assert(foreign_allocator.clean);
+    assert(foreign_allocator.stats.invalid_calls == 0);
 
-    AllocationRecord[16] failedMapRecords;
-    AllocationRecord[8] retainedRecords;
-    InstrumentedAllocator failedMapAllocator = InstrumentedAllocator.create(
+    AllocationRecord[16] failed_map_records;
+    AllocationRecord[8] retained_records;
+    InstrumentedAllocator failed_map_allocator = InstrumentedAllocator.create(
         malloc_allocator(),
-        failedMapRecords[],
+        failed_map_records[],
     );
-    InstrumentedAllocator retainedAllocator = InstrumentedAllocator.create(
+    InstrumentedAllocator retained_allocator = InstrumentedAllocator.create(
         malloc_allocator(),
-        retainedRecords[],
+        retained_records[],
     );
-    StringHashMap!int failing = StringHashMap!int.create(
-        failedMapAllocator.allocator);
+    StringHashMap!i32 failing = StringHashMap!i32.create(
+        failed_map_allocator.allocator);
     OwnedString retained = OwnedString.from_string(
-        retainedAllocator.allocator,
+        retained_allocator.allocator,
         "retained",
     );
-    int retainedValue = 7;
-    failedMapAllocator.fail_after(0);
-    assert(failing.tryAddMove(&retained, &retainedValue) ==
-            AddStatus.out_of_memory);
+    i32 retained_value = 7;
+    failed_map_allocator.fail_after(0);
+    assert(
+        failing.try_add_move(&retained, &retained_value) == AddStatus.out_of_memory,
+    );
     {
-        assert(retained.view == "retained" && retainedValue == 7);
+        assert(retained.view == "retained" && retained_value == 7);
     }
-    assert(failing.empty && failedMapAllocator.clean);
+    assert(failing.empty && failed_map_allocator.clean);
 
-    failedMapAllocator.fail_after(2);
-    assert(failing.tryAddMove(&retained, &retainedValue) ==
-            AddStatus.out_of_memory);
+    failed_map_allocator.fail_after(2);
+    assert(
+        failing.try_add_move(&retained, &retained_value) == AddStatus.out_of_memory,
+    );
     {
-        assert(retained.view == "retained" && retainedValue == 7);
+        assert(retained.view == "retained" && retained_value == 7);
     }
     assert(failing.empty);
     assert(failing.capacity != 0);
@@ -1446,8 +1418,8 @@ unittest
     {
         retained.deinit();
     }
-    assert(failedMapAllocator.clean);
-    assert(failedMapAllocator.stats.invalid_calls == 0);
-    assert(retainedAllocator.clean);
-    assert(retainedAllocator.stats.invalid_calls == 0);
+    assert(failed_map_allocator.clean);
+    assert(failed_map_allocator.stats.invalid_calls == 0);
+    assert(retained_allocator.clean);
+    assert(retained_allocator.stats.invalid_calls == 0);
 }

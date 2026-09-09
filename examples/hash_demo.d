@@ -45,7 +45,7 @@ extern (C) int main() nothrow @nogc
     owned.set("literal", 1);
     StringBuf movedKey = StringBuf.from_string(malloc_allocator(), "moved");
     int movedValue = 2;
-    assert(owned.addMove(&movedKey, &movedValue));
+    assert(owned.add_move(&movedKey, &movedValue));
     assert(movedKey.allocator is null && movedKey.empty);
     assert(*owned.find("moved") == 2);
 

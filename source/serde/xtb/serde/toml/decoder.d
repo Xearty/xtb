@@ -776,7 +776,7 @@ private void parseStringHashMapDocument(Map)(
             decodeValue(parser, &value, 0);
         if (parser.error.ok)
         {
-            final switch (values.tryAddMove(&ownedKey, &value))
+            final switch (values.try_add_move(&ownedKey, &value))
             {
                 case AddStatus.inserted:
                     break;
@@ -1870,7 +1870,7 @@ private void decodeStringHashMapInline(Map)(
             decodeValue(parser, &value, depth + 1);
         if (parser.error.ok)
         {
-            final switch (values.tryAddMove(&ownedKey, &value))
+            final switch (values.try_add_move(&ownedKey, &value))
             {
                 case AddStatus.inserted:
                     break;

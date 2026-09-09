@@ -1095,19 +1095,19 @@ private void testOwnedStringHashMapIntegration(InstrumentedAllocator* tracked)
     foreach (text; integrationKeys)
     {
         OwnedString value = OwnedString.from_string(tracked.allocator, text);
-        assert(map.tryAdd(text, &value) == AddStatus.inserted);
+        assert(map.try_add(text, &value) == AddStatus.inserted);
         assert(value.allocator is null && value.empty);
     }
     assert(map.length == integrationKeys.length);
 
     OwnedString replacement = OwnedString.from_string(tracked.allocator, "replacement");
-    assert(map.trySet("key-03", &replacement) == SetStatus.replaced);
+    assert(map.try_set("key-03", &replacement) == SetStatus.replaced);
     assert(replacement.allocator is null && replacement.empty);
     OwnedString* stored = map.find("key-03");
     assert(stored !is null && stored.view == "replacement");
 
     OwnedString duplicate = OwnedString.from_string(tracked.allocator, "duplicate");
-    assert(map.tryAdd("key-04", &duplicate) == AddStatus.already_present);
+    assert(map.try_add("key-04", &duplicate) == AddStatus.already_present);
     assert(duplicate.view == "duplicate");
     deinit(duplicate);
 
@@ -1123,7 +1123,7 @@ private void testOwnedStringHashMapIntegration(InstrumentedAllocator* tracked)
     OwnedString retained = OwnedString.from_string(tracked.allocator, "oom-value");
     const failedBefore = tracked.stats.failed_calls;
     tracked.fail_after(0);
-    assert(failing.tryAdd("oom-key", &retained) == AddStatus.out_of_memory);
+    assert(failing.try_add("oom-key", &retained) == AddStatus.out_of_memory);
     assert(tracked.stats.failed_calls == failedBefore + 1);
     assert(retained.view == "oom-value");
     assert(failing.empty);
@@ -1155,14 +1155,14 @@ private void testNestedOwnedStringHashMapIntegration(InstrumentedAllocator* trac
     foreach (text; integrationKeys[0 .. 16])
     {
         Value value = makeStringArray(tracked.allocator, text);
-        assert(map.tryAdd(text, &value) == AddStatus.inserted);
+        assert(map.try_add(text, &value) == AddStatus.inserted);
         assert(value.empty);
         deinit(value);
     }
     assert(map.length == 16);
 
     Value replacement = makeStringArray(tracked.allocator, "replacement-array");
-    assert(map.trySet("key-03", &replacement) == SetStatus.replaced);
+    assert(map.try_set("key-03", &replacement) == SetStatus.replaced);
     assert(replacement.empty);
     Value* stored = map.find("key-03");
     assert(stored !is null && stored.length == 2);
@@ -1170,7 +1170,7 @@ private void testNestedOwnedStringHashMapIntegration(InstrumentedAllocator* trac
     deinit(replacement);
 
     Value duplicate = makeStringArray(tracked.allocator, "duplicate-array");
-    assert(map.tryAdd("key-04", &duplicate) == AddStatus.already_present);
+    assert(map.try_add("key-04", &duplicate) == AddStatus.already_present);
     assert(duplicate.length == 2 && duplicate[0] == "duplicate-array");
     deinit(duplicate);
 
@@ -1185,7 +1185,7 @@ private void testNestedOwnedStringHashMapIntegration(InstrumentedAllocator* trac
     Value retained = makeStringArray(tracked.allocator, "oom-array");
     const failedBefore = tracked.stats.failed_calls;
     tracked.fail_after(0);
-    assert(failing.tryAdd("oom-nested-key", &retained) == AddStatus.out_of_memory);
+    assert(failing.try_add("oom-nested-key", &retained) == AddStatus.out_of_memory);
     assert(tracked.stats.failed_calls == failedBefore + 1);
     assert(retained.length == 2 && retained[0] == "oom-array");
     assert(failing.empty);

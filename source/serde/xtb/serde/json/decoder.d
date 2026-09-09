@@ -1368,7 +1368,7 @@ private void decodeStringHashMap(Map)(
         decodeValue(parser, &value, depth + 1);
         if (!parser.error.ok)
             return;
-        final switch (values.tryAddMove(&key, &value))
+        final switch (values.try_add_move(&key, &value))
         {
             case AddStatus.inserted:
                 break;

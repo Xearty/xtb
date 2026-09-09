@@ -132,7 +132,7 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
         static if (isHashMap!U || isOwnedHashMap!U)
             auto items = value.pointer_items();
         else
-            auto items = value.pointerItems();
+            auto items = value.pointer_items();
         while (!items.empty)
         {
             const expectedValue = expected.find(*items.front.key);
@@ -466,7 +466,7 @@ private void encodeHashMap(T)(
     static if (isHashMap!U || isOwnedHashMap!U)
         auto items = value.pointer_items();
     else
-        auto items = value.pointerItems();
+        auto items = value.pointer_items();
     size_t index;
     while (!items.empty)
     {

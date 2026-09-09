@@ -71,7 +71,7 @@ public:
                 "StringHashSetUnmanaged output is not empty");
         }
         StringHashMapUnmanaged!StringSetMarker map;
-        if (!typeof(map).tryWithCapacity(allocator, requested, &map))
+        if (!typeof(map).try_with_capacity(allocator, requested, &map))
             return false;
         move_emplace(map, output.map_);
         return true;
@@ -106,7 +106,7 @@ public:
 
     void resetAndRelease(Allocator* allocator) @trusted
     {
-        map_.resetAndRelease(allocator);
+        map_.reset_and_release(allocator);
     }
 
     size_t length() const pure @trusted
@@ -151,7 +151,7 @@ public:
 
     AddStatus tryAdd(Allocator* allocator, scope String value) @trusted
     {
-        return map_.tryAdd(allocator, value, StringSetMarker.init);
+        return map_.try_add(allocator, value, StringSetMarker.init);
     }
 
     bool add(Allocator* allocator, scope String value) @trusted
@@ -168,7 +168,7 @@ public:
     ) @trusted
     {
         StringSetMarker marker;
-        return map_.tryAddMove(allocator, value, &marker);
+        return map_.try_add_move(allocator, value, &marker);
     }
 
     AddStatus tryAddMove(
@@ -177,7 +177,7 @@ public:
     ) @trusted
     {
         StringSetMarker marker;
-        return map_.tryAddMove(allocator, value, &marker);
+        return map_.try_add_move(allocator, value, &marker);
     }
 
     bool addMove(Allocator* allocator, scope OwnedString* value) @trusted
@@ -208,7 +208,7 @@ public:
 
     bool tryReserve(Allocator* allocator, size_t requested) @trusted
     {
-        return map_.tryReserve(allocator, requested);
+        return map_.try_reserve(allocator, requested);
     }
 
     void reserve(Allocator* allocator, size_t requested) @trusted
@@ -223,12 +223,12 @@ public:
 
     bool tryShrinkToFit(Allocator* allocator) @trusted
     {
-        return map_.tryShrinkToFit(allocator);
+        return map_.try_shrink_to_fit(allocator);
     }
 
     void shrinkToFit(Allocator* allocator) @trusted
     {
-        map_.shrinkToFit(allocator);
+        map_.shrink_to_fit(allocator);
     }
 
     int opApply(
