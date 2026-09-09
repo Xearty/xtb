@@ -2,7 +2,7 @@ module examples.result_demo;
 
 nothrow @nogc:
 
-import xtb : Result, ResultReturns, andThen, map, mapError, orElse;
+import xtb : Result, ResultReturns, and_then, map, map_error, or_else;
 
 private enum DemoError
 {
@@ -46,22 +46,22 @@ extern (C) int main()
     assert(!failure && failure.error == DemoError.unavailable);
 
     auto unwrapped = loadAndScale(false);
-    assert(unwrapped.unwrap() == 40 && unwrapped.isOk);
+    assert(unwrapped.unwrap() == 40 && unwrapped.is_ok);
     auto unwrappedError = loadAndScale(true);
-    assert(unwrappedError.unwrapError() == DemoError.unavailable);
+    assert(unwrappedError.unwrap_error() == DemoError.unavailable);
 
     int offset = 2;
     auto pipeline = readValue(false)
         .map!(value => value + offset)
-        .andThen!widen()
+        .and_then!widen()
         .map!(value => value * 3L);
     assert(pipeline && pipeline.value == 66);
 
     auto convertedError = readValue(true)
-        .mapError!(error => cast(int) error + 100);
-    assert(convertedError.isErr && convertedError.error == 100);
+        .map_error!(error => cast(int) error + 100);
+    assert(convertedError.is_err && convertedError.error == 100);
 
-    auto recovered = readValue(true).orElse!(error =>
+    auto recovered = readValue(true).or_else!(error =>
             Result!(int, int).ok(error == DemoError.unavailable ? 7 : 0));
     assert(recovered && recovered.value == 7);
     return 0;

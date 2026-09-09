@@ -22,7 +22,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
     }
     const root = Path.fromString(input);
 
-    StringBuf canonical = StringBuf.create(mallocAllocator());
+    StringBuf canonical = StringBuf.create(malloc_allocator());
     scope (exit)
         canonical.deinit();
     OsError error = canonicalPath(root, canonical);

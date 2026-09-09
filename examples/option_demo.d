@@ -4,8 +4,8 @@ nothrow @nogc:
 
 import xtb.memory : Allocator;
 import xtb.lifetime : deinitValue = deinit, move;
-import xtb.allocators.malloc : mallocAllocator;
-import xtb.option : Option, OptionReturns, andThen, map, none, orElse, some;
+import xtb.allocators.malloc : malloc_allocator;
+import xtb.option : Option, OptionReturns, and_then, map, none, or_else, some;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : writeln;
 import xtb.string;
@@ -56,18 +56,18 @@ private Option!int findNumber(bool present)
 
 private void demonstrateTransformations()
 {
-    assert(findNumber(false).isNone);
+    assert(findNumber(false).is_none);
     assert(findNumber(true).value == 21);
 
     int offset = 1;
     auto mapped = findNumber(true).map!(value => value * 2 + offset);
     assert(mapped.value == 43);
 
-    auto chained = findNumber(true).andThen!(value =>
+    auto chained = findNumber(true).and_then!(value =>
             value > 0 ? some(value + 1) : Option!int.none());
     assert(chained.value == 22);
 
-    auto recovered = findNumber(false).orElse!(() => some(7));
+    auto recovered = findNumber(false).or_else!(() => some(7));
     assert(recovered.value == 7);
 }
 
@@ -79,15 +79,15 @@ private void demonstrateValueState()
     Option!int explicitNone = none();
     Option!int number = some(10);
     Option!int staticSome = Option!int.some(20);
-    assert(implicitNone.isNone && explicitNone.isNone);
-    assert(number.isSome && staticSome.isSome && staticSome.value == 20);
+    assert(implicitNone.is_none && explicitNone.is_none);
+    assert(number.is_some && staticSome.is_some && staticSome.value == 20);
     // `empty` exists for range-oriented generic code. Direct Option code should
-    // communicate intent with isNone instead.
+    // communicate intent with is_none instead.
     assert(implicitNone.empty);
     assert(implicitNone.pointer is null);
 
     // value returns a checked reference. Calling it while empty is a contract
-    // violation and panics, so test isSome/isNone or use pointer first.
+    // violation and panics, so test is_some/is_none or use pointer first.
     number.value += 1;
     if (int* value = number.pointer)
         *value += 9;
@@ -104,18 +104,18 @@ private void demonstrateValueState()
     number = some(42);
     assert(number.value == 42);
     number = none();
-    assert(number.isNone && number.pointer is null);
+    assert(number.is_none && number.pointer is null);
     number = some(43);
     number.reset();
-    assert(number.isNone);
+    assert(number.is_none);
 
     // unwrap transfers the value out and panics if the Option is absent.
     // expect does the same with a caller-provided panic message.
     number = some(99);
     int extracted = number.unwrap();
-    assert(extracted == 99 && number.isNone);
+    assert(extracted == 99 && number.is_none);
     number = some(100);
-    assert(number.expect("number must be present") == 100 && number.isNone);
+    assert(number.expect("number must be present") == 100 && number.is_none);
     writeln("unwrapped number: ", extracted);
 }
 
@@ -134,14 +134,14 @@ private void demonstrateCopyingAndNesting()
     Option!(Option!int) missingOuter;
     Option!(Option!int) missingInner = some(Option!int.none());
     Option!(Option!int) presentInner = some(Option!int.some(123));
-    assert(missingOuter.isNone);
-    assert(missingInner.isSome && missingInner.value.isNone);
+    assert(missingOuter.is_none);
+    assert(missingInner.is_some && missingInner.value.is_none);
     assert(presentInner.value.value == 123);
 
     // Option only tracks its own presence bit. If T is itself nullable, a
     // present Option can legitimately contain T.init.
     Option!(int*) presentNullPointer = some(cast(int*) null);
-    assert(presentNullPointer.isSome);
+    assert(presentNullPointer.is_some);
     assert(presentNullPointer.value is null);
     writeln("nested states and present-null pointer are distinct in memory");
 }
@@ -161,12 +161,12 @@ private void demonstrateOwningValues(Allocator* allocator)
             (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
 
     StringBuf extracted = text.take();
-    assert(text.isNone && extracted == "alpha-beta");
+    assert(text.is_none && extracted == "alpha-beta");
 
     // some(...) takes its value by value. Pass move(...) for an owning T.
     text = some(move(extracted));
     text.reset();
-    assert(text.isNone);
+    assert(text.is_none);
 }
 
 private void demonstrateDestruction()
@@ -190,7 +190,7 @@ private void demonstrateDestruction()
 
         // take transfers destruction responsibility to the returned value.
         LifetimeProbe extracted = tracked.take();
-        assert(tracked.isNone && destructions == 2);
+        assert(tracked.is_none && destructions == 2);
     }
     assert(destructions == 3);
     writeln("destructions after replace, reset, and taken-value scope exit: ",
@@ -238,9 +238,9 @@ private bool demonstrateSerde(Allocator* allocator)
     );
     if (!error.ok)
         return false;
-    assert(fromJson.enabled.isNone);
+    assert(fromJson.enabled.is_none);
     assert(fromJson.channelName.value == "nightly");
-    assert(fromJson.retryCount.isNone);
+    assert(fromJson.retryCount.is_none);
 
     OptionalConfig fromToml;
     scope (exit)
@@ -252,18 +252,18 @@ private bool demonstrateSerde(Allocator* allocator)
     );
     if (!error.ok)
         return false;
-    assert(fromToml.enabled.isSome && !fromToml.enabled.value);
+    assert(fromToml.enabled.is_some && !fromToml.enabled.value);
     assert(fromToml.channelName.value == "stable");
-    assert(fromToml.retryCount.isNone);
+    assert(fromToml.retryCount.is_none);
 
-    writeln("required JSON null -> none: ", fromJson.enabled.isNone);
+    writeln("required JSON null -> none: ", fromJson.enabled.is_none);
     writeln("decoded TOML channel: ", fromToml.channelName.value);
     return true;
 }
 
 extern (C) int main()
 {
-    Allocator* allocator = mallocAllocator();
+    Allocator* allocator = malloc_allocator();
     demonstrateValueState();
     demonstrateTransformations();
     demonstrateCopyingAndNesting();

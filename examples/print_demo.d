@@ -3,7 +3,7 @@ module examples.print_demo;
 import xtb.fmt.print;
 import xtb.fmt.fixed_buffer;
 import xtb.fmt.format;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.string;
 import xtb.types : String;
 
@@ -39,12 +39,12 @@ extern (C) int main() nothrow @nogc
     writeln(i"nested sequences: [$(i"$(name):$(count)")]");
 
     StringBuf text = formatString(
-        mallocAllocator(),
+        malloc_allocator(),
         i"owned output: $(name) has $(count) values",
     );
     writeln(text);
 
-    StringBuf builder = StringBuf.create(mallocAllocator());
+    StringBuf builder = StringBuf.create(malloc_allocator());
     builder.format(i"builder output: $(Point(-2, 8))");
     writeln(builder);
 

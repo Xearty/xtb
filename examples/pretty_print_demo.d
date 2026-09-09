@@ -6,7 +6,7 @@ import xtb.containers.array;
 import xtb.flag_set : FlagSet;
 import xtb.containers.hash_map;
 import xtb.containers.hash_set;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.lifetime : tagged_by, tagged_case;
 import xtb.option : Option;
 import xtb.fmt.format : formatted;
@@ -343,14 +343,14 @@ extern (C) int main()
     writeln("static array: ", fixedValues.pretty(vivid));
     writeln("slice:        ", fixedValues[1 .. 4].pretty(vivid));
 
-    Array!int dynamicValues = Array!int.create(mallocAllocator());
+    Array!int dynamicValues = Array!int.create(malloc_allocator());
     dynamicValues.append(13);
     dynamicValues.append(21);
     dynamicValues.append(34);
     writeln("Array:        ", dynamicValues.pretty(vivid));
 
     HashMap!(String, int) statuses =
-        HashMap!(String, int).create(mallocAllocator());
+        HashMap!(String, int).create(malloc_allocator());
     if (!statuses.set("healthy", 2) || !statuses.set("degraded", 1))
     {
         statuses.deinit();
@@ -359,7 +359,7 @@ extern (C) int main()
     }
     writeln("HashMap:      ", statuses.pretty(vivid));
 
-    HashSet!String regions = HashSet!String.create(mallocAllocator());
+    HashSet!String regions = HashSet!String.create(malloc_allocator());
     if (!regions.add("eu-west") || !regions.add("us-east"))
     {
         regions.deinit();
@@ -371,7 +371,7 @@ extern (C) int main()
     writeln("FlagSet:      ", service.permissions.pretty(vivid));
 
     StringBuf message = StringBuf.from_string(
-        mallocAllocator(),
+        malloc_allocator(),
         "owned\nStringBuf",
     );
     writeln("StringBuf:    ", message.pretty(vivid));

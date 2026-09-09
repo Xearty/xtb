@@ -860,13 +860,13 @@ version (unittest)
 
 unittest
 {
-    import xtb.allocators.malloc : mallocAllocator;
+    import xtb.allocators.malloc : malloc_allocator;
 
     assert(AdapterFixture.staticUtility(5) == 12);
 
     AdapterFixture built;
-    assert(AdapterFixture.tryBuild(4, mallocAllocator(), &built));
-    assert(built.allocator is mallocAllocator());
+    assert(AdapterFixture.tryBuild(4, malloc_allocator(), &built));
+    assert(built.allocator is malloc_allocator());
     assert(built.current == 4);
     assert(built.add(3));
     assert(built.addFirst(2));
@@ -887,7 +887,7 @@ unittest
     assert(built.current == 17);
 
     AdapterFixture configured = AdapterFixture.configured(
-        mallocAllocator(),
+        malloc_allocator(),
         17,
     );
     assert(configured == built);
@@ -897,14 +897,14 @@ unittest
     assert((*readOnly).current == 17);
 
     AdapterFixture allocated = AdapterFixture.builtWithAllocator(
-        mallocAllocator(),
+        malloc_allocator(),
         9,
     );
-    assert(allocated.allocator is mallocAllocator());
+    assert(allocated.allocator is malloc_allocator());
     assert(allocated.current == 9);
 
     built.resetAndRelease();
-    assert(built.allocator is mallocAllocator());
+    assert(built.allocator is malloc_allocator());
     assert(built.current == 0);
     built.deinit();
     assert(built.allocator is null);

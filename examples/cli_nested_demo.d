@@ -3,7 +3,7 @@ module examples.cli_nested_demo;
 nothrow @nogc:
 
 import xtb.cli;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.containers.array : Array;
 import xtb.option : Option;
 import xtb.fmt.print : writeln;
@@ -78,16 +78,16 @@ private int addDependency(
 )
 {
     writeln("add dependency: ", args.package_, ", verbosity=", root.verbose);
-    if (dependency.registry.isSome)
+    if (dependency.registry.is_some)
         writeln("registry: ", dependency.registry.value);
-    if (args.version_.isSome)
+    if (args.version_.is_some)
         writeln("version: ", args.version_.value);
     return 0;
 }
 
 extern (C) int main(int argc, char** argv)
 {
-    auto result = parseArgs!RootArgs(argc, argv, mallocAllocator());
+    auto result = parseArgs!RootArgs(argc, argv, malloc_allocator());
     scope (exit)
         result.deinit();
 

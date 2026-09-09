@@ -50,7 +50,7 @@ nothrow @nogc
 extern (C) int main() nothrow @nogc
 {
     ThreadContextScope context = ThreadContextScope.acquire();
-    Allocator* heap = mallocAllocator();
+    Allocator* heap = malloc_allocator();
 
     writeln("== borrowed String views ==");
 

@@ -3,7 +3,7 @@ module examples.serde_demo;
 import xtb.containers.array;
 import xtb.memory : Allocator;
 import xtb.lifetime : deinitValue = deinit, move, move_emplace;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.option : Option, some;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : writeln;
@@ -143,7 +143,7 @@ private size_t appendSink(void* context, scope const(u8)[] bytes) nothrow @nogc
 
 private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
 {
-    StringBuf json = StringBuf.create(mallocAllocator());
+    StringBuf json = StringBuf.create(malloc_allocator());
     scope (exit)
         json.deinit();
     Writer jsonWriter = Writer.from_sink(&appendSink, &json);
@@ -151,7 +151,7 @@ private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
     if (!error.ok)
         return false;
 
-    StringBuf toml = StringBuf.create(mallocAllocator());
+    StringBuf toml = StringBuf.create(malloc_allocator());
     scope (exit)
         toml.deinit();
     Writer tomlWriter = Writer.from_sink(&appendSink, &toml);
@@ -165,7 +165,7 @@ private bool writeFormats(scope const ref ServiceConfig config) nothrow @nogc
     ServiceConfig fromToml;
     scope (exit)
         fromToml.deinit();
-    error = readToml(toml.view, mallocAllocator(), &fromToml);
+    error = readToml(toml.view, malloc_allocator(), &fromToml);
     if (!error.ok)
         return false;
     writeln("TOML round trip: ", fromToml.serviceName,
@@ -195,7 +195,7 @@ private bool demonstrateOwningDecode() nothrow @nogc
         "  \"tracing_enabled\": true\n" ~
         "}";
 
-    Allocator* allocator = mallocAllocator();
+    Allocator* allocator = malloc_allocator();
     ServiceConfig config;
     SerdeError error = readJson(source, allocator, &config);
     if (!error.ok)
@@ -218,7 +218,7 @@ private bool demonstrateOwningDecode() nothrow @nogc
     ++config.runtimeRequests;
 
     writeln("optional deployment note present: ",
-        config.deploymentNote.isSome);
+        config.deploymentNote.is_some);
     StringBuf deploymentNote = StringBuf.from_string(allocator,
         "promote after health checks");
     config.deploymentNote = some(move(deploymentNote));
@@ -270,7 +270,7 @@ private bool demonstrateDocumentOwnedDecode() nothrow @nogc
         report.deinit();
     SerdeError error = readJson(
         "{\"report_name\":\"latency\",\"samples\":[12,9,15,11]}",
-        mallocAllocator(),
+        malloc_allocator(),
         &report,
     );
     if (!error.ok)
@@ -290,7 +290,7 @@ private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
     SerdeError error = readJson(
         "{\"change\":{\"service\":\"gateway\",\"port\":8443}," ~
             "\"change_type\":\"service_started\"}",
-        mallocAllocator(), &change);
+        malloc_allocator(), &change);
     if (!error.ok)
         return false;
     writeln("tagged change: ", change.value.data.started.service,
@@ -299,7 +299,7 @@ private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
     ServiceChange stopped;
     stopped.kind = ChangeKind.serviceStopped;
     stopped.data.stopped = StoppedChange("worker", 17);
-    StringBuf toml = StringBuf.create(mallocAllocator());
+    StringBuf toml = StringBuf.create(malloc_allocator());
     scope (exit)
         toml.deinit();
     Writer tomlWriter = Writer.from_sink(&appendSink, &toml);
@@ -309,7 +309,7 @@ private bool demonstrateTaggedUnionAndAdapter() nothrow @nogc
     writeln("tagged TOML:\n", toml);
 
     Health health;
-    error = readJson("{\"readiness\":98}", mallocAllocator(), &health);
+    error = readJson("{\"readiness\":98}", malloc_allocator(), &health);
     if (!error.ok)
         return false;
     writeln("adapted readiness: ", health.readiness.value, "%");

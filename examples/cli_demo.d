@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE, stderr, stdout;
 import xtb.cli;
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.containers.array : Array;
 import xtb.option : Option;
 import xtb.fmt.print : writeln;
@@ -493,7 +493,7 @@ private int runInvocation(ref ParsedCommand!RootArgs root)
 
 extern (C) int main(int argc, char** argv)
 {
-    auto result = parseArgs!RootArgs(argc, argv, mallocAllocator());
+    auto result = parseArgs!RootArgs(argc, argv, malloc_allocator());
     scope (exit)
         result.deinit();
 

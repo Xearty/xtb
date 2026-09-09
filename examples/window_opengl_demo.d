@@ -1,6 +1,6 @@
 module examples.window_opengl_demo;
 
-import xtb.allocators.malloc : mallocAllocator;
+import xtb.allocators.malloc : malloc_allocator;
 import xtb.fmt : formatln;
 import xtb.opengl;
 import xtb.thread_context : ThreadContextScope;
@@ -92,8 +92,8 @@ extern (C) int main() nothrow @nogc
 {
     ThreadContextScope threadContext = ThreadContextScope.acquire();
 
-    auto systemResult = WindowSystem.create(mallocAllocator());
-    if (systemResult.isErr)
+    auto systemResult = WindowSystem.create(malloc_allocator());
+    if (systemResult.is_err)
     {
         const error = systemResult.error;
         formatln!"Window system creation failed: kind={}, backend={}"(
@@ -112,7 +112,7 @@ extern (C) int main() nothrow @nogc
     );
 
     auto windowResult = system.create_opengl_window(windowConfig);
-    if (windowResult.isErr)
+    if (windowResult.is_err)
     {
         const error = windowResult.error;
         formatln!"OpenGL window creation failed: kind={}, backend={}"(

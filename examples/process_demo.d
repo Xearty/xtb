@@ -272,7 +272,7 @@ version (linux)
         scope (exit)
             cleanupExamplePipeline(&pipeline);
         if (!report(spawnPipeline(
-                stages[], options, mallocAllocator(), &pipeline), "spawn pipeline"))
+                stages[], options, malloc_allocator(), &pipeline), "spawn pipeline"))
             return false;
         formatln!"stages={}, final stdout pipe={}"(
             pipeline.length,

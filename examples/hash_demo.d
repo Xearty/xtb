@@ -8,7 +8,7 @@ static assert(is(StringViewHashSet == HashSet!String));
 extern (C) int main() nothrow @nogc
 {
     StringViewHashMap!int inventory = StringViewHashMap!int.seeded(
-        mallocAllocator(),
+        malloc_allocator(),
         HashSeed.from_value(0x7862_7464),
     );
     inventory.set("apples", 12);
@@ -23,7 +23,7 @@ extern (C) int main() nothrow @nogc
     foreach (ref const name, ref count; inventory)
         formatln!"  {}: {}"(name, count);
 
-    StringViewHashSet labels = StringViewHashSet.create(mallocAllocator());
+    StringViewHashSet labels = StringViewHashSet.create(malloc_allocator());
     labels.add("fresh");
     labels.add("local");
     labels.add("fresh");
@@ -41,18 +41,18 @@ extern (C) int main() nothrow @nogc
 
     // StringHashMap copies borrowed keys and can also consume an existing
     // owner. Lookups still accept allocation-free String views.
-    StringHashMap!int owned = StringHashMap!int.create(mallocAllocator());
+    StringHashMap!int owned = StringHashMap!int.create(malloc_allocator());
     owned.set("literal", 1);
-    StringBuf movedKey = StringBuf.from_string(mallocAllocator(), "moved");
+    StringBuf movedKey = StringBuf.from_string(malloc_allocator(), "moved");
     int movedValue = 2;
     assert(owned.addMove(&movedKey, &movedValue));
     assert(movedKey.allocator is null && movedKey.empty);
     assert(*owned.find("moved") == 2);
 
-    StringHashSet ownedLabels = StringHashSet.create(mallocAllocator());
+    StringHashSet ownedLabels = StringHashSet.create(malloc_allocator());
     ownedLabels.add("persistent");
     StringBuf movedLabel = StringBuf.from_string(
-        mallocAllocator(),
+        malloc_allocator(),
         "moved-label",
     );
     assert((&ownedLabels).addMove(&movedLabel));

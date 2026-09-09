@@ -11,7 +11,7 @@ extern (C) int main() nothrow @nogc
     formatln!"transformed point: ({}, {}, {})"(fixed(point.x, 3),
         fixed(point.y, 3), fixed(point.z, 3));
 
-    ValueNoise1D noise = ValueNoise1D.create(mallocAllocator(), 16, 0xC0FFEE);
+    ValueNoise1D noise = ValueNoise1D.create(malloc_allocator(), 16, 0xC0FFEE);
     scope (exit)
         noise.deinit();
     foreach (index; 0 .. 8)
