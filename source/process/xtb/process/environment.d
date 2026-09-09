@@ -4,6 +4,7 @@ nothrow @nogc:
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
+import xtb.types : String;
 import xtb.thread_context : ScratchScope;
 import xtb.os.error : OsError, OsErrorKind, unsupported;
 

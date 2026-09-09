@@ -6,7 +6,7 @@ import xtb.log.internal.sgr : SgrParseKind, maxSupportedSgrLength,
     parseSgrPrefix, safeSgrPrefixLength;
 import xtb.log.sink : LogRecordRef;
 import xtb.fmt.writer : Writer;
-import xtb.string : String;
+import xtb.types : String;
 import xtb.types : u8;
 
 /// A synchronous, allocation-free writer for one already-begun log message.

@@ -9,6 +9,7 @@ import xtb.fmt.ansi : begin_ansi, end_ansi;
 version (XTB_Checked) import xtb.panic : require;
 import xtb.fmt.writer : Writer;
 import xtb.string;
+import xtb.types : String;
 
 enum StackTraceTheme
 {

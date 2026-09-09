@@ -9,6 +9,7 @@ import xtb.log.internal.sgr : SgrParseKind, maxSupportedSgrLength, parseSgrPrefi
 import xtb.log.file_sink : fileFlush;
 import xtb.log.message_writer : createLogMessageWriter;
 import xtb.string;
+import xtb.types : String;
 
 version (unittest)
 {

@@ -6,7 +6,7 @@ import core.stdc.string : memcpy, strlen;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace;
 import xtb.os.linux.execinfo : backtrace;
 import xtb.os.linux.dynamic_link : Dl_info, dladdr;
-import xtb.string : String;
+import xtb.types : String;
 
 private struct BacktraceState;
 

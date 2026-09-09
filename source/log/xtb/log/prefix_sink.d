@@ -5,7 +5,7 @@ nothrow @nogc:
 import xtb.ansi : ANSIStyle;
 import xtb.lifetime : move;
 import xtb.log.sink : LogRecordInfo, LogRecordRef, LogSinkRef, LogSourceLocation;
-import xtb.string : String;
+import xtb.types : String;
 
 /// Restricted synchronous writer exposed to record-prefix providers.
 ///

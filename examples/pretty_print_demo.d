@@ -15,6 +15,7 @@ import xtb.fmt.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : writeln;
 import xtb.string;
+import xtb.types : String;
 
 enum Permission : ubyte
 {

@@ -3,7 +3,7 @@ module xtb.log.internal.sgr;
 nothrow @nogc:
 
 import xtb.ansi : ANSISequence;
-import xtb.string : String;
+import xtb.types : String;
 
 package(xtb.log) enum SgrParseKind : ubyte
 {

@@ -22,7 +22,7 @@ import xtb.allocators.malloc : malloc_allocator;
 import xtb.string;
 import xtb.thread_context : ThreadContextScope, scratchArena;
 import xtb.thread : Thread;
-import xtb.types : i64, u64, u8;
+import xtb.types : String, i64, u64, u8;
 
 static assert(!hasElaborateDestructor!DirectoryIterator);
 static assert(needs_deinit!DirectoryIterator);

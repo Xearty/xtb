@@ -3,7 +3,8 @@ module xtb.fs.internal.unsupported.directory;
 nothrow @nogc:
 
 import xtb.os.error : OsError, unsupported;
-import xtb.string : String, StringBuf;
+import xtb.string : StringBuf;
+import xtb.types : String;
 import xtb.fs.internal.directory : NativeDirectoryEntry, NativeDirectoryResult,
     NativeDirectoryStatus;
 

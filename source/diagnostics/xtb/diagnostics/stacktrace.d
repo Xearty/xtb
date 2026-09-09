@@ -8,6 +8,7 @@ import xtb.ansi : ANSIColor;
 import xtb.fmt.ansi : begin_ansi, end_ansi;
 import xtb.fmt.writer : Writer, hexadecimal;
 import xtb.string;
+import xtb.types : String;
 import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
     StackTraceTheme, SignatureFormat, writeSignature;
 

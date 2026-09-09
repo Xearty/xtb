@@ -17,7 +17,7 @@ version (X86_64)
     import xtb.os.posix.ucontext : REG_RIP;
 else version (X86)
     import xtb.os.posix.ucontext : REG_EIP;
-import xtb.string : String;
+import xtb.types : String;
 
 private enum int[] handledSignals = [
     SIGABRT,

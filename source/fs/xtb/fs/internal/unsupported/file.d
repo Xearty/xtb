@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.os.error : OsError, unsupported;
 import xtb.os.handle : NativeHandle;
-import xtb.string : String;
+import xtb.types : String;
 import xtb.types : u8;
 import xtb.fs.internal.file : NativeFileMetadata, NativeIoResult;
 

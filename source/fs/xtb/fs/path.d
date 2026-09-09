@@ -6,6 +6,7 @@ import xtb.panic : panic;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
+import xtb.types : String;
 
 /// A borrowed native path without embedded NUL bytes.
 struct Path

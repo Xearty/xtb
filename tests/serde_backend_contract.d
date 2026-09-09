@@ -8,7 +8,7 @@ import xtb.allocators.malloc : malloc_allocator;
 import xtb.option : Option;
 import xtb.fmt.writer : Writer;
 import xtb.string;
-import xtb.types : u8;
+import xtb.types : String, u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind,
     serdeAliasName, serdeDefaultValue, serdeFieldCase, serdeOmitDefault, readJson, readToml,
     serdeRequired, writeJson, writeToml;

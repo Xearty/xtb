@@ -10,7 +10,7 @@ import xtb.log.level : LogLevel;
 import xtb.log.logger : Logger;
 import xtb.log.palette : LogPalette;
 import xtb.log.sink : LogSinkEvent, LogSinkEventKind, LogSinkRef;
-import xtb.string : String;
+import xtb.types : String;
 
 enum LogStyle : ubyte
 {

@@ -15,6 +15,7 @@ import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
     StackTraceTheme, SignatureLayout;
 import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.string;
+import xtb.types : String;
 
 version (linux)
     import CrashBackend = xtb.diagnostics.internal.linux.crash;

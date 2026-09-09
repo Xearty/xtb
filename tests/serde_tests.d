@@ -13,7 +13,7 @@ import xtb.fmt.writer : Writer;
 import xtb.string;
 import xtb.containers.string_hash_map;
 import xtb.containers.string_hash_set : StringHashSet;
-import xtb.types : u8;
+import xtb.types : String, u8;
 import xtb.serde.attributes;
 import xtb.serde.internal.casing;
 import xtb.serde.error;

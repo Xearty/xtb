@@ -235,7 +235,7 @@ bool flushLogger()
 
 version (unittest)
 {
-    import xtb.string : String;
+    import xtb.types : String;
 
     private struct Capture
     {

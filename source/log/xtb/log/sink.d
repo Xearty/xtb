@@ -4,7 +4,7 @@ nothrow @nogc:
 
 import xtb.ansi : ANSIStyle;
 import xtb.log.level : LogLevel;
-import xtb.string : String;
+import xtb.types : String;
 
 enum LogSinkEventKind : ubyte
 {

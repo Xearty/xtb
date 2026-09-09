@@ -8,7 +8,7 @@ import xtb.option : Option, some;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : writeln;
 import xtb.string;
-import xtb.types : u8;
+import xtb.types : String, u8;
 import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind, TagLayout,
     serdeAliasName, serdeCaseOf, serdeDiscriminant, serdeFieldCase, serdeIgnore, serdeOmitDefault, serdePayload,
     readJson, readToml, serdeRename, serdeRequired, serdeTaggedUnion, serdeVariantCase, serdeWith,

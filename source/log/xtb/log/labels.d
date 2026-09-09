@@ -3,7 +3,7 @@ module xtb.log.labels;
 nothrow @nogc:
 
 import xtb.log.level : LogLevel;
-import xtb.string : String;
+import xtb.types : String;
 
 /// Built-in level-label spellings.
 ///

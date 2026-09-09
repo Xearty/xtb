@@ -3,6 +3,7 @@ module xtb.diagnostics.demangle;
 nothrow @nogc:
 
 import xtb.string;
+import xtb.types : String;
 
 private enum maxRecursion = 64;
 

@@ -10,7 +10,7 @@ version (unittest)
     import xtb.log.level : LogLevel;
     import xtb.log.sink : LogRecordInfo, LogRecordRef, LogSinkEvent, LogSinkEventKind;
 }
-import xtb.string : String;
+import xtb.types : String;
 import xtb.time : Timestamp;
 import xtb.types : i64;
 

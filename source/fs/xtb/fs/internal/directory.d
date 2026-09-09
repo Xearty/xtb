@@ -3,7 +3,7 @@ module xtb.fs.internal.directory;
 nothrow @nogc:
 
 import xtb.os.error : OsError;
-import xtb.string : String;
+import xtb.types : String;
 import xtb.fs.internal.file : NativeFileType;
 
 enum NativeDirectoryStatus : ubyte

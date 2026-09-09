@@ -9,6 +9,7 @@ import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
     capture, writeStackTrace;
 import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;
 import xtb.string;
+import xtb.types : String;
 
 private enum AssetKind : ubyte
 {

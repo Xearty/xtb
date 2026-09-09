@@ -5,6 +5,7 @@ nothrow @nogc:
 version (XTB_Checked) import xtb.panic : require;
 import xtb.memory : Allocator;
 import xtb.string;
+import xtb.types : String;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.fs.file : FileMetadata, FileType, SymlinkMode, metadata;
 import xtb.fs.path : Path, appendComponent;

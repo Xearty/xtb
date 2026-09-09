@@ -5,6 +5,7 @@ import xtb.fmt.fixed_buffer;
 import xtb.fmt.format;
 import xtb.allocators.malloc : mallocAllocator;
 import xtb.string;
+import xtb.types : String;
 
 struct Point
 {

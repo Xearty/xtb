@@ -9,6 +9,7 @@ import xtb.option : Option, some;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
+import xtb.types : String;
 import xtb.types : u8;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.pipe : Pipe, PipeOptions, PipeReader, PipeWriter, close,

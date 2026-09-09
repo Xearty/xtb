@@ -11,7 +11,7 @@ import xtb.log.sink : LogFlush, LogRecordInfo, LogRecordRef, LogSink, LogSinkRef
     LogSourceLocation;
 import xtb.log.message_writer : LogMessageWriter, createLogMessageWriter;
 import xtb.fmt.fixed_buffer : BufferWriteResult, format_buffer, write_buffer;
-import xtb.string : String;
+import xtb.types : String;
 
 struct Logger
 {

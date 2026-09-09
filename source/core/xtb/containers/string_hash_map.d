@@ -12,6 +12,7 @@ import xtb.panic : panic;
 version (XTB_Checked) import xtb.panic : require;
 import xtb.containers.released_storage : ReleasedStorage;
 import xtb.string;
+import xtb.types : String;
 
 /// Borrowing string-key map. The map owns the key descriptors but the caller
 /// must keep the bytes referenced by every inserted `String` alive.

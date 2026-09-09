@@ -9,6 +9,7 @@ import xtb.option : Option, some;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.string;
+import xtb.types : String;
 import xtb.thread_context : ScratchScope;
 import xtb.types : u32, u64, u8;
 import xtb.os.error : OsError, OsErrorKind;

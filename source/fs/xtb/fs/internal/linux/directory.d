@@ -11,6 +11,8 @@ import xtb.containers.array : Array;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.os.posix.error : lastError;
 import xtb.string;
+import xtb.utf8 : as_string;
+import xtb.types : String;
 import xtb.thread_context : ScratchScope;
 import xtb.types : u8;
 import xtb.fs.internal.directory : NativeDirectoryEntry, NativeDirectoryResult,
