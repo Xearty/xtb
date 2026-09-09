@@ -132,11 +132,11 @@ extern (C) int main() nothrow @nogc
     if (!terminalText.contains("shared ") || !terminalText.contains("[warning]") ||
         terminalText.contains("file-only "))
         return 1;
-    if (!firstText.startsWith("file-only shared [warning] prefix ") ||
-        !secondText.startsWith("shared [warning] prefix "))
+    if (!firstText.starts_with("file-only shared [warning] prefix ") ||
+        !secondText.starts_with("shared [warning] prefix "))
         return 1;
-    if (!firstText.endsWith(" formatted-once suffix\n") ||
-        !secondText.endsWith(" formatted-once suffix\n"))
+    if (!firstText.ends_with(" formatted-once suffix\n") ||
+        !secondText.ends_with(" formatted-once suffix\n"))
         return 1;
     if (!firstText.contains(longText[]) || !secondText.contains(longText[]))
         return 1;

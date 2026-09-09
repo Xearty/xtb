@@ -43,7 +43,7 @@ extern (C) int main() nothrow @nogc
     // owner. Lookups still accept allocation-free String views.
     StringHashMap!int owned = StringHashMap!int.create(mallocAllocator());
     owned.set("literal", 1);
-    StringBuf movedKey = StringBuf.fromString(mallocAllocator(), "moved");
+    StringBuf movedKey = StringBuf.from_string(mallocAllocator(), "moved");
     int movedValue = 2;
     assert(owned.addMove(&movedKey, &movedValue));
     assert(movedKey.allocator is null && movedKey.empty);
@@ -51,7 +51,7 @@ extern (C) int main() nothrow @nogc
 
     StringHashSet ownedLabels = StringHashSet.create(mallocAllocator());
     ownedLabels.add("persistent");
-    StringBuf movedLabel = StringBuf.fromString(
+    StringBuf movedLabel = StringBuf.from_string(
         mallocAllocator(),
         "moved-label",
     );

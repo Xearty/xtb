@@ -153,7 +153,7 @@ unittest
     buffer_writer.put("🙂");
     assert(buffer_writer.result.ok);
     assert(buffer_writer.result.written == 515);
-    assert(buffer.byteLength == 515);
+    assert(buffer.byte_length == 515);
     assert(buffer.view[0 .. 511] == split_scalar_prefix_string);
     assert(buffer.view[511 .. $] == "🙂");
 
@@ -320,7 +320,7 @@ unittest
         split_scalar_prefix_string,
         "🙂",
     ));
-    assert(fallible_split_scalar.byteLength == 515);
+    assert(fallible_split_scalar.byte_length == 515);
     assert(fallible_split_scalar.view[511 .. $] == "🙂");
 
     StringBuf fallible_interpolated;
@@ -336,13 +336,13 @@ unittest
         malloc_allocator(),
         transactional_records[],
     );
-    auto transactional = StringBuf.withCapacity(transactional_allocator.allocator, 8);
+    auto transactional = StringBuf.with_capacity(transactional_allocator.allocator, 8);
 
     transactional.write("keep");
     transactional_allocator.fail_after(0);
     char[128] oversized;
     oversized[] = 'x';
-    assert(!transactional.tryWrite("++", cast(String) oversized[]));
+    assert(!transactional.try_write("++", cast(String) oversized[]));
     assert(transactional == "keep");
 
     transactional.deinit();

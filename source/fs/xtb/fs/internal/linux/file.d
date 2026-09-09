@@ -39,7 +39,7 @@ package(xtb.fs) OsError openFile(
 ) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.fromString(scratch.allocator, path);
+    StringBuf native = StringBuf.from_string(scratch.allocator, path);
     int flags = readEnabled && writeEnabled ? O_RDWR : writeEnabled ? O_WRONLY : O_RDONLY;
     if (createMode != 0)
         flags |= O_CREAT;
@@ -51,7 +51,7 @@ package(xtb.fs) OsError openFile(
         flags |= O_EXCL;
     if (closeOnExec)
         flags |= O_CLOEXEC;
-    const descriptor = nativeOpen(native.checkedCString, flags, cast(uint) permissions);
+    const descriptor = nativeOpen(native.checked_c_string, flags, cast(uint) permissions);
     if (descriptor < 0)
         return lastError();
     *output = fromDescriptor(descriptor);
@@ -117,10 +117,10 @@ package(xtb.fs) OsError pathMetadata(
 ) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf nativePath = StringBuf.fromString(scratch.allocator, path);
+    StringBuf nativePath = StringBuf.from_string(scratch.allocator, path);
     stat_t native;
     const state = followSymlinks
-        ? stat(nativePath.checkedCString, &native) : lstat(nativePath.checkedCString, &native);
+        ? stat(nativePath.checked_c_string, &native) : lstat(nativePath.checked_c_string, &native);
     if (state != 0)
         return lastError();
     return convert(native, output)

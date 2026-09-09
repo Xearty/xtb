@@ -126,7 +126,7 @@ nothrow @nogc:
         }
 
         ScratchScope scratch = ScratchScope.acquire();
-        StringBuf title = StringBuf.fromString(scratch.allocator, config.title);
+        StringBuf title = StringBuf.from_string(scratch.allocator, config.title);
 
         clear_glfw_error();
         glfwDefaultWindowHints();
@@ -144,7 +144,7 @@ nothrow @nogc:
         GLFWwindow* handle = glfwCreateWindow(
             config.width,
             config.height,
-            title.checkedCString,
+            title.checked_c_string,
             null,
             backend_options.shared_context,
         );
@@ -258,8 +258,8 @@ nothrow @nogc:
         require_live();
 
         ScratchScope scratch = ScratchScope.acquire();
-        StringBuf native = StringBuf.fromString(scratch.allocator, title);
-        glfwSetWindowTitle(backend_handle(), native.checkedCString);
+        StringBuf native = StringBuf.from_string(scratch.allocator, title);
+        glfwSetWindowTitle(backend_handle(), native.checked_c_string);
     }
 
     /// Returns the global window position when the active platform exposes it.

@@ -16,7 +16,7 @@ import xtb.serde : Deserialized, KeyCase, SerdeError, SerdeErrorKind,
 private size_t bufferSink(void* context, scope const(u8)[] bytes)
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes.asStringUnchecked);
+    (*output).append(bytes.as_string_unchecked);
     return bytes.length;
 }
 

@@ -167,7 +167,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "duration-division-by-zero"))
         seconds(1) / 0;
     if (cStringEqual(name, "string-bytes-null-output"))
-        StringBuf.tryFromBytesUnchecked(malloc_allocator(), null, null);
+        StringBuf.try_from_bytes_unchecked(malloc_allocator(), null, null);
     if (cStringEqual(name, "unmanaged-null-fallible-factory"))
     {
         ArrayUnmanaged!int output;
@@ -313,16 +313,16 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         }
     }
     if (cStringEqual(name, "string-split-slice"))
-        "é".sliceBytes(1, 2);
+        "é".slice_bytes(1, 2);
     if (cStringEqual(name, "string-split-insert"))
     {
-        StringBuf text = StringBuf.fromString(malloc_allocator(), "é");
+        StringBuf text = StringBuf.from_string(malloc_allocator(), "é");
         text.insert(1, "x");
     }
     if (cStringEqual(name, "string-split-truncate"))
     {
-        StringBuf text = StringBuf.fromString(malloc_allocator(), "é");
-        text.truncateBytes(1);
+        StringBuf text = StringBuf.from_string(malloc_allocator(), "é");
+        text.truncate_bytes(1);
     }
     if (cStringEqual(name, "string-non-ascii-char"))
     {
@@ -643,17 +643,17 @@ version (Posix) private void expectSignalDiagnostic(
 version (Posix) private bool signalProgramCountersAligned(String text)
 pure nothrow @safe @nogc
 {
-    size_t expectedColumn = notFound;
+    size_t expectedColumn = not_found;
     size_t lineBegin;
     while (lineBegin < text.length)
     {
-        const relativeEnd = text[lineBegin .. $].findCodeUnit('\n');
-        const lineEnd = relativeEnd == notFound
+        const relativeEnd = text[lineBegin .. $].find_code_unit('\n');
+        const lineEnd = relativeEnd == not_found
             ? text.length : lineBegin + relativeEnd;
         const column = text[lineBegin .. lineEnd].find("pc=");
-        if (column != notFound)
+        if (column != not_found)
         {
-            if (expectedColumn == notFound)
+            if (expectedColumn == not_found)
                 expectedColumn = column;
             else if (column != expectedColumn)
                 return false;
@@ -662,7 +662,7 @@ pure nothrow @safe @nogc
             break;
         lineBegin = lineEnd + 1;
     }
-    return expectedColumn != notFound;
+    return expectedColumn != not_found;
 }
 
 extern (C) int main(int argumentCount, char** arguments)
@@ -793,14 +793,14 @@ extern (C) int main(int argumentCount, char** arguments)
             assert(unwound.text.contains("] pc="));
             assert(signalProgramCountersAligned(unwound.text));
             const faultAddressBegin = unwound.text.find("pc=");
-            assert(faultAddressBegin != notFound);
+            assert(faultAddressBegin != not_found);
             const faultAddressLength = "pc=0x".length + size_t.sizeof * 2;
             const faultAddressEnd = faultAddressBegin + faultAddressLength;
             assert(faultAddressEnd <= unwound.text.length);
             const faultAddress = unwound.text[
                 faultAddressBegin .. faultAddressEnd
             ];
-            assert(unwound.text[faultAddressEnd .. $].find(faultAddress) == notFound);
+            assert(unwound.text[faultAddressEnd .. $].find(faultAddress) == not_found);
 
             expectSignalDiagnostic(
                 arguments[0], "crash-abrt", SIGABRT, "SIGABRT",

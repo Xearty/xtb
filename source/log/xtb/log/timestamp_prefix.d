@@ -399,9 +399,9 @@ unittest
     const ansiText = cast(String) ansiBytes[0 .. ansiLength];
     const plainText = cast(String) plainBytes[0 .. plainLength];
     assert(ansiText.contains("\x1b[2;38;2;90;100;110m"));
-    assert(ansiText.endsWith("started\x1b[0m\n"));
+    assert(ansiText.ends_with("started\x1b[0m\n"));
     assert(plainText.length > " [info]    started\n".length);
-    assert(plainText.endsWith(" [info]    started\n"));
+    assert(plainText.ends_with(" [info]    started\n"));
     foreach (value; plainText)
         assert(value != '\x1b');
 
@@ -439,5 +439,5 @@ unittest
     const logText = cast(String) logBytes[0 .. logLength];
     assert(terminalText == "[info]    file only\n");
     assert(logText.length > " [info]    file only\n".length);
-    assert(logText.endsWith(" [info]    file only\n"));
+    assert(logText.ends_with(" [info]    file only\n"));
 }

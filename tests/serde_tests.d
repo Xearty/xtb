@@ -25,7 +25,7 @@ import xtb.serde.internal.traits;
 private size_t bufferSink(void* context, scope const(u8)[] bytes) nothrow @nogc
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes.asStringUnchecked);
+    (*output).append(bytes.as_string_unchecked);
     return bytes.length;
 }
 
@@ -1309,7 +1309,7 @@ private void testOwnedOptionsAndFailures() nothrow @nogc
         assert(value.endpoint.value.labels[0] == "tls");
         assert(value.revision.value == 3);
 
-        StringBuf title = StringBuf.fromString(allocator.allocator, "release");
+        StringBuf title = StringBuf.from_string(allocator.allocator, "release");
         value.title = some(move(title));
         value.endpoint.value.hostName.append(".test");
 
@@ -1390,7 +1390,7 @@ private void testOwnedJsonRoundTripAndMutation() nothrow @nogc
     document.primaryEndpoint.hostName.append(".test");
     document.featureFlags[1].clear();
     document.featureFlags[1].append("telemetry");
-    StringBuf addedFlag = StringBuf.fromString(malloc_allocator(), "compression");
+    StringBuf addedFlag = StringBuf.from_string(malloc_allocator(), "compression");
     document.featureFlags.append(move(addedFlag));
     document.retryDelays[2] = 60;
     document.tracingEnabled = false;
@@ -1469,7 +1469,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
     InstrumentedAllocator allocator = InstrumentedAllocator.create(
         malloc_allocator(), records[]);
     OwnedDocument document;
-    StringBuf preserved = StringBuf.fromString(allocator.allocator, "preserved");
+    StringBuf preserved = StringBuf.from_string(allocator.allocator, "preserved");
     move_emplace(preserved, document.applicationName);
 
     SerdeError error = readJson(
@@ -1504,7 +1504,7 @@ private void testOwnedDecodeIsTransactional() nothrow @nogc
     assert(document.description.allocator is allocator.allocator);
     assert(document.experiments.allocator is allocator.allocator);
     document.primaryEndpoint.hostName.append("initialized after decode");
-    StringBuf lateFlag = StringBuf.fromString(allocator.allocator, "late");
+    StringBuf lateFlag = StringBuf.from_string(allocator.allocator, "late");
     document.featureFlags.append(move(lateFlag));
     assert(document.primaryEndpoint.hostName ==
             "initialized after decode");
@@ -2648,7 +2648,7 @@ private void testSerdeOwnedHashMap() nothrow @nogc
             malloc_allocator(), records[]);
         OwnedStringArrayHashMap preserved = OwnedStringArrayHashMap.create(
             allocator.allocator);
-        OwnedString key = OwnedString.fromString(allocator.allocator, "preserved");
+        OwnedString key = OwnedString.from_string(allocator.allocator, "preserved");
         OwnedArray!int value = OwnedArray!int.from_slice(
             allocator.allocator,
             [42],

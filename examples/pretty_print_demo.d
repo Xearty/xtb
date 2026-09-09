@@ -369,7 +369,7 @@ extern (C) int main()
     writeln("HashSet:      ", regions.pretty(vivid));
     writeln("FlagSet:      ", service.permissions.pretty(vivid));
 
-    StringBuf message = StringBuf.fromString(
+    StringBuf message = StringBuf.from_string(
         mallocAllocator(),
         "owned\nStringBuf",
     );

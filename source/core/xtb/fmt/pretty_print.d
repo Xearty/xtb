@@ -3059,12 +3059,12 @@ unittest
 
     import xtb.allocators.malloc : malloc_allocator;
 
-    StringBuf buffer = StringBuf.fromString(malloc_allocator(), "owned\ntext");
+    StringBuf buffer = StringBuf.from_string(malloc_allocator(), "owned\ntext");
     buffer.expectPretty("\"owned\\ntext\"", plain);
     buffer.expectWidthEstimateCovers(plain);
     buffer.deinit();
 
-    StringBufUnmanaged unmanagedBuffer = StringBufUnmanaged.fromString(
+    StringBufUnmanaged unmanagedBuffer = StringBufUnmanaged.from_string(
         malloc_allocator(),
         "owned\ntext",
     );
@@ -3072,7 +3072,7 @@ unittest
     unmanagedBuffer.expectWidthEstimateCovers(plain);
     unmanagedBuffer.deinit(malloc_allocator());
 
-    OwnedString ownedString = OwnedString.fromString(
+    OwnedString ownedString = OwnedString.from_string(
         malloc_allocator(),
         "owned\ntext",
     );
@@ -3081,7 +3081,7 @@ unittest
     ownedString.deinit();
 
     OwnedStringUnmanaged unmanagedOwnedString =
-        OwnedStringUnmanaged.fromString(malloc_allocator(), "owned\ntext");
+        OwnedStringUnmanaged.from_string(malloc_allocator(), "owned\ntext");
     unmanagedOwnedString.expectPretty("\"owned\\ntext\"", plain);
     unmanagedOwnedString.expectWidthEstimateCovers(plain);
     unmanagedOwnedString.deinit(malloc_allocator());
@@ -3399,7 +3399,7 @@ unittest
             records[],
         );
         {
-            OwnedString owner = OwnedString.fromString(
+            OwnedString owner = OwnedString.from_string(
                 allocator.allocator,
                 "owned pretty",
             );

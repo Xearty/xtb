@@ -172,7 +172,7 @@ version (linux) private void runProcessIntegration(
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
-        assert(output.slice.asStringUnchecked.equal(
+        assert(output.slice.as_string_unchecked.equal(
                 "custom-zero\0hello world\0\0quote\"mark\0",
         ));
     }
@@ -200,13 +200,13 @@ version (linux) private void runProcessIntegration(
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
 
-        StringBuf expected = StringBuf.fromString(
+        StringBuf expected = StringBuf.from_string(
             malloc_allocator(),
             "ONLY=value\0EMPTY=\0REMOVED\0PATH=",
         );
         expected.append(helperDirectory);
         expected.append('\0');
-        assert(output.slice.asStringUnchecked.equal(expected.view));
+        assert(output.slice.as_string_unchecked.equal(expected.view));
         expected.deinit();
     }
 
@@ -227,7 +227,7 @@ version (linux) private void runProcessIntegration(
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
-        assert(output.slice.asStringUnchecked.equal(temporaryDirectory.view));
+        assert(output.slice.as_string_unchecked.equal(temporaryDirectory.view));
     }
 
     {
@@ -267,7 +267,7 @@ version (linux) private void runProcessIntegration(
         scope (exit)
             output.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
-        assert(output.slice.asStringUnchecked.equal("out\0dataerror-data"));
+        assert(output.slice.as_string_unchecked.equal("out\0dataerror-data"));
     }
 
     {
@@ -288,8 +288,8 @@ version (linux) private void runProcessIntegration(
             errorOutput.deinit();
         readPipeEntirely(child.stdoutPipe, &output);
         readPipeEntirely(child.stderrPipe, &errorOutput);
-        assert(output.slice.asStringUnchecked.equal("out\0data"));
-        assert(errorOutput.slice.asStringUnchecked.equal("error-data"));
+        assert(output.slice.as_string_unchecked.equal("out\0data"));
+        assert(errorOutput.slice.as_string_unchecked.equal("error-data"));
     }
 
     {
@@ -313,7 +313,7 @@ version (linux) private void runProcessIntegration(
         scope (exit)
             output.deinit();
         readPipeEntirely(&external.reader, &output);
-        assert(output.slice.asStringUnchecked.equal("out\0data"));
+        assert(output.slice.as_string_unchecked.equal("out\0data"));
         external.deinit();
     }
 
@@ -330,7 +330,7 @@ version (linux) private void runProcessIntegration(
     }
 
     {
-        StringBuf signalText = StringBuf.fromString(malloc_allocator(), "15");
+        StringBuf signalText = StringBuf.from_string(malloc_allocator(), "15");
         String[2] arguments = ["signal", signalText.view];
         ChildProcess child;
         scope (exit)
@@ -525,9 +525,9 @@ version (linux) private void runCommunicateIntegration(
         const result = communicate(&child, null, &output, &errorOutput,
             CommunicateOptions.init);
         assert(result.error.succeeded && result.exitStatus.value.succeeded);
-        assert(output.bytes.asStringUnchecked.equal("out\0dat") &&
+        assert(output.bytes.as_string_unchecked.equal("out\0dat") &&
                 output.truncated);
-        assert(errorOutput.bytes.asStringUnchecked.equal("error-dat") &&
+        assert(errorOutput.bytes.as_string_unchecked.equal("error-dat") &&
                 errorOutput.truncated);
     }
 
@@ -562,7 +562,7 @@ version (linux) private void runCommunicateIntegration(
             CommunicateOptions.init);
         assert(result.error.succeeded && result.inputWritten <= input.length);
         assert(result.exitStatus.value.succeeded);
-        assert(output.bytes.asStringUnchecked.equal("closed"));
+        assert(output.bytes.as_string_unchecked.equal("closed"));
     }
 
     {
@@ -595,7 +595,7 @@ version (linux) private void runCommunicateIntegration(
         assert(second.error.succeeded &&
                 second.state == CommunicateState.completed);
         assert(second.exitStatus.value.succeeded);
-        assert(output.bytes.asStringUnchecked.equal("delayed"));
+        assert(output.bytes.as_string_unchecked.equal("delayed"));
     }
 
     {
@@ -736,8 +736,8 @@ version (linux) private void runPipelineIntegration(
             errorOutput.deinit();
         readPipeEntirely(pipeline.stdoutPipe, &output);
         readPipeEntirely(pipeline.stderrPipe(0), &errorOutput);
-        assert(output.slice.asStringUnchecked.equal("out\0data"));
-        assert(errorOutput.slice.asStringUnchecked.equal("error-data"));
+        assert(output.slice.as_string_unchecked.equal("out\0data"));
+        assert(errorOutput.slice.as_string_unchecked.equal("error-data"));
         assert(pipeline.stderrPipe(1) is null);
     }
 
@@ -877,12 +877,12 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     rootStorage[$ - 1] = '\0';
     const createdRoot = mkdtemp(rootStorage.ptr);
     assert(createdRoot !is null);
-    const checkedRoot = fromCString(createdRoot);
+    const checkedRoot = from_c_string(createdRoot);
     assert(checkedRoot.succeeded);
     const rootPath = Path.fromString(checkedRoot.value);
     OsError error;
 
-    StringBuf first = StringBuf.fromString(malloc_allocator(), rootPath.view);
+    StringBuf first = StringBuf.from_string(malloc_allocator(), rootPath.view);
     first.append("/first.bin");
     const firstPath = Path.fromString(first.view);
     const u8[6] contents = [0, 1, 2, 3, 0, 255];
@@ -1032,14 +1032,14 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(unmap(&mapping).succeeded);
     assert(unmap(&mapping).succeeded);
 
-    StringBuf second = StringBuf.fromString(malloc_allocator(), rootPath.view);
+    StringBuf second = StringBuf.from_string(malloc_allocator(), rootPath.view);
     second.append("/second.bin");
     const secondPath = Path.fromString(second.view);
     assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).succeeded);
     assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).kind ==
             OsErrorKind.alreadyExists);
 
-    StringBuf renamed = StringBuf.fromString(malloc_allocator(), rootPath.view);
+    StringBuf renamed = StringBuf.from_string(malloc_allocator(), rootPath.view);
     renamed.append("/renamed.bin");
     const renamedPath = Path.fromString(renamed.view);
     assert(rename(secondPath, renamedPath).succeeded);
@@ -1112,7 +1112,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(Timestamp.now().nanosecondsSinceUnixEpoch != 0);
 
     const helperDirectory = Path.fromString(executable.view).parent;
-    StringBuf helperExecutable = StringBuf.fromString(
+    StringBuf helperExecutable = StringBuf.from_string(
         malloc_allocator(),
         helperDirectory.view,
     );

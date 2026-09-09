@@ -136,7 +136,7 @@ private void testRepeatedOwnedArrayCleanup() @system
         );
         foreach (index; 0 .. 4)
         {
-            StringBuf value = StringBuf.fromString(
+            StringBuf value = StringBuf.from_string(
                 tracked.allocator,
                 (index & 1) == 0 ? "alpha" : "beta",
             );
@@ -166,15 +166,15 @@ private void testFallibleAppendPreservesOwnership() @system
         tracked.allocator,
         1,
     );
-    StringBuf first = StringBuf.fromString(tracked.allocator, "first");
+    StringBuf first = StringBuf.from_string(tracked.allocator, "first");
     values.append(move(first));
     while (values.length < values.capacity)
     {
-        StringBuf filler = StringBuf.fromString(tracked.allocator, "filler");
+        StringBuf filler = StringBuf.from_string(tracked.allocator, "filler");
         values.append_assume_capacity(move(filler));
     }
 
-    StringBuf candidate = StringBuf.fromString(tracked.allocator, "candidate");
+    StringBuf candidate = StringBuf.from_string(tracked.allocator, "candidate");
     const oldLength = values.length;
     tracked.fail_after(0);
     assert(!values.try_append(&candidate));

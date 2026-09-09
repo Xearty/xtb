@@ -54,7 +54,7 @@ private struct OwningFormatRepresentationTestValue
 
     OwnedString format_representation() nothrow @nogc
     {
-        return OwnedString.fromString(allocator, "owned representation");
+        return OwnedString.from_string(allocator, "owned representation");
     }
 }
 
@@ -96,13 +96,13 @@ private void testFormatRepresentation()
     auto allocator = malloc_allocator();
 
     OwnedStringUnmanaged unmanagedOwned =
-        OwnedStringUnmanaged.fromString(allocator, "owned-unmanaged");
+        OwnedStringUnmanaged.from_string(allocator, "owned-unmanaged");
     result = write_buffer(storage[], unmanagedOwned);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "owned-unmanaged");
     unmanagedOwned.deinit(allocator);
 
-    OwnedString owned = OwnedString.fromString(allocator, "owned");
+    OwnedString owned = OwnedString.from_string(allocator, "owned");
     result = write_buffer(storage[], owned);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "owned");
@@ -115,13 +115,13 @@ private void testFormatRepresentation()
     owned.deinit();
 
     StringBufUnmanaged unmanagedBuffer =
-        StringBufUnmanaged.fromString(allocator, "buffer-unmanaged");
+        StringBufUnmanaged.from_string(allocator, "buffer-unmanaged");
     result = write_buffer(storage[], unmanagedBuffer);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "buffer-unmanaged");
     unmanagedBuffer.deinit(allocator);
 
-    StringBuf buffer = StringBuf.fromString(allocator, "buffer");
+    StringBuf buffer = StringBuf.from_string(allocator, "buffer");
     result = write_buffer(storage[], buffer);
     assert(result.ok && !result.truncated);
     assert(storage[0 .. result.written] == "buffer");

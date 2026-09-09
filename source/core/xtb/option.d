@@ -450,7 +450,7 @@ unittest
 
 unittest
 {
-    StringBuf source = StringBuf.fromString(malloc_allocator(), "owned");
+    StringBuf source = StringBuf.from_string(malloc_allocator(), "owned");
     Option!StringBuf text = some(move(source));
     assert(source.allocator is null);
     assert(text.value == "owned");

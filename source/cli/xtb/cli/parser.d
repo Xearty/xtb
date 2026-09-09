@@ -11,7 +11,7 @@ import xtb.containers.array : Array;
 import xtb.lifetime : deinitValue = deinit, move, move_assign, needs_deinit;
 import xtb.memory : Allocator;
 import xtb.option : Option;
-import xtb.string : baseName;
+import xtb.string : base_name;
 import xtb.types : String;
 import xtb.utf8 : is_valid_utf8;
 
@@ -369,7 +369,7 @@ package(xtb.cli) String normalizeProgramName(String programPath) @safe
     if (!is_valid_utf8(programPath))
         return "program";
 
-    String programName = programPath.baseName;
+    String programName = programPath.base_name;
     return programName.length == 0 ? "program" : programName;
 }
 

@@ -27,7 +27,7 @@ nothrow @nogc:
         version (XTB_Checked)
             require(output !is null, "Path output pointer is null");
         *output = Path.init;
-        if (value.containsNul)
+        if (value.contains_nul)
             return false;
         output.value_ = value;
         return true;
@@ -87,7 +87,7 @@ bool tryAppendComponent(ref StringBuf output, Path component)
     const current = output.view;
     const separator = current.length != 0 && current[$ - 1] != '/';
     const componentLength = end - begin;
-    if (componentLength > size_t.max - output.byteLength - separator)
+    if (componentLength > size_t.max - output.byte_length - separator)
         return false;
 
     bool aliasesOutput;
@@ -106,13 +106,13 @@ bool tryAppendComponent(ref StringBuf output, Path component)
         }
     }
 
-    if (!output.tryReserve(output.byteLength + separator + componentLength))
+    if (!output.try_reserve(output.byte_length + separator + componentLength))
         return false;
     if (aliasesOutput)
         value = output.view[sourceOffset .. sourceOffset + value.length];
     if (separator)
-        output.appendAssumeCapacity('/');
-    output.appendAssumeCapacity(value[begin .. end]);
+        output.append_assume_capacity('/');
+    output.append_assume_capacity(value[begin .. end]);
     return true;
 }
 
@@ -130,12 +130,12 @@ unittest
     assert(path.view == "var" && !path.absolute);
     assert(Path.fromString("/tmp/file.txt/").fileName.view == "file.txt");
     assert(Path.fromString("/tmp/file.txt/").parent.view == "/tmp");
-    StringBuf joined = StringBuf.fromString(malloc_allocator(), "/tmp/");
+    StringBuf joined = StringBuf.from_string(malloc_allocator(), "/tmp/");
     joined.appendComponent(Path.fromString("/xtb/"));
     joined.appendComponent(Path.fromString("file"));
     assert(joined.view == "/tmp/xtb/file");
 
-    StringBuf selfJoined = StringBuf.fromString(malloc_allocator(), "root/abc");
+    StringBuf selfJoined = StringBuf.from_string(malloc_allocator(), "root/abc");
     selfJoined.appendComponent(Path.fromString(selfJoined.view[5 .. $]));
     assert(selfJoined.view == "root/abc/abc");
 

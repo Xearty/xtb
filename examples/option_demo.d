@@ -42,7 +42,7 @@ private struct OptionalConfig
 private size_t appendSink(void* context, scope const(u8)[] bytes)
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes.asStringUnchecked);
+    (*output).append(bytes.as_string_unchecked);
     return bytes.length;
 }
 
@@ -148,7 +148,7 @@ private void demonstrateCopyingAndNesting()
 
 private void demonstrateOwningValues(Allocator* allocator)
 {
-    StringBuf source = StringBuf.fromString(allocator, "alpha");
+    StringBuf source = StringBuf.from_string(allocator, "alpha");
     Option!StringBuf text = some(move(source));
 
     // Moving transfers ownership and leaves the source at StringBuf.init.

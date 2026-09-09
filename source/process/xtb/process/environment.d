@@ -39,12 +39,12 @@ OsError environmentVariable(String name, String* output) @system
     if (!validEnvironmentName(name))
         return OsError(OsErrorKind.invalidArgument, 0);
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.fromString(scratch.allocator, name);
+    StringBuf native = StringBuf.from_string(scratch.allocator, name);
     const(char)* value;
-    const error = osEnvironmentVariable(native.checkedCString, &value);
+    const error = osEnvironmentVariable(native.checked_c_string, &value);
     if (error.failed)
         return error;
-    const checked = fromCString(value);
+    const checked = from_c_string(value);
     if (checked.failed)
         return OsError(OsErrorKind.invalidData, 0);
     *output = checked.value;

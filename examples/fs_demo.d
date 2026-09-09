@@ -10,7 +10,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
     String input = ".";
     if (argumentCount > 1)
     {
-        const checked = fromCString(arguments[1]);
+        const checked = from_c_string(arguments[1]);
         if (checked.failed)
         {
             formatln!"path is not valid UTF-8 at byte {}"(

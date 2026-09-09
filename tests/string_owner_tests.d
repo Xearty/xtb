@@ -14,8 +14,8 @@ import xtb.memory : Allocator;
 import xtb.option : Option, some;
 import xtb.result : Result;
 import xtb.string : OwnedString, OwnedStringUnmanaged, StringBuf,
-    StringBufUnmanaged, concat, copy, escape, join, replace, tryConcat,
-    tryCopy, tryEscape, tryJoin, tryReplace;
+    StringBufUnmanaged, concat, copy, escape, join, replace, try_concat,
+    try_copy, try_escape, try_join, try_replace;
 import xtb.containers.string_hash_map : OwnedStringHashMap;
 import xtb.types : String;
 
@@ -31,52 +31,52 @@ static assert(__traits(compiles,
         (Allocator* allocator, Arena* arena, ref StringBuf buffer,
         scope ref const OwnedString first,
         scope ref const OwnedString second) {
-        StringBuf copy = StringBuf.fromString(allocator, first);
+        StringBuf copy = StringBuf.from_string(allocator, first);
         StringBuf output;
-        StringBuf.tryFromString(allocator, first, &output);
+        StringBuf.try_from_string(allocator, first, &output);
         buffer.equal(first);
         buffer.append(first);
-        buffer.tryAppend(first);
-        buffer.appendAssumeCapacity(first);
+        buffer.try_append(first);
+        buffer.append_assume_capacity(first);
         buffer.insert(0, first);
-        buffer.tryInsert(0, first);
+        buffer.try_insert(0, first);
         buffer.prepend(first);
-        buffer.tryPrepend(first);
-        buffer.appendEscaped(first);
-        buffer.tryAppendEscaped(first);
+        buffer.try_prepend(first);
+        buffer.append_escaped(first);
+        buffer.try_append_escaped(first);
         buffer.compare(first);
         buffer.find(first);
-        buffer.findLast(first);
+        buffer.find_last(first);
         buffer.contains(first);
-        buffer.startsWith(first);
-        buffer.endsWith(first);
+        buffer.starts_with(first);
+        buffer.ends_with(first);
         buffer.assign(first);
-        buffer.tryAssign(first);
-        buffer.removePrefix(first);
-        buffer.removeSuffix(first);
+        buffer.try_assign(first);
+        buffer.remove_prefix(first);
+        buffer.remove_suffix(first);
         auto parts = buffer.split(first, allocator);
-        buffer.replaceInPlace(first, second);
-        buffer.replaceInPlace(first, "second");
-        buffer.replaceInPlace("first", second);
-        buffer.tryReplaceInPlace(first, second);
+        buffer.replace_in_place(first, second);
+        buffer.replace_in_place(first, "second");
+        buffer.replace_in_place("first", second);
+        buffer.try_replace_in_place(first, second);
         OwnedString owned = buffer.replace(first, second, allocator);
         String temporary = buffer.replace(first, second, arena);
         OwnedString tryOwned;
         String tryTemporary;
-        buffer.tryReplace(first, second, allocator, &tryOwned);
-        buffer.tryReplace(first, second, arena, &tryTemporary);
+        buffer.try_replace(first, second, allocator, &tryOwned);
+        buffer.try_replace(first, second, arena, &tryTemporary);
         bool same = buffer == first;
         bool reverseSame = first == buffer;
     }));
 static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBuf buffer) {
-        buffer.append(OwnedString.fromString(allocator, "temporary"));
+        buffer.append(OwnedString.from_string(allocator, "temporary"));
     }));
 static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBuf buffer,
         scope ref const OwnedString replacement) {
-        buffer.replaceInPlace(
-        OwnedString.fromString(allocator, "temporary"),
+        buffer.replace_in_place(
+        OwnedString.from_string(allocator, "temporary"),
         replacement,
         );
     }));
@@ -84,22 +84,22 @@ static assert(__traits(compiles,
         (Allocator* allocator, ref StringBufUnmanaged buffer,
         scope ref const OwnedString first,
         scope ref const OwnedString second) {
-        auto copy = StringBufUnmanaged.fromString(allocator, first);
+        auto copy = StringBufUnmanaged.from_string(allocator, first);
         StringBufUnmanaged output;
-        StringBufUnmanaged.tryFromString(allocator, first, &output);
+        StringBufUnmanaged.try_from_string(allocator, first, &output);
         buffer.append(allocator, first);
-        buffer.tryAppend(allocator, first);
-        buffer.appendAssumeCapacity(first);
+        buffer.try_append(allocator, first);
+        buffer.append_assume_capacity(first);
         buffer.insert(allocator, 0, first);
-        buffer.tryInsert(allocator, 0, first);
+        buffer.try_insert(allocator, 0, first);
         buffer.prepend(allocator, first);
-        buffer.tryPrepend(allocator, first);
-        buffer.appendEscaped(allocator, first);
-        buffer.tryAppendEscaped(allocator, first);
-        buffer.replaceInPlace(allocator, first, second);
-        buffer.replaceInPlace(allocator, first, "second");
-        buffer.replaceInPlace(allocator, "first", second);
-        buffer.tryReplaceInPlace(allocator, first, second);
+        buffer.try_prepend(allocator, first);
+        buffer.append_escaped(allocator, first);
+        buffer.try_append_escaped(allocator, first);
+        buffer.replace_in_place(allocator, first, second);
+        buffer.replace_in_place(allocator, first, "second");
+        buffer.replace_in_place(allocator, "first", second);
+        buffer.try_replace_in_place(allocator, first, second);
         bool same = buffer == first;
         bool reverseSame = first == buffer;
     }));
@@ -107,15 +107,15 @@ static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBufUnmanaged buffer) {
         buffer.append(
         allocator,
-        OwnedString.fromString(allocator, "temporary"),
+        OwnedString.from_string(allocator, "temporary"),
         );
     }));
 static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBufUnmanaged buffer,
         scope ref const OwnedString replacement) {
-        buffer.replaceInPlace(
+        buffer.replace_in_place(
         allocator,
-        OwnedString.fromString(allocator, "temporary"),
+        OwnedString.from_string(allocator, "temporary"),
         replacement,
         );
     }));
@@ -132,14 +132,14 @@ static assert(!__traits(compiles,
 static assert(!__traits(compiles,
         (ref OwnedString left, ref OwnedString right) { left = move(right); }));
 static assert(!__traits(compiles,
-        (ref StringBuf value) { value.tryReplace("a", "b"); }));
+        (ref StringBuf value) { value.try_replace("a", "b"); }));
 static assert(!__traits(compiles,
         (ref StringBufUnmanaged value, Allocator* allocator) {
-        value.tryReplace(allocator, "a", "b");
+        value.try_replace(allocator, "a", "b");
     }));
 static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBuf value) {
-        auto result = OwnedString.fromStringBuf(allocator, &value);
+        auto result = OwnedString.from_stringBuf(allocator, &value);
     }));
 static assert(!__traits(compiles,
         (ref StringBufUnmanaged left, ref StringBufUnmanaged right) { left = move(right); }));
@@ -170,20 +170,20 @@ private static immutable integrationKeys = [
 private void testOwnedStringStringBufInputs(InstrumentedAllocator* tracked)
 {
     {
-        OwnedString source = OwnedString.fromString(
+        OwnedString source = OwnedString.from_string(
             tracked.allocator,
             "source",
         );
         scope (exit)
             source.deinit();
-        OwnedString replacement = OwnedString.fromString(
+        OwnedString replacement = OwnedString.from_string(
             tracked.allocator,
             "replacement",
         );
         scope (exit)
             replacement.deinit();
 
-        StringBuf buffer = StringBuf.fromString(tracked.allocator, source);
+        StringBuf buffer = StringBuf.from_string(tracked.allocator, source);
         scope (exit)
             buffer.deinit();
         assert(buffer == source);
@@ -191,30 +191,30 @@ private void testOwnedStringStringBufInputs(InstrumentedAllocator* tracked)
         assert(buffer.equal(source));
         assert(buffer.compare(source) == 0);
         assert(buffer.contains(source));
-        assert(buffer.startsWith(source));
-        assert(buffer.endsWith(source));
+        assert(buffer.starts_with(source));
+        assert(buffer.ends_with(source));
         assert(buffer.find(source) == 0);
-        assert(buffer.findLast(source) == 0);
+        assert(buffer.find_last(source) == 0);
 
         buffer.clear();
         buffer.append(source);
         buffer.prepend(source);
-        buffer.insert(source.byteLength, replacement);
+        buffer.insert(source.byte_length, replacement);
         assert(buffer.view == "sourcereplacementsource");
 
         buffer.assign(source);
-        buffer.replaceInPlace(source, replacement);
+        buffer.replace_in_place(source, replacement);
         assert(buffer.view == replacement.view);
 
         buffer.clear();
-        buffer.appendEscaped(replacement);
+        buffer.append_escaped(replacement);
         assert(buffer.view == replacement.view);
 
         buffer.assign(source);
-        assert(buffer.removePrefix(source));
+        assert(buffer.remove_prefix(source));
         assert(buffer.empty);
         buffer.assign(source);
-        assert(buffer.removeSuffix(source));
+        assert(buffer.remove_suffix(source));
         assert(buffer.empty);
 
         buffer.assign("leftsourceleft");
@@ -233,7 +233,7 @@ private void testOwnedStringStringBufInputs(InstrumentedAllocator* tracked)
             replaced.deinit();
         assert(replaced.view == "leftreplacementleft");
 
-        StringBufUnmanaged unmanaged = StringBufUnmanaged.fromString(
+        StringBufUnmanaged unmanaged = StringBufUnmanaged.from_string(
             tracked.allocator,
             source,
         );
@@ -247,15 +247,15 @@ private void testOwnedStringStringBufInputs(InstrumentedAllocator* tracked)
         unmanaged.prepend(tracked.allocator, source);
         unmanaged.insert(
             tracked.allocator,
-            source.byteLength,
+            source.byte_length,
             replacement,
         );
         assert(unmanaged.view == "sourcereplacementsource");
 
         unmanaged.clear();
-        unmanaged.appendEscaped(tracked.allocator, replacement);
+        unmanaged.append_escaped(tracked.allocator, replacement);
         assert(unmanaged.view == replacement.view);
-        unmanaged.replaceInPlace(
+        unmanaged.replace_in_place(
             tracked.allocator,
             replacement,
             source,
@@ -267,8 +267,8 @@ private void testOwnedStringStringBufInputs(InstrumentedAllocator* tracked)
 
 private void testStringBufMoveReplacement(InstrumentedAllocator* tracked)
 {
-    StringBuf source = StringBuf.fromString(tracked.allocator, "source");
-    StringBuf target = StringBuf.fromString(tracked.allocator, "target");
+    StringBuf source = StringBuf.from_string(tracked.allocator, "source");
+    StringBuf target = StringBuf.from_string(tracked.allocator, "target");
     assert(tracked.stats.outstanding_allocations == 2);
 
     move_assign(source, target);
@@ -283,8 +283,8 @@ private void testStringBufMoveReplacement(InstrumentedAllocator* tracked)
 
 private void testOwnedStringMoveReplacement(InstrumentedAllocator* tracked)
 {
-    OwnedString source = OwnedString.fromString(tracked.allocator, "source");
-    OwnedString target = OwnedString.fromString(tracked.allocator, "target");
+    OwnedString source = OwnedString.from_string(tracked.allocator, "source");
+    OwnedString target = OwnedString.from_string(tracked.allocator, "target");
     assert(tracked.stats.outstanding_allocations == 2);
 
     move_assign(source, target);
@@ -299,7 +299,7 @@ private void testOwnedStringMoveReplacement(InstrumentedAllocator* tracked)
 
 private void testReleasedStorage(InstrumentedAllocator* tracked)
 {
-    StringBuf source = StringBuf.fromString(tracked.allocator, "released");
+    StringBuf source = StringBuf.from_string(tracked.allocator, "released");
     auto released = source.release();
     assert(source.allocator is null && source.empty);
     assert(released.allocator is tracked.allocator);
@@ -312,7 +312,7 @@ private void testReleasedStorage(InstrumentedAllocator* tracked)
     deinit(source);
     assert(tracked.clean);
 
-    OwnedString exactString = OwnedString.fromString(tracked.allocator, "exact");
+    OwnedString exactString = OwnedString.from_string(tracked.allocator, "exact");
     auto immutableReleased = exactString.release();
     assert(exactString.allocator is null && exactString.empty);
     OwnedString immutableAdopted = OwnedString.adopt(&immutableReleased);
@@ -327,11 +327,11 @@ private void testConstructionFailure(InstrumentedAllocator* tracked)
     tracked.fail_after(0);
 
     StringBuf buffer;
-    assert(!StringBuf.tryFromString(tracked.allocator, "buffer", &buffer));
+    assert(!StringBuf.try_from_string(tracked.allocator, "buffer", &buffer));
     assert(buffer.allocator is null && buffer.empty);
 
     OwnedString text;
-    assert(!OwnedString.tryFromString(tracked.allocator, "text", &text));
+    assert(!OwnedString.try_from_string(tracked.allocator, "text", &text));
     assert(text.allocator is null && text.empty);
     assert(tracked.clean);
     assert(tracked.stats.invalid_calls == 0);
@@ -346,13 +346,13 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
 {
     OwnedString copied = "copy".copy(tracked.allocator);
     assert(copied.view == "copy");
-    assert(tracked.stats.outstanding_bytes == copied.byteLength);
+    assert(tracked.stats.outstanding_bytes == copied.byte_length);
     deinit(copied);
     assert(tracked.clean);
 
     OwnedString concatenated = "left".concat("right", tracked.allocator);
     assert(concatenated.view == "leftright");
-    assert(tracked.stats.outstanding_bytes == concatenated.byteLength);
+    assert(tracked.stats.outstanding_bytes == concatenated.byte_length);
     deinit(concatenated);
     assert(tracked.clean);
 
@@ -362,20 +362,20 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
         tracked.allocator,
     );
     assert(replaced.view == "1 two 1");
-    assert(tracked.stats.outstanding_bytes == replaced.byteLength);
+    assert(tracked.stats.outstanding_bytes == replaced.byte_length);
     deinit(replaced);
     assert(tracked.clean);
 
     String[3] parts = ["a", "b", "c"];
     OwnedString joined = parts[].join("/", tracked.allocator);
     assert(joined.view == "a/b/c");
-    assert(tracked.stats.outstanding_bytes == joined.byteLength);
+    assert(tracked.stats.outstanding_bytes == joined.byte_length);
     deinit(joined);
     assert(tracked.clean);
 
     OwnedString escaped = "a\n\t\\b".escape(tracked.allocator);
     assert(escaped.view == "a\\n\\t\\\\b");
-    assert(tracked.stats.outstanding_bytes == escaped.byteLength);
+    assert(tracked.stats.outstanding_bytes == escaped.byte_length);
     deinit(escaped);
     assert(tracked.clean);
 
@@ -385,11 +385,11 @@ private void testOwnedStringTransforms(InstrumentedAllocator* tracked)
     OwnedString failedReplace;
     OwnedString failedJoin;
     OwnedString failedEscape;
-    assert(!"copy".tryCopy(tracked.allocator, &failedCopy));
-    assert(!"a".tryConcat("b", tracked.allocator, &failedConcat));
-    assert(!"a".tryReplace("a", "b", tracked.allocator, &failedReplace));
-    assert(!parts[].tryJoin("/", tracked.allocator, &failedJoin));
-    assert(!"\n".tryEscape(tracked.allocator, &failedEscape));
+    assert(!"copy".try_copy(tracked.allocator, &failedCopy));
+    assert(!"a".try_concat("b", tracked.allocator, &failedConcat));
+    assert(!"a".try_replace("a", "b", tracked.allocator, &failedReplace));
+    assert(!parts[].try_join("/", tracked.allocator, &failedJoin));
+    assert(!"\n".try_escape(tracked.allocator, &failedEscape));
     assert(failedCopy.allocator is null && failedCopy.empty);
     assert(failedConcat.allocator is null && failedConcat.empty);
     assert(failedReplace.allocator is null && failedReplace.empty);
@@ -412,7 +412,7 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
             String escapeArena = value.escape(arena);
             String arenaCopy = value.copy(arena);
             OwnedString output;
-            value.tryClone(allocator, &output);
+            value.try_clone(allocator, &output);
         }));
     static assert(!__traits(compiles,
             (scope const OwnedString* value) { auto result = value.clone(); }));
@@ -423,17 +423,17 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
     static assert(!__traits(compiles,
             (scope const OwnedString* value) { auto result = value.escape(); }));
     static assert(!__traits(compiles,
-            (scope const OwnedString* value, scope OwnedString* output) { value.tryClone(output); }));
+            (scope const OwnedString* value, scope OwnedString* output) { value.try_clone(output); }));
     static assert(!__traits(compiles,
             (scope const OwnedString* value, scope OwnedString* output) {
-            value.tryConcat("!", output);
+            value.try_concat("!", output);
         }));
     static assert(!__traits(compiles,
             (scope const OwnedString* value, scope OwnedString* output) {
-            value.tryReplace("a", "b", output);
+            value.try_replace("a", "b", output);
         }));
     static assert(!__traits(compiles,
-            (scope const OwnedString* value, scope OwnedString* output) { value.tryEscape(output); }));
+            (scope const OwnedString* value, scope OwnedString* output) { value.try_escape(output); }));
 
     AllocationRecord[32] otherRecords;
     InstrumentedAllocator other = InstrumentedAllocator.create(
@@ -510,7 +510,7 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
         OwnedString failed;
         scope (exit)
             failed.deinit();
-        assert(!source.tryConcat(" failure", tracked.allocator, &failed));
+        assert(!source.try_concat(" failure", tracked.allocator, &failed));
         assert(failed.allocator is null && failed.empty);
         tracked.allow_allocations();
     }
@@ -522,59 +522,59 @@ private void testDirectOwnedStringTransforms(InstrumentedAllocator* tracked)
 private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
 {
     {
-        StringBuf buffer = StringBuf.fromString(
+        StringBuf buffer = StringBuf.from_string(
             tracked.allocator,
             "cat cat cat",
         );
         scope (exit)
             buffer.deinit();
 
-        assert(buffer.tryReplaceInPlace("cat", "dog"));
+        assert(buffer.try_replace_in_place("cat", "dog"));
         assert(buffer.view == "dog dog dog");
-        assert(buffer.tryReplaceInPlace("dog", "x"));
+        assert(buffer.try_replace_in_place("dog", "x"));
         assert(buffer.view == "x x x");
-        assert(buffer.tryReplaceInPlace("x", "something"));
+        assert(buffer.try_replace_in_place("x", "something"));
         assert(buffer.view == "something something something");
-        assert(buffer.tryReplaceInPlace("", "ignored"));
+        assert(buffer.try_replace_in_place("", "ignored"));
         assert(buffer.view == "something something something");
     }
     assert(tracked.clean);
 
     {
-        StringBuf aliasedFrom = StringBuf.fromString(
+        StringBuf aliasedFrom = StringBuf.from_string(
             tracked.allocator,
             "abcabc",
         );
         scope (exit)
             aliasedFrom.deinit();
         String from = aliasedFrom.view[0 .. 3];
-        assert(aliasedFrom.tryReplaceInPlace(from, "x"));
+        assert(aliasedFrom.try_replace_in_place(from, "x"));
         assert(aliasedFrom.view == "xx");
     }
     assert(tracked.clean);
 
     {
-        StringBuf aliasedTo = StringBuf.fromString(
+        StringBuf aliasedTo = StringBuf.from_string(
             tracked.allocator,
             "abXYab",
         );
         scope (exit)
             aliasedTo.deinit();
         String to = aliasedTo.view[2 .. 4];
-        assert(aliasedTo.tryReplaceInPlace("ab", to));
+        assert(aliasedTo.try_replace_in_place("ab", to));
         assert(aliasedTo.view == "XYXYXY");
     }
     assert(tracked.clean);
 
     {
-        StringBuf growingAliasedFrom = StringBuf.fromString(
+        StringBuf growingAliasedFrom = StringBuf.from_string(
             tracked.allocator,
             "aaaaaaaa",
         );
         scope (exit)
             growingAliasedFrom.deinit();
         String from = growingAliasedFrom.view[0 .. 1];
-        assert(growingAliasedFrom.tryReplaceInPlace(from, "replacement"));
+        assert(growingAliasedFrom.try_replace_in_place(from, "replacement"));
         assert(growingAliasedFrom.view ==
                 "replacementreplacementreplacementreplacement" ~
                 "replacementreplacementreplacementreplacement");
@@ -582,46 +582,46 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 
     {
-        StringBuf growingAliasedTo = StringBuf.fromString(
+        StringBuf growingAliasedTo = StringBuf.from_string(
             tracked.allocator,
             "xLONGx",
         );
         scope (exit)
             growingAliasedTo.deinit();
         String to = growingAliasedTo.view[1 .. 5];
-        assert(growingAliasedTo.tryReplaceInPlace("x", to));
+        assert(growingAliasedTo.try_replace_in_place("x", to));
         assert(growingAliasedTo.view == "LONGLONGLONG");
     }
     assert(tracked.clean);
 
     {
-        StringBuf escaped = StringBuf.withCapacity(tracked.allocator, 64);
+        StringBuf escaped = StringBuf.with_capacity(tracked.allocator, 64);
         scope (exit)
             escaped.deinit();
         escaped.append("first\nsecond\t\"quoted\" café🙂");
         const allocationCalls = tracked.stats.allocation_calls;
-        assert(escaped.tryEscapeInPlace());
+        assert(escaped.try_escape_in_place());
         assert(escaped.view == "first\\nsecond\\t\\\"quoted\\\" café🙂");
         assert(tracked.stats.allocation_calls == allocationCalls);
     }
     assert(tracked.clean);
 
     {
-        StringBuf replaceFailure = StringBuf.fromString(
+        StringBuf replaceFailure = StringBuf.from_string(
             tracked.allocator,
             "xxxxxxxx",
         );
         scope (exit)
             replaceFailure.deinit();
         tracked.fail_after(0);
-        assert(!replaceFailure.tryReplaceInPlace("x", "replacement"));
+        assert(!replaceFailure.try_replace_in_place("x", "replacement"));
         assert(replaceFailure.view == "xxxxxxxx");
         tracked.allow_allocations();
     }
     assert(tracked.clean);
 
     {
-        StringBuf aliasFailure = StringBuf.fromString(
+        StringBuf aliasFailure = StringBuf.from_string(
             tracked.allocator,
             "alias-alias",
         );
@@ -629,21 +629,21 @@ private void testStringBufInPlaceTransforms(InstrumentedAllocator* tracked)
             aliasFailure.deinit();
         String aliasedNeedle = aliasFailure.view[0 .. 5];
         tracked.fail_after(0);
-        assert(!aliasFailure.tryReplaceInPlace(aliasedNeedle, "x"));
+        assert(!aliasFailure.try_replace_in_place(aliasedNeedle, "x"));
         assert(aliasFailure.view == "alias-alias");
         tracked.allow_allocations();
     }
     assert(tracked.clean);
 
     {
-        StringBuf escapeFailure = StringBuf.fromString(
+        StringBuf escapeFailure = StringBuf.from_string(
             tracked.allocator,
             "\n\n\n\n\n\n\n\n",
         );
         scope (exit)
             escapeFailure.deinit();
         tracked.fail_after(0);
-        assert(!escapeFailure.tryEscapeInPlace());
+        assert(!escapeFailure.try_escape_in_place());
         assert(escapeFailure.view == "\n\n\n\n\n\n\n\n");
         tracked.allow_allocations();
     }
@@ -660,7 +660,7 @@ private void testStringBufReplacementOutputs(InstrumentedAllocator* tracked)
     static assert(!__traits(compiles,
             (scope const StringBuf* value) { auto replaced = value.replace("cat", "lynx"); }));
 
-    StringBuf source = StringBuf.fromString(
+    StringBuf source = StringBuf.from_string(
         tracked.allocator,
         "cat dog cat",
     );
@@ -688,7 +688,7 @@ private void testStringBufReplacementOutputs(InstrumentedAllocator* tracked)
 
     OwnedString failed;
     tracked.fail_after(0);
-    assert(!source.tryReplace("cat", "lion", tracked.allocator, &failed));
+    assert(!source.try_replace("cat", "lion", tracked.allocator, &failed));
     assert(failed.allocator is null && failed.empty);
     assert(source.view == "cat dog cat");
     tracked.allow_allocations();
@@ -751,11 +751,11 @@ private void testArenaStringTransforms(InstrumentedAllocator* tracked)
     String failedReplace = "unchanged-replace";
     String failedJoin = "unchanged-join";
     String failedEscape = "unchanged-escape";
-    assert(!"copy".tryCopy(&failing, &failedCopy));
-    assert(!"a".tryConcat("b", &failing, &failedConcat));
-    assert(!"a".tryReplace("a", "b", &failing, &failedReplace));
-    assert(!parts[].tryJoin("/", &failing, &failedJoin));
-    assert(!"\n".tryEscape(&failing, &failedEscape));
+    assert(!"copy".try_copy(&failing, &failedCopy));
+    assert(!"a".try_concat("b", &failing, &failedConcat));
+    assert(!"a".try_replace("a", "b", &failing, &failedReplace));
+    assert(!parts[].try_join("/", &failing, &failedJoin));
+    assert(!"\n".try_escape(&failing, &failedEscape));
     assert(failedCopy == "unchanged-copy");
     assert(failedConcat == "unchanged-concat");
     assert(failedReplace == "unchanged-replace");
@@ -795,7 +795,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 
     {
-        StringBuf source = StringBuf.fromString(tracked.allocator, "same");
+        StringBuf source = StringBuf.from_string(tracked.allocator, "same");
         scope (exit)
             source.deinit();
         const(char)* original = source.view.ptr;
@@ -818,7 +818,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
         foreignRecords[],
     );
     {
-        StringBuf source = StringBuf.fromString(foreign.allocator, "foreign");
+        StringBuf source = StringBuf.from_string(foreign.allocator, "foreign");
         scope (exit)
             source.deinit();
         const(char)* original = source.view.ptr;
@@ -837,7 +837,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 
     {
-        StringBuf source = StringBuf.fromString(tracked.allocator, "temporary");
+        StringBuf source = StringBuf.from_string(tracked.allocator, "temporary");
         scope (exit)
             source.deinit();
         Arena arena = Arena.create(tracked.allocator, 128);
@@ -857,7 +857,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
         failingRecords[],
     );
     {
-        StringBuf retained = StringBuf.fromString(tracked.allocator, "retained");
+        StringBuf retained = StringBuf.from_string(tracked.allocator, "retained");
         scope (exit)
             retained.deinit();
         OwnedString output;
@@ -865,7 +865,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
             output.deinit();
 
         failing.fail_after(0);
-        assert(!retained.tryCopy(failing.allocator, &output));
+        assert(!retained.try_copy(failing.allocator, &output));
         assert(retained.view == "retained");
         assert(retained.allocator is tracked.allocator);
         assert(output.allocator is null && output.empty);
@@ -873,7 +873,7 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
 
         Arena failingArena = Arena.create(failing.allocator, 128);
         String arenaOutput = "unchanged";
-        assert(!retained.tryCopy(&failingArena, &arenaOutput));
+        assert(!retained.try_copy(&failingArena, &arenaOutput));
         assert(arenaOutput == "unchanged");
         assert(retained.view == "retained");
         failingArena.deinit();
@@ -883,35 +883,35 @@ private void testStringBufCopies(InstrumentedAllocator* tracked)
 
 private void testOptionResultComposition(InstrumentedAllocator* tracked)
 {
-    StringBuf optionalValue = StringBuf.fromString(tracked.allocator, "option");
+    StringBuf optionalValue = StringBuf.from_string(tracked.allocator, "option");
     Option!StringBuf optional = some(move(optionalValue));
     assert(optional.is_some && optional.value == "option");
     deinit(optional);
     deinit(optionalValue);
     assert(tracked.clean);
 
-    OwnedString optionalText = OwnedString.fromString(tracked.allocator, "owned-option");
+    OwnedString optionalText = OwnedString.from_string(tracked.allocator, "owned-option");
     Option!OwnedString ownedOptional = some(move(optionalText));
     assert(ownedOptional.is_some && ownedOptional.value.view == "owned-option");
     deinit(ownedOptional);
     deinit(optionalText);
     assert(tracked.clean);
 
-    OwnedString error = OwnedString.fromString(tracked.allocator, "error");
+    OwnedString error = OwnedString.from_string(tracked.allocator, "error");
     auto failed = Result!(StringBuf, OwnedString).err(move(error));
     assert(failed.is_err && failed.error.view == "error");
     deinit(failed);
     deinit(error);
     assert(tracked.clean);
 
-    OwnedString integerError = OwnedString.fromString(tracked.allocator, "integer-error");
+    OwnedString integerError = OwnedString.from_string(tracked.allocator, "integer-error");
     auto integerFailure = Result!(int, OwnedString).err(move(integerError));
     assert(integerFailure.is_err && integerFailure.error.view == "integer-error");
     deinit(integerFailure);
     deinit(integerError);
     assert(tracked.clean);
 
-    StringBuf success = StringBuf.fromString(tracked.allocator, "ok");
+    StringBuf success = StringBuf.from_string(tracked.allocator, "ok");
     auto succeeded = Result!(StringBuf, OwnedString).ok(move(success));
     assert(succeeded.is_ok && succeeded.value == "ok");
     deinit(succeeded);
@@ -924,7 +924,7 @@ private void testOwnedContainers(InstrumentedAllocator* tracked)
     OwnedArray!StringBuf values = OwnedArray!StringBuf.create(tracked.allocator);
     foreach (text; ["alpha", "beta", "gamma"])
     {
-        StringBuf value = StringBuf.fromString(tracked.allocator, text);
+        StringBuf value = StringBuf.from_string(tracked.allocator, text);
         values.append(move(value));
         deinit(value);
     }
@@ -935,8 +935,8 @@ private void testOwnedContainers(InstrumentedAllocator* tracked)
 
     alias Map = OwnedHashMap!(StringBuf, OwnedString);
     Map map = Map.create(tracked.allocator);
-    StringBuf key = StringBuf.fromString(tracked.allocator, "key");
-    OwnedString value = OwnedString.fromString(tracked.allocator, "value");
+    StringBuf key = StringBuf.from_string(tracked.allocator, "key");
+    OwnedString value = OwnedString.from_string(tracked.allocator, "value");
     assert(map.try_add(&key, &value) == AddStatus.inserted);
     assert(key.allocator is null && key.empty);
     assert(value.allocator is null && value.empty);
@@ -951,7 +951,7 @@ private void testOwnedArrayIntegration(InstrumentedAllocator* tracked)
     OwnedArray!StringBuf values = OwnedArray!StringBuf.create(tracked.allocator);
     foreach (text; integrationKeys)
     {
-        StringBuf value = StringBuf.fromString(tracked.allocator, text);
+        StringBuf value = StringBuf.from_string(tracked.allocator, text);
         assert(values.try_append(&value));
         assert(value.allocator is null && value.empty);
     }
@@ -970,7 +970,7 @@ private void testOwnedArrayIntegration(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 
     OwnedArray!StringBuf failing = OwnedArray!StringBuf.create(tracked.allocator);
-    StringBuf retained = StringBuf.fromString(tracked.allocator, "retained-array-value");
+    StringBuf retained = StringBuf.from_string(tracked.allocator, "retained-array-value");
     tracked.fail_after(0);
     assert(!failing.try_append(&retained));
     assert(retained.view == "retained-array-value");
@@ -987,16 +987,16 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
     Map map = Map.create(tracked.allocator);
     foreach (text; integrationKeys)
     {
-        StringBuf key = StringBuf.fromString(tracked.allocator, text);
-        StringBuf value = StringBuf.fromString(tracked.allocator, text);
+        StringBuf key = StringBuf.from_string(tracked.allocator, text);
+        StringBuf value = StringBuf.from_string(tracked.allocator, text);
         assert(map.try_add(&key, &value) == AddStatus.inserted);
         assert(key.allocator is null && key.empty);
         assert(value.allocator is null && value.empty);
     }
     assert(map.length == integrationKeys.length);
 
-    StringBuf replacementKey = StringBuf.fromString(tracked.allocator, "key-03");
-    StringBuf replacementValue = StringBuf.fromString(tracked.allocator, "replacement");
+    StringBuf replacementKey = StringBuf.from_string(tracked.allocator, "key-03");
+    StringBuf replacementValue = StringBuf.from_string(tracked.allocator, "replacement");
     assert(map.try_set(&replacementKey, &replacementValue) == SetStatus.replaced);
     assert(replacementKey.view == "key-03");
     assert(replacementValue.allocator is null && replacementValue.empty);
@@ -1005,14 +1005,14 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
     deinit(replacementKey);
     deinit(replacementValue);
 
-    StringBuf duplicateKey = StringBuf.fromString(tracked.allocator, "key-04");
-    StringBuf duplicateValue = StringBuf.fromString(tracked.allocator, "duplicate");
+    StringBuf duplicateKey = StringBuf.from_string(tracked.allocator, "key-04");
+    StringBuf duplicateValue = StringBuf.from_string(tracked.allocator, "duplicate");
     assert(map.try_add(&duplicateKey, &duplicateValue) == AddStatus.already_present);
     assert(duplicateKey.view == "key-04" && duplicateValue.view == "duplicate");
     deinit(duplicateKey);
     deinit(duplicateValue);
 
-    StringBuf takeLookup = StringBuf.fromString(tracked.allocator, "key-05");
+    StringBuf takeLookup = StringBuf.from_string(tracked.allocator, "key-05");
     StringBuf takenKey = void;
     StringBuf takenValue = void;
     assert(map.take(&takeLookup, &takenKey, &takenValue));
@@ -1021,7 +1021,7 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
     deinit(takenKey);
     deinit(takenValue);
 
-    StringBuf removeLookup = StringBuf.fromString(tracked.allocator, "key-06");
+    StringBuf removeLookup = StringBuf.from_string(tracked.allocator, "key-06");
     assert(map.remove(&removeLookup));
     deinit(removeLookup);
 
@@ -1031,8 +1031,8 @@ private void testOwnedHashMapStringIntegration(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 
     Map failing = Map.create(tracked.allocator);
-    StringBuf retainedKey = StringBuf.fromString(tracked.allocator, "oom-key");
-    StringBuf retainedValue = StringBuf.fromString(tracked.allocator, "oom-value");
+    StringBuf retainedKey = StringBuf.from_string(tracked.allocator, "oom-key");
+    StringBuf retainedValue = StringBuf.from_string(tracked.allocator, "oom-value");
     tracked.fail_after(0);
     assert(failing.try_add(&retainedKey, &retainedValue) == AddStatus.out_of_memory);
     assert(retainedKey.view == "oom-key" && retainedValue.view == "oom-value");
@@ -1050,25 +1050,25 @@ private void testOwnedHashSetStringIntegration(InstrumentedAllocator* tracked)
     Set set = Set.create(tracked.allocator);
     foreach (text; integrationKeys)
     {
-        StringBuf value = StringBuf.fromString(tracked.allocator, text);
+        StringBuf value = StringBuf.from_string(tracked.allocator, text);
         assert(set.try_add(&value) == AddStatus.inserted);
         assert(value.allocator is null && value.empty);
     }
     assert(set.length == integrationKeys.length);
 
-    StringBuf duplicate = StringBuf.fromString(tracked.allocator, "key-04");
+    StringBuf duplicate = StringBuf.from_string(tracked.allocator, "key-04");
     assert(set.try_add(&duplicate) == AddStatus.already_present);
     assert(duplicate.view == "key-04");
     deinit(duplicate);
 
-    StringBuf takeLookup = StringBuf.fromString(tracked.allocator, "key-05");
+    StringBuf takeLookup = StringBuf.from_string(tracked.allocator, "key-05");
     StringBuf taken = void;
     assert(set.take(&takeLookup, &taken));
     assert(taken == "key-05");
     deinit(takeLookup);
     deinit(taken);
 
-    StringBuf removeLookup = StringBuf.fromString(tracked.allocator, "key-06");
+    StringBuf removeLookup = StringBuf.from_string(tracked.allocator, "key-06");
     assert(set.remove(&removeLookup));
     deinit(removeLookup);
 
@@ -1078,7 +1078,7 @@ private void testOwnedHashSetStringIntegration(InstrumentedAllocator* tracked)
     assert(tracked.clean);
 
     Set failing = Set.create(tracked.allocator);
-    StringBuf retained = StringBuf.fromString(tracked.allocator, "oom-set-value");
+    StringBuf retained = StringBuf.from_string(tracked.allocator, "oom-set-value");
     tracked.fail_after(0);
     assert(failing.try_add(&retained) == AddStatus.out_of_memory);
     assert(retained.view == "oom-set-value");
@@ -1094,19 +1094,19 @@ private void testOwnedStringHashMapIntegration(InstrumentedAllocator* tracked)
     auto map = OwnedStringHashMap!OwnedString.create(tracked.allocator);
     foreach (text; integrationKeys)
     {
-        OwnedString value = OwnedString.fromString(tracked.allocator, text);
+        OwnedString value = OwnedString.from_string(tracked.allocator, text);
         assert(map.tryAdd(text, &value) == AddStatus.inserted);
         assert(value.allocator is null && value.empty);
     }
     assert(map.length == integrationKeys.length);
 
-    OwnedString replacement = OwnedString.fromString(tracked.allocator, "replacement");
+    OwnedString replacement = OwnedString.from_string(tracked.allocator, "replacement");
     assert(map.trySet("key-03", &replacement) == SetStatus.replaced);
     assert(replacement.allocator is null && replacement.empty);
     OwnedString* stored = map.find("key-03");
     assert(stored !is null && stored.view == "replacement");
 
-    OwnedString duplicate = OwnedString.fromString(tracked.allocator, "duplicate");
+    OwnedString duplicate = OwnedString.from_string(tracked.allocator, "duplicate");
     assert(map.tryAdd("key-04", &duplicate) == AddStatus.already_present);
     assert(duplicate.view == "duplicate");
     deinit(duplicate);
@@ -1120,7 +1120,7 @@ private void testOwnedStringHashMapIntegration(InstrumentedAllocator* tracked)
 
     auto failing = OwnedStringHashMap!OwnedString.create(tracked.allocator);
     failing.reserve(8);
-    OwnedString retained = OwnedString.fromString(tracked.allocator, "oom-value");
+    OwnedString retained = OwnedString.from_string(tracked.allocator, "oom-value");
     const failedBefore = tracked.stats.failed_calls;
     tracked.fail_after(0);
     assert(failing.tryAdd("oom-key", &retained) == AddStatus.out_of_memory);
@@ -1139,9 +1139,9 @@ private OwnedArray!StringBuf makeStringArray(
 )
 {
     OwnedArray!StringBuf result = OwnedArray!StringBuf.create(allocator);
-    StringBuf first = StringBuf.fromString(allocator, prefix);
+    StringBuf first = StringBuf.from_string(allocator, prefix);
     result.append(move(first));
-    StringBuf second = StringBuf.fromString(allocator, "nested-value");
+    StringBuf second = StringBuf.from_string(allocator, "nested-value");
     result.append(move(second));
     deinit(first);
     deinit(second);

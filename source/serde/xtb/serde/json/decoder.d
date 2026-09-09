@@ -1568,7 +1568,7 @@ private void decodeStringBuf(ref JsonParser parser, StringBuf* output)
         return;
     version (XTB_Checked)
         require(owned, "owned JSON string was not allocated");
-    StringBuf result = StringBuf.adoptRaw(
+    StringBuf result = StringBuf.adopt_raw(
         parser.allocator,
         cast(char*) value.ptr,
         value.length,
@@ -1592,8 +1592,8 @@ private void decodeOwnedString(ref JsonParser parser, OwnedString* output)
         value.length,
     );
     OwnedStringUnmanaged storage =
-        OwnedStringUnmanaged.adoptExact(&raw);
-    OwnedString result = OwnedString.adoptUnmanaged(
+        OwnedStringUnmanaged.adopt_exact(&raw);
+    OwnedString result = OwnedString.adopt_unmanaged(
         parser.allocator,
         &storage,
     );

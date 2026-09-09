@@ -741,14 +741,14 @@ private void testMoveOnlyStringBufKeys() @system
     static immutable keys = ["alpha", "beta", "gamma", "delta"];
     foreach (index, keyText; keys)
     {
-        StringBuf key = StringBuf.fromString(tracked.allocator, keyText);
+        StringBuf key = StringBuf.from_string(tracked.allocator, keyText);
         int value = cast(int) index;
         assert(map.add(&key, &value));
         assert(key.allocator is null);
     }
 
     map.reserve(64);
-    StringBuf lookup = StringBuf.fromString(tracked.allocator, "beta");
+    StringBuf lookup = StringBuf.from_string(tracked.allocator, "beta");
     assert(map.contains(&lookup));
     assert(map.remove(&lookup));
     lookup.deinit();
@@ -756,11 +756,11 @@ private void testMoveOnlyStringBufKeys() @system
     assertClean(tracked);
 
     StringBufOwnerSet set = StringBufOwnerSet.create(tracked.allocator);
-    StringBuf setValue = StringBuf.fromString(tracked.allocator, "set-value");
+    StringBuf setValue = StringBuf.from_string(tracked.allocator, "set-value");
     assert(set.add(&setValue));
     assert(setValue.allocator is null);
     set.reserve(32);
-    StringBuf setLookup = StringBuf.fromString(tracked.allocator, "set-value");
+    StringBuf setLookup = StringBuf.from_string(tracked.allocator, "set-value");
     assert(set.remove(&setLookup));
     setLookup.deinit();
     deinit(set);

@@ -50,7 +50,7 @@ on allocation failure and writes into caller-provided empty output storage:
 
 ```d
 OwnedString escaped;
-if (!input.tryEscape(heap, &escaped))
+if (!input.try_escape(heap, &escaped))
     return false;
 scope(exit) escaped.deinit();
 ```

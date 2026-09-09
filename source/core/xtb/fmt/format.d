@@ -73,7 +73,7 @@ bool tryFormatString(string pattern, Args...)(
     output.deinit();
 
     StringBuf fresh = StringBuf.create(allocator);
-    if (!fresh.tryFormat!pattern(args))
+    if (!fresh.try_format!pattern(args))
     {
         fresh.deinit();
         return false;
@@ -95,7 +95,7 @@ bool tryFormatString(Sequence...)(
     output.deinit();
 
     StringBuf fresh = StringBuf.create(allocator);
-    if (!fresh.tryFormat(header, sequence, footer))
+    if (!fresh.try_format(header, sequence, footer))
     {
         fresh.deinit();
         return false;

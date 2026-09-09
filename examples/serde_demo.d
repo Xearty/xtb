@@ -137,7 +137,7 @@ private struct Health
 private size_t appendSink(void* context, scope const(u8)[] bytes) nothrow @nogc
 {
     StringBuf* output = cast(StringBuf*) context;
-    (*output).append(bytes.asStringUnchecked);
+    (*output).append(bytes.as_string_unchecked);
     return bytes.length;
 }
 
@@ -219,26 +219,26 @@ private bool demonstrateOwningDecode() nothrow @nogc
 
     writeln("optional deployment note present: ",
         config.deploymentNote.isSome);
-    StringBuf deploymentNote = StringBuf.fromString(allocator,
+    StringBuf deploymentNote = StringBuf.from_string(allocator,
         "promote after health checks");
     config.deploymentNote = some(move(deploymentNote));
 
-    StringBuf feature = StringBuf.fromString(allocator, "compression");
+    StringBuf feature = StringBuf.from_string(allocator, "compression");
     config.featureFlags.append(move(feature));
 
     Endpoint replica;
-    StringBuf replicaHostName = StringBuf.fromString(allocator, "api-2.internal");
+    StringBuf replicaHostName = StringBuf.from_string(allocator, "api-2.internal");
     move_emplace(replicaHostName, replica.hostName);
     replica.port = 9443;
     replica.protocol = Protocol.https;
     OwnedArray!StringBuf replicaLabels = OwnedArray!StringBuf.create(allocator);
     move_emplace(replicaLabels, replica.labels);
-    StringBuf canary = StringBuf.fromString(allocator, "canary");
+    StringBuf canary = StringBuf.from_string(allocator, "canary");
     replica.labels.append(move(canary));
     config.replicaEndpoints.append(move(replica));
 
     Endpoint fallback;
-    StringBuf fallbackHostName = StringBuf.fromString(allocator, "fallback.internal");
+    StringBuf fallbackHostName = StringBuf.from_string(allocator, "fallback.internal");
     move_emplace(fallbackHostName, fallback.hostName);
     fallback.port = 443;
     fallback.protocol = Protocol.https;

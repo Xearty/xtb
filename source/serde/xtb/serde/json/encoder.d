@@ -94,9 +94,9 @@ private bool valuesEqual(T, E)(scope const ref T value, scope const ref E expect
     }
     else static if (isStringBuf!U || isOwnedString!U)
     {
-        if (value.byteLength != expected.byteLength)
+        if (value.byte_length != expected.byte_length)
             return false;
-        foreach (index; 0 .. value.byteLength)
+        foreach (index; 0 .. value.byte_length)
             if (value.view[index] != expected.view[index])
                 return false;
         return true;

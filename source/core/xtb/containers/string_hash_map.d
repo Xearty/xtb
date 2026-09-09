@@ -265,7 +265,7 @@ public:
         }
 
         OwnedStringUnmanaged owned;
-        if (!OwnedStringUnmanaged.tryFromString(allocator, key, &owned))
+        if (!OwnedStringUnmanaged.try_from_string(allocator, key, &owned))
             return AddStatus.out_of_memory;
         map_.commit_prepared_insert(&prepared, &owned, value);
         return AddStatus.inserted;
@@ -315,7 +315,7 @@ public:
         }
 
         OwnedStringUnmanaged owned;
-        if (!OwnedStringUnmanaged.tryFromString(allocator, key, &owned))
+        if (!OwnedStringUnmanaged.try_from_string(allocator, key, &owned))
             return SetStatus.out_of_memory;
         map_.commit_prepared_insert(&prepared, &owned, value);
         return SetStatus.inserted;
@@ -600,7 +600,7 @@ private:
         }
         else
         {
-            if (!OwnedStringUnmanaged.tryFromString(
+            if (!OwnedStringUnmanaged.try_from_string(
                     allocator,
                     key.view,
                     &owned,
@@ -654,7 +654,7 @@ private:
         OwnedStringUnmanaged owned;
         if (!key.empty &&
             key.allocator is destination &&
-            (key.byteCapacity == key.byteLength || key.tryShrinkToFit()))
+            (key.byte_capacity == key.byte_length || key.try_shrink_to_fit()))
         {
             auto released = key.release();
             Allocator* sourceAllocator;
@@ -662,13 +662,13 @@ private:
             version (XTB_Checked)
                 require(sourceAllocator is destination,
                     "StringBuf allocator changed during release");
-            auto exact = raw.releaseExactStorage();
-            auto adopted = OwnedStringUnmanaged.adoptExact(&exact);
+            auto exact = raw.release_exact_storage();
+            auto adopted = OwnedStringUnmanaged.adopt_exact(&exact);
             move_emplace(adopted, owned);
         }
         else
         {
-            if (!OwnedStringUnmanaged.tryFromString(
+            if (!OwnedStringUnmanaged.try_from_string(
                     destination,
                     key.view,
                     &owned,
@@ -1089,7 +1089,7 @@ public:
     {
         version (XTB_Checked)
             require(valid, "invalid StringHashMap cursor");
-        return cursor_.key.viewPointer;
+        return cursor_.key.view_pointer;
     }
 
     V* value() return
@@ -1129,7 +1129,7 @@ public:
     {
         version (XTB_Checked)
             require(valid, "invalid StringHashMap cursor");
-        return cursor_.key.viewPointer;
+        return cursor_.key.view_pointer;
     }
 
     const(V)* value() const return
@@ -1216,8 +1216,8 @@ unittest
             (scope const StringHashMap!int* value) @safe { Allocator* allocator = value.allocator; }));
 
     StringHashMap!int values = StringHashMap!int.create(malloc_allocator());
-    StringBuf source = StringBuf.fromString(malloc_allocator(), "alpha");
-    source.shrinkToFit();
+    StringBuf source = StringBuf.from_string(malloc_allocator(), "alpha");
+    source.shrink_to_fit();
     const sourcePointer = source.view.ptr;
     int first = 1;
     assert(values.addMove(&source, &first));
@@ -1229,7 +1229,7 @@ unittest
     assert(cursor.valid && *cursor.key == "alpha");
     assert((*cursor.key).ptr is sourcePointer);
 
-    StringBuf duplicate = StringBuf.fromString(malloc_allocator(), "alpha");
+    StringBuf duplicate = StringBuf.from_string(malloc_allocator(), "alpha");
     int duplicateValue = 2;
     assert(values.tryAddMove(&duplicate, &duplicateValue) ==
             AddStatus.already_present);
@@ -1250,8 +1250,8 @@ unittest
 
     OwnedStringHashMap!StringBuf values =
         OwnedStringHashMap!StringBuf.create(malloc_allocator());
-    StringBuf key = StringBuf.fromString(malloc_allocator(), "self");
-    StringBuf payload = StringBuf.fromString(malloc_allocator(), "payload");
+    StringBuf key = StringBuf.from_string(malloc_allocator(), "self");
+    StringBuf payload = StringBuf.from_string(malloc_allocator(), "payload");
     assert(values.addMove(&key, &payload));
 
     StringBuf* stored = values.find("self");
@@ -1259,7 +1259,7 @@ unittest
     assert(values.tryAdd("self", stored) == AddStatus.already_present);
     assert(values.trySet("self", stored) == SetStatus.replaced);
     StringBuf replacementKey =
-        StringBuf.fromString(malloc_allocator(), "self");
+        StringBuf.from_string(malloc_allocator(), "self");
     assert(values.trySetMove(&replacementKey, stored) == SetStatus.replaced);
     assert(stored.view == "payload");
     assert(replacementKey.view == "self" && replacementKey.allocator !is null);
@@ -1274,8 +1274,8 @@ unittest
 
     Allocator* allocator = malloc_allocator();
     StringHashMapUnmanaged!int values;
-    StringBuf source = StringBuf.fromString(allocator, "unmanaged");
-    source.shrinkToFit();
+    StringBuf source = StringBuf.from_string(allocator, "unmanaged");
+    source.shrink_to_fit();
     const sourcePointer = source.view.ptr;
     int value = 42;
 
@@ -1313,10 +1313,10 @@ unittest
     );
 
     StringHashMap!int values = StringHashMap!int.create(mapAllocator.allocator);
-    StringBuf exact = StringBuf.fromString(mapAllocator.allocator, "stable");
+    StringBuf exact = StringBuf.from_string(mapAllocator.allocator, "stable");
     const(char)* exactPointer;
     {
-        exact.shrinkToFit();
+        exact.shrink_to_fit();
         exactPointer = exact.view.ptr;
     }
     int first = 1;
@@ -1346,7 +1346,7 @@ unittest
     }
     assert(stablePointer is exactPointer);
 
-    OwnedString foreign = OwnedString.fromString(
+    OwnedString foreign = OwnedString.from_string(
         foreignAllocator.allocator,
         "foreign",
     );
@@ -1367,7 +1367,7 @@ unittest
     }
     assert(foreignStoredPointer !is null);
 
-    OwnedString replacement = OwnedString.fromString(
+    OwnedString replacement = OwnedString.from_string(
         foreignAllocator.allocator,
         "foreign",
     );
@@ -1387,7 +1387,7 @@ unittest
         foreignCursor.advance();
     }
 
-    OwnedString duplicate = OwnedString.fromString(
+    OwnedString duplicate = OwnedString.from_string(
         foreignAllocator.allocator,
         "foreign",
     );
@@ -1420,7 +1420,7 @@ unittest
     );
     StringHashMap!int failing = StringHashMap!int.create(
         failedMapAllocator.allocator);
-    OwnedString retained = OwnedString.fromString(
+    OwnedString retained = OwnedString.from_string(
         retainedAllocator.allocator,
         "retained",
     );

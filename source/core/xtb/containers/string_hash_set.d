@@ -665,10 +665,10 @@ unittest
     assert(values.contains("alpha"));
     assert(valuesPointer.contains("alpha"));
 
-    StringBuf buffer = StringBuf.fromString(malloc_allocator(), "beta");
+    StringBuf buffer = StringBuf.from_string(malloc_allocator(), "beta");
     const(char)* bufferPointer;
     {
-        buffer.shrinkToFit();
+        buffer.shrink_to_fit();
         bufferPointer = buffer.view.ptr;
     }
     assert(values.tryAddMove(&buffer) == AddStatus.inserted);
@@ -678,7 +678,7 @@ unittest
         assert(buffer.allocator is null && buffer.empty);
     }
 
-    OwnedString owned = OwnedString.fromString(malloc_allocator(), "gamma");
+    OwnedString owned = OwnedString.from_string(malloc_allocator(), "gamma");
     const(char)* ownedPointer;
     {
         ownedPointer = owned.view.ptr;
@@ -707,7 +707,7 @@ unittest
     }
     assert(sawBuffer && sawOwned);
 
-    StringBuf duplicate = StringBuf.fromString(malloc_allocator(), "beta");
+    StringBuf duplicate = StringBuf.from_string(malloc_allocator(), "beta");
     assert(values.tryAddMove(&duplicate) == AddStatus.already_present);
     {
         assert(duplicate.view == "beta");
@@ -758,7 +758,7 @@ unittest
     );
 
     StringHashSet values = StringHashSet.create(setAllocator.allocator);
-    OwnedString retained = OwnedString.fromString(
+    OwnedString retained = OwnedString.from_string(
         sourceAllocator.allocator,
         "retained",
     );

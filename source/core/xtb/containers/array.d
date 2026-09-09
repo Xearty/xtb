@@ -1575,14 +1575,14 @@ unittest
     // Fallible pointer insertion preserves caller ownership on allocation
     // failure, including move-only explicit owners.
     auto values = Array!StringBuf.with_capacity(tracked.allocator, 1);
-    auto first = StringBuf.fromString(tracked.allocator, "first");
+    auto first = StringBuf.from_string(tracked.allocator, "first");
     values.append(move(first));
     while (values.length < values.capacity)
     {
-        auto filler = StringBuf.fromString(tracked.allocator, "filler");
+        auto filler = StringBuf.from_string(tracked.allocator, "filler");
         values.append_assume_capacity(move(filler));
     }
-    auto candidate = StringBuf.fromString(tracked.allocator, "candidate");
+    auto candidate = StringBuf.from_string(tracked.allocator, "candidate");
     const old_length = values.length;
     tracked.fail_after(0);
     assert(!values.try_append(&candidate));

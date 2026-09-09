@@ -34,8 +34,8 @@ package(xtb.fs) OsError closeDirectory(void** directory) @system
 package(xtb.fs) OsError openDirectory(String path, void** output) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.fromString(scratch.allocator, path);
-    *output = opendir(native.checkedCString);
+    StringBuf native = StringBuf.from_string(scratch.allocator, path);
+    *output = opendir(native.checked_c_string);
     return *output is null ? lastError() : OsError.init;
 }
 
@@ -53,7 +53,7 @@ package(xtb.fs) NativeDirectoryResult nextDirectory(
             return errno == 0
                 ? NativeDirectoryResult(NativeDirectoryStatus.finished, OsError.init)
                 : NativeDirectoryResult(NativeDirectoryStatus.failed, lastError());
-        const checked = fromCString(native.d_name.ptr);
+        const checked = from_c_string(native.d_name.ptr);
         if (checked.failed)
             return NativeDirectoryResult(
                 NativeDirectoryStatus.failed,
@@ -94,30 +94,30 @@ private NativeFileType fromDirectoryType(ubyte value) pure @safe
 package(xtb.fs) OsError createDirectory(String path, uint permissions) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.fromString(scratch.allocator, path);
-    return mkdir(native.checkedCString, permissions) == 0 ? OsError.init : lastError();
+    StringBuf native = StringBuf.from_string(scratch.allocator, path);
+    return mkdir(native.checked_c_string, permissions) == 0 ? OsError.init : lastError();
 }
 
 package(xtb.fs) OsError removeEmptyDirectory(String path) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.fromString(scratch.allocator, path);
-    return rmdir(native.checkedCString) == 0 ? OsError.init : lastError();
+    StringBuf native = StringBuf.from_string(scratch.allocator, path);
+    return rmdir(native.checked_c_string) == 0 ? OsError.init : lastError();
 }
 
 package(xtb.fs) OsError removeFile(String path) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.fromString(scratch.allocator, path);
-    return unlink(native.checkedCString) == 0 ? OsError.init : lastError();
+    StringBuf native = StringBuf.from_string(scratch.allocator, path);
+    return unlink(native.checked_c_string) == 0 ? OsError.init : lastError();
 }
 
 package(xtb.fs) OsError renamePath(String source, String destination) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf from = StringBuf.fromString(scratch.allocator, source);
-    StringBuf to = StringBuf.fromString(scratch.allocator, destination);
-    return nativeRename(from.checkedCString, to.checkedCString) == 0
+    StringBuf from = StringBuf.from_string(scratch.allocator, source);
+    StringBuf to = StringBuf.from_string(scratch.allocator, destination);
+    return nativeRename(from.checked_c_string, to.checked_c_string) == 0
         ? OsError.init : lastError();
 }
 
@@ -126,7 +126,7 @@ package(xtb.fs) OsError currentDirectory(ref StringBuf output) @system
     char* buffer = getcwd(null, 0);
     if (buffer is null)
         return lastError();
-    const checked = fromCString(buffer);
+    const checked = from_c_string(buffer);
     if (checked.failed)
     {
         free(buffer);
@@ -168,7 +168,7 @@ package(xtb.fs) OsError queryAccess(
 ) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.fromString(scratch.allocator, path);
+    StringBuf native = StringBuf.from_string(scratch.allocator, path);
     int mode;
     switch (requested)
     {
@@ -187,7 +187,7 @@ package(xtb.fs) OsError queryAccess(
         default:
             return OsError(OsErrorKind.invalidArgument, 0);
     }
-    if (access(native.checkedCString, mode) == 0)
+    if (access(native.checked_c_string, mode) == 0)
     {
         *output = true;
         return OsError.init;
@@ -201,11 +201,11 @@ package(xtb.fs) OsError queryAccess(
 package(xtb.fs) OsError canonicalPath(String path, ref StringBuf output) @system
 {
     ScratchScope scratch = ScratchScope.acquire(output.allocator);
-    StringBuf native = StringBuf.fromString(scratch.allocator, path);
-    char* resolved = realpath(native.checkedCString, null);
+    StringBuf native = StringBuf.from_string(scratch.allocator, path);
+    char* resolved = realpath(native.checked_c_string, null);
     if (resolved is null)
         return lastError();
-    const checked = fromCString(resolved);
+    const checked = from_c_string(resolved);
     if (checked.failed)
     {
         free(resolved);

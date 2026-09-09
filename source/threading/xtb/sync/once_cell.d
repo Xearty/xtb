@@ -373,7 +373,7 @@ version (unittest)
 
     private OwnedString initializeOwnedString(Allocator* allocator) nothrow @nogc
     {
-        return OwnedString.fromString(allocator, "once-cell");
+        return OwnedString.from_string(allocator, "once-cell");
     }
 
     unittest

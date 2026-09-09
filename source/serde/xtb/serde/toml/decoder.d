@@ -687,7 +687,7 @@ private void parseOwnedHashMapDocument(K, V, Hasher, Equal)(
         scope (exit)
             ownedKey.deinit();
         if (parser.error.ok &&
-            !OwnedString.tryFromString(
+            !OwnedString.try_from_string(
                 parser.allocator,
                 key[0].value,
                 &ownedKey,
@@ -761,7 +761,7 @@ private void parseStringHashMapDocument(Map)(
         scope (exit)
             ownedKey.deinit();
         if (parser.error.ok &&
-            !OwnedString.tryFromString(
+            !OwnedString.try_from_string(
                 parser.allocator,
                 key[0].value,
                 &ownedKey,
@@ -1763,7 +1763,7 @@ private void decodeOwnedHashMapInline(K, V, Hasher, Equal)(
         scope (exit)
             ownedKey.deinit();
         if (parser.error.ok &&
-            !OwnedString.tryFromString(
+            !OwnedString.try_from_string(
                 parser.allocator,
                 key[0].value,
                 &ownedKey,
@@ -1855,7 +1855,7 @@ private void decodeStringHashMapInline(Map)(
         scope (exit)
             ownedKey.deinit();
         if (parser.error.ok &&
-            !OwnedString.tryFromString(
+            !OwnedString.try_from_string(
                 parser.allocator,
                 key[0].value,
                 &ownedKey,
@@ -2445,7 +2445,7 @@ private void decodeStringBuf(ref TomlParser parser, StringBuf* output)
         return;
     version (XTB_Checked)
         require(owned, "owned TOML string was not allocated");
-    StringBuf result = StringBuf.adoptRaw(
+    StringBuf result = StringBuf.adopt_raw(
         parser.allocator,
         cast(char*) value.ptr,
         value.length,
@@ -2469,8 +2469,8 @@ private void decodeOwnedString(ref TomlParser parser, OwnedString* output)
         value.length,
     );
     OwnedStringUnmanaged storage =
-        OwnedStringUnmanaged.adoptExact(&raw);
-    OwnedString result = OwnedString.adoptUnmanaged(
+        OwnedStringUnmanaged.adopt_exact(&raw);
+    OwnedString result = OwnedString.adopt_unmanaged(
         parser.allocator,
         &storage,
     );

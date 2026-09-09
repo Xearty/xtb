@@ -57,9 +57,9 @@ extern (C) int main() nothrow @nogc
     // String never owns memory. Literals and slices are just borrowed UTF-8
     // views and need no cleanup.
     String raw = "  /srv/config/app.toml  ";
-    String trimmed = raw.trimAscii();
-    String fileName = trimmed.baseName();
-    String stem = fileName.stripExtension();
+    String trimmed = raw.trim_ascii();
+    String fileName = trimmed.base_name();
+    String stem = fileName.strip_extension();
     formatln!"raw='{}', trimmed='{}', file='{}', stem='{}'"(
         raw,
         trimmed,
@@ -67,8 +67,8 @@ extern (C) int main() nothrow @nogc
         stem,
     );
 
-    assert(trimmed.startsWith("/srv/"));
-    assert(trimmed.endsWith(".toml"));
+    assert(trimmed.starts_with("/srv/"));
+    assert(trimmed.ends_with(".toml"));
     assert(stem.equal("app"));
 
     // External bytes can be validated before becoming a borrowed String.
@@ -107,7 +107,7 @@ extern (C) int main() nothrow @nogc
         // The try API follows the same ownership rule. It commits the output only
         // after the arena allocation succeeds.
         String fallibleArenaResult = "unchanged";
-        if (!"alpha//beta".tryReplace(
+        if (!"alpha//beta".try_replace(
                 "//",
                 "/",
                 &routeArena,
@@ -200,7 +200,7 @@ extern (C) int main() nothrow @nogc
         OwnedString fallibleOwned;
         scope (exit)
             fallibleOwned.deinit();
-        if (!ownedCopy.tryConcat(" owner", heap, &fallibleOwned))
+        if (!ownedCopy.try_concat(" owner", heap, &fallibleOwned))
             return 1;
         formatln!"fallible owned result: {}"(fallibleOwned);
     }
@@ -229,23 +229,23 @@ extern (C) int main() nothrow @nogc
     writeln("\n== mutable StringBuf ==");
 
     {
-        StringBuf builder = StringBuf.withCapacity(heap, 64);
+        StringBuf builder = StringBuf.with_capacity(heap, 64);
         scope (exit)
             builder.deinit();
         builder.append("GET ");
         builder.append("/v1/users/");
         builder.append(cast(dchar) 0x1f642);
         builder.append("  ");
-        builder.trimAsciiEndInPlace();
+        builder.trim_ascii_end_in_place();
 
         OwnedString originalMethod = builder.replace("GET", "HEAD", heap);
         scope (exit)
             originalMethod.deinit();
         formatln!"immutable replacement: {}"(originalMethod);
 
-        builder.replaceInPlace("GET", "PATCH");
+        builder.replace_in_place("GET", "PATCH");
         builder.append("\nrequest-id=42");
-        builder.escapeInPlace();
+        builder.escape_in_place();
         formatln!"mutable buffer: {}"(builder);
 
         // Copying into immutable exact-sized storage has one predictable
@@ -265,7 +265,7 @@ extern (C) int main() nothrow @nogc
         // front when possible: arena reallocations cannot reclaim superseded
         // buffers until the scratch scope rewinds. Prefer the Arena* immutable
         // transforms above when the output size can be computed exactly.
-        StringBuf temporaryBuilder = StringBuf.withCapacity(
+        StringBuf temporaryBuilder = StringBuf.with_capacity(
             scratch.allocator,
             96,
         );
@@ -288,7 +288,7 @@ extern (C) int main() nothrow @nogc
         // OwnedStringUnmanaged is for an independently owned allocation whose
         // allocator context is stored somewhere else. It is NOT the normal
         // arena representation; arena-backed immutable text should be String.
-        OwnedStringUnmanaged compact = OwnedStringUnmanaged.fromString(
+        OwnedStringUnmanaged compact = OwnedStringUnmanaged.from_string(
             heap,
             "allocator stored externally",
         );
@@ -308,10 +308,10 @@ extern (C) int main() nothrow @nogc
         // OwnedString is exact-sized and deliberately does not promise a
         // trailing NUL. StringBuf can provide a checked C string when an API
         // requires one.
-        StringBuf cBuffer = StringBuf.fromString(heap, "api.example.com");
+        StringBuf cBuffer = StringBuf.from_string(heap, "api.example.com");
         scope (exit)
             cBuffer.deinit();
-        const(char)* cName = cBuffer.checkedCString();
+        const(char)* cName = cBuffer.checked_c_string();
         formatln!"C string bytes: {}"(strlen(cName));
     }
 

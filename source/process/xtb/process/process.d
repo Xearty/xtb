@@ -701,9 +701,9 @@ ProcessError killAndWait(ChildProcess* child, ExitStatus* output) @system
 private ProcessError validateCommand(scope const(Command) command) @system
 {
     if (cast(u8) command.lookup_ > cast(u8) ExecutableLookup.searchPath ||
-        command.executable_.length == 0 || command.executable_.containsNul ||
+        command.executable_.length == 0 || command.executable_.contains_nul ||
         command.executable_.length == size_t.max ||
-        command.argumentZero_.containsNul ||
+        command.argumentZero_.contains_nul ||
         command.argumentZero_.length == size_t.max ||
         cast(u8) command.environment_.mode > cast(u8) EnvironmentMode.overlay)
         return invalidProcessError(ProcessOperation.validate);
@@ -712,17 +712,17 @@ private ProcessError validateCommand(scope const(Command) command) @system
         return invalidProcessError(ProcessOperation.validate);
     foreach (argument; command.arguments_)
     {
-        if (argument.containsNul || argument.length == size_t.max)
+        if (argument.contains_nul || argument.length == size_t.max)
             return invalidProcessError(ProcessOperation.validate);
     }
     if (command.workingDirectory_.is_some &&
-        (command.workingDirectory_.value.view.containsNul ||
+        (command.workingDirectory_.value.view.contains_nul ||
             command.workingDirectory_.value.view.length == size_t.max))
         return invalidProcessError(ProcessOperation.validate);
     foreach (i, entry; command.environment_.entries)
     {
-        if (entry.name.length == 0 || entry.name.containsNul ||
-            entry.name.containsCodeUnit('=') || entry.value.containsNul ||
+        if (entry.name.length == 0 || entry.name.contains_nul ||
+            entry.name.contains_code_unit('=') || entry.value.contains_nul ||
             cast(u8) entry.action > cast(
                 u8) EnvironmentAction.remove ||
             (entry.action == EnvironmentAction.remove && entry.value.length != 0) ||
@@ -885,7 +885,7 @@ private ProcessError spawnPlatform(
 
     NativeProcessId processId;
     if (command.lookup_ == ExecutableLookup.searchPath &&
-        !command.executable_.containsCodeUnit('/'))
+        !command.executable_.contains_code_unit('/'))
         error = spawnSearchPath(
             &spawnState,
             command.executable_,
@@ -960,7 +960,7 @@ private OsError spawnSearchPath(
         }
         candidate.append(executable);
         const error = spawnState.execute(
-            candidate.checkedCString,
+            candidate.checked_c_string,
             argv,
             environment,
             output,
@@ -1012,7 +1012,7 @@ private OsError buildEnvironment(
     size_t length;
     foreach (i; 0 .. inheritedCount)
     {
-        const checked = fromCString(inherited[i]);
+        const checked = from_c_string(inherited[i]);
         if (checked.failed)
             return OsError(OsErrorKind.invalidData, 0);
         const name = environmentEntryName(checked.value);
@@ -1088,7 +1088,7 @@ private OsError environmentValue(
     *output = String.init;
     for (size_t i; environment[i]!is null; ++i)
     {
-        const checked = fromCString(environment[i]);
+        const checked = from_c_string(environment[i]);
         if (checked.failed)
             return OsError(OsErrorKind.invalidData, 0);
         const entry = checked.value;

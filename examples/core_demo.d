@@ -22,7 +22,7 @@ extern (C) int main() nothrow @nogc
     message.format!"{} {}"("core values:", numbers.length);
     writeln(message);
 
-    StringBuf path = StringBuf.fromString(scratch.allocator, "assets");
+    StringBuf path = StringBuf.from_string(scratch.allocator, "assets");
     path.append('/');
     path.append("image.bmp");
     formatln!"path={}, first={}, last={}"(
@@ -44,7 +44,7 @@ extern (C) int main() nothrow @nogc
 
     String text = "Aé🙂";
     formatln!"text bytes={}, code points={}"(
-        text.byteLength,
+        text.byte_length,
         text.code_point_count,
     );
     foreach (decoded; text.code_points_with_offsets)
