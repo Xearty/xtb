@@ -2,20 +2,18 @@ module xtb.containers.string_hash_set;
 
 nothrow @nogc:
 
-import xtb.lifetime : move, move_emplace;
-import xtb.hash : HashSeed;
-import xtb.containers.hash_map : AddStatus;
-import xtb.containers.hash_set : HashSet, HashSetUnmanaged;
-import xtb.memory : Allocator;
-import xtb.string : OwnedString;
-import xtb.panic : panic;
+import core.attribute;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.containers.released_storage : ReleasedStorage;
-import xtb.string : StringBuf;
-import xtb.containers.string_hash_map : ConstStringHashMapCursor,
-    StringHashMapCursor, StringHashMapUnmanaged;
-import xtb.types : String;
+import xtb.containers.hash_map;
+import xtb.containers.hash_set;
+import xtb.containers.released_storage;
+import xtb.containers.string_hash_map;
+import xtb.hash;
+import xtb.lifetime;
+import xtb.memory;
+import xtb.panic;
+import xtb.string;
+import xtb.types;
 
 /// Borrowing string-key set. The set owns each `String` descriptor, but the
 /// caller must keep the bytes referenced by every inserted value alive.
@@ -30,98 +28,95 @@ private struct StringSetMarker
 
 /// Allocator-explicit set that owns an exact immutable allocation for every
 /// nonempty string. Operations are allocator-explicit members.
-struct StringHashSetUnmanaged
+@mustuse struct StringHashSetUnmanaged
 {
 nothrow @nogc:
 
-private:
-    StringHashMapUnmanaged!StringSetMarker map_;
+    StringHashMapUnmanaged!StringSetMarker map;
 
-    version (XTB_Checked)
+    invariant
     {
-        invariant
-        {
-            require(&this !is null, "StringHashSetUnmanaged pointer is null");
-        }
+        require(&this !is null, "StringHashSetUnmanaged pointer is null");
     }
 
-public:
     @disable this(this);
     @disable ref StringHashSetUnmanaged opAssign(StringHashSetUnmanaged source) return;
 
     static StringHashSetUnmanaged seeded(HashSeed seed) @trusted
     {
         StringHashSetUnmanaged result;
-        auto map = typeof(result.map_).seeded(seed);
-        move_emplace(map, result.map_);
+        auto map = typeof(result.map).seeded(seed);
+        move_emplace(map, result.map);
         return move(result);
     }
 
-    static bool tryWithCapacity(
+    static bool try_with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         scope StringHashSetUnmanaged* output,
     ) @trusted
     {
-        version (XTB_Checked)
-        {
-            require(output !is null,
-                "StringHashSetUnmanaged output pointer is null");
-            require(output.map_.capacity == 0 && output.map_.empty,
-                "StringHashSetUnmanaged output is not empty");
-        }
+        require(
+            output !is null,
+            "StringHashSetUnmanaged output pointer is null",
+        );
+        require(
+            output.map.capacity == 0 && output.map.empty,
+            "StringHashSetUnmanaged output is not empty",
+        );
         StringHashMapUnmanaged!StringSetMarker map;
         if (!typeof(map).try_with_capacity(allocator, requested, &map))
             return false;
-        move_emplace(map, output.map_);
+        move_emplace(map, output.map);
         return true;
     }
 
-    static StringHashSetUnmanaged withCapacity(
+    static StringHashSetUnmanaged with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
     ) @trusted
     {
         StringHashSetUnmanaged result;
-        if (!tryWithCapacity(allocator, requested, &result))
+        if (!StringHashSetUnmanaged.try_with_capacity(allocator, requested, &result))
             panic("StringHashSet allocation failed");
+
         return move(result);
     }
 
-    static StringHashSetUnmanaged withCapacity(
+    static StringHashSetUnmanaged with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         HashSeed seed,
     ) @trusted
     {
-        StringHashSetUnmanaged result = seeded(seed);
-        result.map_.reserve(allocator, requested);
+        StringHashSetUnmanaged result = StringHashSetUnmanaged.seeded(seed);
+        result.map.reserve(allocator, requested);
         return move(result);
     }
 
     void deinit(Allocator* allocator) @trusted
     {
-        map_.deinit(allocator);
+        this.map.deinit(allocator);
     }
 
-    void resetAndRelease(Allocator* allocator) @trusted
+    void reset_and_release(Allocator* allocator) @trusted
     {
-        map_.reset_and_release(allocator);
+        this.map.reset_and_release(allocator);
     }
 
-    size_t length() const pure @trusted
+    usize length() const pure @trusted
     {
-        return map_.length;
+        return this.map.length;
     }
 
-    size_t capacity() const pure @trusted
+    usize capacity() const pure @trusted
     {
-        return map_.capacity;
+        return this.map.capacity;
     }
 
     bool empty() const pure @trusted
     {
-        return map_.empty;
+        return this.map.empty;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
@@ -131,111 +126,114 @@ public:
 
     StringHashSetCursor cursor() return @trusted
     {
-        return StringHashSetCursor.create(map_.cursor);
+        return StringHashSetCursor.create(this.map.cursor);
     }
 
     ConstStringHashSetCursor cursor() const return @trusted
     {
-        return ConstStringHashSetCursor.create(map_.cursor);
+        return ConstStringHashSetCursor.create(this.map.cursor);
     }
 
-    StringHashSetPointerRange pointerItems() return @trusted
+    StringHashSetPointerRange pointer_items() return @trusted
     {
-        return StringHashSetPointerRange(cursor());
+        return StringHashSetPointerRange(this.cursor());
     }
 
-    ConstStringHashSetPointerRange pointerItems() const return @trusted
+    ConstStringHashSetPointerRange pointer_items() const return @trusted
     {
-        return ConstStringHashSetPointerRange(cursor());
+        return ConstStringHashSetPointerRange(this.cursor());
     }
 
-    AddStatus tryAdd(Allocator* allocator, scope String value) @trusted
+    AddStatus try_add(Allocator* allocator, scope String value) @trusted
     {
-        return map_.try_add(allocator, value, StringSetMarker.init);
+        return this.map.try_add(allocator, value, StringSetMarker.init);
     }
 
     bool add(Allocator* allocator, scope String value) @trusted
     {
-        const status = tryAdd(allocator, value);
+        const status = this.try_add(allocator, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashSet allocation failed");
+
         return status == AddStatus.inserted;
     }
 
-    AddStatus tryAddMove(
+    AddStatus try_add_move(
         Allocator* allocator,
         scope OwnedString* value,
     ) @trusted
     {
         StringSetMarker marker;
-        return map_.try_add_move(allocator, value, &marker);
+        return this.map.try_add_move(allocator, value, &marker);
     }
 
-    AddStatus tryAddMove(
+    AddStatus try_add_move(
         Allocator* allocator,
         scope StringBuf* value,
     ) @trusted
     {
         StringSetMarker marker;
-        return map_.try_add_move(allocator, value, &marker);
+        return this.map.try_add_move(allocator, value, &marker);
     }
 
-    bool addMove(Allocator* allocator, scope OwnedString* value) @trusted
+    bool add_move(Allocator* allocator, scope OwnedString* value) @trusted
     {
-        const status = tryAddMove(allocator, value);
+        const status = this.try_add_move(allocator, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashSet allocation failed");
+
         return status == AddStatus.inserted;
     }
 
-    bool addMove(Allocator* allocator, scope StringBuf* value) @trusted
+    bool add_move(Allocator* allocator, scope StringBuf* value) @trusted
     {
-        const status = tryAddMove(allocator, value);
+        const status = this.try_add_move(allocator, value);
         if (status == AddStatus.out_of_memory)
             panic("StringHashSet allocation failed");
+
         return status == AddStatus.inserted;
     }
 
     bool contains(scope String value) const @trusted
     {
-        return map_.contains(value);
+        return this.map.contains(value);
     }
 
     bool remove(Allocator* allocator, scope String value) @trusted
     {
-        return map_.remove(allocator, value);
+        return this.map.remove(allocator, value);
     }
 
-    bool tryReserve(Allocator* allocator, size_t requested) @trusted
+    bool try_reserve(Allocator* allocator, usize requested) @trusted
     {
-        return map_.try_reserve(allocator, requested);
+        return this.map.try_reserve(allocator, requested);
     }
 
-    void reserve(Allocator* allocator, size_t requested) @trusted
+    void reserve(Allocator* allocator, usize requested) @trusted
     {
-        map_.reserve(allocator, requested);
+        this.map.reserve(allocator, requested);
     }
 
     void clear(Allocator* allocator) @trusted
     {
-        map_.clear(allocator);
+        this.map.clear(allocator);
     }
 
-    bool tryShrinkToFit(Allocator* allocator) @trusted
+    bool try_shrink_to_fit(Allocator* allocator) @trusted
     {
-        return map_.try_shrink_to_fit(allocator);
+        return this.map.try_shrink_to_fit(allocator);
     }
 
-    void shrinkToFit(Allocator* allocator) @trusted
+    void shrink_to_fit(Allocator* allocator) @trusted
     {
-        map_.shrink_to_fit(allocator);
+        this.map.shrink_to_fit(allocator);
     }
 
-    int opApply(
-        scope int delegate(ref const(String)) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String)) nothrow @nogc callback,
     ) @trusted
     {
-        auto current = map_.cursor;
+        auto current = this.map.cursor;
         while (current.valid)
         {
             const result = callback(*current.key);
@@ -246,11 +244,11 @@ public:
         return 0;
     }
 
-    int opApply(
-        scope int delegate(ref const(String)) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String)) nothrow @nogc callback,
     ) const @trusted
     {
-        auto current = map_.cursor;
+        auto current = this.map.cursor;
         while (current.valid)
         {
             const result = callback(*current.key);
@@ -263,34 +261,29 @@ public:
 }
 
 /// Explicit owner for every inserted string and the set backing storage.
-struct StringHashSet
+@mustuse struct StringHashSet
 {
 nothrow @nogc:
 
     alias Storage = StringHashSetUnmanaged;
     alias Released = ReleasedStorage!Storage;
 
-private:
-    Allocator* allocator_;
-    Storage storage_;
+    Allocator* allocator;
+    Storage storage;
 
-    version (XTB_Checked)
+    invariant
     {
-        invariant
-        {
-            require(&this !is null, "StringHashSet pointer is null");
-        }
+        require(&this !is null, "StringHashSet pointer is null");
     }
 
-public:
     @disable this(this);
     @disable ref StringHashSet opAssign(StringHashSet source) return;
 
     static StringHashSet create(Allocator* allocator) @trusted
     {
-        requireValidStringHashSetAllocator(allocator);
+        require_valid_string_hash_set_allocator(allocator);
         StringHashSet result;
-        result.allocator_ = allocator;
+        result.allocator = allocator;
         return result;
     }
 
@@ -299,105 +292,106 @@ public:
         HashSeed seed,
     ) @trusted
     {
-        requireValidStringHashSetAllocator(allocator);
+        require_valid_string_hash_set_allocator(allocator);
         StringHashSet result;
-        result.allocator_ = allocator;
+        result.allocator = allocator;
         Storage storage = Storage.seeded(seed);
-        move_emplace(storage, result.storage_);
+        move_emplace(storage, result.storage);
         return move(result);
     }
 
-    static bool tryWithCapacity(
+    static bool try_with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         scope StringHashSet* output,
     ) @trusted
     {
-        version (XTB_Checked)
-        {
-            require(output !is null, "StringHashSet output pointer is null");
-            require(output.allocator_ is null,
-                "StringHashSet output is already initialized");
-        }
+        require(output !is null, "StringHashSet output pointer is null");
+        require(
+            output.allocator is null,
+            "StringHashSet output is already initialized",
+        );
         Storage storage;
-        if (!Storage.tryWithCapacity(allocator, requested, &storage))
+        if (!Storage.try_with_capacity(allocator, requested, &storage))
             return false;
-        output.allocator_ = allocator;
-        move_emplace(storage, output.storage_);
+        output.allocator = allocator;
+        move_emplace(storage, output.storage);
         return true;
     }
 
-    static StringHashSet withCapacity(
+    static StringHashSet with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
     ) @trusted
     {
         StringHashSet result;
-        if (!tryWithCapacity(allocator, requested, &result))
+        if (!StringHashSet.try_with_capacity(allocator, requested, &result))
             panic("StringHashSet allocation failed");
+
         return move(result);
     }
 
-    static StringHashSet withCapacity(
+    static StringHashSet with_capacity(
         Allocator* allocator,
-        size_t requested,
+        usize requested,
         HashSeed seed,
     ) @trusted
     {
-        requireValidStringHashSetAllocator(allocator);
+        require_valid_string_hash_set_allocator(allocator);
         StringHashSet result;
-        result.allocator_ = allocator;
-        Storage storage = Storage.withCapacity(allocator, requested, seed);
-        move_emplace(storage, result.storage_);
+        result.allocator = allocator;
+        Storage storage = Storage.with_capacity(allocator, requested, seed);
+        move_emplace(storage, result.storage);
         return move(result);
     }
 
     static StringHashSet adopt(scope Released* released) @trusted
     {
-        version (XTB_Checked)
-            require(released !is null,
-                "released StringHashSet storage pointer is null");
+        require(
+            released !is null,
+            "released StringHashSet storage pointer is null",
+        );
         Allocator* allocator;
         Storage storage = released.extract(&allocator);
         StringHashSet result;
-        result.allocator_ = allocator;
-        move_emplace(storage, result.storage_);
+        result.allocator = allocator;
+        move_emplace(storage, result.storage);
         return move(result);
     }
 
     void deinit() @trusted
     {
-        if (allocator_ is null)
+        if (this.allocator is null)
             return;
-        storage_.deinit(allocator_);
-        allocator_ = null;
+        this.storage.deinit(this.allocator);
+        this.allocator = null;
     }
 
-    void resetAndRelease() @trusted
+    void reset_and_release() @trusted
     {
-        storage_.resetAndRelease(allocator_);
+        this.storage.reset_and_release(this.allocator);
     }
 
     Released release() @trusted
     {
-        auto result = Released.from_owned_parts(allocator_, &storage_);
-        allocator_ = null;
+        auto result = Released.from_owned_parts(this.allocator, &this.storage);
+        this.allocator = null;
         return move(result);
     }
 
-    size_t length() const pure @trusted
+    usize length() const pure @trusted
     {
-        return storage_.length;
+        return this.storage.length;
     }
 
-    size_t capacity() const pure @trusted
+    usize capacity() const pure @trusted
     {
-        return storage_.capacity;
+        return this.storage.capacity;
     }
 
     bool empty() const pure @trusted
     {
-        return storage_.empty;
+        return this.storage.empty;
     }
 
     void prettyDescribe(Pretty)(scope ref Pretty pretty) const
@@ -407,140 +401,134 @@ public:
 
     StringHashSetCursor cursor() return @trusted
     {
-        return storage_.cursor;
+        return this.storage.cursor;
     }
 
     ConstStringHashSetCursor cursor() const return @trusted
     {
-        return storage_.cursor;
+        return this.storage.cursor;
     }
 
-    StringHashSetPointerRange pointerItems() return @trusted
+    StringHashSetPointerRange pointer_items() return @trusted
     {
-        return storage_.pointerItems;
+        return this.storage.pointer_items;
     }
 
-    ConstStringHashSetPointerRange pointerItems() const return @trusted
+    ConstStringHashSetPointerRange pointer_items() const return @trusted
     {
-        return storage_.pointerItems;
+        return this.storage.pointer_items;
     }
 
-    AddStatus tryAdd(scope String value) @trusted
+    AddStatus try_add(scope String value) @trusted
     {
-        return storage_.tryAdd(allocator_, value);
+        return this.storage.try_add(this.allocator, value);
     }
 
     bool add(scope String value) @trusted
     {
-        return storage_.add(allocator_, value);
+        return this.storage.add(this.allocator, value);
     }
 
-    AddStatus tryAddMove(scope OwnedString* value) @trusted
+    AddStatus try_add_move(scope OwnedString* value) @trusted
     {
-        return storage_.tryAddMove(allocator_, value);
+        return this.storage.try_add_move(this.allocator, value);
     }
 
-    AddStatus tryAddMove(scope StringBuf* value) @trusted
+    AddStatus try_add_move(scope StringBuf* value) @trusted
     {
-        return storage_.tryAddMove(allocator_, value);
+        return this.storage.try_add_move(this.allocator, value);
     }
 
-    bool addMove(scope OwnedString* value) @trusted
+    bool add_move(scope OwnedString* value) @trusted
     {
-        return storage_.addMove(allocator_, value);
+        return this.storage.add_move(this.allocator, value);
     }
 
-    bool addMove(scope StringBuf* value) @trusted
+    bool add_move(scope StringBuf* value) @trusted
     {
-        return storage_.addMove(allocator_, value);
+        return this.storage.add_move(this.allocator, value);
     }
 
     bool contains(scope String value) const @trusted
     {
-        return storage_.contains(value);
+        return this.storage.contains(value);
     }
 
     bool remove(scope String value) @trusted
     {
-        return storage_.remove(allocator_, value);
+        return this.storage.remove(this.allocator, value);
     }
 
-    bool tryReserve(size_t requested) @trusted
+    bool try_reserve(usize requested) @trusted
     {
-        return storage_.tryReserve(allocator_, requested);
+        return this.storage.try_reserve(this.allocator, requested);
     }
 
-    void reserve(size_t requested) @trusted
+    void reserve(usize requested) @trusted
     {
-        storage_.reserve(allocator_, requested);
+        this.storage.reserve(this.allocator, requested);
     }
 
     void clear() @trusted
     {
-        storage_.clear(allocator_);
+        this.storage.clear(this.allocator);
     }
 
-    bool tryShrinkToFit() @trusted
+    bool try_shrink_to_fit() @trusted
     {
-        return storage_.tryShrinkToFit(allocator_);
+        return this.storage.try_shrink_to_fit(this.allocator);
     }
 
-    void shrinkToFit() @trusted
+    void shrink_to_fit() @trusted
     {
-        storage_.shrinkToFit(allocator_);
+        this.storage.shrink_to_fit(this.allocator);
     }
 
     // `foreach` is a D language hook.
-    int opApply(
-        scope int delegate(ref const(String)) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String)) nothrow @nogc callback,
     ) @trusted
     {
-        return storage_.opApply(callback);
+        return this.storage.opApply(callback);
     }
 
-    int opApply(
-        scope int delegate(ref const(String)) nothrow @nogc callback,
+    i32 opApply(
+        scope i32 delegate(ref const(String)) nothrow @nogc callback,
     ) const @trusted
     {
-        return storage_.opApply(callback);
+        return this.storage.opApply(callback);
     }
 
-    Allocator* allocator() return pure @safe
-    {
-        return allocator_;
-    }
 }
 
 struct StringHashSetCursor
 {
 nothrow @nogc:
 
-private:
-    StringHashMapCursor!StringSetMarker cursor_;
+    StringHashMapCursor!StringSetMarker cursor;
 
-    static StringHashSetCursor create(
+    private static StringHashSetCursor create(
         StringHashMapCursor!StringSetMarker cursor,
     ) @safe
     {
         StringHashSetCursor result;
-        result.cursor_ = cursor;
+        result.cursor = cursor;
         return result;
     }
 
-public:
-    bool valid() const pure nothrow @safe @nogc
+    bool valid() const pure @safe
     {
-        return cursor_.valid;
+        return this.cursor.valid;
     }
 
-    const(String)* value() const return nothrow @trusted @nogc
+    const(String)* value() const return @trusted
     {
-        return cursor_.key;
+        return this.cursor.key;
     }
 
-    void advance() nothrow @trusted @nogc
+    void advance() @trusted
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
@@ -548,101 +536,118 @@ struct ConstStringHashSetCursor
 {
 nothrow @nogc:
 
-private:
-    ConstStringHashMapCursor!StringSetMarker cursor_;
+    ConstStringHashMapCursor!StringSetMarker cursor;
 
-    static ConstStringHashSetCursor create(
+    private static ConstStringHashSetCursor create(
         ConstStringHashMapCursor!StringSetMarker cursor,
     ) @safe
     {
         ConstStringHashSetCursor result;
-        result.cursor_ = cursor;
+        result.cursor = cursor;
         return result;
     }
 
-public:
-    bool valid() const pure nothrow @safe @nogc
+    bool valid() const pure @safe
     {
-        return cursor_.valid;
+        return this.cursor.valid;
     }
 
-    const(String)* value() const return nothrow @trusted @nogc
+    const(String)* value() const return @trusted
     {
-        return cursor_.key;
+        return this.cursor.key;
     }
 
-    void advance() nothrow @trusted @nogc
+    void advance() @trusted
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
 struct StringHashSetPointerRange
 {
-private:
-    StringHashSetCursor cursor_;
+nothrow @nogc:
 
-public:
-    bool empty() const pure nothrow @safe @nogc
+    StringHashSetCursor cursor;
+
+    bool empty() const pure @safe
     {
-        return !cursor_.valid;
+        return !this.cursor.valid;
     }
 
-    const(String)* front() const return nothrow @trusted @nogc
+    const(String)* front() const return @trusted
     {
-        return cursor_.value;
+        return this.cursor.value;
     }
 
-    void popFront() nothrow @trusted @nogc
+    void popFront() @trusted
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
 struct ConstStringHashSetPointerRange
 {
-private:
-    ConstStringHashSetCursor cursor_;
+nothrow @nogc:
 
-public:
-    bool empty() const pure nothrow @safe @nogc
+    ConstStringHashSetCursor cursor;
+
+    bool empty() const pure @safe
     {
-        return !cursor_.valid;
+        return !this.cursor.valid;
     }
 
-    const(String)* front() const return nothrow @trusted @nogc
+    const(String)* front() const return @trusted
     {
-        return cursor_.value;
+        return this.cursor.value;
     }
 
-    void popFront() nothrow @trusted @nogc
+    void popFront() @trusted
     {
-        cursor_.advance();
+        this.cursor.advance();
     }
 }
 
-private void requireValidStringHashSetAllocator(Allocator* allocator) @trusted
+private void require_valid_string_hash_set_allocator(Allocator* allocator) @trusted
 {
-    version (XTB_Checked)
-        require(allocator !is null && *allocator !is null,
-            "StringHashSet requires a valid allocator");
+    require(
+        allocator !is null && *allocator !is null,
+        "StringHashSet requires a valid allocator",
+    );
+}
+
+// Everything below here is test-only.
+version (unittest)
+{
+    import xtb.allocators.instrumented;
+    import xtb.allocators.malloc;
 }
 
 unittest
 {
-    import xtb.allocators.malloc : malloc_allocator;
-    import xtb.string : OwnedString, StringBuf;
-
     static assert(is(StringViewHashSet == HashSet!String));
     static assert(!__traits(isCopyable, StringHashSet));
     static assert(!__traits(isCopyable, StringHashSetUnmanaged));
-    static assert(!__traits(compiles,
-            (ref StringHashSetUnmanaged left, ref StringHashSetUnmanaged right) { left = move(right); }));
-    static assert(__traits(compiles, (scope StringHashSet* value) @safe {
+    static assert(!__traits(
+        compiles,
+        (ref StringHashSetUnmanaged left, ref StringHashSetUnmanaged right)
+        {
+            left = move(right);
+        },
+    ));
+    static assert(__traits(
+        compiles,
+        (scope StringHashSet* value) @safe
+        {
             Allocator* allocator = value.allocator;
-        }));
-    static assert(!__traits(compiles,
-            (scope const StringHashSet* value) @safe { Allocator* allocator = value.allocator; }));
+        },
+    ));
+    static assert(!__traits(
+        compiles,
+        (scope const StringHashSet* value) @safe
+        {
+            Allocator* allocator = value.allocator;
+        },
+    ));
 
     StringViewHashSet borrowed = StringViewHashSet.create(malloc_allocator());
     {
@@ -652,26 +657,26 @@ unittest
     borrowed.deinit();
 
     StringHashSetUnmanaged unmanaged;
-    StringHashSetUnmanaged* unmanagedPointer = &unmanaged;
-    assert(unmanagedPointer.add(malloc_allocator(), "unmanaged"));
-    assert(unmanagedPointer.length == 1);
-    assert(unmanagedPointer.contains("unmanaged"));
-    unmanagedPointer.deinit(malloc_allocator());
+    StringHashSetUnmanaged* unmanaged_pointer = &unmanaged;
+    assert(unmanaged_pointer.add(malloc_allocator(), "unmanaged"));
+    assert(unmanaged_pointer.length == 1);
+    assert(unmanaged_pointer.contains("unmanaged"));
+    unmanaged_pointer.deinit(malloc_allocator());
 
     StringHashSet values = StringHashSet.create(malloc_allocator());
-    StringHashSet* valuesPointer = &values;
-    assert(valuesPointer.add("alpha"));
+    StringHashSet* values_pointer = &values;
+    assert(values_pointer.add("alpha"));
     assert(!values.add("alpha"));
     assert(values.contains("alpha"));
-    assert(valuesPointer.contains("alpha"));
+    assert(values_pointer.contains("alpha"));
 
     StringBuf buffer = StringBuf.from_string(malloc_allocator(), "beta");
-    const(char)* bufferPointer;
+    const(char)* buffer_pointer;
     {
         buffer.shrink_to_fit();
-        bufferPointer = buffer.view.ptr;
+        buffer_pointer = buffer.view.ptr;
     }
-    assert(values.tryAddMove(&buffer) == AddStatus.inserted);
+    assert(values.try_add_move(&buffer) == AddStatus.inserted);
     {
         import xtb.string : empty;
 
@@ -679,42 +684,42 @@ unittest
     }
 
     OwnedString owned = OwnedString.from_string(malloc_allocator(), "gamma");
-    const(char)* ownedPointer;
+    const(char)* owned_pointer;
     {
-        ownedPointer = owned.view.ptr;
+        owned_pointer = owned.view.ptr;
     }
-    assert(valuesPointer.addMove(&owned));
+    assert(values_pointer.add_move(&owned));
     {
         assert(owned.allocator is null && owned.empty);
     }
 
-    auto transferCursor = values.cursor;
-    bool sawBuffer;
-    bool sawOwned;
-    while (transferCursor.valid)
+    auto transfer_cursor = values.cursor;
+    bool saw_buffer;
+    bool saw_owned;
+    while (transfer_cursor.valid)
     {
-        if (*transferCursor.value == "beta")
+        if (*transfer_cursor.value == "beta")
         {
-            assert(transferCursor.value.ptr is bufferPointer);
-            sawBuffer = true;
+            assert(transfer_cursor.value.ptr is buffer_pointer);
+            saw_buffer = true;
         }
-        else if (*transferCursor.value == "gamma")
+        else if (*transfer_cursor.value == "gamma")
         {
-            assert(transferCursor.value.ptr is ownedPointer);
-            sawOwned = true;
+            assert(transfer_cursor.value.ptr is owned_pointer);
+            saw_owned = true;
         }
-        transferCursor.advance();
+        transfer_cursor.advance();
     }
-    assert(sawBuffer && sawOwned);
+    assert(saw_buffer && saw_owned);
 
     StringBuf duplicate = StringBuf.from_string(malloc_allocator(), "beta");
-    assert(values.tryAddMove(&duplicate) == AddStatus.already_present);
+    assert(values.try_add_move(&duplicate) == AddStatus.already_present);
     {
         assert(duplicate.view == "beta");
         duplicate.deinit();
     }
 
-    size_t visited;
+    usize visited;
     foreach (ref const value; values)
     {
         assert(value == "alpha" || value == "beta" || value == "gamma");
@@ -722,15 +727,15 @@ unittest
     }
     assert(visited == values.length);
 
-    size_t pointerVisited;
-    foreach (value; values.pointerItems)
+    usize pointer_visited;
+    foreach (value; values.pointer_items)
     {
         assert(value !is null);
-        ++pointerVisited;
+        ++pointer_visited;
     }
-    assert(pointerVisited == values.length);
+    assert(pointer_visited == values.length);
 
-    assert(valuesPointer.remove("alpha"));
+    assert(values_pointer.remove("alpha"));
     assert(!values.contains("alpha"));
 
     auto released = values.release();
@@ -742,36 +747,32 @@ unittest
 
 unittest
 {
-    import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : malloc_allocator;
-    import xtb.string : OwnedString;
-
-    AllocationRecord[16] setRecords;
-    AllocationRecord[8] sourceRecords;
-    InstrumentedAllocator setAllocator = InstrumentedAllocator.create(
+    AllocationRecord[16] set_records;
+    AllocationRecord[8] source_records;
+    InstrumentedAllocator set_allocator = InstrumentedAllocator.create(
         malloc_allocator(),
-        setRecords[],
+        set_records[],
     );
-    InstrumentedAllocator sourceAllocator = InstrumentedAllocator.create(
+    InstrumentedAllocator source_allocator = InstrumentedAllocator.create(
         malloc_allocator(),
-        sourceRecords[],
+        source_records[],
     );
 
-    StringHashSet values = StringHashSet.create(setAllocator.allocator);
+    StringHashSet values = StringHashSet.create(set_allocator.allocator);
     OwnedString retained = OwnedString.from_string(
-        sourceAllocator.allocator,
+        source_allocator.allocator,
         "retained",
     );
 
-    setAllocator.fail_after(0);
-    assert(values.tryAddMove(&retained) == AddStatus.out_of_memory);
+    set_allocator.fail_after(0);
+    assert(values.try_add_move(&retained) == AddStatus.out_of_memory);
     {
         assert(retained.view == "retained");
     }
-    assert(values.empty && setAllocator.clean);
+    assert(values.empty && set_allocator.clean);
 
-    setAllocator.fail_after(2);
-    assert(values.tryAddMove(&retained) == AddStatus.out_of_memory);
+    set_allocator.fail_after(2);
+    assert(values.try_add_move(&retained) == AddStatus.out_of_memory);
     {
         assert(retained.view == "retained");
     }
@@ -781,7 +782,7 @@ unittest
     {
         retained.deinit();
     }
-    assert(setAllocator.clean && sourceAllocator.clean);
-    assert(setAllocator.stats.invalid_calls == 0);
-    assert(sourceAllocator.stats.invalid_calls == 0);
+    assert(set_allocator.clean && source_allocator.clean);
+    assert(set_allocator.stats.invalid_calls == 0);
+    assert(source_allocator.stats.invalid_calls == 0);
 }

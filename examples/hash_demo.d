@@ -55,7 +55,7 @@ extern (C) int main() nothrow @nogc
         malloc_allocator(),
         "moved-label",
     );
-    assert((&ownedLabels).addMove(&movedLabel));
+    assert((&ownedLabels).add_move(&movedLabel));
     assert(movedLabel.allocator is null && movedLabel.empty);
     assert(ownedLabels.contains("moved-label"));
 
