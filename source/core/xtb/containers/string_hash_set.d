@@ -67,6 +67,7 @@ nothrow @nogc:
         StringHashMapUnmanaged!StringSetMarker map;
         if (!typeof(map).try_with_capacity(allocator, requested, &map))
             return false;
+
         move_emplace(map, output.map);
         return true;
     }
@@ -230,8 +231,8 @@ nothrow @nogc:
     }
 
     i32 opApply(
-        scope i32 delegate(ref const(String)) nothrow @nogc callback,
-    ) @trusted
+        scope i32 delegate(ref const(String)) nothrow @nogc @system callback,
+    )
     {
         auto current = this.map.cursor;
         while (current.valid)
@@ -239,14 +240,15 @@ nothrow @nogc:
             const result = callback(*current.key);
             if (result != 0)
                 return result;
+
             current.advance();
         }
         return 0;
     }
 
     i32 opApply(
-        scope i32 delegate(ref const(String)) nothrow @nogc callback,
-    ) const @trusted
+        scope i32 delegate(ref const(String)) nothrow @nogc @system callback,
+    ) const
     {
         auto current = this.map.cursor;
         while (current.valid)
@@ -254,6 +256,7 @@ nothrow @nogc:
             const result = callback(*current.key);
             if (result != 0)
                 return result;
+
             current.advance();
         }
         return 0;
@@ -314,6 +317,7 @@ nothrow @nogc:
         Storage storage;
         if (!Storage.try_with_capacity(allocator, requested, &storage))
             return false;
+
         output.allocator = allocator;
         move_emplace(storage, output.storage);
         return true;
@@ -363,6 +367,7 @@ nothrow @nogc:
     {
         if (this.allocator is null)
             return;
+
         this.storage.deinit(this.allocator);
         this.allocator = null;
     }
@@ -486,19 +491,18 @@ nothrow @nogc:
 
     // `foreach` is a D language hook.
     i32 opApply(
-        scope i32 delegate(ref const(String)) nothrow @nogc callback,
-    ) @trusted
+        scope i32 delegate(ref const(String)) nothrow @nogc @system callback,
+    )
     {
         return this.storage.opApply(callback);
     }
 
     i32 opApply(
-        scope i32 delegate(ref const(String)) nothrow @nogc callback,
-    ) const @trusted
+        scope i32 delegate(ref const(String)) nothrow @nogc @system callback,
+    ) const
     {
         return this.storage.opApply(callback);
     }
-
 }
 
 struct StringHashSetCursor
@@ -627,27 +631,32 @@ unittest
     static assert(is(StringViewHashSet == HashSet!String));
     static assert(!__traits(isCopyable, StringHashSet));
     static assert(!__traits(isCopyable, StringHashSetUnmanaged));
-    static assert(!__traits(
+    enum unmanaged_assignment_compiles = __traits(
         compiles,
         (ref StringHashSetUnmanaged left, ref StringHashSetUnmanaged right)
         {
             left = move(right);
         },
-    ));
-    static assert(__traits(
+    );
+    static assert(!unmanaged_assignment_compiles);
+
+    enum mutable_allocator_access_compiles = __traits(
         compiles,
         (scope StringHashSet* value) @safe
         {
             Allocator* allocator = value.allocator;
         },
-    ));
-    static assert(!__traits(
+    );
+    static assert(mutable_allocator_access_compiles);
+
+    enum const_allocator_access_compiles = __traits(
         compiles,
         (scope const StringHashSet* value) @safe
         {
             Allocator* allocator = value.allocator;
         },
-    ));
+    );
+    static assert(!const_allocator_access_compiles);
 
     StringViewHashSet borrowed = StringViewHashSet.create(malloc_allocator());
     {
@@ -677,11 +686,7 @@ unittest
         buffer_pointer = buffer.view.ptr;
     }
     assert(values.try_add_move(&buffer) == AddStatus.inserted);
-    {
-        import xtb.string : empty;
-
-        assert(buffer.allocator is null && buffer.empty);
-    }
+    assert(buffer.allocator is null && buffer.empty);
 
     OwnedString owned = OwnedString.from_string(malloc_allocator(), "gamma");
     const(char)* owned_pointer;
@@ -720,7 +725,7 @@ unittest
     }
 
     usize visited;
-    foreach (ref const value; values)
+    foreach (const ref value; values)
     {
         assert(value == "alpha" || value == "beta" || value == "gamma");
         ++visited;
