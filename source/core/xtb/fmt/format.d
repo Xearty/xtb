@@ -21,12 +21,12 @@ struct Formatted(string pattern, Args...)
 {
     Args arguments;
 
-    void format_to(ref Writer writer)
+    void format_to(ref Writer writer) nothrow @nogc
     {
         writer.format!pattern(this.arguments);
     }
 
-    void format_to(ref Writer writer) const
+    void format_to(ref Writer writer) const nothrow @nogc
     {
         writer.format!pattern(this.arguments);
     }
@@ -76,6 +76,7 @@ bool try_format_string(string pattern, Args...)(
         fresh.deinit();
         return false;
     }
+
     move_emplace(fresh, *output);
     return true;
 }
@@ -97,6 +98,7 @@ bool try_format_string(Sequence...)(
         fresh.deinit();
         return false;
     }
+
     move_emplace(fresh, *output);
     return true;
 }
@@ -109,6 +111,7 @@ StringBuf format_string(string pattern, Args...)(
     StringBuf result;
     if (!try_format_string!pattern(allocator, &result, args))
         panic("string formatting failed");
+
     return move(result);
 }
 
@@ -122,6 +125,7 @@ StringBuf format_string(Sequence...)(
     StringBuf result;
     if (!try_format_string(allocator, &result, header, sequence, footer))
         panic("string formatting failed");
+
     return move(result);
 }
 
@@ -186,12 +190,11 @@ unittest
 
     struct MoveOnly
     {
-    nothrow @nogc:
-
-        @disable this(this);
         i32 value;
 
-        void format_to(ref Writer writer) const
+        @disable this(this);
+
+        void format_to(ref Writer writer) const nothrow @nogc
         {
             writer.value(this.value);
         }
