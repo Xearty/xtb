@@ -2,209 +2,197 @@ module xtb.thread_context;
 
 nothrow @nogc:
 
-import xtb.allocators.arena : Arena, TempArena;
-import xtb.memory : Allocator, allocate_init, dispose;
-import xtb.lifetime : move_emplace;
-import xtb.allocators.malloc : malloc_allocator;
-import xtb.panic : panic;
+import xtb.allocators.arena;
+import xtb.allocators.malloc;
+import xtb.lifetime;
+import xtb.memory;
+import xtb.panic;
+import xtb.types;
 
-version (XTB_Checked) import xtb.panic : require;
-
-enum maxScratchArenas = 8;
+enum max_scratch_arenas = 8;
 
 struct ThreadContext
 {
 nothrow @nogc:
 
-    private Arena[maxScratchArenas] arenas;
-    private size_t arenaCount;
-    private Allocator* ownerAllocator;
-    private size_t attachmentCount;
+    Arena[max_scratch_arenas] arenas;
+    usize arena_count;
+    Allocator* owner_allocator;
+    usize attachment_count;
 }
 
-private ThreadContext* tlsContext;
+private ThreadContext* tls_context;
 
-ThreadContext* currentThreadContext()
+/// Returns the current thread context, or null when none is installed.
+ThreadContext* current_thread_context()
 {
-    return tlsContext;
+    return tls_context;
 }
 
 /// Registers one scoped facility that requires the current thread context.
 /// Internal XTB components must balance every successful attachment with
-/// `detachThreadContext` before the context scope ends.
-package(xtb) ThreadContext* attachThreadContext()
+/// `detach_thread_context` before the context scope ends.
+package(xtb) ThreadContext* attach_thread_context()
 {
-    ThreadContext* context = tlsContext;
-    version (XTB_Checked)
-    {
-        require(context !is null, "thread-context attachment requires an installed context");
-        require(
-            context.attachmentCount != size_t.max,
-            "thread-context attachment count overflow",
-        );
-    }
-    ++context.attachmentCount;
+    ThreadContext* context = tls_context;
+    require(context !is null, "thread-context attachment requires an installed context");
+    require(
+        context.attachment_count != usize.max,
+        "thread-context attachment count overflow",
+    );
+    ++context.attachment_count;
     return context;
 }
 
 /// Releases one attachment previously registered on `context`.
-package(xtb) void detachThreadContext(ThreadContext* context)
+package(xtb) void detach_thread_context(ThreadContext* context)
 {
-    version (XTB_Checked)
-    {
-        require(context !is null, "thread-context attachment is null");
-        require(tlsContext is context, "thread-context attachment released out of context");
-        require(context.attachmentCount != 0, "thread-context attachment underflow");
-    }
-    --context.attachmentCount;
+    require(context !is null, "thread-context attachment is null");
+    require(tls_context is context, "thread-context attachment released out of context");
+    require(context.attachment_count != 0, "thread-context attachment underflow");
+    --context.attachment_count;
 }
 
 struct ThreadContextScope
 {
 nothrow @nogc:
 
-    private ThreadContext* context_;
+    ThreadContext* context;
 
     @disable this(this);
 
     static ThreadContextScope acquire(
-        size_t scratchArenaCount = 2,
-        size_t scratchChunkSize = 64 * 1024,
-        Allocator* backingAllocator = null,
+        usize scratch_arena_count = 2,
+        usize scratch_chunk_size = 64 * 1024,
+        Allocator* backing_allocator = null,
     )
     {
-        version (XTB_Checked)
-        {
-            require(tlsContext is null, "thread context already installed");
-            require(
-                scratchArenaCount != 0 && scratchArenaCount <= maxScratchArenas,
-                "invalid scratch arena count",
-            );
-        }
+        require(tls_context is null, "thread context already installed");
+        require(
+            scratch_arena_count != 0 && scratch_arena_count <= max_scratch_arenas,
+            "invalid scratch arena count",
+        );
 
-        if (backingAllocator is null)
-            backingAllocator = malloc_allocator();
+        if (backing_allocator is null)
+            backing_allocator = malloc_allocator();
 
-        ThreadContext* context = backingAllocator.allocate_init!ThreadContext();
-        context.ownerAllocator = backingAllocator;
-        context.arenaCount = scratchArenaCount;
-        foreach (i; 0 .. scratchArenaCount)
+        ThreadContext* context = backing_allocator.allocate_init!ThreadContext();
+        context.owner_allocator = backing_allocator;
+        context.arena_count = scratch_arena_count;
+        foreach (i; 0 .. scratch_arena_count)
         {
-            Arena arena = Arena.create(backingAllocator, scratchChunkSize);
+            Arena arena = Arena.create(backing_allocator, scratch_chunk_size);
             move_emplace(arena, context.arenas[i]);
         }
 
-        tlsContext = context;
+        tls_context = context;
         ThreadContextScope result;
-        result.context_ = context;
+        result.context = context;
         return result;
     }
 
     ~this()
     {
-        if (context_ is null)
-            return;
-        version (XTB_Checked)
-        {
-            require(tlsContext is context_, "thread context destroyed out of order");
-            require(
-                context_.attachmentCount == 0,
-                "thread context destroyed with attachments installed",
-            );
-        }
+        if (this.context is null) return;
 
-        Allocator* owner = context_.ownerAllocator;
-        ThreadContext* released = context_;
-        tlsContext = null;
-        context_ = null;
+        require(tls_context is this.context, "thread context destroyed out of order");
+        require(
+            this.context.attachment_count == 0,
+            "thread context destroyed with attachments installed",
+        );
+
+        Allocator* owner = this.context.owner_allocator;
+        ThreadContext* released = this.context;
+        tls_context = null;
+        this.context = null;
         owner.dispose(released);
     }
 }
 
-private Arena* selectScratchArena(scope Allocator*[] conflicts)
+private Arena* select_scratch_arena(scope Allocator*[] conflicts)
 {
-    ThreadContext* context = tlsContext;
+    ThreadContext* context = tls_context;
     if (context is null)
         panic("scratch requested without a thread context");
 
-    foreach (i; 0 .. context.arenaCount)
+    foreach (i; 0 .. context.arena_count)
     {
         Arena* candidate = &context.arenas[i];
-        Allocator* candidateAllocator = candidate.allocator;
-        bool conflictsWithCandidate;
+        Allocator* candidate_allocator = candidate.allocator;
+        bool conflicts_with_candidate;
         foreach (conflict; conflicts)
         {
-            if (conflict is candidateAllocator)
+            if (conflict is candidate_allocator)
             {
-                conflictsWithCandidate = true;
+                conflicts_with_candidate = true;
                 break;
             }
         }
-        if (!conflictsWithCandidate)
+        if (!conflicts_with_candidate)
             return candidate;
     }
     panic("no non-conflicting scratch arena");
 }
 
-Arena* scratchArena()
+/// Returns a scratch arena that does not conflict with any supplied allocator.
+Arena* scratch_arena()
 {
-    return selectScratchArena(null);
+    return select_scratch_arena(null);
 }
 
-Arena* scratchArena(Allocator* conflict)
+Arena* scratch_arena(Allocator* conflict)
 {
     Allocator*[1] conflicts = [conflict];
-    return selectScratchArena(conflicts[]);
+    return select_scratch_arena(conflicts[]);
 }
 
-Arena* scratchArena(scope Allocator*[] conflicts)
+Arena* scratch_arena(scope Allocator*[] conflicts)
 {
-    return selectScratchArena(conflicts);
+    return select_scratch_arena(conflicts);
 }
 
 struct ScratchScope
 {
 nothrow @nogc:
 
-    private TempArena temporary_;
+    TempArena temporary;
 
     @disable this(this);
 
     static ScratchScope acquire()
     {
-        return fromArena(scratchArena());
+        return ScratchScope.from_arena(scratch_arena());
     }
 
     static ScratchScope acquire(Allocator* conflict)
     {
-        return fromArena(scratchArena(conflict));
+        return ScratchScope.from_arena(scratch_arena(conflict));
     }
 
     static ScratchScope acquire(scope Allocator*[] conflicts)
     {
-        return fromArena(scratchArena(conflicts));
+        return ScratchScope.from_arena(scratch_arena(conflicts));
     }
 
     ~this()
     {
-        if (temporary_.active)
-            temporary_.pop();
+        if (this.temporary.active) this.temporary.pop();
     }
 
     Arena* arena() return
     {
-        return temporary_.arena;
+        return this.temporary.arena;
     }
 
     Allocator* allocator() return
     {
-        return temporary_.allocator;
+        return this.temporary.allocator;
     }
 
-    private static ScratchScope fromArena(Arena* arena)
+    private static ScratchScope from_arena(Arena* arena)
     {
         ScratchScope result;
-        result.temporary_ = arena.push();
+        result.temporary = arena.push();
         return result;
     }
 }
@@ -214,7 +202,7 @@ unittest
     ThreadContextScope context = ThreadContextScope.acquire(3, 128);
     {
         ScratchScope first = ScratchScope.acquire();
-        int* value = first.allocator.allocate_init!int();
+        i32* value = first.allocator.allocate_init!i32();
         *value = 7;
 
         ScratchScope second = ScratchScope.acquire(first.allocator);

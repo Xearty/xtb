@@ -20,7 +20,7 @@ import xtb.option : Option;
 import xtb.result : Result;
 import xtb.allocators.malloc : malloc_allocator;
 import xtb.string;
-import xtb.thread_context : ThreadContextScope, scratchArena;
+import xtb.thread_context : ThreadContextScope, scratch_arena;
 import xtb.thread : Thread;
 import xtb.types : String, i64, u64, u8;
 
@@ -1085,7 +1085,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(readEntireFile(Path.fromString("/proc/self/status"), procStatus).succeeded);
     assert(procStatus.length != 0);
 
-    Arena* outputArena = scratchArena();
+    Arena* outputArena = scratch_arena();
     outputArena.set_rewind_poisoning(true);
     TempArena outputTemporary = outputArena.push();
     {

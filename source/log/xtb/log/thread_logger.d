@@ -10,7 +10,7 @@ import xtb.log.result : LogResult, LogStatus;
 import xtb.log.sink : LogSourceLocation;
 
 version (XTB_Checked) import xtb.panic : require;
-import xtb.thread_context : ThreadContext, attachThreadContext, currentThreadContext, detachThreadContext;
+import xtb.thread_context : ThreadContext, attach_thread_context, current_thread_context, detach_thread_context;
 
 private Logger* tlsLogger;
 
@@ -42,7 +42,7 @@ nothrow @nogc:
             require(logger.valid, "cannot install an invalid thread logger");
         }
 
-        ThreadContext* context = attachThreadContext();
+        ThreadContext* context = attach_thread_context();
 
         ThreadLoggerScope result;
         result.context_ = context;
@@ -60,7 +60,7 @@ nothrow @nogc:
         version (XTB_Checked)
         {
             require(
-                currentThreadContext() is context_,
+                current_thread_context() is context_,
                 "thread logger destroyed outside its thread context",
             );
             require(
@@ -69,7 +69,7 @@ nothrow @nogc:
             );
         }
         tlsLogger = previous_;
-        detachThreadContext(context_);
+        detach_thread_context(context_);
         context_ = null;
         installed_ = null;
         previous_ = null;
@@ -80,7 +80,7 @@ nothrow @nogc:
 /// thread has no context or no logger has been installed in that context.
 Logger* currentLogger()
 {
-    return currentThreadContext() is null ? null : tlsLogger;
+    return current_thread_context() is null ? null : tlsLogger;
 }
 
 bool enabled(LogLevel level)

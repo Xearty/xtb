@@ -88,7 +88,7 @@ This ping-pong pattern works at arbitrary call depth with two arenas as long as
 each level has one conflicting output allocator. If a function must protect
 values from multiple scratch arenas at once, pass all of them to
 `ScratchScope.acquire(conflicts)` and create the thread context with enough
-arenas. `ThreadContextScope` supports up to `maxScratchArenas` (8).
+arenas. `ThreadContextScope` supports up to `max_scratch_arenas` (8).
 
 Scratch access requires an installed thread context; requesting scratch without
 one panics.
