@@ -37,11 +37,11 @@ useful when formatted text must be nested inside another write.
 |---|---|
 | stdout/stderr | `write`, `writeln`, `format`, `formatln` |
 | existing `Writer` | `writer.write`, `writer.format` |
-| owned string | `formatString` / `tryFormatString` |
+| owned string | `format_string` / `try_format_string` |
 | caller buffer | `write_buffer` / `format_buffer` |
 | buffered sink | `BufferedWriter` |
 
-`formatString` returns an owning `StringBuf` and therefore requires `deinit`.
+`format_string` returns an owning `StringBuf` and therefore requires `deinit`.
 Fixed-buffer formatting does not allocate; its result reports `written`,
 `required`, and whether output was truncated.
 

@@ -38,7 +38,7 @@ extern (C) int main() nothrow @nogc
     formatln(i"wrappers stay explicit: hex=$(hexadecimal(48879).upper()), ratio=$(fixed(1.0 / 3.0, 3))");
     writeln(i"nested sequences: [$(i"$(name):$(count)")]");
 
-    StringBuf text = formatString(
+    StringBuf text = format_string(
         malloc_allocator(),
         i"owned output: $(name) has $(count) values",
     );

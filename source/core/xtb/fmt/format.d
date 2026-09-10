@@ -2,17 +2,16 @@ module xtb.fmt.format;
 
 nothrow @nogc:
 
-import core.interpolation : InterpolationFooter, InterpolationHeader;
-import core.lifetime : forward;
-import core.stdc.stdio : FILE, stdout;
-import xtb.fmt.print : file_writer;
-import xtb.fmt.writer : WriteResult, Writer;
-import xtb.lifetime : move, move_emplace;
-import xtb.memory : Allocator;
-import xtb.panic : panic;
-import xtb.string : StringBuf;
+import core.interpolation;
+import core_lifetime = core.lifetime;
+import core.stdc.stdio;
 
-version (XTB_Checked) import xtb.panic : require;
+import xtb.fmt.print;
+import xtb.fmt.writer;
+import xtb.lifetime;
+import xtb.memory;
+import xtb.panic;
+import xtb.string;
 
 /// A lazy, allocation-free compile-time formatting expression.
 ///
@@ -24,35 +23,35 @@ struct Formatted(string pattern, Args...)
 
     void format_to(ref Writer writer)
     {
-        writer.format!pattern(arguments);
+        writer.format!pattern(this.arguments);
     }
 
     void format_to(ref Writer writer) const
     {
-        writer.format!pattern(arguments);
+        writer.format!pattern(this.arguments);
     }
 }
 
 /// Captures `arguments` as one lazily formatted printable value.
 auto formatted(string pattern, Args...)(auto ref Args arguments)
 {
-    return Formatted!(pattern, Args)(forward!arguments);
+    return Formatted!(pattern, Args)(core_lifetime.forward!arguments);
 }
 
 /// Writes one ordinary printable value to `writer`.
-void formatTo(T)(ref Writer writer, auto ref T value)
+void format_to(T)(ref Writer writer, auto ref T value)
 {
     writer.value(value);
 }
 
 /// Applies compile-time `{}` formatting to `writer`.
-void formatTo(string pattern, Args...)(ref Writer writer, auto ref Args args)
+void format_to(string pattern, Args...)(ref Writer writer, auto ref Args args)
 {
     writer.format!pattern(args);
 }
 
 /// Writes a D interpolated-string sequence to `writer`.
-void formatTo(Sequence...)(
+void format_to(Sequence...)(
     ref Writer writer,
     InterpolationHeader header,
     auto ref Sequence sequence,
@@ -62,14 +61,13 @@ void formatTo(Sequence...)(
     writer.format(header, sequence, footer);
 }
 
-bool tryFormatString(string pattern, Args...)(
+bool try_format_string(string pattern, Args...)(
     Allocator* allocator,
     StringBuf* output,
     auto ref Args args,
 )
 {
-    version (XTB_Checked)
-        require(output !is null, "StringBuf output pointer is null");
+    require(output !is null, "StringBuf output pointer is null");
     output.deinit();
 
     StringBuf fresh = StringBuf.create(allocator);
@@ -82,7 +80,7 @@ bool tryFormatString(string pattern, Args...)(
     return true;
 }
 
-bool tryFormatString(Sequence...)(
+bool try_format_string(Sequence...)(
     Allocator* allocator,
     StringBuf* output,
     InterpolationHeader header,
@@ -90,8 +88,7 @@ bool tryFormatString(Sequence...)(
     InterpolationFooter footer,
 )
 {
-    version (XTB_Checked)
-        require(output !is null, "StringBuf output pointer is null");
+    require(output !is null, "StringBuf output pointer is null");
     output.deinit();
 
     StringBuf fresh = StringBuf.create(allocator);
@@ -104,18 +101,18 @@ bool tryFormatString(Sequence...)(
     return true;
 }
 
-StringBuf formatString(string pattern, Args...)(
+StringBuf format_string(string pattern, Args...)(
     Allocator* allocator,
     auto ref Args args,
 )
 {
     StringBuf result;
-    if (!tryFormatString!pattern(allocator, &result, args))
-        panic("String formatting failed");
+    if (!try_format_string!pattern(allocator, &result, args))
+        panic("string formatting failed");
     return move(result);
 }
 
-StringBuf formatString(Sequence...)(
+StringBuf format_string(Sequence...)(
     Allocator* allocator,
     InterpolationHeader header,
     auto ref Sequence sequence,
@@ -123,8 +120,8 @@ StringBuf formatString(Sequence...)(
 )
 {
     StringBuf result;
-    if (!tryFormatString(allocator, &result, header, sequence, footer))
-        panic("String formatting failed");
+    if (!try_format_string(allocator, &result, header, sequence, footer))
+        panic("string formatting failed");
     return move(result);
 }
 
@@ -164,15 +161,17 @@ WriteResult formatln(Sequence...)(
     return writer.result;
 }
 
+version (unittest)
+{
+    import xtb.fmt.fixed_buffer;
+    import xtb.types;
+}
+
 unittest
 {
-    import xtb.fmt.fixed_buffer : write_buffer;
-    import xtb.string : equal;
-    import xtb.fmt.writer : fixed, hexadecimal;
-
     char[128] storage;
 
-    uint captured = 7;
+    u32 captured = 7;
     const id = formatted!"#{}:{}"(captured, 3u);
     captured = 9;
     const result = write_buffer(storage[], "id=", id);
@@ -181,25 +180,25 @@ unittest
     assert(storage[0 .. result.written].equal("id=#7:3"));
 
     const nested = formatted!"{} / {}"(fixed(1.25, 2), hexadecimal(16));
-    const nestedResult = write_buffer(storage[], nested);
-    assert(nestedResult.ok);
-    assert(storage[0 .. nestedResult.written].equal("1.25 / 0x10"));
+    const nested_result = write_buffer(storage[], nested);
+    assert(nested_result.ok);
+    assert(storage[0 .. nested_result.written].equal("1.25 / 0x10"));
 
     struct MoveOnly
     {
     nothrow @nogc:
 
         @disable this(this);
-        int value;
+        i32 value;
 
         void format_to(ref Writer writer) const
         {
-            writer.value(value);
+            writer.value(this.value);
         }
     }
 
     auto moved = formatted!"<{}>"(MoveOnly(11));
-    const movedResult = write_buffer(storage[], moved);
-    assert(movedResult.ok);
-    assert(storage[0 .. movedResult.written].equal("<11>"));
+    const moved_result = write_buffer(storage[], moved);
+    assert(moved_result.ok);
+    assert(storage[0 .. moved_result.written].equal("<11>"));
 }

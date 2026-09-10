@@ -256,7 +256,7 @@ unittest
     const i32 answer = 42;
     usize calls;
     auto value = StatefulValue(&calls);
-    StringBuf stateful = formatString!"{}"(malloc_allocator(), value);
+    StringBuf stateful = format_string!"{}"(malloc_allocator(), value);
     scope (exit) stateful.deinit();
 
     assert(stateful == "stateful");
@@ -294,11 +294,11 @@ unittest
 {
     const i32 answer = 42;
 
-    StringBuf allocated = formatString!"{}:{}"(malloc_allocator(), "item", 9);
+    StringBuf allocated = format_string!"{}:{}"(malloc_allocator(), "item", 9);
     scope (exit) allocated.deinit();
     assert(allocated == "item:9");
 
-    StringBuf interpolated = formatString(
+    StringBuf interpolated = format_string(
         malloc_allocator(),
         i"owned: $(answer), $(fixed(1.25, 2))",
     );
@@ -314,7 +314,7 @@ unittest
     char[511] split_scalar_prefix;
     split_scalar_prefix[] = 'a';
     const String split_scalar_prefix_string = split_scalar_prefix[];
-    assert(tryFormatString!"{}{}"(
+    assert(try_format_string!"{}{}"(
         malloc_allocator(),
         &fallible_split_scalar,
         split_scalar_prefix_string,
@@ -325,7 +325,7 @@ unittest
 
     StringBuf fallible_interpolated;
     scope (exit) fallible_interpolated.deinit();
-    assert(tryFormatString(malloc_allocator(), &fallible_interpolated, i"try: $(binary(5))"));
+    assert(try_format_string(malloc_allocator(), &fallible_interpolated, i"try: $(binary(5))"));
     assert(fallible_interpolated == "try: 0b101");
 }
 
@@ -358,7 +358,7 @@ unittest
 
     StringBuf failed_interpolated;
     scope (exit) failed_interpolated.deinit();
-    assert(!tryFormatString(
+    assert(!try_format_string(
         failing.allocator,
         &failed_interpolated,
         i"allocation required: $(answer)",
