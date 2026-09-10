@@ -157,9 +157,9 @@ void writeStackTrace(
             String functionDisplay;
             cast(void) try_demangle_d(
                 frame.functionName,
+                style.signatureDetail,
                 signatureStorage,
                 &functionDisplay,
-                style.signatureDetail,
             );
             writer.writeSignature(
                 functionDisplay,
