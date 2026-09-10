@@ -61,8 +61,15 @@ struct StackTraceBackendContext
         return this.state !is null;
     }
 
+    /**
+     * Creates a backend context.
+     *
+     * `permanent_executable_path` may be null. When non-null, it must point to
+     * a null-terminated string whose storage remains valid for the lifetime of
+     * the returned context.
+     */
     static StackTraceBackendContext create(
-        const(char)* permanent_executable_path,
+        return scope const(char)* permanent_executable_path,
         bool thread_safe,
     ) @system
     {
@@ -91,7 +98,7 @@ private struct CaptureState
     bool backend_error;
 }
 
-private String copy_text(ref CaptureState state, const(char)* value) @system
+private String copy_text(ref CaptureState state, scope const(char)* value) @system
 {
     if (value is null) return null;
 
@@ -147,7 +154,9 @@ private extern (C) int collect_frame(
         }
     }
 
-    StackFrame* frame = &state.frames[state.frame_count++];
+    StackFrame* frame = &state.frames[state.frame_count];
+    ++state.frame_count;
+
     frame.program_counter = cast(usize) program_counter;
     frame.filename = copy_text(*state, resolved_filename);
     frame.function_name = copy_text(*state, resolved_function_name);
@@ -215,14 +224,13 @@ StackTrace capture(
         : cast(i32) skip_frames + 1;
     if (context.state !is null)
     {
-        const full_result = backtrace_full(
+        cast(void) backtrace_full(
             context.state,
             skip,
             &collect_frame,
             &capture_error,
             &state,
         );
-        cast(void) full_result;
 
         if (state.frame_count == 0 && state.backend_error)
         {
@@ -231,14 +239,13 @@ StackTrace capture(
             state.text_required = 0;
             state.text_truncated = false;
 
-            const simple_result = backtrace_simple(
+            cast(void) backtrace_simple(
                 context.state,
                 skip,
                 &collect_simple_frame,
                 &capture_error,
                 &state,
             );
-            cast(void) simple_result;
         }
     }
 
@@ -279,19 +286,22 @@ unittest
 
     assert(collect_frame(&state, 2, null, 0, null) == 1);
     assert(state.frames_truncated);
+}
 
-    CaptureState fallback_state;
-    StackFrame[1] fallback_frames;
-    char[512] fallback_text;
-    fallback_state.frames = fallback_frames[];
-    fallback_state.text = fallback_text[];
+unittest
+{
+    CaptureState state;
+    StackFrame[1] frames;
+    char[512] text;
+    state.frames = frames[];
+    state.text = text[];
 
     assert(collect_frame(
-        &fallback_state,
+        &state,
         cast(uintptr_t) &malloc,
         null,
         0,
         null,
     ) == 0);
-    assert(fallback_frames[0].function_name.length != 0);
+    assert(frames[0].function_name.length != 0);
 }
