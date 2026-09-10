@@ -51,13 +51,11 @@ struct StackTraceContext
         return this.backend.available;
     }
 
-    /**
-     * Creates a stack-trace context.
-     *
-     * `permanent_executable_path` may be null. When non-null, it must point to
-     * a null-terminated string whose storage remains valid for the lifetime of
-     * the returned context.
-     */
+    /// Creates a stack-trace context.
+    ///
+    /// `permanent_executable_path` may be null. When non-null, it must point to
+    /// a null-terminated string whose storage remains valid for the lifetime of
+    /// the returned context.
     static StackTraceContext create(
         return scope const(char)* permanent_executable_path = null,
         StackTraceThreadSafety thread_safety = StackTraceThreadSafety.enabled,
@@ -71,12 +69,10 @@ struct StackTraceContext
         return result;
     }
 
-    /**
-     * Captures a trace whose frame and text views borrow from the supplied storage.
-     *
-     * The returned trace remains valid only while `frame_storage` and `text_storage`
-     * remain valid and unmodified.
-     */
+    /// Captures a trace whose frame and text views borrow from the supplied storage.
+    ///
+    /// The returned trace remains valid only while `frame_storage` and `text_storage`
+    /// remain valid and unmodified.
     StackTrace capture(
         return scope StackFrame[] frame_storage,
         return scope char[] text_storage,
@@ -105,18 +101,16 @@ private usize decimal_digits(usize value) pure @safe
     return result;
 }
 
-/**
- * Renders a stack trace without appending a trailing newline.
- *
- * `trace` may be null, in which case a null-trace marker is rendered.
- * `signature_storage` is writable scratch storage used while demangling frame
- * names; its contents are unspecified after this function returns.
- * `requested_style` may be null to use the default style.
- *
- * Callers that write the trace as standalone output are responsible for their
- * own record/line terminator. This keeps the formatter composable with logger
- * records and other writer destinations.
- */
+/// Renders a stack trace without appending a trailing newline.
+///
+/// `trace` may be null, in which case a null-trace marker is rendered.
+/// `signature_storage` is writable scratch storage used while demangling frame
+/// names; its contents are unspecified after this function returns.
+/// `requested_style` may be null to use the default style.
+///
+/// Callers that write the trace as standalone output are responsible for their
+/// own record/line terminator. This keeps the formatter composable with logger
+/// records and other writer destinations.
 void write_stack_trace(
     ref Writer writer,
     scope const(StackTrace)* trace,
