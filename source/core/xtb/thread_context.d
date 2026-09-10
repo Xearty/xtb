@@ -2,6 +2,8 @@ module xtb.thread_context;
 
 nothrow @nogc:
 
+import core.attribute;
+
 import xtb.allocators.arena;
 import xtb.allocators.malloc;
 import xtb.lifetime;
@@ -11,10 +13,9 @@ import xtb.types;
 
 enum max_scratch_arenas = 8;
 
+/// Per-thread scratch state owned by `ThreadContextScope`.
 struct ThreadContext
 {
-nothrow @nogc:
-
     Arena[max_scratch_arenas] arenas;
     usize arena_count;
     Allocator* owner_allocator;
@@ -24,6 +25,8 @@ nothrow @nogc:
 private ThreadContext* tls_context;
 
 /// Returns the current thread context, or null when none is installed.
+/// The returned pointer is borrowed and remains valid only while its owning
+/// `ThreadContextScope` is active.
 ThreadContext* current_thread_context()
 {
     return tls_context;
@@ -35,11 +38,12 @@ ThreadContext* current_thread_context()
 package(xtb) ThreadContext* attach_thread_context()
 {
     ThreadContext* context = tls_context;
-    require(context !is null, "thread-context attachment requires an installed context");
+    require(context !is null, "thread context attachment requires an installed context");
     require(
         context.attachment_count != usize.max,
-        "thread-context attachment count overflow",
+        "thread context attachment count overflow",
     );
+
     ++context.attachment_count;
     return context;
 }
@@ -47,20 +51,25 @@ package(xtb) ThreadContext* attach_thread_context()
 /// Releases one attachment previously registered on `context`.
 package(xtb) void detach_thread_context(ThreadContext* context)
 {
-    require(context !is null, "thread-context attachment is null");
-    require(tls_context is context, "thread-context attachment released out of context");
-    require(context.attachment_count != 0, "thread-context attachment underflow");
+    require(context !is null, "thread context attachment is null");
+    require(tls_context is context, "thread context attachment released out of context");
+    require(context.attachment_count != 0, "thread context attachment underflow");
+
     --context.attachment_count;
 }
 
-struct ThreadContextScope
+/// Owns the thread context installed by `acquire` and removes it on scope exit.
+@mustuse struct ThreadContextScope
 {
 nothrow @nogc:
 
+    /// Context owned by this scope. Null denotes an inactive scope.
     ThreadContext* context;
 
     @disable this(this);
 
+    /// Installs a thread context with the requested scratch arena capacity.
+    /// `backing_allocator` may be null to use `malloc_allocator()`.
     static ThreadContextScope acquire(
         usize scratch_arena_count = 2,
         usize scratch_chunk_size = 64 * 1024,
@@ -73,8 +82,7 @@ nothrow @nogc:
             "invalid scratch arena count",
         );
 
-        if (backing_allocator is null)
-            backing_allocator = malloc_allocator();
+        if (backing_allocator is null) backing_allocator = malloc_allocator();
 
         ThreadContext* context = backing_allocator.allocate_init!ThreadContext();
         context.owner_allocator = backing_allocator;
@@ -103,6 +111,7 @@ nothrow @nogc:
 
         Allocator* owner = this.context.owner_allocator;
         ThreadContext* released = this.context;
+
         tls_context = null;
         this.context = null;
         owner.dispose(released);
@@ -112,8 +121,7 @@ nothrow @nogc:
 private Arena* select_scratch_arena(scope Allocator*[] conflicts)
 {
     ThreadContext* context = tls_context;
-    if (context is null)
-        panic("scratch requested without a thread context");
+    if (context is null) panic("scratch requested without a thread context");
 
     foreach (i; 0 .. context.arena_count)
     {
@@ -128,47 +136,63 @@ private Arena* select_scratch_arena(scope Allocator*[] conflicts)
                 break;
             }
         }
-        if (!conflicts_with_candidate)
-            return candidate;
+
+        if (!conflicts_with_candidate) return candidate;
     }
+
     panic("no non-conflicting scratch arena");
 }
 
-/// Returns a scratch arena that does not conflict with any supplied allocator.
+/// Returns a non-null scratch arena borrowed from the current thread context.
+/// The returned pointer remains valid while the owning `ThreadContextScope` is active.
 Arena* scratch_arena()
 {
     return select_scratch_arena(null);
 }
 
+/// Returns a non-null scratch arena that differs from `conflict`.
+/// `conflict` may be null. The returned pointer is borrowed from the current
+/// thread context and remains valid while its owning `ThreadContextScope` is active.
 Arena* scratch_arena(Allocator* conflict)
 {
     Allocator*[1] conflicts = [conflict];
     return select_scratch_arena(conflicts[]);
 }
 
+/// Returns a non-null scratch arena that differs from every allocator in `conflicts`.
+/// The slice may be null or empty; null allocator elements exclude no arena.
+/// The returned pointer is borrowed from the current thread context and remains
+/// valid while its owning `ThreadContextScope` is active.
 Arena* scratch_arena(scope Allocator*[] conflicts)
 {
     return select_scratch_arena(conflicts);
 }
 
-struct ScratchScope
+/// Owns one scratch-arena checkpoint and rewinds it on scope exit.
+@mustuse struct ScratchScope
 {
 nothrow @nogc:
 
+    /// Temporary arena checkpoint owned by this scope.
     TempArena temporary;
 
     @disable this(this);
 
+    /// Acquires a checkpoint from any scratch arena in the current thread context.
     static ScratchScope acquire()
     {
         return ScratchScope.from_arena(scratch_arena());
     }
 
+    /// Acquires a checkpoint from an arena other than `conflict`.
+    /// `conflict` may be null.
     static ScratchScope acquire(Allocator* conflict)
     {
         return ScratchScope.from_arena(scratch_arena(conflict));
     }
 
+    /// Acquires a checkpoint from an arena not present in `conflicts`.
+    /// The slice may be null or empty; null allocator elements exclude no arena.
     static ScratchScope acquire(scope Allocator*[] conflicts)
     {
         return ScratchScope.from_arena(scratch_arena(conflicts));
@@ -179,11 +203,15 @@ nothrow @nogc:
         if (this.temporary.active) this.temporary.pop();
     }
 
+    /// Returns the selected non-null arena borrowed from the active thread context.
+    /// The returned pointer remains valid while the owning `ThreadContextScope` is active.
     Arena* arena() return
     {
         return this.temporary.arena;
     }
 
+    /// Returns the selected arena's non-null borrowed allocator slot.
+    /// The returned pointer remains valid while the owning `ThreadContextScope` is active.
     Allocator* allocator() return
     {
         return this.temporary.allocator;

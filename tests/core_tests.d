@@ -377,7 +377,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         result.expect_error("expected result error");
     }
     if (cStringEqual(name, "scratch-without-context"))
-        ScratchScope.acquire();
+        cast(void) ScratchScope.acquire();
     if (cStringEqual(name, "thread-logger-null"))
         ThreadLoggerScope.install(null);
     if (cStringEqual(name, "thread-logger-without-context"))
@@ -429,7 +429,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     {
         ThreadContextScope context = ThreadContextScope.acquire(1, 64);
         ScratchScope first = ScratchScope.acquire();
-        ScratchScope.acquire(first.allocator);
+        cast(void) ScratchScope.acquire(first.allocator);
     }
     version (XTB_Checked)
         if (cStringEqual(name, "intrusive-list-double-link"))
