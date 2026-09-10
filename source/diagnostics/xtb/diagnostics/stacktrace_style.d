@@ -66,8 +66,7 @@ struct StackTraceColors
     ANSIColor address;
     ANSIColor warning;
 
-    static StackTraceColors from_theme(StackTraceTheme theme)
-    @safe
+    static StackTraceColors from_theme(StackTraceTheme theme) @safe
     {
         static foreach (definition; theme_definitions)
         {
@@ -194,7 +193,9 @@ static foreach (left_index, left; theme_definitions)
     static foreach (right_index, right; theme_definitions)
     {
         static if (left_index < right_index)
+        {
             static assert(left.theme != right.theme, "duplicate stack-trace theme");
+        }
     }
 }
 
@@ -209,8 +210,7 @@ struct StackTraceStyle
     SignatureLayout signature_layout;
     usize signature_columns;
 
-    static StackTraceStyle from_theme(StackTraceTheme theme)
-    @safe
+    static StackTraceStyle from_theme(StackTraceTheme theme) @safe
     {
         return StackTraceStyle(
             StackTraceColors.from_theme(theme),
@@ -257,37 +257,37 @@ private bool space(char value) pure @safe
     return value == ' ' || value == '\t' || value == '\r' || value == '\n';
 }
 
-private bool keyword(String source) pure @system
+private bool keyword(String source) pure @safe
 {
     switch (source)
     {
-        case "const", "immutable", "inout", "shared", "scope", "return",
-            "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
-            "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
-            "typeof":
-            return true;
+    case "const", "immutable", "inout", "shared", "scope", "return",
+        "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
+        "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
+        "typeof":
+        return true;
 
-        default:
-            return false;
+    default:
+        return false;
     }
 }
 
-private bool primitive_type(String source) pure @system
+private bool primitive_type(String source) pure @safe
 {
     switch (source)
     {
-        case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
-            "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
-            "dchar", "float", "double", "real", "ifloat", "idouble",
-            "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
-            return true;
+    case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
+        "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
+        "dchar", "float", "double", "real", "ifloat", "idouble",
+        "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
+        return true;
 
-        default:
-            return false;
+    default:
+        return false;
     }
 }
 
-private SignatureToken next_token(String input, usize start) pure @system
+private SignatureToken next_token(String input, usize start) pure @safe
 {
     if (start >= input.length)
         return SignatureToken.init;
@@ -322,9 +322,13 @@ private SignatureToken next_token(String input, usize start) pure @system
     if (kind == SignatureTokenKind.identifier)
     {
         if (primitive_type(source))
+        {
             kind = SignatureTokenKind.type;
+        }
         else if (keyword(source))
+        {
             kind = SignatureTokenKind.keyword;
+        }
     }
 
     return SignatureToken(kind, source, end);
@@ -363,10 +367,7 @@ private bool aggregate_identifier(String identifier) pure @safe
             || (identifier[0] >= 'A' && identifier[0] <= 'Z'));
 }
 
-private usize visible_width(
-    String signature,
-    ModuleDisplay module_display,
-) pure @system
+private usize visible_width(String signature, ModuleDisplay module_display) pure @safe
 {
     usize width;
     usize offset;
@@ -441,17 +442,22 @@ private ParameterList outer_parameter_list(String signature) pure @safe
         {
             --depth;
             if (depth == 0 && has_candidate)
+            {
                 result = ParameterList(candidate, offset, true);
+            }
         }
     }
 
     return result;
 }
 
+/// Writes `signature`, using `colors` for syntax coloring.
+///
+/// `colors` may be null to disable ANSI coloring.
 void write_signature(
     ref Writer writer,
     String signature,
-    scope const StackTraceColors* colors,
+    scope const(StackTraceColors)* colors,
     ModuleDisplay module_display = ModuleDisplay.omitted,
     SignatureFormat format = SignatureFormat.init,
 )
@@ -460,7 +466,7 @@ void write_signature(
         return;
 
     StackTraceColors plain;
-    const StackTraceColors* active_colors = colors is null ? &plain : colors;
+    const(StackTraceColors)* active_colors = colors is null ? &plain : colors;
     const parameters = outer_parameter_list(signature);
     if (!parameters.found)
     {
@@ -470,13 +476,14 @@ void write_signature(
         return;
     }
 
-    usize offset;
-    bool suppress_separator;
-    bool suppress_space;
     const multiline = format.layout == SignatureLayout.multiline
         && format.max_columns != 0
         && parameters.close > parameters.open + 1
         && visible_width(signature, module_display) > format.max_columns;
+
+    usize offset;
+    bool suppress_separator;
+    bool suppress_space;
     bool inside_parameters;
     usize nested_parentheses;
     while (offset < signature.length)
@@ -525,33 +532,40 @@ void write_signature(
         ANSIColor color;
         final switch (token.kind)
         {
-            case SignatureTokenKind.identifier:
+        case SignatureTokenKind.identifier:
+        {
+            const function_identifier = is_function_identifier(signature, token.end);
+            const module_identifier = is_module_identifier(signature, token.end);
+            const is_aggregate = aggregate_identifier(token.source);
+            if (function_identifier)
             {
-                const function_identifier = is_function_identifier(signature, token.end);
-                const module_identifier = is_module_identifier(signature, token.end);
-                const aggregate = aggregate_identifier(token.source);
-                color = function_identifier
-                    ? active_colors.function_name
-                    : module_identifier
-                    ? aggregate ? active_colors.type_name : active_colors.module_name
-                    : active_colors.type_name;
-                break;
+                color = active_colors.function_name;
             }
-
-            case SignatureTokenKind.type:
+            else if (module_identifier && !is_aggregate)
+            {
+                color = active_colors.module_name;
+            }
+            else
+            {
                 color = active_colors.type_name;
-                break;
+            }
+            break;
+        }
 
-            case SignatureTokenKind.keyword:
-                color = active_colors.keyword;
-                break;
+        case SignatureTokenKind.type:
+            color = active_colors.type_name;
+            break;
 
-            case SignatureTokenKind.punctuation:
-                color = active_colors.punctuation;
-                break;
+        case SignatureTokenKind.keyword:
+            color = active_colors.keyword;
+            break;
 
-            case SignatureTokenKind.space:
-                break;
+        case SignatureTokenKind.punctuation:
+            color = active_colors.punctuation;
+            break;
+
+        case SignatureTokenKind.space:
+            break;
         }
 
         writer.begin_ansi(color);
@@ -594,10 +608,7 @@ version (unittest)
         usize written;
     }
 
-    private usize test_sink(
-        void* context,
-        scope const(u8)[] bytes,
-    )
+    private usize test_sink(void* context, scope const(u8)[] bytes)
     {
         TestSink* sink = cast(TestSink*) context;
         const available = sink.storage.length - sink.written;
@@ -623,10 +634,7 @@ unittest
     assert(next_token("int", 0).kind == SignatureTokenKind.type);
     assert(next_token("void", 0).kind == SignatureTokenKind.type);
     assert(next_token("const", 0).kind == SignatureTokenKind.keyword);
-    writer.write_signature(
-        "xtb.Array!(const(char)[]).append(ref String)",
-        &colors,
-    );
+    writer.write_signature("xtb.Array!(const(char)[]).append(ref String)", &colors);
     const result = writer.result;
     assert(result.ok);
     assert(output.written != 0);
@@ -717,11 +725,7 @@ unittest
         boundary_signature,
         &plain,
         ModuleDisplay.omitted,
-        SignatureFormat(
-            SignatureLayout.multiline,
-            boundary_signature.length,
-            4,
-        ),
+        SignatureFormat(SignatureLayout.multiline, boundary_signature.length, 4),
     );
     assert(boundary_writer.result.ok);
     assert(boundary_storage[0 .. boundary_output.written] == boundary_signature);
