@@ -2,18 +2,22 @@ module xtb.diagnostics.internal.unsupported.stacktrace;
 
 nothrow @nogc:
 
-import xtb.diagnostics.stacktrace : StackFrame, StackTrace;
+import xtb.diagnostics.stacktrace;
+import xtb.types;
 
 struct StackTraceBackendContext
 {
-nothrow @nogc:
+    nothrow @nogc:
 
     bool available() const pure @safe
     {
         return false;
     }
 
-    static StackTraceBackendContext create(const(char)*, bool)
+    static StackTraceBackendContext create(
+        const(char)*,
+        bool,
+    ) pure @safe
     {
         return StackTraceBackendContext.init;
     }
@@ -23,8 +27,8 @@ StackTrace capture(
     ref StackTraceBackendContext,
     return scope StackFrame[],
     return scope char[],
-    uint,
-)
+    u32,
+) pure @safe
 {
     StackTrace result;
     result.backend_error = true;
