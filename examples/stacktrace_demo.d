@@ -92,7 +92,7 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
 
     Writer writer = file_writer(cast(FILE*) stdout);
     StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
-    style.signatureDetail = SignatureDetail.overloadIdentityAndReturn;
+    style.signatureDetail = SignatureDetail.overload_identity_and_return;
     char[64 * 1024] signatureStorage;
     writer.writeStackTrace(&trace, signatureStorage[], &style);
     writer.put('\n');

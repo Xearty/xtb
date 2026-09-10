@@ -3,7 +3,7 @@ module xtb.diagnostics.stacktrace;
 nothrow @nogc:
 
 import core.stdc.string : memcpy;
-import xtb.diagnostics.demangle : tryDemangleD;
+import xtb.diagnostics.demangle : try_demangle_d;
 import xtb.ansi : ANSIColor;
 import xtb.fmt.ansi : begin_ansi, end_ansi;
 import xtb.fmt.writer : Writer, hexadecimal;
@@ -155,7 +155,7 @@ void writeStackTrace(
         if (frame.functionName.length != 0)
         {
             String functionDisplay;
-            cast(void) tryDemangleD(
+            cast(void) try_demangle_d(
                 frame.functionName,
                 signatureStorage,
                 &functionDisplay,

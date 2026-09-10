@@ -3,213 +3,219 @@ module xtb.diagnostics.demangle;
 nothrow @nogc:
 
 import xtb.string;
-import xtb.types : String;
+import xtb.types;
 
-private enum maxRecursion = 64;
+private enum max_recursion = 64;
 
 enum SignatureDetail
 {
-    overloadIdentity,
-    overloadIdentityAndReturn,
+    overload_identity,
+    overload_identity_and_return,
     full,
 }
 
 private struct DemangleWriter
 {
-nothrow @nogc:
+    nothrow @nogc:
 
     char[] storage;
-    size_t written;
+    usize written;
     bool failed;
     bool discard;
 
     void put(char value) @system
     {
-        if (discard)
+        if (this.discard)
             return;
-        if (written == storage.length)
+        if (this.written == this.storage.length)
         {
-            failed = true;
+            this.failed = true;
             return;
         }
-        storage[written++] = value;
+        this.storage[this.written++] = value;
     }
 
     void put(String value) @system
     {
-        if (discard)
+        if (this.discard)
             return;
-        if (value.length > storage.length - written)
+        if (value.length > this.storage.length - this.written)
         {
-            failed = true;
+            this.failed = true;
             return;
         }
         foreach (character; value)
-            storage[written++] = character;
+            this.storage[this.written++] = character;
     }
 }
 
 private struct FunctionAttributes
 {
-    bool pure_;
-    bool nothrow_;
-    bool ref_;
-    bool property;
-    bool nogc;
-    bool return_;
-    bool scope_;
-    bool trusted;
-    bool safe;
-    bool live;
+    bool is_pure;
+    bool is_nothrow;
+    bool is_ref;
+    bool is_property;
+    bool is_nogc;
+    bool is_return;
+    bool is_scope;
+    bool is_trusted;
+    bool is_safe;
+    bool is_live;
 }
 
 private struct Demangler
 {
-nothrow @nogc:
+    nothrow @nogc:
 
     String input;
-    size_t offset;
-    size_t recursion;
-    size_t lastTemplateName;
-    bool hasLastTemplateName;
+    usize offset;
+    usize recursion;
+    usize last_template_name;
+    bool has_last_template_name;
     SignatureDetail detail;
     DemangleWriter output;
 
     bool consume(char value) pure @system
     {
-        if (offset == input.length || input[offset] != value)
+        if (this.offset == this.input.length || this.input[this.offset] != value)
             return false;
-        ++offset;
+        ++this.offset;
         return true;
     }
 
-    bool startsWith(String value) pure @system
+    bool starts_with(String value) pure @system
     {
-        return value.length <= input.length - offset &&
-            input[offset .. offset + value.length].equal(value);
+        return value.length <= this.input.length - this.offset &&
+            this.input[this.offset .. this.offset + value.length].equal(value);
     }
 
-    bool qualifiedName() @system
+    bool qualified_name() @system
     {
         bool found;
-        while (symbolNameStart())
+        while (this.symbol_name_start())
         {
-            if (found && repeatedTemplateFunctionName())
+            if (found && this.repeated_template_function_name())
             {
-                size_t ignored;
-                if (!backReferenceTarget(&ignored))
+                usize ignored;
+                if (!this.back_reference_target(&ignored))
                     return false;
                 continue;
             }
             if (found)
-                output.put('.');
-            if (!symbolName())
+                this.output.put('.');
+            if (!this.symbol_name())
                 return false;
             found = true;
         }
-        return found && !output.failed;
+        return found && !this.output.failed;
     }
 
-    bool symbolNameStart() pure @system
+    bool symbol_name_start() pure @system
     {
-        if (offset >= input.length)
+        if (this.offset >= this.input.length)
             return false;
-        if (digit(input[offset]) || input[offset] == '0')
+        if (digit(this.input[this.offset]) || this.input[this.offset] == '0')
             return true;
-        if (startsWith("__T") || startsWith("__U"))
+        if (this.starts_with("__T") || this.starts_with("__U"))
             return true;
-        return input[offset] == 'Q' && backReferenceTargetsIdentifier();
+        return this.input[this.offset] == 'Q' && this.back_reference_targets_identifier();
     }
 
-    bool symbolName() @system
+    bool symbol_name() @system
     {
-        if (startsWith("__T") || startsWith("__U"))
-            return templateName();
-        if (offset < input.length && input[offset] == 'Q')
-            return identifierBackReference();
-        if (consume('0'))
+        if (this.starts_with("__T") || this.starts_with("__U"))
+            return this.template_name();
+        if (this.offset < this.input.length && this.input[this.offset] == 'Q')
+            return this.identifier_back_reference();
+        if (this.consume('0'))
         {
-            output.put("<anonymous>");
+            this.output.put("<anonymous>");
             return true;
         }
-        return lengthName();
+        return this.length_name();
     }
 
-    bool lengthName() @system
+    bool length_name() @system
     {
-        size_t length;
-        if (!number(&length) || length == 0 || length > input.length - offset)
+        usize length;
+        if (!this.number(&length) || length == 0 || length > this.input.length - this.offset)
             return false;
-        output.put(input[offset .. offset + length]);
-        offset += length;
-        return !output.failed;
+        this.output.put(this.input[this.offset .. this.offset + length]);
+        this.offset += length;
+        return !this.output.failed;
     }
 
-    bool templateName() @system
+    bool template_name() @system
     {
-        offset += 3;
-        lastTemplateName = offset;
-        hasLastTemplateName = true;
-        if (!lengthName())
+        this.offset += 3;
+        this.last_template_name = this.offset;
+        this.has_last_template_name = true;
+        if (!this.length_name())
             return false;
-        output.put("!(");
+        this.output.put("!(");
         bool first = true;
-        while (offset < input.length && input[offset] != 'Z')
+        while (this.offset < this.input.length && this.input[this.offset] != 'Z')
         {
             if (!first)
-                output.put(", ");
-            if (!templateArgument())
+                this.output.put(", ");
+            if (!this.template_argument())
                 return false;
             first = false;
         }
-        if (!consume('Z'))
+        if (!this.consume('Z'))
             return false;
-        output.put(')');
-        return !output.failed;
+        this.output.put(')');
+        return !this.output.failed;
     }
 
-    bool repeatedTemplateFunctionName() pure @system
+    bool repeated_template_function_name() pure @system
     {
-        if (!hasLastTemplateName || offset >= input.length || input[offset] != 'Q')
-            return false;
-        const savedOffset = offset;
-        size_t target;
-        if (!backReferenceTarget(&target))
+        if (
+            !this.has_last_template_name
+            || this.offset >= this.input.length
+            || this.input[this.offset] != 'Q'
+        )
         {
-            offset = savedOffset;
             return false;
         }
-        const followsWithFunction = offset < input.length &&
-            (callConvention(input[offset]) || input[offset] == 'M');
-        offset = savedOffset;
-        return target == lastTemplateName && followsWithFunction;
+        const saved_offset = this.offset;
+        usize target;
+        if (!this.back_reference_target(&target))
+        {
+            this.offset = saved_offset;
+            return false;
+        }
+        const follows_with_function = this.offset < this.input.length &&
+            (call_convention(this.input[this.offset]) || this.input[this.offset] == 'M');
+        this.offset = saved_offset;
+        return target == this.last_template_name && follows_with_function;
     }
 
-    bool templateArgument() @system
+    bool template_argument() @system
     {
-        if (consume('H'))
-            output.put("specialized ");
-        if (consume('T'))
-            return type();
-        if (consume('V'))
+        if (this.consume('H'))
+            this.output.put("specialized ");
+        if (this.consume('T'))
+            return this.type();
+        if (this.consume('V'))
         {
-            DemangleWriter savedOutput = output;
-            output = DemangleWriter(null, 0, false, true);
-            const validType = type();
-            output = savedOutput;
-            if (!validType)
+            DemangleWriter saved_output = this.output;
+            this.output = DemangleWriter(null, 0, false, true);
+            const valid_type = this.type();
+            this.output = saved_output;
+            if (!valid_type)
                 return false;
-            return value();
+            return this.value();
         }
-        if (consume('S'))
-            return startsWith("_D") ? mangledName() : qualifiedName();
-        if (consume('X'))
+        if (this.consume('S'))
+            return this.starts_with("_D") ? this.mangled_name() : this.qualified_name();
+        if (this.consume('X'))
         {
-            size_t length;
-            if (!number(&length) || length > input.length - offset)
+            usize length;
+            if (!this.number(&length) || length > this.input.length - this.offset)
                 return false;
-            output.put(input[offset .. offset + length]);
-            offset += length;
+            this.output.put(this.input[this.offset .. this.offset + length]);
+            this.offset += length;
             return true;
         }
         return false;
@@ -217,241 +223,261 @@ nothrow @nogc:
 
     bool value() @system
     {
-        if (consume('n'))
+        if (this.consume('n'))
         {
-            output.put("null");
+            this.output.put("null");
             return true;
         }
-        if (consume('i'))
-            return copyNumber(false);
-        if (consume('N'))
-            return copyNumber(true);
-        if (offset < input.length &&
-            (input[offset] == 'a' || input[offset] == 'w' || input[offset] == 'd'))
-            return stringValue();
-        if (consume('A') || consume('S'))
+        if (this.consume('i'))
+            return this.copy_number(false);
+        if (this.consume('N'))
+            return this.copy_number(true);
+        if (
+            this.offset < this.input.length
+            && (
+                this.input[this.offset] == 'a'
+                || this.input[this.offset] == 'w'
+                || this.input[this.offset] == 'd'
+            )
+        )
         {
-            size_t count;
-            if (!number(&count))
+            return this.string_value();
+        }
+        if (this.consume('A') || this.consume('S'))
+        {
+            usize count;
+            if (!this.number(&count))
                 return false;
-            output.put('[');
+            this.output.put('[');
             foreach (index; 0 .. count)
             {
                 if (index != 0)
-                    output.put(", ");
-                if (!value())
+                    this.output.put(", ");
+                if (!this.value())
                     return false;
             }
-            output.put(']');
+            this.output.put(']');
             return true;
         }
-        if (consume('f'))
+        if (this.consume('f'))
         {
-            output.put('&');
-            return mangledName();
+            this.output.put('&');
+            return this.mangled_name();
         }
-        if (consume('e'))
-            return floatingValue();
-        if (consume('c'))
+        if (this.consume('e'))
+            return this.floating_value();
+        if (this.consume('c'))
         {
-            if (!floatingValue())
+            if (!this.floating_value())
                 return false;
-            output.put(" + ");
-            if (!consume('c'))
+            this.output.put(" + ");
+            if (!this.consume('c'))
                 return false;
-            return floatingValue();
+            return this.floating_value();
         }
         return false;
     }
 
-    bool stringValue() @system
+    bool string_value() @system
     {
-        const widthCode = input[offset++];
-        size_t characters;
-        if (!number(&characters) || !consume('_'))
+        const width_code = this.input[this.offset++];
+        usize characters;
+        if (!this.number(&characters) || !this.consume('_'))
             return false;
-        const codeUnits = widthCode == 'a' ? 1U : widthCode == 'w' ? 2U : 4U;
-        if (characters > size_t.max / codeUnits / 2)
+        const usize code_units = width_code == 'a' ? 1 : width_code == 'w' ? 2 : 4;
+        if (characters > usize.max / code_units / 2)
             return false;
-        const hexLength = characters * codeUnits * 2;
-        if (hexLength > input.length - offset)
+        const hex_length = characters * code_units * 2;
+        if (hex_length > this.input.length - this.offset)
             return false;
-        output.put('"');
-        output.put(input[offset .. offset + hexLength]);
-        output.put('"');
-        offset += hexLength;
-        return !output.failed;
+        this.output.put('"');
+        this.output.put(this.input[this.offset .. this.offset + hex_length]);
+        this.output.put('"');
+        this.offset += hex_length;
+        return !this.output.failed;
     }
 
-    bool floatingValue() @system
+    bool floating_value() @system
     {
-        const start = offset;
-        while (offset < input.length &&
-            (hexDigit(input[offset]) || input[offset] == 'N' ||
-                input[offset] == 'I' || input[offset] == 'P'))
-            ++offset;
-        if (offset == start)
+        const start = this.offset;
+        while (
+            this.offset < this.input.length
+            && (
+                hex_digit(this.input[this.offset])
+                || this.input[this.offset] == 'N'
+                || this.input[this.offset] == 'I'
+                || this.input[this.offset] == 'P'
+            )
+        )
+        {
+            ++this.offset;
+        }
+        if (this.offset == start)
             return false;
-        output.put(input[start .. offset]);
-        return !output.failed;
+        this.output.put(this.input[start .. this.offset]);
+        return !this.output.failed;
     }
 
-    bool copyNumber(bool negative) @system
+    bool copy_number(bool negative) @system
     {
-        const start = offset;
-        size_t ignored;
-        if (!number(&ignored))
+        const start = this.offset;
+        usize ignored;
+        if (!this.number(&ignored))
             return false;
         if (negative)
-            output.put('-');
-        output.put(input[start .. offset]);
-        return !output.failed;
+            this.output.put('-');
+        this.output.put(this.input[start .. this.offset]);
+        return !this.output.failed;
     }
 
-    bool number(size_t* result) pure @system
+    bool number(usize* result) pure @system
     {
-        if (result is null || offset == input.length || !digit(input[offset]))
+        if (result is null || this.offset == this.input.length || !digit(this.input[this.offset]))
             return false;
-        size_t numberValue;
-        while (offset < input.length && digit(input[offset]))
+        usize number_value;
+        while (this.offset < this.input.length && digit(this.input[this.offset]))
         {
-            const next = cast(size_t)(input[offset] - '0');
-            if (numberValue > (size_t.max - next) / 10)
+            const next = cast(usize)(this.input[this.offset] - '0');
+            if (number_value > (usize.max - next) / 10)
                 return false;
-            numberValue = numberValue * 10 + next;
-            ++offset;
+            number_value = number_value * 10 + next;
+            ++this.offset;
         }
-        *result = numberValue;
+        *result = number_value;
         return true;
     }
 
-    bool backReferenceTarget(size_t* target) pure @system
+    bool back_reference_target(usize* target) pure @system
     {
-        if (target is null || offset >= input.length || input[offset] != 'Q')
+        if (target is null || this.offset >= this.input.length || this.input[this.offset] != 'Q')
             return false;
-        const referencePosition = offset++;
-        size_t distance;
+        const reference_position = this.offset++;
+        usize distance;
         bool finished;
-        while (offset < input.length)
+        while (this.offset < this.input.length)
         {
-            const character = input[offset++];
-            size_t digitValue;
+            const character = this.input[this.offset++];
+            usize digit_value;
             if (character >= 'A' && character <= 'Z')
-                digitValue = cast(size_t)(character - 'A');
+                digit_value = cast(usize)(character - 'A');
             else if (character >= 'a' && character <= 'z')
             {
-                digitValue = cast(size_t)(character - 'a');
+                digit_value = cast(usize)(character - 'a');
                 finished = true;
             }
             else
                 return false;
-            if (distance > (size_t.max - digitValue) / 26)
+            if (distance > (usize.max - digit_value) / 26)
                 return false;
-            distance = distance * 26 + digitValue;
+            distance = distance * 26 + digit_value;
             if (finished)
                 break;
         }
-        if (!finished || distance == 0 || distance > referencePosition)
+        if (!finished || distance == 0 || distance > reference_position)
             return false;
-        *target = referencePosition - distance;
-        return *target < input.length;
+        *target = reference_position - distance;
+        return *target < this.input.length;
     }
 
-    bool backReferenceTargetsIdentifier() pure @system
+    bool back_reference_targets_identifier() pure @system
     {
-        const savedOffset = offset;
-        size_t target;
-        const valid = backReferenceTarget(&target);
-        offset = savedOffset;
-        return valid && digit(input[target]);
+        const saved_offset = this.offset;
+        usize target;
+        const valid = this.back_reference_target(&target);
+        this.offset = saved_offset;
+        return valid && digit(this.input[target]);
     }
 
-    bool identifierBackReference() @system
+    bool identifier_back_reference() @system
     {
-        const referenceOffset = offset;
-        size_t target;
-        if (!backReferenceTarget(&target) || !digit(input[target]))
+        const reference_offset = this.offset;
+        usize target;
+        if (!this.back_reference_target(&target) || !digit(this.input[target]))
             return false;
-        const afterReference = offset;
-        if (++recursion > maxRecursion)
+        const after_reference = this.offset;
+        if (++this.recursion > max_recursion)
             return false;
-        offset = target;
-        const result = lengthName();
-        --recursion;
-        offset = afterReference;
-        return result && referenceOffset != target;
+        this.offset = target;
+        const result = this.length_name();
+        --this.recursion;
+        this.offset = after_reference;
+        return result && reference_offset != target;
     }
 
-    bool typeBackReference() @system
+    bool type_back_reference() @system
     {
-        size_t target;
-        if (!backReferenceTarget(&target) || digit(input[target]))
+        usize target;
+        if (!this.back_reference_target(&target) || digit(this.input[target]))
             return false;
-        const afterReference = offset;
-        if (++recursion > maxRecursion)
+        const after_reference = this.offset;
+        if (++this.recursion > max_recursion)
             return false;
-        offset = target;
-        const result = type();
-        --recursion;
-        offset = afterReference;
+        this.offset = target;
+        const result = this.type();
+        --this.recursion;
+        this.offset = after_reference;
         return result;
     }
 
-    bool functionType(
-        bool hasReturn = true,
+    bool function_type(
+        bool has_return = true,
         String callable = null,
-        SignatureDetail functionDetail = SignatureDetail.full,
+        SignatureDetail function_detail = SignatureDetail.full,
     )
     @system
     {
-        String memberQualifier;
-        if (offset < input.length && input[offset] == 'M')
+        String member_qualifier;
+        if (this.offset < this.input.length && this.input[this.offset] == 'M')
         {
-            ++offset;
-            if (consume('x'))
-                memberQualifier = " const";
-            else if (consume('y'))
-                memberQualifier = " immutable";
-            else if (consume('O'))
+            ++this.offset;
+            if (this.consume('x'))
+                member_qualifier = " const";
+            else if (this.consume('y'))
+                member_qualifier = " immutable";
+            else if (this.consume('O'))
             {
-                if (consume('x'))
-                    memberQualifier = " shared const";
-                else if (startsWith("Ng"))
+                if (this.consume('x'))
+                    member_qualifier = " shared const";
+                else if (this.starts_with("Ng"))
                 {
-                    offset += 2;
-                    memberQualifier = " shared inout";
+                    this.offset += 2;
+                    member_qualifier = " shared inout";
                 }
                 else
-                    memberQualifier = " shared";
+                    member_qualifier = " shared";
             }
-            else if (startsWith("Ng"))
+            else if (this.starts_with("Ng"))
             {
-                offset += 2;
-                memberQualifier = " inout";
+                this.offset += 2;
+                member_qualifier = " inout";
             }
         }
-        if (offset >= input.length || !callConvention(input[offset]))
+        if (this.offset >= this.input.length || !call_convention(this.input[this.offset]))
             return false;
-        const convention = input[offset++];
+        const convention = this.input[this.offset++];
         FunctionAttributes attributes;
-        if (!functionAttributes(&attributes))
+        if (!this.function_attributes(&attributes))
             return false;
 
         if (callable.length != 0)
-            output.put(callable);
-        output.put('(');
+            this.output.put(callable);
+        this.output.put('(');
         bool first = true;
         char close;
-        while (offset < input.length)
+        while (this.offset < this.input.length)
         {
-            if (input[offset] == 'X' || input[offset] == 'Y' || input[offset] == 'Z')
+            if (
+                this.input[this.offset] == 'X'
+                || this.input[this.offset] == 'Y'
+                || this.input[this.offset] == 'Z'
+            )
             {
-                close = input[offset++];
+                close = this.input[this.offset++];
                 break;
             }
             if (!first)
-                output.put(", ");
-            if (!parameter())
+                this.output.put(", ");
+            if (!this.parameter())
                 return false;
             first = false;
         }
@@ -460,114 +486,114 @@ nothrow @nogc:
         if (close != 'Z')
         {
             if (!first)
-                output.put(", ");
-            output.put(close == 'X' ? "..." : "TypeInfo[]...");
+                this.output.put(", ");
+            this.output.put(close == 'X' ? "..." : "TypeInfo[]...");
         }
-        output.put(')');
-        output.put(memberQualifier);
-        if (hasReturn)
+        this.output.put(')');
+        this.output.put(member_qualifier);
+        if (has_return)
         {
-            DemangleWriter savedOutput;
-            if (functionDetail == SignatureDetail.overloadIdentity)
+            DemangleWriter saved_output;
+            if (function_detail == SignatureDetail.overload_identity)
             {
-                savedOutput = output;
-                output = DemangleWriter(null, 0, false, true);
+                saved_output = this.output;
+                this.output = DemangleWriter(null, 0, false, true);
             }
             else
-                output.put(" -> ");
-            const validReturn = type();
-            if (functionDetail == SignatureDetail.overloadIdentity)
-                output = savedOutput;
-            if (!validReturn)
+                this.output.put(" -> ");
+            const valid_return = this.type();
+            if (function_detail == SignatureDetail.overload_identity)
+                this.output = saved_output;
+            if (!valid_return)
                 return false;
         }
-        if (functionDetail == SignatureDetail.full)
-            writeFunctionSuffix(attributes, convention);
-        return !output.failed;
+        if (function_detail == SignatureDetail.full)
+            this.write_function_suffix(attributes, convention);
+        return !this.output.failed;
     }
 
-    bool functionAttributes(FunctionAttributes* attributes)
+    bool function_attributes(FunctionAttributes* attributes)
     pure @system
     {
-        while (offset + 1 < input.length && input[offset] == 'N')
+        while (this.offset + 1 < this.input.length && this.input[this.offset] == 'N')
         {
-            const code = input[offset + 1];
+            const code = this.input[this.offset + 1];
             switch (code)
             {
                 case 'a':
-                    attributes.pure_ = true;
+                    attributes.is_pure = true;
                     break;
                 case 'b':
-                    attributes.nothrow_ = true;
+                    attributes.is_nothrow = true;
                     break;
                 case 'c':
-                    attributes.ref_ = true;
+                    attributes.is_ref = true;
                     break;
                 case 'd':
-                    attributes.property = true;
+                    attributes.is_property = true;
                     break;
                 case 'e':
-                    attributes.trusted = true;
+                    attributes.is_trusted = true;
                     break;
                 case 'f':
-                    attributes.safe = true;
+                    attributes.is_safe = true;
                     break;
                 case 'i':
-                    attributes.nogc = true;
+                    attributes.is_nogc = true;
                     break;
                 case 'j':
-                    attributes.return_ = true;
+                    attributes.is_return = true;
                     break;
                 case 'l':
-                    attributes.scope_ = true;
+                    attributes.is_scope = true;
                     break;
                 case 'm':
-                    attributes.live = true;
+                    attributes.is_live = true;
                     break;
                 default:
                     return true;
             }
-            offset += 2;
+            this.offset += 2;
         }
         return true;
     }
 
-    void writeFunctionSuffix(FunctionAttributes attributes, char convention)
+    void write_function_suffix(FunctionAttributes attributes, char convention)
     @system
     {
-        if (attributes.pure_)
-            output.put(" pure");
-        if (attributes.nothrow_)
-            output.put(" nothrow");
-        if (attributes.ref_)
-            output.put(" ref");
-        if (attributes.property)
-            output.put(" @property");
-        if (attributes.nogc)
-            output.put(" @nogc");
-        if (attributes.return_)
-            output.put(" return");
-        if (attributes.scope_)
-            output.put(" scope");
-        if (attributes.trusted)
-            output.put(" @trusted");
-        if (attributes.safe)
-            output.put(" @safe");
-        if (attributes.live)
-            output.put(" @live");
+        if (attributes.is_pure)
+            this.output.put(" pure");
+        if (attributes.is_nothrow)
+            this.output.put(" nothrow");
+        if (attributes.is_ref)
+            this.output.put(" ref");
+        if (attributes.is_property)
+            this.output.put(" @property");
+        if (attributes.is_nogc)
+            this.output.put(" @nogc");
+        if (attributes.is_return)
+            this.output.put(" return");
+        if (attributes.is_scope)
+            this.output.put(" scope");
+        if (attributes.is_trusted)
+            this.output.put(" @trusted");
+        if (attributes.is_safe)
+            this.output.put(" @safe");
+        if (attributes.is_live)
+            this.output.put(" @live");
         switch (convention)
         {
             case 'U':
-                output.put(" extern(C)");
+                this.output.put(" extern(C)");
                 break;
             case 'W':
-                output.put(" extern(Windows)");
+                this.output.put(" extern(Windows)");
                 break;
             case 'R':
-                output.put(" extern(C++)");
+                this.output.put(" extern(C++)");
                 break;
             case 'Y':
-                output.put(" extern(Objective-C)");
+                this.output.put(" extern(Objective-C)");
                 break;
             default:
                 break;
@@ -576,175 +602,179 @@ nothrow @nogc:
 
     bool parameter() @system
     {
-        if (consume('M'))
-            output.put("scope ");
-        else if (startsWith("Nk"))
+        if (this.consume('M'))
+            this.output.put("scope ");
+        else if (this.starts_with("Nk"))
         {
-            offset += 2;
-            output.put("return ");
+            this.offset += 2;
+            this.output.put("return ");
         }
-        if (consume('I'))
-            output.put("in ");
-        else if (consume('J'))
-            output.put("out ");
-        else if (consume('K'))
-            output.put("ref ");
-        else if (consume('L'))
-            output.put("lazy ");
-        return type();
+        if (this.consume('I'))
+            this.output.put("in ");
+        else if (this.consume('J'))
+            this.output.put("out ");
+        else if (this.consume('K'))
+            this.output.put("ref ");
+        else if (this.consume('L'))
+            this.output.put("lazy ");
+        return this.type();
     }
 
     bool type() @system
     {
-        if (offset >= input.length)
+        if (this.offset >= this.input.length)
             return false;
-        if (input[offset] == 'Q')
-            return typeBackReference();
-        if (startsWith("Ng"))
+        if (this.input[this.offset] == 'Q')
+            return this.type_back_reference();
+        if (this.starts_with("Ng"))
         {
-            offset += 2;
-            return wrapped("inout(", ")");
+            this.offset += 2;
+            return this.wrapped("inout(", ")");
         }
-        if (consume('O'))
+        if (this.consume('O'))
         {
-            if (consume('x'))
-                return wrapped("shared const(", ")");
-            if (startsWith("Ng"))
+            if (this.consume('x'))
+                return this.wrapped("shared const(", ")");
+            if (this.starts_with("Ng"))
             {
-                offset += 2;
-                return wrapped("shared inout(", ")");
+                this.offset += 2;
+                return this.wrapped("shared inout(", ")");
             }
-            return wrapped("shared(", ")");
+            return this.wrapped("shared(", ")");
         }
-        if (consume('x'))
-            return wrapped("const(", ")");
-        if (consume('y'))
-            return wrapped("immutable(", ")");
-        if (startsWith("Nn"))
+        if (this.consume('x'))
+            return this.wrapped("const(", ")");
+        if (this.consume('y'))
+            return this.wrapped("immutable(", ")");
+        if (this.starts_with("Nn"))
         {
-            offset += 2;
-            output.put("noreturn");
+            this.offset += 2;
+            this.output.put("noreturn");
             return true;
         }
-        if (startsWith("Nh"))
+        if (this.starts_with("Nh"))
         {
-            offset += 2;
-            return wrapped("__vector(", ")");
+            this.offset += 2;
+            return this.wrapped("__vector(", ")");
         }
-        if (startsWith("zi"))
+        if (this.starts_with("zi"))
         {
-            offset += 2;
-            output.put("cent");
+            this.offset += 2;
+            this.output.put("cent");
             return true;
         }
-        if (startsWith("zk"))
+        if (this.starts_with("zk"))
         {
-            offset += 2;
-            output.put("ucent");
+            this.offset += 2;
+            this.output.put("ucent");
             return true;
         }
 
-        const code = input[offset++];
+        const code = this.input[this.offset++];
         switch (code)
         {
             case 'v':
-                output.put("void");
+                this.output.put("void");
                 return true;
             case 'b':
-                output.put("bool");
+                this.output.put("bool");
                 return true;
             case 'g':
-                output.put("byte");
+                this.output.put("byte");
                 return true;
             case 'h':
-                output.put("ubyte");
+                this.output.put("ubyte");
                 return true;
             case 's':
-                output.put("short");
+                this.output.put("short");
                 return true;
             case 't':
-                output.put("ushort");
+                this.output.put("ushort");
                 return true;
             case 'i':
-                output.put("int");
+                this.output.put("int");
                 return true;
             case 'k':
-                output.put("uint");
+                this.output.put("uint");
                 return true;
             case 'l':
-                output.put("long");
+                this.output.put("long");
                 return true;
             case 'm':
-                output.put("ulong");
+                this.output.put("ulong");
                 return true;
             case 'a':
-                output.put("char");
+                this.output.put("char");
                 return true;
             case 'u':
-                output.put("wchar");
+                this.output.put("wchar");
                 return true;
             case 'w':
-                output.put("dchar");
+                this.output.put("dchar");
                 return true;
             case 'f':
-                output.put("float");
+                this.output.put("float");
                 return true;
             case 'd':
-                output.put("double");
+                this.output.put("double");
                 return true;
             case 'e':
-                output.put("real");
+                this.output.put("real");
                 return true;
             case 'o':
-                output.put("ifloat");
+                this.output.put("ifloat");
                 return true;
             case 'p':
-                output.put("idouble");
+                this.output.put("idouble");
                 return true;
             case 'j':
-                output.put("ireal");
+                this.output.put("ireal");
                 return true;
             case 'q':
-                output.put("cfloat");
+                this.output.put("cfloat");
                 return true;
             case 'r':
-                output.put("cdouble");
+                this.output.put("cdouble");
                 return true;
             case 'c':
-                output.put("creal");
+                this.output.put("creal");
                 return true;
             case 'n':
-                output.put("typeof(null)");
+                this.output.put("typeof(null)");
                 return true;
             case 'P':
-                if (offset < input.length &&
-                    (callConvention(input[offset]) || input[offset] == 'M'))
-                    return type();
-                return postfix("*");
+                if (
+                    this.offset < this.input.length
+                    && (call_convention(this.input[this.offset]) || this.input[this.offset] == 'M')
+                )
+                {
+                    return this.type();
+                }
+                return this.postfix("*");
             case 'A':
-                return postfix("[]");
+                return this.postfix("[]");
             case 'G':
-                return staticArray();
+                return this.static_array();
             case 'H':
-                return associativeArray();
+                return this.associative_array();
             case 'I':
             case 'S':
             case 'C':
             case 'E':
             case 'T':
-                return qualifiedName();
+                return this.qualified_name();
             case 'D':
-                skipTypeModifiers();
-                return functionType(true, "delegate");
+                this.skip_type_modifiers();
+                return this.function_type(true, "delegate");
             case 'B':
-                return tupleType();
+                return this.tuple_type();
             case 'F':
             case 'U':
             case 'W':
             case 'R':
             case 'Y':
-                --offset;
-                return functionType(true, "function");
+                --this.offset;
+                return this.function_type(true, "function");
             default:
                 return false;
         }
@@ -752,110 +782,123 @@ nothrow @nogc:
 
     bool postfix(String suffix) @system
     {
-        if (!type())
+        if (!this.type())
             return false;
-        output.put(suffix);
-        return !output.failed;
+        this.output.put(suffix);
+        return !this.output.failed;
     }
 
-    bool staticArray() @system
+    bool static_array() @system
     {
-        const numberStart = offset;
-        size_t length;
-        if (!number(&length))
+        const number_start = this.offset;
+        usize length;
+        if (!this.number(&length))
             return false;
-        const numberEnd = offset;
-        if (!type())
+        const number_end = this.offset;
+        if (!this.type())
             return false;
-        output.put('[');
-        output.put(input[numberStart .. numberEnd]);
-        output.put(']');
-        return !output.failed;
+        this.output.put('[');
+        this.output.put(this.input[number_start .. number_end]);
+        this.output.put(']');
+        return !this.output.failed;
     }
 
-    bool associativeArray() @system
+    bool associative_array() @system
     {
-        Demangler keyStart = this;
-        keyStart.output = DemangleWriter(null, 0, false, true);
-        Demangler parsedKey = keyStart;
-        if (!parsedKey.type())
+        Demangler key_start = this;
+        key_start.output = DemangleWriter(null, 0, false, true);
+        Demangler parsed_key = key_start;
+        if (!parsed_key.type())
             return false;
-        offset = parsedKey.offset;
-        lastTemplateName = parsedKey.lastTemplateName;
-        hasLastTemplateName = parsedKey.hasLastTemplateName;
-        if (!type())
+        this.offset = parsed_key.offset;
+        this.last_template_name = parsed_key.last_template_name;
+        this.has_last_template_name = parsed_key.has_last_template_name;
+        if (!this.type())
             return false;
-        output.put('[');
-        Demangler renderedKey = keyStart;
-        renderedKey.output = output;
-        if (!renderedKey.type())
+        this.output.put('[');
+        Demangler rendered_key = key_start;
+        rendered_key.output = this.output;
+        if (!rendered_key.type())
             return false;
-        output = renderedKey.output;
-        output.put(']');
-        return !output.failed;
+        this.output = rendered_key.output;
+        this.output.put(']');
+        return !this.output.failed;
     }
 
-    bool tupleType() @system
+    bool tuple_type() @system
     {
-        output.put("Tuple!(");
+        this.output.put("Tuple!(");
         bool first = true;
-        while (offset < input.length && input[offset] != 'Z')
+        while (this.offset < this.input.length && this.input[this.offset] != 'Z')
         {
             if (!first)
-                output.put(", ");
-            if (!parameter())
+                this.output.put(", ");
+            if (!this.parameter())
                 return false;
             first = false;
         }
-        if (!consume('Z'))
+        if (!this.consume('Z'))
             return false;
-        output.put(')');
-        return !output.failed;
+        this.output.put(')');
+        return !this.output.failed;
     }
 
     bool wrapped(String prefix, String suffix) @system
     {
-        output.put(prefix);
-        if (!type())
+        this.output.put(prefix);
+        if (!this.type())
             return false;
-        output.put(suffix);
-        return !output.failed;
+        this.output.put(suffix);
+        return !this.output.failed;
     }
 
-    void skipTypeModifiers() pure @system
+    void skip_type_modifiers() pure @system
     {
         bool progress = true;
         while (progress)
         {
             progress = false;
-            if (offset < input.length &&
-                (input[offset] == 'x' || input[offset] == 'y' || input[offset] == 'O'))
+            if (
+                this.offset < this.input.length
+                && (
+                    this.input[this.offset] == 'x'
+                    || this.input[this.offset] == 'y'
+                    || this.input[this.offset] == 'O'
+                )
+            )
             {
-                ++offset;
+                ++this.offset;
                 progress = true;
             }
-            else if (offset + 1 < input.length && input[offset] == 'N' &&
-                input[offset + 1] == 'g')
+            else if (
+                this.offset + 1 < this.input.length
+                && this.input[this.offset] == 'N'
+                && this.input[this.offset + 1] == 'g'
+            )
             {
-                offset += 2;
+                this.offset += 2;
                 progress = true;
             }
         }
     }
 
-    bool mangledName() @system
+    bool mangled_name() @system
     {
-        if (!startsWith("_D"))
+        if (!this.starts_with("_D"))
             return false;
-        offset += 2;
-        if (!qualifiedName())
+        this.offset += 2;
+        if (!this.qualified_name())
             return false;
-        if (consume('Z'))
+        if (this.consume('Z'))
             return true;
-        if (offset < input.length &&
-            (callConvention(input[offset]) || input[offset] == 'M'))
-            return functionType(true, null, detail);
-        return type();
+        if (
+            this.offset < this.input.length
+            && (call_convention(this.input[this.offset]) || this.input[this.offset] == 'M')
+        )
+        {
+            return this.function_type(true, null, this.detail);
+        }
+        return this.type();
     }
 }
 
@@ -864,45 +907,45 @@ private bool digit(char value) pure @safe
     return value >= '0' && value <= '9';
 }
 
-private bool hexDigit(char value) pure @safe
+private bool hex_digit(char value) pure @safe
 {
     return digit(value) || (value >= 'A' && value <= 'F');
 }
 
-private bool callConvention(char value) pure @safe
+private bool call_convention(char value) pure @safe
 {
     return value == 'F' || value == 'U' || value == 'W' ||
         value == 'R' || value == 'Y';
 }
 
-version (unittest) private int generatedSignature(
-    ref const(int)[],
-    int[String],
-    int delegate(float),
-    int function(long),
-    int[4],
-    shared const(int)*,
+version (unittest) private i32 generated_signature(
+    ref const(i32)[],
+    i32[String],
+    i32 delegate(f32),
+    i32 function(i64),
+    i32[4],
+    shared const(i32)*,
 ) pure
 {
     return 0;
 }
 
-version (unittest) private int generatedTemplate(int value, T)(T input) pure
+version (unittest) private i32 generated_template(i32 value, T)(T input) pure
 {
-    return value + cast(int) input;
+    return value + cast(i32) input;
 }
 
-version (unittest) private bool generatedAliasTarget(scope const(float)[]) pure
+version (unittest) private bool generated_alias_target(scope const(f32)[]) pure
 {
     return true;
 }
 
-version (unittest) private int generatedAliasTemplate(alias target)() pure
+version (unittest) private i32 generated_alias_template(alias target)() pure
 {
     return target(null) ? 1 : 0;
 }
 
-version (unittest) private template RepeatedIdentifier(size_t chunks)
+version (unittest) private template RepeatedIdentifier(usize chunks)
 {
     static if (chunks == 0)
         enum RepeatedIdentifier = "";
@@ -917,12 +960,12 @@ version (unittest) mixin(
         "private alias GeneratedLongType = X" ~ RepeatedIdentifier!20 ~ ";",
 );
 
-version (unittest) private GeneratedLongType generatedLongReturn()
+version (unittest) private GeneratedLongType generated_long_return()
 {
     return GeneratedLongType.init;
 }
 
-version (unittest) private bool containsEllipsis(String value) pure @safe
+version (unittest) private bool contains_ellipsis(String value) pure @safe
 {
     if (value.length < 3)
         return false;
@@ -932,7 +975,7 @@ version (unittest) private bool containsEllipsis(String value) pure @safe
     return false;
 }
 
-version (unittest) private bool containsText(String value, String needle) pure @system
+version (unittest) private bool contains_text(String value, String needle) pure @system
 {
     if (needle.length > value.length)
         return false;
@@ -942,11 +985,11 @@ version (unittest) private bool containsText(String value, String needle) pure @
     return false;
 }
 
-bool tryDemangleD(
+bool try_demangle_d(
     String mangled,
     return scope char[] storage,
     return scope String* result,
-    SignatureDetail detail = SignatureDetail.overloadIdentity,
+    SignatureDetail detail = SignatureDetail.overload_identity,
 ) @system
 {
     if (result is null)
@@ -968,16 +1011,16 @@ bool tryDemangleD(
     demangler.offset = 2;
     demangler.detail = detail;
     demangler.output.storage = storage;
-    if (!demangler.qualifiedName())
+    if (!demangler.qualified_name())
         return false;
     if (demangler.offset < mangled.length)
     {
         if (mangled[demangler.offset] == 'Z')
             ++demangler.offset;
-        else if (callConvention(mangled[demangler.offset]) ||
+        else if (call_convention(mangled[demangler.offset]) ||
             mangled[demangler.offset] == 'M')
         {
-            if (!demangler.functionType(
+            if (!demangler.function_type(
                     true,
                     null,
                     detail,
@@ -997,7 +1040,7 @@ unittest
 {
     char[2048] storage;
     String result;
-    assert(tryDemangleD(
+    assert(try_demangle_d(
             "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextAxaZi",
             storage[],
@@ -1007,18 +1050,18 @@ unittest
             "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
             "StackTraceContext, const(char)[])",
     ));
-    assert(tryDemangleD(
+    assert(try_demangle_d(
             "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextAxaZi",
             storage[],
             &result,
-            SignatureDetail.overloadIdentityAndReturn,
+            SignatureDetail.overload_identity_and_return,
     ));
     assert(result.equal(
             "examples.stacktrace_demo.loadScene(ref xtb.core.stacktrace." ~
             "StackTraceContext, const(char)[]) -> int",
     ));
-    assert(tryDemangleD(
+    assert(try_demangle_d(
             "_D8examples15stacktrace_demo9loadSceneFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextAxaZi",
             storage[],
@@ -1030,7 +1073,7 @@ unittest
             "StackTraceContext, const(char)[]) -> int nothrow @nogc",
     ));
 
-    assert(tryDemangleD(
+    assert(try_demangle_d(
             "_D8examples15stacktrace_demo16buildRenderGraphFNbNiKS3xtb4core" ~
             "10stacktrace17StackTraceContextKSQDpQDj12AssetRequestPiZi",
             storage[],
@@ -1042,7 +1085,7 @@ unittest
             "int*)",
     ));
 
-    assert(tryDemangleD(
+    assert(try_demangle_d(
             "_D8examples15stacktrace_demo__T13dispatchTypedTiZQsFNbNiK" ~
             "S3xtb4core10stacktrace17StackTraceContextKSQDuQDo12AssetRequestMAxiZi",
             storage[],
@@ -1054,53 +1097,53 @@ unittest
             "AssetRequest, scope const(int)[])",
     ));
 
-    assert(!tryDemangleD("_D999broken", storage[], &result));
+    assert(!try_demangle_d("_D999broken", storage[], &result));
     assert(result.equal("_D999broken"));
-    assert(!tryDemangleD("not_a_d_symbol", storage[], &result));
+    assert(!try_demangle_d("not_a_d_symbol", storage[], &result));
     assert(result.equal("not_a_d_symbol"));
 
     char[0] empty;
-    assert(!tryDemangleD("_D4mainFZi", empty[], &result));
+    assert(!try_demangle_d("_D4mainFZi", empty[], &result));
 
-    assert(tryDemangleD(generatedSignature.mangleof, storage[], &result));
-    assert(!result.containsEllipsis);
-    assert(result.length > "generatedSignature".length);
-    assert(result.containsText("function(long) -> int"));
-    assert(!result.containsText("function(long) -> int*"));
+    assert(try_demangle_d(generated_signature.mangleof, storage[], &result));
+    assert(!result.contains_ellipsis);
+    assert(result.length > "generated_signature".length);
+    assert(result.contains_text("function(long) -> int"));
+    assert(!result.contains_text("function(long) -> int*"));
 
-    alias generatedInstantiation = generatedTemplate!(7, long);
-    assert(tryDemangleD(generatedInstantiation.mangleof, storage[], &result));
-    assert(!result.containsEllipsis);
-    assert(result.containsText("generatedTemplate!(7, long)"));
+    alias generated_instantiation = generated_template!(7, i64);
+    assert(try_demangle_d(generated_instantiation.mangleof, storage[], &result));
+    assert(!result.contains_ellipsis);
+    assert(result.contains_text("generated_template!(7, long)"));
 
-    alias generatedAliasInstantiation = generatedAliasTemplate!generatedAliasTarget;
-    assert(tryDemangleD(generatedAliasInstantiation.mangleof, storage[], &result));
-    assert(result.containsText("generatedAliasTarget("));
-    assert(!result.containsText("generatedAliasTarget(scope const(float)[]) ->"));
+    alias generated_alias_instantiation = generated_alias_template!generated_alias_target;
+    assert(try_demangle_d(generated_alias_instantiation.mangleof, storage[], &result));
+    assert(result.contains_text("generated_alias_target("));
+    assert(!result.contains_text("generated_alias_target(scope const(float)[]) ->"));
 
-    assert(tryDemangleD(
-            generatedAliasInstantiation.mangleof,
+    assert(try_demangle_d(
+            generated_alias_instantiation.mangleof,
             storage[],
             &result,
             SignatureDetail.full,
     ));
-    assert(result.containsText("generatedAliasTarget(scope const(float)[]) -> bool"));
+    assert(result.contains_text("generated_alias_target(scope const(float)[]) -> bool"));
 
-    char[256] identityStorage;
-    assert(tryDemangleD(
-            generatedLongReturn.mangleof,
-            identityStorage[],
+    char[256] identity_storage;
+    assert(try_demangle_d(
+            generated_long_return.mangleof,
+            identity_storage[],
             &result,
-            SignatureDetail.overloadIdentity,
+            SignatureDetail.overload_identity,
     ));
-    assert(result.containsText("generatedLongReturn()"));
+    assert(result.contains_text("generated_long_return()"));
 
-    char[4096] longStorage;
-    assert(tryDemangleD(
-            generatedLongReturn.mangleof,
-            longStorage[],
+    char[4096] long_storage;
+    assert(try_demangle_d(
+            generated_long_return.mangleof,
+            long_storage[],
             &result,
-            SignatureDetail.overloadIdentityAndReturn,
+            SignatureDetail.overload_identity_and_return,
     ));
     assert(result.length > 1024);
 }

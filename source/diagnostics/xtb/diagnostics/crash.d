@@ -34,7 +34,7 @@ struct CrashHandlerOptions
     SignalTraceMode signalTraceMode = SignalTraceMode.attemptStackUnwind;
     bool tracePanics = true;
     ModuleDisplay moduleDisplay = ModuleDisplay.omitted;
-    SignatureDetail signatureDetail = SignatureDetail.overloadIdentity;
+    SignatureDetail signatureDetail = SignatureDetail.overload_identity;
     SignatureLayout signatureLayout = SignatureLayout.multiline;
     size_t signatureColumns = 100;
 }

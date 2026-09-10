@@ -174,7 +174,7 @@ nothrow @nogc:
             StackTraceColors.fromTheme(theme),
             false,
             ModuleDisplay.omitted,
-            SignatureDetail.overloadIdentity,
+            SignatureDetail.overload_identity,
             SignatureLayout.multiline,
             100,
         );
@@ -524,7 +524,7 @@ unittest
     Writer writer = Writer.from_sink(&testSink, &output);
     const colors = StackTraceColors.fromTheme(StackTraceTheme.gruvbox);
     const defaultStyle = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
-    assert(defaultStyle.signatureDetail == SignatureDetail.overloadIdentity);
+    assert(defaultStyle.signatureDetail == SignatureDetail.overload_identity);
     assert(defaultStyle.signatureLayout == SignatureLayout.multiline);
     assert(defaultStyle.signatureColumns == 100);
     assert(nextToken("int", 0).kind == SignatureTokenKind.type);
