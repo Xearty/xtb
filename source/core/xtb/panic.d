@@ -105,24 +105,53 @@ private noreturn panic_at(String message, String file, usize line)
     panic(buffer[0 .. length]);
 }
 
+private noreturn contract_failed_at(
+    String failure,
+    String message,
+    String file,
+    usize line,
+)
+{
+    char[1024] buffer;
+    usize length;
+
+    append(buffer, length, file);
+    append(buffer, length, ":");
+    append_decimal(buffer, length, line);
+    append(buffer, length, ": ");
+    append(buffer, length, failure);
+    if (message.length != 0)
+    {
+        append(buffer, length, ": ");
+        append(buffer, length, message);
+    }
+
+    if (length == buffer.length)
+        buffer[$ - 3 .. $] = "...";
+
+    panic(buffer[0 .. length]);
+}
+
 version (XTB_Checked)
 {
     /// Enforces a programmer contract in checked builds.
     void require(string file = __FILE__, usize line = __LINE__)(
         bool condition,
-        String message,
+        String message = null,
     ) @trusted
     {
-        if (!condition) panic_at(message, file, line);
+        if (!condition)
+            contract_failed_at("precondition failed", message, file, line);
     }
 
     /// Verifies an implementation guarantee in checked builds.
     void ensure(string file = __FILE__, usize line = __LINE__)(
         bool condition,
-        String message,
+        String message = null,
     ) @trusted
     {
-        if (!condition) panic_at(message, file, line);
+        if (!condition)
+            contract_failed_at("postcondition failed", message, file, line);
     }
 }
 else
@@ -130,14 +159,14 @@ else
     /// Omits a programmer contract and its arguments in unchecked builds.
     void require(string file = __FILE__, usize line = __LINE__)(
         lazy bool,
-        lazy String,
+        lazy String = null,
     ) @trusted
     {}
 
     /// Omits an implementation guarantee and its arguments in unchecked builds.
     void ensure(string file = __FILE__, usize line = __LINE__)(
         lazy bool,
-        lazy String,
+        lazy String = null,
     ) @trusted
     {}
 }
@@ -152,6 +181,11 @@ noreturn unreachable_code(
 
 unittest
 {
+    static assert(__traits(compiles, () @safe
+    {
+        require(true);
+        ensure(true);
+    }));
     static assert(__traits(compiles, () @safe
     {
         panic("compile-only safety check");

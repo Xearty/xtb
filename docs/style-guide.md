@@ -1519,11 +1519,22 @@ enum DecodeError
 Write contract and panic messages as lowercase sentence fragments without a
 trailing period. State the violated condition specifically. Do not prefix a
 message with `error:`, repeat the function name, or allocate merely to construct
-diagnostic text:
+diagnostic text. Contract messages are optional:
 
 ```d
 require(index < this.length, "index is outside the array");
 ensure(this.length <= this.capacity, "array length exceeds capacity");
+require(pointer !is null);
+```
+
+Contract diagnostics identify the source location and contract kind separately
+from the optional message:
+
+```text
+panic: source/example.d:42: precondition failed
+panic: source/example.d:57: precondition failed: index is outside the array
+panic: source/example.d:81: postcondition failed
+panic: source/example.d:96: postcondition failed: array length exceeds capacity
 ```
 
 ## Assertions and contracts
@@ -1540,11 +1551,12 @@ ensure(this.length <= this.capacity, "array length exceeds capacity");
 ```
 
 Both functions invoke XTB's panic handler when their condition is false in a
-checked build. In `release-fast`, neither the condition nor the message is
-evaluated, and their diagnostic text and checking code must not remain in the
-executable. The functions own this build-mode behavior, so an unguarded call is
-safe. Existing explicit `version (XTB_Checked)` guards may be migrated
-separately.
+checked build. Their second argument is optional; omitting it produces only the
+source location and `precondition failed` or `postcondition failed` category. In
+`release-fast`, neither the condition nor a supplied message is evaluated, and
+their diagnostic text and checking code must not remain in the executable. The
+functions own this build-mode behavior, so an unguarded call is safe. Existing
+explicit `version (XTB_Checked)` guards may be migrated separately.
 
 A contract operand may only inspect state that has already been computed. Do
 not put required computation, mutation, output initialization, or another

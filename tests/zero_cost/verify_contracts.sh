@@ -39,6 +39,18 @@ do
     fi
 done
 
+# No-message contracts have no caller-provided sentinel, so verify that their
+# fixed diagnostic categories are absent as well.
+for category in \
+    "precondition failed" \
+    "postcondition failed"
+do
+    if grep -aFq "$category" "$contract_probe"; then
+        echo "release-fast executable retains contract diagnostic text: $category" >&2
+        exit 1
+    fi
+done
+
 # LDC encodes template names as __T<length><name> in D symbols. A remaining
 # require or ensure instance means contract-checking code survived linking.
 if nm "$contract_probe" | grep -Eq '__T(7require|6ensure)'; then

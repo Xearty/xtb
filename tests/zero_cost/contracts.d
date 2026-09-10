@@ -26,10 +26,12 @@ extern (C) int main() {
         evaluate_condition(),
         evaluate_message(require_message),
     );
+    require(evaluate_condition());
     ensure(
         evaluate_condition(),
         evaluate_message(ensure_message),
     );
+    ensure(evaluate_condition());
 
     return condition_evaluations == 0 && message_evaluations == 0 ? 0 : 1;
 }

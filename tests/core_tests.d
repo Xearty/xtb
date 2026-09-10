@@ -145,9 +145,15 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "panic"))
         version (XTB_Checked)
             require(false, "intentional death test");
+    if (cStringEqual(name, "require-default"))
+        version (XTB_Checked)
+            require(false);
     if (cStringEqual(name, "ensure"))
         version (XTB_Checked)
             ensure(false, "intentional ensure death test");
+    if (cStringEqual(name, "ensure-default"))
+        version (XTB_Checked)
+            ensure(false);
     if (cStringEqual(name, "numeric-clamp"))
         clamp(0, 1, 0);
     if (cStringEqual(name, "numeric-overflow"))
@@ -683,8 +689,36 @@ extern (C) int main(int argumentCount, char** arguments)
         assert(pthread_join(allocatorThread, null) == 0);
         assert(workerAllocator is malloc_allocator());
 
-        expectDeath(arguments[0], "panic");
-        expectDeath(arguments[0], "ensure");
+        DeathOutput requireOutput = captureDeath(arguments[0], "panic");
+        assert(requireOutput.signal == SIGABRT);
+        assert(requireOutput.text.contains("panic: "));
+        assert(requireOutput.text.contains("core_tests.d:"));
+        assert(requireOutput.text.contains(
+                ": precondition failed: intentional death test",
+        ));
+
+        DeathOutput requireDefault = captureDeath(
+            arguments[0],
+            "require-default",
+        );
+        assert(requireDefault.signal == SIGABRT);
+        assert(requireDefault.text.contains("core_tests.d:"));
+        assert(requireDefault.text.contains(": precondition failed\n"));
+
+        DeathOutput ensureOutput = captureDeath(arguments[0], "ensure");
+        assert(ensureOutput.signal == SIGABRT);
+        assert(ensureOutput.text.contains("core_tests.d:"));
+        assert(ensureOutput.text.contains(
+                ": postcondition failed: intentional ensure death test",
+        ));
+
+        DeathOutput ensureDefault = captureDeath(
+            arguments[0],
+            "ensure-default",
+        );
+        assert(ensureDefault.signal == SIGABRT);
+        assert(ensureDefault.text.contains("core_tests.d:"));
+        assert(ensureDefault.text.contains(": postcondition failed\n"));
         expectDeath(arguments[0], "numeric-clamp");
         expectDeath(arguments[0], "numeric-overflow");
         expectDeath(arguments[0], "duration-negative");
