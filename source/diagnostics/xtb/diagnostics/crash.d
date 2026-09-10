@@ -10,7 +10,7 @@ version (XTB_Checked) import xtb.panic : require;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : file_writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
-    capture, write_stack_trace;
+    write_stack_trace;
 import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
     StackTraceTheme, SignatureLayout;
 import xtb.diagnostics.demangle : SignatureDetail;

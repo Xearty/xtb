@@ -6,7 +6,7 @@ import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : file_writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
-    capture, write_stack_trace;
+    write_stack_trace;
 import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;
 import xtb.string;
 import xtb.types : String;
