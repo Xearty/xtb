@@ -349,7 +349,7 @@ nothrow @nogc:
         return result;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.flags(this);
     }

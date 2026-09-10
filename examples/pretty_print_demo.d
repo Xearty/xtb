@@ -11,7 +11,7 @@ import xtb.lifetime : tagged_by, tagged_case;
 import xtb.option : Option;
 import xtb.fmt.format : formatted;
 import xtb.fmt.pretty_print : PrettyPrintColorScheme, PrettyPrintLayout,
-    PrettyPrintOptions, pretty, writePretty;
+    PrettyPrintOptions, pretty, write_pretty;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : writeln;
 import xtb.string;
@@ -112,7 +112,7 @@ private extern (C) int demoCallback(int value) nothrow @nogc
 
 /// Writes one token using a style from the active pretty-print scheme. Custom
 /// hooks can use the public ANSI API for syntax they emit themselves and call
-/// `writePretty` for nested values.
+/// `write_pretty` for nested values.
 private void writeDemoStyled(
     ref Writer writer,
     scope String value,
@@ -136,7 +136,7 @@ struct Credential
     String user;
     String secret;
 
-    void prettyFormatTo(
+    void pretty_format_to(
         ref Writer writer,
         scope const ref PrettyPrintOptions options,
     ) const nothrow @nogc
@@ -144,28 +144,28 @@ struct Credential
         writeDemoStyled(
             writer,
             "Credential",
-            options.colorScheme.typeName,
+            options.color_scheme.type_name,
             options,
         );
-        writeDemoStyled(writer, "(", options.colorScheme.punctuation, options);
-        writeDemoStyled(writer, "user", options.colorScheme.fieldName, options);
-        writeDemoStyled(writer, ": ", options.colorScheme.punctuation, options);
-        writePretty(writer, user, options);
-        writeDemoStyled(writer, ", ", options.colorScheme.punctuation, options);
+        writeDemoStyled(writer, "(", options.color_scheme.punctuation, options);
+        writeDemoStyled(writer, "user", options.color_scheme.field_name, options);
+        writeDemoStyled(writer, ": ", options.color_scheme.punctuation, options);
+        write_pretty(writer, user, options);
+        writeDemoStyled(writer, ", ", options.color_scheme.punctuation, options);
         writeDemoStyled(
             writer,
             "secret",
-            options.colorScheme.fieldName,
+            options.color_scheme.field_name,
             options,
         );
-        writeDemoStyled(writer, ": ", options.colorScheme.punctuation, options);
+        writeDemoStyled(writer, ": ", options.color_scheme.punctuation, options);
         writeDemoStyled(
             writer,
             "<redacted>",
-            options.colorScheme.unsupported,
+            options.color_scheme.unsupported,
             options,
         );
-        writeDemoStyled(writer, ")", options.colorScheme.punctuation, options);
+        writeDemoStyled(writer, ")", options.color_scheme.punctuation, options);
     }
 }
 
@@ -187,19 +187,19 @@ struct DisplayName
 private PrettyPrintColorScheme vividColorScheme()
 {
     PrettyPrintColorScheme scheme = PrettyPrintColorScheme.defaults();
-    scheme.typeName = ANSIStyle.foreground(ANSIColor.bright_magenta).bold;
-    scheme.fieldName = ANSIStyle.foreground(ANSIColor.bright_cyan);
-    scheme.stringValue = ANSIStyle.foreground(ANSIColor.bright_green);
-    scheme.characterValue = ANSIStyle.foreground(ANSIColor.green);
-    scheme.numberValue = ANSIStyle.foreground(ANSIColor.bright_blue);
-    scheme.booleanValue = ANSIStyle.foreground(ANSIColor.yellow);
-    scheme.constructorName = ANSIStyle.foreground(ANSIColor.bright_yellow);
-    scheme.enumValue = ANSIStyle.foreground(ANSIColor.bright_green);
-    scheme.nullValue = ANSIStyle.foreground(ANSIColor.bright_black).italic;
-    scheme.pointerValue = ANSIStyle.foreground(ANSIColor.bright_magenta);
+    scheme.type_name = ANSIStyle.foreground(ANSIColor.bright_magenta).bold;
+    scheme.field_name = ANSIStyle.foreground(ANSIColor.bright_cyan);
+    scheme.string_value = ANSIStyle.foreground(ANSIColor.bright_green);
+    scheme.character_value = ANSIStyle.foreground(ANSIColor.green);
+    scheme.number_value = ANSIStyle.foreground(ANSIColor.bright_blue);
+    scheme.boolean_value = ANSIStyle.foreground(ANSIColor.yellow);
+    scheme.constructor_name = ANSIStyle.foreground(ANSIColor.bright_yellow);
+    scheme.enum_value = ANSIStyle.foreground(ANSIColor.bright_green);
+    scheme.null_value = ANSIStyle.foreground(ANSIColor.bright_black).italic;
+    scheme.pointer_value = ANSIStyle.foreground(ANSIColor.bright_magenta);
     scheme.punctuation = ANSIStyle.foreground(ANSIColor.bright_black);
     scheme.truncation = ANSIStyle.foreground(ANSIColor.bright_yellow).italic;
-    scheme.depthLimit = ANSIStyle.foreground(ANSIColor.bright_red).bold;
+    scheme.depth_limit = ANSIStyle.foreground(ANSIColor.bright_red).bold;
     scheme.unsupported = ANSIStyle.foreground(ANSIColor.bright_red).bold;
     return scheme;
 }
@@ -223,7 +223,7 @@ extern (C) int main()
         [0, 0, 1, 137],
     );
 
-    PrettyPrintOptions vivid = PrettyPrintOptions.defaults().withColorScheme(
+    PrettyPrintOptions vivid = PrettyPrintOptions.defaults().with_color_scheme(
         vividColorScheme(),
     );
 
@@ -248,31 +248,31 @@ extern (C) int main()
 
     heading("LAYOUT POLICY");
 
-    PrettyPrintOptions compact = vivid.withLayout(PrettyPrintLayout.compact);
+    PrettyPrintOptions compact = vivid.with_layout(PrettyPrintLayout.compact);
     writeln("forced compact:  ", service.pretty(compact));
 
     // Expanded output uses four spaces here. `some(` is a same-line unary
     // wrapper, so its Endpoint fields gain one visual level—not two.
-    PrettyPrintOptions expanded = vivid.withLayout(
+    PrettyPrintOptions expanded = vivid.with_layout(
         PrettyPrintLayout.expanded,
     );
-    expanded.indentSize = 4;
+    expanded.indent_size = 4;
     writeln("forced expanded:\n", service.pretty(expanded));
 
     // A narrow automatic width expands aggregates that do not fit. ANSI bytes
     // do not count toward this visible-width hint.
     PrettyPrintOptions narrow = vivid;
-    narrow.softMaxWidth = 44;
+    narrow.soft_max_width = 44;
     writeln("automatic width 44:\n", service.pretty(narrow));
 
     // Type names can be hidden while retaining all other semantic colors.
     PrettyPrintOptions structural = vivid;
-    structural.showTypeNames = false;
+    structural.show_type_names = false;
     writeln("without type names: ", service.pretty(structural));
 
     // Color can be disabled independently from layout and type-name policy.
-    PrettyPrintOptions plainExpanded = expanded.withoutColors();
-    plainExpanded.showTypeNames = false;
+    PrettyPrintOptions plainExpanded = expanded.without_colors();
+    plainExpanded.show_type_names = false;
     writeln("plain expanded:\n", service.pretty(plainExpanded));
 
     heading("TAGGED UNION LAYOUTS");
@@ -291,7 +291,7 @@ extern (C) int main()
     // Automatic layout accounts for the active payload only. Tightening the
     // visible width expands both the containing struct and nested Endpoint.
     PrettyPrintOptions taggedNarrow = vivid;
-    taggedNarrow.softMaxWidth = 36;
+    taggedNarrow.soft_max_width = 36;
     writeln("automatic width 36:\n", taggedEndpoint.pretty(taggedNarrow));
 
     // The inactive discriminator prints an empty payload rather than reading
@@ -378,18 +378,18 @@ extern (C) int main()
 
     heading("BOUNDS AND FAILURE-SAFE DIAGNOSTICS");
 
-    // `maxItems` applies to struct fields and collection elements.
+    // `max_items` applies to struct fields and collection elements.
     PrettyPrintOptions limited = compact;
-    limited.maxItems = 2;
-    writeln("maxItems = 2: ", service.pretty(limited));
+    limited.max_items = 2;
+    writeln("max_items = 2: ", service.pretty(limited));
 
     // Pointer dereferencing is opt-in. Depth limiting keeps cyclic trusted
     // graphs bounded once dereferencing is enabled.
     Node node = Node("root", null);
     node.next = &node;
     PrettyPrintOptions bounded = compact;
-    bounded.dereferencePointers = true;
-    bounded.maxDepth = 1;
+    bounded.dereference_pointers = true;
+    bounded.max_depth = 1;
     writeln("bounded cycle: ", node.pretty(bounded));
 
     // The default pointer representation is an address and never dereferences.
@@ -397,7 +397,7 @@ extern (C) int main()
     int* responsePointer = &responseCode;
     writeln("pointer address: ", responsePointer.pretty(vivid));
     PrettyPrintOptions followed = vivid;
-    followed.dereferencePointers = true;
+    followed.dereference_pointers = true;
     writeln("pointer value:   ", responsePointer.pretty(followed));
     int* nullPointer;
     writeln("null pointer:    ", nullPointer.pretty(vivid));
@@ -426,8 +426,8 @@ extern (C) int main()
 
     heading("CUSTOMIZATION AND PRINT INTEGRATION");
 
-    // A const-compatible `prettyFormatTo` hook can redact or reshape debug
-    // output. Nested calls use `writePretty` to preserve the active options.
+    // A const-compatible `pretty_format_to` hook can redact or reshape debug
+    // output. Nested calls use `write_pretty` to preserve the active options.
     Credential credential = Credential("martin", "not-for-logs");
     writeln("custom hook: ", credential.pretty(vivid));
 

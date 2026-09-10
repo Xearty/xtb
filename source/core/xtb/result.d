@@ -249,7 +249,7 @@ nothrow @nogc:
         return this.state == ResultState.err;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         if (this.is_err)
         {

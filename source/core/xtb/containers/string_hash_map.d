@@ -219,7 +219,7 @@ nothrow @nogc:
         return this.map.empty;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.map(this);
     }
@@ -872,7 +872,7 @@ nothrow @nogc:
         return this.storage.empty;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.map(this);
     }

@@ -103,7 +103,7 @@ nothrow @nogc:
     /// Describes the owning wrapper as a transparent view of its decoded value.
     /// This prevents allocator bookkeeping from affecting diagnostic output or
     /// layout while preserving the decoded type's own pretty customization.
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         if (value_ is null)
         {
@@ -317,7 +317,7 @@ unittest
     import xtb.fmt.fixed_buffer : write_buffer;
     import xtb.string;
 
-    const plain = PrettyPrintOptions.init.withoutColors();
+    const plain = PrettyPrintOptions.init.without_colors();
 
     Deserialized!PrettyPrintOwnershipRecord decoded;
     char[16] emptyStorage;
@@ -340,7 +340,7 @@ unittest
     ));
 
     PrettyPrintOptions automatic = plain;
-    automatic.showTypeNames = false;
+    automatic.show_type_names = false;
 
     PrettyPrintDirectHolder directHolder = PrettyPrintDirectHolder(
         PrettyPrintOwnershipRecord(17),

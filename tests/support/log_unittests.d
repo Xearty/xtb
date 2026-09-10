@@ -234,7 +234,7 @@ version (unittest)
     {
         String payload;
 
-        void prettyFormatTo(
+        void pretty_format_to(
             ref Writer writer,
             scope const ref PrettyPrintOptions,
         ) const nothrow @nogc
@@ -1048,9 +1048,9 @@ unittest
         value = cast(int) index;
 
     PrettyPrintOptions options = PrettyPrintOptions.defaults()
-        .withoutColors()
-        .withLayout(PrettyPrintLayout.expanded);
-    options.maxItems = cast(uint) values.length;
+        .without_colors()
+        .with_layout(PrettyPrintLayout.expanded);
+    options.max_items = cast(uint) values.length;
 
     char[8192] expectedStorage;
     const expected = write_buffer(expectedStorage[], values.pretty(options));
@@ -1090,7 +1090,7 @@ unittest
         character = 'p';
     const String payload = cast(String) large[];
     PrettyStreamProbe probe = PrettyStreamProbe(payload);
-    const options = PrettyPrintOptions.defaults().withoutColors();
+    const options = PrettyPrintOptions.defaults().without_colors();
 
     ChunkCounter counter;
     char[8] staging;

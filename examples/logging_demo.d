@@ -345,8 +345,8 @@ extern (C) int main() nothrow @nogc
     foreach (index, ref attemptNumber; attemptHistory)
         attemptNumber = cast(int) index + 1;
     const diagnosticPretty = PrettyPrintOptions.defaults()
-        .withoutColors()
-        .withLayout(PrettyPrintLayout.expanded);
+        .without_colors()
+        .with_layout(PrettyPrintLayout.expanded);
     const streamed = streaming.stream(
         LogLevel.info,
         (scope ref LogMessageWriter output) {

@@ -136,11 +136,11 @@ nothrow @nogc:
         return this.payload();
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         if (this.is_none)
         {
-            pretty.atom("none", pretty.nullRole);
+            pretty.atom("none", pretty.null_role);
             return;
         }
         pretty.constructor("some", this.value);

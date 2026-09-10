@@ -193,7 +193,7 @@ private template supports_default_initialization(T)
         return this.length == 0;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.sequence(this);
     }
@@ -785,7 +785,7 @@ private template supports_default_initialization(T)
         return this.storage.empty;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.sequence(this);
     }
@@ -1073,7 +1073,7 @@ private template supports_default_initialization(T)
         return this.storage.empty;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.sequence(this);
     }

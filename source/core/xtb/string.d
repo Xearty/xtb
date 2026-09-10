@@ -614,7 +614,7 @@ nothrow @nogc:
         return this.view;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.value(this.view);
     }
@@ -1248,7 +1248,7 @@ nothrow @nogc:
         return this.view;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.value(this.view);
     }
@@ -2079,7 +2079,7 @@ nothrow @nogc:
         return this.view;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.value(this.view);
     }
@@ -2257,7 +2257,7 @@ nothrow @nogc:
         return this.view;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.value(this.view);
     }

@@ -297,7 +297,7 @@ private struct ProbeResult
         return this.length == 0;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.map(this);
     }
@@ -1061,7 +1061,7 @@ private struct ProbeResult
         return this.storage.empty;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.map(this);
     }
@@ -1376,7 +1376,7 @@ private struct ProbeResult
         return this.storage.empty;
     }
 
-    void prettyDescribe(Pretty)(scope ref Pretty pretty) const
+    void pretty_describe(Pretty)(scope ref Pretty pretty) const
     {
         pretty.map(this);
     }
