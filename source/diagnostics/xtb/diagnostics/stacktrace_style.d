@@ -2,33 +2,32 @@ module xtb.diagnostics.stacktrace_style;
 
 nothrow @nogc:
 
-import xtb.diagnostics.demangle : SignatureDetail;
-public import xtb.ansi : ANSIColor;
-import xtb.fmt.ansi : begin_ansi, end_ansi;
-
-version (XTB_Checked) import xtb.panic : require;
-import xtb.fmt.writer : Writer;
+import xtb.ansi;
+import xtb.diagnostics.demangle;
+import xtb.fmt.ansi;
+import xtb.fmt.writer;
+import xtb.panic;
 import xtb.string;
-import xtb.types : String;
+import xtb.types;
 
 enum StackTraceTheme
 {
     solar,
-    warmAsh,
+    warm_ash,
     zenburn,
     gruvbox,
-    tokyoNight,
+    tokyo_night,
     nord,
     dracula,
-    oneDark,
+    one_dark,
     monokai,
-    catppuccinMocha,
+    catppuccin_mocha,
     everforest,
     solarized,
     firewatch,
-    mutedEarth,
-    hokusaiMist,
-    harborDusk,
+    muted_earth,
+    hokusai_mist,
+    harbor_dusk,
     experiment,
     plain,
 }
@@ -42,67 +41,68 @@ enum ModuleDisplay
 enum SignatureLayout
 {
     multiline,
-    singleLine,
+    single_line,
 }
 
 struct SignatureFormat
 {
     SignatureLayout layout = SignatureLayout.multiline;
-    size_t maxColumns = 100;
-    size_t continuationIndent = 4;
+    usize max_columns = 100;
+    usize continuation_indent = 4;
 }
 
 struct StackTraceColors
 {
-nothrow @nogc:
+    nothrow @nogc:
 
-    ANSIColor functionName;
-    ANSIColor typeName;
-    ANSIColor moduleName;
-    ANSIColor filePath;
-    ANSIColor lineNumber;
+    ANSIColor function_name;
+    ANSIColor type_name;
+    ANSIColor module_name;
+    ANSIColor file_path;
+    ANSIColor line_number;
     ANSIColor keyword;
     ANSIColor punctuation;
     ANSIColor decoration;
     ANSIColor address;
     ANSIColor warning;
 
-    static StackTraceColors fromTheme(StackTraceTheme theme)
+    static StackTraceColors from_theme(StackTraceTheme theme)
     @safe
     {
-        static foreach (definition; themeDefinitions)
+        static foreach (definition; theme_definitions)
+        {
             if (theme == definition.theme)
                 return definition.colors;
-        version (XTB_Checked)
-            require(false, "invalid stack-trace theme");
+        }
+
+        require(false, "invalid stack-trace theme");
         return StackTraceColors.init;
     }
 
-    static StackTraceColors fromAnsi8(
-        ubyte functionColor,
-        ubyte typeColor,
-        ubyte moduleColor,
-        ubyte pathColor,
-        ubyte lineColor,
-        ubyte keywordColor,
-        ubyte punctuationColor,
-        ubyte decorationColor,
-        ubyte addressColor,
-        ubyte warningColor,
+    static StackTraceColors from_ansi8(
+        u8 function_color,
+        u8 type_color,
+        u8 module_color,
+        u8 path_color,
+        u8 line_color,
+        u8 keyword_color,
+        u8 punctuation_color,
+        u8 decoration_color,
+        u8 address_color,
+        u8 warning_color,
     ) pure @safe
     {
         return StackTraceColors(
-            ANSIColor.indexed(functionColor),
-            ANSIColor.indexed(typeColor),
-            ANSIColor.indexed(moduleColor),
-            ANSIColor.indexed(pathColor),
-            ANSIColor.indexed(
-                lineColor),
-            ANSIColor.indexed(keywordColor),
-            ANSIColor.indexed(punctuationColor),
-            ANSIColor.indexed(decorationColor),
-            ANSIColor.indexed(addressColor),
-            ANSIColor.indexed(warningColor),
+            ANSIColor.indexed(function_color),
+            ANSIColor.indexed(type_color),
+            ANSIColor.indexed(module_color),
+            ANSIColor.indexed(path_color),
+            ANSIColor.indexed(line_color),
+            ANSIColor.indexed(keyword_color),
+            ANSIColor.indexed(punctuation_color),
+            ANSIColor.indexed(decoration_color),
+            ANSIColor.indexed(address_color),
+            ANSIColor.indexed(warning_color),
         );
     }
 }
@@ -113,65 +113,107 @@ private struct ThemeDefinition
     StackTraceColors colors;
 }
 
-private enum themeDefinitions = [
-    ThemeDefinition(StackTraceTheme.solar,
-        StackTraceColors.fromAnsi8(220, 110, 81, 244, 203, 152, 252, 250, 250, 8)),
-    ThemeDefinition(StackTraceTheme.warmAsh,
-        StackTraceColors.fromAnsi8(220, 250, 245, 240, 203, 152, 252, 239, 247, 238)),
-    ThemeDefinition(StackTraceTheme.zenburn,
-        StackTraceColors.fromAnsi8(228, 187, 109, 240, 248, 223, 188, 239, 229, 237)),
-    ThemeDefinition(StackTraceTheme.gruvbox,
-        StackTraceColors.fromAnsi8(142, 214, 109, 244, 243, 208, 223, 241, 223, 239)),
-    ThemeDefinition(StackTraceTheme.tokyoNight,
-        StackTraceColors.fromAnsi8(111, 179, 117, 60, 60, 141, 146, 239, 110, 238)),
-    ThemeDefinition(StackTraceTheme.nord,
-        StackTraceColors.fromAnsi8(110, 186, 109, 240, 239, 139, 255, 238, 252, 237)),
-    ThemeDefinition(StackTraceTheme.dracula,
-        StackTraceColors.fromAnsi8(84, 228, 117, 61, 239, 212, 255, 238, 255, 237)),
-    ThemeDefinition(StackTraceTheme.oneDark,
-        StackTraceColors.fromAnsi8(75, 180, 73, 241, 240, 176, 249, 238, 249, 237)),
-    ThemeDefinition(StackTraceTheme.monokai,
-        StackTraceColors.fromAnsi8(148, 179, 81, 242, 242, 197, 255, 240, 252, 238)),
-    ThemeDefinition(StackTraceTheme.catppuccinMocha,
-        StackTraceColors.fromAnsi8(111, 216, 147, 243, 241, 211, 189, 238, 189, 237)),
-    ThemeDefinition(StackTraceTheme.everforest,
-        StackTraceColors.fromAnsi8(144, 180, 109, 245, 240, 174, 187, 239, 187, 238)),
-    ThemeDefinition(StackTraceTheme.solarized,
-        StackTraceColors.fromAnsi8(221, 116, 67, 241, 244, 208, 252, 239, 246, 237)),
-    ThemeDefinition(StackTraceTheme.firewatch,
-        StackTraceColors.fromAnsi8(208, 179, 68, 241, 160, 202, 252, 239, 247, 237)),
-    ThemeDefinition(StackTraceTheme.mutedEarth,
-        StackTraceColors.fromAnsi8(143, 180, 108, 244, 242, 137, 252, 240, 247, 238)),
-    ThemeDefinition(StackTraceTheme.hokusaiMist,
-        StackTraceColors.fromAnsi8(110, 179, 109, 244, 240, 140, 187, 238, 187, 237)),
-    ThemeDefinition(StackTraceTheme.harborDusk,
-        StackTraceColors.fromAnsi8(110, 180, 67, 242, 59, 215, 187, 240, 187, 238)),
-    ThemeDefinition(StackTraceTheme.experiment, StackTraceColors.init),
-    ThemeDefinition(StackTraceTheme.plain, StackTraceColors.init),
+private enum theme_definitions = [
+    ThemeDefinition(
+        StackTraceTheme.solar,
+        StackTraceColors.from_ansi8(220, 110, 81, 244, 203, 152, 252, 250, 250, 8),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.warm_ash,
+        StackTraceColors.from_ansi8(220, 250, 245, 240, 203, 152, 252, 239, 247, 238),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.zenburn,
+        StackTraceColors.from_ansi8(228, 187, 109, 240, 248, 223, 188, 239, 229, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.gruvbox,
+        StackTraceColors.from_ansi8(142, 214, 109, 244, 243, 208, 223, 241, 223, 239),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.tokyo_night,
+        StackTraceColors.from_ansi8(111, 179, 117, 60, 60, 141, 146, 239, 110, 238),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.nord,
+        StackTraceColors.from_ansi8(110, 186, 109, 240, 239, 139, 255, 238, 252, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.dracula,
+        StackTraceColors.from_ansi8(84, 228, 117, 61, 239, 212, 255, 238, 255, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.one_dark,
+        StackTraceColors.from_ansi8(75, 180, 73, 241, 240, 176, 249, 238, 249, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.monokai,
+        StackTraceColors.from_ansi8(148, 179, 81, 242, 242, 197, 255, 240, 252, 238),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.catppuccin_mocha,
+        StackTraceColors.from_ansi8(111, 216, 147, 243, 241, 211, 189, 238, 189, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.everforest,
+        StackTraceColors.from_ansi8(144, 180, 109, 245, 240, 174, 187, 239, 187, 238),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.solarized,
+        StackTraceColors.from_ansi8(221, 116, 67, 241, 244, 208, 252, 239, 246, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.firewatch,
+        StackTraceColors.from_ansi8(208, 179, 68, 241, 160, 202, 252, 239, 247, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.muted_earth,
+        StackTraceColors.from_ansi8(143, 180, 108, 244, 242, 137, 252, 240, 247, 238),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.hokusai_mist,
+        StackTraceColors.from_ansi8(110, 179, 109, 244, 240, 140, 187, 238, 187, 237),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.harbor_dusk,
+        StackTraceColors.from_ansi8(110, 180, 67, 242, 59, 215, 187, 240, 187, 238),
+    ),
+    ThemeDefinition(
+        StackTraceTheme.experiment,
+        StackTraceColors.init,
+    ),
+    ThemeDefinition(
+        StackTraceTheme.plain,
+        StackTraceColors.init,
+    ),
 ];
 
-static assert(themeDefinitions.length == __traits(allMembers, StackTraceTheme).length);
-static foreach (leftIndex, left; themeDefinitions)
-    static foreach (rightIndex, right; themeDefinitions)
-        static if (leftIndex < rightIndex)
+static assert(theme_definitions.length == __traits(allMembers, StackTraceTheme).length);
+static foreach (left_index, left; theme_definitions)
+{
+    static foreach (right_index, right; theme_definitions)
+    {
+        static if (left_index < right_index)
             static assert(left.theme != right.theme, "duplicate stack-trace theme");
+    }
+}
 
 struct StackTraceStyle
 {
-nothrow @nogc:
+    nothrow @nogc:
 
     StackTraceColors colors;
-    bool showProgramCounter;
-    ModuleDisplay moduleDisplay;
-    SignatureDetail signatureDetail;
-    SignatureLayout signatureLayout;
-    size_t signatureColumns;
+    bool show_program_counter;
+    ModuleDisplay module_display;
+    SignatureDetail signature_detail;
+    SignatureLayout signature_layout;
+    usize signature_columns;
 
-    static StackTraceStyle fromTheme(StackTraceTheme theme)
+    static StackTraceStyle from_theme(StackTraceTheme theme)
     @safe
     {
         return StackTraceStyle(
-            StackTraceColors.fromTheme(theme),
+            StackTraceColors.from_theme(theme),
             false,
             ModuleDisplay.omitted,
             SignatureDetail.overload_identity,
@@ -194,18 +236,20 @@ private struct SignatureToken
 {
     SignatureTokenKind kind;
     String source;
-    size_t end;
+    usize end;
 }
 
-private bool identifierStart(char value) pure @safe
+private bool identifier_start(char value) pure @safe
 {
-    return value == '_' || value == '$' ||
-        value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z';
+    return value == '_'
+        || value == '$'
+        || (value >= 'a' && value <= 'z')
+        || (value >= 'A' && value <= 'Z');
 }
 
-private bool identifierPart(char value) pure @safe
+private bool identifier_part(char value) pure @safe
 {
-    return identifierStart(value) || value >= '0' && value <= '9';
+    return identifier_start(value) || (value >= '0' && value <= '9');
 }
 
 private bool space(char value) pure @safe
@@ -218,39 +262,41 @@ private bool keyword(String source) pure @system
     switch (source)
     {
         case "const", "immutable", "inout", "shared", "scope", "return",
-        "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
-        "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
-        "typeof":
+            "ref", "out", "lazy", "auto", "extern", "nothrow", "pure",
+            "@safe", "@trusted", "@system", "@nogc", "function", "delegate",
+            "typeof":
             return true;
+
         default:
             return false;
     }
 }
 
-private bool primitiveType(String source) pure @system
+private bool primitive_type(String source) pure @system
 {
     switch (source)
     {
         case "void", "bool", "byte", "ubyte", "short", "ushort", "int",
-        "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
-        "dchar", "float", "double", "real", "ifloat", "idouble",
-        "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
+            "uint", "long", "ulong", "cent", "ucent", "char", "wchar",
+            "dchar", "float", "double", "real", "ifloat", "idouble",
+            "ireal", "cfloat", "cdouble", "creal", "size_t", "ptrdiff_t":
             return true;
+
         default:
             return false;
     }
 }
 
-private SignatureToken nextToken(String input, size_t start)
-pure @system
+private SignatureToken next_token(String input, usize start) pure @system
 {
     if (start >= input.length)
         return SignatureToken.init;
-    size_t end = start + 1;
+
+    usize end = start + 1;
     SignatureTokenKind kind = SignatureTokenKind.punctuation;
-    if (cast(ubyte) input[start] >= 0x80)
+    if (cast(u8) input[start] >= 0x80)
     {
-        while (end < input.length && cast(ubyte) input[end] >= 0x80)
+        while (end < input.length && cast(u8) input[end] >= 0x80)
             ++end;
     }
     else if (space(input[start]))
@@ -259,134 +305,154 @@ pure @system
         while (end < input.length && space(input[end]))
             ++end;
     }
-    else if (identifierStart(input[start]) ||
-        input[start] == '@' && end < input.length && identifierStart(input[end]))
+    else
     {
-        kind = SignatureTokenKind.identifier;
-        while (end < input.length && identifierPart(input[end]))
-            ++end;
+        const attribute_identifier = input[start] == '@'
+            && end < input.length
+            && identifier_start(input[end]);
+        if (identifier_start(input[start]) || attribute_identifier)
+        {
+            kind = SignatureTokenKind.identifier;
+            while (end < input.length && identifier_part(input[end]))
+                ++end;
+        }
     }
+
     const source = input[start .. end];
     if (kind == SignatureTokenKind.identifier)
     {
-        if (primitiveType(source))
+        if (primitive_type(source))
             kind = SignatureTokenKind.type;
         else if (keyword(source))
             kind = SignatureTokenKind.keyword;
     }
+
     return SignatureToken(kind, source, end);
 }
 
-private size_t nextNonSpace(String input, size_t start)
-pure @safe
+private usize next_non_space(String input, usize start) pure @safe
 {
     while (start < input.length && space(input[start]))
         ++start;
+
     return start;
 }
 
-private bool isFunctionIdentifier(String input, size_t end)
-pure @safe
+private bool is_function_identifier(String input, usize end) pure @safe
 {
-    size_t next = nextNonSpace(input, end);
+    const next = next_non_space(input, end);
     if (next < input.length && input[next] == '(')
         return true;
+
     if (next < input.length && input[next] == '!')
         return true;
+
     return false;
 }
 
-private bool isModuleIdentifier(String input, size_t end)
-pure @safe
+private bool is_module_identifier(String input, usize end) pure @safe
 {
-    const next = nextNonSpace(input, end);
+    const next = next_non_space(input, end);
     return next < input.length && input[next] == '.';
 }
 
-private bool aggregateIdentifier(String identifier)
-pure @safe
+private bool aggregate_identifier(String identifier) pure @safe
 {
-    return identifier.length != 0 &&
-        (identifier[0] == '@' || identifier[0] >= 'A' && identifier[0] <= 'Z');
+    return identifier.length != 0
+        && (identifier[0] == '@'
+            || (identifier[0] >= 'A' && identifier[0] <= 'Z'));
 }
 
-private size_t visibleWidth(
+private usize visible_width(
     String signature,
-    ModuleDisplay moduleDisplay,
+    ModuleDisplay module_display,
 ) pure @system
 {
-    size_t width;
-    size_t offset;
-    bool suppressSeparator;
+    usize width;
+    usize offset;
+    bool suppress_separator;
     while (offset < signature.length)
     {
-        const token = nextToken(signature, offset);
-        if (suppressSeparator && token.kind == SignatureTokenKind.punctuation &&
-            token.source.equal("."))
+        const token = next_token(signature, offset);
+        if (
+            suppress_separator
+            && token.kind == SignatureTokenKind.punctuation
+            && token.source == "."
+        )
         {
-            suppressSeparator = false;
+            suppress_separator = false;
             offset = token.end;
             continue;
         }
-        suppressSeparator = false;
-        if (moduleDisplay == ModuleDisplay.omitted &&
-            token.kind == SignatureTokenKind.identifier &&
-            isModuleIdentifier(signature, token.end) &&
-            !aggregateIdentifier(token.source))
+
+        suppress_separator = false;
+        if (
+            module_display == ModuleDisplay.omitted
+            && token.kind == SignatureTokenKind.identifier
+            && is_module_identifier(signature, token.end)
+            && !aggregate_identifier(token.source)
+        )
         {
-            suppressSeparator = true;
+            suppress_separator = true;
             offset = token.end;
             continue;
         }
+
         width += token.source.length;
         offset = token.end;
     }
+
     return width;
 }
 
 private struct ParameterList
 {
-    size_t open;
-    size_t close;
+    usize open;
+    usize close;
     bool found;
 }
 
-private ParameterList outerParameterList(String signature)
-pure @safe
+private ParameterList outer_parameter_list(String signature) pure @safe
 {
-    size_t depth;
-    size_t candidate;
-    bool hasCandidate;
+    usize depth;
+    usize candidate;
+    bool has_candidate;
     ParameterList result;
     foreach (offset, character; signature)
     {
-        if (depth == 0 && character == '-' && offset + 1 < signature.length &&
-            signature[offset + 1] == '>')
+        const return_arrow = depth == 0
+            && character == '-'
+            && offset + 1 < signature.length
+            && signature[offset + 1] == '>';
+        if (return_arrow)
             break;
+
         if (character == '(')
         {
             if (depth == 0)
             {
                 candidate = offset;
-                hasCandidate = true;
+                has_candidate = true;
             }
+
             ++depth;
         }
         else if (character == ')' && depth != 0)
         {
             --depth;
-            if (depth == 0 && hasCandidate)
+            if (depth == 0 && has_candidate)
                 result = ParameterList(candidate, offset, true);
         }
     }
+
     return result;
 }
 
-void writeSignature(
+void write_signature(
     ref Writer writer,
     String signature,
     scope const StackTraceColors* colors,
-    ModuleDisplay moduleDisplay = ModuleDisplay.omitted,
+    ModuleDisplay module_display = ModuleDisplay.omitted,
     SignatureFormat format = SignatureFormat.init,
 )
 {
@@ -394,143 +460,170 @@ void writeSignature(
         return;
 
     StackTraceColors plain;
-    const StackTraceColors* activeColors = colors is null ? &plain : colors;
-    const parameters = outerParameterList(signature);
+    const StackTraceColors* active_colors = colors is null ? &plain : colors;
+    const parameters = outer_parameter_list(signature);
     if (!parameters.found)
     {
-        writer.begin_ansi(activeColors.functionName);
+        writer.begin_ansi(active_colors.function_name);
         writer.put(signature);
-        writer.end_ansi(activeColors.functionName);
+        writer.end_ansi(active_colors.function_name);
         return;
     }
 
-    size_t offset;
-    bool suppressSeparator;
-    bool suppressSpace;
-    const multiline = format.layout == SignatureLayout.multiline &&
-        format.maxColumns != 0 && parameters.close > parameters.open + 1 &&
-        visibleWidth(signature, moduleDisplay) > format.maxColumns;
-    bool insideParameters;
-    size_t nestedParentheses;
+    usize offset;
+    bool suppress_separator;
+    bool suppress_space;
+    const multiline = format.layout == SignatureLayout.multiline
+        && format.max_columns != 0
+        && parameters.close > parameters.open + 1
+        && visible_width(signature, module_display) > format.max_columns;
+    bool inside_parameters;
+    usize nested_parentheses;
     while (offset < signature.length)
     {
-        const token = nextToken(signature, offset);
-        const tokenOffset = offset;
-        if (multiline && tokenOffset == parameters.close)
+        const token = next_token(signature, offset);
+        const token_offset = offset;
+        if (multiline && token_offset == parameters.close)
         {
             writer.put('\n');
-            writer.repeat(' ', format.continuationIndent);
-            insideParameters = false;
+            writer.repeat(' ', format.continuation_indent);
+            inside_parameters = false;
         }
-        if (suppressSeparator && token.kind == SignatureTokenKind.punctuation &&
-            token.source.equal("."))
+
+        if (
+            suppress_separator
+            && token.kind == SignatureTokenKind.punctuation
+            && token.source == "."
+        )
         {
-            suppressSeparator = false;
+            suppress_separator = false;
             offset = token.end;
             continue;
         }
-        suppressSeparator = false;
-        if (suppressSpace && token.kind == SignatureTokenKind.space)
+
+        suppress_separator = false;
+        if (suppress_space && token.kind == SignatureTokenKind.space)
         {
-            suppressSpace = false;
+            suppress_space = false;
             offset = token.end;
             continue;
         }
-        suppressSpace = false;
-        if (moduleDisplay == ModuleDisplay.omitted &&
-            token.kind == SignatureTokenKind.identifier &&
-            isModuleIdentifier(signature, token.end) &&
-            !aggregateIdentifier(token.source))
+
+        suppress_space = false;
+        if (
+            module_display == ModuleDisplay.omitted
+            && token.kind == SignatureTokenKind.identifier
+            && is_module_identifier(signature, token.end)
+            && !aggregate_identifier(token.source)
+        )
         {
-            suppressSeparator = true;
+            suppress_separator = true;
             offset = token.end;
             continue;
         }
+
         ANSIColor color;
         final switch (token.kind)
         {
             case SignatureTokenKind.identifier:
-                color = isFunctionIdentifier(signature, token.end)
-                    ? activeColors.functionName
-                    : isModuleIdentifier(signature, token.end)
-                    ? aggregateIdentifier(token.source)
-                    ? activeColors.typeName : activeColors.moduleName : activeColors.typeName;
+            {
+                const function_identifier = is_function_identifier(signature, token.end);
+                const module_identifier = is_module_identifier(signature, token.end);
+                const aggregate = aggregate_identifier(token.source);
+                color = function_identifier
+                    ? active_colors.function_name
+                    : module_identifier
+                    ? aggregate ? active_colors.type_name : active_colors.module_name
+                    : active_colors.type_name;
                 break;
+            }
+
             case SignatureTokenKind.type:
-                color = activeColors.typeName;
+                color = active_colors.type_name;
                 break;
+
             case SignatureTokenKind.keyword:
-                color = activeColors.keyword;
+                color = active_colors.keyword;
                 break;
+
             case SignatureTokenKind.punctuation:
-                color = activeColors.punctuation;
+                color = active_colors.punctuation;
                 break;
+
             case SignatureTokenKind.space:
                 break;
         }
+
         writer.begin_ansi(color);
         writer.put(token.source);
         writer.end_ansi(color);
         offset = token.end;
         if (!multiline || token.kind != SignatureTokenKind.punctuation)
             continue;
-        if (tokenOffset == parameters.open)
+
+        if (token_offset == parameters.open)
         {
             writer.put('\n');
-            writer.repeat(' ', format.continuationIndent + 4);
-            suppressSpace = true;
-            insideParameters = true;
-            nestedParentheses = 0;
+            writer.repeat(' ', format.continuation_indent + 4);
+            suppress_space = true;
+            inside_parameters = true;
+            nested_parentheses = 0;
         }
-        else if (insideParameters && token.source.equal("("))
-            ++nestedParentheses;
-        else if (insideParameters && token.source.equal(")") &&
-            nestedParentheses != 0)
-            --nestedParentheses;
-        else if (insideParameters && nestedParentheses == 0 &&
-            token.source.equal(","))
+        else if (inside_parameters && token.source == "(")
+        {
+            ++nested_parentheses;
+        }
+        else if (inside_parameters && token.source == ")" && nested_parentheses != 0)
+        {
+            --nested_parentheses;
+        }
+        else if (inside_parameters && nested_parentheses == 0 && token.source == ",")
         {
             writer.put('\n');
-            writer.repeat(' ', format.continuationIndent + 4);
-            suppressSpace = true;
+            writer.repeat(' ', format.continuation_indent + 4);
+            suppress_space = true;
         }
     }
 }
 
-version (unittest) private struct TestSink
+version (unittest)
 {
-    char[] storage;
-    size_t written;
-}
+    private struct TestSink
+    {
+        char[] storage;
+        usize written;
+    }
 
-version (unittest) private size_t testSink(
-    void* context,
-    scope const(ubyte)[] bytes,
-)
-{
-    TestSink* sink = cast(TestSink*) context;
-    const available = sink.storage.length - sink.written;
-    const amount = bytes.length < available ? bytes.length : available;
-    foreach (index; 0 .. amount)
-        sink.storage[sink.written + index] = cast(char) bytes[index];
-    sink.written += amount;
-    return amount;
+    private usize test_sink(
+        void* context,
+        scope const(u8)[] bytes,
+    )
+    {
+        TestSink* sink = cast(TestSink*) context;
+        const available = sink.storage.length - sink.written;
+        const amount = bytes.length < available ? bytes.length : available;
+        foreach (index; 0 .. amount)
+            sink.storage[sink.written + index] = cast(char) bytes[index];
+
+        sink.written += amount;
+        return amount;
+    }
 }
 
 unittest
 {
     char[512] storage;
     TestSink output = TestSink(storage[]);
-    Writer writer = Writer.from_sink(&testSink, &output);
-    const colors = StackTraceColors.fromTheme(StackTraceTheme.gruvbox);
-    const defaultStyle = StackTraceStyle.fromTheme(StackTraceTheme.gruvbox);
-    assert(defaultStyle.signatureDetail == SignatureDetail.overload_identity);
-    assert(defaultStyle.signatureLayout == SignatureLayout.multiline);
-    assert(defaultStyle.signatureColumns == 100);
-    assert(nextToken("int", 0).kind == SignatureTokenKind.type);
-    assert(nextToken("void", 0).kind == SignatureTokenKind.type);
-    assert(nextToken("const", 0).kind == SignatureTokenKind.keyword);
-    writer.writeSignature(
+    Writer writer = Writer.from_sink(&test_sink, &output);
+    const colors = StackTraceColors.from_theme(StackTraceTheme.gruvbox);
+    const default_style = StackTraceStyle.from_theme(StackTraceTheme.gruvbox);
+    assert(default_style.signature_detail == SignatureDetail.overload_identity);
+    assert(default_style.signature_layout == SignatureLayout.multiline);
+    assert(default_style.signature_columns == 100);
+    assert(next_token("int", 0).kind == SignatureTokenKind.type);
+    assert(next_token("void", 0).kind == SignatureTokenKind.type);
+    assert(next_token("const", 0).kind == SignatureTokenKind.keyword);
+    writer.write_signature(
         "xtb.Array!(const(char)[]).append(ref String)",
         &colors,
     );
@@ -539,100 +632,97 @@ unittest
     assert(output.written != 0);
     assert(storage[0] == '\x1b');
 
-    char[128] rgbStorage;
-    TestSink rgbOutput = TestSink(rgbStorage[]);
-    Writer rgbWriter = Writer.from_sink(&testSink, &rgbOutput);
-    StackTraceColors rgbColors;
-    rgbColors.functionName = ANSIColor.rgb(1, 2, 3);
-    rgbWriter.writeSignature("call(int)", &rgbColors);
-    assert(rgbWriter.result.ok);
-    assert(rgbStorage[0 .. rgbOutput.written].equal(
-            "\x1b[38;2;1;2;3mcall\x1b[0m(int)",
-    ));
+    char[128] rgb_storage;
+    TestSink rgb_output = TestSink(rgb_storage[]);
+    Writer rgb_writer = Writer.from_sink(&test_sink, &rgb_output);
+    StackTraceColors rgb_colors;
+    rgb_colors.function_name = ANSIColor.rgb(1, 2, 3);
+    rgb_writer.write_signature("call(int)", &rgb_colors);
+    assert(rgb_writer.result.ok);
+    assert(
+        rgb_storage[0 .. rgb_output.written] == "\x1b[38;2;1;2;3mcall\x1b[0m(int)",
+    );
 
-    char[128] bareStorage;
-    TestSink bareOutput = TestSink(bareStorage[]);
-    Writer bareWriter = Writer.from_sink(&testSink, &bareOutput);
-    bareWriter.writeSignature("main", &rgbColors);
-    assert(bareWriter.result.ok);
-    assert(bareStorage[0 .. bareOutput.written].equal(
-            "\x1b[38;2;1;2;3mmain\x1b[0m",
-    ));
+    char[128] bare_storage;
+    TestSink bare_output = TestSink(bare_storage[]);
+    Writer bare_writer = Writer.from_sink(&test_sink, &bare_output);
+    bare_writer.write_signature("main", &rgb_colors);
+    assert(bare_writer.result.ok);
+    assert(
+        bare_storage[0 .. bare_output.written] == "\x1b[38;2;1;2;3mmain\x1b[0m",
+    );
 
-    char[128] cStorage;
-    TestSink cOutput = TestSink(cStorage[]);
-    Writer cWriter = Writer.from_sink(&testSink, &cOutput);
-    cWriter.writeSignature("__libc_start_main", &rgbColors);
-    assert(cWriter.result.ok);
-    assert(cStorage[0 .. cOutput.written].equal(
-            "\x1b[38;2;1;2;3m__libc_start_main\x1b[0m",
-    ));
+    char[128] c_storage;
+    TestSink c_output = TestSink(c_storage[]);
+    Writer c_writer = Writer.from_sink(&test_sink, &c_output);
+    c_writer.write_signature("__libc_start_main", &rgb_colors);
+    assert(c_writer.result.ok);
+    assert(
+        c_storage[0 .. c_output.written] == "\x1b[38;2;1;2;3m__libc_start_main\x1b[0m",
+    );
 
-    char[1] emptyStorage;
-    TestSink emptyOutput = TestSink(emptyStorage[]);
-    Writer emptyWriter = Writer.from_sink(&testSink, &emptyOutput);
-    emptyWriter.writeSignature("", &rgbColors);
-    assert(emptyWriter.result.ok);
-    assert(emptyOutput.written == 0);
+    char[1] empty_storage;
+    TestSink empty_output = TestSink(empty_storage[]);
+    Writer empty_writer = Writer.from_sink(&test_sink, &empty_output);
+    empty_writer.write_signature("", &rgb_colors);
+    assert(empty_writer.result.ok);
+    assert(empty_output.written == 0);
 
-    char[128] plainStorage;
-    TestSink plainOutput = TestSink(plainStorage[]);
-    Writer plainWriter = Writer.from_sink(&testSink, &plainOutput);
-    const plain = StackTraceColors.fromTheme(StackTraceTheme.plain);
-    plainWriter.writeSignature("pkg.module.call(int)", &plain);
-    assert(plainWriter.result.ok);
-    assert(plainStorage[0 .. plainOutput.written].equal("call(int)"));
+    char[128] plain_storage;
+    TestSink plain_output = TestSink(plain_storage[]);
+    Writer plain_writer = Writer.from_sink(&test_sink, &plain_output);
+    const plain = StackTraceColors.from_theme(StackTraceTheme.plain);
+    plain_writer.write_signature("pkg.module.call(int)", &plain);
+    assert(plain_writer.result.ok);
+    assert(plain_storage[0 .. plain_output.written] == "call(int)");
 
-    char[128] fullStorage;
-    TestSink fullOutput = TestSink(fullStorage[]);
-    Writer fullWriter = Writer.from_sink(&testSink, &fullOutput);
-    fullWriter.writeSignature("pkg.module.Type.call(int)", &plain, ModuleDisplay.full);
-    assert(fullWriter.result.ok);
-    assert(fullStorage[0 .. fullOutput.written].equal("pkg.module.Type.call(int)"));
+    char[128] full_storage;
+    TestSink full_output = TestSink(full_storage[]);
+    Writer full_writer = Writer.from_sink(&test_sink, &full_output);
+    full_writer.write_signature("pkg.module.Type.call(int)", &plain, ModuleDisplay.full);
+    assert(full_writer.result.ok);
+    assert(full_storage[0 .. full_output.written] == "pkg.module.Type.call(int)");
 
-    char[256] multilineStorage;
-    TestSink multilineOutput = TestSink(multilineStorage[]);
-    Writer multilineWriter = Writer.from_sink(&testSink, &multilineOutput);
-    multilineWriter.writeSignature(
+    char[256] multiline_storage;
+    TestSink multiline_output = TestSink(multiline_storage[]);
+    Writer multiline_writer = Writer.from_sink(&test_sink, &multiline_output);
+    multiline_writer.write_signature(
         "render(int, delegate(int, long) -> void, const(char)[]) -> bool nothrow",
         &plain,
         ModuleDisplay.omitted,
         SignatureFormat(SignatureLayout.multiline, 30, 4),
     );
-    assert(multilineWriter.result.ok);
-    assert(multilineStorage[0 .. multilineOutput.written].equal(
-            "render(\n        int,\n        delegate(int, long) -> void,\n" ~
-            "        const(char)[]\n    ) -> bool nothrow",
-    ));
+    assert(multiline_writer.result.ok);
+    const expected_multiline = "render(\n        int,\n        delegate(int, long) -> void,\n"
+        ~ "        const(char)[]\n    ) -> bool nothrow";
+    assert(multiline_storage[0 .. multiline_output.written] == expected_multiline);
 
-    char[128] singleStorage;
-    TestSink singleOutput = TestSink(singleStorage[]);
-    Writer singleWriter = Writer.from_sink(&testSink, &singleOutput);
-    singleWriter.writeSignature(
+    char[128] single_storage;
+    TestSink single_output = TestSink(single_storage[]);
+    Writer single_writer = Writer.from_sink(&test_sink, &single_output);
+    single_writer.write_signature(
         "call(int, const(char)[], long)",
         &plain,
         ModuleDisplay.omitted,
-        SignatureFormat(SignatureLayout.singleLine, 1, 4),
+        SignatureFormat(SignatureLayout.single_line, 1, 4),
     );
-    assert(singleWriter.result.ok);
-    assert(singleStorage[0 .. singleOutput.written].equal(
-            "call(int, const(char)[], long)",
-    ));
+    assert(single_writer.result.ok);
+    assert(single_storage[0 .. single_output.written] == "call(int, const(char)[], long)");
 
-    enum boundarySignature = "call(int, const(char)[], long)";
-    char[128] boundaryStorage;
-    TestSink boundaryOutput = TestSink(boundaryStorage[]);
-    Writer boundaryWriter = Writer.from_sink(&testSink, &boundaryOutput);
-    boundaryWriter.writeSignature(
-        boundarySignature,
+    enum boundary_signature = "call(int, const(char)[], long)";
+    char[128] boundary_storage;
+    TestSink boundary_output = TestSink(boundary_storage[]);
+    Writer boundary_writer = Writer.from_sink(&test_sink, &boundary_output);
+    boundary_writer.write_signature(
+        boundary_signature,
         &plain,
         ModuleDisplay.omitted,
         SignatureFormat(
             SignatureLayout.multiline,
-            boundarySignature.length,
+            boundary_signature.length,
             4,
-    ),
+        ),
     );
-    assert(boundaryWriter.result.ok);
-    assert(boundaryStorage[0 .. boundaryOutput.written].equal(boundarySignature));
+    assert(boundary_writer.result.ok);
+    assert(boundary_storage[0 .. boundary_output.written] == boundary_signature);
 }

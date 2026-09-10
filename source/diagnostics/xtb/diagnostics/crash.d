@@ -60,11 +60,11 @@ nothrow @nogc:
         version (XTB_Checked)
             require(!globalState.active, "crash handlers already installed");
         globalState.context = StackTraceContext.create(permanentExecutablePath);
-        globalState.style = StackTraceStyle.fromTheme(options.theme);
-        globalState.style.moduleDisplay = options.moduleDisplay;
-        globalState.style.signatureDetail = options.signatureDetail;
-        globalState.style.signatureLayout = options.signatureLayout;
-        globalState.style.signatureColumns = options.signatureColumns;
+        globalState.style = StackTraceStyle.from_theme(options.theme);
+        globalState.style.module_display = options.moduleDisplay;
+        globalState.style.signature_detail = options.signatureDetail;
+        globalState.style.signature_layout = options.signatureLayout;
+        globalState.style.signature_columns = options.signatureColumns;
         globalState.panicTraceWritten = 0;
         const signalsInstalled = CrashBackend.installCrashSignals(
             options.signalTraceMode == SignalTraceMode.attemptStackUnwind,

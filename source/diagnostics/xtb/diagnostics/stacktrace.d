@@ -10,7 +10,7 @@ import xtb.fmt.writer : Writer, hexadecimal;
 import xtb.string;
 import xtb.types : String;
 import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
-    StackTraceTheme, SignatureFormat, writeSignature;
+    StackTraceTheme, SignatureFormat, write_signature;
 
 struct StackFrame
 {
@@ -111,7 +111,7 @@ void writeStackTrace(
     scope const StackTraceStyle* requestedStyle = null,
 )
 {
-    StackTraceStyle defaultStyle = StackTraceStyle.fromTheme(
+    StackTraceStyle defaultStyle = StackTraceStyle.from_theme(
         StackTraceTheme.gruvbox,
     );
     const style = requestedStyle is null ? &defaultStyle : requestedStyle;
@@ -146,9 +146,9 @@ void writeStackTrace(
         beginColor(writer, colors.decoration);
         writer.put('[');
         endColor(writer, colors, colors.decoration);
-        beginColor(writer, colors.lineNumber);
+        beginColor(writer, colors.line_number);
         writer.value(index);
-        endColor(writer, colors, colors.lineNumber);
+        endColor(writer, colors, colors.line_number);
         beginColor(writer, colors.decoration);
         writer.put("] ");
         endColor(writer, colors, colors.decoration);
@@ -157,17 +157,17 @@ void writeStackTrace(
             String functionDisplay;
             cast(void) try_demangle_d(
                 frame.functionName,
-                style.signatureDetail,
+                style.signature_detail,
                 signatureStorage,
                 &functionDisplay,
             );
-            writer.writeSignature(
+            writer.write_signature(
                 functionDisplay,
                 colors,
-                style.moduleDisplay,
+                style.module_display,
                 SignatureFormat(
-                    style.signatureLayout,
-                    style.signatureColumns,
+                    style.signature_layout,
+                    style.signature_columns,
                     indexWidth + 3,
             ),
             );
@@ -178,7 +178,7 @@ void writeStackTrace(
             writer.put("<unknown symbol>");
             endColor(writer, colors, colors.warning);
         }
-        if (style.showProgramCounter || frame.functionName.length == 0)
+        if (style.show_program_counter || frame.functionName.length == 0)
         {
             writer.put("  ");
             beginColor(writer, colors.address);
@@ -193,17 +193,17 @@ void writeStackTrace(
             beginColor(writer, colors.decoration);
             writer.put("↳ ");
             endColor(writer, colors, colors.decoration);
-            beginColor(writer, colors.filePath);
+            beginColor(writer, colors.file_path);
             writer.put(frame.filename);
-            endColor(writer, colors, colors.filePath);
+            endColor(writer, colors, colors.file_path);
             if (frame.line != 0)
             {
                 beginColor(writer, colors.decoration);
                 writer.put(':');
                 endColor(writer, colors, colors.decoration);
-                beginColor(writer, colors.lineNumber);
+                beginColor(writer, colors.line_number);
                 writer.value(frame.line);
-                endColor(writer, colors, colors.lineNumber);
+                endColor(writer, colors, colors.line_number);
             }
         }
     }
@@ -280,7 +280,7 @@ unittest
         )];
     StackTrace trace;
     trace.frames = frames[];
-    StackTraceStyle style = StackTraceStyle.fromTheme(StackTraceTheme.plain);
+    StackTraceStyle style = StackTraceStyle.from_theme(StackTraceTheme.plain);
     TraceCapture capture;
     Writer writer = Writer.from_sink(&traceCaptureSink, &capture);
     char[256] signatureStorage;

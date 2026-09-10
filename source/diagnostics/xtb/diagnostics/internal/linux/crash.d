@@ -267,7 +267,7 @@ private extern (C) void handleSignal(
     {
         rawSpaces(labelWidth - 3);
         rawStyled("[", colors.decoration);
-        rawStyled("0", colors.lineNumber);
+        rawStyled("0", colors.line_number);
         rawStyled("] ", colors.decoration);
         rawAnsi(colors.address);
         rawWrite("pc=");
@@ -288,10 +288,10 @@ private extern (C) void handleSignal(
                 continue;
             rawSpaces(labelWidth - decimalWidth(frameNumber) - 3);
             rawStyled("[", colors.decoration);
-            rawAnsi(colors.lineNumber);
+            rawAnsi(colors.line_number);
             rawWrite("+");
             rawDecimal(frameNumber);
-            rawAnsiReset(colors.lineNumber);
+            rawAnsiReset(colors.line_number);
             rawStyled("] ", colors.decoration);
             rawAnsi(colors.address);
             rawWrite("pc=");
