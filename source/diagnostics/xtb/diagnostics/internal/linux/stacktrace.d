@@ -150,9 +150,9 @@ private extern (C) int collectFrame(
         }
     }
     StackFrame* frame = &state.frames[state.frameCount++];
-    frame.programCounter = programCounter;
+    frame.program_counter = programCounter;
     frame.filename = copyText(*state, resolvedFilename);
-    frame.functionName = copyText(*state, resolvedFunctionName);
+    frame.function_name = copyText(*state, resolvedFunctionName);
     frame.line = line > 0 ? cast(uint) line : 0;
     return 0;
 }
@@ -242,10 +242,10 @@ StackTrace capture(
             state.backendError = true;
     }
     result.frames = frameStorage[0 .. state.frameCount];
-    result.framesTruncated = state.framesTruncated;
-    result.textTruncated = state.textTruncated;
-    result.backendError = state.backendError;
-    result.textBytesRequired = state.textRequired;
+    result.frames_truncated = state.framesTruncated;
+    result.text_truncated = state.textTruncated;
+    result.backend_error = state.backendError;
+    result.text_bytes_required = state.textRequired;
     return result;
 }
 
@@ -263,7 +263,7 @@ version (unittest) unittest
     assert(state.textTruncated);
     assert(state.textRequired == "file.d".length + "function".length);
     assert(frames[0].filename.length == 0);
-    assert(frames[0].functionName.length == 0);
+    assert(frames[0].function_name.length == 0);
 
     assert(collectFrame(&state, 2, null, 0, null) == 1);
     assert(state.framesTruncated);
@@ -280,5 +280,5 @@ version (unittest) unittest
             0,
             null,
     ) == 0);
-    assert(fallbackFrames[0].functionName.length != 0);
+    assert(fallbackFrames[0].function_name.length != 0);
 }

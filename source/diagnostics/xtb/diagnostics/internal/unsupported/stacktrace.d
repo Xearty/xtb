@@ -27,6 +27,6 @@ StackTrace capture(
 )
 {
     StackTrace result;
-    result.backendError = true;
+    result.backend_error = true;
     return result;
 }

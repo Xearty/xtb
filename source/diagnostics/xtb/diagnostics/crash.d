@@ -10,7 +10,7 @@ version (XTB_Checked) import xtb.panic : require;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : file_writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
-    capture, writeStackTrace;
+    capture, write_stack_trace;
 import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
     StackTraceTheme, SignatureLayout;
 import xtb.diagnostics.demangle : SignatureDetail;
@@ -123,7 +123,7 @@ private void tracePanic(String message, void*)
     char[16 * 1024] text;
     StackTrace trace = globalState.context.capture(frames[], text[], 2);
     char[32 * 1024] signatureStorage;
-    writer.writeStackTrace(&trace, signatureStorage[], &globalState.style);
+    writer.write_stack_trace(&trace, signatureStorage[], &globalState.style);
     writer.put('\n');
     globalState.panicTraceWritten = 1;
 }

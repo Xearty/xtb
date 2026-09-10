@@ -6,7 +6,7 @@ import xtb.diagnostics.demangle : SignatureDetail;
 import xtb.fmt.writer : Writer;
 import xtb.fmt.print : file_writer;
 import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
-    capture, writeStackTrace;
+    capture, write_stack_trace;
 import xtb.diagnostics.stacktrace_style : StackTraceStyle, StackTraceTheme;
 import xtb.string;
 import xtb.types : String;
@@ -94,7 +94,7 @@ private int writeCapturedTrace(ref StackTraceContext context) nothrow @nogc
     StackTraceStyle style = StackTraceStyle.from_theme(StackTraceTheme.gruvbox);
     style.signature_detail = SignatureDetail.overload_identity_and_return;
     char[64 * 1024] signatureStorage;
-    writer.writeStackTrace(&trace, signatureStorage[], &style);
+    writer.write_stack_trace(&trace, signatureStorage[], &style);
     writer.put('\n');
     return writer.result.ok ? 0 : 1;
 }

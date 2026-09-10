@@ -2,81 +2,89 @@ module xtb.diagnostics.stacktrace;
 
 nothrow @nogc:
 
-import core.stdc.string : memcpy;
-import xtb.diagnostics.demangle : try_demangle_d;
-import xtb.ansi : ANSIColor;
-import xtb.fmt.ansi : begin_ansi, end_ansi;
-import xtb.fmt.writer : Writer, hexadecimal;
-import xtb.string;
-import xtb.types : String;
-import xtb.diagnostics.stacktrace_style : StackTraceColors, StackTraceStyle,
-    StackTraceTheme, SignatureFormat, write_signature;
+import xtb.ansi;
+import xtb.diagnostics.demangle;
+import xtb.diagnostics.stacktrace_style;
+import xtb.fmt.ansi;
+import xtb.fmt.writer;
+import xtb.types;
 
 struct StackFrame
 {
-    size_t programCounter;
+    usize program_counter;
     String filename;
-    String functionName;
-    uint line;
+    String function_name;
+    u32 line;
 }
 
 struct StackTrace
 {
     StackFrame[] frames;
-    bool framesTruncated;
-    bool textTruncated;
-    bool backendError;
-    size_t textBytesRequired;
+    bool frames_truncated;
+    bool text_truncated;
+    bool backend_error;
+    usize text_bytes_required;
 }
 
 version (linux)
-    import Backend = xtb.diagnostics.internal.linux.stacktrace;
+{
+    import stacktrace_backend = xtb.diagnostics.internal.linux.stacktrace;
+}
 else
-    import Backend = xtb.diagnostics.internal.unsupported.stacktrace;
+{
+    import stacktrace_backend = xtb.diagnostics.internal.unsupported.stacktrace;
+}
 
 struct StackTraceContext
 {
-nothrow @nogc:
+    nothrow @nogc:
 
-    private Backend.StackTraceBackendContext backend_;
+    stacktrace_backend.StackTraceBackendContext backend;
 
     bool available() const pure @safe
     {
-        return backend_.available;
+        return this.backend.available;
     }
 
+    /**
+     * Creates a stack-trace context.
+     *
+     * `permanent_executable_path` may be null. When non-null, its storage must
+     * remain valid for the lifetime of the returned context.
+     */
     static StackTraceContext create(
-        const(char)* permanentExecutablePath = null,
-        bool threadSafe = true,
+        const(char)* permanent_executable_path = null,
+        bool thread_safe = true,
     )
     {
         StackTraceContext result;
-        result.backend_ = Backend.StackTraceBackendContext.create(
-            permanentExecutablePath,
-            threadSafe,
+        result.backend = stacktrace_backend.StackTraceBackendContext.create(
+            permanent_executable_path,
+            thread_safe,
         );
         return result;
     }
 }
 
+/// Captures a trace whose frame and text views borrow from the supplied storage.
 StackTrace capture(
     ref StackTraceContext context,
-    return scope StackFrame[] frameStorage,
-    return scope char[] textStorage,
-    uint skipFrames = 0,
+    return scope StackFrame[] frame_storage,
+    return scope char[] text_storage,
+    u32 skip_frames = 0,
 )
 {
-    return Backend.capture(
-        context.backend_,
-        frameStorage,
-        textStorage,
-        skipFrames,
+    return stacktrace_backend.capture(
+        context.backend,
+        frame_storage,
+        text_storage,
+        skip_frames,
     );
 }
 
-private size_t decimalDigits(size_t value) pure @safe
+private usize decimal_digits(usize value) pure @safe
 {
-    size_t result = 1;
+    usize result = 1;
     while (value >= 10)
     {
         value /= 10;
@@ -85,148 +93,177 @@ private size_t decimalDigits(size_t value) pure @safe
     return result;
 }
 
-private void beginColor(ref Writer writer, ANSIColor color)
+private void begin_color(ref Writer writer, ANSIColor color)
 {
     writer.begin_ansi(color);
 }
 
-private void endColor(
-    ref Writer writer,
-    scope const StackTraceColors*,
-    ANSIColor color,
-)
+private void end_color(ref Writer writer, ANSIColor color)
 {
     writer.end_ansi(color);
 }
 
-/// Renders a stack trace without appending a trailing newline.
-///
-/// Callers that write the trace as standalone output are responsible for their
-/// own record/line terminator. This keeps the formatter composable with logger
-/// records and other writer destinations.
-void writeStackTrace(
+/**
+ * Renders a stack trace without appending a trailing newline.
+ *
+ * `trace` may be null, in which case a null-trace marker is rendered.
+ * `requested_style` may be null to use the default style.
+ *
+ * Callers that write the trace as standalone output are responsible for their
+ * own record/line terminator. This keeps the formatter composable with logger
+ * records and other writer destinations.
+ */
+void write_stack_trace(
     ref Writer writer,
-    scope const StackTrace* trace,
-    return scope char[] signatureStorage,
-    scope const StackTraceStyle* requestedStyle = null,
+    scope const(StackTrace)* trace,
+    return scope char[] signature_storage,
+    scope const(StackTraceStyle)* requested_style = null,
 )
 {
-    StackTraceStyle defaultStyle = StackTraceStyle.from_theme(
-        StackTraceTheme.gruvbox,
-    );
-    const style = requestedStyle is null ? &defaultStyle : requestedStyle;
+    StackTraceStyle default_style = StackTraceStyle.from_theme(StackTraceTheme.gruvbox);
+    const style = requested_style is null ? &default_style : requested_style;
     const colors = &style.colors;
     if (trace is null)
     {
-        beginColor(writer, colors.warning);
+        begin_color(writer, colors.warning);
         writer.put("<null stack trace>");
-        endColor(writer, colors, colors.warning);
+        end_color(writer, colors.warning);
         return;
     }
 
-    bool lineWritten;
-    void startLine()
+    bool line_written;
+    void start_line()
     {
-        if (lineWritten)
-            writer.put('\n');
-        lineWritten = true;
+        if (line_written) writer.put('\n');
+
+        line_written = true;
     }
 
-    startLine();
-    beginColor(writer, colors.decoration);
+    start_line();
+    begin_color(writer, colors.decoration);
     writer.put("Stack trace");
-    endColor(writer, colors, colors.decoration);
+    end_color(writer, colors.decoration);
     writer.put(" (most recent call first):");
-    const indexWidth = trace.frames.length == 0
-        ? 1 : decimalDigits(trace.frames.length - 1);
+    const index_width = trace.frames.length == 0
+        ? 1
+        : decimal_digits(trace.frames.length - 1);
     foreach (index, frame; trace.frames)
     {
-        startLine();
-        writer.repeat(' ', indexWidth - decimalDigits(index));
-        beginColor(writer, colors.decoration);
+        start_line();
+        writer.repeat(' ', index_width - decimal_digits(index));
+        begin_color(writer, colors.decoration);
         writer.put('[');
-        endColor(writer, colors, colors.decoration);
-        beginColor(writer, colors.line_number);
+        end_color(writer, colors.decoration);
+        begin_color(writer, colors.line_number);
         writer.value(index);
-        endColor(writer, colors, colors.line_number);
-        beginColor(writer, colors.decoration);
+        end_color(writer, colors.line_number);
+        begin_color(writer, colors.decoration);
         writer.put("] ");
-        endColor(writer, colors, colors.decoration);
-        if (frame.functionName.length != 0)
+        end_color(writer, colors.decoration);
+        if (frame.function_name.length != 0)
         {
-            String functionDisplay;
+            String function_display;
             cast(void) try_demangle_d(
-                frame.functionName,
+                frame.function_name,
                 style.signature_detail,
-                signatureStorage,
-                &functionDisplay,
+                signature_storage,
+                &function_display,
+            );
+            const signature_format = SignatureFormat(
+                style.signature_layout,
+                style.signature_columns,
+                index_width + 3,
             );
             writer.write_signature(
-                functionDisplay,
+                function_display,
                 colors,
                 style.module_display,
-                SignatureFormat(
-                    style.signature_layout,
-                    style.signature_columns,
-                    indexWidth + 3,
-            ),
+                signature_format,
             );
         }
         else
         {
-            beginColor(writer, colors.warning);
+            begin_color(writer, colors.warning);
             writer.put("<unknown symbol>");
-            endColor(writer, colors, colors.warning);
+            end_color(writer, colors.warning);
         }
-        if (style.show_program_counter || frame.functionName.length == 0)
+        if (style.show_program_counter || frame.function_name.length == 0)
         {
             writer.put("  ");
-            beginColor(writer, colors.address);
+            begin_color(writer, colors.address);
             writer.put("pc=");
-            writer.value(hexadecimal(cast(size_t) frame.programCounter));
-            endColor(writer, colors, colors.address);
+            writer.value(hexadecimal(frame.program_counter));
+            end_color(writer, colors.address);
         }
         if (frame.filename.length != 0)
         {
             writer.put('\n');
-            writer.repeat(' ', indexWidth + 3);
-            beginColor(writer, colors.decoration);
+            writer.repeat(' ', index_width + 3);
+            begin_color(writer, colors.decoration);
             writer.put("↳ ");
-            endColor(writer, colors, colors.decoration);
-            beginColor(writer, colors.file_path);
+            end_color(writer, colors.decoration);
+            begin_color(writer, colors.file_path);
             writer.put(frame.filename);
-            endColor(writer, colors, colors.file_path);
+            end_color(writer, colors.file_path);
             if (frame.line != 0)
             {
-                beginColor(writer, colors.decoration);
+                begin_color(writer, colors.decoration);
                 writer.put(':');
-                endColor(writer, colors, colors.decoration);
-                beginColor(writer, colors.line_number);
+                end_color(writer, colors.decoration);
+                begin_color(writer, colors.line_number);
                 writer.value(frame.line);
-                endColor(writer, colors, colors.line_number);
+                end_color(writer, colors.line_number);
             }
         }
     }
-    if (trace.framesTruncated)
+
+    if (trace.frames_truncated)
     {
-        startLine();
-        beginColor(writer, colors.warning);
+        start_line();
+        begin_color(writer, colors.warning);
         writer.put("<additional frames omitted>");
-        endColor(writer, colors, colors.warning);
+        end_color(writer, colors.warning);
     }
-    if (trace.textTruncated)
+
+    if (trace.text_truncated)
     {
-        startLine();
-        beginColor(writer, colors.warning);
+        start_line();
+        begin_color(writer, colors.warning);
         writer.put("<some symbols omitted: text storage exhausted>");
-        endColor(writer, colors, colors.warning);
+        end_color(writer, colors.warning);
     }
-    if (trace.backendError && trace.frames.length == 0)
+
+    if (trace.backend_error && trace.frames.length == 0)
     {
-        startLine();
-        beginColor(writer, colors.warning);
+        start_line();
+        begin_color(writer, colors.warning);
         writer.put("<stack trace unavailable>");
-        endColor(writer, colors, colors.warning);
+        end_color(writer, colors.warning);
+    }
+}
+
+version (unittest)
+{
+    import core.stdc.string;
+
+    private struct TraceCapture
+    {
+        char[2048] bytes;
+        usize length;
+    }
+
+    private usize trace_capture_sink(
+        void* context,
+        scope const(u8)[] bytes,
+    )
+    {
+        TraceCapture* capture = cast(TraceCapture*) context;
+        const available = capture.bytes.length - capture.length;
+        const amount = bytes.length < available ? bytes.length : available;
+
+        memcpy(capture.bytes.ptr + capture.length, bytes.ptr, amount);
+        capture.length += amount;
+        return amount;
     }
 }
 
@@ -238,57 +275,36 @@ unittest
         StackFrame[32] frames;
         char[4096] text;
         StackTrace trace = context.capture(frames[], text[], 0);
+
         assert(context.available);
-        assert(trace.frames.length != 0 || trace.backendError);
-    }
-}
-
-version (unittest)
-{
-    private struct TraceCapture
-    {
-    nothrow @nogc:
-
-        char[2048] bytes;
-        size_t length;
-    }
-
-    private size_t traceCaptureSink(
-        void* context,
-        scope const(ubyte)[] bytes,
-    )
-
-    {
-        TraceCapture* capture = cast(TraceCapture*) context;
-        const available = capture.bytes.length - capture.length;
-        const amount = bytes.length < available ? bytes.length : available;
-        memcpy(capture.bytes.ptr + capture.length, bytes.ptr, amount);
-        capture.length += amount;
-        return amount;
+        assert(trace.frames.length != 0 || trace.backend_error);
     }
 }
 
 unittest
 {
-    import xtb.string;
-
-    StackFrame[1] frames = [StackFrame(
+    StackFrame[1] frames = [
+        StackFrame(
             0x1234,
             "main.d",
             "_D3app3runFiZi",
             9,
-        )];
+        ),
+    ];
     StackTrace trace;
     trace.frames = frames[];
     StackTraceStyle style = StackTraceStyle.from_theme(StackTraceTheme.plain);
     TraceCapture capture;
-    Writer writer = Writer.from_sink(&traceCaptureSink, &capture);
-    char[256] signatureStorage;
-    writer.writeStackTrace(&trace, signatureStorage[], &style);
+    Writer writer = Writer.from_sink(&trace_capture_sink, &capture);
+    char[256] signature_storage;
+
+    writer.write_stack_trace(&trace, signature_storage[], &style);
+
     assert(writer.result.ok);
-    assert(capture.bytes[0 .. capture.length].equal(
-            "Stack trace (most recent call first):\n" ~
-            "[0] run(int)\n" ~
-            "    ↳ main.d:9",
-    ));
+    assert(
+        capture.bytes[0 .. capture.length]
+            == "Stack trace (most recent call first):\n"
+            ~ "[0] run(int)\n"
+            ~ "    ↳ main.d:9",
+    );
 }
