@@ -2,283 +2,296 @@ module xtb.diagnostics.internal.linux.stacktrace;
 
 nothrow @nogc:
 
-import core.stdc.string : memcpy, strlen;
-import xtb.diagnostics.stacktrace : StackFrame, StackTrace;
-import xtb.os.linux.execinfo : backtrace;
-import xtb.os.linux.dynamic_link : Dl_info, dladdr;
-import xtb.types : String;
+import core.stdc.stdint;
+import core.stdc.string;
 
-private struct BacktraceState;
+import xtb.diagnostics.stacktrace;
+import xtb.os.linux.dynamic_link;
+import xtb.os.linux.execinfo;
+import xtb.types;
 
-private alias ErrorCallback = extern (C) void function(
-    void* data,
-    const(char)* message,
-    int errorNumber,
-);
-private alias FullCallback = extern (C) int function(
-    void* data,
-    size_t programCounter,
-    const(char)* filename,
-    int line,
-    const(char)* functionName,
-);
-private alias SimpleCallback = extern (C) int function(
-    void* data,
-    size_t programCounter,
-);
+private struct backtrace_state;
 
-extern (C) private BacktraceState* backtrace_create_state(
+private alias backtrace_error_callback = extern (C) void function(
+    void*,
+    const(char)*,
+    int,
+) nothrow @nogc;
+private alias backtrace_full_callback = extern (C) int function(
+    void*,
+    uintptr_t,
+    const(char)*,
+    int,
+    const(char)*,
+) nothrow @nogc;
+private alias backtrace_simple_callback = extern (C) int function(
+    void*,
+    uintptr_t,
+) nothrow @nogc;
+
+extern (C) private backtrace_state* backtrace_create_state(
     const(char)* filename,
     int threaded,
-    ErrorCallback errorCallback,
+    backtrace_error_callback error_callback,
     void* data,
 );
 extern (C) private int backtrace_full(
-    BacktraceState* state,
+    backtrace_state* state,
     int skip,
-    FullCallback callback,
-    ErrorCallback errorCallback,
+    backtrace_full_callback callback,
+    backtrace_error_callback error_callback,
     void* data,
 );
 extern (C) private int backtrace_simple(
-    BacktraceState* state,
+    backtrace_state* state,
     int skip,
-    SimpleCallback callback,
-    ErrorCallback errorCallback,
+    backtrace_simple_callback callback,
+    backtrace_error_callback error_callback,
     void* data,
 );
 
 struct StackTraceBackendContext
 {
-nothrow @nogc:
+    nothrow @nogc:
 
-    private BacktraceState* state_;
+    backtrace_state* state;
 
     bool available() const pure @safe
     {
-        return state_ !is null;
+        return this.state !is null;
     }
 
     static StackTraceBackendContext create(
-        const(char)* permanentExecutablePath,
-        bool threadSafe,
-    )
+        const(char)* permanent_executable_path,
+        bool thread_safe,
+    ) @system
     {
         StackTraceBackendContext result;
-        result.state_ = backtrace_create_state(
-            permanentExecutablePath,
-            threadSafe ? 1 : 0,
-            &creationError,
+        result.state = backtrace_create_state(
+            permanent_executable_path,
+            thread_safe ? 1 : 0,
+            &creation_error,
             null,
         );
         return result;
     }
 }
 
-private extern (C) void creationError(void*, const(char)*, int)
-{
-}
+private extern (C) void creation_error(void*, const(char)*, int) {}
 
 private struct CaptureState
 {
-nothrow @nogc:
-
     StackFrame[] frames;
     char[] text;
-    size_t frameCount;
-    size_t textWritten;
-    size_t textRequired;
-    bool framesTruncated;
-    bool textTruncated;
-    bool backendError;
+    usize frame_count;
+    usize text_written;
+    usize text_required;
+    bool frames_truncated;
+    bool text_truncated;
+    bool backend_error;
 }
 
-private String copyText(ref CaptureState state, const(char)* value)
-@system
+private String copy_text(ref CaptureState state, const(char)* value) @system
 {
-    if (value is null)
-        return null;
+    if (value is null) return null;
+
     const length = strlen(value);
-    if (length == 0)
-        return null;
-    if (length > size_t.max - state.textRequired)
+    if (length == 0) return null;
+
+    if (length > usize.max - state.text_required)
     {
-        state.textRequired = size_t.max;
-        state.textTruncated = true;
+        state.text_required = usize.max;
+        state.text_truncated = true;
         return null;
     }
-    state.textRequired += length;
-    if (length > state.text.length - state.textWritten)
+
+    state.text_required += length;
+    if (length > state.text.length - state.text_written)
     {
-        state.textTruncated = true;
+        state.text_truncated = true;
         return null;
     }
-    char* destination = state.text.ptr + state.textWritten;
+
+    char* destination = state.text.ptr + state.text_written;
     memcpy(destination, value, length);
-    state.textWritten += length;
+    state.text_written += length;
     return destination[0 .. length];
 }
 
-private extern (C) int collectFrame(
+private extern (C) int collect_frame(
     void* data,
-    size_t programCounter,
+    uintptr_t program_counter,
     const(char)* filename,
     int line,
-    const(char)* functionName,
-)
+    const(char)* function_name,
+) @system
 {
     CaptureState* state = cast(CaptureState*) data;
-    if (programCounter == size_t.max)
-        return 1;
-    if (state.frameCount == state.frames.length)
+    if (program_counter == uintptr_t.max) return 1;
+
+    if (state.frame_count == state.frames.length)
     {
-        state.framesTruncated = true;
+        state.frames_truncated = true;
         return 1;
     }
 
-    const(char)* resolvedFilename = filename;
-    const(char)* resolvedFunctionName = functionName;
-    if (resolvedFilename is null || resolvedFunctionName is null)
+    const(char)* resolved_filename = filename;
+    const(char)* resolved_function_name = function_name;
+    if (resolved_filename is null || resolved_function_name is null)
     {
         Dl_info information;
-        if (dladdr(cast(const(void)*) programCounter, &information) != 0)
+        if (dladdr(cast(const(void)*) program_counter, &information) != 0)
         {
-            if (resolvedFilename is null)
-                resolvedFilename = information.dli_fname;
-            if (resolvedFunctionName is null)
-                resolvedFunctionName = information.dli_sname;
+            if (resolved_filename is null) resolved_filename = information.dli_fname;
+            if (resolved_function_name is null) resolved_function_name = information.dli_sname;
         }
     }
-    StackFrame* frame = &state.frames[state.frameCount++];
-    frame.program_counter = programCounter;
-    frame.filename = copyText(*state, resolvedFilename);
-    frame.function_name = copyText(*state, resolvedFunctionName);
-    frame.line = line > 0 ? cast(uint) line : 0;
+
+    StackFrame* frame = &state.frames[state.frame_count++];
+    frame.program_counter = cast(usize) program_counter;
+    frame.filename = copy_text(*state, resolved_filename);
+    frame.function_name = copy_text(*state, resolved_function_name);
+    frame.line = line > 0 ? cast(u32) line : 0;
     return 0;
 }
 
-private extern (C) void captureError(
+private extern (C) void capture_error(
     void* data,
     const(char)*,
     int,
-)
+) @system
 {
     CaptureState* state = cast(CaptureState*) data;
-    state.backendError = true;
+    state.backend_error = true;
 }
 
-private extern (C) int collectSimpleFrame(
+private extern (C) int collect_simple_frame(
     void* data,
-    size_t programCounter,
-)
+    uintptr_t program_counter,
+) @system
 {
     Dl_info information;
-    const found = dladdr(cast(const(void)*) programCounter, &information);
-    return collectFrame(
+    const found = dladdr(cast(const(void)*) program_counter, &information);
+    return collect_frame(
         data,
-        programCounter,
+        program_counter,
         found == 0 ? null : information.dli_fname,
         0,
         found == 0 ? null : information.dli_sname,
     );
 }
 
-private void collectExecInfo(ref CaptureState state, uint skipFrames)
+private void collect_exec_info(ref CaptureState state, u32 skip_frames) @system
 {
     void*[128] addresses;
-    const count = backtrace(addresses.ptr, cast(int) addresses.length);
-    size_t begin = cast(size_t) skipFrames;
-    if (begin > cast(size_t) count)
-        begin = cast(size_t) count;
-    foreach (index; begin .. cast(size_t) count)
-        if (collectSimpleFrame(&state, cast(size_t) addresses[index]) != 0)
-            break;
+    const count = backtrace(addresses.ptr, cast(i32) addresses.length);
+    usize begin = cast(usize) skip_frames;
+    if (begin > cast(usize) count) begin = cast(usize) count;
+
+    foreach (index; begin .. cast(usize) count)
+    {
+        const collect_result = collect_simple_frame(
+            &state,
+            cast(uintptr_t) addresses[index],
+        );
+        if (collect_result != 0) break;
+    }
 }
 
 StackTrace capture(
     ref StackTraceBackendContext context,
-    return scope StackFrame[] frameStorage,
-    return scope char[] textStorage,
-    uint skipFrames,
-)
+    return scope StackFrame[] frame_storage,
+    return scope char[] text_storage,
+    u32 skip_frames,
+) @system
 {
     StackTrace result;
     CaptureState state;
-    state.frames = frameStorage;
-    state.text = textStorage;
-    const skip = skipFrames >= int.max - 1
-        ? int.max : cast(int) skipFrames + 1;
-    if (context.state_ !is null)
+    state.frames = frame_storage;
+    state.text = text_storage;
+
+    const skip = skip_frames >= i32.max - 1
+        ? i32.max
+        : cast(i32) skip_frames + 1;
+    if (context.state !is null)
     {
-        const fullResult = backtrace_full(
-            context.state_,
+        const full_result = backtrace_full(
+            context.state,
             skip,
-            &collectFrame,
-            &captureError,
+            &collect_frame,
+            &capture_error,
             &state,
         );
-        cast(void) fullResult;
-        if (state.frameCount == 0 && state.backendError)
+        cast(void) full_result;
+
+        if (state.frame_count == 0 && state.backend_error)
         {
-            state.backendError = false;
-            state.textWritten = 0;
-            state.textRequired = 0;
-            state.textTruncated = false;
-            const simpleResult = backtrace_simple(
-                context.state_,
+            state.backend_error = false;
+            state.text_written = 0;
+            state.text_required = 0;
+            state.text_truncated = false;
+
+            const simple_result = backtrace_simple(
+                context.state,
                 skip,
-                &collectSimpleFrame,
-                &captureError,
+                &collect_simple_frame,
+                &capture_error,
                 &state,
             );
-            cast(void) simpleResult;
+            cast(void) simple_result;
         }
     }
-    if (state.frameCount == 0)
+
+    if (state.frame_count == 0)
     {
-        state.backendError = false;
-        collectExecInfo(state, skipFrames);
-        if (state.frameCount == 0)
-            state.backendError = true;
+        state.backend_error = false;
+        collect_exec_info(state, skip_frames);
+        if (state.frame_count == 0) state.backend_error = true;
     }
-    result.frames = frameStorage[0 .. state.frameCount];
-    result.frames_truncated = state.framesTruncated;
-    result.text_truncated = state.textTruncated;
-    result.backend_error = state.backendError;
-    result.text_bytes_required = state.textRequired;
+
+    result.frames = frame_storage[0 .. state.frame_count];
+    result.frames_truncated = state.frames_truncated;
+    result.text_truncated = state.text_truncated;
+    result.backend_error = state.backend_error;
+    result.text_bytes_required = state.text_required;
     return result;
 }
 
-version (unittest) unittest
+version (unittest)
 {
-    import core.stdc.stdlib : malloc;
+    import core.stdc.stdlib;
+}
 
+unittest
+{
     CaptureState state;
     StackFrame[1] frames;
     char[3] text;
     state.frames = frames[];
     state.text = text[];
-    assert(collectFrame(&state, 1, "file.d".ptr, 7, "function".ptr) == 0);
-    assert(state.frameCount == 1);
-    assert(state.textTruncated);
-    assert(state.textRequired == "file.d".length + "function".length);
+
+    assert(collect_frame(&state, 1, "file.d".ptr, 7, "function".ptr) == 0);
+    assert(state.frame_count == 1);
+    assert(state.text_truncated);
+    assert(state.text_required == "file.d".length + "function".length);
     assert(frames[0].filename.length == 0);
     assert(frames[0].function_name.length == 0);
 
-    assert(collectFrame(&state, 2, null, 0, null) == 1);
-    assert(state.framesTruncated);
+    assert(collect_frame(&state, 2, null, 0, null) == 1);
+    assert(state.frames_truncated);
 
-    CaptureState fallbackState;
-    StackFrame[1] fallbackFrames;
-    char[512] fallbackText;
-    fallbackState.frames = fallbackFrames[];
-    fallbackState.text = fallbackText[];
-    assert(collectFrame(
-            &fallbackState,
-            cast(size_t)&malloc,
-            null,
-            0,
-            null,
+    CaptureState fallback_state;
+    StackFrame[1] fallback_frames;
+    char[512] fallback_text;
+    fallback_state.frames = fallback_frames[];
+    fallback_state.text = fallback_text[];
+
+    assert(collect_frame(
+        &fallback_state,
+        cast(uintptr_t) &malloc,
+        null,
+        0,
+        null,
     ) == 0);
-    assert(fallbackFrames[0].function_name.length != 0);
+    assert(fallback_frames[0].function_name.length != 0);
 }
