@@ -190,10 +190,7 @@ private void collect_exec_info(ref CaptureState state, u32 skip_frames) @system
 
     foreach (index; begin .. cast(usize) count)
     {
-        const i32 collect_result = collect_simple_frame(
-            &state,
-            cast(uintptr_t) addresses[index],
-        );
+        const i32 collect_result = collect_simple_frame(&state, cast(uintptr_t) addresses[index]);
         if (collect_result != 0) break;
     }
 }
@@ -210,18 +207,10 @@ StackTrace capture(
     state.frames = frame_storage;
     state.text = text_storage;
 
-    const i32 skip = skip_frames >= i32.max - 1
-        ? i32.max
-        : cast(i32) skip_frames + 1;
+    const i32 skip = skip_frames >= i32.max - 1 ? i32.max : cast(i32) skip_frames + 1;
     if (context.state !is null)
     {
-        cast(void) backtrace_full(
-            context.state,
-            skip,
-            &collect_frame,
-            &capture_error,
-            &state,
-        );
+        cast(void) backtrace_full(context.state, skip, &collect_frame, &capture_error, &state);
 
         if (state.frame_count == 0 && state.backend_error)
         {
@@ -287,12 +276,6 @@ unittest
     state.frames = frames[];
     state.text = text[];
 
-    assert(collect_frame(
-        &state,
-        cast(uintptr_t) &malloc,
-        null,
-        0,
-        null,
-    ) == 0);
+    assert(collect_frame(&state, cast(uintptr_t) &malloc, null, 0, null) == 0);
     assert(frames[0].function_name.length != 0);
 }
