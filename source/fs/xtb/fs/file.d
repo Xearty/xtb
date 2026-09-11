@@ -279,7 +279,7 @@ OsError read_entire_file(scope const Path path, scope Array!u8* output) @system
     File file;
     scope (exit) file.deinit();
 
-    OsError error = open(path, OpenOptions.init, &file);
+    const OsError error = open(path, OpenOptions.init, &file);
     if (error.failed) return error;
 
     FileMetadata information;
@@ -322,7 +322,7 @@ OsError write_entire_file(
     File file;
     scope (exit) file.deinit();
 
-    OsError error = open(path, options, &file);
+    const OsError error = open(path, options, &file);
     if (error.failed) return error;
 
     const result = file.write_all(input);
@@ -341,7 +341,7 @@ OsError copy_file(
     CreateMode create_mode = CreateMode.open_or_create,
 ) @system
 {
-    OsError error = read_entire_file(source, buffer);
+    const OsError error = read_entire_file(source, buffer);
     if (error.failed) return error;
     return write_entire_file(destination, buffer.slice, create_mode);
 }
