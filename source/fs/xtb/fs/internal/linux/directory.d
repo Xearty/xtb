@@ -217,3 +217,17 @@ package(xtb.fs) OsError canonicalPath(String path, ref StringBuf output) @system
     free(resolved);
     return OsError.init;
 }
+
+// Temporary compatibility aliases for the migrated unsupported backend interface.
+package(xtb.fs) alias directory_valid = directoryValid;
+package(xtb.fs) alias close_directory = closeDirectory;
+package(xtb.fs) alias open_directory = openDirectory;
+package(xtb.fs) alias next_directory = nextDirectory;
+package(xtb.fs) alias create_directory = createDirectory;
+package(xtb.fs) alias remove_empty_directory = removeEmptyDirectory;
+package(xtb.fs) alias remove_file = removeFile;
+package(xtb.fs) alias rename_path = renamePath;
+package(xtb.fs) alias current_directory = currentDirectory;
+package(xtb.fs) alias executable_path = executablePath;
+package(xtb.fs) alias query_access = queryAccess;
+package(xtb.fs) alias canonical_path = canonicalPath;

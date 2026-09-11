@@ -66,7 +66,7 @@ nothrow @nogc:
 
     bool valid() const pure @safe
     {
-        return backend.directoryValid(directory_);
+        return backend.directory_valid(directory_);
     }
 }
 
@@ -74,7 +74,7 @@ OsError close(DirectoryIterator* iterator) @system
 {
     version (XTB_Checked)
         require(iterator !is null, "DirectoryIterator pointer is null");
-    return backend.closeDirectory(&iterator.directory_);
+    return backend.close_directory(&iterator.directory_);
 }
 
 OsError openDirectory(Path path, DirectoryIterator* output) @system
@@ -84,7 +84,7 @@ OsError openDirectory(Path path, DirectoryIterator* output) @system
     const cleanupError = close(output);
     if (cleanupError.failed)
         return cleanupError;
-    return backend.openDirectory(path.view, &output.directory_);
+    return backend.open_directory(path.view, &output.directory_);
 }
 
 DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) @system
@@ -96,7 +96,7 @@ DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) @syste
     }
     *output = DirectoryEntry.init;
     NativeDirectoryEntry native;
-    const result = backend.nextDirectory(iterator.directory_, &native);
+    const result = backend.next_directory(iterator.directory_, &native);
     final switch (result.status)
     {
         case NativeDirectoryStatus.entry:
@@ -136,34 +136,34 @@ private FileType fromNative(NativeFileType type) pure @safe
 OsError createDirectory(Path path, uint permissions = 0x1C0)  // POSIX 0700
 @system
 {
-    return backend.createDirectory(path.view, permissions);
+    return backend.create_directory(path.view, permissions);
 }
 
 OsError removeEmptyDirectory(Path path) @system
 {
-    return backend.removeEmptyDirectory(path.view);
+    return backend.remove_empty_directory(path.view);
 }
 
 OsError removeFile(Path path) @system
 {
-    return backend.removeFile(path.view);
+    return backend.remove_file(path.view);
 }
 
 OsError rename(Path source, Path destination) @system
 {
-    return backend.renamePath(source.view, destination.view);
+    return backend.rename_path(source.view, destination.view);
 }
 
 OsError currentDirectory(ref StringBuf output) @system
 {
     output.clear();
-    return backend.currentDirectory(output);
+    return backend.current_directory(output);
 }
 
 OsError executablePath(ref StringBuf output) @system
 {
     output.clear();
-    return backend.executablePath(output);
+    return backend.executable_path(output);
 }
 
 OsError queryAccess(Path path, Access requested, bool* output) @system
@@ -171,13 +171,13 @@ OsError queryAccess(Path path, Access requested, bool* output) @system
     version (XTB_Checked)
         require(output !is null, "access output pointer is null");
     *output = false;
-    return backend.queryAccess(path.view, cast(ubyte) requested, output);
+    return backend.query_access(path.view, cast(ubyte) requested, output);
 }
 
 OsError canonicalPath(Path path, ref StringBuf output) @system
 {
     output.clear();
-    return backend.canonicalPath(path.view, output);
+    return backend.canonical_path(path.view, output);
 }
 
 OsError walkDirectory(Path root, Allocator* temporaryAllocator,

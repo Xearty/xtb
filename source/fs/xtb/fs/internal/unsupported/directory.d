@@ -2,72 +2,71 @@ module xtb.fs.internal.unsupported.directory;
 
 nothrow @nogc:
 
-import xtb.os.error : OsError, unsupported;
-import xtb.string : StringBuf;
-import xtb.types : String;
-import xtb.fs.internal.directory : NativeDirectoryEntry, NativeDirectoryResult,
-    NativeDirectoryStatus;
+import xtb.fs.internal.directory;
+import xtb.os.error;
+import xtb.string;
+import xtb.types;
 
-package(xtb.fs) bool directoryValid(const(void)*) pure @safe
+package(xtb.fs) bool directory_valid(scope const(void)*) pure @safe
 {
     return false;
 }
 
-package(xtb.fs) OsError closeDirectory(void** directory) pure @safe
+package(xtb.fs) OsError close_directory(scope void** directory) pure @safe
 {
     *directory = null;
     return OsError.init;
 }
 
-package(xtb.fs) OsError openDirectory(String, void**) pure @safe
+package(xtb.fs) OsError open_directory(scope String, scope void**) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) NativeDirectoryResult nextDirectory(
-    void*,
-    NativeDirectoryEntry*,
+package(xtb.fs) NativeDirectoryResult next_directory(
+    scope void*,
+    scope NativeDirectoryEntry*,
 ) pure @safe
 {
     return NativeDirectoryResult(NativeDirectoryStatus.failed, unsupported());
 }
 
-package(xtb.fs) OsError createDirectory(String, uint) pure @safe
+package(xtb.fs) OsError create_directory(scope String, u32) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError removeEmptyDirectory(String) pure @safe
+package(xtb.fs) OsError remove_empty_directory(scope String) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError removeFile(String) pure @safe
+package(xtb.fs) OsError remove_file(scope String) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError renamePath(String, String) pure @safe
+package(xtb.fs) OsError rename_path(scope String, scope String) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError currentDirectory(ref StringBuf) pure @safe
+package(xtb.fs) OsError current_directory(ref StringBuf) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError executablePath(ref StringBuf) pure @safe
+package(xtb.fs) OsError executable_path(ref StringBuf) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError queryAccess(String, ubyte, bool*) pure @safe
+package(xtb.fs) OsError query_access(scope String, u8, scope bool*) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError canonicalPath(String, ref StringBuf) pure @safe
+package(xtb.fs) OsError canonical_path(scope String, ref StringBuf) pure @safe
 {
     return unsupported();
 }
