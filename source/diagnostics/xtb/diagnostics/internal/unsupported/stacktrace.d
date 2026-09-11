@@ -14,10 +14,7 @@ struct StackTraceBackendContext
         return false;
     }
 
-    static StackTraceBackendContext create(
-        return scope const(char)*,
-        bool,
-    ) pure @safe
+    static StackTraceBackendContext create(return scope const(char)*, bool) pure @safe
     {
         return StackTraceBackendContext.init;
     }
