@@ -76,17 +76,8 @@ void restore_crash_signals()
 
 private void restore_installed_signals(usize count)
 {
-    static foreach (reverse_index; 0 .. handled_signals.length)
-    {
-        if (count > handled_signals.length - reverse_index - 1)
-        {
-            cast(void) sigaction(
-                handled_signals[handled_signals.length - reverse_index - 1],
-                &previous_signals[handled_signals.length - reverse_index - 1],
-                null,
-            );
-        }
-    }
+    foreach_reverse (index; 0 .. count)
+        cast(void) sigaction(handled_signals[index], &previous_signals[index], null);
 }
 
 private String signal_name(i32 signal) pure @safe
