@@ -17,6 +17,7 @@ visibility or ownership in punctuation.
 |---|---|---|
 | Types | `PascalCase` with uppercase acronyms | `WindowConfig`, `OpenGLConfig` |
 | Aliases | Follow what the alias represents | `OpenGLProc`, `create_window` |
+| Module import aliases | `snake_case` | `crash_backend` |
 | Functions and methods | `snake_case` | `make_context_current` |
 | Variables and parameters | `snake_case` | `window_config` |
 | Struct fields | `snake_case` | `context_version` |
@@ -33,7 +34,12 @@ In `snake_case` names, lowercase acronyms like ordinary words, such as
 
 An alias follows the convention of the declaration it represents. A type or
 callable-type alias uses `PascalCase`; a function or value alias uses
-`snake_case`.
+`snake_case`. A renamed whole-module import is a module alias, not a type alias,
+and therefore uses `snake_case`:
+
+```d
+import crash_backend = xtb.diagnostics.internal.linux.crash;
+```
 
 Use `snake_case` for functions and methods. Preserve spelling required by a D
 language hook, such as `opIndex` or `opAssign`.
