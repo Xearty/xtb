@@ -2,30 +2,29 @@ module xtb.fs.file;
 
 nothrow @nogc:
 
+import core.attribute;
+
 import xtb.containers.array;
-
-version (XTB_Checked) import xtb.panic : require;
-import xtb.string;
-import xtb.types : i64, u16, u32, u64, u8;
-import xtb.os.error : OsError, OsErrorKind;
-import xtb.os.handle : NativeHandle;
-import xtb.fs.path : Path;
-
-import xtb.fs.internal.file : NativeFileMetadata, NativeFileType;
+import xtb.fs.internal.file;
+import xtb.fs.path;
+import xtb.os.error;
+import xtb.os.handle;
+import xtb.panic;
+import xtb.types;
 
 version (linux)
     private import backend = xtb.fs.internal.linux.file;
 else
     private import backend = xtb.fs.internal.unsupported.file;
 
-enum FileType : ubyte
+enum FileType
 {
     unknown,
     regular,
     directory,
-    symbolicLink,
-    characterDevice,
-    blockDevice,
+    symbolic_link,
+    character_device,
+    block_device,
     fifo,
     socket,
 }
@@ -34,20 +33,20 @@ struct FileMetadata
 {
     FileType type;
     u64 size;
-    i64 modifiedNanoseconds;
+    i64 modified_nanoseconds;
     u32 permissions;
 }
 
-enum CreateMode : ubyte
+enum CreateMode
 {
-    openExisting,
-    openOrCreate,
-    createNew,
+    open_existing,
+    open_or_create,
+    create_new,
 }
 
-enum SymlinkMode : ubyte
+enum SymlinkMode
 {
-    noFollow,
+    no_follow,
     follow,
 }
 
@@ -55,197 +54,188 @@ struct OpenOptions
 {
     bool read = true;
     bool write;
-    CreateMode createMode;
+    CreateMode create_mode;
     bool truncate;
     bool append;
-    bool closeOnExec = true;
+    bool close_on_exec = true;
     u16 permissions = 0x180; // POSIX 0600
 }
 
-struct IoResult
+@mustuse struct IOResult
 {
 nothrow @nogc:
 
     OsError error;
-    size_t transferred;
+    usize transferred;
 
-    bool complete(size_t requested) const pure @safe
+    bool complete(usize requested) const pure @safe
     {
-        return error.succeeded && transferred == requested;
+        return this.error.succeeded && this.transferred == requested;
     }
 }
 
-struct File
+/// Owns an open native file handle.
+@mustuse struct File
 {
 nothrow @nogc:
 
-    private NativeHandle handle_;
+    /// Owned native handle. `NativeHandle.init` represents a closed file.
+    /// A valid handle has single ownership and must be closed before replacement.
+    NativeHandle handle;
 
     @disable this(this);
     @disable ref File opAssign(File source) return;
 
     /// Closes this file if it is open and reports any native close error.
-    OsError close() @system
+    OsError close() @safe
     {
-        if (!valid)
-            return OsError.init;
-        const handle = handle_;
-        handle_ = NativeHandle.init;
+        if (!this.valid) return OsError.init;
+
+        const handle = this.handle;
+        this.handle = NativeHandle.init;
         return backend.close_handle(handle);
     }
 
     /// Explicitly ends this file's lifetime.
     ///
     /// Close errors are discarded; call `close` directly when they matter.
-    void deinit() @system
+    void deinit() @safe
     {
-        cast(void) close();
+        cast(void) this.close();
     }
 
     bool valid() const pure @safe
     {
-        return handle_.valid;
+        return this.handle.valid;
     }
 
-    package(xtb) NativeHandle nativeHandle() const pure @safe
+    OsError flush() @safe
     {
-        return handle_;
+        require(this.valid, "invalid File for flush");
+        return backend.flush_handle(this.handle);
+    }
+
+    IOResult read_some(scope u8[] output) @safe
+    {
+        require(this.valid, "invalid File for read");
+        const result = backend.read_some(this.handle, output);
+        return IOResult(result.error, result.transferred);
+    }
+
+    IOResult write_some(scope const(u8)[] input) @safe
+    {
+        require(this.valid, "invalid File for write");
+        const result = backend.write_some(this.handle, input);
+        return IOResult(result.error, result.transferred);
+    }
+
+    IOResult read_all(scope u8[] output) @safe
+    {
+        usize total;
+        while (total < output.length)
+        {
+            const result = this.read_some(output[total .. $]);
+            total += result.transferred;
+            if (result.error.failed || result.transferred == 0)
+                return IOResult(result.error, total);
+        }
+        return IOResult(OsError.init, total);
+    }
+
+    IOResult write_all(scope const(u8)[] input) @safe
+    {
+        usize total;
+        while (total < input.length)
+        {
+            const result = this.write_some(input[total .. $]);
+            total += result.transferred;
+            if (result.error.failed || result.transferred == 0)
+                return IOResult(result.error, total);
+        }
+        return IOResult(OsError.init, total);
+    }
+
+    /// Reads metadata for this open file into `output`.
+    ///
+    /// `output` must not be null. On failure, it is left as `FileMetadata.init`.
+    OsError metadata(scope FileMetadata* output) @system
+    {
+        require(output !is null, "FileMetadata output pointer is null");
+        require(this.valid, "invalid File for metadata");
+        *output = FileMetadata.init;
+
+        NativeFileMetadata native;
+        const error = backend.handle_metadata(this.handle, &native);
+        if (error.failed) return error;
+
+        *output = from_native(native);
+        return OsError.init;
     }
 }
 
-OsError close(File* file) @system
+/// Opens `path` into `output` using `options`.
+///
+/// `output` must not be null. Any file already owned by `output` is closed first.
+/// On failure, `output` is left as `File.init`.
+OsError open(scope const Path path, OpenOptions options, scope File* output) @system
 {
-    version (XTB_Checked)
-        require(file !is null, "File pointer is null");
-    return file.close();
-}
+    require(output !is null, "File output pointer is null");
+    const cleanup_error = output.close();
+    if (cleanup_error.failed) return cleanup_error;
+    if (!valid_open_options(options)) return OsError(OsErrorKind.invalidArgument, 0);
 
-OsError flush(File* file) @system
-{
-    version (XTB_Checked)
-        require(file !is null && file.valid, "invalid File for flush");
-    return backend.flush_handle(file.handle_);
-}
-
-OsError open(Path path, OpenOptions options, File* output) @system
-{
-    version (XTB_Checked)
-        require(output !is null, "File output pointer is null");
-    const cleanupError = close(output);
-    if (cleanupError.failed)
-        return cleanupError;
-    if (!valid(options))
-        return OsError(OsErrorKind.invalidArgument, 0);
     NativeHandle handle;
     const error = backend.open_file(
         path.view,
         options.read,
         options.write,
-        cast(ubyte) options.createMode,
+        cast(u8) options.create_mode,
         options.truncate,
         options.append,
-        options.closeOnExec,
+        options.close_on_exec,
         options.permissions,
         &handle,
     );
-    if (error.failed)
-        return error;
-    output.handle_ = handle;
+    if (error.failed) return error;
+
+    output.handle = handle;
     return OsError.init;
 }
 
-private bool valid(OpenOptions options) pure @safe
+private bool valid_open_options(OpenOptions options) pure @safe
 {
-    if (cast(ubyte) options.createMode > cast(ubyte) CreateMode.createNew)
+    if (
+        options.create_mode < CreateMode.open_existing ||
+        options.create_mode > CreateMode.create_new
+    )
+    {
         return false;
-    if (!options.read && !options.write)
-        return false;
-    if ((options.truncate || options.append) && !options.write)
-        return false;
-    if (options.truncate && options.append)
-        return false;
+    }
+    if (!options.read && !options.write) return false;
+    if ((options.truncate || options.append) && !options.write) return false;
+    if (options.truncate && options.append) return false;
     return true;
 }
 
-IoResult readSome(File* file, u8[] output) @system
+/// Reads metadata for `path` into `output`.
+///
+/// `output` must not be null. On failure, it is left as `FileMetadata.init`.
+OsError metadata(scope const Path path, SymlinkMode symlinks, scope FileMetadata* output) @system
 {
-    version (XTB_Checked)
-        require(file !is null && file.valid, "invalid File for read");
-    const result = backend.read_some(file.handle_, output);
-    return IoResult(result.error, result.transferred);
-}
-
-IoResult writeSome(File* file, scope const(u8)[] input) @system
-{
-    version (XTB_Checked)
-        require(file !is null && file.valid, "invalid File for write");
-    const result = backend.write_some(file.handle_, input);
-    return IoResult(result.error, result.transferred);
-}
-
-IoResult readAll(File* file, u8[] output) @system
-{
-    size_t total;
-    while (total < output.length)
-    {
-        const result = file.readSome(output[total .. $]);
-        total += result.transferred;
-        if (result.error.failed || result.transferred == 0)
-            return IoResult(result.error, total);
-    }
-    return IoResult(OsError.init, total);
-}
-
-IoResult writeAll(File* file, scope const(u8)[] input) @system
-{
-    size_t total;
-    while (total < input.length)
-    {
-        const result = file.writeSome(input[total .. $]);
-        total += result.transferred;
-        if (result.error.failed || result.transferred == 0)
-            return IoResult(result.error, total);
-    }
-    return IoResult(OsError.init, total);
-}
-
-OsError metadata(File* file, FileMetadata* output) @system
-{
-    version (XTB_Checked)
-    {
-        require(file !is null && file.valid, "invalid File for metadata");
-        require(output !is null, "FileMetadata output pointer is null");
-    }
+    require(output !is null, "FileMetadata output pointer is null");
     *output = FileMetadata.init;
-    NativeFileMetadata native;
-    const error = backend.handle_metadata(file.handle_, &native);
-    if (error.failed)
-        return error;
-    *output = fromNative(native);
-    return OsError.init;
-}
-
-OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) @system
-{
-    version (XTB_Checked)
-        require(output !is null, "FileMetadata output pointer is null");
-    *output = FileMetadata.init;
-    if (cast(ubyte) symlinks > cast(ubyte) SymlinkMode.follow)
+    if (symlinks < SymlinkMode.no_follow || symlinks > SymlinkMode.follow)
         return OsError(OsErrorKind.invalidArgument, 0);
 
     NativeFileMetadata native;
-    const error = backend.path_metadata(
-        path.view,
-        symlinks == SymlinkMode.follow,
-        &native,
-    );
-    if (error.failed)
-        return error;
-    *output = fromNative(native);
+    const error = backend.path_metadata(path.view, symlinks == SymlinkMode.follow, &native);
+    if (error.failed) return error;
+
+    *output = from_native(native);
     return OsError.init;
 }
 
-private FileMetadata fromNative(NativeFileMetadata native) pure @safe
+private FileMetadata from_native(NativeFileMetadata native) pure @safe
 {
     FileType type;
     final switch (native.type)
@@ -260,13 +250,13 @@ private FileMetadata fromNative(NativeFileMetadata native) pure @safe
             type = FileType.directory;
             break;
         case NativeFileType.symbolic_link:
-            type = FileType.symbolicLink;
+            type = FileType.symbolic_link;
             break;
         case NativeFileType.character_device:
-            type = FileType.characterDevice;
+            type = FileType.character_device;
             break;
         case NativeFileType.block_device:
-            type = FileType.blockDevice;
+            type = FileType.block_device;
             break;
         case NativeFileType.fifo:
             type = FileType.fifo;
@@ -275,42 +265,40 @@ private FileMetadata fromNative(NativeFileMetadata native) pure @safe
             type = FileType.socket;
             break;
     }
-    return FileMetadata(
-        type,
-        native.size,
-        native.modified_nanoseconds,
-        native.permissions,
-    );
+    return FileMetadata(type, native.size, native.modified_nanoseconds, native.permissions);
 }
 
-OsError readEntireFile(Path path, ref Array!u8 output) @system
+/// Reads the complete file at `path` into `output`.
+///
+/// `output` must not be null. It is cleared before reading and is empty on failure.
+OsError read_entire_file(scope const Path path, scope Array!u8* output) @system
 {
+    require(output !is null, "Array output pointer is null");
     output.clear();
+
     File file;
-    scope (exit)
-        file.deinit();
+    scope (exit) file.deinit();
+
     OsError error = open(path, OpenOptions.init, &file);
-    if (error.failed)
-        return error;
+    if (error.failed) return error;
+
     FileMetadata information;
-    if ((&file).metadata(&information).succeeded && information.size != 0)
+    if (file.metadata(&information).succeeded && information.size != 0)
     {
-        if (information.size > size_t.max ||
-            !output.try_reserve(cast(size_t) information.size))
+        if (information.size > usize.max || !output.try_reserve(cast(usize) information.size))
             return OsError(OsErrorKind.system, 0);
     }
 
     u8[64 * 1024] chunk;
     for (;;)
     {
-        const result = (&file).readSome(chunk[]);
+        const result = file.read_some(chunk[]);
         if (result.error.failed)
         {
             output.clear();
             return result.error;
         }
-        if (result.transferred == 0)
-            return OsError.init;
+        if (result.transferred == 0) return OsError.init;
         if (!output.try_append(chunk[0 .. result.transferred]))
         {
             output.clear();
@@ -319,38 +307,41 @@ OsError readEntireFile(Path path, ref Array!u8 output) @system
     }
 }
 
-OsError writeEntireFile(
-    Path path,
+OsError write_entire_file(
+    scope const Path path,
     scope const(u8)[] input,
-    CreateMode createMode = CreateMode.openOrCreate,
+    CreateMode create_mode = CreateMode.open_or_create,
 ) @system
 {
     OpenOptions options;
     options.read = false;
     options.write = true;
-    options.createMode = createMode;
+    options.create_mode = create_mode;
     options.truncate = true;
+
     File file;
-    scope (exit)
-        file.deinit();
+    scope (exit) file.deinit();
+
     OsError error = open(path, options, &file);
-    if (error.failed)
-        return error;
-    const result = (&file).writeAll(input);
-    return result.complete(input.length) ? OsError.init : result.error.failed
-        ? result.error
-        : OsError(OsErrorKind.system, 0);
+    if (error.failed) return error;
+
+    const result = file.write_all(input);
+    if (result.complete(input.length)) return OsError.init;
+    if (result.error.failed) return result.error;
+    return OsError(OsErrorKind.system, 0);
 }
 
-OsError copyFile(
-    Path source,
-    Path destination,
-    ref Array!u8 buffer,
-    CreateMode createMode = CreateMode.openOrCreate,
+/// Copies `source` to `destination` using `buffer` as temporary storage.
+///
+/// `buffer` must not be null.
+OsError copy_file(
+    scope const Path source,
+    scope const Path destination,
+    scope Array!u8* buffer,
+    CreateMode create_mode = CreateMode.open_or_create,
 ) @system
 {
-    OsError error = readEntireFile(source, buffer);
-    if (error.failed)
-        return error;
-    return writeEntireFile(destination, buffer.slice, createMode);
+    OsError error = read_entire_file(source, buffer);
+    if (error.failed) return error;
+    return write_entire_file(destination, buffer.slice, create_mode);
 }

@@ -79,7 +79,7 @@ OsError mapReadOnly(Path path, MappedFile* output) @system
         file.deinit();
 
     FileMetadata information;
-    const metadataError = metadata(&file, &information);
+    const metadataError = file.metadata(&information);
     if (metadataError.failed)
         return metadataError;
     if (information.size > size_t.max)
@@ -89,7 +89,7 @@ OsError mapReadOnly(Path path, MappedFile* output) @system
 
     void* address;
     const mappingError = osMapReadOnly(
-        file.nativeHandle,
+        file.handle,
         cast(size_t) information.size,
         &address,
     );

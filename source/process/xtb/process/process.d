@@ -797,7 +797,7 @@ private bool validErrorRoute(scope const(ErrorRoute) route) @system
 private NativeHandle routeHandle(scope const(InputRoute) route) @system
 {
     if (route.kind_ == RouteKind.file)
-        return (cast(File*) route.owner_).nativeHandle;
+        return (cast(File*) route.owner_).handle;
     if (route.kind_ == RouteKind.pipe)
         return (cast(PipeReader*) route.owner_).nativeHandle;
     return NativeHandle.init;
@@ -806,7 +806,7 @@ private NativeHandle routeHandle(scope const(InputRoute) route) @system
 private NativeHandle routeHandle(scope const(OutputRoute) route) @system
 {
     if (route.kind_ == RouteKind.file)
-        return (cast(File*) route.owner_).nativeHandle;
+        return (cast(File*) route.owner_).handle;
     if (route.kind_ == RouteKind.pipe)
         return (cast(PipeWriter*) route.owner_).nativeHandle;
     return NativeHandle.init;

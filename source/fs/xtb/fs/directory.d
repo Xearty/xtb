@@ -121,11 +121,11 @@ private FileType fromNative(NativeFileType type) pure @safe
         case NativeFileType.directory:
             return FileType.directory;
         case NativeFileType.symbolic_link:
-            return FileType.symbolicLink;
+            return FileType.symbolic_link;
         case NativeFileType.character_device:
-            return FileType.characterDevice;
+            return FileType.character_device;
         case NativeFileType.block_device:
-            return FileType.blockDevice;
+            return FileType.block_device;
         case NativeFileType.fifo:
             return FileType.fifo;
         case NativeFileType.socket:
@@ -221,7 +221,7 @@ private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor 
         if (type == FileType.unknown)
         {
             FileMetadata information;
-            error = metadata(path, SymlinkMode.noFollow, &information);
+            error = metadata(path, SymlinkMode.no_follow, &information);
             if (error.failed)
                 return error;
             type = information.type;

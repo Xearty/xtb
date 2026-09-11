@@ -887,13 +887,13 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     const firstPath = Path.from_string(first.view);
     const u8[6] contents = [0, 1, 2, 3, 0, 255];
     const helperDescriptorCount = openDescriptorCount();
-    assert(writeEntireFile(firstPath, contents[]).succeeded);
+    assert(write_entire_file(firstPath, contents[]).succeeded);
 
     File explicitFile;
     assert(open(firstPath, OpenOptions.init, &explicitFile).succeeded);
     assert(explicitFile.valid);
     assert(explicitFile.close().succeeded && !explicitFile.valid);
-    assert(close(&explicitFile).succeeded);
+    assert(explicitFile.close().succeeded);
     deinit(explicitFile);
     OpenOptions invalidOptions;
     invalidOptions.read = false;
@@ -906,7 +906,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     Array!u8 loaded = Array!u8.create(malloc_allocator());
     scope (exit)
         loaded.deinit();
-    assert(readEntireFile(firstPath, loaded).succeeded);
+    assert(read_entire_file(firstPath, &loaded).succeeded);
     assert(loaded.slice == contents[]);
     assert(openDescriptorCount() == helperDescriptorCount);
 
@@ -920,7 +920,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         );
         failing.fail_after(0);
         Array!u8 failedRead = Array!u8.create(failing.allocator);
-        assert(readEntireFile(firstPath, failedRead).kind == OsErrorKind.system);
+        assert(read_entire_file(firstPath, &failedRead).kind == OsErrorKind.system);
         assert(openDescriptorCount() == baseline);
         deinit(failedRead);
         assert(failing.clean);
@@ -1035,8 +1035,8 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     StringBuf second = StringBuf.from_string(malloc_allocator(), rootPath.view);
     second.append("/second.bin");
     const secondPath = Path.from_string(second.view);
-    assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).succeeded);
-    assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).kind ==
+    assert(copy_file(firstPath, secondPath, &loaded, CreateMode.create_new).succeeded);
+    assert(copy_file(firstPath, secondPath, &loaded, CreateMode.create_new).kind ==
             OsErrorKind.alreadyExists);
 
     StringBuf renamed = StringBuf.from_string(malloc_allocator(), rootPath.view);
@@ -1082,7 +1082,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     Array!u8 procStatus = Array!u8.create(malloc_allocator());
     scope (exit)
         procStatus.deinit();
-    assert(readEntireFile(Path.from_string("/proc/self/status"), procStatus).succeeded);
+    assert(read_entire_file(Path.from_string("/proc/self/status"), &procStatus).succeeded);
     assert(procStatus.length != 0);
 
     Arena* outputArena = scratch_arena();
