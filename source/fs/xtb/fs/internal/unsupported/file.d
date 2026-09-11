@@ -26,13 +26,13 @@ package(xtb.fs) OsError open_file(
     bool,
     bool,
     u16,
-    NativeHandle*,
+    scope NativeHandle*,
 ) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) NativeIOResult read_some(NativeHandle, u8[]) pure @safe
+package(xtb.fs) NativeIOResult read_some(NativeHandle, scope u8[]) pure @safe
 {
     return NativeIOResult(unsupported(), 0);
 }
@@ -42,12 +42,12 @@ package(xtb.fs) NativeIOResult write_some(NativeHandle, scope const(u8)[]) pure 
     return NativeIOResult(unsupported(), 0);
 }
 
-package(xtb.fs) OsError handle_metadata(NativeHandle, NativeFileMetadata*) pure @safe
+package(xtb.fs) OsError handle_metadata(NativeHandle, scope NativeFileMetadata*) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError path_metadata(scope String, bool, NativeFileMetadata*) pure @safe
+package(xtb.fs) OsError path_metadata(scope String, bool, scope NativeFileMetadata*) pure @safe
 {
     return unsupported();
 }
