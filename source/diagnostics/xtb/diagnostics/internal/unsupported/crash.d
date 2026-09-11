@@ -11,6 +11,4 @@ bool install_crash_signals(bool, scope const StackTraceColors*, sig_atomic_t*) p
     return true;
 }
 
-void restore_crash_signals() pure @safe
-{
-}
+void restore_crash_signals() pure @safe {}
