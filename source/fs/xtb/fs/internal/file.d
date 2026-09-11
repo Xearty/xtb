@@ -5,7 +5,7 @@ nothrow @nogc:
 import xtb.os.error;
 import xtb.types;
 
-enum NativeFileType : u8
+package(xtb.fs) enum NativeFileType : u8
 {
     unknown,
     regular,
@@ -17,7 +17,7 @@ enum NativeFileType : u8
     socket,
 }
 
-struct NativeFileMetadata
+package(xtb.fs) struct NativeFileMetadata
 {
     NativeFileType type;
     u64 size;
@@ -25,7 +25,7 @@ struct NativeFileMetadata
     u32 permissions;
 }
 
-struct NativeIOResult
+package(xtb.fs) struct NativeIOResult
 {
     OsError error;
     usize transferred;
