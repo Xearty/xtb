@@ -259,13 +259,13 @@ private FileMetadata fromNative(NativeFileMetadata native) pure @safe
         case NativeFileType.directory:
             type = FileType.directory;
             break;
-        case NativeFileType.symbolicLink:
+        case NativeFileType.symbolic_link:
             type = FileType.symbolicLink;
             break;
-        case NativeFileType.characterDevice:
+        case NativeFileType.character_device:
             type = FileType.characterDevice;
             break;
-        case NativeFileType.blockDevice:
+        case NativeFileType.block_device:
             type = FileType.blockDevice;
             break;
         case NativeFileType.fifo:
@@ -278,7 +278,7 @@ private FileMetadata fromNative(NativeFileMetadata native) pure @safe
     return FileMetadata(
         type,
         native.size,
-        native.modifiedNanoseconds,
+        native.modified_nanoseconds,
         native.permissions,
     );
 }

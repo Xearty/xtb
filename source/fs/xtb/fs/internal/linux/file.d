@@ -15,7 +15,7 @@ import xtb.string : StringBuf;
 import xtb.types : String;
 import xtb.thread_context : ScratchScope;
 import xtb.types : i64, u32, u64, u8;
-import xtb.fs.internal.file : NativeFileMetadata, NativeFileType, NativeIoResult;
+import xtb.fs.internal.file : NativeFileMetadata, NativeFileType, NativeIOResult;
 
 package(xtb.fs) OsError closeHandle(NativeHandle handle) @system
 {
@@ -59,7 +59,7 @@ package(xtb.fs) OsError openFile(
     return OsError.init;
 }
 
-package(xtb.fs) NativeIoResult readSome(
+package(xtb.fs) NativeIOResult readSome(
     NativeHandle handle,
     u8[] output,
 ) @system
@@ -68,13 +68,13 @@ package(xtb.fs) NativeIoResult readSome(
     {
         const amount = read(toDescriptor(handle), output.ptr, output.length);
         if (amount >= 0)
-            return NativeIoResult(OsError.init, cast(size_t) amount);
+            return NativeIOResult(OsError.init, cast(size_t) amount);
         if (errno != EINTR)
-            return NativeIoResult(lastError(), 0);
+            return NativeIOResult(lastError(), 0);
     }
 }
 
-package(xtb.fs) NativeIoResult writeSome(
+package(xtb.fs) NativeIOResult writeSome(
     NativeHandle handle,
     scope const(u8)[] input,
 ) @system
@@ -83,9 +83,9 @@ package(xtb.fs) NativeIoResult writeSome(
     {
         const amount = write(toDescriptor(handle), input.ptr, input.length);
         if (amount >= 0)
-            return NativeIoResult(OsError.init, cast(size_t) amount);
+            return NativeIOResult(OsError.init, cast(size_t) amount);
         if (errno != EINTR)
-            return NativeIoResult(lastError(), 0);
+            return NativeIOResult(lastError(), 0);
     }
 }
 
@@ -143,13 +143,13 @@ private bool convert(
             type = NativeFileType.directory;
             break;
         case S_IFLNK:
-            type = NativeFileType.symbolicLink;
+            type = NativeFileType.symbolic_link;
             break;
         case S_IFCHR:
-            type = NativeFileType.characterDevice;
+            type = NativeFileType.character_device;
             break;
         case S_IFBLK:
-            type = NativeFileType.blockDevice;
+            type = NativeFileType.block_device;
             break;
         case S_IFIFO:
             type = NativeFileType.fifo;
@@ -207,5 +207,5 @@ pure @system unittest
     assert(convert(native, &result));
     assert(result.type == NativeFileType.regular);
     assert(result.size == 7);
-    assert(result.modifiedNanoseconds == -500_000_000);
+    assert(result.modified_nanoseconds == -500_000_000);
 }

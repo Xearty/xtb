@@ -79,11 +79,11 @@ private NativeFileType fromDirectoryType(ubyte value) pure @safe
         case DT_DIR:
             return NativeFileType.directory;
         case DT_LNK:
-            return NativeFileType.symbolicLink;
+            return NativeFileType.symbolic_link;
         case DT_CHR:
-            return NativeFileType.characterDevice;
+            return NativeFileType.character_device;
         case DT_BLK:
-            return NativeFileType.blockDevice;
+            return NativeFileType.block_device;
         case DT_FIFO:
             return NativeFileType.fifo;
         case DT_SOCK:

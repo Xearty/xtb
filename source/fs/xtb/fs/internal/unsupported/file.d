@@ -6,7 +6,7 @@ import xtb.os.error : OsError, unsupported;
 import xtb.os.handle : NativeHandle;
 import xtb.types : String;
 import xtb.types : u8;
-import xtb.fs.internal.file : NativeFileMetadata, NativeIoResult;
+import xtb.fs.internal.file : NativeFileMetadata, NativeIOResult;
 
 package(xtb.fs) OsError closeHandle(NativeHandle) pure @safe
 {
@@ -33,17 +33,17 @@ package(xtb.fs) OsError openFile(
     return unsupported();
 }
 
-package(xtb.fs) NativeIoResult readSome(NativeHandle, u8[]) pure @safe
+package(xtb.fs) NativeIOResult readSome(NativeHandle, u8[]) pure @safe
 {
-    return NativeIoResult(unsupported(), 0);
+    return NativeIOResult(unsupported(), 0);
 }
 
-package(xtb.fs) NativeIoResult writeSome(
+package(xtb.fs) NativeIOResult writeSome(
     NativeHandle,
     scope const(u8)[],
 ) pure @safe
 {
-    return NativeIoResult(unsupported(), 0);
+    return NativeIOResult(unsupported(), 0);
 }
 
 package(xtb.fs) OsError handleMetadata(

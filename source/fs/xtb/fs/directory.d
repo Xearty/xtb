@@ -120,11 +120,11 @@ private FileType fromNative(NativeFileType type) pure @safe
             return FileType.regular;
         case NativeFileType.directory:
             return FileType.directory;
-        case NativeFileType.symbolicLink:
+        case NativeFileType.symbolic_link:
             return FileType.symbolicLink;
-        case NativeFileType.characterDevice:
+        case NativeFileType.character_device:
             return FileType.characterDevice;
-        case NativeFileType.blockDevice:
+        case NativeFileType.block_device:
             return FileType.blockDevice;
         case NativeFileType.fifo:
             return FileType.fifo;

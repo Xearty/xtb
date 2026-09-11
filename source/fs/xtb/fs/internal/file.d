@@ -2,17 +2,17 @@ module xtb.fs.internal.file;
 
 nothrow @nogc:
 
-import xtb.os.error : OsError;
-import xtb.types : i64, u32, u64;
+import xtb.os.error;
+import xtb.types;
 
-enum NativeFileType : ubyte
+enum NativeFileType : u8
 {
     unknown,
     regular,
     directory,
-    symbolicLink,
-    characterDevice,
-    blockDevice,
+    symbolic_link,
+    character_device,
+    block_device,
     fifo,
     socket,
 }
@@ -21,12 +21,12 @@ struct NativeFileMetadata
 {
     NativeFileType type;
     u64 size;
-    i64 modifiedNanoseconds;
+    i64 modified_nanoseconds;
     u32 permissions;
 }
 
-struct NativeIoResult
+struct NativeIOResult
 {
     OsError error;
-    size_t transferred;
+    usize transferred;
 }
