@@ -61,13 +61,11 @@ struct StackTraceBackendContext
         return this.state !is null;
     }
 
-    /**
-     * Creates a backend context.
-     *
-     * `permanent_executable_path` may be null. When non-null, it must point to
-     * a null-terminated string whose storage remains valid for the lifetime of
-     * the returned context.
-     */
+    /// Creates a backend context.
+    ///
+    /// `permanent_executable_path` may be null. When non-null, it must point to
+    /// a null-terminated string whose storage remains valid for the lifetime of
+    /// the returned context.
     static StackTraceBackendContext create(
         return scope const(char)* permanent_executable_path,
         bool thread_safe,
@@ -102,7 +100,7 @@ private String copy_text(ref CaptureState state, scope const(char)* value) @syst
 {
     if (value is null) return null;
 
-    const length = strlen(value);
+    const usize length = strlen(value);
     if (length == 0) return null;
 
     if (length > usize.max - state.text_required)
@@ -164,23 +162,16 @@ private extern (C) int collect_frame(
     return 0;
 }
 
-private extern (C) void capture_error(
-    void* data,
-    const(char)*,
-    int,
-) @system
+private extern (C) void capture_error(void* data, const(char)*, int) @system
 {
     CaptureState* state = cast(CaptureState*) data;
     state.backend_error = true;
 }
 
-private extern (C) int collect_simple_frame(
-    void* data,
-    uintptr_t program_counter,
-) @system
+private extern (C) int collect_simple_frame(void* data, uintptr_t program_counter) @system
 {
     Dl_info information;
-    const found = dladdr(cast(const(void)*) program_counter, &information);
+    const i32 found = dladdr(cast(const(void)*) program_counter, &information);
     return collect_frame(
         data,
         program_counter,
@@ -193,13 +184,13 @@ private extern (C) int collect_simple_frame(
 private void collect_exec_info(ref CaptureState state, u32 skip_frames) @system
 {
     void*[128] addresses;
-    const count = backtrace(addresses.ptr, cast(i32) addresses.length);
+    const i32 count = backtrace(addresses.ptr, cast(i32) addresses.length);
     usize begin = cast(usize) skip_frames;
     if (begin > cast(usize) count) begin = cast(usize) count;
 
     foreach (index; begin .. cast(usize) count)
     {
-        const collect_result = collect_simple_frame(
+        const i32 collect_result = collect_simple_frame(
             &state,
             cast(uintptr_t) addresses[index],
         );
@@ -219,7 +210,7 @@ StackTrace capture(
     state.frames = frame_storage;
     state.text = text_storage;
 
-    const skip = skip_frames >= i32.max - 1
+    const i32 skip = skip_frames >= i32.max - 1
         ? i32.max
         : cast(i32) skip_frames + 1;
     if (context.state !is null)
