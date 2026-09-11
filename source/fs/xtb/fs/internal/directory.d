@@ -2,24 +2,24 @@ module xtb.fs.internal.directory;
 
 nothrow @nogc:
 
-import xtb.os.error : OsError;
-import xtb.types : String;
-import xtb.fs.internal.file : NativeFileType;
+import xtb.fs.internal.file;
+import xtb.os.error;
+import xtb.types;
 
-enum NativeDirectoryStatus : ubyte
+package(xtb.fs) enum NativeDirectoryStatus : u8
 {
     entry,
     finished,
     failed,
 }
 
-struct NativeDirectoryEntry
+package(xtb.fs) struct NativeDirectoryEntry
 {
     String name;
     NativeFileType type;
 }
 
-struct NativeDirectoryResult
+package(xtb.fs) struct NativeDirectoryResult
 {
     NativeDirectoryStatus status;
     OsError error;
