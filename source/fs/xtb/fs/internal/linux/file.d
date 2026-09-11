@@ -14,16 +14,17 @@ import xtb.string;
 import xtb.thread_context;
 import xtb.types;
 
-package(xtb.fs) OsError close_handle(NativeHandle handle) @system
+package(xtb.fs) OsError close_handle(NativeHandle handle) @trusted
 {
     return close(to_descriptor(handle)) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError flush_handle(NativeHandle handle) @system
+package(xtb.fs) OsError flush_handle(NativeHandle handle) @trusted
 {
     return fsync(to_descriptor(handle)) == 0 ? OsError.init : lastError();
 }
 
+// `output` must not be null.
 package(xtb.fs) OsError open_file(
     scope String path,
     bool read_enabled,
@@ -37,7 +38,7 @@ package(xtb.fs) OsError open_file(
 ) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.from_string(scratch.allocator, path);
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
     i32 flags = O_RDONLY;
     if (read_enabled && write_enabled)
     {
@@ -52,32 +53,35 @@ package(xtb.fs) OsError open_file(
     if (append) flags |= O_APPEND;
     if (create_mode == 2) flags |= O_EXCL;
     if (close_on_exec) flags |= O_CLOEXEC;
-    const descriptor = open(native.checked_c_string, flags, cast(u32) permissions);
+    const i32 descriptor = open(native_path.checked_c_string, flags, cast(u32) permissions);
     if (descriptor < 0) return lastError();
     *output = from_descriptor(descriptor);
     return OsError.init;
 }
 
-package(xtb.fs) NativeIOResult read_some(NativeHandle handle, scope u8[] output) @system
+package(xtb.fs) NativeIOResult read_some(NativeHandle handle, scope u8[] output) @trusted
 {
+    // POSIX read uses the scoped slice only for this call and does not retain its pointer.
     for (;;)
     {
-        const amount = read(to_descriptor(handle), output.ptr, output.length);
+        const isize amount = read(to_descriptor(handle), output.ptr, output.length);
         if (amount >= 0) return NativeIOResult(OsError.init, cast(usize) amount);
         if (errno != EINTR) return NativeIOResult(lastError(), 0);
     }
 }
 
-package(xtb.fs) NativeIOResult write_some(NativeHandle handle, scope const(u8)[] input) @system
+package(xtb.fs) NativeIOResult write_some(NativeHandle handle, scope const(u8)[] input) @trusted
 {
+    // POSIX write uses the scoped slice only for this call and does not retain its pointer.
     for (;;)
     {
-        const amount = write(to_descriptor(handle), input.ptr, input.length);
+        const isize amount = write(to_descriptor(handle), input.ptr, input.length);
         if (amount >= 0) return NativeIOResult(OsError.init, cast(usize) amount);
         if (errno != EINTR) return NativeIOResult(lastError(), 0);
     }
 }
 
+// `output` must not be null.
 package(xtb.fs) OsError handle_metadata(
     NativeHandle handle,
     scope NativeFileMetadata* output,
@@ -100,6 +104,7 @@ private i32 to_descriptor(NativeHandle handle) pure @safe
     return fileDescriptor(handle);
 }
 
+// `output` must not be null.
 package(xtb.fs) OsError path_metadata(
     scope String path,
     bool follow_symlinks,
@@ -109,15 +114,16 @@ package(xtb.fs) OsError path_metadata(
     ScratchScope scratch = ScratchScope.acquire();
     StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
     stat_t native;
-    const state = follow_symlinks
+    const i32 status = follow_symlinks
         ? stat(native_path.checked_c_string, &native)
         : lstat(native_path.checked_c_string, &native);
-    if (state != 0) return lastError();
+    if (status != 0) return lastError();
     return convert(native, output)
         ? OsError.init
         : OsError(OsErrorKind.invalidArgument, 0);
 }
 
+// `output` must not be null.
 private bool convert(scope const ref stat_t native, scope NativeFileMetadata* output) pure @system
 {
     NativeFileType type;
