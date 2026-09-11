@@ -66,7 +66,7 @@ nothrow @nogc:
         globalState.style.signature_layout = options.signatureLayout;
         globalState.style.signature_columns = options.signatureColumns;
         globalState.panicTraceWritten = 0;
-        const signalsInstalled = CrashBackend.installCrashSignals(
+        const signalsInstalled = CrashBackend.install_crash_signals(
             options.signalTraceMode == SignalTraceMode.attemptStackUnwind,
             &globalState.style.colors,
             &globalState.panicTraceWritten,
@@ -92,7 +92,7 @@ nothrow @nogc:
                 globalState.previousPanic.handler,
                 globalState.previousPanic.context,
             );
-        CrashBackend.restoreCrashSignals();
+        CrashBackend.restore_crash_signals();
         globalState = GlobalCrashState.init;
         active_ = false;
     }

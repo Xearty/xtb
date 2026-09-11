@@ -79,6 +79,11 @@ void restoreCrashSignals()
     runtime = CrashSignalRuntime.init;
 }
 
+// Compatibility aliases for the migrated backend interface. Remove them when
+// this module is migrated.
+alias install_crash_signals = installCrashSignals;
+alias restore_crash_signals = restoreCrashSignals;
+
 private void restoreInstalledSignals(size_t count)
 {
     static foreach (reverseIndex; 0 .. handledSignals.length)

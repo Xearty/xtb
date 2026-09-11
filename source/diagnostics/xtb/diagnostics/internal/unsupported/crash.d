@@ -2,18 +2,15 @@ module xtb.diagnostics.internal.unsupported.crash;
 
 nothrow @nogc:
 
-import core.stdc.signal : sig_atomic_t;
-import xtb.diagnostics.stacktrace_style : StackTraceColors;
+import core.stdc.signal;
 
-bool installCrashSignals(
-    bool,
-    scope const StackTraceColors*,
-    sig_atomic_t*,
-)
+import xtb.diagnostics.stacktrace_style;
+
+bool install_crash_signals(bool, scope const StackTraceColors*, sig_atomic_t*) pure @safe
 {
     return true;
 }
 
-void restoreCrashSignals()
+void restore_crash_signals() pure @safe
 {
 }
