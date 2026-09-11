@@ -79,18 +79,18 @@ version (linux) private int closedPipeWriteWorker(PipeWriter* writer) nothrow @s
 version (linux) private size_t openDescriptorCount() nothrow @system @nogc
 {
     DirectoryIterator iterator;
-    assert(openDirectory(Path.from_string("/proc/self/fd"), &iterator).succeeded);
+    assert(open_directory(Path.from_string("/proc/self/fd"), &iterator).succeeded);
     size_t result;
     DirectoryEntry entry;
     for (;;)
     {
-        const nextResult = (&iterator).next(&entry);
+        const nextResult = iterator.next(&entry);
         assert(nextResult.status != DirectoryStatus.failed);
         if (nextResult.status == DirectoryStatus.finished)
             break;
         ++result;
     }
-    assert(close(&iterator).succeeded);
+    assert(iterator.close().succeeded);
     return result;
 }
 
@@ -104,7 +104,8 @@ version (linux) private void assertNoChildProcesses() nothrow @system @nogc
     assert(waitpid(-1, &status, WNOHANG) == -1 && errno == ECHILD);
 }
 
-version (linux) private bool countEntry(Path, FileType, void* context) nothrow @system @nogc
+version (linux) private bool countEntry(
+    scope const Path, FileType, scope void* context) nothrow @system @nogc
 {
     ++*cast(size_t*) context;
     return true;
@@ -988,8 +989,8 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         const baseline = openDescriptorCount();
         DirectoryIterator source;
         DirectoryIterator target;
-        assert(openDirectory(rootPath, &source).succeeded);
-        assert(openDirectory(rootPath, &target).succeeded);
+        assert(open_directory(rootPath, &source).succeeded);
+        assert(open_directory(rootPath, &target).succeeded);
         assert(openDescriptorCount() == baseline + 2);
         move_assign(source, target);
         assert(!source.valid && target.valid);
@@ -1045,12 +1046,12 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(rename(secondPath, renamedPath).succeeded);
 
     DirectoryIterator iterator;
-    assert(openDirectory(rootPath, &iterator).succeeded);
+    assert(open_directory(rootPath, &iterator).succeeded);
     size_t entries;
     DirectoryEntry entry;
     for (;;)
     {
-        const result = (&iterator).next(&entry);
+        const result = iterator.next(&entry);
         assert(result.status != DirectoryStatus.failed);
         if (result.status == DirectoryStatus.finished)
             break;
@@ -1058,26 +1059,26 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
         ++entries;
     }
     assert(entries == 2);
-    assert(close(&iterator).succeeded);
-    assert(close(&iterator).succeeded);
+    assert(iterator.close().succeeded);
+    assert(iterator.close().succeeded);
     size_t walked;
     Arena walkArena = Arena.create(malloc_allocator(), 256);
     const walkDescriptorBaseline = openDescriptorCount();
-    assert(walkDirectory(rootPath, walkArena.allocator, &countEntry, &walked).succeeded);
+    assert(walk_directory(rootPath, walkArena.allocator, &countEntry, &walked).succeeded);
     assert(walked == 2);
     assert(openDescriptorCount() == walkDescriptorBaseline);
 
     bool exists;
-    assert(queryAccess(firstPath, Access.exists, &exists).succeeded && exists);
-    assert(queryAccess(firstPath, Access.read, &exists).succeeded && exists);
+    assert(query_access(firstPath, Access.exists, &exists).succeeded && exists);
+    assert(query_access(firstPath, Access.read, &exists).succeeded && exists);
 
     StringBuf cwd = StringBuf.create(malloc_allocator());
-    assert(currentDirectory(cwd).succeeded && cwd.view.length != 0);
+    assert(current_directory(&cwd).succeeded && cwd.view.length != 0);
     StringBuf canonical = StringBuf.create(malloc_allocator());
-    assert(canonicalPath(rootPath, canonical).succeeded);
+    assert(canonical_path(rootPath, &canonical).succeeded);
     assert(canonical.view.length != 0);
     StringBuf executable = StringBuf.create(malloc_allocator());
-    assert(executablePath(executable).succeeded && executable.view.length != 0);
+    assert(executable_path(&executable).succeeded && executable.view.length != 0);
 
     Array!u8 procStatus = Array!u8.create(malloc_allocator());
     scope (exit)
@@ -1090,12 +1091,12 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     TempArena outputTemporary = outputArena.push();
     {
         StringBuf scratchCanonical = StringBuf.create(outputTemporary.allocator);
-        assert(canonicalPath(rootPath, scratchCanonical).succeeded);
+        assert(canonical_path(rootPath, &scratchCanonical).succeeded);
         assert(scratchCanonical.view.length != 0);
         assert(scratchCanonical.view[0] != cast(char) 0xDD);
 
         StringBuf scratchExecutable = StringBuf.create(outputTemporary.allocator);
-        assert(executablePath(scratchExecutable).succeeded);
+        assert(executable_path(&scratchExecutable).succeeded);
         assert(scratchExecutable.view.length != 0);
         assert(scratchExecutable.view[0] != cast(char) 0xDD);
     }
@@ -1127,9 +1128,9 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
 
     walkArena.deinit();
 
-    assert(removeFile(firstPath).succeeded);
-    assert(removeFile(renamedPath).succeeded);
-    assert(removeEmptyDirectory(rootPath).succeeded);
+    assert(remove_file(firstPath).succeeded);
+    assert(remove_file(renamedPath).succeeded);
+    assert(remove_empty_directory(rootPath).succeeded);
 
     helperExecutable.deinit();
     executable.deinit();

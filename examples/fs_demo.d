@@ -25,7 +25,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
     StringBuf canonical = StringBuf.create(malloc_allocator());
     scope (exit)
         canonical.deinit();
-    OsError error = canonicalPath(root, canonical);
+    OsError error = canonical_path(root, &canonical);
     if (error.failed)
     {
         formatln!"cannot resolve path: error={} native={}"(cast(uint) error.kind, error.nativeCode);
@@ -34,7 +34,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
     writeln("directory: ", canonical);
 
     DirectoryIterator iterator;
-    error = openDirectory(root, &iterator);
+    error = open_directory(root, &iterator);
     if (error.failed)
     {
         formatln!"cannot open directory: error={} native={}"(cast(uint) error.kind,
@@ -45,7 +45,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
     DirectoryEntry entry;
     for (;;)
     {
-        const result = (&iterator).next(&entry);
+        const result = iterator.next(&entry);
         if (result.status == DirectoryStatus.finished)
             break;
         if (result.status == DirectoryStatus.failed)

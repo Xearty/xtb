@@ -2,22 +2,25 @@ module xtb.fs.directory;
 
 nothrow @nogc:
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.memory : Allocator;
+import core.attribute;
+
+import xtb.data_struct;
+import xtb.fs.file;
+import xtb.fs.internal.directory;
+import xtb.fs.internal.file;
+import xtb.fs.path;
+import xtb.memory;
+import xtb.os.error;
+import xtb.panic;
 import xtb.string;
-import xtb.types : String;
-import xtb.os.error : OsError, OsErrorKind;
-import xtb.fs.file : FileMetadata, FileType, SymlinkMode, metadata;
-import xtb.fs.path : Path, append_component;
-import xtb.fs.internal.directory : NativeDirectoryEntry, NativeDirectoryStatus;
-import xtb.fs.internal.file : NativeFileType;
+import xtb.types;
 
 version (linux)
     private import backend = xtb.fs.internal.linux.directory;
 else
     private import backend = xtb.fs.internal.unsupported.directory;
 
-enum Access : ubyte
+enum Access
 {
     exists,
     read,
@@ -25,9 +28,15 @@ enum Access : ubyte
     execute,
 }
 
-alias DirectoryVisitor = bool function(Path path, FileType type, void* context);
+/// Visits one directory entry. `path` and `context` are borrowed for the call only.
+/// Returning `false` stops the traversal.
+alias DirectoryVisitor = bool function(
+    scope const Path path,
+    FileType type,
+    scope void* context,
+) nothrow @nogc @system;
 
-enum DirectoryStatus : ubyte
+enum DirectoryStatus
 {
     entry,
     finished,
@@ -41,76 +50,83 @@ struct DirectoryEntry
     FileType type;
 }
 
-struct DirectoryResult
+@mustuse struct DirectoryResult
 {
     DirectoryStatus status;
     OsError error;
+
+    mixin DataStruct;
 }
 
-struct DirectoryIterator
+/// Owns an open native directory handle.
+@mustuse struct DirectoryIterator
 {
 nothrow @nogc:
 
-    private void* directory_;
+    /// Opaque owned native directory handle. `null` represents a closed iterator.
+    /// A valid handle has single ownership and must be closed before replacement.
+    void* directory;
 
     @disable this(this);
     @disable ref DirectoryIterator opAssign(DirectoryIterator source) return;
+
+    /// Closes this iterator if it is open and reports any native close error.
+    OsError close() @system
+    {
+        return backend.close_directory(&this.directory);
+    }
 
     /// Explicitly ends this iterator's owning lifetime.
     ///
     /// Close errors are discarded; call `close` directly when they matter.
     void deinit() @system
     {
-        cast(void) close(&this);
+        cast(void) this.close();
     }
 
     bool valid() const pure @safe
     {
-        return backend.directory_valid(directory_);
+        return backend.directory_valid(this.directory);
     }
-}
 
-OsError close(DirectoryIterator* iterator) @system
-{
-    version (XTB_Checked)
-        require(iterator !is null, "DirectoryIterator pointer is null");
-    return backend.close_directory(&iterator.directory_);
-}
-
-OsError openDirectory(Path path, DirectoryIterator* output) @system
-{
-    version (XTB_Checked)
-        require(output !is null, "DirectoryIterator output pointer is null");
-    const cleanupError = close(output);
-    if (cleanupError.failed)
-        return cleanupError;
-    return backend.open_directory(path.view, &output.directory_);
-}
-
-DirectoryResult next(DirectoryIterator* iterator, DirectoryEntry* output) @system
-{
-    version (XTB_Checked)
+    /// Advances this iterator and writes the current entry to `output`.
+    ///
+    /// `output` must not be null. It is reset to `DirectoryEntry.init` before advancing.
+    DirectoryResult next(scope DirectoryEntry* output) @system
     {
-        require(iterator !is null && iterator.valid, "invalid DirectoryIterator");
+        require(this.valid, "invalid DirectoryIterator");
         require(output !is null, "DirectoryEntry output pointer is null");
-    }
-    *output = DirectoryEntry.init;
-    NativeDirectoryEntry native;
-    const result = backend.next_directory(iterator.directory_, &native);
-    final switch (result.status)
-    {
-        case NativeDirectoryStatus.entry:
-            output.name = native.name;
-            output.type = fromNative(native.type);
-            return DirectoryResult(DirectoryStatus.entry, result.error);
-        case NativeDirectoryStatus.finished:
-            return DirectoryResult(DirectoryStatus.finished, result.error);
-        case NativeDirectoryStatus.failed:
-            return DirectoryResult(DirectoryStatus.failed, result.error);
+        *output = DirectoryEntry.init;
+
+        NativeDirectoryEntry native;
+        const result = backend.next_directory(this.directory, &native);
+        final switch (result.status)
+        {
+            case NativeDirectoryStatus.entry:
+                output.name = native.name;
+                output.type = from_native(native.type);
+                return DirectoryResult(DirectoryStatus.entry, result.error);
+            case NativeDirectoryStatus.finished:
+                return DirectoryResult(DirectoryStatus.finished, result.error);
+            case NativeDirectoryStatus.failed:
+                return DirectoryResult(DirectoryStatus.failed, result.error);
+        }
     }
 }
 
-private FileType fromNative(NativeFileType type) pure @safe
+/// Opens `path` into `output`.
+///
+/// `output` must not be null. Any iterator already owned by `output` is closed first.
+/// On failure, `output` is left as `DirectoryIterator.init`.
+OsError open_directory(scope const Path path, scope DirectoryIterator* output) @system
+{
+    require(output !is null, "DirectoryIterator output pointer is null");
+    const cleanup_error = output.close();
+    if (cleanup_error.failed) return cleanup_error;
+    return backend.open_directory(path.view, &output.directory);
+}
+
+private FileType from_native(NativeFileType type) pure @safe
 {
     final switch (type)
     {
@@ -133,85 +149,105 @@ private FileType fromNative(NativeFileType type) pure @safe
     }
 }
 
-OsError createDirectory(Path path, uint permissions = 0x1C0)  // POSIX 0700
-@system
+OsError create_directory(scope const Path path, u32 permissions = 0x1C0) @safe // POSIX 0700
 {
     return backend.create_directory(path.view, permissions);
 }
 
-OsError removeEmptyDirectory(Path path) @system
+OsError remove_empty_directory(scope const Path path) @safe
 {
     return backend.remove_empty_directory(path.view);
 }
 
-OsError removeFile(Path path) @system
+OsError remove_file(scope const Path path) @safe
 {
     return backend.remove_file(path.view);
 }
 
-OsError rename(Path source, Path destination) @system
+OsError rename(scope const Path source, scope const Path destination) @safe
 {
     return backend.rename_path(source.view, destination.view);
 }
 
-OsError currentDirectory(ref StringBuf output) @system
+/// Writes the current working directory to `output`.
+///
+/// `output` must not be null. It is cleared before the operation and remains empty on failure.
+OsError current_directory(scope StringBuf* output) @system
 {
+    require(output !is null, "StringBuf output pointer is null");
     output.clear();
-    return backend.current_directory(&output);
+    return backend.current_directory(output);
 }
 
-OsError executablePath(ref StringBuf output) @system
+/// Writes the current executable path to `output`.
+///
+/// `output` must not be null. It is cleared before the operation and remains empty on failure.
+OsError executable_path(scope StringBuf* output) @system
 {
+    require(output !is null, "StringBuf output pointer is null");
     output.clear();
-    return backend.executable_path(&output);
+    return backend.executable_path(output);
 }
 
-OsError queryAccess(Path path, Access requested, bool* output) @system
+/// Queries whether `path` has the requested access and writes the result to `output`.
+///
+/// `output` must not be null. It is initialized to `false` before the query.
+OsError query_access(scope const Path path, Access requested, scope bool* output) @system
 {
-    version (XTB_Checked)
-        require(output !is null, "access output pointer is null");
+    require(output !is null, "access output pointer is null");
     *output = false;
-    return backend.query_access(path.view, cast(ubyte) requested, output);
+    return backend.query_access(path.view, cast(u8) requested, output);
 }
 
-OsError canonicalPath(Path path, ref StringBuf output) @system
+/// Writes the canonical form of `path` to `output`.
+///
+/// `output` must not be null. It is cleared before the operation and remains empty on failure.
+OsError canonical_path(scope const Path path, scope StringBuf* output) @system
 {
+    require(output !is null, "StringBuf output pointer is null");
     output.clear();
-    return backend.canonical_path(path.view, &output);
+    return backend.canonical_path(path.view, output);
 }
 
-OsError walkDirectory(Path root, Allocator* temporaryAllocator,
-    DirectoryVisitor visitor, void* context = null, size_t maximumDepth = 256) @system
+OsError walk_directory(
+    scope const Path root,
+    scope Allocator* temporary_allocator,
+    DirectoryVisitor visitor,
+    scope void* context = null,
+    usize maximum_depth = 256,
+) @system
 {
-    version (XTB_Checked)
-    {
-        require(temporaryAllocator !is null, "directory traversal requires a temporary allocator");
-        require(visitor !is null, "directory visitor is null");
-    }
-    bool keepGoing = true;
-    return walk(root, temporaryAllocator, visitor, context, 0, maximumDepth, &keepGoing);
+    require(temporary_allocator !is null, "directory traversal requires a temporary allocator");
+    require(visitor !is null, "directory visitor is null");
+
+    bool keep_going = true;
+    return walk(root, temporary_allocator, visitor, context, 0, maximum_depth, &keep_going);
 }
 
-private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor visitor,
-    void* context, size_t depth, size_t maximumDepth, bool* keepGoing) @system
+private OsError walk(
+    scope const Path root,
+    scope Allocator* temporary_allocator,
+    DirectoryVisitor visitor,
+    scope void* context,
+    usize depth,
+    usize maximum_depth,
+    scope bool* keep_going,
+) @system
 {
-    if (depth > maximumDepth)
-        return OsError(OsErrorKind.invalidArgument, 0);
+    if (depth > maximum_depth) return OsError(OsErrorKind.invalidArgument, 0);
+
     DirectoryIterator iterator;
-    OsError error = openDirectory(root, &iterator);
-    if (error.failed)
-        return error;
-    scope (exit)
-        iterator.deinit();
+    OsError error = open_directory(root, &iterator);
+    if (error.failed) return error;
+    scope (exit) iterator.deinit();
+
     DirectoryEntry entry;
-    StringBuf full = StringBuf.create(temporaryAllocator);
+    StringBuf full = StringBuf.create(temporary_allocator);
     for (;;)
     {
-        const result = (&iterator).next(&entry);
-        if (result.status == DirectoryStatus.finished)
-            return OsError.init;
-        if (result.status == DirectoryStatus.failed)
-            return result.error;
+        const result = iterator.next(&entry);
+        if (result.status == DirectoryStatus.finished) return OsError.init;
+        if (result.status == DirectoryStatus.failed) return result.error;
 
         full.clear();
         full.append(root.view);
@@ -222,23 +258,27 @@ private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor 
         {
             FileMetadata information;
             error = metadata(path, SymlinkMode.no_follow, &information);
-            if (error.failed)
-                return error;
+            if (error.failed) return error;
             type = information.type;
         }
         if (!visitor(path, type, context))
         {
-            *keepGoing = false;
+            *keep_going = false;
             return OsError.init;
         }
         if (type == FileType.directory)
         {
-            error = walk(path, temporaryAllocator, visitor, context, depth + 1,
-                maximumDepth, keepGoing);
-            if (error.failed)
-                return error;
-            if (!*keepGoing)
-                return OsError.init;
+            error = walk(
+                path,
+                temporary_allocator,
+                visitor,
+                context,
+                depth + 1,
+                maximum_depth,
+                keep_going,
+            );
+            if (error.failed) return error;
+            if (!*keep_going) return OsError.init;
         }
     }
 }
