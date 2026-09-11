@@ -2,144 +2,123 @@ module xtb.fs.internal.linux.file;
 
 nothrow @nogc:
 
-import core.stdc.errno : EINTR, errno;
-import xtb.os.posix.file : O_APPEND, O_CLOEXEC, O_CREAT, O_EXCL,
-    O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY, S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO,
-    S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK, fstat, fsync, lstat, nativeClose = close,
-    nativeOpen = open, read, stat, stat_t, write;
-import xtb.os.error : OsError, OsErrorKind;
-import xtb.os.posix.error : lastError;
-import xtb.os.handle : NativeHandle;
-import xtb.os.posix.handle : fileDescriptor, fromFileDescriptor;
-import xtb.string : StringBuf;
-import xtb.types : String;
-import xtb.thread_context : ScratchScope;
-import xtb.types : i64, u32, u64, u8;
-import xtb.fs.internal.file : NativeFileMetadata, NativeFileType, NativeIOResult;
+import core.stdc.errno;
 
-package(xtb.fs) OsError closeHandle(NativeHandle handle) @system
+import xtb.fs.internal.file;
+import xtb.os.error;
+import xtb.os.handle;
+import xtb.os.posix.error;
+import xtb.os.posix.file;
+import xtb.os.posix.handle;
+import xtb.string;
+import xtb.thread_context;
+import xtb.types;
+
+package(xtb.fs) OsError close_handle(NativeHandle handle) @system
 {
-    return nativeClose(toDescriptor(handle)) == 0 ? OsError.init : lastError();
+    return close(to_descriptor(handle)) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError flushHandle(NativeHandle handle) @system
+package(xtb.fs) OsError flush_handle(NativeHandle handle) @system
 {
-    return fsync(toDescriptor(handle)) == 0 ? OsError.init : lastError();
+    return fsync(to_descriptor(handle)) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError openFile(
-    String path,
-    bool readEnabled,
-    bool writeEnabled,
-    ubyte createMode,
+package(xtb.fs) OsError open_file(
+    scope String path,
+    bool read_enabled,
+    bool write_enabled,
+    u8 create_mode,
     bool truncate,
     bool append,
-    bool closeOnExec,
-    ushort permissions,
-    NativeHandle* output,
+    bool close_on_exec,
+    u16 permissions,
+    scope NativeHandle* output,
 ) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
     StringBuf native = StringBuf.from_string(scratch.allocator, path);
-    int flags = readEnabled && writeEnabled ? O_RDWR : writeEnabled ? O_WRONLY : O_RDONLY;
-    if (createMode != 0)
-        flags |= O_CREAT;
-    if (truncate)
-        flags |= O_TRUNC;
-    if (append)
-        flags |= O_APPEND;
-    if (createMode == 2)
-        flags |= O_EXCL;
-    if (closeOnExec)
-        flags |= O_CLOEXEC;
-    const descriptor = nativeOpen(native.checked_c_string, flags, cast(uint) permissions);
-    if (descriptor < 0)
-        return lastError();
-    *output = fromDescriptor(descriptor);
+    i32 flags = O_RDONLY;
+    if (read_enabled && write_enabled)
+    {
+        flags = O_RDWR;
+    }
+    else if (write_enabled)
+    {
+        flags = O_WRONLY;
+    }
+    if (create_mode != 0) flags |= O_CREAT;
+    if (truncate) flags |= O_TRUNC;
+    if (append) flags |= O_APPEND;
+    if (create_mode == 2) flags |= O_EXCL;
+    if (close_on_exec) flags |= O_CLOEXEC;
+    const descriptor = open(native.checked_c_string, flags, cast(u32) permissions);
+    if (descriptor < 0) return lastError();
+    *output = from_descriptor(descriptor);
     return OsError.init;
 }
 
-package(xtb.fs) NativeIOResult readSome(
-    NativeHandle handle,
-    u8[] output,
-) @system
+package(xtb.fs) NativeIOResult read_some(NativeHandle handle, scope u8[] output) @system
 {
     for (;;)
     {
-        const amount = read(toDescriptor(handle), output.ptr, output.length);
-        if (amount >= 0)
-            return NativeIOResult(OsError.init, cast(size_t) amount);
-        if (errno != EINTR)
-            return NativeIOResult(lastError(), 0);
+        const amount = read(to_descriptor(handle), output.ptr, output.length);
+        if (amount >= 0) return NativeIOResult(OsError.init, cast(usize) amount);
+        if (errno != EINTR) return NativeIOResult(lastError(), 0);
     }
 }
 
-package(xtb.fs) NativeIOResult writeSome(
-    NativeHandle handle,
-    scope const(u8)[] input,
-) @system
+package(xtb.fs) NativeIOResult write_some(NativeHandle handle, scope const(u8)[] input) @system
 {
     for (;;)
     {
-        const amount = write(toDescriptor(handle), input.ptr, input.length);
-        if (amount >= 0)
-            return NativeIOResult(OsError.init, cast(size_t) amount);
-        if (errno != EINTR)
-            return NativeIOResult(lastError(), 0);
+        const amount = write(to_descriptor(handle), input.ptr, input.length);
+        if (amount >= 0) return NativeIOResult(OsError.init, cast(usize) amount);
+        if (errno != EINTR) return NativeIOResult(lastError(), 0);
     }
 }
 
-package(xtb.fs) OsError handleMetadata(
+package(xtb.fs) OsError handle_metadata(
     NativeHandle handle,
-    NativeFileMetadata* output,
+    scope NativeFileMetadata* output,
 ) @system
 {
     stat_t native;
-    if (fstat(toDescriptor(handle), &native) != 0)
-        return lastError();
+    if (fstat(to_descriptor(handle), &native) != 0) return lastError();
     return convert(native, output)
-        ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
+        ? OsError.init
+        : OsError(OsErrorKind.invalidArgument, 0);
 }
 
-private NativeHandle fromDescriptor(int descriptor) pure @safe
+private NativeHandle from_descriptor(i32 descriptor) pure @safe
 {
     return fromFileDescriptor(descriptor);
 }
 
-private int toDescriptor(NativeHandle handle) pure @safe
+private i32 to_descriptor(NativeHandle handle) pure @safe
 {
     return fileDescriptor(handle);
 }
 
-package(xtb.fs) OsError pathMetadata(
-    String path,
-    bool followSymlinks,
-    NativeFileMetadata* output,
+package(xtb.fs) OsError path_metadata(
+    scope String path,
+    bool follow_symlinks,
+    scope NativeFileMetadata* output,
 ) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf nativePath = StringBuf.from_string(scratch.allocator, path);
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
     stat_t native;
-    const state = followSymlinks
-        ? stat(nativePath.checked_c_string, &native) : lstat(nativePath.checked_c_string, &native);
-    if (state != 0)
-        return lastError();
+    const state = follow_symlinks
+        ? stat(native_path.checked_c_string, &native)
+        : lstat(native_path.checked_c_string, &native);
+    if (state != 0) return lastError();
     return convert(native, output)
-        ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
+        ? OsError.init
+        : OsError(OsErrorKind.invalidArgument, 0);
 }
 
-package(xtb.fs) alias close_handle = closeHandle;
-package(xtb.fs) alias flush_handle = flushHandle;
-package(xtb.fs) alias open_file = openFile;
-package(xtb.fs) alias read_some = readSome;
-package(xtb.fs) alias write_some = writeSome;
-package(xtb.fs) alias handle_metadata = handleMetadata;
-package(xtb.fs) alias path_metadata = pathMetadata;
-
-private bool convert(
-    ref const stat_t native,
-    NativeFileMetadata* output,
-) pure @system
+private bool convert(scope const ref stat_t native, scope NativeFileMetadata* output) pure @system
 {
     NativeFileType type;
     switch (native.st_mode & S_IFMT)
@@ -181,16 +160,14 @@ private bool convert(
         seconds = cast(i64) native.st_mtime;
         nanoseconds = cast(i64) native.st_mtimensec;
     }
-    if (native.st_size < 0 || nanoseconds < 0 || nanoseconds >= 1_000_000_000)
-        return false;
-    enum i64 nanosecondsPerSecond = 1_000_000_000L;
-    if (seconds < i64.min / nanosecondsPerSecond ||
-        seconds > i64.max / nanosecondsPerSecond)
+    if (native.st_size < 0 || nanoseconds < 0 || nanoseconds >= 1_000_000_000) return false;
+    enum i64 nanoseconds_per_second = 1_000_000_000L;
+    if (seconds < i64.min / nanoseconds_per_second || seconds > i64.max / nanoseconds_per_second)
         return false;
     *output = NativeFileMetadata(
         type,
         cast(u64) native.st_size,
-        seconds * nanosecondsPerSecond + nanoseconds,
+        seconds * nanoseconds_per_second + nanoseconds,
         cast(u32) native.st_mode & 0xFFF,
     );
     return true;
