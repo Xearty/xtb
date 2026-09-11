@@ -74,10 +74,13 @@ void restore_crash_signals()
     runtime = CrashSignalRuntime.init;
 }
 
-private void restore_installed_signals(usize count)
+private void restore_installed_signals(usize installed_count)
 {
-    foreach_reverse (index; 0 .. count)
-        cast(void) sigaction(handled_signals[index], &previous_signals[index], null);
+    static foreach_reverse (index; 0 .. handled_signals.length)
+    {
+        if (index < installed_count)
+            cast(void) sigaction(handled_signals[index], &previous_signals[index], null);
+    }
 }
 
 private String signal_name(i32 signal) pure @safe
