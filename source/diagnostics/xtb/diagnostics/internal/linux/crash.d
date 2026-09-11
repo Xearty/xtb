@@ -3,23 +3,17 @@ module xtb.diagnostics.internal.linux.crash;
 nothrow @nogc:
 
 import core.stdc.signal : sig_atomic_t;
-import xtb.ansi : ANSIColor, ANSIStyle, ansi_reset_sequence, ansi_sequence;
-import xtb.diagnostics.stacktrace_style : StackTraceColors;
-import xtb.os.linux.execinfo : backtrace;
-import xtb.os.posix.file : STDERR_FILENO, write;
-import xtb.os.posix.process : _exit, getpid;
-import xtb.os.posix.signal : SA_RESETHAND, SA_SIGINFO, SIGABRT, SIGBUS,
-    SIGFPE, SIGILL, SIGSEGV, kill, sigaction, sigaction_t, sigemptyset,
-    siginfo_t;
-import xtb.os.posix.ucontext : ucontext_t;
 
-version (X86_64)
-    import xtb.os.posix.ucontext : REG_RIP;
-else version (X86)
-    import xtb.os.posix.ucontext : REG_EIP;
-import xtb.types : String;
+import xtb.ansi;
+import xtb.diagnostics.stacktrace_style;
+import xtb.os.linux.execinfo;
+import xtb.os.posix.file;
+import xtb.os.posix.process;
+import xtb.os.posix.signal;
+import xtb.os.posix.ucontext;
+import xtb.types;
 
-private enum int[] handledSignals = [
+private enum i32[] handled_signals = [
     SIGABRT,
     SIGBUS,
     SIGFPE,
@@ -30,37 +24,37 @@ private enum int[] handledSignals = [
 private struct CrashSignalRuntime
 {
     const(StackTraceColors)* colors;
-    sig_atomic_t* panicTraceWritten;
-    bool attemptStackUnwind;
+    sig_atomic_t* panic_trace_written;
+    bool attempt_stack_unwind;
 }
 
 private __gshared CrashSignalRuntime runtime;
-private __gshared sigaction_t[handledSignals.length] previousSignals;
+private __gshared sigaction_t[handled_signals.length] previous_signals;
 
-bool installCrashSignals(
-    bool attemptStackUnwind,
-    scope const StackTraceColors* colors,
-    sig_atomic_t* panicTraceWritten,
-)
+/// Installs the crash-signal handlers.
+///
+/// `colors` and `panic_trace_written` may be null. Non-null pointers must remain
+/// valid until `restore_crash_signals` is called.
+bool install_crash_signals(
+    bool attempt_stack_unwind,
+    const(StackTraceColors)* colors,
+    sig_atomic_t* panic_trace_written,
+) @system
 {
     runtime.colors = colors;
-    runtime.panicTraceWritten = panicTraceWritten;
-    runtime.attemptStackUnwind = attemptStackUnwind;
+    runtime.panic_trace_written = panic_trace_written;
+    runtime.attempt_stack_unwind = attempt_stack_unwind;
 
     sigaction_t action;
     sigemptyset(&action.sa_mask);
-    action.sa_sigaction = &handleSignal;
+    action.sa_sigaction = &handle_signal;
     action.sa_flags = SA_SIGINFO | SA_RESETHAND;
-    foreach (index, signal; handledSignals)
+    foreach (index, signal; handled_signals)
     {
-        const installed = sigaction(
-            signal,
-            &action,
-            &previousSignals[index],
-        ) == 0;
+        const installed = sigaction(signal, &action, &previous_signals[index]) == 0;
         if (!installed)
         {
-            restoreInstalledSignals(index);
+            restore_installed_signals(index);
             runtime = CrashSignalRuntime.init;
             return false;
         }
@@ -68,36 +62,34 @@ bool installCrashSignals(
 
     // Force the platform unwinder's lazy setup outside signal context.
     void*[1] warmup;
-    cast(void) backtrace(warmup.ptr, cast(int) warmup.length);
+    cast(void) backtrace(warmup.ptr, cast(i32) warmup.length);
     return true;
 }
 
-void restoreCrashSignals()
+void restore_crash_signals()
 {
-    foreach (index, signal; handledSignals)
-        cast(void) sigaction(signal, &previousSignals[index], null);
+    foreach (index, signal; handled_signals)
+        cast(void) sigaction(signal, &previous_signals[index], null);
+
     runtime = CrashSignalRuntime.init;
 }
 
-// Compatibility aliases for the migrated backend interface. Remove them when
-// this module is migrated.
-alias install_crash_signals = installCrashSignals;
-alias restore_crash_signals = restoreCrashSignals;
-
-private void restoreInstalledSignals(size_t count)
+private void restore_installed_signals(usize count)
 {
-    static foreach (reverseIndex; 0 .. handledSignals.length)
+    static foreach (reverse_index; 0 .. handled_signals.length)
     {
-        if (count > handledSignals.length - reverseIndex - 1)
+        if (count > handled_signals.length - reverse_index - 1)
+        {
             cast(void) sigaction(
-                handledSignals[handledSignals.length - reverseIndex - 1],
-                &previousSignals[handledSignals.length - reverseIndex - 1],
+                handled_signals[handled_signals.length - reverse_index - 1],
+                &previous_signals[handled_signals.length - reverse_index - 1],
                 null,
             );
+        }
     }
 }
 
-private String signalName(int signal) pure @safe
+private String signal_name(i32 signal) pure @safe
 {
     switch (signal)
     {
@@ -116,68 +108,71 @@ private String signalName(int signal) pure @safe
     }
 }
 
-private size_t faultProgramCounter(void* rawContext)
-@system
+private usize fault_program_counter(void* raw_context) @system
 {
-    if (rawContext is null)
-        return 0;
-    ucontext_t* context = cast(ucontext_t*) rawContext;
+    if (raw_context is null) return 0;
+
+    ucontext_t* context = cast(ucontext_t*) raw_context;
     version (X86_64)
-        return cast(size_t) context.uc_mcontext.gregs[REG_RIP];
+    {
+        return cast(usize) context.uc_mcontext.gregs[REG_RIP];
+    }
     else version (X86)
-        return cast(size_t) context.uc_mcontext.gregs[REG_EIP];
+    {
+        return cast(usize) context.uc_mcontext.gregs[REG_EIP];
+    }
     else version (AArch64)
-        return cast(size_t) context.uc_mcontext.pc;
+    {
+        return cast(usize) context.uc_mcontext.pc;
+    }
     else
+    {
         return 0;
+    }
 }
 
-private void rawWrite(String bytes) @system
+private void raw_write(String bytes) @system
 {
-    size_t offset;
+    usize offset;
     while (offset < bytes.length)
     {
-        const result = write(
-            STDERR_FILENO,
-            bytes.ptr + offset,
-            bytes.length - offset,
-        );
-        if (result <= 0)
-            return;
-        offset += cast(size_t) result;
+        const result = write(STDERR_FILENO, bytes.ptr + offset, bytes.length - offset);
+        if (result <= 0) return;
+
+        offset += cast(usize) result;
     }
 }
 
-private void rawHex(size_t value) @system
+private void raw_hex(usize value) @system
 {
-    static immutable digits = "0123456789abcdef";
-    char[2 + size_t.sizeof * 2] buffer;
+    enum digits = "0123456789abcdef";
+    char[2 + usize.sizeof * 2] buffer;
     buffer[0] = '0';
     buffer[1] = 'x';
-    foreach (index; 0 .. size_t.sizeof * 2)
+    foreach (index; 0 .. usize.sizeof * 2)
     {
-        const shift = (size_t.sizeof * 2 - index - 1) * 4;
-        buffer[index + 2] = digits[(value >> shift) & 0xf];
+        const shift = (usize.sizeof * 2 - index - 1) * 4;
+        buffer[index + 2] = digits[(value >> shift) & 0xF];
     }
-    rawWrite(buffer[]);
+    raw_write(buffer[]);
 }
 
-private void rawDecimal(size_t value) @system
+private void raw_decimal(usize value) @system
 {
     char[32] buffer;
-    size_t begin = buffer.length;
+    usize begin = buffer.length;
     do
     {
         buffer[--begin] = cast(char)('0' + value % 10);
         value /= 10;
     }
     while (value != 0);
-    rawWrite(buffer[begin .. $]);
+    raw_write(buffer[begin .. $]);
 }
 
-private size_t decimalWidth(size_t value) pure @safe
+private usize decimal_width(usize value) pure @safe
 {
-    size_t width = 1;
+    usize width = 1;
     while (value >= 10)
     {
         value /= 10;
@@ -186,143 +181,134 @@ private size_t decimalWidth(size_t value) pure @safe
     return width;
 }
 
-private void rawSpaces(size_t count) @system
+private void raw_spaces(usize count) @system
 {
     while (count != 0)
     {
-        rawWrite(" ");
+        raw_write(" ");
         --count;
     }
 }
 
-private void rawAnsi(ANSIColor color) @system
+private void raw_ansi(ANSIColor color) @system
 {
     const sequence = ansi_sequence(ANSIStyle.foreground(color));
-    rawWrite(sequence.view);
+    raw_write(sequence.view);
 }
 
-private void rawAnsiReset(ANSIColor color) @system
+private void raw_ansi_reset(ANSIColor color) @system
 {
     if (color.enabled)
     {
         const sequence = ansi_reset_sequence();
-        rawWrite(sequence.view);
+        raw_write(sequence.view);
     }
 }
 
-private void rawStyled(String text, ANSIColor color) @system
+private void raw_styled(String text, ANSIColor color) @system
 {
-    rawAnsi(color);
-    rawWrite(text);
-    rawAnsiReset(color);
+    raw_ansi(color);
+    raw_write(text);
+    raw_ansi_reset(color);
 }
 
-private extern (C) void handleSignal(
-    int signal,
-    siginfo_t*,
-    void* rawContext,
-)
+private extern (C) void handle_signal(int signal, siginfo_t*, void* raw_context)
 {
     __gshared sig_atomic_t handling;
-    if (handling != 0)
-        _exit(128 + signal);
+    if (handling != 0) _exit(128 + signal);
+
     handling = 1;
 
-    const panicTraceWritten = runtime.panicTraceWritten is null
-        ? 0 : *runtime.panicTraceWritten;
-    if (signal == SIGABRT && panicTraceWritten != 0)
+    const panic_trace_written = runtime.panic_trace_written is null
+        ? 0
+        : *runtime.panic_trace_written;
+    if (signal == SIGABRT && panic_trace_written != 0)
     {
-        redeliverSignal(signal);
+        redeliver_signal(signal);
         return;
     }
 
     const colors = runtime.colors;
     if (colors is null)
     {
-        redeliverSignal(signal);
+        redeliver_signal(signal);
         return;
     }
 
-    rawWrite("\n");
-    rawStyled("Fatal crash: ", colors.warning);
-    rawStyled(signalName(signal), colors.warning);
-    rawWrite("\n");
-    rawStyled("Stack trace (signal context):", colors.decoration);
-    rawWrite("\n");
+    raw_write("\n");
+    raw_styled("Fatal crash: ", colors.warning);
+    raw_styled(signal_name(signal), colors.warning);
+    raw_write("\n");
+    raw_styled("Stack trace (signal context):", colors.decoration);
+    raw_write("\n");
 
-    size_t faultPC = faultProgramCounter(rawContext);
-    const attemptUnwind = runtime.attemptStackUnwind && panicTraceWritten == 0;
+    const usize fault_pc = fault_program_counter(raw_context);
+    const attempt_unwind = runtime.attempt_stack_unwind && panic_trace_written == 0;
     void*[64] addresses;
-    int addressCount;
-    size_t frameCount;
-    if (attemptUnwind)
+    i32 address_count;
+    usize frame_count;
+    if (attempt_unwind)
     {
-        addressCount = backtrace(addresses.ptr, cast(int) addresses.length);
-        foreach (index; 2 .. addressCount)
+        address_count = backtrace(addresses.ptr, cast(i32) addresses.length);
+        foreach (index; 2 .. address_count)
         {
-            const address = cast(size_t) addresses[index];
-            if (faultPC == 0 || address != faultPC)
-                ++frameCount;
+            const address = cast(usize) addresses[index];
+            if (fault_pc == 0 || address != fault_pc) ++frame_count;
         }
     }
-    const labelWidth = frameCount == 0
-        ? cast(size_t) 3 : 3 + decimalWidth(frameCount);
+    const label_width = frame_count == 0 ? cast(usize) 3 : 3 + decimal_width(frame_count);
 
-    if (faultPC != 0)
+    if (fault_pc != 0)
     {
-        rawSpaces(labelWidth - 3);
-        rawStyled("[", colors.decoration);
-        rawStyled("0", colors.line_number);
-        rawStyled("] ", colors.decoration);
-        rawAnsi(colors.address);
-        rawWrite("pc=");
-        rawHex(faultPC);
-        rawAnsiReset(colors.address);
-        rawWrite("  ");
-        rawStyled("<faulting instruction>", colors.warning);
-        rawWrite("\n");
+        raw_spaces(label_width - 3);
+        raw_styled("[", colors.decoration);
+        raw_styled("0", colors.line_number);
+        raw_styled("] ", colors.decoration);
+        raw_ansi(colors.address);
+        raw_write("pc=");
+        raw_hex(fault_pc);
+        raw_ansi_reset(colors.address);
+        raw_write("  ");
+        raw_styled("<faulting instruction>", colors.warning);
+        raw_write("\n");
     }
 
-    if (attemptUnwind)
+    if (attempt_unwind)
     {
-        size_t frameNumber = 1;
-        foreach (index; 2 .. addressCount)
+        usize frame_number = 1;
+        foreach (index; 2 .. address_count)
         {
-            const address = cast(size_t) addresses[index];
-            if (faultPC != 0 && address == faultPC)
-                continue;
-            rawSpaces(labelWidth - decimalWidth(frameNumber) - 3);
-            rawStyled("[", colors.decoration);
-            rawAnsi(colors.line_number);
-            rawWrite("+");
-            rawDecimal(frameNumber);
-            rawAnsiReset(colors.line_number);
-            rawStyled("] ", colors.decoration);
-            rawAnsi(colors.address);
-            rawWrite("pc=");
-            rawHex(address);
-            rawAnsiReset(colors.address);
-            rawWrite("\n");
-            ++frameNumber;
+            const address = cast(usize) addresses[index];
+            if (fault_pc != 0 && address == fault_pc) continue;
+
+            raw_spaces(label_width - decimal_width(frame_number) - 3);
+            raw_styled("[", colors.decoration);
+            raw_ansi(colors.line_number);
+            raw_write("+");
+            raw_decimal(frame_number);
+            raw_ansi_reset(colors.line_number);
+            raw_styled("] ", colors.decoration);
+            raw_ansi(colors.address);
+            raw_write("pc=");
+            raw_hex(address);
+            raw_ansi_reset(colors.address);
+            raw_write("\n");
+            ++frame_number;
         }
     }
     else
     {
-        rawStyled(
-            "<fault-address-only mode: stack unwinding disabled>",
-            colors.decoration,
-        );
-        rawWrite("\n");
+        raw_styled("<fault-address-only mode: stack unwinding disabled>", colors.decoration);
+        raw_write("\n");
     }
 
     // The current signal remains blocked until this handler returns. Queue
     // it after SA_RESETHAND restored the default disposition, then return so
     // the kernel can perform normal signal termination and core-dump handling.
-    redeliverSignal(signal);
+    redeliver_signal(signal);
 }
 
-private void redeliverSignal(int signal)
+private void redeliver_signal(i32 signal)
 {
-    if (kill(getpid(), signal) != 0)
-        _exit(128 + signal);
+    if (kill(getpid(), signal) != 0) _exit(128 + signal);
 }
