@@ -20,20 +20,19 @@ nothrow @nogc:
     {
         // `return scope` preserves the lifetime of the borrowed value stored in result.
         Path result;
-        if (!Path.try_from_string(value, &result))
-            panic("path contains an embedded NUL byte");
+        if (!Path.try_from_string(value, &result)) panic("path contains an embedded NUL byte");
         return result;
     }
 
     /// Validates `value` and writes a borrowed path to `output`.
     ///
-    /// The storage backing `value` must remain valid while `output.value` is used.
+    /// `output` must not be null. The storage backing `value` must remain valid while
+    /// `output.value` is used. On failure, `output` is left as `Path.init`.
     static bool try_from_string(String value, Path* output) @system
     {
         require(output !is null, "Path output pointer is null");
         *output = Path.init;
-        if (value.contains_nul)
-            return false;
+        if (value.contains_nul) return false;
         output.value = value;
         return true;
     }
@@ -86,14 +85,12 @@ bool try_append_component(ref StringBuf output, scope const Path component) @tru
     usize end = value.length;
     while (end > begin && value[end - 1] == '/')
         --end;
-    if (begin == end)
-        return true;
+    if (begin == end) return true;
 
     const String current = output.view;
     const bool separator = current.length != 0 && current[$ - 1] != '/';
     const usize component_length = end - begin;
-    if (component_length > usize.max - output.byte_length - separator)
-        return false;
+    if (component_length > usize.max - output.byte_length - separator) return false;
 
     bool aliases_output;
     usize source_offset;
@@ -107,26 +104,21 @@ bool try_append_component(ref StringBuf output, scope const Path component) @tru
         aliases_output = source_address >= begin_address && byte_offset < current.length;
         if (aliases_output)
         {
-            if (value.length > current.length - byte_offset)
-                return false;
+            if (value.length > current.length - byte_offset) return false;
             source_offset = byte_offset;
         }
     }
 
-    if (!output.try_reserve(output.byte_length + separator + component_length))
-        return false;
-    if (aliases_output)
-        value = output.view[source_offset .. source_offset + value.length];
-    if (separator)
-        output.append_assume_capacity('/');
+    if (!output.try_reserve(output.byte_length + separator + component_length)) return false;
+    if (aliases_output) value = output.view[source_offset .. source_offset + value.length];
+    if (separator) output.append_assume_capacity('/');
     output.append_assume_capacity(value[begin .. end]);
     return true;
 }
 
 void append_component(ref StringBuf output, scope const Path component) @safe
 {
-    if (!try_append_component(output, component))
-        panic("path allocation failed");
+    if (!try_append_component(output, component)) panic("path allocation failed");
 }
 
 unittest
