@@ -2,75 +2,81 @@ module xtb.fs.internal.linux.directory;
 
 nothrow @nogc:
 
-import core.stdc.errno : errno;
-import core.stdc.stdlib : free;
-import xtb.os.posix.directory : DIR, DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK,
-    DT_REG, DT_SOCK, F_OK, R_OK, W_OK, X_OK, access, closedir, getcwd, mkdir,
-    nativeRename = rename, opendir, readlink, readdir, realpath, rmdir, unlink;
-import xtb.containers.array : Array;
-import xtb.os.error : OsError, OsErrorKind;
-import xtb.os.posix.error : lastError;
-import xtb.string;
-import xtb.utf8 : as_string;
-import xtb.types : String;
-import xtb.thread_context : ScratchScope;
-import xtb.types : u8;
-import xtb.fs.internal.directory : NativeDirectoryEntry, NativeDirectoryResult,
-    NativeDirectoryStatus;
-import xtb.fs.internal.file : NativeFileType;
+import core.stdc.errno;
+import core.stdc.stdlib;
 
-package(xtb.fs) bool directoryValid(const(void)* directory) pure @safe
+import xtb.containers.array;
+import xtb.fs.internal.directory;
+import xtb.fs.internal.file;
+import xtb.os.error;
+import xtb.os.posix.directory;
+import xtb.os.posix.error;
+import xtb.string;
+import xtb.thread_context;
+import xtb.types;
+import xtb.utf8;
+
+package(xtb.fs) bool directory_valid(scope const(void)* directory) pure @safe
 {
     return directory !is null;
 }
 
-package(xtb.fs) OsError closeDirectory(void** directory) @system
+// `directory` must not be null.
+package(xtb.fs) OsError close_directory(scope void** directory) @system
 {
-    if (*directory is null)
-        return OsError.init;
-    auto native = cast(DIR*)*directory;
+    if (*directory is null) return OsError.init;
+
+    DIR* native_directory = cast(DIR*) *directory;
     *directory = null;
-    return closedir(native) == 0 ? OsError.init : lastError();
+    return closedir(native_directory) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError openDirectory(String path, void** output) @system
+// `output` must not be null.
+package(xtb.fs) OsError open_directory(scope String path, scope void** output) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.from_string(scratch.allocator, path);
-    *output = opendir(native.checked_c_string);
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
+    *output = opendir(native_path.checked_c_string);
     return *output is null ? lastError() : OsError.init;
 }
 
-package(xtb.fs) NativeDirectoryResult nextDirectory(
-    void* directory,
-    NativeDirectoryEntry* output,
+// `directory` must be a valid native directory handle and `output` must not be null.
+package(xtb.fs) NativeDirectoryResult next_directory(
+    scope void* directory,
+    scope NativeDirectoryEntry* output,
 ) @system
 {
     *output = NativeDirectoryEntry.init;
     for (;;)
     {
         errno = 0;
-        const native = readdir(cast(DIR*) directory);
-        if (native is null)
+        const native_entry = readdir(cast(DIR*) directory);
+        if (native_entry is null)
+        {
             return errno == 0
                 ? NativeDirectoryResult(NativeDirectoryStatus.finished, OsError.init)
                 : NativeDirectoryResult(NativeDirectoryStatus.failed, lastError());
-        const checked = from_c_string(native.d_name.ptr);
+        }
+
+        const checked = from_c_string(native_entry.d_name.ptr);
         if (checked.failed)
+        {
             return NativeDirectoryResult(
                 NativeDirectoryStatus.failed,
                 OsError(OsErrorKind.invalidData, 0),
             );
+        }
+
         const name = checked.value;
-        if (name == "." || name == "..")
-            continue;
+        if (name == "." || name == "..") continue;
+
         output.name = name;
-        output.type = fromDirectoryType(native.d_type);
+        output.type = from_directory_type(native_entry.d_type);
         return NativeDirectoryResult(NativeDirectoryStatus.entry, OsError.init);
     }
 }
 
-private NativeFileType fromDirectoryType(ubyte value) pure @safe
+private NativeFileType from_directory_type(u8 value) pure @safe
 {
     switch (value)
     {
@@ -93,85 +99,90 @@ private NativeFileType fromDirectoryType(ubyte value) pure @safe
     }
 }
 
-package(xtb.fs) OsError createDirectory(String path, uint permissions) @system
+package(xtb.fs) OsError create_directory(scope String path, u32 permissions) @trusted
 {
+    // The temporary buffer owns a NUL-terminated path for the duration of the POSIX call.
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.from_string(scratch.allocator, path);
-    return mkdir(native.checked_c_string, permissions) == 0 ? OsError.init : lastError();
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
+    return mkdir(native_path.checked_c_string, permissions) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError removeEmptyDirectory(String path) @system
+package(xtb.fs) OsError remove_empty_directory(scope String path) @trusted
 {
+    // The temporary buffer owns a NUL-terminated path for the duration of the POSIX call.
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.from_string(scratch.allocator, path);
-    return rmdir(native.checked_c_string) == 0 ? OsError.init : lastError();
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
+    return rmdir(native_path.checked_c_string) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError removeFile(String path) @system
+package(xtb.fs) OsError remove_file(scope String path) @trusted
 {
+    // The temporary buffer owns a NUL-terminated path for the duration of the POSIX call.
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.from_string(scratch.allocator, path);
-    return unlink(native.checked_c_string) == 0 ? OsError.init : lastError();
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
+    return unlink(native_path.checked_c_string) == 0 ? OsError.init : lastError();
 }
 
-package(xtb.fs) OsError renamePath(String source, String destination) @system
+package(xtb.fs) OsError rename_path(scope String source, scope String destination) @trusted
 {
+    // Both temporary buffers own NUL-terminated paths for the duration of the POSIX call.
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf from = StringBuf.from_string(scratch.allocator, source);
-    StringBuf to = StringBuf.from_string(scratch.allocator, destination);
-    return nativeRename(from.checked_c_string, to.checked_c_string) == 0
-        ? OsError.init : lastError();
+    StringBuf native_source = StringBuf.from_string(scratch.allocator, source);
+    StringBuf native_destination = StringBuf.from_string(scratch.allocator, destination);
+    return rename(native_source.checked_c_string, native_destination.checked_c_string) == 0
+        ? OsError.init
+        : lastError();
 }
 
-package(xtb.fs) OsError currentDirectory(ref StringBuf output) @system
+// `output` must not be null.
+package(xtb.fs) OsError current_directory(scope StringBuf* output) @system
 {
     char* buffer = getcwd(null, 0);
-    if (buffer is null)
-        return lastError();
+    if (buffer is null) return lastError();
+
     const checked = from_c_string(buffer);
     if (checked.failed)
     {
         free(buffer);
         return OsError(OsErrorKind.invalidData, 0);
     }
+
     output.append(checked.value);
     free(buffer);
     return OsError.init;
 }
 
-package(xtb.fs) OsError executablePath(ref StringBuf output) @system
+// `output` must not be null.
+package(xtb.fs) OsError executable_path(scope StringBuf* output) @system
 {
     ScratchScope scratch = ScratchScope.acquire(output.allocator);
     Array!char buffer = Array!char.with_length(scratch.allocator, 256);
     for (;;)
     {
-        const amount = readlink("/proc/self/exe".ptr, buffer.slice.ptr, buffer.length);
-        if (amount < 0)
-            return lastError();
-        if (cast(size_t) amount < buffer.length)
+        const isize amount = readlink("/proc/self/exe".ptr, buffer.slice.ptr, buffer.length);
+        if (amount < 0) return lastError();
+
+        if (cast(usize) amount < buffer.length)
         {
-            const checked = (cast(const(u8)[])
-                buffer.slice[0 .. cast(size_t) amount]).as_string;
-            if (checked.failed)
-                return OsError(OsErrorKind.invalidData, 0);
+            const checked = (cast(const(u8)[]) buffer.slice[0 .. cast(usize) amount]).as_string;
+            if (checked.failed) return OsError(OsErrorKind.invalidData, 0);
+
             output.append(checked.value);
             return OsError.init;
         }
-        if (buffer.length > size_t.max / 2)
-            return OsError(OsErrorKind.system, 0);
+
+        if (buffer.length > usize.max / 2) return OsError(OsErrorKind.system, 0);
+
         buffer.resize(buffer.length * 2);
     }
 }
 
-package(xtb.fs) OsError queryAccess(
-    String path,
-    ubyte requested,
-    bool* output,
-) @system
+// `output` must not be null.
+package(xtb.fs) OsError query_access(scope String path, u8 requested, scope bool* output) @system
 {
     ScratchScope scratch = ScratchScope.acquire();
-    StringBuf native = StringBuf.from_string(scratch.allocator, path);
-    int mode;
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
+    i32 mode;
     switch (requested)
     {
         case 0:
@@ -189,58 +200,36 @@ package(xtb.fs) OsError queryAccess(
         default:
             return OsError(OsErrorKind.invalidArgument, 0);
     }
-    if (access(native.checked_c_string, mode) == 0)
+
+    if (access(native_path.checked_c_string, mode) == 0)
     {
         *output = true;
         return OsError.init;
     }
+
     const error = lastError();
     if (error.kind == OsErrorKind.notFound || error.kind == OsErrorKind.permissionDenied)
         return OsError.init;
+
     return error;
 }
 
-package(xtb.fs) OsError canonicalPath(String path, ref StringBuf output) @system
+// `output` must not be null.
+package(xtb.fs) OsError canonical_path(scope String path, scope StringBuf* output) @system
 {
     ScratchScope scratch = ScratchScope.acquire(output.allocator);
-    StringBuf native = StringBuf.from_string(scratch.allocator, path);
-    char* resolved = realpath(native.checked_c_string, null);
-    if (resolved is null)
-        return lastError();
+    StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
+    char* resolved = realpath(native_path.checked_c_string, null);
+    if (resolved is null) return lastError();
+
     const checked = from_c_string(resolved);
     if (checked.failed)
     {
         free(resolved);
         return OsError(OsErrorKind.invalidData, 0);
     }
+
     output.append(checked.value);
     free(resolved);
     return OsError.init;
-}
-
-// Temporary compatibility adapters for the migrated unsupported backend interface.
-// Pointer outputs must be non-null; the shared wrapper passes addresses of `ref` parameters.
-package(xtb.fs) alias directory_valid = directoryValid;
-package(xtb.fs) alias close_directory = closeDirectory;
-package(xtb.fs) alias open_directory = openDirectory;
-package(xtb.fs) alias next_directory = nextDirectory;
-package(xtb.fs) alias create_directory = createDirectory;
-package(xtb.fs) alias remove_empty_directory = removeEmptyDirectory;
-package(xtb.fs) alias remove_file = removeFile;
-package(xtb.fs) alias rename_path = renamePath;
-package(xtb.fs) OsError current_directory(scope StringBuf* output) @system
-{
-    return currentDirectory(*output);
-}
-
-package(xtb.fs) OsError executable_path(scope StringBuf* output) @system
-{
-    return executablePath(*output);
-}
-
-package(xtb.fs) alias query_access = queryAccess;
-
-package(xtb.fs) OsError canonical_path(scope String path, scope StringBuf* output) @system
-{
-    return canonicalPath(path, *output);
 }
