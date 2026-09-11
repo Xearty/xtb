@@ -157,13 +157,13 @@ OsError rename(Path source, Path destination) @system
 OsError currentDirectory(ref StringBuf output) @system
 {
     output.clear();
-    return backend.current_directory(output);
+    return backend.current_directory(&output);
 }
 
 OsError executablePath(ref StringBuf output) @system
 {
     output.clear();
-    return backend.executable_path(output);
+    return backend.executable_path(&output);
 }
 
 OsError queryAccess(Path path, Access requested, bool* output) @system
@@ -177,7 +177,7 @@ OsError queryAccess(Path path, Access requested, bool* output) @system
 OsError canonicalPath(Path path, ref StringBuf output) @system
 {
     output.clear();
-    return backend.canonical_path(path.view, output);
+    return backend.canonical_path(path.view, &output);
 }
 
 OsError walkDirectory(Path root, Allocator* temporaryAllocator,

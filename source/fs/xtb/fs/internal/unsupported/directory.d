@@ -51,12 +51,12 @@ package(xtb.fs) OsError rename_path(scope String, scope String) pure @safe
     return unsupported();
 }
 
-package(xtb.fs) OsError current_directory(ref StringBuf) pure @safe
+package(xtb.fs) OsError current_directory(scope StringBuf*) pure @safe
 {
     return unsupported();
 }
 
-package(xtb.fs) OsError executable_path(ref StringBuf) pure @safe
+package(xtb.fs) OsError executable_path(scope StringBuf*) pure @safe
 {
     return unsupported();
 }
@@ -66,7 +66,7 @@ package(xtb.fs) OsError query_access(scope String, u8, scope bool*) pure @safe
     return unsupported();
 }
 
-package(xtb.fs) OsError canonical_path(scope String, ref StringBuf) pure @safe
+package(xtb.fs) OsError canonical_path(scope String, scope StringBuf*) pure @safe
 {
     return unsupported();
 }

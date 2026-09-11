@@ -218,7 +218,8 @@ package(xtb.fs) OsError canonicalPath(String path, ref StringBuf output) @system
     return OsError.init;
 }
 
-// Temporary compatibility aliases for the migrated unsupported backend interface.
+// Temporary compatibility adapters for the migrated unsupported backend interface.
+// Pointer outputs must be non-null; the shared wrapper passes addresses of `ref` parameters.
 package(xtb.fs) alias directory_valid = directoryValid;
 package(xtb.fs) alias close_directory = closeDirectory;
 package(xtb.fs) alias open_directory = openDirectory;
@@ -227,7 +228,19 @@ package(xtb.fs) alias create_directory = createDirectory;
 package(xtb.fs) alias remove_empty_directory = removeEmptyDirectory;
 package(xtb.fs) alias remove_file = removeFile;
 package(xtb.fs) alias rename_path = renamePath;
-package(xtb.fs) alias current_directory = currentDirectory;
-package(xtb.fs) alias executable_path = executablePath;
+package(xtb.fs) OsError current_directory(scope StringBuf* output) @system
+{
+    return currentDirectory(*output);
+}
+
+package(xtb.fs) OsError executable_path(scope StringBuf* output) @system
+{
+    return executablePath(*output);
+}
+
 package(xtb.fs) alias query_access = queryAccess;
-package(xtb.fs) alias canonical_path = canonicalPath;
+
+package(xtb.fs) OsError canonical_path(scope String path, scope StringBuf* output) @system
+{
+    return canonicalPath(path, *output);
+}
