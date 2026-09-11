@@ -477,7 +477,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         if (cStringEqual(name, "crash-segv-address"))
         {
             CrashHandlerOptions options;
-            options.signalTraceMode = SignalTraceMode.faultAddressOnly;
+            options.signal_trace_mode = SignalTraceMode.fault_address_only;
             scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
             raise(SIGSEGV);
             panic("fatal signal unexpectedly returned");
@@ -487,7 +487,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         {
             CrashHandlerOptions options;
             options.theme = StackTraceTheme.plain;
-            options.signalTraceMode = SignalTraceMode.attemptStackUnwind;
+            options.signal_trace_mode = SignalTraceMode.attempt_stack_unwind;
             scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
             raise(SIGSEGV);
             panic("fatal signal unexpectedly returned");
@@ -524,7 +524,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         if (cStringEqual(name, "diagnostic-panic"))
         {
             CrashHandlerOptions options;
-            options.signalTraceMode = SignalTraceMode.faultAddressOnly;
+            options.signal_trace_mode = SignalTraceMode.fault_address_only;
             scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
             panic("intentional diagnostic panic");
         }
@@ -532,7 +532,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         if (cStringEqual(name, "diagnostic-panic-thread"))
         {
             CrashHandlerOptions options;
-            options.signalTraceMode = SignalTraceMode.faultAddressOnly;
+            options.signal_trace_mode = SignalTraceMode.fault_address_only;
             scope CrashHandlerScope handlers = CrashHandlerScope.install(null, options);
             pthread_t thread;
             if (pthread_create(&thread, null, &panicOnOtherThread, null) != 0)

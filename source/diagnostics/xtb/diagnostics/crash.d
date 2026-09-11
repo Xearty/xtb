@@ -2,99 +2,109 @@ module xtb.diagnostics.crash;
 
 nothrow @nogc:
 
-import core.stdc.signal : sig_atomic_t;
-import core.stdc.stdio : FILE, stderr;
-import xtb.panic : PanicHook, panic, set_panic_handler;
+import core.attribute;
+import core.stdc.signal;
+import core.stdc.stdio;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.fmt.writer : Writer;
-import xtb.fmt.print : file_writer;
-import xtb.diagnostics.stacktrace : StackFrame, StackTrace, StackTraceContext,
-    write_stack_trace;
-import xtb.diagnostics.stacktrace_style : ModuleDisplay, StackTraceStyle,
-    StackTraceTheme, SignatureLayout;
-import xtb.diagnostics.demangle : SignatureDetail;
+import xtb.diagnostics.demangle;
+import xtb.diagnostics.stacktrace;
+import xtb.diagnostics.stacktrace_style;
+import xtb.fmt.print;
+import xtb.fmt.writer;
+import xtb.panic;
 import xtb.string;
-import xtb.types : String;
+import xtb.types;
 
 version (linux)
-    import CrashBackend = xtb.diagnostics.internal.linux.crash;
+{
+    import crash_backend = xtb.diagnostics.internal.linux.crash;
+}
 else
-    import CrashBackend = xtb.diagnostics.internal.unsupported.crash;
+{
+    import crash_backend = xtb.diagnostics.internal.unsupported.crash;
+}
 
 enum SignalTraceMode
 {
-    faultAddressOnly,
-    attemptStackUnwind,
+    fault_address_only,
+    attempt_stack_unwind,
 }
 
 struct CrashHandlerOptions
 {
     StackTraceTheme theme = StackTraceTheme.gruvbox;
-    SignalTraceMode signalTraceMode = SignalTraceMode.attemptStackUnwind;
-    bool tracePanics = true;
-    ModuleDisplay moduleDisplay = ModuleDisplay.omitted;
-    SignatureDetail signatureDetail = SignatureDetail.overload_identity;
-    SignatureLayout signatureLayout = SignatureLayout.multiline;
-    size_t signatureColumns = 100;
+    SignalTraceMode signal_trace_mode = SignalTraceMode.attempt_stack_unwind;
+    bool trace_panics = true;
+    ModuleDisplay module_display = ModuleDisplay.omitted;
+    SignatureDetail signature_detail = SignatureDetail.overload_identity;
+    SignatureLayout signature_layout = SignatureLayout.multiline;
+    usize signature_columns = 100;
 }
 
-struct CrashHandlerScope
+/// Owns the process-wide crash-handler installation.
+/// Installation and cleanup must occur while application worker threads are stopped.
+@mustuse struct CrashHandlerScope
 {
 nothrow @nogc:
 
-    private bool active_;
+    /// Tracks whether this scope owns the installed crash-handler state.
+    /// Changing it manually breaks cleanup ownership.
+    bool active;
 
     @disable this(this);
 
     ~this()
     {
-        deinit();
+        this.deinit();
     }
 
+    /// Installs process-wide crash handlers until the returned scope is deinitialized.
+    ///
+    /// `permanent_executable_path` may be null. When non-null, it must point to
+    /// a null-terminated string whose storage remains valid until the returned
+    /// scope is deinitialized.
     static CrashHandlerScope install(
-        const(char)* permanentExecutablePath = null,
+        const(char)* permanent_executable_path = null,
         CrashHandlerOptions options = CrashHandlerOptions.init,
-    )
+    ) @system
     {
-        version (XTB_Checked)
-            require(!globalState.active, "crash handlers already installed");
-        globalState.context = StackTraceContext.create(permanentExecutablePath);
-        globalState.style = StackTraceStyle.from_theme(options.theme);
-        globalState.style.module_display = options.moduleDisplay;
-        globalState.style.signature_detail = options.signatureDetail;
-        globalState.style.signature_layout = options.signatureLayout;
-        globalState.style.signature_columns = options.signatureColumns;
-        globalState.panicTraceWritten = 0;
-        const signalsInstalled = CrashBackend.install_crash_signals(
-            options.signalTraceMode == SignalTraceMode.attemptStackUnwind,
-            &globalState.style.colors,
-            &globalState.panicTraceWritten,
+        require(!global_state.active, "crash handlers already installed");
+        global_state.context = StackTraceContext.create(permanent_executable_path);
+        global_state.style = StackTraceStyle.from_theme(options.theme);
+        global_state.style.module_display = options.module_display;
+        global_state.style.signature_detail = options.signature_detail;
+        global_state.style.signature_layout = options.signature_layout;
+        global_state.style.signature_columns = options.signature_columns;
+        global_state.panic_trace_written = 0;
+        const signals_installed = crash_backend.install_crash_signals(
+            options.signal_trace_mode == SignalTraceMode.attempt_stack_unwind,
+            &global_state.style.colors,
+            &global_state.panic_trace_written,
         );
-        if (!signalsInstalled)
-            panic("failed to install crash signal handler");
-        if (options.tracePanics)
-            globalState.previousPanic = set_panic_handler(&tracePanic);
-        globalState.tracesPanics = options.tracePanics;
-        globalState.active = true;
+        if (!signals_installed) panic("failed to install crash signal handler");
+        if (options.trace_panics) global_state.previous_panic = set_panic_handler(&trace_panic);
+
+        global_state.traces_panics = options.trace_panics;
+        global_state.active = true;
 
         CrashHandlerScope result;
-        result.active_ = true;
+        result.active = true;
         return result;
     }
 
     void deinit()
     {
-        if (!active_)
-            return;
-        if (globalState.tracesPanics)
+        if (!this.active) return;
+
+        if (global_state.traces_panics)
             cast(void) set_panic_handler(
-                globalState.previousPanic.handler,
-                globalState.previousPanic.context,
+                global_state.previous_panic.handler,
+                global_state.previous_panic.context,
             );
-        CrashBackend.restore_crash_signals();
-        globalState = GlobalCrashState.init;
-        active_ = false;
+
+        crash_backend.restore_crash_signals();
+        global_state = GlobalCrashState.init;
+        this.active = false;
     }
 }
 
@@ -102,28 +112,26 @@ private struct GlobalCrashState
 {
     StackTraceContext context;
     StackTraceStyle style;
-    PanicHook previousPanic;
-    bool tracesPanics;
+    PanicHook previous_panic;
+    bool traces_panics;
     bool active;
-    sig_atomic_t panicTraceWritten;
+    sig_atomic_t panic_trace_written;
 }
 
-private __gshared GlobalCrashState globalState;
+private __gshared GlobalCrashState global_state;
 
-private void tracePanic(String message, void*)
+private void trace_panic(String message, void*)
 {
-    if (globalState.previousPanic.handler !is null)
-        globalState.previousPanic.handler(
-            message,
-            globalState.previousPanic.context,
-        );
+    if (global_state.previous_panic.handler !is null)
+        global_state.previous_panic.handler(message, global_state.previous_panic.context);
+
     Writer writer = file_writer(cast(FILE*) stderr);
     writer.put('\n');
     StackFrame[64] frames;
     char[16 * 1024] text;
-    StackTrace trace = globalState.context.capture(frames[], text[], 2);
-    char[32 * 1024] signatureStorage;
-    writer.write_stack_trace(&trace, signatureStorage[], &globalState.style);
+    StackTrace trace = global_state.context.capture(frames[], text[], 2);
+    char[32 * 1024] signature_storage;
+    writer.write_stack_trace(&trace, signature_storage[], &global_state.style);
     writer.put('\n');
-    globalState.panicTraceWritten = 1;
+    global_state.panic_trace_written = 1;
 }
