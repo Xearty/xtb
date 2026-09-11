@@ -92,15 +92,17 @@ nothrow @nogc:
         return result;
     }
 
-    void deinit()
+    void deinit() @system
     {
         if (!this.active) return;
 
         if (global_state.traces_panics)
+        {
             cast(void) set_panic_handler(
                 global_state.previous_panic.handler,
                 global_state.previous_panic.context,
             );
+        }
 
         crash_backend.restore_crash_signals();
         global_state = GlobalCrashState.init;
