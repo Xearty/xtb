@@ -1260,7 +1260,7 @@ unittest
     String[2] arguments = ["one", "two"];
     Command command = Command.search("tool", arguments[]);
     command.setArgumentZero("custom-tool");
-    command.setWorkingDirectory(Path.fromString("/tmp"));
+    command.setWorkingDirectory(Path.from_string("/tmp"));
     command.setEnvironment(environment);
     assert(command.executable == "tool");
     assert(command.arguments.length == 2);

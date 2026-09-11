@@ -79,7 +79,7 @@ version (linux) private int closedPipeWriteWorker(PipeWriter* writer) nothrow @s
 version (linux) private size_t openDescriptorCount() nothrow @system @nogc
 {
     DirectoryIterator iterator;
-    assert(openDirectory(Path.fromString("/proc/self/fd"), &iterator).succeeded);
+    assert(openDirectory(Path.from_string("/proc/self/fd"), &iterator).succeeded);
     size_t result;
     DirectoryEntry entry;
     for (;;)
@@ -158,7 +158,7 @@ version (linux) private void runProcessIntegration(
     {
         String[4] arguments = ["argv", "hello world", "", "quote\"mark"];
         Command command = Command.exact(
-            Path.fromString(helperExecutable),
+            Path.from_string(helperExecutable),
             arguments[],
         );
         command.setArgumentZero("custom-zero");
@@ -213,7 +213,7 @@ version (linux) private void runProcessIntegration(
     {
         String[1] arguments = ["cwd"];
         Command command = Command.exact(
-            Path.fromString(helperExecutable),
+            Path.from_string(helperExecutable),
             arguments[],
         );
         command.setWorkingDirectory(temporaryDirectory);
@@ -239,7 +239,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), options, &child).succeeded);
         enum u8[7] input = [0, 1, 2, 255, 'x', '\n', 0];
         writePipeEntirely(child.stdinPipe, input[]);
@@ -259,7 +259,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), options, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
@@ -276,7 +276,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), options, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded && status.succeeded);
@@ -303,7 +303,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), options, &child).succeeded);
         assert(external.writer.valid);
         assert(close(&external.writer).succeeded);
@@ -322,7 +322,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), SpawnOptions.init, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded);
@@ -335,7 +335,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), SpawnOptions.init, &child).succeeded);
         ExitStatus status;
         assert(wait(&child, &status).succeeded);
@@ -348,7 +348,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), SpawnOptions.init, &child).succeeded);
         assert(tryWait(&child).state == WaitState.running);
         assert(waitFor(&child, Timeout.immediate).state == WaitState.running);
@@ -364,7 +364,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess source;
         scope (exit)
             source.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), SpawnOptions.init, &source).succeeded);
         const processId = source.id;
         ChildProcess target;
@@ -380,7 +380,7 @@ version (linux) private void runProcessIntegration(
     {
         String[2] arguments = ["sleep-ms", "5000"];
         ChildProcess child;
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), SpawnOptions.init, &child).succeeded);
         const processId = cast(int) child.id.value;
         ExitStatus status;
@@ -402,7 +402,7 @@ version (linux) private void runProcessIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), options, &child).succeeded);
         ExitStatus status;
         assert(terminateAndWait(&child, &status).succeeded);
@@ -419,7 +419,7 @@ version (linux) private void runProcessIntegration(
         scope (exit)
             child.deinit();
         const error = spawn(
-            Command.exact(Path.fromString("/definitely/missing/xtb-helper")),
+            Command.exact(Path.from_string("/definitely/missing/xtb-helper")),
             options,
             &child,
         );
@@ -447,7 +447,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         enum u8[9] input = [0, 1, 2, 3, 255, 'x', '\n', 0, 9];
         u8[9] outputStorage;
@@ -491,7 +491,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         const result = communicate(
             &child,
@@ -516,7 +516,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         u8[7] outputStorage;
         u8[9] errorStorage;
@@ -536,7 +536,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         const result = communicate(
             &child,
@@ -553,7 +553,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         u8[128 * 1024] input;
         u8[6] outputStorage;
@@ -570,7 +570,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         u8[7] outputStorage;
         CaptureBuffer output = CaptureBuffer(outputStorage[]);
@@ -603,7 +603,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         const options = CommunicateOptions.init
             .withTimeout(milliseconds(5))
@@ -622,7 +622,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         const options = CommunicateOptions.init
             .withTimeout(milliseconds(5))
@@ -640,7 +640,7 @@ version (linux) private void runCommunicateIntegration(
         ChildProcess child;
         scope (exit)
             child.deinit();
-        assert(spawn(Command.exact(Path.fromString(helperExecutable),
+        assert(spawn(Command.exact(Path.from_string(helperExecutable),
                 arguments[]), routes, &child).succeeded);
         u8[8] sharedStorage;
         CaptureBuffer aliased = CaptureBuffer(sharedStorage[]);
@@ -669,9 +669,9 @@ version (linux) private void runPipelineIntegration(
     {
         String[1] copyArguments = ["copy"];
         Command[3] commands = [
-            Command.exact(Path.fromString(helperExecutable), copyArguments[]),
-            Command.exact(Path.fromString(helperExecutable), copyArguments[]),
-            Command.exact(Path.fromString(helperExecutable), copyArguments[]),
+            Command.exact(Path.from_string(helperExecutable), copyArguments[]),
+            Command.exact(Path.from_string(helperExecutable), copyArguments[]),
+            Command.exact(Path.from_string(helperExecutable), copyArguments[]),
         ];
         const options = PipelineOptions.init
             .withStdin(InputRoute.piped())
@@ -711,11 +711,11 @@ version (linux) private void runPipelineIntegration(
         String[1] copyArguments = ["copy"];
         PipelineStage[2] stages = [
             PipelineStage(Command.exact(
-                    Path.fromString(helperExecutable), emitArguments[],
+                    Path.from_string(helperExecutable), emitArguments[],
             ))
                 .withStderr(ErrorRoute.piped()),
             PipelineStage(Command.exact(
-                    Path.fromString(helperExecutable), copyArguments[],
+                    Path.from_string(helperExecutable), copyArguments[],
             )),
         ];
         const options = PipelineOptions.init
@@ -745,8 +745,8 @@ version (linux) private void runPipelineIntegration(
         String[2] exitArguments = ["exit", "7"];
         String[1] copyArguments = ["copy"];
         Command[2] commands = [
-            Command.exact(Path.fromString(helperExecutable), exitArguments[]),
-            Command.exact(Path.fromString(helperExecutable), copyArguments[]),
+            Command.exact(Path.from_string(helperExecutable), exitArguments[]),
+            Command.exact(Path.from_string(helperExecutable), copyArguments[]),
         ];
         Pipeline pipeline;
         scope (exit)
@@ -771,8 +771,8 @@ version (linux) private void runPipelineIntegration(
     {
         String[2] sleepArguments = ["sleep-ms", "100"];
         Command[2] commands = [
-            Command.exact(Path.fromString(helperExecutable), sleepArguments[]),
-            Command.exact(Path.fromString(helperExecutable), sleepArguments[]),
+            Command.exact(Path.from_string(helperExecutable), sleepArguments[]),
+            Command.exact(Path.from_string(helperExecutable), sleepArguments[]),
         ];
         Pipeline pipeline;
         scope (exit)
@@ -789,8 +789,8 @@ version (linux) private void runPipelineIntegration(
     {
         String[2] sleepArguments = ["sleep-ms", "5000"];
         Command[2] commands = [
-            Command.exact(Path.fromString(helperExecutable), sleepArguments[]),
-            Command.exact(Path.fromString(helperExecutable), sleepArguments[]),
+            Command.exact(Path.from_string(helperExecutable), sleepArguments[]),
+            Command.exact(Path.from_string(helperExecutable), sleepArguments[]),
         ];
         Pipeline pipeline;
         assert(spawnPipeline(commands[], PipelineOptions.init,
@@ -810,8 +810,8 @@ version (linux) private void runPipelineIntegration(
         const baseline = openDescriptorCount();
         String[1] copyArguments = ["copy"];
         Command[2] commands = [
-            Command.exact(Path.fromString(helperExecutable), copyArguments[]),
-            Command.exact(Path.fromString("/missing/xtb-pipeline-stage")),
+            Command.exact(Path.from_string(helperExecutable), copyArguments[]),
+            Command.exact(Path.from_string("/missing/xtb-pipeline-stage")),
         ];
         Pipeline pipeline;
         scope (exit)
@@ -832,7 +832,7 @@ version (linux) private void runPipelineIntegration(
     {
         String[1] copyArguments = ["copy"];
         Command[1] commands = [Command.exact(
-                Path.fromString(helperExecutable), copyArguments[],
+                Path.from_string(helperExecutable), copyArguments[],
             )];
         AllocationRecord[4] records;
         InstrumentedAllocator failing = InstrumentedAllocator.create(
@@ -879,12 +879,12 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(createdRoot !is null);
     const checkedRoot = from_c_string(createdRoot);
     assert(checkedRoot.succeeded);
-    const rootPath = Path.fromString(checkedRoot.value);
+    const rootPath = Path.from_string(checkedRoot.value);
     OsError error;
 
     StringBuf first = StringBuf.from_string(malloc_allocator(), rootPath.view);
     first.append("/first.bin");
-    const firstPath = Path.fromString(first.view);
+    const firstPath = Path.from_string(first.view);
     const u8[6] contents = [0, 1, 2, 3, 0, 255];
     const helperDescriptorCount = openDescriptorCount();
     assert(writeEntireFile(firstPath, contents[]).succeeded);
@@ -1034,14 +1034,14 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
 
     StringBuf second = StringBuf.from_string(malloc_allocator(), rootPath.view);
     second.append("/second.bin");
-    const secondPath = Path.fromString(second.view);
+    const secondPath = Path.from_string(second.view);
     assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).succeeded);
     assert(copyFile(firstPath, secondPath, loaded, CreateMode.createNew).kind ==
             OsErrorKind.alreadyExists);
 
     StringBuf renamed = StringBuf.from_string(malloc_allocator(), rootPath.view);
     renamed.append("/renamed.bin");
-    const renamedPath = Path.fromString(renamed.view);
+    const renamedPath = Path.from_string(renamed.view);
     assert(rename(secondPath, renamedPath).succeeded);
 
     DirectoryIterator iterator;
@@ -1082,7 +1082,7 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     Array!u8 procStatus = Array!u8.create(malloc_allocator());
     scope (exit)
         procStatus.deinit();
-    assert(readEntireFile(Path.fromString("/proc/self/status"), procStatus).succeeded);
+    assert(readEntireFile(Path.from_string("/proc/self/status"), procStatus).succeeded);
     assert(procStatus.length != 0);
 
     Arena* outputArena = scratch_arena();
@@ -1111,12 +1111,12 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     assert(after >= before);
     assert(Timestamp.now().nanosecondsSinceUnixEpoch != 0);
 
-    const helperDirectory = Path.fromString(executable.view).parent;
+    const helperDirectory = Path.from_string(executable.view).parent;
     StringBuf helperExecutable = StringBuf.from_string(
         malloc_allocator(),
         helperDirectory.view,
     );
-    helperExecutable.appendComponent(Path.fromString("process_test_helper"));
+    helperExecutable.append_component(Path.from_string("process_test_helper"));
     runProcessIntegration(
         helperExecutable.view,
         helperDirectory.view,

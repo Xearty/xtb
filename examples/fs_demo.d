@@ -20,7 +20,7 @@ extern (C) int main(int argumentCount, char** arguments) nothrow @nogc
         }
         input = checked.value;
     }
-    const root = Path.fromString(input);
+    const root = Path.from_string(input);
 
     StringBuf canonical = StringBuf.create(malloc_allocator());
     scope (exit)

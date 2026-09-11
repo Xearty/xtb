@@ -8,7 +8,7 @@ import xtb.string;
 import xtb.types : String;
 import xtb.os.error : OsError, OsErrorKind;
 import xtb.fs.file : FileMetadata, FileType, SymlinkMode, metadata;
-import xtb.fs.path : Path, appendComponent;
+import xtb.fs.path : Path, append_component;
 import xtb.fs.internal.directory : NativeDirectoryEntry, NativeDirectoryStatus;
 import xtb.fs.internal.file : NativeFileType;
 
@@ -215,8 +215,8 @@ private OsError walk(Path root, Allocator* temporaryAllocator, DirectoryVisitor 
 
         full.clear();
         full.append(root.view);
-        full.appendComponent(Path.fromString(entry.name));
-        const path = Path.fromString(full.view);
+        full.append_component(Path.from_string(entry.name));
+        const path = Path.from_string(full.view);
         FileType type = entry.type;
         if (type == FileType.unknown)
         {
