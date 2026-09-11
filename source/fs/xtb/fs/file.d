@@ -91,7 +91,7 @@ nothrow @nogc:
             return OsError.init;
         const handle = handle_;
         handle_ = NativeHandle.init;
-        return backend.closeHandle(handle);
+        return backend.close_handle(handle);
     }
 
     /// Explicitly ends this file's lifetime.
@@ -124,7 +124,7 @@ OsError flush(File* file) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for flush");
-    return backend.flushHandle(file.handle_);
+    return backend.flush_handle(file.handle_);
 }
 
 OsError open(Path path, OpenOptions options, File* output) @system
@@ -137,7 +137,7 @@ OsError open(Path path, OpenOptions options, File* output) @system
     if (!valid(options))
         return OsError(OsErrorKind.invalidArgument, 0);
     NativeHandle handle;
-    const error = backend.openFile(
+    const error = backend.open_file(
         path.view,
         options.read,
         options.write,
@@ -171,7 +171,7 @@ IoResult readSome(File* file, u8[] output) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for read");
-    const result = backend.readSome(file.handle_, output);
+    const result = backend.read_some(file.handle_, output);
     return IoResult(result.error, result.transferred);
 }
 
@@ -179,7 +179,7 @@ IoResult writeSome(File* file, scope const(u8)[] input) @system
 {
     version (XTB_Checked)
         require(file !is null && file.valid, "invalid File for write");
-    const result = backend.writeSome(file.handle_, input);
+    const result = backend.write_some(file.handle_, input);
     return IoResult(result.error, result.transferred);
 }
 
@@ -218,7 +218,7 @@ OsError metadata(File* file, FileMetadata* output) @system
     }
     *output = FileMetadata.init;
     NativeFileMetadata native;
-    const error = backend.handleMetadata(file.handle_, &native);
+    const error = backend.handle_metadata(file.handle_, &native);
     if (error.failed)
         return error;
     *output = fromNative(native);
@@ -234,7 +234,7 @@ OsError metadata(Path path, SymlinkMode symlinks, FileMetadata* output) @system
         return OsError(OsErrorKind.invalidArgument, 0);
 
     NativeFileMetadata native;
-    const error = backend.pathMetadata(
+    const error = backend.path_metadata(
         path.view,
         symlinks == SymlinkMode.follow,
         &native,

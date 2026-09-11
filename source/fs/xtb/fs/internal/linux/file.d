@@ -128,6 +128,14 @@ package(xtb.fs) OsError pathMetadata(
         ? OsError.init : OsError(OsErrorKind.invalidArgument, 0);
 }
 
+package(xtb.fs) alias close_handle = closeHandle;
+package(xtb.fs) alias flush_handle = flushHandle;
+package(xtb.fs) alias open_file = openFile;
+package(xtb.fs) alias read_some = readSome;
+package(xtb.fs) alias write_some = writeSome;
+package(xtb.fs) alias handle_metadata = handleMetadata;
+package(xtb.fs) alias path_metadata = pathMetadata;
+
 private bool convert(
     ref const stat_t native,
     NativeFileMetadata* output,
