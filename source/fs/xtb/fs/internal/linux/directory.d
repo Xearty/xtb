@@ -138,17 +138,14 @@ package(xtb.fs) OsError rename_path(scope String source, scope String destinatio
 package(xtb.fs) OsError current_directory(scope StringBuf* output) @system
 {
     char* buffer = getcwd(null, 0);
+    scope (exit) free(buffer);
+
     if (buffer is null) return lastError();
 
     const checked = from_c_string(buffer);
-    if (checked.failed)
-    {
-        free(buffer);
-        return OsError(OsErrorKind.invalidData, 0);
-    }
+    if (checked.failed) return OsError(OsErrorKind.invalidData, 0);
 
     output.append(checked.value);
-    free(buffer);
     return OsError.init;
 }
 
@@ -220,16 +217,13 @@ package(xtb.fs) OsError canonical_path(scope String path, scope StringBuf* outpu
     ScratchScope scratch = ScratchScope.acquire(output.allocator);
     StringBuf native_path = StringBuf.from_string(scratch.allocator, path);
     char* resolved = realpath(native_path.checked_c_string, null);
+    scope (exit) free(resolved);
+
     if (resolved is null) return lastError();
 
     const checked = from_c_string(resolved);
-    if (checked.failed)
-    {
-        free(resolved);
-        return OsError(OsErrorKind.invalidData, 0);
-    }
+    if (checked.failed) return OsError(OsErrorKind.invalidData, 0);
 
     output.append(checked.value);
-    free(resolved);
     return OsError.init;
 }
