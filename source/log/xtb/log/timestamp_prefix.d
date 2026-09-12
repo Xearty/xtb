@@ -59,7 +59,7 @@ nothrow @nogc:
     @disable this(this);
 
     static TimestampLogPrefix create(
-        return scope LogTimestampOptions options = LogTimestampOptions.defaults(),
+        return scope const LogTimestampOptions options = LogTimestampOptions.defaults(),
     ) @safe
     {
         TimestampLogPrefix result;
@@ -84,15 +84,11 @@ private bool try_write_timestamp_prefix_callback(
     if (timestamp is null || output is null) return false;
 
     const now = Timestamp.now();
-    return try_write_timestamp_prefix(
-        timestamp.options,
-        now.nanosecondsSinceUnixEpoch,
-        output,
-    );
+    return try_write_timestamp_prefix(timestamp.options, now.nanosecondsSinceUnixEpoch, output);
 }
 
 private bool try_write_timestamp_prefix(
-    LogTimestampOptions options,
+    scope const LogTimestampOptions options,
     i64 nanoseconds,
     scope LogPrefixWriter* output,
 ) @system
@@ -117,7 +113,7 @@ private String format_timestamp(
     LogTimestampZone zone,
     bool milliseconds,
     return scope char[] output,
-) @system
+)
 {
     enum i64 nanoseconds_per_second = 1_000_000_000L;
     i64 seconds = nanoseconds / nanoseconds_per_second;
@@ -305,12 +301,7 @@ unittest
     const String epoch_local = format_timestamp(0, LogTimestampZone.local, false, buffer[]);
     assert(epoch_local.length == 19);
 
-    const String exact_local = format_timestamp(
-        0,
-        LogTimestampZone.local,
-        false,
-        buffer[0 .. 19],
-    );
+    const String exact_local = format_timestamp(0, LogTimestampZone.local, false, buffer[0 .. 19]);
     assert(exact_local.length == 19);
 
     const String exact_local_milliseconds = format_timestamp(
@@ -343,7 +334,7 @@ unittest
 
 unittest
 {
-    usize read_file(FILE* file, scope char[] destination) @system
+    usize read_file(scope FILE* file, scope char[] destination) @system
     {
         rewind(file);
         return fread(destination.ptr, 1, destination.length, file);
