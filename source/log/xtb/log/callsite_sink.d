@@ -33,12 +33,12 @@ nothrow @nogc:
 
     LogSinkRef sink_ref() return @trusted
     {
-        // The returned sink borrows this decorator through its opaque context.
-        // `return` prevents the reference from outliving the receiver.
+        // Both @system callbacks receive exactly &this as their opaque context.
+        // `return` prevents the resulting sink reference from outliving this decorator.
         return LogSinkRef.create(
             &resolve_without_callsite_record,
             &this,
-            &without_callsite_flush_callback,
+            &try_flush_without_callsite,
         );
     }
 }
@@ -47,7 +47,7 @@ private LogRecordRef resolve_without_callsite_record(
     void* context,
     return scope const ref LogRecordInfo info,
     return scope const(LogSourceLocation)*,
-)
+) @system
 {
     WithoutCallsiteLogSink* sink = cast(WithoutCallsiteLogSink*) context;
     if (sink is null || !sink.valid) return LogRecordRef.init;
@@ -55,7 +55,7 @@ private LogRecordRef resolve_without_callsite_record(
     return sink.child.begin_record(info, null);
 }
 
-private bool without_callsite_flush_callback(void* context)
+private bool try_flush_without_callsite(void* context) @system
 {
     WithoutCallsiteLogSink* sink = cast(WithoutCallsiteLogSink*) context;
     return sink !is null && sink.child.try_flush();
