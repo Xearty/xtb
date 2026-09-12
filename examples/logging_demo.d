@@ -116,7 +116,7 @@ nothrow @nogc
     TimestampLogPrefix timestamp = TimestampLogPrefix.create(options);
     PrefixLogSink timestamped = PrefixLogSink.create(
         presentation,
-        timestamp.prefixRef(),
+        timestamp.prefix_ref(),
     );
     char[512] storage;
     Logger logger = Logger.create(
@@ -394,7 +394,7 @@ extern (C) int main() nothrow @nogc
     TimestampLogPrefix terminalTimestamp = TimestampLogPrefix.create(timestampOptions);
     PrefixLogSink timestampedTerminal = PrefixLogSink.create(
         terminalPresentation,
-        terminalTimestamp.prefixRef(),
+        terminalTimestamp.prefix_ref(),
     );
     char[256] timestampStorage;
     Logger timestampLogger = Logger.create(
@@ -424,7 +424,7 @@ extern (C) int main() nothrow @nogc
     TimestampLogPrefix fileTimestamp = TimestampLogPrefix.create(timestampOptions);
     PrefixLogSink timestampedFile = PrefixLogSink.create(
         plain_file_log_sink(logFile),
-        fileTimestamp.prefixRef(),
+        fileTimestamp.prefix_ref(),
     );
     TeeLogSink tee = TeeLogSink.create(
         terminalWithoutCallsite.sink_ref(),

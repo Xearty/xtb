@@ -62,7 +62,7 @@ WithoutCallsiteLogSink terminalSink = WithoutCallsiteLogSink.create(
 TimestampLogPrefix timestamp = TimestampLogPrefix.create();
 PrefixLogSink fileSink = PrefixLogSink.create(
     plain_file_log_sink(logFile),
-    timestamp.prefixRef(),
+    timestamp.prefix_ref(),
 );
 
 TeeLogSink sinks = TeeLogSink.create(
