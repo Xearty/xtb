@@ -2,14 +2,17 @@ module xtb.log.result;
 
 nothrow @nogc:
 
-enum LogStatus : ubyte
+import xtb.data_struct;
+import xtb.types;
+
+enum LogStatus
 {
     filtered,
     delivered,
     truncated,
-    sinkFailed,
+    sink_failed,
     recursive,
-    invalidLogger,
+    invalid_logger,
 }
 
 struct LogResult
@@ -17,11 +20,13 @@ struct LogResult
 nothrow @nogc:
 
     LogStatus status;
-    size_t written;
-    size_t required;
+    usize written;
+    usize required;
+
+    mixin DataStruct;
 
     bool delivered() const pure @safe
     {
-        return status == LogStatus.delivered || status == LogStatus.truncated;
+        return this.status == LogStatus.delivered || this.status == LogStatus.truncated;
     }
 }

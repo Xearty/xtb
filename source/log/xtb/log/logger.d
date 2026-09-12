@@ -222,7 +222,7 @@ private LogResult deliver(
     if (!record.valid)
     {
         logger.delivering_ = false;
-        return LogResult(LogStatus.sinkFailed, safeWritten, formatted.required);
+        return LogResult(LogStatus.sink_failed, safeWritten, formatted.required);
     }
 
     bool payloadAccepted = record.beginMessage();
@@ -242,7 +242,7 @@ private LogResult deliver(
     logger.delivering_ = false;
 
     if (!accepted)
-        return LogResult(LogStatus.sinkFailed, safeWritten, formatted.required);
+        return LogResult(LogStatus.sink_failed, safeWritten, formatted.required);
     return LogResult(
         formatted.truncated ? LogStatus.truncated : LogStatus.delivered,
         safeWritten,
@@ -276,7 +276,7 @@ LogResult stream(Producer)(
 )
 {
     if (!logger.valid)
-        return LogResult(LogStatus.invalidLogger, 0, 0);
+        return LogResult(LogStatus.invalid_logger, 0, 0);
     if (level < logger.minimumLevel_)
         return LogResult(LogStatus.filtered, 0, 0);
     if (logger.delivering_)
@@ -291,7 +291,7 @@ LogResult stream(Producer)(
     if (!record.valid)
     {
         logger.delivering_ = false;
-        return LogResult(LogStatus.sinkFailed, 0, 0);
+        return LogResult(LogStatus.sink_failed, 0, 0);
     }
 
     bool payloadAccepted = record.beginMessage();
@@ -320,7 +320,7 @@ LogResult stream(Producer)(
     logger.delivering_ = false;
 
     return LogResult(
-        accepted ? LogStatus.delivered : LogStatus.sinkFailed,
+        accepted ? LogStatus.delivered : LogStatus.sink_failed,
         written,
         written,
     );
@@ -371,7 +371,7 @@ package LogResult logAt(Args...)(
 )
 {
     if (!logger.valid)
-        return LogResult(LogStatus.invalidLogger, 0, 0);
+        return LogResult(LogStatus.invalid_logger, 0, 0);
     if (level < logger.minimumLevel_)
         return LogResult(LogStatus.filtered, 0, 0);
     if (logger.delivering_)
@@ -388,7 +388,7 @@ package LogResult logfAt(string pattern, Args...)(
 )
 {
     if (!logger.valid)
-        return LogResult(LogStatus.invalidLogger, 0, 0);
+        return LogResult(LogStatus.invalid_logger, 0, 0);
     if (level < logger.minimumLevel_)
         return LogResult(LogStatus.filtered, 0, 0);
     if (logger.delivering_)

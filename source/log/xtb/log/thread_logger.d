@@ -115,7 +115,7 @@ private LogResult logAt(Args...)(
 {
     Logger* logger = currentLogger();
     if (logger is null)
-        return LogResult(LogStatus.invalidLogger, 0, 0);
+        return LogResult(LogStatus.invalid_logger, 0, 0);
     return explicitLogger.logAt!Args(*logger, level, callsite, args);
 }
 
@@ -127,7 +127,7 @@ private LogResult logfAt(string pattern, Args...)(
 {
     Logger* logger = currentLogger();
     if (logger is null)
-        return LogResult(LogStatus.invalidLogger, 0, 0);
+        return LogResult(LogStatus.invalid_logger, 0, 0);
     return explicitLogger.logfAt!(pattern, Args)(*logger, level, callsite, args);
 }
 
@@ -337,7 +337,7 @@ unittest
 
     assert(currentLogger() is null);
     assert(!enabled(LogLevel.info));
-    assert(log(LogLevel.info, "missing").status == LogStatus.invalidLogger);
+    assert(log(LogLevel.info, "missing").status == LogStatus.invalid_logger);
     assert(!flushLogger());
 
     ThreadContextScope context = ThreadContextScope.acquire();

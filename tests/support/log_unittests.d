@@ -657,7 +657,7 @@ unittest
     capture.clear();
     probe.accepted = false;
     const providerFailed = logger.warning("still delivered");
-    assert(providerFailed.status == LogStatus.sinkFailed);
+    assert(providerFailed.status == LogStatus.sink_failed);
     assert(capture.count == 10);
     assertEvent(capture, 9, LogSinkEventKind.endRecord);
 
@@ -665,7 +665,7 @@ unittest
     probe.accepted = true;
     capture.rejectAt = 1;
     const prefixWriteFailed = logger.error("body survives");
-    assert(prefixWriteFailed.status == LogStatus.sinkFailed);
+    assert(prefixWriteFailed.status == LogStatus.sink_failed);
     assert(capture.count == 9);
     assertEvent(capture, 2, LogSinkEventKind.text, "[error]");
     assertEvent(capture, 8, LogSinkEventKind.endRecord);
@@ -674,7 +674,7 @@ unittest
     capture.rejectAt = 0;
     const callsBefore = probe.calls;
     const beginFailed = logger.info("not begun");
-    assert(beginFailed.status == LogStatus.sinkFailed);
+    assert(beginFailed.status == LogStatus.sink_failed);
     assert(probe.calls == callsBefore);
     assert(capture.count == 1);
     assertEvent(capture, 0, LogSinkEventKind.beginRecord);
@@ -1420,7 +1420,7 @@ unittest
     const failingSplitFunction = cast(String) __FUNCTION__;
     const failingSplitLine = __LINE__ + 1;
     const failingSplitResult = failingSplitLogger.error("survives sibling failure");
-    assert(failingSplitResult.status == LogStatus.sinkFailed);
+    assert(failingSplitResult.status == LogStatus.sink_failed);
     assertEvent(failingSuppressedCapture, 0, LogSinkEventKind.beginRecord);
     assertEvent(failingSuppressedCapture, 1, LogSinkEventKind.text, "[error]");
     assertEvent(failingSuppressedCapture, 2, LogSinkEventKind.text, " ");
@@ -1631,7 +1631,7 @@ unittest
         ++streamProducerCalls;
         writer.write("must not run");
     });
-    assert(result.status == LogStatus.invalidLogger);
+    assert(result.status == LogStatus.invalid_logger);
     assert(streamProducerCalls == 1);
 
     // Every logger-owned lifecycle failure is finalized the same way as the
@@ -1658,7 +1658,7 @@ unittest
         );
 
         if (rejectAt < 9)
-            assert(failedResult.status == LogStatus.sinkFailed);
+            assert(failedResult.status == LogStatus.sink_failed);
         else
             assert(failedResult.status == LogStatus.delivered);
         assert(producerCalls == (rejectAt >= 4 ? 1 : 0));
@@ -1692,7 +1692,7 @@ unittest
     );
     failedCallsiteLogger.setCallsitesEnabled(true);
     const failedCallsiteResult = failedCallsiteLogger.info("payload");
-    assert(failedCallsiteResult.status == LogStatus.sinkFailed);
+    assert(failedCallsiteResult.status == LogStatus.sink_failed);
     assert(failedCallsiteResult.written == "payload".length);
     assert(failedCallsiteResult.required == "payload".length);
     assertEvent(failedCallsite, 0, LogSinkEventKind.beginRecord);
@@ -1759,7 +1759,7 @@ unittest
         writer.write("cd");
         writer.write("ef");
     });
-    assert(result.status == LogStatus.sinkFailed);
+    assert(result.status == LogStatus.sink_failed);
     assert(result.written == 6 && result.required == 6);
     assert(healthyBranch.count == 9);
     assertEvent(healthyBranch, 4, LogSinkEventKind.messageChunk, "abcd");
@@ -1878,7 +1878,7 @@ unittest
     );
 
     Logger invalid;
-    assert(invalid.log(LogLevel.info, "ignored").status == LogStatus.invalidLogger);
+    assert(invalid.log(LogLevel.info, "ignored").status == LogStatus.invalid_logger);
     assert(!invalid.flush());
 
     Capture rejected;
@@ -1888,7 +1888,7 @@ unittest
         LogSinkRef.create(&captureSink, &rejected, &captureFlush),
         messageBuffer[],
     );
-    assert(rejecting.info("rejected").status == LogStatus.sinkFailed);
+    assert(rejecting.info("rejected").status == LogStatus.sink_failed);
     assert(rejected.count == 7);
     assertEvent(rejected, 0, LogSinkEventKind.beginRecord);
     assertEvent(rejected, 4, LogSinkEventKind.messageChunk, "rejected");
@@ -1904,7 +1904,7 @@ unittest
         LogSinkRef.create(&captureSink, &rejectBegin),
         messageBuffer[],
     );
-    assert(rejectBeginLogger.info("ignored").status == LogStatus.sinkFailed);
+    assert(rejectBeginLogger.info("ignored").status == LogStatus.sink_failed);
     assert(rejectBegin.count == 1);
     assertEvent(rejectBegin, 0, LogSinkEventKind.beginRecord);
 
@@ -1917,7 +1917,7 @@ unittest
             LogSinkRef.create(&captureSink, &failed),
             messageBuffer[],
         );
-        assert(failedLogger.info("failure matrix").status == LogStatus.sinkFailed);
+        assert(failedLogger.info("failure matrix").status == LogStatus.sink_failed);
         assert(failed.count != 0);
         assertEvent(failed, 0, LogSinkEventKind.beginRecord);
         if (rejectAt == 0)
@@ -2655,7 +2655,7 @@ unittest
         );
         char[64] storage;
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
-        assert(logger.info("first fails").status == LogStatus.sinkFailed);
+        assert(logger.info("first fails").status == LogStatus.sink_failed);
         assert(first.count == 7);
         assertEvent(first, 4, LogSinkEventKind.messageChunk, "first fails");
         assertEvent(first, 5, LogSinkEventKind.endMessage);
@@ -2682,7 +2682,7 @@ unittest
         );
         char[64] storage;
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
-        assert(logger.info("fails once").status == LogStatus.sinkFailed);
+        assert(logger.info("fails once").status == LogStatus.sink_failed);
         first.clear();
         second.clear();
         assert(logger.info("recovers").status == LogStatus.delivered);
@@ -2713,7 +2713,7 @@ unittest
         );
         char[64] storage;
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
-        assert(logger.info("second fails").status == LogStatus.sinkFailed);
+        assert(logger.info("second fails").status == LogStatus.sink_failed);
         first.assertSuccessfulRecord(
             "[info]",
             "second fails",
@@ -2747,7 +2747,7 @@ unittest
             );
             char[64] storage;
             Logger logger = Logger.create(tee.sinkRef(), storage[]);
-            assert(logger.info("failure matrix").status == LogStatus.sinkFailed);
+            assert(logger.info("failure matrix").status == LogStatus.sink_failed);
 
             const(Capture)* failed = failFirst ? &first : &second;
             const(Capture)* healthy = failFirst ? &second : &first;
@@ -2769,7 +2769,7 @@ unittest
                 LogSinkRef.create(&captureSink, &direct),
                 directStorage[],
             );
-            assert(directLogger.info("failure matrix").status == LogStatus.sinkFailed);
+            assert(directLogger.info("failure matrix").status == LogStatus.sink_failed);
             assertSameEvents(*failed, direct);
 
             assertEvent(*failed, 0, LogSinkEventKind.beginRecord);
@@ -2817,7 +2817,7 @@ unittest
             LogLevel.info,
             palette,
         );
-        assert(logger.info("message not forwarded").status == LogStatus.sinkFailed);
+        assert(logger.info("message not forwarded").status == LogStatus.sink_failed);
         assert(failure.rejected);
         healthy.assertSuccessfulRecord(
             "[info]",
@@ -2855,7 +2855,7 @@ unittest
         assert(!tee.valid);
         char[64] storage;
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
-        assert(logger.info("invalid peer").status == LogStatus.sinkFailed);
+        assert(logger.info("invalid peer").status == LogStatus.sink_failed);
         healthy.assertSuccessfulRecord(
             "[info]",
             "invalid peer",
@@ -2879,7 +2879,7 @@ unittest
         );
         char[64] storage;
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
-        assert(logger.info("both fail").status == LogStatus.sinkFailed);
+        assert(logger.info("both fail").status == LogStatus.sink_failed);
         assert(first.count == 7);
         assert(second.count == 7);
         assertEvent(first, 5, LogSinkEventKind.endMessage);
@@ -2902,7 +2902,7 @@ unittest
         );
         char[64] storage;
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
-        assert(logger.info("begin failure").status == LogStatus.sinkFailed);
+        assert(logger.info("begin failure").status == LogStatus.sink_failed);
         assert(first.count == 1);
         assertEvent(first, 0, LogSinkEventKind.beginRecord);
         second.assertSuccessfulRecord(
@@ -2986,7 +2986,7 @@ unittest
         );
         char[64] storage;
         Logger logger = Logger.create(outer.sinkRef(), storage[]);
-        assert(logger.info("nested").status == LogStatus.sinkFailed);
+        assert(logger.info("nested").status == LogStatus.sink_failed);
         first.assertSuccessfulRecord(
             "[info]",
             "nested",
@@ -3203,7 +3203,7 @@ unittest
             );
             char[64] storage;
             Logger logger = Logger.create(tee.sinkRef(), storage[]);
-            assert(logger.info("unlock after failure").status == LogStatus.sinkFailed);
+            assert(logger.info("unlock after failure").status == LogStatus.sink_failed);
             assert(failure.rejected);
             assertEvent(healthy, 7, LogSinkEventKind.endRecord);
 
