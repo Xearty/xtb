@@ -53,11 +53,7 @@ nothrow @nogc:
     {
         // All @system callbacks receive exactly &this as their opaque context.
         // `return` prevents the resulting sink reference from outliving this tee.
-        return LogSinkRef.create(
-            &resolve_tee_record,
-            &this,
-            &try_flush_tee,
-        );
+        return LogSinkRef.create(&resolve_tee_record, &this, &try_flush_tee);
     }
 }
 
@@ -67,7 +63,7 @@ private LogRecordRef resolve_tee_record(
     return scope const(LogSourceLocation)* callsite,
 ) @system
 {
-    TeeLogSink* tee = cast(TeeLogSink*) context;
+    auto tee = cast(TeeLogSink*) context;
     if (tee is null || !tee.valid || tee.in_record) return LogRecordRef.init;
 
     tee.in_record = true;
@@ -83,17 +79,12 @@ private LogRecordRef resolve_tee_record(
 
     // Child setup failures are deliberately deferred until try_end_record so a
     // healthy branch still receives the complete logical record.
-    return LogRecordRef.create(
-        &try_tee_record_event,
-        tee,
-        info,
-        callsite,
-    );
+    return LogRecordRef.create(&try_tee_record_event, tee, info, callsite);
 }
 
 private bool try_tee_record_event(void* context, scope const LogSinkEvent* event) @system
 {
-    TeeLogSink* tee = cast(TeeLogSink*) context;
+    auto tee = cast(TeeLogSink*) context;
     if (tee is null || event is null || !tee.in_record) return false;
 
     final switch (event.kind)
@@ -185,7 +176,7 @@ private bool try_tee_record_event(void* context, scope const LogSinkEvent* event
 
 private bool try_flush_tee(void* context) @system
 {
-    TeeLogSink* tee = cast(TeeLogSink*) context;
+    auto tee = cast(TeeLogSink*) context;
     if (tee is null) return false;
 
     const bool first_accepted = tee.first.try_flush();
