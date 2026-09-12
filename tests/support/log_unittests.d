@@ -248,9 +248,9 @@ version (unittest)
         if (probe is null || output is null)
             return false;
         ++probe.calls;
-        if (!output.write("prefix", probe.style))
+        if (!output.try_write("prefix", probe.style))
             return false;
-        if (!output.write(" "))
+        if (!output.try_write(" "))
             return false;
         return probe.accepted;
     }
@@ -260,9 +260,9 @@ version (unittest)
         if (output is null)
             return false;
         const style = ANSIStyle.foreground(ANSIColor.bright_black).dim;
-        if (!output.writeAnsi("base \x1b[31mred\x1b[0m base ", style))
+        if (!output.try_write_ansi("base \x1b[31mred\x1b[0m base ", style))
             return false;
-        return output.writeAnsi("\x1b[35mtail ");
+        return output.try_write_ansi("\x1b[35mtail ");
     }
 
     private struct RecursiveCapture
@@ -633,7 +633,7 @@ unittest
     );
     assert(prefixed.valid);
     char[128] storage;
-    Logger logger = Logger.create(prefixed.sinkRef(), storage[], LogLevel.trace);
+    Logger logger = Logger.create(prefixed.sink_ref(), storage[], LogLevel.trace);
 
     const delivered = logger.info("hello");
     assert(delivered.status == LogStatus.delivered);
@@ -705,7 +705,7 @@ unittest
         tee.sinkRef(),
         LogPrefixRef.create(&prefixProbe, &probe),
     );
-    LogSinkRef sink = prefixed.sinkRef();
+    LogSinkRef sink = prefixed.sink_ref();
 
     const info = testRecordInfo(style);
     LogRecordRef record = sink.begin_record(info);
@@ -1473,7 +1473,7 @@ unittest
         LogPrefixRef.create(&prefixProbe, &suppressedPrefixProbe),
     );
     WithoutCallsiteLogSink prefixedSuppressed = WithoutCallsiteLogSink.create(
-        suppressedPrefix.sinkRef(),
+        suppressedPrefix.sink_ref(),
     );
     char[64] prefixedSuppressedBuffer;
     Logger prefixedSuppressedLogger = Logger.create(
@@ -1505,7 +1505,7 @@ unittest
     );
     char[64] suppressionInsidePrefixBuffer;
     Logger suppressionInsidePrefixLogger = Logger.create(
-        prefixOutsideSuppression.sinkRef(),
+        prefixOutsideSuppression.sink_ref(),
         suppressionInsidePrefixBuffer[],
     );
     suppressionInsidePrefixLogger.setCallsitesEnabled(true);
@@ -1987,7 +1987,7 @@ unittest
             LogPrefixRef.create(&prefixProbe, &prefixProbeValue),
         );
         char[64] fileMessage;
-        Logger located = Logger.create(prefixed.sinkRef(), fileMessage[]);
+        Logger located = Logger.create(prefixed.sink_ref(), fileMessage[]);
         located.setCallsitesEnabled(true);
         const callsiteFunction = cast(String) __FUNCTION__;
         const callsiteLine = __LINE__ + 1;
@@ -2183,7 +2183,7 @@ unittest
         );
         char[64] messageStorage;
         Logger prefixedLogger = Logger.create(
-            prefixed.sinkRef(),
+            prefixed.sink_ref(),
             messageStorage[],
             LogLevel.info,
         );

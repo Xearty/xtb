@@ -2,68 +2,68 @@ module xtb.log.prefix_sink;
 
 nothrow @nogc:
 
-import xtb.ansi : ANSIStyle;
-import xtb.lifetime : move;
-import xtb.log.sink : LogRecordInfo, LogRecordRef, LogSinkRef, LogSourceLocation;
-import xtb.types : String;
+import xtb.ansi;
+import xtb.lifetime;
+import xtb.log.sink;
+import xtb.types;
 
 /// Restricted synchronous writer exposed to record-prefix providers.
 ///
 /// Each write goes through the already-resolved child record before the
-/// logger's standard level/message framing begins. `write` uses semantic
+/// logger's standard level/message framing begins. `try_write` uses semantic
 /// `ANSIStyle` with ANSI-free bytes and stays on the direct presentation path;
-/// `writeAnsi` additionally allows supported embedded SGR and lets the
+/// `try_write_ansi` additionally allows supported embedded SGR and lets the
 /// destination preserve or strip it. The writer owns no storage and may only be
 /// used for the duration of the prefix callback.
 struct LogPrefixWriter
 {
 nothrow @nogc:
 
-    private LogRecordRef* record_;
-    private bool failed_;
+    LogRecordRef* record;
+    bool failed;
 
     /// Writes ANSI-free prefix bytes with an optional semantic style.
-    bool write(return scope String bytes, ANSIStyle style = ANSIStyle.init)
+    bool try_write(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
-        return writeImpl(bytes, style, false);
+        return this.try_write_impl(bytes, style, false);
     }
 
     /// Writes one prefix span that may contain supported embedded ANSI SGR.
     /// ANSI presentation terminates the span with a full reset, so embedded
     /// style state does not carry into a later prefix write or logger framing.
     /// One supported SGR sequence must not be split across two calls.
-    bool writeAnsi(return scope String bytes, ANSIStyle style = ANSIStyle.init)
+    bool try_write_ansi(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
-        return writeImpl(bytes, style, true);
+        return this.try_write_impl(bytes, style, true);
     }
 
-    private bool writeImpl(
+    private bool try_write_impl(
         return scope String bytes,
         ANSIStyle style,
-        bool mayContainAnsi,
+        bool may_contain_ansi,
     )
     {
-        if (failed_ || record_ is null)
-            return false;
-        const accepted = mayContainAnsi
-            ? (*record_).try_write_ansi_text(bytes, style)
-            : (*record_).try_write_text(bytes, style);
-        if (accepted)
-            return true;
-        failed_ = true;
+        if (this.failed || this.record is null) return false;
+
+        const bool accepted = may_contain_ansi
+            ? (*this.record).try_write_ansi_text(bytes, style)
+            : (*this.record).try_write_text(bytes, style);
+        if (accepted) return true;
+
+        this.failed = true;
         return false;
     }
 }
 
-alias LogPrefix = bool function(void* context, LogPrefixWriter* output);
+alias LogPrefix = bool function(void* context, LogPrefixWriter* output) nothrow @nogc;
 
 /// A copyable, non-owning reference to a record-prefix provider.
 struct LogPrefixRef
 {
 nothrow @nogc:
 
-    private LogPrefix prefix_;
-    private void* context_;
+    LogPrefix prefix;
+    void* context;
 
     static LogPrefixRef create(LogPrefix prefix, void* context)
     {
@@ -72,12 +72,12 @@ nothrow @nogc:
 
     bool valid() const pure @safe
     {
-        return prefix_ !is null;
+        return this.prefix !is null;
     }
 
-    bool write(LogPrefixWriter* output)
+    bool try_write(LogPrefixWriter* output)
     {
-        return valid && output !is null && prefix_(context_, output);
+        return this.valid && output !is null && this.prefix(this.context, output);
     }
 }
 
@@ -90,66 +90,65 @@ nothrow @nogc:
 /// when the record ends, allowing an already-begun child to receive the actual
 /// message and matching cleanup.
 ///
-/// The wrapper owns neither child nor provider. Once `sinkRef()` has been taken,
+/// The wrapper owns neither child nor provider. Once `sink_ref()` has been taken,
 /// this value must remain at a stable address and outlive every use of that
 /// reference.
 struct PrefixLogSink
 {
 nothrow @nogc:
 
-    private LogSinkRef child_;
-    private LogPrefixRef prefix_;
+    LogSinkRef child;
+    LogPrefixRef prefix;
 
     @disable this(this);
 
     static PrefixLogSink create(LogSinkRef child, LogPrefixRef prefix)
     {
         PrefixLogSink result;
-        result.child_ = child;
-        result.prefix_ = prefix;
+        result.child = child;
+        result.prefix = prefix;
         return result;
     }
 
     bool valid() const pure @safe
     {
-        return child_.valid && prefix_.valid;
+        return this.child.valid && this.prefix.valid;
     }
 
-    LogSinkRef sinkRef() return @trusted
+    LogSinkRef sink_ref() return @trusted
     {
+        // Both @system callbacks receive exactly &this as their opaque context.
+        // `return` prevents the resulting sink reference from outliving this decorator.
         return LogSinkRef.create(
-            &resolvePrefixRecord,
-            cast(void*)&this,
-            &prefixLogFlushCallback,
+            &resolve_prefix_record,
+            &this,
+            &try_flush_prefix,
         );
     }
 }
 
-private LogRecordRef resolvePrefixRecord(
+private LogRecordRef resolve_prefix_record(
     void* context,
-    scope return const ref LogRecordInfo info,
-    scope return const(LogSourceLocation)* callsite,
-)
+    return scope const ref LogRecordInfo info,
+    return scope const(LogSourceLocation)* callsite,
+) @system
 {
-    PrefixLogSink* prefixSink = cast(PrefixLogSink*) context;
-    if (prefixSink is null || !prefixSink.valid)
-        return LogRecordRef.init;
+    PrefixLogSink* prefix_sink = cast(PrefixLogSink*) context;
+    if (prefix_sink is null || !prefix_sink.valid) return LogRecordRef.init;
 
-    LogRecordRef childRecord = prefixSink.child_.begin_record(info, callsite);
-    if (!childRecord.valid)
-        return LogRecordRef.init;
+    LogRecordRef child_record = prefix_sink.child.begin_record(info, callsite);
+    if (!child_record.valid) return LogRecordRef.init;
 
     LogPrefixWriter writer;
-    writer.record_ = &childRecord;
-    const providerAccepted = prefixSink.prefix_.write(&writer);
-    if (!providerAccepted || writer.failed_)
-        childRecord.defer_failure();
+    writer.record = &child_record;
+    const bool provider_accepted = prefix_sink.prefix.try_write(&writer);
+    if (!provider_accepted || writer.failed) child_record.defer_failure();
 
-    return move(childRecord);
+    return move(child_record);
 }
 
-private bool prefixLogFlushCallback(void* context)
+private bool try_flush_prefix(void* context) @system
 {
-    PrefixLogSink* prefixSink = cast(PrefixLogSink*) context;
-    return prefixSink !is null && prefixSink.child_.try_flush();
+    PrefixLogSink* prefix_sink = cast(PrefixLogSink*) context;
+    return prefix_sink !is null && prefix_sink.child.try_flush();
 }

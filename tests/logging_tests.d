@@ -32,7 +32,7 @@ private bool writeFixedPrefix(void* context, LogPrefixWriter* output) nothrow @n
 {
     FixedPrefix* prefix = cast(FixedPrefix*) context;
     return prefix !is null && output !is null &&
-        output.write(prefix.text, prefix.style);
+        output.try_write(prefix.text, prefix.style);
 }
 
 private size_t readFile(FILE* file, char[] destination) nothrow @system @nogc
@@ -75,7 +75,7 @@ extern (C) int main() nothrow @nogc
         LogPrefixRef.create(&writeFixedPrefix, &filePrefix),
     );
     TeeLogSink plainFiles = TeeLogSink.create(
-        prefixedFile.sinkRef(),
+        prefixedFile.sink_ref(),
         plainFileLogSink(secondFile),
     );
     TeeLogSink outputs = TeeLogSink.create(
@@ -95,7 +95,7 @@ extern (C) int main() nothrow @nogc
 
     char[2_048] storage;
     Logger logger = Logger.create(
-        sharedOutput.sinkRef(),
+        sharedOutput.sink_ref(),
         storage[],
         LogLevel.trace,
         palette,

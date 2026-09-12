@@ -37,7 +37,7 @@ private bool nullSink(void* context, scope const LogSinkEvent* event)
 
 private bool benchmarkPrefix(void*, LogPrefixWriter* output)
 {
-    return output !is null && output.write("prefix ");
+    return output !is null && output.try_write("prefix ");
 }
 
 private u64 monotonicNanoseconds()
@@ -346,7 +346,7 @@ extern (C) int main(int argc, char** argv)
         LogPrefixRef.create(&benchmarkPrefix, null),
     );
     char[1024] prefixBuffer;
-    Logger prefixLogger = Logger.create(prefixedTee.sinkRef(), prefixBuffer[]);
+    Logger prefixLogger = Logger.create(prefixedTee.sink_ref(), prefixBuffer[]);
     warmUp(prefixLogger, iterations / 20 + 1);
     firstProbe = SinkProbe.init;
     secondProbe = SinkProbe.init;

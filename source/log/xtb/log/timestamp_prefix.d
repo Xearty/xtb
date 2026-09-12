@@ -105,10 +105,10 @@ private bool writeTimestampPrefix(
     );
     if (formatted.length == 0)
         return false;
-    if (!output.write(formatted, options.style))
+    if (!output.try_write(formatted, options.style))
         return false;
     return options.separator.length == 0 ||
-        output.write(options.separator);
+        output.try_write(options.separator);
 }
 
 private String formatTimestamp(
@@ -277,7 +277,7 @@ unittest
     );
 
     const recordInfo = LogRecordInfo(LogLevel.info);
-    LogSinkRef sink = prefixed.sinkRef();
+    LogSinkRef sink = prefixed.sink_ref();
     LogRecordRef record = sink.begin_record(recordInfo);
     assert(record.valid);
     assert(record.try_end_record());
@@ -336,7 +336,7 @@ unittest
         LogSinkRef.create(&prefixCaptureSink, &unstyledCapture),
         LogPrefixRef.create(&fixedTimestampPrefixCallback, &unstyled),
     );
-    LogSinkRef unstyledRef = unstyledSink.sinkRef();
+    LogSinkRef unstyledRef = unstyledSink.sink_ref();
     LogRecordRef unstyledRecord = unstyledRef.begin_record(recordInfo);
     assert(unstyledRecord.valid);
     assert(unstyledRecord.try_end_record());
@@ -385,7 +385,7 @@ unittest
     );
     char[128] storage;
     Logger sharedLogger = Logger.create(
-        sharedPrefix.sinkRef(),
+        sharedPrefix.sink_ref(),
         storage[],
         LogLevel.info,
     );
@@ -421,7 +421,7 @@ unittest
     );
     TeeLogSink splitOutputs = TeeLogSink.create(
         plainFileLogSink(terminal),
-        timestampedFile.sinkRef(),
+        timestampedFile.sink_ref(),
     );
     Logger splitLogger = Logger.create(
         splitOutputs.sinkRef(),

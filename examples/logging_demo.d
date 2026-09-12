@@ -62,10 +62,10 @@ nothrow @nogc
     if (output is null)
         return false;
 
-    return output.write(
+    return output.try_write(
         "semantic-prefix ",
         ANSIStyle.foreground(ANSIColor.bright_cyan).dim,
-    ) && output.writeAnsi("\x1b[35membedded-SGR\x1b[0m ");
+    ) && output.try_write_ansi("\x1b[35membedded-SGR\x1b[0m ");
 }
 
 private bool logEveryLevel(ref Logger logger, String paletteName)
@@ -120,7 +120,7 @@ nothrow @nogc
     );
     char[512] storage;
     Logger logger = Logger.create(
-        timestamped.sinkRef(),
+        timestamped.sink_ref(),
         storage[],
         LogLevel.trace,
         LogPalette.preset(preset),
@@ -372,7 +372,7 @@ extern (C) int main() nothrow @nogc
     );
     char[256] prefixStorage;
     Logger prefixLogger = Logger.create(
-        prefixedTerminal.sinkRef(),
+        prefixedTerminal.sink_ref(),
         prefixStorage[],
         LogLevel.info,
     );
@@ -398,7 +398,7 @@ extern (C) int main() nothrow @nogc
     );
     char[256] timestampStorage;
     Logger timestampLogger = Logger.create(
-        timestampedTerminal.sinkRef(),
+        timestampedTerminal.sink_ref(),
         timestampStorage[],
         LogLevel.info,
     );
@@ -428,7 +428,7 @@ extern (C) int main() nothrow @nogc
     );
     TeeLogSink tee = TeeLogSink.create(
         terminalWithoutCallsite.sink_ref(),
-        timestampedFile.sinkRef(),
+        timestampedFile.sink_ref(),
     );
     char[256] teeStorage;
     Logger teeLogger = Logger.create(

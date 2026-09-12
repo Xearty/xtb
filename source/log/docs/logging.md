@@ -67,7 +67,7 @@ PrefixLogSink fileSink = PrefixLogSink.create(
 
 TeeLogSink sinks = TeeLogSink.create(
     terminalSink.sink_ref(),
-    fileSink.sinkRef(),
+    fileSink.sink_ref(),
 );
 
 char[512] storage;
@@ -89,7 +89,7 @@ without rebuilding the sink graph.
 
 Sink decorators borrow their children. Stateful decorators such as
 `PrefixLogSink` and `TeeLogSink` must remain at a stable address and outlive any
-`sinkRef()` taken from them.
+sink reference taken from them.
 
 See [`logging_demo.d`](../../../examples/logging_demo.d) for timestamp prefixes,
 tee fan-out, streaming, callsites, palettes, and the optional thread-local
