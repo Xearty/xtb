@@ -46,7 +46,7 @@ nothrow @nogc:
         if (failed_ || record_ is null)
             return false;
         const accepted = mayContainAnsi
-            ? (*record_).writeAnsiText(bytes, style) : (*record_).writeText(bytes, style);
+            ? (*record_).write_ansi_text(bytes, style) : (*record_).write_text(bytes, style);
         if (accepted)
             return true;
         failed_ = true;
@@ -134,7 +134,7 @@ private LogRecordRef resolvePrefixRecord(
     if (prefixSink is null || !prefixSink.valid)
         return LogRecordRef.init;
 
-    LogRecordRef childRecord = prefixSink.child_.beginRecord(info, callsite);
+    LogRecordRef childRecord = prefixSink.child_.begin_record(info, callsite);
     if (!childRecord.valid)
         return LogRecordRef.init;
 
@@ -142,7 +142,7 @@ private LogRecordRef resolvePrefixRecord(
     writer.record_ = &childRecord;
     const providerAccepted = prefixSink.prefix_.write(&writer);
     if (!providerAccepted || writer.failed_)
-        childRecord.deferFailure();
+        childRecord.defer_failure();
 
     return move(childRecord);
 }

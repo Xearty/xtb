@@ -85,7 +85,7 @@ version (unittest)
     {
         if (event is null)
             return false;
-        if (event.kind != LogSinkEventKind.messageChunk)
+        if (event.kind != LogSinkEventKind.message_chunk)
             return true;
         return captureSink(context, event);
     }
@@ -107,8 +107,8 @@ version (unittest)
         LogRecordRef* record,
     )
     {
-        *record = sink.beginRecord(info);
-        return (*record).valid && (*record).beginMessage();
+        *record = sink.begin_record(info);
+        return (*record).valid && (*record).begin_message();
     }
 
     private LogMessageWriter createTestLogMessageWriter(
@@ -154,7 +154,7 @@ version (unittest)
         ChunkCounter* counter = cast(ChunkCounter*) context;
         if (counter is null || event is null)
             return false;
-        if (event.kind != LogSinkEventKind.messageChunk)
+        if (event.kind != LogSinkEventKind.message_chunk)
             return true;
 
         const index = counter.calls++;
@@ -171,7 +171,7 @@ version (unittest)
         MessageCapture* capture = cast(MessageCapture*) context;
         if (capture is null || event is null)
             return false;
-        if (event.kind != LogSinkEventKind.messageChunk)
+        if (event.kind != LogSinkEventKind.message_chunk)
             return true;
         if (event.bytes.length > capture.bytes.length - capture.length)
             return false;
@@ -289,7 +289,7 @@ version (unittest)
     private bool swappingSink(void* context, scope const LogSinkEvent* event)
     {
         SinkSwapCapture* capture = cast(SinkSwapCapture*) context;
-        if (!capture.swapped && event.kind == LogSinkEventKind.beginRecord)
+        if (!capture.swapped && event.kind == LogSinkEventKind.begin_record)
         {
             capture.swapped = true;
             (*capture.logger).setSink(capture.replacement);
@@ -300,7 +300,7 @@ version (unittest)
     private bool recursiveSink(void* context, scope const LogSinkEvent* event)
     {
         RecursiveCapture* capture = cast(RecursiveCapture*) context;
-        if (!capture.nestedAttempted && event.kind == LogSinkEventKind.messageChunk)
+        if (!capture.nestedAttempted && event.kind == LogSinkEventKind.message_chunk)
         {
             capture.nestedAttempted = true;
             capture.nestedStatus = (*capture.logger).log(LogLevel.error, "nested").status;
@@ -359,7 +359,7 @@ version (unittest)
     {
         const expectedCount = message.length == 0 ? 7 : 8;
         assert(capture.count == expectedCount);
-        assertEvent(capture, 0, LogSinkEventKind.beginRecord);
+        assertEvent(capture, 0, LogSinkEventKind.begin_record);
         assertEvent(capture, 1, LogSinkEventKind.text, label);
         assert(capture.events[1].style == labelStyle);
         assertEvent(
@@ -369,18 +369,18 @@ version (unittest)
             expectedMessageSeparator(label, aligned, maximumLabelWidth),
         );
         assert(!capture.events[2].style.enabled);
-        assertEvent(capture, 3, LogSinkEventKind.beginMessage);
+        assertEvent(capture, 3, LogSinkEventKind.begin_message);
         assert(capture.events[3].style == messageStyle);
         size_t next = 4;
         if (message.length != 0)
         {
-            assertEvent(capture, next, LogSinkEventKind.messageChunk, message);
+            assertEvent(capture, next, LogSinkEventKind.message_chunk, message);
             assert(capture.events[next].style == messageStyle);
             ++next;
         }
-        assertEvent(capture, next++, LogSinkEventKind.endMessage);
+        assertEvent(capture, next++, LogSinkEventKind.end_message);
         assertEvent(capture, next++, LogSinkEventKind.text, "\n");
-        assertEvent(capture, next, LogSinkEventKind.endRecord);
+        assertEvent(capture, next, LogSinkEventKind.end_record);
     }
 
     private void assertSuccessfulCallsiteRecord(
@@ -396,7 +396,7 @@ version (unittest)
     {
         const expectedCount = message.length == 0 ? 10 : 11;
         assert(capture.count == expectedCount);
-        assertEvent(capture, 0, LogSinkEventKind.beginRecord);
+        assertEvent(capture, 0, LogSinkEventKind.begin_record);
         assertEvent(capture, 1, LogSinkEventKind.text, label);
         assert(capture.events[1].style == labelStyle);
         assertEvent(
@@ -406,16 +406,16 @@ version (unittest)
             expectedMessageSeparator(label, aligned),
         );
         assert(!capture.events[2].style.enabled);
-        assertEvent(capture, 3, LogSinkEventKind.beginMessage);
+        assertEvent(capture, 3, LogSinkEventKind.begin_message);
         assert(capture.events[3].style == messageStyle);
         size_t next = 4;
         if (message.length != 0)
         {
-            assertEvent(capture, next, LogSinkEventKind.messageChunk, message);
+            assertEvent(capture, next, LogSinkEventKind.message_chunk, message);
             assert(capture.events[next].style == messageStyle);
             ++next;
         }
-        assertEvent(capture, next++, LogSinkEventKind.endMessage);
+        assertEvent(capture, next++, LogSinkEventKind.end_message);
 
         const callsiteStyle = ANSIStyle.init.dim;
         assertEvent(capture, next, LogSinkEventKind.text, "  (");
@@ -434,7 +434,7 @@ version (unittest)
         );
         assert(capture.events[next++].style == callsiteStyle);
         assertEvent(capture, next++, LogSinkEventKind.text, "\n");
-        assertEvent(capture, next, LogSinkEventKind.endRecord);
+        assertEvent(capture, next, LogSinkEventKind.end_record);
     }
 
     private struct OrderedEvent
@@ -506,7 +506,7 @@ version (unittest)
         ForwardingFailure* failure = cast(ForwardingFailure*) context;
         if (failure is null)
             return LogRecordRef.init;
-        failure.childRecord = failure.child.beginRecord(info, callsite);
+        failure.childRecord = failure.child.begin_record(info, callsite);
         if (!failure.childRecord.valid)
             return LogRecordRef.init;
         return LogRecordRef.create(
@@ -529,21 +529,21 @@ version (unittest)
         bool childAccepted;
         final switch (event.kind)
         {
-            case LogSinkEventKind.beginRecord:
+            case LogSinkEventKind.begin_record:
                 return false;
             case LogSinkEventKind.text:
-            case LogSinkEventKind.messageChunk:
+            case LogSinkEventKind.message_chunk:
                 childAccepted = failure.childRecord.submit(event);
                 break;
-            case LogSinkEventKind.beginMessage:
-                childAccepted = failure.childRecord.beginMessage();
+            case LogSinkEventKind.begin_message:
+                childAccepted = failure.childRecord.begin_message();
                 break;
-            case LogSinkEventKind.endMessage:
-                childAccepted = failure.childRecord.messageOpen
-                    ? failure.childRecord.endMessage() : true;
+            case LogSinkEventKind.end_message:
+                childAccepted = failure.childRecord.message_open
+                    ? failure.childRecord.end_message() : true;
                 break;
-            case LogSinkEventKind.endRecord:
-                childAccepted = failure.childRecord.endRecord();
+            case LogSinkEventKind.end_record:
+                childAccepted = failure.childRecord.end_record();
                 break;
         }
 
@@ -640,17 +640,17 @@ unittest
     assert(delivered.status == LogStatus.delivered);
     assert(probe.calls == 1);
     assert(capture.count == 10);
-    assertEvent(capture, 0, LogSinkEventKind.beginRecord);
+    assertEvent(capture, 0, LogSinkEventKind.begin_record);
     assertEvent(capture, 1, LogSinkEventKind.text, "prefix");
     assert(capture.events[1].style == prefixStyle);
     assertEvent(capture, 2, LogSinkEventKind.text, " ");
     assertEvent(capture, 3, LogSinkEventKind.text, "[info]");
     assertEvent(capture, 4, LogSinkEventKind.text, " ");
-    assertEvent(capture, 5, LogSinkEventKind.beginMessage);
-    assertEvent(capture, 6, LogSinkEventKind.messageChunk, "hello");
-    assertEvent(capture, 7, LogSinkEventKind.endMessage);
+    assertEvent(capture, 5, LogSinkEventKind.begin_message);
+    assertEvent(capture, 6, LogSinkEventKind.message_chunk, "hello");
+    assertEvent(capture, 7, LogSinkEventKind.end_message);
     assertEvent(capture, 8, LogSinkEventKind.text, "\n");
-    assertEvent(capture, 9, LogSinkEventKind.endRecord);
+    assertEvent(capture, 9, LogSinkEventKind.end_record);
     assert(logger.flush());
     assert(capture.flushCount == 1);
 
@@ -659,7 +659,7 @@ unittest
     const providerFailed = logger.warning("still delivered");
     assert(providerFailed.status == LogStatus.sink_failed);
     assert(capture.count == 10);
-    assertEvent(capture, 9, LogSinkEventKind.endRecord);
+    assertEvent(capture, 9, LogSinkEventKind.end_record);
 
     capture.clear();
     probe.accepted = true;
@@ -668,7 +668,7 @@ unittest
     assert(prefixWriteFailed.status == LogStatus.sink_failed);
     assert(capture.count == 9);
     assertEvent(capture, 2, LogSinkEventKind.text, "[error]");
-    assertEvent(capture, 8, LogSinkEventKind.endRecord);
+    assertEvent(capture, 8, LogSinkEventKind.end_record);
 
     capture.clear();
     capture.rejectAt = 0;
@@ -677,7 +677,7 @@ unittest
     assert(beginFailed.status == LogStatus.sink_failed);
     assert(probe.calls == callsBefore);
     assert(capture.count == 1);
-    assertEvent(capture, 0, LogSinkEventKind.beginRecord);
+    assertEvent(capture, 0, LogSinkEventKind.begin_record);
 
     capture.clear();
     const recovered = logger.info("next record");
@@ -685,8 +685,8 @@ unittest
     assert(capture.count == 10);
     assertEvent(capture, 1, LogSinkEventKind.text, "prefix");
     assertEvent(capture, 3, LogSinkEventKind.text, "[info]");
-    assertEvent(capture, 6, LogSinkEventKind.messageChunk, "next record");
-    assertEvent(capture, 9, LogSinkEventKind.endRecord);
+    assertEvent(capture, 6, LogSinkEventKind.message_chunk, "next record");
+    assertEvent(capture, 9, LogSinkEventKind.end_record);
 }
 
 // The public sink contract treats chunks as transport fragments, not message
@@ -709,33 +709,33 @@ unittest
     LogSinkRef sink = prefixed.sinkRef();
 
     const info = testRecordInfo(style);
-    LogRecordRef record = sink.beginRecord(info);
+    LogRecordRef record = sink.begin_record(info);
     assert(record.valid);
-    assert(record.beginMessage());
-    assert(record.messageChunk("a"));
-    assert(record.messageChunk(""));
-    assert(record.messageChunk("bc"));
-    assert(record.endMessage());
-    assert(record.endRecord());
+    assert(record.begin_message());
+    assert(record.message_chunk("a"));
+    assert(record.message_chunk(""));
+    assert(record.message_chunk("bc"));
+    assert(record.end_message());
+    assert(record.end_record());
 
     assert(probe.calls == 1);
     assertSameEvents(first, second);
     foreach (capture; [&first, &second])
     {
         assert(capture.count == 9);
-        assertEvent(*capture, 0, LogSinkEventKind.beginRecord);
+        assertEvent(*capture, 0, LogSinkEventKind.begin_record);
         assertEvent(*capture, 1, LogSinkEventKind.text, "prefix");
         assertEvent(*capture, 2, LogSinkEventKind.text, " ");
-        assertEvent(*capture, 3, LogSinkEventKind.beginMessage);
+        assertEvent(*capture, 3, LogSinkEventKind.begin_message);
         assert(capture.events[3].style == style);
-        assertEvent(*capture, 4, LogSinkEventKind.messageChunk, "a");
+        assertEvent(*capture, 4, LogSinkEventKind.message_chunk, "a");
         assert(capture.events[4].style == style);
-        assertEvent(*capture, 5, LogSinkEventKind.messageChunk, "");
+        assertEvent(*capture, 5, LogSinkEventKind.message_chunk, "");
         assert(capture.events[5].style == style);
-        assertEvent(*capture, 6, LogSinkEventKind.messageChunk, "bc");
+        assertEvent(*capture, 6, LogSinkEventKind.message_chunk, "bc");
         assert(capture.events[6].style == style);
-        assertEvent(*capture, 7, LogSinkEventKind.endMessage);
-        assertEvent(*capture, 8, LogSinkEventKind.endRecord);
+        assertEvent(*capture, 7, LogSinkEventKind.end_message);
+        assertEvent(*capture, 8, LogSinkEventKind.end_record);
     }
 }
 
@@ -760,7 +760,7 @@ unittest
     assert(capture.count == 0);
     assert(writer.flush());
     assert(capture.count == 1);
-    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "abcd");
+    assertEvent(capture, 0, LogSinkEventKind.message_chunk, "abcd");
     assert(capture.events[0].style == style);
     assert(writer.written == 4);
 
@@ -768,12 +768,12 @@ unittest
     writer.write("abc");
     writer.write("defgh");
     assert(capture.count == 2);
-    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "abcdefgh");
+    assertEvent(capture, 1, LogSinkEventKind.message_chunk, "abcdefgh");
 
     const large = "0123456789abcdef";
     writer.write(large);
     assert(capture.count == 3);
-    assertEvent(capture, 2, LogSinkEventKind.messageChunk, large);
+    assertEvent(capture, 2, LogSinkEventKind.message_chunk, large);
     assert(capture.events[2].source is large.ptr);
     assert(writer.written == 12 + large.length);
     assert(writer.finish());
@@ -801,8 +801,8 @@ unittest
     writer.write(large);
 
     assert(capture.count == 2);
-    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "ab");
-    assertEvent(capture, 1, LogSinkEventKind.messageChunk, large);
+    assertEvent(capture, 0, LogSinkEventKind.message_chunk, "ab");
+    assertEvent(capture, 1, LogSinkEventKind.message_chunk, large);
     assert(capture.events[1].source is large.ptr);
     assert(writer.finish());
 }
@@ -823,7 +823,7 @@ unittest
     );
 
     writer.write("body");
-    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "body");
+    assertEvent(capture, 0, LogSinkEventKind.message_chunk, "body");
 
     writer.write("\x1b[3");
     assert(capture.count == 1);
@@ -832,8 +832,8 @@ unittest
 
     writer.write("1mred");
     assert(capture.count == 3);
-    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "\x1b[31m");
-    assertEvent(capture, 2, LogSinkEventKind.messageChunk, "red");
+    assertEvent(capture, 1, LogSinkEventKind.message_chunk, "\x1b[31m");
+    assertEvent(capture, 2, LogSinkEventKind.message_chunk, "red");
     assert(writer.finish());
 }
 
@@ -858,10 +858,10 @@ unittest
     assert(capture.count == 0);
     writer.write("1mX");
     assert(capture.count == 1);
-    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "\x1b[31m");
+    assertEvent(capture, 0, LogSinkEventKind.message_chunk, "\x1b[31m");
     assert(writer.finish());
     assert(capture.count == 2);
-    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "X");
+    assertEvent(capture, 1, LogSinkEventKind.message_chunk, "X");
 
     capture.clear();
     LogRecordRef finalRecord;
@@ -874,8 +874,8 @@ unittest
     finalWriter.write("A\x1b[");
     assert(finalWriter.finish());
     assert(capture.count == 2);
-    assertEvent(capture, 0, LogSinkEventKind.messageChunk, "A");
-    assertEvent(capture, 1, LogSinkEventKind.messageChunk, "\x1b[");
+    assertEvent(capture, 0, LogSinkEventKind.message_chunk, "A");
+    assertEvent(capture, 1, LogSinkEventKind.message_chunk, "\x1b[");
 }
 
 // Empty writes and empty messages do not manufacture transport chunks. The
@@ -969,7 +969,7 @@ unittest
     assertEvent(
         capture,
         0,
-        LogSinkEventKind.messageChunk,
+        LogSinkEventKind.message_chunk,
         "-42 true X 1.25 probe(7)",
     );
 }
@@ -1135,23 +1135,23 @@ unittest
     LogSinkRef invalidSink;
     const directInfo = testRecordInfo();
     assert(!invalidSink.valid);
-    LogRecordRef invalidRecord = invalidSink.beginRecord(directInfo);
+    LogRecordRef invalidRecord = invalidSink.begin_record(directInfo);
     assert(!invalidRecord.valid);
     assert(!invalidSink.flush());
 
-    LogRecordRef directRecord = sink.beginRecord(directInfo);
+    LogRecordRef directRecord = sink.begin_record(directInfo);
     assert(directRecord.valid);
     const directStyle = ANSIStyle.foreground(ANSIColor.cyan);
-    assert(directRecord.writeText("direct", directStyle));
-    assert(directRecord.endRecord());
+    assert(directRecord.write_text("direct", directStyle));
+    assert(directRecord.end_record());
     assert(!directRecord.valid);
-    assert(!directRecord.writeText("after end"));
-    assert(!directRecord.endRecord());
+    assert(!directRecord.write_text("after end"));
+    assert(!directRecord.end_record());
     assert(capture.count == 3);
-    assertEvent(capture, 0, LogSinkEventKind.beginRecord);
+    assertEvent(capture, 0, LogSinkEventKind.begin_record);
     assertEvent(capture, 1, LogSinkEventKind.text, "direct");
     assert(capture.events[1].style == directStyle);
-    assertEvent(capture, 2, LogSinkEventKind.endRecord);
+    assertEvent(capture, 2, LogSinkEventKind.end_record);
     capture.clear();
 
     char[32] messageBuffer;
@@ -1180,7 +1180,7 @@ unittest
     result = logger.log(LogLevel.warning, "message longer than buffer capacity by far");
     assert(result.status == LogStatus.truncated && result.required > result.written);
     assert(capture.count == 8);
-    assert(capture.events[4].kind == LogSinkEventKind.messageChunk);
+    assert(capture.events[4].kind == LogSinkEventKind.message_chunk);
     assert(capture.events[4].length == result.written);
     assert(logger.flush());
     assert(capture.flushCount == 1);
@@ -1286,8 +1286,8 @@ unittest
     assert(capture.events[3].length == 14);
     foreach (value; capture.events[3].text)
         assert(value == ' ');
-    assertEvent(capture, 4, LogSinkEventKind.beginMessage);
-    assertEvent(capture, 5, LogSinkEventKind.messageChunk, "wide padding");
+    assertEvent(capture, 4, LogSinkEventKind.begin_message);
+    assertEvent(capture, 5, LogSinkEventKind.message_chunk, "wide padding");
 
     logger.setLevelLabels(LogLevelLabelPreset.full);
     assert(logger.levelLabels == LogLevelLabels.defaults());
@@ -1421,12 +1421,12 @@ unittest
     const failingSplitLine = __LINE__ + 1;
     const failingSplitResult = failingSplitLogger.error("survives sibling failure");
     assert(failingSplitResult.status == LogStatus.sink_failed);
-    assertEvent(failingSuppressedCapture, 0, LogSinkEventKind.beginRecord);
+    assertEvent(failingSuppressedCapture, 0, LogSinkEventKind.begin_record);
     assertEvent(failingSuppressedCapture, 1, LogSinkEventKind.text, "[error]");
     assertEvent(failingSuppressedCapture, 2, LogSinkEventKind.text, " ");
-    assertEvent(failingSuppressedCapture, 3, LogSinkEventKind.beginMessage);
-    assertEvent(failingSuppressedCapture, 4, LogSinkEventKind.endMessage);
-    assertEvent(failingSuppressedCapture, 5, LogSinkEventKind.endRecord);
+    assertEvent(failingSuppressedCapture, 3, LogSinkEventKind.begin_message);
+    assertEvent(failingSuppressedCapture, 4, LogSinkEventKind.end_message);
+    assertEvent(failingSuppressedCapture, 5, LogSinkEventKind.end_record);
     healthyLocatedCapture.assertSuccessfulCallsiteRecord(
         "[error]",
         "survives sibling failure",
@@ -1484,16 +1484,16 @@ unittest
     prefixedSuppressedLogger.setCallsitesEnabled(true);
     assert(prefixedSuppressedLogger.info("nested").delivered);
     assert(suppressedPrefixProbe.calls == 1);
-    assertEvent(prefixedSuppressedCapture, 0, LogSinkEventKind.beginRecord);
+    assertEvent(prefixedSuppressedCapture, 0, LogSinkEventKind.begin_record);
     assertEvent(prefixedSuppressedCapture, 1, LogSinkEventKind.text, "prefix");
     assertEvent(prefixedSuppressedCapture, 2, LogSinkEventKind.text, " ");
     assertEvent(prefixedSuppressedCapture, 3, LogSinkEventKind.text, "[info]");
     assertEvent(prefixedSuppressedCapture, 4, LogSinkEventKind.text, " ");
-    assertEvent(prefixedSuppressedCapture, 5, LogSinkEventKind.beginMessage);
-    assertEvent(prefixedSuppressedCapture, 6, LogSinkEventKind.messageChunk, "nested");
-    assertEvent(prefixedSuppressedCapture, 7, LogSinkEventKind.endMessage);
+    assertEvent(prefixedSuppressedCapture, 5, LogSinkEventKind.begin_message);
+    assertEvent(prefixedSuppressedCapture, 6, LogSinkEventKind.message_chunk, "nested");
+    assertEvent(prefixedSuppressedCapture, 7, LogSinkEventKind.end_message);
     assertEvent(prefixedSuppressedCapture, 8, LogSinkEventKind.text, "\n");
-    assertEvent(prefixedSuppressedCapture, 9, LogSinkEventKind.endRecord);
+    assertEvent(prefixedSuppressedCapture, 9, LogSinkEventKind.end_record);
 
     Capture suppressionInsidePrefixCapture;
     WithoutCallsiteLogSink suppressionInsidePrefix = WithoutCallsiteLogSink.create(
@@ -1517,7 +1517,7 @@ unittest
     assertEvent(
         suppressionInsidePrefixCapture,
         6,
-        LogSinkEventKind.messageChunk,
+        LogSinkEventKind.message_chunk,
         "reverse nested",
     );
 
@@ -1571,15 +1571,15 @@ unittest
     assert(result.written == 6 && result.required == 6);
     assert(streamProducerCalls == 1);
     assert(streamCapture.count == 9);
-    assertEvent(streamCapture, 0, LogSinkEventKind.beginRecord);
+    assertEvent(streamCapture, 0, LogSinkEventKind.begin_record);
     assertEvent(streamCapture, 1, LogSinkEventKind.text, "[error]");
     assertEvent(streamCapture, 2, LogSinkEventKind.text, " ");
-    assertEvent(streamCapture, 3, LogSinkEventKind.beginMessage);
-    assertEvent(streamCapture, 4, LogSinkEventKind.messageChunk, "abcd");
-    assertEvent(streamCapture, 5, LogSinkEventKind.messageChunk, "ef");
-    assertEvent(streamCapture, 6, LogSinkEventKind.endMessage);
+    assertEvent(streamCapture, 3, LogSinkEventKind.begin_message);
+    assertEvent(streamCapture, 4, LogSinkEventKind.message_chunk, "abcd");
+    assertEvent(streamCapture, 5, LogSinkEventKind.message_chunk, "ef");
+    assertEvent(streamCapture, 6, LogSinkEventKind.end_message);
     assertEvent(streamCapture, 7, LogSinkEventKind.text, "\n");
-    assertEvent(streamCapture, 8, LogSinkEventKind.endRecord);
+    assertEvent(streamCapture, 8, LogSinkEventKind.end_record);
 
     streamCapture.clear();
     streamLogger.setCallsitesEnabled(true);
@@ -1635,7 +1635,7 @@ unittest
     assert(streamProducerCalls == 1);
 
     // Every logger-owned lifecycle failure is finalized the same way as the
-    // ordinary delivery path. The producer only runs after beginMessage is
+    // ordinary delivery path. The producer only runs after begin_message is
     // accepted, and `written` reports the successfully submitted stream prefix.
     foreach (rejectAt; 0 .. 9)
     {
@@ -1665,18 +1665,18 @@ unittest
         const expectedWritten = rejectAt <= 4 ? 0 : rejectAt == 5 ? 4 : 6;
         assert(failedResult.written == expectedWritten);
         assert(failedResult.required == expectedWritten);
-        assertEvent(failedStream, 0, LogSinkEventKind.beginRecord);
+        assertEvent(failedStream, 0, LogSinkEventKind.begin_record);
         if (rejectAt == 0)
             assert(failedStream.count == 1);
         else
             assert(failedStream.events[failedStream.count - 1].kind ==
-                    LogSinkEventKind.endRecord);
+                    LogSinkEventKind.end_record);
         if (rejectAt >= 3)
         {
             bool sawEndMessage;
             foreach (captured; failedStream.events[0 .. failedStream.count])
                 sawEndMessage = sawEndMessage ||
-                    captured.kind == LogSinkEventKind.endMessage;
+                    captured.kind == LogSinkEventKind.end_message;
             assert(sawEndMessage);
         }
     }
@@ -1695,8 +1695,8 @@ unittest
     assert(failedCallsiteResult.status == LogStatus.sink_failed);
     assert(failedCallsiteResult.written == "payload".length);
     assert(failedCallsiteResult.required == "payload".length);
-    assertEvent(failedCallsite, 0, LogSinkEventKind.beginRecord);
-    assertEvent(failedCallsite, failedCallsite.count - 1, LogSinkEventKind.endRecord);
+    assertEvent(failedCallsite, 0, LogSinkEventKind.begin_record);
+    assertEvent(failedCallsite, failedCallsite.count - 1, LogSinkEventKind.end_record);
 
     // A streaming producer executes under the same recursion guard, and the
     // sink reference is frozen for the whole record even if the logger is
@@ -1743,7 +1743,7 @@ unittest
         defaults.info.message,
     );
 
-    // Tee branch failure remains deferred until endRecord, so the writer keeps
+    // Tee branch failure remains deferred until end_record, so the writer keeps
     // streaming every later chunk to the healthy peer before reporting failure.
     Capture failedBranch;
     failedBranch.rejectAt = 4;
@@ -1762,12 +1762,12 @@ unittest
     assert(result.status == LogStatus.sink_failed);
     assert(result.written == 6 && result.required == 6);
     assert(healthyBranch.count == 9);
-    assertEvent(healthyBranch, 4, LogSinkEventKind.messageChunk, "abcd");
-    assertEvent(healthyBranch, 5, LogSinkEventKind.messageChunk, "ef");
-    assertEvent(healthyBranch, 6, LogSinkEventKind.endMessage);
+    assertEvent(healthyBranch, 4, LogSinkEventKind.message_chunk, "abcd");
+    assertEvent(healthyBranch, 5, LogSinkEventKind.message_chunk, "ef");
+    assertEvent(healthyBranch, 6, LogSinkEventKind.end_message);
     assertEvent(healthyBranch, 7, LogSinkEventKind.text, "\n");
-    assertEvent(healthyBranch, 8, LogSinkEventKind.endRecord);
-    assertEvent(failedBranch, failedBranch.count - 1, LogSinkEventKind.endRecord);
+    assertEvent(healthyBranch, 8, LogSinkEventKind.end_record);
+    assertEvent(failedBranch, failedBranch.count - 1, LogSinkEventKind.end_record);
 
     logger.setMinimumLevel(LogLevel.trace);
 
@@ -1890,10 +1890,10 @@ unittest
     );
     assert(rejecting.info("rejected").status == LogStatus.sink_failed);
     assert(rejected.count == 7);
-    assertEvent(rejected, 0, LogSinkEventKind.beginRecord);
-    assertEvent(rejected, 4, LogSinkEventKind.messageChunk, "rejected");
-    assertEvent(rejected, 5, LogSinkEventKind.endMessage);
-    assertEvent(rejected, 6, LogSinkEventKind.endRecord);
+    assertEvent(rejected, 0, LogSinkEventKind.begin_record);
+    assertEvent(rejected, 4, LogSinkEventKind.message_chunk, "rejected");
+    assertEvent(rejected, 5, LogSinkEventKind.end_message);
+    assertEvent(rejected, 6, LogSinkEventKind.end_record);
     assert(!rejecting.flush());
     assert(rejected.flushCount == 1);
 
@@ -1906,7 +1906,7 @@ unittest
     );
     assert(rejectBeginLogger.info("ignored").status == LogStatus.sink_failed);
     assert(rejectBegin.count == 1);
-    assertEvent(rejectBegin, 0, LogSinkEventKind.beginRecord);
+    assertEvent(rejectBegin, 0, LogSinkEventKind.begin_record);
 
     foreach (rejectAt; 0 .. 8)
     {
@@ -1919,17 +1919,17 @@ unittest
         );
         assert(failedLogger.info("failure matrix").status == LogStatus.sink_failed);
         assert(failed.count != 0);
-        assertEvent(failed, 0, LogSinkEventKind.beginRecord);
+        assertEvent(failed, 0, LogSinkEventKind.begin_record);
         if (rejectAt == 0)
             assert(failed.count == 1);
         else
-            assert(failed.events[failed.count - 1].kind == LogSinkEventKind.endRecord);
+            assert(failed.events[failed.count - 1].kind == LogSinkEventKind.end_record);
         if (rejectAt >= 3 && rejectAt <= 5)
         {
             bool sawEndMessage;
             foreach (captured; failed.events[0 .. failed.count])
                 sawEndMessage = sawEndMessage ||
-                    captured.kind == LogSinkEventKind.endMessage;
+                    captured.kind == LogSinkEventKind.end_message;
             assert(sawEndMessage);
         }
     }
@@ -2354,14 +2354,14 @@ unittest
         assert(file !is null);
         LogSinkRef ansi = ansiFileLogSink(file);
         const info = testRecordInfo(base);
-        LogRecordRef record = ansi.beginRecord(info);
+        LogRecordRef record = ansi.begin_record(info);
         assert(record.valid);
-        assert(record.beginMessage());
-        assert(record.messageChunk("first \x1b[31mred"));
-        assert(record.messageChunk(" continues\x1b[0m"));
-        assert(record.messageChunk(" base again"));
-        assert(record.endMessage());
-        assert(record.endRecord());
+        assert(record.begin_message());
+        assert(record.message_chunk("first \x1b[31mred"));
+        assert(record.message_chunk(" continues\x1b[0m"));
+        assert(record.message_chunk(" base again"));
+        assert(record.end_message());
+        assert(record.end_record());
         assert(ansi.flush());
         char[192] output;
         const length = readFileContents(file, output[]);
@@ -2377,15 +2377,15 @@ unittest
         assert(file !is null);
         LogSinkRef plain = plainFileLogSink(file);
         const info = testRecordInfo();
-        LogRecordRef record = plain.beginRecord(info);
+        LogRecordRef record = plain.begin_record(info);
         assert(record.valid);
-        assert(record.beginMessage());
-        assert(record.messageChunk("first \x1b[31mred"));
-        assert(record.messageChunk(
+        assert(record.begin_message());
+        assert(record.message_chunk("first \x1b[31mred"));
+        assert(record.message_chunk(
                 " continues\x1b[0m second \x1b[1;4;44mstyled\x1b[0m",
         ));
-        assert(record.endMessage());
-        assert(record.endRecord());
+        assert(record.end_message());
+        assert(record.end_record());
         assert(plain.flush());
         char[96] output;
         const length = readFileContents(file, output[]);
@@ -2480,7 +2480,7 @@ unittest
         assert(safeResult.status == LogStatus.truncated);
         assert(safeResult.written == 3);
         assert(safeResult.required == 3 + sequence.view.length + 4);
-        assertEvent(safeCapture, 4, LogSinkEventKind.messageChunk, "abc");
+        assertEvent(safeCapture, 4, LogSinkEventKind.message_chunk, "abc");
         assert(safeCapture.events[4].source == smallBuffer.ptr);
         assert(smallBuffer[3] == '\x1b');
     }
@@ -2502,7 +2502,7 @@ unittest
         assertEvent(
             boundaryCapture,
             4,
-            LogSinkEventKind.messageChunk,
+            LogSinkEventKind.message_chunk,
             "abc\x1b[31m",
         );
     }
@@ -2520,7 +2520,7 @@ unittest
         const utf8Result = utf8Logger.info("🙂", redSequence.view, "x");
         assert(utf8Result.status == LogStatus.truncated);
         assert(utf8Result.written == "🙂".length);
-        assertEvent(utf8Capture, 4, LogSinkEventKind.messageChunk, "🙂");
+        assertEvent(utf8Capture, 4, LogSinkEventKind.message_chunk, "🙂");
         assert(is_valid_utf8(cast(const(ubyte)[]) utf8Capture.events[4].text));
     }
 
@@ -2620,27 +2620,27 @@ unittest
         );
         LogSinkRef sink = tee.sinkRef();
         const info = testRecordInfo();
-        LogRecordRef record = sink.beginRecord(info);
+        LogRecordRef record = sink.begin_record(info);
         assert(record.valid);
-        assert(record.beginMessage());
-        assert(record.messageChunk("first "));
-        assert(record.messageChunk("second"));
-        assert(record.endMessage());
-        assert(record.endRecord());
+        assert(record.begin_message());
+        assert(record.message_chunk("first "));
+        assert(record.message_chunk("second"));
+        assert(record.end_message());
+        assert(record.end_record());
         assert(first.count == 6);
         assert(second.count == 6);
         foreach (capture; [&first, &second])
         {
-            assertEvent(*capture, 0, LogSinkEventKind.beginRecord);
-            assertEvent(*capture, 1, LogSinkEventKind.beginMessage);
-            assertEvent(*capture, 2, LogSinkEventKind.messageChunk, "first ");
-            assertEvent(*capture, 3, LogSinkEventKind.messageChunk, "second");
-            assertEvent(*capture, 4, LogSinkEventKind.endMessage);
-            assertEvent(*capture, 5, LogSinkEventKind.endRecord);
+            assertEvent(*capture, 0, LogSinkEventKind.begin_record);
+            assertEvent(*capture, 1, LogSinkEventKind.begin_message);
+            assertEvent(*capture, 2, LogSinkEventKind.message_chunk, "first ");
+            assertEvent(*capture, 3, LogSinkEventKind.message_chunk, "second");
+            assertEvent(*capture, 4, LogSinkEventKind.end_message);
+            assertEvent(*capture, 5, LogSinkEventKind.end_record);
         }
     }
 
-    // A first-branch payload failure is deferred until endRecord. The failed
+    // A first-branch payload failure is deferred until end_record. The failed
     // branch gets its required finalizers while the healthy branch completes
     // the full record.
     {
@@ -2657,9 +2657,9 @@ unittest
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
         assert(logger.info("first fails").status == LogStatus.sink_failed);
         assert(first.count == 7);
-        assertEvent(first, 4, LogSinkEventKind.messageChunk, "first fails");
-        assertEvent(first, 5, LogSinkEventKind.endMessage);
-        assertEvent(first, 6, LogSinkEventKind.endRecord);
+        assertEvent(first, 4, LogSinkEventKind.message_chunk, "first fails");
+        assertEvent(first, 5, LogSinkEventKind.end_message);
+        assertEvent(first, 6, LogSinkEventKind.end_record);
         second.assertSuccessfulRecord(
             "[info]",
             "first fails",
@@ -2669,7 +2669,7 @@ unittest
     }
 
     // Branch health is record-local. A branch that failed one record is tried
-    // again from beginRecord on the next record.
+    // again from begin_record on the next record.
     {
         Capture first;
         first.flushAccepted = true;
@@ -2721,13 +2721,13 @@ unittest
             defaults.info.message,
         );
         assert(second.count == 7);
-        assertEvent(second, 5, LogSinkEventKind.endMessage);
-        assertEvent(second, 6, LogSinkEventKind.endRecord);
+        assertEvent(second, 5, LogSinkEventKind.end_message);
+        assertEvent(second, 6, LogSinkEventKind.end_record);
     }
 
     // Every event position has defined branch-failure semantics. A branch that
-    // accepted beginRecord always sees endRecord, and once beginMessage has been
-    // delivered it also sees endMessage even when beginMessage itself rejects.
+    // accepted begin_record always sees end_record, and once begin_message has been
+    // delivered it also sees end_message even when begin_message itself rejects.
     // This preserves the direct-logger cleanup contract through composition.
     foreach (failFirst; [true, false])
     {
@@ -2772,35 +2772,35 @@ unittest
             assert(directLogger.info("failure matrix").status == LogStatus.sink_failed);
             assertSameEvents(*failed, direct);
 
-            assertEvent(*failed, 0, LogSinkEventKind.beginRecord);
+            assertEvent(*failed, 0, LogSinkEventKind.begin_record);
             if (rejectAt == 0)
             {
                 assert(failed.count == 1);
             }
             else
             {
-                assert(failed.events[failed.count - 1].kind == LogSinkEventKind.endRecord);
+                assert(failed.events[failed.count - 1].kind == LogSinkEventKind.end_record);
                 if (rejectAt >= 3 && rejectAt <= 5)
                 {
                     bool sawEndMessage;
                     foreach (captured; failed.events[0 .. failed.count])
                         sawEndMessage = sawEndMessage ||
-                            captured.kind == LogSinkEventKind.endMessage;
+                            captured.kind == LogSinkEventKind.end_message;
                     assert(sawEndMessage);
                 }
             }
         }
     }
 
-    // A child that rejects beginMessage after forwarding it still receives
-    // endMessage. This keeps presentation cleanup identical to direct logger
+    // A child that rejects begin_message after forwarding it still receives
+    // end_message. This keeps presentation cleanup identical to direct logger
     // delivery even when the sink is composed through a tee.
     {
         FILE* file = tmpfile();
         assert(file !is null);
         ForwardingFailure failure = ForwardingFailure(
             ansiFileLogSink(file),
-            LogSinkEventKind.beginMessage,
+            LogSinkEventKind.begin_message,
         );
         Capture healthy;
         healthy.flushAccepted = true;
@@ -2882,13 +2882,13 @@ unittest
         assert(logger.info("both fail").status == LogStatus.sink_failed);
         assert(first.count == 7);
         assert(second.count == 7);
-        assertEvent(first, 5, LogSinkEventKind.endMessage);
-        assertEvent(second, 5, LogSinkEventKind.endMessage);
-        assertEvent(first, 6, LogSinkEventKind.endRecord);
-        assertEvent(second, 6, LogSinkEventKind.endRecord);
+        assertEvent(first, 5, LogSinkEventKind.end_message);
+        assertEvent(second, 5, LogSinkEventKind.end_message);
+        assertEvent(first, 6, LogSinkEventKind.end_record);
+        assertEvent(second, 6, LogSinkEventKind.end_record);
     }
 
-    // A branch rejecting beginRecord receives no later events; the other branch
+    // A branch rejecting begin_record receives no later events; the other branch
     // still receives the complete record and the aggregate result fails.
     {
         Capture first;
@@ -2904,7 +2904,7 @@ unittest
         Logger logger = Logger.create(tee.sinkRef(), storage[]);
         assert(logger.info("begin failure").status == LogStatus.sink_failed);
         assert(first.count == 1);
-        assertEvent(first, 0, LogSinkEventKind.beginRecord);
+        assertEvent(first, 0, LogSinkEventKind.begin_record);
         second.assertSuccessfulRecord(
             "[info]",
             "begin failure",
@@ -3185,7 +3185,7 @@ unittest
         }
 
         // A tee branch that fails after a file sink has begun its record still
-        // receives endRecord, so the destination lock is released for another
+        // receives end_record, so the destination lock is released for another
         // thread. Use ftrylockfile to verify this without a potentially hanging
         // blocking test.
         {
@@ -3193,7 +3193,7 @@ unittest
             assert(file !is null);
             ForwardingFailure failure = ForwardingFailure(
                 plainFileLogSink(file),
-                LogSinkEventKind.messageChunk,
+                LogSinkEventKind.message_chunk,
             );
             Capture healthy;
             healthy.flushAccepted = true;
@@ -3205,7 +3205,7 @@ unittest
             Logger logger = Logger.create(tee.sinkRef(), storage[]);
             assert(logger.info("unlock after failure").status == LogStatus.sink_failed);
             assert(failure.rejected);
-            assertEvent(healthy, 7, LogSinkEventKind.endRecord);
+            assertEvent(healthy, 7, LogSinkEventKind.end_record);
 
             FileTryLockContext tryLock = FileTryLockContext(file);
             pthread_t thread;

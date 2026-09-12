@@ -228,7 +228,7 @@ nothrow @nogc:
             return;
         }
 
-        if (!(*record_).messageChunk(bytes))
+        if (!(*record_).message_chunk(bytes))
         {
             failed_ = true;
             return;

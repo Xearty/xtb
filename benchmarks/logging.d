@@ -27,7 +27,7 @@ private bool nullSink(void* context, scope const LogSinkEvent* event)
         return false;
 
     ++probe.events;
-    if (event.kind == LogSinkEventKind.messageChunk)
+    if (event.kind == LogSinkEventKind.message_chunk)
     {
         ++probe.chunks;
         probe.bytes += event.bytes.length;
@@ -101,18 +101,18 @@ private u64 benchmarkResolvedProtocol(LogSinkRef sink, size_t iterations)
     const started = monotonicNanoseconds();
     foreach (_; 0 .. iterations)
     {
-        LogRecordRef record = sink.beginRecord(info);
+        LogRecordRef record = sink.begin_record(info);
         if (!record.valid)
             return 0;
-        if (!record.beginMessage())
+        if (!record.begin_message())
             return 0;
-        if (!record.messageChunk(smallMessage))
+        if (!record.message_chunk(smallMessage))
             return 0;
-        if (!record.endMessage())
+        if (!record.end_message())
             return 0;
-        if (!record.writeText("\n"))
+        if (!record.write_text("\n"))
             return 0;
-        if (!record.endRecord())
+        if (!record.end_record())
             return 0;
     }
     return monotonicNanoseconds() - started;

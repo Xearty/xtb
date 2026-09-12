@@ -218,26 +218,26 @@ private LogResult deliver(
         ? safe_sgr_prefix_length(formattedMessage) : formatted.written;
     logger.delivering_ = true;
 
-    LogRecordRef record = sink.beginRecord(info, callsitePtr);
+    LogRecordRef record = sink.begin_record(info, callsitePtr);
     if (!record.valid)
     {
         logger.delivering_ = false;
         return LogResult(LogStatus.sink_failed, safeWritten, formatted.required);
     }
 
-    bool payloadAccepted = record.beginMessage();
+    bool payloadAccepted = record.begin_message();
     if (payloadAccepted && safeWritten != 0)
-        payloadAccepted = record.messageChunk(logger.messageBuffer_[0 .. safeWritten]);
+        payloadAccepted = record.message_chunk(logger.messageBuffer_[0 .. safeWritten]);
 
-    if (record.messageOpen)
+    if (record.message_open)
     {
-        const endedMessage = record.endMessage();
+        const endedMessage = record.end_message();
         payloadAccepted = endedMessage && payloadAccepted;
     }
     if (payloadAccepted)
-        payloadAccepted = record.writeText("\n");
+        payloadAccepted = record.write_text("\n");
 
-    const endedRecord = record.endRecord();
+    const endedRecord = record.end_record();
     const accepted = payloadAccepted && endedRecord;
     logger.delivering_ = false;
 
@@ -287,14 +287,14 @@ LogResult stream(Producer)(
     const callsitePtr = logger.callsitesEnabled_ ? &callsite : null;
     logger.delivering_ = true;
 
-    LogRecordRef record = sink.beginRecord(info, callsitePtr);
+    LogRecordRef record = sink.begin_record(info, callsitePtr);
     if (!record.valid)
     {
         logger.delivering_ = false;
         return LogResult(LogStatus.sink_failed, 0, 0);
     }
 
-    bool payloadAccepted = record.beginMessage();
+    bool payloadAccepted = record.begin_message();
     size_t written;
     if (payloadAccepted)
     {
@@ -307,15 +307,15 @@ LogResult stream(Producer)(
         written = writer.written;
     }
 
-    if (record.messageOpen)
+    if (record.message_open)
     {
-        const endedMessage = record.endMessage();
+        const endedMessage = record.end_message();
         payloadAccepted = endedMessage && payloadAccepted;
     }
     if (payloadAccepted)
-        payloadAccepted = record.writeText("\n");
+        payloadAccepted = record.write_text("\n");
 
-    const endedRecord = record.endRecord();
+    const endedRecord = record.end_record();
     const accepted = payloadAccepted && endedRecord;
     logger.delivering_ = false;
 

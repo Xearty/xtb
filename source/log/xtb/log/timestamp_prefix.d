@@ -278,9 +278,9 @@ unittest
 
     const recordInfo = LogRecordInfo(LogLevel.info);
     LogSinkRef sink = prefixed.sinkRef();
-    LogRecordRef record = sink.beginRecord(recordInfo);
+    LogRecordRef record = sink.begin_record(recordInfo);
     assert(record.valid);
-    assert(record.endRecord());
+    assert(record.end_record());
     assert(cast(String) capture.bytes[0 .. capture.length] ==
             "2024-02-29T12:34:56.789Z | ");
     assert(capture.writes == 2);
@@ -337,9 +337,9 @@ unittest
         LogPrefixRef.create(&fixedTimestampPrefixCallback, &unstyled),
     );
     LogSinkRef unstyledRef = unstyledSink.sinkRef();
-    LogRecordRef unstyledRecord = unstyledRef.beginRecord(recordInfo);
+    LogRecordRef unstyledRecord = unstyledRef.begin_record(recordInfo);
     assert(unstyledRecord.valid);
-    assert(unstyledRecord.endRecord());
+    assert(unstyledRecord.end_record());
     assert(unstyledCapture.writes == 1);
     assert(!unstyledCapture.style.enabled);
 }

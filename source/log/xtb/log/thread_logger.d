@@ -259,7 +259,7 @@ version (unittest)
     )
     {
         Capture* capture = cast(Capture*) context;
-        if (event.kind == explicitSink.LogSinkEventKind.messageChunk)
+        if (event.kind == explicitSink.LogSinkEventKind.message_chunk)
         {
             if (event.bytes.length > capture.bytes.length - capture.length)
                 return false;
@@ -316,16 +316,16 @@ version (unittest)
     {
         SourceCapture* capture = cast(SourceCapture*) context;
         if (capture is null || callsite is null ||
-            callsite.functionName.length > capture.functionName.length)
+            callsite.function_name.length > capture.functionName.length)
             return explicitSink.LogRecordRef.init;
 
-        capture.functionNameLength = callsite.functionName.length;
-        foreach (index, value; callsite.functionName)
+        capture.functionNameLength = callsite.function_name.length;
+        foreach (index, value; callsite.function_name)
             capture.functionName[index] = value;
         capture.line = callsite.line;
 
         auto child = explicitSink.LogSinkRef.create(&acceptAllSink, null);
-        return child.beginRecord(info, callsite);
+        return child.begin_record(info, callsite);
     }
 }
 

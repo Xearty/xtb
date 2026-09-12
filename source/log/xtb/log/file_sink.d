@@ -101,18 +101,18 @@ private bool plainFileSinkCallback(void* context, scope const LogSinkEvent* even
 
     final switch (event.kind)
     {
-        case LogSinkEventKind.beginRecord:
+        case LogSinkEventKind.begin_record:
             lockFile(file);
             return true;
         case LogSinkEventKind.text:
-            return event.mayContainAnsi
+            return event.may_contain_ansi
                 ? writePlainText(file, event.bytes) : writeAll(file, event.bytes);
-        case LogSinkEventKind.messageChunk:
+        case LogSinkEventKind.message_chunk:
             return writePlainText(file, event.bytes);
-        case LogSinkEventKind.beginMessage:
-        case LogSinkEventKind.endMessage:
+        case LogSinkEventKind.begin_message:
+        case LogSinkEventKind.end_message:
             return true;
-        case LogSinkEventKind.endRecord:
+        case LogSinkEventKind.end_record:
             unlockFile(file);
             return true;
     }
@@ -127,7 +127,7 @@ private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event
     const reset = ansi_reset_sequence();
     final switch (event.kind)
     {
-        case LogSinkEventKind.beginRecord:
+        case LogSinkEventKind.begin_record:
             lockFile(file);
             return true;
         case LogSinkEventKind.text:
@@ -136,24 +136,24 @@ private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event
             bool accepted = true;
             if (!opening.empty)
                 accepted = writeAll(file, opening.view) && accepted;
-            if (event.mayContainAnsi)
+            if (event.may_contain_ansi)
                 accepted = writeAnsiText(file, event.bytes, event.style) && accepted;
             else
                 accepted = writeAll(file, event.bytes) && accepted;
-            if (!opening.empty || event.mayContainAnsi)
+            if (!opening.empty || event.may_contain_ansi)
                 accepted = writeAll(file, reset.view) && accepted;
             return accepted;
         }
-        case LogSinkEventKind.beginMessage:
+        case LogSinkEventKind.begin_message:
         {
             const opening = ansi_sequence(event.style);
             return opening.empty || writeAll(file, opening.view);
         }
-        case LogSinkEventKind.messageChunk:
+        case LogSinkEventKind.message_chunk:
             return writeAnsiText(file, event.bytes, event.style);
-        case LogSinkEventKind.endMessage:
+        case LogSinkEventKind.end_message:
             return writeAll(file, reset.view);
-        case LogSinkEventKind.endRecord:
+        case LogSinkEventKind.end_record:
             unlockFile(file);
             return true;
     }

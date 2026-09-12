@@ -9,7 +9,7 @@ import xtb.log.sink : LogRecordInfo, LogRecordRef,
 ///
 /// Each child graph is resolved exactly once when a record begins. The tee then
 /// remains in the record path only because fan-out itself is genuine per-write
-/// work. Branch failures are remembered until `endRecord`: a failed branch
+/// work. Branch failures are remembered until `end_record`: a failed branch
 /// stops receiving ordinary payload, while a healthy branch continues the
 /// record and every branch that successfully began a message/record still
 /// receives the matching finalization operation.
@@ -71,15 +71,15 @@ private LogRecordRef resolveTeeRecord(
     tee.inRecord_ = true;
     tee.recordFailed_ = false;
 
-    tee.firstRecord_ = tee.first_.beginRecord(info, callsite);
+    tee.firstRecord_ = tee.first_.begin_record(info, callsite);
     tee.firstRecordBegan_ = tee.firstRecord_.valid;
     tee.firstHealthy_ = tee.firstRecordBegan_;
-    tee.secondRecord_ = tee.second_.beginRecord(info, callsite);
+    tee.secondRecord_ = tee.second_.begin_record(info, callsite);
     tee.secondRecordBegan_ = tee.secondRecord_.valid;
     tee.secondHealthy_ = tee.secondRecordBegan_;
     tee.recordFailed_ = !tee.firstHealthy_ || !tee.secondHealthy_;
 
-    // Child setup failures are deliberately deferred until endRecord so a
+    // Child setup failures are deliberately deferred until end_record so a
     // healthy branch still receives the complete logical record.
     return LogRecordRef.create(
         &teeRecordCallback,
@@ -97,16 +97,16 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
 
     final switch (event.kind)
     {
-        case LogSinkEventKind.beginRecord:
+        case LogSinkEventKind.begin_record:
             return false;
         case LogSinkEventKind.text:
-        case LogSinkEventKind.messageChunk:
+        case LogSinkEventKind.message_chunk:
         {
             bool firstAccepted = true;
             if (tee.firstHealthy_)
             {
-                firstAccepted = event.kind == LogSinkEventKind.messageChunk
-                    ? tee.firstRecord_.messageChunk(event.bytes) : tee.firstRecord_.submit(event);
+                firstAccepted = event.kind == LogSinkEventKind.message_chunk
+                    ? tee.firstRecord_.message_chunk(event.bytes) : tee.firstRecord_.submit(event);
                 if (!firstAccepted)
                     tee.firstHealthy_ = false;
             }
@@ -114,8 +114,8 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
             bool secondAccepted = true;
             if (tee.secondHealthy_)
             {
-                secondAccepted = event.kind == LogSinkEventKind.messageChunk
-                    ? tee.secondRecord_.messageChunk(event.bytes) : tee.secondRecord_.submit(event);
+                secondAccepted = event.kind == LogSinkEventKind.message_chunk
+                    ? tee.secondRecord_.message_chunk(event.bytes) : tee.secondRecord_.submit(event);
                 if (!secondAccepted)
                     tee.secondHealthy_ = false;
             }
@@ -123,33 +123,33 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
             tee.recordFailed_ = tee.recordFailed_ || !firstAccepted || !secondAccepted;
             return true;
         }
-        case LogSinkEventKind.beginMessage:
+        case LogSinkEventKind.begin_message:
         {
-            if (tee.firstHealthy_ && !tee.firstRecord_.beginMessage())
+            if (tee.firstHealthy_ && !tee.firstRecord_.begin_message())
             {
                 tee.firstHealthy_ = false;
                 tee.recordFailed_ = true;
             }
-            if (tee.secondHealthy_ && !tee.secondRecord_.beginMessage())
+            if (tee.secondHealthy_ && !tee.secondRecord_.begin_message())
             {
                 tee.secondHealthy_ = false;
                 tee.recordFailed_ = true;
             }
             return true;
         }
-        case LogSinkEventKind.endMessage:
+        case LogSinkEventKind.end_message:
         {
-            if (tee.firstRecordBegan_ && tee.firstRecord_.messageOpen)
+            if (tee.firstRecordBegan_ && tee.firstRecord_.message_open)
             {
-                if (!tee.firstRecord_.endMessage())
+                if (!tee.firstRecord_.end_message())
                 {
                     tee.firstHealthy_ = false;
                     tee.recordFailed_ = true;
                 }
             }
-            if (tee.secondRecordBegan_ && tee.secondRecord_.messageOpen)
+            if (tee.secondRecordBegan_ && tee.secondRecord_.message_open)
             {
-                if (!tee.secondRecord_.endMessage())
+                if (!tee.secondRecord_.end_message())
                 {
                     tee.secondHealthy_ = false;
                     tee.recordFailed_ = true;
@@ -157,17 +157,17 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
             }
             return true;
         }
-        case LogSinkEventKind.endRecord:
+        case LogSinkEventKind.end_record:
         {
             if (tee.firstRecordBegan_)
             {
-                if (!tee.firstRecord_.endRecord())
+                if (!tee.firstRecord_.end_record())
                     tee.recordFailed_ = true;
                 tee.firstRecordBegan_ = false;
             }
             if (tee.secondRecordBegan_)
             {
-                if (!tee.secondRecord_.endRecord())
+                if (!tee.secondRecord_.end_record())
                     tee.recordFailed_ = true;
                 tee.secondRecordBegan_ = false;
             }
