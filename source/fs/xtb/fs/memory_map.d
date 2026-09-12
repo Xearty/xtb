@@ -2,42 +2,41 @@ module xtb.fs.memory_map;
 
 nothrow @nogc:
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.fs.file : File, FileMetadata, OpenOptions, metadata, open;
-import xtb.fs.path : Path;
-import xtb.os.error : OsError, OsErrorKind, unsupported;
-import xtb.os.handle : NativeHandle;
-import xtb.types : u8;
+import core.attribute;
+
+import xtb.fs.file;
+import xtb.fs.path;
+import xtb.os.error;
+import xtb.os.handle;
+import xtb.panic;
+import xtb.types;
 
 version (Posix)
-{
-    private import xtb.os.posix.memory_map : osMapReadOnly = mapReadOnly,
-        osUnmap = unmap;
-}
+    private import os_memory_map = xtb.os.posix.memory_map;
 else
 {
-    private OsError osMapReadOnly(
-        NativeHandle,
-        size_t,
-        void**,
-    ) pure @safe
+    private OsError os_map_read_only(NativeHandle, usize, scope void**) pure @safe
     {
         return unsupported();
     }
 
-    private OsError osUnmap(void*, size_t) pure @safe
+    private OsError os_unmap(void*, usize) pure @safe
     {
         return unsupported();
     }
 }
 
 /// An owning read-only mapping of a complete filesystem file.
-struct MappedFile
+@mustuse struct MappedFile
 {
 nothrow @nogc:
 
-    private void* address_;
-    private size_t length_;
+    /// Address of the owned mapping, or null when this value is unmapped.
+    /// When non-null, it must identify a readable mapping of `length` bytes.
+    void* address;
+
+    /// Length in bytes of the mapping starting at `address`.
+    usize length;
 
     @disable this(this);
     @disable ref MappedFile opAssign(MappedFile source) return;
@@ -47,73 +46,80 @@ nothrow @nogc:
     /// Unmap errors are discarded; call `unmap` directly when they matter.
     void deinit() @system
     {
-        cast(void) unmap(&this);
+        cast(void) this.unmap();
     }
 
-    const(u8)[] bytes() const return @system
+    /// Releases this file-backed mapping.
+    ///
+    /// This value must be unmapped or own the mapping described by `address` and `length`.
+    OsError unmap() @system
     {
-        return (cast(const(u8)*) address_)[0 .. length_];
+        if (this.address is null)
+        {
+            this.length = 0;
+            return OsError.init;
+        }
+
+        void* address = this.address;
+        const usize length = this.length;
+        this.address = null;
+        this.length = 0;
+
+        version (Posix)
+            return os_memory_map.unmap(address, length);
+        else
+            return os_unmap(address, length);
+    }
+
+    /// Returns a borrowed view of the mapped bytes.
+    ///
+    /// This value must be unmapped or own the mapping described by `address` and `length`.
+    const(u8)[] bytes() const return scope @system
+    {
+        return (cast(const(u8)*) this.address)[0 .. this.length];
     }
 
     bool empty() const pure @safe
     {
-        return length_ == 0;
+        return this.length == 0;
     }
 }
 
-/// Maps the complete file at `path` read-only.
-OsError mapReadOnly(Path path, MappedFile* output) @system
+/// Maps the complete file at `path` read-only into `output`.
+///
+/// `output` must not be null and must point to `MappedFile.init` or a valid owned mapping.
+/// Any mapping already owned by `output` is released first. On failure, `output` is left as
+/// `MappedFile.init`.
+OsError map_read_only(scope const Path path, scope MappedFile* output) @system
 {
-    version (XTB_Checked)
-        require(output !is null, "MappedFile output pointer is null");
+    require(output !is null, "MappedFile output pointer is null");
 
-    const cleanupError = unmap(output);
-    if (cleanupError.failed)
-        return cleanupError;
+    const cleanup_error = output.unmap();
+    if (cleanup_error.failed) return cleanup_error;
 
     File file;
-    const openError = open(path, OpenOptions.init, &file);
-    if (openError.failed)
-        return openError;
-    scope (exit)
-        file.deinit();
+    const open_error = open(path, OpenOptions.init, &file);
+    scope (exit) file.deinit();
+    if (open_error.failed) return open_error;
 
     FileMetadata information;
-    const metadataError = file.metadata(&information);
-    if (metadataError.failed)
-        return metadataError;
-    if (information.size > size_t.max)
-        return OsError(OsErrorKind.invalidArgument, 0);
-    if (information.size == 0)
-        return OsError.init;
+    const metadata_error = file.metadata(&information);
+    if (metadata_error.failed) return metadata_error;
+    if (information.size > usize.max) return OsError(OsErrorKind.invalidArgument, 0);
+    if (information.size == 0) return OsError.init;
 
     void* address;
-    const mappingError = osMapReadOnly(
-        file.handle,
-        cast(size_t) information.size,
-        &address,
-    );
-    if (mappingError.failed)
-        return mappingError;
-    output.address_ = address;
-    output.length_ = cast(size_t) information.size;
+    version (Posix)
+        const mapping_error = os_memory_map.mapReadOnly(
+            file.handle,
+            cast(usize) information.size,
+            &address,
+        );
+    else
+        const mapping_error = os_map_read_only(file.handle, cast(usize) information.size, &address);
+    if (mapping_error.failed) return mapping_error;
+
+    output.address = address;
+    output.length = cast(usize) information.size;
     return OsError.init;
-}
-
-/// Explicitly releases a file-backed mapping.
-OsError unmap(MappedFile* mapping) @system
-{
-    version (XTB_Checked)
-        require(mapping !is null, "MappedFile pointer is null");
-    if (mapping.address_ is null)
-    {
-        mapping.length_ = 0;
-        return OsError.init;
-    }
-
-    void* address = mapping.address_;
-    size_t length = mapping.length_;
-    mapping.address_ = null;
-    mapping.length_ = 0;
-    return osUnmap(address, length);
 }

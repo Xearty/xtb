@@ -1018,8 +1018,8 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     {
         MappedFile source;
         MappedFile target;
-        assert(mapReadOnly(firstPath, &source).succeeded);
-        assert(mapReadOnly(firstPath, &target).succeeded);
+        assert(map_read_only(firstPath, &source).succeeded);
+        assert(map_read_only(firstPath, &target).succeeded);
         move_assign(source, target);
         assert(source.empty);
         assert(target.bytes == contents[]);
@@ -1028,10 +1028,10 @@ version (linux) private void runLinuxIntegration() nothrow @system @nogc
     }
 
     MappedFile mapping;
-    assert(mapReadOnly(firstPath, &mapping).succeeded);
+    assert(map_read_only(firstPath, &mapping).succeeded);
     assert(mapping.bytes == contents[]);
-    assert(unmap(&mapping).succeeded);
-    assert(unmap(&mapping).succeeded);
+    assert(mapping.unmap().succeeded);
+    assert(mapping.unmap().succeeded);
 
     StringBuf second = StringBuf.from_string(malloc_allocator(), rootPath.view);
     second.append("/second.bin");
