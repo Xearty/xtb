@@ -383,7 +383,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "thread-logger-without-context"))
     {
         char[16] storage;
-        Logger logger = stderrLogger(storage[]);
+        Logger logger = stderr_logger(storage[]);
         ThreadLoggerScope.install(&logger);
     }
     if (cStringEqual(name, "thread-logger-invalid"))
@@ -396,7 +396,7 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     {
         ThreadContextScope context = ThreadContextScope.acquire();
         char[16] storage;
-        Logger logger = stderrLogger(storage[]);
+        Logger logger = stderr_logger(storage[]);
         ThreadLoggerScope logging = ThreadLoggerScope.install(&logger);
         context.__dtor();
     }
@@ -405,8 +405,8 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
         ThreadContextScope context = ThreadContextScope.acquire();
         char[16] firstStorage;
         char[16] secondStorage;
-        Logger first = stderrLogger(firstStorage[]);
-        Logger second = stderrLogger(secondStorage[]);
+        Logger first = stderr_logger(firstStorage[]);
+        Logger second = stderr_logger(secondStorage[]);
         ThreadLoggerScope outer = ThreadLoggerScope.install(&first);
         ThreadLoggerScope inner = ThreadLoggerScope.install(&second);
         outer.__dtor();

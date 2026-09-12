@@ -285,7 +285,7 @@ extern (C) int main(int argc, char** argv)
 
     printf("\nPlain FILE sink -> /dev/null\n");
     char[1024] plainBuffer;
-    Logger plain = Logger.create(plainFileLogSink(devNull), plainBuffer[]);
+    Logger plain = Logger.create(plain_file_log_sink(devNull), plainBuffer[]);
     warmUp(plain, iterations / 100 + 1);
     plain.try_flush();
     elapsed = benchmarkNormalSmall(plain, iterations / 4 + 1);
@@ -297,7 +297,7 @@ extern (C) int main(int argc, char** argv)
 
     printf("\nANSI FILE sink -> /dev/null\n");
     char[1024] ansiBuffer;
-    Logger ansi = Logger.create(ansiFileLogSink(devNull), ansiBuffer[]);
+    Logger ansi = Logger.create(ansi_file_log_sink(devNull), ansiBuffer[]);
     warmUp(ansi, iterations / 100 + 1);
     ansi.try_flush();
     elapsed = benchmarkNormalSmall(ansi, iterations / 4 + 1);

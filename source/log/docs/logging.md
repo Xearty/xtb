@@ -8,7 +8,7 @@ A basic logger needs only a destination, a buffer, and a minimum level:
 
 ```d
 char[512] storage;
-Logger logger = stderrLogger(storage[], LogLevel.info);
+Logger logger = stderr_logger(storage[], LogLevel.info);
 
 logger.info("server started on port ", 8080);
 logger.warningf!"retry {}/{}"(2, 3);
@@ -28,8 +28,8 @@ is reused as staging storage.
 
 | API | Purpose |
 |---|---|
-| `plainFileLogSink` | file output with ANSI removed |
-| `ansiFileLogSink` | ANSI-preserving terminal/file output |
+| `plain_file_log_sink` | file output with ANSI removed |
+| `ansi_file_log_sink` | ANSI-preserving terminal/file output |
 | `PrefixLogSink` | prepend a custom prefix provider |
 | `TimestampLogPrefix` | wall-clock prefix provider backed by the `time` subpackage |
 | `TeeLogSink` | send each record to two sinks |
@@ -55,13 +55,13 @@ scope (exit) fclose(logFile);
 
 // Terminal: ANSI presentation, no timestamp, no callsite.
 WithoutCallsiteLogSink terminalSink = WithoutCallsiteLogSink.create(
-    ansiFileLogSink(terminal),
+    ansi_file_log_sink(terminal),
 );
 
 // File: plain presentation, timestamp prefix, callsite retained.
 TimestampLogPrefix timestamp = TimestampLogPrefix.create();
 PrefixLogSink fileSink = PrefixLogSink.create(
-    plainFileLogSink(logFile),
+    plain_file_log_sink(logFile),
     timestamp.prefixRef(),
 );
 

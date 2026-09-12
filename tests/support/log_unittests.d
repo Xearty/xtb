@@ -6,7 +6,6 @@ import core.stdc.stdio : FILE;
 import xtb.ansi : ANSIColor, ANSIStyle, ansi_reset_sequence, ansi_sequence;
 import xtb.log;
 import xtb.log.internal.sgr : SGRParseKind, max_supported_sgr_length, parse_sgr_prefix, safe_sgr_prefix_length;
-import xtb.log.file_sink : fileFlush;
 import xtb.string;
 import xtb.types : String;
 
@@ -577,7 +576,7 @@ version (unittest)
                 value = worker.marker;
             char[128] storage;
             Logger logger = Logger.create(
-                plainFileLogSink(worker.file),
+                plain_file_log_sink(worker.file),
                 storage[],
                 LogLevel.info,
             );
@@ -1961,7 +1960,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
-        Logger plain = fileLogger(
+        Logger plain = file_logger(
             file,
             fileMessage[],
             LogLevel.info,
@@ -1983,7 +1982,7 @@ unittest
         assert(file !is null);
         PrefixProbe prefixProbeValue;
         PrefixLogSink prefixed = PrefixLogSink.create(
-            plainFileLogSink(file),
+            plain_file_log_sink(file),
             LogPrefixRef.create(&prefixProbe, &prefixProbeValue),
         );
         char[64] fileMessage;
@@ -2014,7 +2013,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         char[64] fileMessage;
-        Logger located = fileLogger(
+        Logger located = file_logger(
             file,
             fileMessage[],
             LogLevel.info,
@@ -2044,7 +2043,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
-        Logger colored = fileLogger(
+        Logger colored = file_logger(
             file,
             fileMessage[],
             LogLevel.info,
@@ -2067,7 +2066,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         char[4] fileMessage;
-        Logger plain = fileLogger(
+        Logger plain = file_logger(
             file,
             fileMessage[],
             LogLevel.info,
@@ -2089,7 +2088,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         char[4] fileMessage;
-        Logger colored = fileLogger(
+        Logger colored = file_logger(
             file,
             fileMessage[],
             LogLevel.info,
@@ -2124,7 +2123,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
-        Logger colored = fileLogger(
+        Logger colored = file_logger(
             file,
             fileMessage[],
             LogLevel.info,
@@ -2149,7 +2148,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         char[32] fileMessage;
-        Logger plain = fileLogger(
+        Logger plain = file_logger(
             file,
             fileMessage[],
             LogLevel.info,
@@ -2174,8 +2173,8 @@ unittest
         assert(ansiFile !is null && plainFile !is null);
 
         TeeLogSink tee = TeeLogSink.create(
-            ansiFileLogSink(ansiFile),
-            plainFileLogSink(plainFile),
+            ansi_file_log_sink(ansiFile),
+            plain_file_log_sink(plainFile),
         );
         PrefixLogSink prefixed = PrefixLogSink.create(
             tee.sink_ref(),
@@ -2259,7 +2258,7 @@ unittest
         assert(file !is null);
         char[128] fileMessage;
         Logger plain = Logger.create(
-            plainFileLogSink(file),
+            plain_file_log_sink(file),
             fileMessage[],
             LogLevel.info,
         );
@@ -2290,7 +2289,7 @@ unittest
         assert(file !is null);
         char[128] fileMessage;
         Logger ansi = Logger.create(
-            ansiFileLogSink(file),
+            ansi_file_log_sink(file),
             fileMessage[],
             LogLevel.info,
         );
@@ -2322,7 +2321,7 @@ unittest
         assert(file !is null);
         char[192] fileMessage;
         Logger ansi = Logger.create(
-            ansiFileLogSink(file),
+            ansi_file_log_sink(file),
             fileMessage[],
             LogLevel.info,
             custom,
@@ -2351,7 +2350,7 @@ unittest
         const base = ANSIStyle.foreground(ANSIColor.bright_black);
         FILE* file = tmpfile();
         assert(file !is null);
-        LogSinkRef ansi = ansiFileLogSink(file);
+        LogSinkRef ansi = ansi_file_log_sink(file);
         const info = testRecordInfo(base);
         LogRecordRef record = ansi.begin_record(info);
         assert(record.valid);
@@ -2374,7 +2373,7 @@ unittest
     {
         FILE* file = tmpfile();
         assert(file !is null);
-        LogSinkRef plain = plainFileLogSink(file);
+        LogSinkRef plain = plain_file_log_sink(file);
         const info = testRecordInfo();
         LogRecordRef record = plain.begin_record(info);
         assert(record.valid);
@@ -2406,7 +2405,7 @@ unittest
         assert(file !is null);
         char[32] fileMessage;
         Logger ansi = Logger.create(
-            ansiFileLogSink(file),
+            ansi_file_log_sink(file),
             fileMessage[],
             LogLevel.trace,
             custom,
@@ -2442,7 +2441,7 @@ unittest
         assert(file !is null);
         char[2048] fileMessage;
         Logger plain = Logger.create(
-            plainFileLogSink(file),
+            plain_file_log_sink(file),
             fileMessage[],
             LogLevel.info,
         );
@@ -2530,7 +2529,7 @@ unittest
         assert(file !is null);
         char[12] truncatedBuffer;
         Logger ansi = Logger.create(
-            ansiFileLogSink(file),
+            ansi_file_log_sink(file),
             truncatedBuffer[],
             LogLevel.info,
         );
@@ -2798,7 +2797,7 @@ unittest
         FILE* file = tmpfile();
         assert(file !is null);
         ForwardingFailure failure = ForwardingFailure(
-            ansiFileLogSink(file),
+            ansi_file_log_sink(file),
             LogSinkEventKind.begin_message,
         );
         Capture healthy;
@@ -2824,7 +2823,7 @@ unittest
             palette.info.label,
             palette.info.message,
         );
-        assert(fileFlush(cast(void*) file));
+        assert(plain_file_log_sink(file).try_flush());
 
         char[128] output;
         const length = readFileContents(file, output[]);
@@ -3064,8 +3063,8 @@ unittest
         palette.warning.label = ANSIStyle.foreground(ANSIColor.yellow).bold;
         palette.warning.message = ANSIStyle.foreground(ANSIColor.bright_black);
         TeeLogSink tee = TeeLogSink.create(
-            ansiFileLogSink(terminal),
-            plainFileLogSink(logfile),
+            ansi_file_log_sink(terminal),
+            plain_file_log_sink(logfile),
         );
         char[192] storage;
         Logger logger = Logger.create(
@@ -3164,7 +3163,7 @@ unittest
             assert(pthread_join(secondThread, null) == 0);
             assert(first.succeeded);
             assert(second.succeeded);
-            assert(fileFlush(cast(void*) file));
+            assert(plain_file_log_sink(file).try_flush());
 
             char[32_768] output;
             const length = readFileContents(file, output[]);
@@ -3191,7 +3190,7 @@ unittest
             FILE* file = tmpfile();
             assert(file !is null);
             ForwardingFailure failure = ForwardingFailure(
-                plainFileLogSink(file),
+                plain_file_log_sink(file),
                 LogSinkEventKind.message_chunk,
             );
             Capture healthy;

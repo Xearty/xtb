@@ -347,7 +347,7 @@ unittest
 unittest
 {
     import core.stdc.stdio : FILE, fclose, fread, rewind, tmpfile;
-    import xtb.log.file_sink : ansiFileLogSink, plainFileLogSink;
+    import xtb.log.file_sink : ansi_file_log_sink, plain_file_log_sink;
     import xtb.log.level : LogLevel;
     import xtb.log.logger : Logger;
     import xtb.log.prefix_sink : PrefixLogSink;
@@ -376,8 +376,8 @@ unittest
         assert(fclose(plainFile) == 0);
 
     TeeLogSink sharedOutputs = TeeLogSink.create(
-        ansiFileLogSink(ansiFile),
-        plainFileLogSink(plainFile),
+        ansi_file_log_sink(ansiFile),
+        plain_file_log_sink(plainFile),
     );
     PrefixLogSink sharedPrefix = PrefixLogSink.create(
         sharedOutputs.sink_ref(),
@@ -416,11 +416,11 @@ unittest
 
     TimestampLogPrefix fileTimestamp = TimestampLogPrefix.create(options);
     PrefixLogSink timestampedFile = PrefixLogSink.create(
-        plainFileLogSink(logfile),
+        plain_file_log_sink(logfile),
         fileTimestamp.prefixRef(),
     );
     TeeLogSink splitOutputs = TeeLogSink.create(
-        plainFileLogSink(terminal),
+        plain_file_log_sink(terminal),
         timestampedFile.sink_ref(),
     );
     Logger splitLogger = Logger.create(

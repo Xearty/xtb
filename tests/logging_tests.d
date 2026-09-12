@@ -71,15 +71,15 @@ extern (C) int main() nothrow @nogc
 
     FixedPrefix filePrefix = FixedPrefix("file-only ");
     PrefixLogSink prefixedFile = PrefixLogSink.create(
-        plainFileLogSink(firstFile),
+        plain_file_log_sink(firstFile),
         LogPrefixRef.create(&writeFixedPrefix, &filePrefix),
     );
     TeeLogSink plainFiles = TeeLogSink.create(
         prefixedFile.sink_ref(),
-        plainFileLogSink(secondFile),
+        plain_file_log_sink(secondFile),
     );
     TeeLogSink outputs = TeeLogSink.create(
-        ansiFileLogSink(terminal),
+        ansi_file_log_sink(terminal),
         plainFiles.sink_ref(),
     );
     FixedPrefix sharedPrefix = FixedPrefix(
@@ -154,11 +154,11 @@ extern (C) int main() nothrow @nogc
         assert(fclose(sourceFile) == 0);
 
     WithoutCallsiteLogSink terminalWithoutCallsite = WithoutCallsiteLogSink.create(
-        ansiFileLogSink(sourceTerminal),
+        ansi_file_log_sink(sourceTerminal),
     );
     TeeLogSink sourceOutputs = TeeLogSink.create(
         terminalWithoutCallsite.sink_ref(),
-        plainFileLogSink(sourceFile),
+        plain_file_log_sink(sourceFile),
     );
     char[256] sourceStorage;
     Logger sourceLogger = Logger.create(sourceOutputs.sink_ref(), sourceStorage[]);

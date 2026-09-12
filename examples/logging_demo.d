@@ -135,14 +135,14 @@ extern (C) int main() nothrow @nogc
     FILE* terminalFile = cast(FILE*) stderr;
     const terminalSupportsAnsi = shouldUseAnsi(terminalFile);
     LogSinkRef terminalPresentation = terminalSupportsAnsi
-        ? ansiFileLogSink(terminalFile) : plainFileLogSink(terminalFile);
+        ? ansi_file_log_sink(terminalFile) : plain_file_log_sink(terminalFile);
 
     // Keep the first section deliberately plain so the contrast with terminal
     // presentation is visible even when this example is run on an ANSI TTY.
     if (!terminalSection(terminalFile, "plain presentation"))
         return 1;
     char[256] plainStorage;
-    Logger plain = stderrLogger(
+    Logger plain = stderr_logger(
         plainStorage[],
         LogLevel.trace,
         LogStyle.plain,
@@ -423,7 +423,7 @@ extern (C) int main() nothrow @nogc
         WithoutCallsiteLogSink.create(terminalPresentation);
     TimestampLogPrefix fileTimestamp = TimestampLogPrefix.create(timestampOptions);
     PrefixLogSink timestampedFile = PrefixLogSink.create(
-        plainFileLogSink(logFile),
+        plain_file_log_sink(logFile),
         fileTimestamp.prefixRef(),
     );
     TeeLogSink tee = TeeLogSink.create(
@@ -460,7 +460,7 @@ extern (C) int main() nothrow @nogc
         infof!"current logger: processed {} records"(42);
 
         char[256] nestedStorage;
-        Logger nested = stderrLogger(
+        Logger nested = stderr_logger(
             nestedStorage[],
             LogLevel.info,
             LogStyle.plain,

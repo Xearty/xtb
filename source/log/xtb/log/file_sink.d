@@ -4,162 +4,167 @@ nothrow @nogc:
 
 import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
 import core.stdc.string : memchr;
-import xtb.ansi : ANSIStyle, ansi_reset_sequence, ansi_sequence;
-import xtb.log.internal.sgr : SGRParseKind, parse_sgr_prefix;
-import xtb.log.level : LogLevel;
-import xtb.log.logger : Logger;
-import xtb.log.palette : LogPalette;
-import xtb.log.sink : LogSinkEvent, LogSinkEventKind, LogSinkRef;
-import xtb.types : String;
 
-enum LogStyle : ubyte
+import xtb.ansi;
+import xtb.log.internal.sgr;
+import xtb.log.level;
+import xtb.log.logger;
+import xtb.log.palette;
+import xtb.log.sink;
+import xtb.types;
+
+enum LogStyle : u8
 {
     plain,
     ansi,
 }
 
-private bool writeAll(FILE* file, String value)
+private bool try_write_all(FILE* file, String value)
 {
     return value.length == 0 || fwrite(value.ptr, 1, value.length, file) == value.length;
 }
 
-private size_t findEscape(scope String bytes, size_t start = 0)
-@trusted
+private usize find_escape(scope String bytes, usize start = 0) @trusted
 {
-    if (start >= bytes.length)
-        return bytes.length;
-    const found = memchr(bytes.ptr + start, '\x1b', bytes.length - start);
-    return found is null
-        ? bytes.length : cast(const(char)*) found - bytes.ptr;
+    if (start >= bytes.length) return bytes.length;
+
+    // `start` is in range, so the pointer and byte count passed to memchr stay
+    // within `bytes`; the returned pointer is used only to compute an index.
+    const(void)* found = memchr(bytes.ptr + start, '\x1b', bytes.length - start);
+    return found is null ? bytes.length : cast(const(char)*) found - bytes.ptr;
 }
 
-private bool writePlainText(FILE* file, scope String bytes)
+private bool try_write_plain_text(FILE* file, scope String bytes)
 {
-    size_t plainStart;
-    size_t searchStart;
-    while (searchStart < bytes.length)
+    usize plain_start;
+    usize search_start;
+    while (search_start < bytes.length)
     {
-        const escape = findEscape(bytes, searchStart);
-        if (escape == bytes.length)
-            break;
+        const usize escape = find_escape(bytes, search_start);
+        if (escape == bytes.length) break;
 
-        const parsed = parse_sgr_prefix(bytes[escape .. $]);
+        const SGRParseResult parsed = parse_sgr_prefix(bytes[escape .. $]);
         if (parsed.kind != SGRParseKind.complete)
         {
-            searchStart = escape + 1;
+            search_start = escape + 1;
             continue;
         }
 
-        if (!writeAll(file, bytes[plainStart .. escape]))
-            return false;
-        plainStart = escape + parsed.length;
-        searchStart = plainStart;
+        if (!try_write_all(file, bytes[plain_start .. escape])) return false;
+
+        plain_start = escape + parsed.length;
+        search_start = plain_start;
     }
-    return writeAll(file, bytes[plainStart .. $]);
+
+    return try_write_all(file, bytes[plain_start .. $]);
 }
 
-private bool writeAnsiText(FILE* file, scope String bytes, ANSIStyle baseStyle)
+private bool try_write_ansi_text(FILE* file, scope String bytes, ANSIStyle base_style)
 {
-    if (!baseStyle.enabled)
-        return writeAll(file, bytes);
+    if (!base_style.enabled) return try_write_all(file, bytes);
 
-    const firstEscape = findEscape(bytes);
-    if (firstEscape == bytes.length)
-        return writeAll(file, bytes);
+    const usize first_escape = find_escape(bytes);
+    if (first_escape == bytes.length) return try_write_all(file, bytes);
 
-    const baseSequence = ansi_sequence(baseStyle);
-    size_t spanStart;
-    size_t searchStart = firstEscape;
-    while (searchStart < bytes.length)
+    const ANSISequence base_sequence = ansi_sequence(base_style);
+    usize span_start;
+    usize search_start = first_escape;
+    while (search_start < bytes.length)
     {
-        const escape = findEscape(bytes, searchStart);
-        if (escape == bytes.length)
-            break;
+        const usize escape = find_escape(bytes, search_start);
+        if (escape == bytes.length) break;
 
-        const parsed = parse_sgr_prefix(bytes[escape .. $]);
+        const SGRParseResult parsed = parse_sgr_prefix(bytes[escape .. $]);
         if (parsed.kind == SGRParseKind.complete && parsed.full_reset)
         {
-            const resetEnd = escape + parsed.length;
-            if (!writeAll(file, bytes[spanStart .. resetEnd]))
-                return false;
-            if (!baseSequence.empty && !writeAll(file, baseSequence.view))
-                return false;
-            spanStart = resetEnd;
-            searchStart = resetEnd;
+            const usize reset_end = escape + parsed.length;
+            if (!try_write_all(file, bytes[span_start .. reset_end])) return false;
+            if (!base_sequence.empty && !try_write_all(file, base_sequence.view)) return false;
+
+            span_start = reset_end;
+            search_start = reset_end;
             continue;
         }
-        searchStart = escape + 1;
+
+        search_start = escape + 1;
     }
-    return writeAll(file, bytes[spanStart .. $]);
+
+    return try_write_all(file, bytes[span_start .. $]);
 }
 
-private bool plainFileSinkCallback(void* context, scope const LogSinkEvent* event)
+private bool try_plain_file_sink_event(void* context, scope const LogSinkEvent* event) @system
 {
-    FILE* file = cast(FILE*) context;
-    if (file is null || event is null)
-        return false;
+    auto file = cast(FILE*) context;
+    if (file is null || event is null) return false;
 
     final switch (event.kind)
     {
-        case LogSinkEventKind.begin_record:
-            lockFile(file);
-            return true;
-        case LogSinkEventKind.text:
-            return event.may_contain_ansi
-                ? writePlainText(file, event.bytes) : writeAll(file, event.bytes);
-        case LogSinkEventKind.message_chunk:
-            return writePlainText(file, event.bytes);
-        case LogSinkEventKind.begin_message:
-        case LogSinkEventKind.end_message:
-            return true;
-        case LogSinkEventKind.end_record:
-            unlockFile(file);
-            return true;
+    case LogSinkEventKind.begin_record:
+        lock_file(file);
+        return true;
+    case LogSinkEventKind.text:
+        return event.may_contain_ansi
+            ? try_write_plain_text(file, event.bytes)
+            : try_write_all(file, event.bytes);
+    case LogSinkEventKind.message_chunk:
+        return try_write_plain_text(file, event.bytes);
+    case LogSinkEventKind.begin_message:
+    case LogSinkEventKind.end_message:
+        return true;
+    case LogSinkEventKind.end_record:
+        unlock_file(file);
+        return true;
     }
 }
 
-private bool ansiFileSinkCallback(void* context, scope const LogSinkEvent* event)
+private bool try_ansi_file_sink_event(void* context, scope const LogSinkEvent* event) @system
 {
-    FILE* file = cast(FILE*) context;
-    if (file is null || event is null)
-        return false;
+    auto file = cast(FILE*) context;
+    if (file is null || event is null) return false;
 
-    const reset = ansi_reset_sequence();
+    const ANSISequence reset = ansi_reset_sequence();
     final switch (event.kind)
     {
-        case LogSinkEventKind.begin_record:
-            lockFile(file);
-            return true;
-        case LogSinkEventKind.text:
+    case LogSinkEventKind.begin_record:
+        lock_file(file);
+        return true;
+    case LogSinkEventKind.text:
+    {
+        const ANSISequence opening = ansi_sequence(event.style);
+        bool accepted = true;
+        if (!opening.empty) accepted = try_write_all(file, opening.view) && accepted;
+
+        if (event.may_contain_ansi)
         {
-            const opening = ansi_sequence(event.style);
-            bool accepted = true;
-            if (!opening.empty)
-                accepted = writeAll(file, opening.view) && accepted;
-            if (event.may_contain_ansi)
-                accepted = writeAnsiText(file, event.bytes, event.style) && accepted;
-            else
-                accepted = writeAll(file, event.bytes) && accepted;
-            if (!opening.empty || event.may_contain_ansi)
-                accepted = writeAll(file, reset.view) && accepted;
-            return accepted;
+            accepted = try_write_ansi_text(file, event.bytes, event.style) && accepted;
         }
-        case LogSinkEventKind.begin_message:
+        else
         {
-            const opening = ansi_sequence(event.style);
-            return opening.empty || writeAll(file, opening.view);
+            accepted = try_write_all(file, event.bytes) && accepted;
         }
-        case LogSinkEventKind.message_chunk:
-            return writeAnsiText(file, event.bytes, event.style);
-        case LogSinkEventKind.end_message:
-            return writeAll(file, reset.view);
-        case LogSinkEventKind.end_record:
-            unlockFile(file);
-            return true;
+
+        if (!opening.empty || event.may_contain_ansi)
+        {
+            accepted = try_write_all(file, reset.view) && accepted;
+        }
+        return accepted;
+    }
+    case LogSinkEventKind.begin_message:
+    {
+        const ANSISequence opening = ansi_sequence(event.style);
+        return opening.empty || try_write_all(file, opening.view);
+    }
+    case LogSinkEventKind.message_chunk:
+        return try_write_ansi_text(file, event.bytes, event.style);
+    case LogSinkEventKind.end_message:
+        return try_write_all(file, reset.view);
+    case LogSinkEventKind.end_record:
+        unlock_file(file);
+        return true;
     }
 }
 
-private void lockFile(FILE* file)
+private void lock_file(FILE* file)
 {
     version (Posix)
     {
@@ -169,7 +174,7 @@ private void lockFile(FILE* file)
     }
 }
 
-private void unlockFile(FILE* file)
+private void unlock_file(FILE* file)
 {
     version (Posix)
     {
@@ -179,9 +184,9 @@ private void unlockFile(FILE* file)
     }
 }
 
-package bool fileFlush(void* context)
+private bool try_file_flush(void* context) @system
 {
-    FILE* file = cast(FILE*) context;
+    auto file = cast(FILE*) context;
     return file !is null && fflush(file) == 0;
 }
 
@@ -189,15 +194,12 @@ package bool fileFlush(void* context)
 ///
 /// Logger-generated styles are ignored. Supported embedded SGR sequences are
 /// removed from arbitrary setup text such as prefixes and from message chunks;
-/// known ANSI-free logger framing takes the direct-write path. `file` must
-/// remain valid while the returned sink reference is used.
-LogSinkRef plainFileLogSink(FILE* file)
+/// known ANSI-free logger framing takes the direct-write path. `file` may be
+/// null, in which case sink operations fail. A non-null `file` must remain valid
+/// while the returned sink reference is used.
+LogSinkRef plain_file_log_sink(FILE* file) @system
 {
-    return LogSinkRef.create(
-        &plainFileSinkCallback,
-        cast(void*) file,
-        &fileFlush,
-    );
+    return LogSinkRef.create(&try_plain_file_sink_event, cast(void*) file, &try_file_flush);
 }
 
 /// Creates a borrowed ANSI file/terminal presentation sink.
@@ -205,57 +207,49 @@ LogSinkRef plainFileLogSink(FILE* file)
 /// Logger-generated styles and supported embedded SGR in arbitrary setup text
 /// or message chunks are preserved. Complete full resets restore the active
 /// semantic style for that span; known ANSI-free logger framing avoids the SGR
-/// scan. `file` must remain valid while the returned sink reference is used.
-LogSinkRef ansiFileLogSink(FILE* file)
+/// scan. `file` may be null, in which case sink operations fail. A non-null
+/// `file` must remain valid while the returned sink reference is used.
+LogSinkRef ansi_file_log_sink(FILE* file) @system
 {
-    return LogSinkRef.create(
-        &ansiFileSinkCallback,
-        cast(void*) file,
-        &fileFlush,
-    );
+    return LogSinkRef.create(&try_ansi_file_sink_event, cast(void*) file, &try_file_flush);
 }
 
-Logger fileLogger(
+/// Creates a logger that writes to `file`.
+///
+/// `file` may be null, in which case sink operations fail. A non-null `file`
+/// must remain valid while the returned logger is used.
+Logger file_logger(
     FILE* file,
-    return scope char[] messageBuffer,
-    LogLevel minimumLevel = LogLevel.info,
+    return scope char[] message_buffer,
+    LogLevel minimum_level = LogLevel.info,
     LogStyle style = LogStyle.plain,
     LogPalette palette = LogPalette.defaults(),
-)
+) @system
 {
-    LogSinkRef sink = style == LogStyle.ansi
-        ? ansiFileLogSink(file) : plainFileLogSink(file);
-    return Logger.create(sink, messageBuffer, minimumLevel, palette);
+    LogSinkRef file_sink = style == LogStyle.ansi
+        ? ansi_file_log_sink(file)
+        : plain_file_log_sink(file);
+    return Logger.create(file_sink, message_buffer, minimum_level, palette);
 }
 
-Logger stderrLogger(
-    return scope char[] messageBuffer,
-    LogLevel minimumLevel = LogLevel.info,
+Logger stderr_logger(
+    return scope char[] message_buffer,
+    LogLevel minimum_level = LogLevel.info,
     LogStyle style = LogStyle.plain,
     LogPalette palette = LogPalette.defaults(),
-)
+) @trusted
 {
-    return fileLogger(
-        cast(FILE*) stderr,
-        messageBuffer,
-        minimumLevel,
-        style,
-        palette,
-    );
+    // `stderr` is the process-global C stream and outlives the returned logger.
+    return file_logger(cast(FILE*) stderr, message_buffer, minimum_level, style, palette);
 }
 
-Logger stdoutLogger(
-    return scope char[] messageBuffer,
-    LogLevel minimumLevel = LogLevel.info,
+Logger stdout_logger(
+    return scope char[] message_buffer,
+    LogLevel minimum_level = LogLevel.info,
     LogStyle style = LogStyle.plain,
     LogPalette palette = LogPalette.defaults(),
-)
+) @trusted
 {
-    return fileLogger(
-        cast(FILE*) stdout,
-        messageBuffer,
-        minimumLevel,
-        style,
-        palette,
-    );
+    // `stdout` is the process-global C stream and outlives the returned logger.
+    return file_logger(cast(FILE*) stdout, message_buffer, minimum_level, style, palette);
 }
