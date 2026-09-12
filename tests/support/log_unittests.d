@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.stdc.stdio : FILE;
 import xtb.ansi : ANSIColor, ANSIStyle, ansi_reset_sequence, ansi_sequence;
 import xtb.log;
-import xtb.log.internal.sgr : SgrParseKind, maxSupportedSgrLength, parseSgrPrefix, safeSgrPrefixLength;
+import xtb.log.internal.sgr : SGRParseKind, max_supported_sgr_length, parse_sgr_prefix, safe_sgr_prefix_length;
 import xtb.log.file_sink : fileFlush;
 import xtb.log.message_writer : createLogMessageWriter;
 import xtb.string;
@@ -2213,18 +2213,18 @@ unittest
     // safe chunk boundary used to keep presentation sinks stateless.
     {
         const complete = "\x1b[38;2;255;100;20m";
-        const completeResult = parseSgrPrefix(complete);
-        assert(completeResult.kind == SgrParseKind.complete);
+        const completeResult = parse_sgr_prefix(complete);
+        assert(completeResult.kind == SGRParseKind.complete);
         assert(completeResult.length == complete.length);
-        assert(!completeResult.fullReset);
+        assert(!completeResult.full_reset);
 
-        assert(parseSgrPrefix("\x1b[0m").fullReset);
-        assert(parseSgrPrefix("\x1b[m").fullReset);
-        assert(parseSgrPrefix("\x1b[0;0m").fullReset);
-        assert(!parseSgrPrefix("\x1b[39m").fullReset);
-        assert(!parseSgrPrefix("\x1b[0;31m").fullReset);
-        assert(parseSgrPrefix("\x1b[31J").kind == SgrParseKind.unsupported);
-        assert(parseSgrPrefix("\x1b[x").kind == SgrParseKind.unsupported);
+        assert(parse_sgr_prefix("\x1b[0m").full_reset);
+        assert(parse_sgr_prefix("\x1b[m").full_reset);
+        assert(parse_sgr_prefix("\x1b[0;0m").full_reset);
+        assert(!parse_sgr_prefix("\x1b[39m").full_reset);
+        assert(!parse_sgr_prefix("\x1b[0;31m").full_reset);
+        assert(parse_sgr_prefix("\x1b[31J").kind == SGRParseKind.unsupported);
+        assert(parse_sgr_prefix("\x1b[x").kind == SGRParseKind.unsupported);
 
         char[160] storage;
         enum prefix = "prefix";
@@ -2235,7 +2235,7 @@ unittest
             foreach (index; 0 .. cut)
                 storage[prefix.length + index] = complete[index];
             const length = prefix.length + cut;
-            assert(safeSgrPrefixLength(storage[0 .. length]) == prefix.length);
+            assert(safe_sgr_prefix_length(storage[0 .. length]) == prefix.length);
         }
 
         foreach (index, value; prefix)
@@ -2243,14 +2243,14 @@ unittest
         foreach (index, value; complete)
             storage[prefix.length + index] = value;
         const completeLength = prefix.length + complete.length;
-        assert(safeSgrPrefixLength(storage[0 .. completeLength]) == completeLength);
+        assert(safe_sgr_prefix_length(storage[0 .. completeLength]) == completeLength);
 
         foreach (index; 0 .. storage.length)
             storage[index] = '1';
         storage[0] = '\x1b';
         storage[1] = '[';
-        assert(storage.length > maxSupportedSgrLength);
-        assert(safeSgrPrefixLength(storage[]) == storage.length);
+        assert(storage.length > max_supported_sgr_length);
+        assert(safe_sgr_prefix_length(storage[]) == storage.length);
     }
 
     // Plain presentation strips supported message SGR while retaining every

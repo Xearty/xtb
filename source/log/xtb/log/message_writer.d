@@ -2,8 +2,8 @@ module xtb.log.message_writer;
 
 nothrow @nogc:
 
-import xtb.log.internal.sgr : SgrParseKind, maxSupportedSgrLength,
-    parseSgrPrefix, safeSgrPrefixLength;
+import xtb.log.internal.sgr : SGRParseKind, max_supported_sgr_length,
+    parse_sgr_prefix, safe_sgr_prefix_length;
 import xtb.log.sink : LogRecordRef;
 import xtb.fmt.writer : Writer;
 import xtb.types : String;
@@ -27,7 +27,7 @@ nothrow @nogc:
 
     private LogRecordRef* record_;
     private char[] staging_;
-    private char[maxSupportedSgrLength] sgrCarry_;
+    private char[max_supported_sgr_length] sgrCarry_;
     private size_t staged_;
     private size_t sgrCarryLength_;
     private size_t written_;
@@ -153,7 +153,7 @@ nothrow @nogc:
 
     private void emitDirect(scope String text, size_t* offset)
     {
-        const safeLength = safeSgrPrefixLength(text);
+        const safeLength = safe_sgr_prefix_length(text);
         if (safeLength != 0)
             emitChunk(text[0 .. safeLength]);
         if (failed_)
@@ -175,7 +175,7 @@ nothrow @nogc:
             return;
 
         const bytes = cast(String) staging_[0 .. staged_];
-        const safeLength = safeSgrPrefixLength(bytes);
+        const safeLength = safe_sgr_prefix_length(bytes);
         if (safeLength != staged_ && !storeSgrCarry(bytes[safeLength .. $]))
             return;
 
@@ -209,8 +209,8 @@ nothrow @nogc:
             }
 
             sgrCarry_[sgrCarryLength_++] = text[(*offset)++];
-            const parsed = parseSgrPrefix(sgrCarry_[0 .. sgrCarryLength_]);
-            if (parsed.kind == SgrParseKind.incomplete)
+            const parsed = parse_sgr_prefix(sgrCarry_[0 .. sgrCarryLength_]);
+            if (parsed.kind == SGRParseKind.incomplete)
                 continue;
 
             emitChunk(sgrCarry_[0 .. sgrCarryLength_]);

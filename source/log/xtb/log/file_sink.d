@@ -5,7 +5,7 @@ nothrow @nogc:
 import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
 import core.stdc.string : memchr;
 import xtb.ansi : ANSIStyle, ansi_reset_sequence, ansi_sequence;
-import xtb.log.internal.sgr : SgrParseKind, parseSgrPrefix;
+import xtb.log.internal.sgr : SGRParseKind, parse_sgr_prefix;
 import xtb.log.level : LogLevel;
 import xtb.log.logger : Logger;
 import xtb.log.palette : LogPalette;
@@ -43,8 +43,8 @@ private bool writePlainText(FILE* file, scope String bytes)
         if (escape == bytes.length)
             break;
 
-        const parsed = parseSgrPrefix(bytes[escape .. $]);
-        if (parsed.kind != SgrParseKind.complete)
+        const parsed = parse_sgr_prefix(bytes[escape .. $]);
+        if (parsed.kind != SGRParseKind.complete)
         {
             searchStart = escape + 1;
             continue;
@@ -76,8 +76,8 @@ private bool writeAnsiText(FILE* file, scope String bytes, ANSIStyle baseStyle)
         if (escape == bytes.length)
             break;
 
-        const parsed = parseSgrPrefix(bytes[escape .. $]);
-        if (parsed.kind == SgrParseKind.complete && parsed.fullReset)
+        const parsed = parse_sgr_prefix(bytes[escape .. $]);
+        if (parsed.kind == SGRParseKind.complete && parsed.full_reset)
         {
             const resetEnd = escape + parsed.length;
             if (!writeAll(file, bytes[spanStart .. resetEnd]))

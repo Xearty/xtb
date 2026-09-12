@@ -6,7 +6,7 @@ import xtb.log.level : LogLevel;
 import xtb.log.labels : LogLevelLabelPreset, LogLevelLabels;
 import xtb.log.palette : LogPalette, LogPalettePreset;
 import xtb.log.result : LogResult, LogStatus;
-import xtb.log.internal.sgr : safeSgrPrefixLength;
+import xtb.log.internal.sgr : safe_sgr_prefix_length;
 import xtb.log.sink : LogFlush, LogRecordInfo, LogRecordRef, LogSink, LogSinkRef,
     LogSourceLocation;
 import xtb.log.message_writer : LogMessageWriter, createLogMessageWriter;
@@ -215,7 +215,7 @@ private LogResult deliver(
     const callsitePtr = logger.callsitesEnabled_ ? &callsite : null;
     const formattedMessage = cast(String) logger.messageBuffer_[0 .. formatted.written];
     const safeWritten = formatted.truncated
-        ? safeSgrPrefixLength(formattedMessage) : formatted.written;
+        ? safe_sgr_prefix_length(formattedMessage) : formatted.written;
     logger.delivering_ = true;
 
     LogRecordRef record = sink.beginRecord(info, callsitePtr);
