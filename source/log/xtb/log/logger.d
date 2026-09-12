@@ -43,20 +43,27 @@ nothrow @nogc:
         return scope char[] message_buffer,
         LogLevel minimum_level = LogLevel.info,
         LogPalette palette = LogPalette.defaults(),
-    )
+    ) @safe
     {
+        const LogLevelLabels default_labels = LogLevelLabels.defaults();
         Logger result;
         result.sink = sink;
         result.message_buffer = message_buffer;
         result.minimum_level = minimum_level;
         result.palette = palette;
-        result.level_labels = LogLevelLabels.defaults();
-        result.maximum_level_label_width = result.level_labels.maximum_width;
+        result.level_labels = default_labels;
+        result.maximum_level_label_width = default_labels.maximum_width;
         result.message_alignment_enabled = true;
         return result;
     }
 
     /// Convenience overload for constructing the borrowed sink descriptor inline.
+    ///
+    /// `sink` may be null, producing an invalid logger. `flush` may be null.
+    /// `context` may be null when accepted by the supplied callbacks; otherwise it
+    /// must point to the context type they expect and remain valid for every use of
+    /// the returned logger. The callback/context pairing is a caller-held safety
+    /// invariant.
     static Logger create(
         LogSink sink,
         void* context,
@@ -64,7 +71,7 @@ nothrow @nogc:
         LogLevel minimum_level = LogLevel.info,
         LogFlush flush = null,
         LogPalette palette = LogPalette.defaults(),
-    )
+    ) @system
     {
         return Logger.create(
             LogSinkRef.create(sink, context, flush),
@@ -98,7 +105,7 @@ nothrow @nogc:
     }
 
     /// Selects a built-in palette without constructing it at the call site.
-    void set_palette(LogPalettePreset preset)
+    void set_palette(LogPalettePreset preset) scope @safe
     {
         this.palette = LogPalette.preset(preset);
     }
@@ -107,19 +114,26 @@ nothrow @nogc:
     ///
     /// Custom label bytes are borrowed and must outlive this logger. Alignment width
     /// is recomputed once here rather than for every emitted record.
-    void set_level_labels(LogLevelLabels labels)
+    void set_level_labels(LogLevelLabels labels) scope @safe
     {
         this.level_labels = labels;
         this.maximum_level_label_width = labels.maximum_width;
     }
 
     /// Selects a built-in level-label set.
-    void set_level_labels(LogLevelLabelPreset preset)
+    void set_level_labels(LogLevelLabelPreset preset) scope @safe
     {
         this.set_level_labels(LogLevelLabels.preset(preset));
     }
 
-    void set_sink(LogSink sink, void* context, LogFlush flush = null)
+    /// Replaces this logger's sink using an opaque callback context.
+    ///
+    /// `sink` may be null, making this logger invalid. `flush` may be null.
+    /// `context` may be null when accepted by the supplied callbacks; otherwise it
+    /// must point to the context type they expect and remain valid until this sink
+    /// is replaced or the logger is no longer used. The callback/context pairing is
+    /// a caller-held safety invariant.
+    void set_sink(LogSink sink, void* context, LogFlush flush = null) @system
     {
         this.sink = LogSinkRef.create(sink, context, flush);
     }
@@ -145,11 +159,11 @@ nothrow @nogc:
         LogLevel level,
         BufferWriteResult formatted,
         LogSourceLocation callsite,
-    )
+    ) @system
     {
         if (this.delivering) return LogResult(LogStatus.recursive, 0, formatted.required);
 
-        LogSinkRef sink = this.sink;
+        LogSinkRef sink_ref = this.sink;
         const LogRecordInfo info = this.record_info(level);
         const(LogSourceLocation)* callsite_ptr = this.callsites_enabled ? &callsite : null;
         const String formatted_message = cast(String) this.message_buffer[0 .. formatted.written];
@@ -158,7 +172,7 @@ nothrow @nogc:
             : formatted.written;
         this.delivering = true;
 
-        LogRecordRef record = sink.begin_record(info, callsite_ptr);
+        LogRecordRef record = sink_ref.begin_record(info, callsite_ptr);
         if (!record.valid)
         {
             this.delivering = false;
@@ -197,7 +211,8 @@ nothrow @nogc:
     /// `producer` is invoked exactly once after the sink has accepted the record
     /// framing and message begin event. It receives a borrowed `LogMessageWriter`
     /// that reuses this logger's message buffer as staging storage and is valid only
-    /// for the duration of the call. Filtering, an invalid logger, recursion, or a
+    /// for the duration of the call. The producer must not retain the writer or any
+    /// reference/pointer to it after returning. Filtering, an invalid logger, recursion, or a
     /// sink failure before the message begins prevent the producer from running.
     /// The record lifecycle stays open while `producer` executes, so a sink that
     /// serializes records may hold its record lock for the producer's full duration.
@@ -210,18 +225,18 @@ nothrow @nogc:
         LogLevel level,
         scope auto ref Producer producer,
         LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-    )
+    ) @system
     {
         if (!this.valid) return LogResult(LogStatus.invalid_logger, 0, 0);
         if (level < this.minimum_level) return LogResult(LogStatus.filtered, 0, 0);
         if (this.delivering) return LogResult(LogStatus.recursive, 0, 0);
 
-        LogSinkRef sink = this.sink;
+        LogSinkRef sink_ref = this.sink;
         const LogRecordInfo info = this.record_info(level);
         const(LogSourceLocation)* callsite_ptr = this.callsites_enabled ? &callsite : null;
         this.delivering = true;
 
-        LogRecordRef record = sink.begin_record(info, callsite_ptr);
+        LogRecordRef record = sink_ref.begin_record(info, callsite_ptr);
         if (!record.valid)
         {
             this.delivering = false;
@@ -413,7 +428,8 @@ nothrow @nogc:
         return this.logf_at!(pattern, Args)(LogLevel.fatal, callsite, args);
     }
 
-    bool try_flush()
+    /// Flushes the configured sink. Its borrowed callback/context pair must remain valid.
+    bool try_flush() @system
     {
         return this.sink.try_flush();
     }
