@@ -2,7 +2,7 @@ module xtb.log.level;
 
 nothrow @nogc:
 
-enum LogLevel : ubyte
+enum LogLevel
 {
     trace,
     debug_,
