@@ -26,7 +26,9 @@ private template starts_with_logger(Args...)
 }
 
 /// Temporarily installs a caller-owned logger in the current thread context.
-/// The logger and its message buffer must outlive this scope.
+/// The logger and its borrowed state must outlive this scope. Nested thread
+/// logger scopes must be destroyed in reverse installation order and before the
+/// owning thread-context scope ends.
 @mustuse struct ThreadLoggerScope
 {
 nothrow @nogc:
@@ -40,7 +42,10 @@ nothrow @nogc:
 
     @disable this(this);
 
-    static ThreadLoggerScope install(return scope Logger* logger)
+    /// Installs `logger` until the returned scope is destroyed. The enclosing
+    /// thread context and any previous installation must remain active for that
+    /// complete lifetime.
+    static ThreadLoggerScope install(return scope Logger* logger) @system
     {
         require(logger !is null, "cannot install a null thread logger");
         require(logger.valid, "cannot install an invalid thread logger");
@@ -79,8 +84,9 @@ nothrow @nogc:
 /// Returns the logger currently installed for this thread, or null when the
 /// thread has no context or no logger has been installed in that context.
 /// The returned pointer is borrowed and remains valid only while its installing
-/// `ThreadLoggerScope` is active.
-Logger* current_logger()
+/// `ThreadLoggerScope` is active. That lifetime is held in thread-local state and
+/// cannot be expressed in the return type, so callers must not retain the pointer.
+Logger* current_logger() @system
 {
     return current_thread_context() is null ? null : tls_logger;
 }
@@ -259,7 +265,7 @@ version (unittest)
         usize label_length;
         usize flush_count;
 
-        String label_text() const return @trusted
+        String label_text() const return @safe
         {
             return this.label[0 .. this.label_length];
         }
@@ -267,7 +273,7 @@ version (unittest)
 
     private bool try_capture_sink(void* context, scope const LogSinkEvent* event) @system
     {
-        Capture* capture = cast(Capture*) context;
+        auto capture = cast(Capture*) context;
         if (event.kind == LogSinkEventKind.message_chunk)
         {
             if (event.bytes.length > capture.bytes.length - capture.length) return false;
@@ -277,8 +283,9 @@ version (unittest)
 
             capture.length += event.bytes.length;
         }
-        else if (event.kind == LogSinkEventKind.text &&
-            event.bytes.length >= 2 && event.bytes[0] == '[')
+        else if (event.kind == LogSinkEventKind.text
+            && event.bytes.length >= 2
+            && event.bytes[0] == '[')
         {
             if (event.bytes.length > capture.label.length) return false;
 
@@ -291,7 +298,7 @@ version (unittest)
 
     private bool try_capture_flush(void* context) @system
     {
-        Capture* capture = cast(Capture*) context;
+        auto capture = cast(Capture*) context;
         ++capture.flush_count;
         return true;
     }
@@ -304,7 +311,7 @@ version (unittest)
         usize function_name_length;
         usize line;
 
-        String function_text() const return @trusted
+        String function_text() const return @safe
         {
             return this.function_name[0 .. this.function_name_length];
         }
@@ -321,10 +328,13 @@ version (unittest)
         scope return const(LogSourceLocation)* callsite,
     ) @system
     {
-        SourceCapture* capture = cast(SourceCapture*) context;
-        if (capture is null || callsite is null ||
-            callsite.function_name.length > capture.function_name.length)
+        auto capture = cast(SourceCapture*) context;
+        if (capture is null
+            || callsite is null
+            || callsite.function_name.length > capture.function_name.length)
+        {
             return LogRecordRef.init;
+        }
 
         capture.function_name_length = callsite.function_name.length;
         foreach (index, value; callsite.function_name)
@@ -332,7 +342,7 @@ version (unittest)
 
         capture.line = callsite.line;
 
-        LogSinkRef child = LogSinkRef.create(&try_accept_all_sink, null);
+        auto child = LogSinkRef.create(&try_accept_all_sink, null);
         return child.begin_record(info, callsite);
     }
 }
@@ -344,7 +354,7 @@ unittest
     assert(log(LogLevel.info, "missing").status == LogStatus.invalid_logger);
     assert(!try_flush_logger());
 
-    ThreadContextScope context = ThreadContextScope.acquire();
+    auto context = ThreadContextScope.acquire();
     assert(current_logger() is null);
 
     struct FormatProbe
@@ -362,7 +372,7 @@ unittest
 
     Capture outer_capture;
     char[32] outer_storage;
-    Logger outer = Logger.create(
+    auto outer = Logger.create(
         &try_capture_sink,
         &outer_capture,
         outer_storage[],
@@ -370,12 +380,12 @@ unittest
         &try_capture_flush,
     );
     {
-        ThreadLoggerScope outer_scope = ThreadLoggerScope.install(&outer);
+        auto outer_scope = ThreadLoggerScope.install(&outer);
         assert(current_logger() is &outer);
         assert(!enabled(LogLevel.debug_));
         assert(enabled(LogLevel.info));
         usize format_calls;
-        FormatProbe probe = FormatProbe(&format_calls);
+        auto probe = FormatProbe(&format_calls);
         assert(log(LogLevel.debug_, probe).status == LogStatus.filtered);
         assert(format_calls == 0);
         assert(logf!"value={}"(LogLevel.info, 17).delivered);
@@ -386,39 +396,32 @@ unittest
         outer.minimum_level = LogLevel.trace;
         outer_capture.length = 0;
         assert(trace("trace").delivered && outer_capture.label_text.equal("[trace]"));
-        assert(tracef!"{}"("tracef").delivered &&
-            outer_capture.label_text.equal("[trace]"));
+        assert(tracef!"{}"("tracef").delivered && outer_capture.label_text.equal("[trace]"));
         assert(debug_("debug").delivered && outer_capture.label_text.equal("[debug]"));
-        assert(debugf!"{}"("debugf").delivered &&
-            outer_capture.label_text.equal("[debug]"));
+        assert(debugf!"{}"("debugf").delivered && outer_capture.label_text.equal("[debug]"));
         assert(info("info").delivered && outer_capture.label_text.equal("[info]"));
-        assert(infof!"{}"("infof").delivered &&
-            outer_capture.label_text.equal("[info]"));
-        assert(warning("warning").delivered &&
-            outer_capture.label_text.equal("[warning]"));
-        assert(warningf!"{}"("warningf").delivered &&
-            outer_capture.label_text.equal("[warning]"));
+        assert(infof!"{}"("infof").delivered && outer_capture.label_text.equal("[info]"));
+        assert(warning("warning").delivered && outer_capture.label_text.equal("[warning]"));
+        assert(warningf!"{}"("warningf").delivered && outer_capture.label_text.equal("[warning]"));
         assert(error("error").delivered && outer_capture.label_text.equal("[error]"));
-        assert(errorf!"{}"("errorf").delivered &&
-            outer_capture.label_text.equal("[error]"));
+        assert(errorf!"{}"("errorf").delivered && outer_capture.label_text.equal("[error]"));
         assert(fatal("fatal").delivered && outer_capture.label_text.equal("[fatal]"));
-        assert(fatalf!"{}"("fatalf").delivered &&
-            outer_capture.label_text.equal("[fatal]"));
+        assert(fatalf!"{}"("fatalf").delivered && outer_capture.label_text.equal("[fatal]"));
         outer_capture.length = 0;
 
         // TLS helpers preserve the application caller through both the thread
         // wrapper and the explicit logger wrapper when callsites are enabled.
         SourceCapture source_capture;
         char[32] source_storage;
-        Logger source_logger = Logger.create(
+        auto source_logger = Logger.create(
             LogSinkRef.create(&capture_source_resolver, &source_capture),
             source_storage[],
             LogLevel.trace,
         );
         source_logger.callsites_enabled = true;
         {
-            ThreadLoggerScope source_scope = ThreadLoggerScope.install(&source_logger);
-            const String source_function = cast(String) __FUNCTION__;
+            auto source_scope = ThreadLoggerScope.install(&source_logger);
+            const source_function = cast(String) __FUNCTION__;
 
             const usize direct_line = __LINE__ + 1;
             assert(log(LogLevel.info, "direct").delivered);
@@ -456,14 +459,14 @@ unittest
 
         Capture nested_capture;
         char[32] nested_storage;
-        Logger nested = Logger.create(
+        auto nested = Logger.create(
             &try_capture_sink,
             &nested_capture,
             nested_storage[],
             LogLevel.trace,
         );
         {
-            ThreadLoggerScope nested_scope = ThreadLoggerScope.install(&nested);
+            auto nested_scope = ThreadLoggerScope.install(&nested);
             assert(current_logger() is &nested);
             assert(log(LogLevel.trace, "nested").delivered);
             assert(nested_capture.bytes[0 .. nested_capture.length].equal("nested"));
