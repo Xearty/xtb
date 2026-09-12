@@ -2,6 +2,8 @@ module xtb.log.sink;
 
 nothrow @nogc:
 
+import core.attribute;
+
 import xtb.ansi;
 import xtb.log.level;
 import xtb.types;
@@ -147,12 +149,12 @@ pure @safe
 /// A short-lived, allocation-free output path for one already-resolved record.
 ///
 /// A record reference is produced by `LogSinkRef.begin_record` and remains valid
-/// only until its matching `end_record`. It is deliberately non-copyable because
+/// only until its matching `try_end_record`. It is deliberately non-copyable because
 /// it represents one active lifecycle. Direct sinks use one callback and
 /// context. Composite sinks may return a callback backed by stable state in the
 /// composite object. Setup-only decorators may return a child's record
 /// unchanged and therefore disappear from repeated message writes.
-struct LogRecordRef
+@mustuse struct LogRecordRef
 {
 nothrow @nogc:
 
@@ -213,25 +215,24 @@ nothrow @nogc:
         return this.sink !is null && this.info !is null;
     }
 
-    private bool write_padding(usize count)
+    private bool try_write_padding(usize count)
     {
-        enum String spaces =
-            "                                                                ";
+        enum String spaces = "                                                                ";
         while (count != 0)
         {
             const chunk_length = count < spaces.length ? count : spaces.length;
-            if (!this.write_text(spaces[0 .. chunk_length])) return false;
+            if (!this.try_write_text(spaces[0 .. chunk_length])) return false;
             count -= chunk_length;
         }
         return true;
     }
 
     /// Emits ANSI-free setup/framing text through this resolved output path.
-    /// Use `write_ansi_text` when `bytes` may contain embedded ANSI SGR.
-    bool write_text(return scope String bytes, ANSIStyle style = ANSIStyle.init)
+    /// Use `try_write_ansi_text` when `bytes` may contain embedded ANSI SGR.
+    bool try_write_text(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
         const LogSinkEvent event = LogSinkEvent.text(bytes, style, false);
-        return this.submit(&event);
+        return this.try_submit(&event);
     }
 
     /// Emits one setup span that may contain supported embedded ANSI SGR.
@@ -239,43 +240,43 @@ nothrow @nogc:
     /// ANSI presentation preserves supported SGR and terminates the span with a
     /// full reset; plain presentation removes supported SGR. A supported SGR
     /// sequence must not be split across two writes.
-    bool write_ansi_text(return scope String bytes, ANSIStyle style = ANSIStyle.init)
+    bool try_write_ansi_text(return scope String bytes, ANSIStyle style = ANSIStyle.init)
     {
         const LogSinkEvent event = LogSinkEvent.text(bytes, style, true);
-        return this.submit(&event);
+        return this.try_submit(&event);
     }
 
     /// Begins the message after emitting standard logger framing for direct
     /// presentation records. Composite records delegate the transition to their
     /// resolved children, each of which borrows its branch-specific setup info.
-    bool begin_message()
+    bool try_begin_message()
     {
         if (!this.valid || this.message_began) return false;
 
         if (this.frames_message && this.info.level_label.length != 0)
         {
-            if (!this.write_text(this.info.level_label, this.info.label_style)) return false;
-            if (!this.write_padding(this.info.message_padding)) return false;
+            if (!this.try_write_text(this.info.level_label, this.info.label_style)) return false;
+            if (!this.try_write_padding(this.info.message_padding)) return false;
         }
 
         this.message_began = true;
         const LogSinkEvent event = LogSinkEvent.begin_message(this.info.message_style);
-        return this.submit(&event);
+        return this.try_submit(&event);
     }
 
-    bool message_chunk(return scope String bytes)
+    bool try_message_chunk(return scope String bytes)
     {
         if (!this.valid || !this.message_began) return false;
         const LogSinkEvent event = LogSinkEvent.message_chunk(bytes, this.info.message_style);
-        return this.submit(&event);
+        return this.try_submit(&event);
     }
 
-    bool end_message()
+    bool try_end_message()
     {
         if (!this.valid || !this.message_began) return false;
 
         const LogSinkEvent event = LogSinkEvent.end_message();
-        const bool accepted = this.submit(&event);
+        const bool accepted = this.try_submit(&event);
         this.message_began = false;
         if (!accepted) return false;
 
@@ -287,27 +288,27 @@ nothrow @nogc:
         if (this.frames_message && this.callsite !is null)
         {
             const callsite_style = ANSIStyle.init.dim;
-            if (!this.write_text("  (", callsite_style)) return false;
-            if (!this.write_text(this.callsite.function_name, callsite_style)) return false;
+            if (!this.try_write_text("  (", callsite_style)) return false;
+            if (!this.try_write_text(this.callsite.function_name, callsite_style)) return false;
 
             char[32] suffix_storage;
             const String suffix = callsite_suffix(this.callsite.line, suffix_storage[]);
-            if (!this.write_text(suffix, callsite_style)) return false;
+            if (!this.try_write_text(suffix, callsite_style)) return false;
         }
         return true;
     }
 
     /// Finalizes this record and reports any failure deferred by a setup-only
     /// decorator in addition to the downstream finalization result.
-    bool end_record()
+    bool try_end_record()
     {
         if (!this.valid) return false;
 
         bool accepted = true;
-        if (this.message_began) accepted = this.end_message() && accepted;
+        if (this.message_began) accepted = this.try_end_message() && accepted;
 
         const LogSinkEvent event = LogSinkEvent.end_record();
-        accepted = this.submit(&event) && accepted;
+        accepted = this.try_submit(&event) && accepted;
         accepted = accepted && !this.deferred_failure;
 
         // A resolved record is one-shot. Invalidate the handle after its
@@ -323,7 +324,7 @@ nothrow @nogc:
         return accepted;
     }
 
-    package(xtb.log) bool submit(scope const LogSinkEvent* event)
+    package(xtb.log) bool try_submit(scope const LogSinkEvent* event)
     {
         return this.valid && event !is null && this.sink(this.context, event);
     }
@@ -355,11 +356,7 @@ nothrow @nogc:
     void* context;
 
     /// Creates a direct sink. This is the simple path for ordinary destinations.
-    static LogSinkRef create(
-        LogSink sink,
-        void* context,
-        LogFlush flush = null,
-    )
+    static LogSinkRef create(LogSink sink, void* context, LogFlush flush = null)
     {
         LogSinkRef result;
         result.sink = sink;
@@ -369,11 +366,7 @@ nothrow @nogc:
     }
 
     /// Creates a compositional sink whose callback resolves one record.
-    static LogSinkRef create(
-        LogRecordResolver resolver,
-        void* context,
-        LogFlush flush = null,
-    )
+    static LogSinkRef create(LogRecordResolver resolver, void* context, LogFlush flush = null)
     {
         LogSinkRef result;
         result.resolver = resolver;
@@ -409,7 +402,7 @@ nothrow @nogc:
         return LogRecordRef.create_direct(this.sink, this.context, info, callsite);
     }
 
-    bool flush()
+    bool try_flush()
     {
         return this.valid && (this.flush_callback is null || this.flush_callback(this.context));
     }

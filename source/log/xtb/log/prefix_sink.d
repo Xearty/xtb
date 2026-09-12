@@ -46,7 +46,8 @@ nothrow @nogc:
         if (failed_ || record_ is null)
             return false;
         const accepted = mayContainAnsi
-            ? (*record_).write_ansi_text(bytes, style) : (*record_).write_text(bytes, style);
+            ? (*record_).try_write_ansi_text(bytes, style)
+            : (*record_).try_write_text(bytes, style);
         if (accepted)
             return true;
         failed_ = true;
@@ -150,5 +151,5 @@ private LogRecordRef resolvePrefixRecord(
 private bool prefixLogFlushCallback(void* context)
 {
     PrefixLogSink* prefixSink = cast(PrefixLogSink*) context;
-    return prefixSink !is null && prefixSink.child_.flush();
+    return prefixSink !is null && prefixSink.child_.try_flush();
 }

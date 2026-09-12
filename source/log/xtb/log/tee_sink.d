@@ -106,7 +106,8 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
             if (tee.firstHealthy_)
             {
                 firstAccepted = event.kind == LogSinkEventKind.message_chunk
-                    ? tee.firstRecord_.message_chunk(event.bytes) : tee.firstRecord_.submit(event);
+                    ? tee.firstRecord_.try_message_chunk(event.bytes)
+                    : tee.firstRecord_.try_submit(event);
                 if (!firstAccepted)
                     tee.firstHealthy_ = false;
             }
@@ -115,7 +116,8 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
             if (tee.secondHealthy_)
             {
                 secondAccepted = event.kind == LogSinkEventKind.message_chunk
-                    ? tee.secondRecord_.message_chunk(event.bytes) : tee.secondRecord_.submit(event);
+                    ? tee.secondRecord_.try_message_chunk(event.bytes)
+                    : tee.secondRecord_.try_submit(event);
                 if (!secondAccepted)
                     tee.secondHealthy_ = false;
             }
@@ -125,12 +127,12 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
         }
         case LogSinkEventKind.begin_message:
         {
-            if (tee.firstHealthy_ && !tee.firstRecord_.begin_message())
+            if (tee.firstHealthy_ && !tee.firstRecord_.try_begin_message())
             {
                 tee.firstHealthy_ = false;
                 tee.recordFailed_ = true;
             }
-            if (tee.secondHealthy_ && !tee.secondRecord_.begin_message())
+            if (tee.secondHealthy_ && !tee.secondRecord_.try_begin_message())
             {
                 tee.secondHealthy_ = false;
                 tee.recordFailed_ = true;
@@ -141,7 +143,7 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
         {
             if (tee.firstRecordBegan_ && tee.firstRecord_.message_open)
             {
-                if (!tee.firstRecord_.end_message())
+                if (!tee.firstRecord_.try_end_message())
                 {
                     tee.firstHealthy_ = false;
                     tee.recordFailed_ = true;
@@ -149,7 +151,7 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
             }
             if (tee.secondRecordBegan_ && tee.secondRecord_.message_open)
             {
-                if (!tee.secondRecord_.end_message())
+                if (!tee.secondRecord_.try_end_message())
                 {
                     tee.secondHealthy_ = false;
                     tee.recordFailed_ = true;
@@ -161,13 +163,13 @@ private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
         {
             if (tee.firstRecordBegan_)
             {
-                if (!tee.firstRecord_.end_record())
+                if (!tee.firstRecord_.try_end_record())
                     tee.recordFailed_ = true;
                 tee.firstRecordBegan_ = false;
             }
             if (tee.secondRecordBegan_)
             {
-                if (!tee.secondRecord_.end_record())
+                if (!tee.secondRecord_.try_end_record())
                     tee.recordFailed_ = true;
                 tee.secondRecordBegan_ = false;
             }
@@ -189,7 +191,7 @@ private bool teeLogFlushCallback(void* context)
     TeeLogSink* tee = cast(TeeLogSink*) context;
     if (tee is null)
         return false;
-    const firstAccepted = tee.first_.flush();
-    const secondAccepted = tee.second_.flush();
+    const firstAccepted = tee.first_.try_flush();
+    const secondAccepted = tee.second_.try_flush();
     return firstAccepted && secondAccepted;
 }

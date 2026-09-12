@@ -57,5 +57,5 @@ private LogRecordRef resolveWithoutCallsiteRecord(
 private bool withoutCallsiteFlushCallback(void* context)
 {
     WithoutCallsiteLogSink* sink = cast(WithoutCallsiteLogSink*) context;
-    return sink !is null && sink.child_.flush();
+    return sink !is null && sink.child_.try_flush();
 }

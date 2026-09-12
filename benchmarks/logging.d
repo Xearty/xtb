@@ -104,15 +104,15 @@ private u64 benchmarkResolvedProtocol(LogSinkRef sink, size_t iterations)
         LogRecordRef record = sink.begin_record(info);
         if (!record.valid)
             return 0;
-        if (!record.begin_message())
+        if (!record.try_begin_message())
             return 0;
-        if (!record.message_chunk(smallMessage))
+        if (!record.try_message_chunk(smallMessage))
             return 0;
-        if (!record.end_message())
+        if (!record.try_end_message())
             return 0;
-        if (!record.write_text("\n"))
+        if (!record.try_write_text("\n"))
             return 0;
-        if (!record.end_record())
+        if (!record.try_end_record())
             return 0;
     }
     return monotonicNanoseconds() - started;

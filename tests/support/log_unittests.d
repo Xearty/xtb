@@ -108,7 +108,7 @@ version (unittest)
     )
     {
         *record = sink.begin_record(info);
-        return (*record).valid && (*record).begin_message();
+        return (*record).valid && (*record).try_begin_message();
     }
 
     private LogMessageWriter createTestLogMessageWriter(
@@ -533,17 +533,17 @@ version (unittest)
                 return false;
             case LogSinkEventKind.text:
             case LogSinkEventKind.message_chunk:
-                childAccepted = failure.childRecord.submit(event);
+                childAccepted = failure.childRecord.try_submit(event);
                 break;
             case LogSinkEventKind.begin_message:
-                childAccepted = failure.childRecord.begin_message();
+                childAccepted = failure.childRecord.try_begin_message();
                 break;
             case LogSinkEventKind.end_message:
                 childAccepted = failure.childRecord.message_open
-                    ? failure.childRecord.end_message() : true;
+                    ? failure.childRecord.try_end_message() : true;
                 break;
             case LogSinkEventKind.end_record:
-                childAccepted = failure.childRecord.end_record();
+                childAccepted = failure.childRecord.try_end_record();
                 break;
         }
 
@@ -711,12 +711,12 @@ unittest
     const info = testRecordInfo(style);
     LogRecordRef record = sink.begin_record(info);
     assert(record.valid);
-    assert(record.begin_message());
-    assert(record.message_chunk("a"));
-    assert(record.message_chunk(""));
-    assert(record.message_chunk("bc"));
-    assert(record.end_message());
-    assert(record.end_record());
+    assert(record.try_begin_message());
+    assert(record.try_message_chunk("a"));
+    assert(record.try_message_chunk(""));
+    assert(record.try_message_chunk("bc"));
+    assert(record.try_end_message());
+    assert(record.try_end_record());
 
     assert(probe.calls == 1);
     assertSameEvents(first, second);
@@ -1137,16 +1137,16 @@ unittest
     assert(!invalidSink.valid);
     LogRecordRef invalidRecord = invalidSink.begin_record(directInfo);
     assert(!invalidRecord.valid);
-    assert(!invalidSink.flush());
+    assert(!invalidSink.try_flush());
 
     LogRecordRef directRecord = sink.begin_record(directInfo);
     assert(directRecord.valid);
     const directStyle = ANSIStyle.foreground(ANSIColor.cyan);
-    assert(directRecord.write_text("direct", directStyle));
-    assert(directRecord.end_record());
+    assert(directRecord.try_write_text("direct", directStyle));
+    assert(directRecord.try_end_record());
     assert(!directRecord.valid);
-    assert(!directRecord.write_text("after end"));
-    assert(!directRecord.end_record());
+    assert(!directRecord.try_write_text("after end"));
+    assert(!directRecord.try_end_record());
     assert(capture.count == 3);
     assertEvent(capture, 0, LogSinkEventKind.begin_record);
     assertEvent(capture, 1, LogSinkEventKind.text, "direct");
@@ -2356,13 +2356,13 @@ unittest
         const info = testRecordInfo(base);
         LogRecordRef record = ansi.begin_record(info);
         assert(record.valid);
-        assert(record.begin_message());
-        assert(record.message_chunk("first \x1b[31mred"));
-        assert(record.message_chunk(" continues\x1b[0m"));
-        assert(record.message_chunk(" base again"));
-        assert(record.end_message());
-        assert(record.end_record());
-        assert(ansi.flush());
+        assert(record.try_begin_message());
+        assert(record.try_message_chunk("first \x1b[31mred"));
+        assert(record.try_message_chunk(" continues\x1b[0m"));
+        assert(record.try_message_chunk(" base again"));
+        assert(record.try_end_message());
+        assert(record.try_end_record());
+        assert(ansi.try_flush());
         char[192] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2379,14 +2379,14 @@ unittest
         const info = testRecordInfo();
         LogRecordRef record = plain.begin_record(info);
         assert(record.valid);
-        assert(record.begin_message());
-        assert(record.message_chunk("first \x1b[31mred"));
-        assert(record.message_chunk(
+        assert(record.try_begin_message());
+        assert(record.try_message_chunk("first \x1b[31mred"));
+        assert(record.try_message_chunk(
                 " continues\x1b[0m second \x1b[1;4;44mstyled\x1b[0m",
         ));
-        assert(record.end_message());
-        assert(record.end_record());
-        assert(plain.flush());
+        assert(record.try_end_message());
+        assert(record.try_end_record());
+        assert(plain.try_flush());
         char[96] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal("first red continues second styled"));
@@ -2622,11 +2622,11 @@ unittest
         const info = testRecordInfo();
         LogRecordRef record = sink.begin_record(info);
         assert(record.valid);
-        assert(record.begin_message());
-        assert(record.message_chunk("first "));
-        assert(record.message_chunk("second"));
-        assert(record.end_message());
-        assert(record.end_record());
+        assert(record.try_begin_message());
+        assert(record.try_message_chunk("first "));
+        assert(record.try_message_chunk("second"));
+        assert(record.try_end_message());
+        assert(record.try_end_record());
         assert(first.count == 6);
         assert(second.count == 6);
         foreach (capture; [&first, &second])
@@ -2924,7 +2924,7 @@ unittest
             LogSinkRef.create(&captureSink, &second, &captureFlush),
         );
         LogSinkRef sink = tee.sinkRef();
-        assert(!sink.flush());
+        assert(!sink.try_flush());
         assert(first.flushCount == 1);
         assert(second.flushCount == 1);
     }

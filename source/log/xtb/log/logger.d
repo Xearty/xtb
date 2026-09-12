@@ -225,19 +225,19 @@ private LogResult deliver(
         return LogResult(LogStatus.sink_failed, safeWritten, formatted.required);
     }
 
-    bool payloadAccepted = record.begin_message();
+    bool payloadAccepted = record.try_begin_message();
     if (payloadAccepted && safeWritten != 0)
-        payloadAccepted = record.message_chunk(logger.messageBuffer_[0 .. safeWritten]);
+        payloadAccepted = record.try_message_chunk(logger.messageBuffer_[0 .. safeWritten]);
 
     if (record.message_open)
     {
-        const endedMessage = record.end_message();
+        const endedMessage = record.try_end_message();
         payloadAccepted = endedMessage && payloadAccepted;
     }
     if (payloadAccepted)
-        payloadAccepted = record.write_text("\n");
+        payloadAccepted = record.try_write_text("\n");
 
-    const endedRecord = record.end_record();
+    const endedRecord = record.try_end_record();
     const accepted = payloadAccepted && endedRecord;
     logger.delivering_ = false;
 
@@ -294,7 +294,7 @@ LogResult stream(Producer)(
         return LogResult(LogStatus.sink_failed, 0, 0);
     }
 
-    bool payloadAccepted = record.begin_message();
+    bool payloadAccepted = record.try_begin_message();
     size_t written;
     if (payloadAccepted)
     {
@@ -309,13 +309,13 @@ LogResult stream(Producer)(
 
     if (record.message_open)
     {
-        const endedMessage = record.end_message();
+        const endedMessage = record.try_end_message();
         payloadAccepted = endedMessage && payloadAccepted;
     }
     if (payloadAccepted)
-        payloadAccepted = record.write_text("\n");
+        payloadAccepted = record.try_write_text("\n");
 
-    const endedRecord = record.end_record();
+    const endedRecord = record.try_end_record();
     const accepted = payloadAccepted && endedRecord;
     logger.delivering_ = false;
 
@@ -507,5 +507,5 @@ LogResult fatalf(string pattern, Args...)(
 
 bool flush(ref Logger logger)
 {
-    return logger.sink_.flush();
+    return logger.sink_.try_flush();
 }
