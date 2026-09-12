@@ -28,8 +28,8 @@ enum Access
     execute,
 }
 
-/// Visits one directory entry. `path` and `context` are borrowed for the call only.
-/// Returning `false` stops the traversal.
+/// Visits one directory entry. `path` is borrowed for the call only.
+/// `context` may be null and is borrowed for the call only. Returning `false` stops the traversal.
 alias DirectoryVisitor = bool function(
     scope const Path path,
     FileType type,
@@ -91,7 +91,8 @@ nothrow @nogc:
 
     /// Advances this iterator and writes the current entry to `output`.
     ///
-    /// `output` must not be null. It is reset to `DirectoryEntry.init` before advancing.
+    /// This iterator must own a valid native directory handle. `output` must not be null.
+    /// It is reset to `DirectoryEntry.init` before advancing.
     DirectoryResult next(scope DirectoryEntry* output) @system
     {
         require(this.valid, "invalid DirectoryIterator");
@@ -209,6 +210,10 @@ OsError canonical_path(scope const Path path, scope StringBuf* output) @system
     return backend.canonical_path(path.view, output);
 }
 
+/// Recursively visits directory entries below `root`.
+///
+/// `temporary_allocator` and `visitor` must not be null. `context` may be null and is
+/// borrowed for the call only.
 OsError walk_directory(
     scope const Path root,
     scope Allocator* temporary_allocator,
@@ -243,6 +248,8 @@ private OsError walk(
 
     DirectoryEntry entry;
     StringBuf full = StringBuf.create(temporary_allocator);
+    scope (exit) full.deinit();
+
     for (;;)
     {
         const result = iterator.next(&entry);
