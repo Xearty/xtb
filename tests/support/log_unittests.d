@@ -242,7 +242,7 @@ version (unittest)
         }
     }
 
-    private bool prefixProbe(void* context, LogPrefixWriter* output)
+    private bool prefixProbe(void* context, scope LogPrefixWriter* output)
     {
         PrefixProbe* probe = cast(PrefixProbe*) context;
         if (probe is null || output is null)
@@ -255,7 +255,7 @@ version (unittest)
         return probe.accepted;
     }
 
-    private bool coloredPrefix(void*, LogPrefixWriter* output)
+    private bool coloredPrefix(void*, scope LogPrefixWriter* output)
     {
         if (output is null)
             return false;

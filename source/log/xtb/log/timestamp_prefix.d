@@ -73,7 +73,7 @@ nothrow @nogc:
     }
 }
 
-private bool timestampPrefixCallback(void* context, LogPrefixWriter* output)
+private bool timestampPrefixCallback(void* context, scope LogPrefixWriter* output)
 {
     TimestampLogPrefix* timestamp = cast(TimestampLogPrefix*) context;
     if (timestamp is null || output is null)
@@ -90,7 +90,7 @@ private bool timestampPrefixCallback(void* context, LogPrefixWriter* output)
 private bool writeTimestampPrefix(
     LogTimestampOptions options,
     i64 nanoseconds,
-    LogPrefixWriter* output,
+    scope LogPrefixWriter* output,
 )
 {
     if (output is null)
@@ -209,7 +209,7 @@ version (unittest)
         i64 nanoseconds;
     }
 
-    private bool fixedTimestampPrefixCallback(void* context, LogPrefixWriter* output)
+    private bool fixedTimestampPrefixCallback(void* context, scope LogPrefixWriter* output)
     {
         FixedTimestampPrefix* timestamp = cast(FixedTimestampPrefix*) context;
         return timestamp !is null &&

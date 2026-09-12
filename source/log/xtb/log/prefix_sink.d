@@ -19,11 +19,13 @@ struct LogPrefixWriter
 {
 nothrow @nogc:
 
+    /// Borrowed resolved record. Null makes writes fail; a non-null value must
+    /// remain valid for this writer's callback lifetime.
     LogRecordRef* record;
     bool failed;
 
     /// Writes ANSI-free prefix bytes with an optional semantic style.
-    bool try_write(return scope String bytes, ANSIStyle style = ANSIStyle.init)
+    bool try_write(return scope String bytes, ANSIStyle style = ANSIStyle.init) @system
     {
         return this.try_write_impl(bytes, style, false);
     }
@@ -32,7 +34,7 @@ nothrow @nogc:
     /// ANSI presentation terminates the span with a full reset, so embedded
     /// style state does not carry into a later prefix write or logger framing.
     /// One supported SGR sequence must not be split across two calls.
-    bool try_write_ansi(return scope String bytes, ANSIStyle style = ANSIStyle.init)
+    bool try_write_ansi(return scope String bytes, ANSIStyle style = ANSIStyle.init) @system
     {
         return this.try_write_impl(bytes, style, true);
     }
@@ -55,17 +57,32 @@ nothrow @nogc:
     }
 }
 
-alias LogPrefix = bool function(void* context, LogPrefixWriter* output) nothrow @nogc;
+/// Record-prefix provider callback.
+///
+/// `context` is opaque and may be null when the provider supports it. `output`
+/// must not be null and is borrowed only for the duration of the callback.
+alias LogPrefix = bool function(
+    void* context,
+    scope LogPrefixWriter* output,
+) nothrow @nogc @system;
 
 /// A copyable, non-owning reference to a record-prefix provider.
 struct LogPrefixRef
 {
 nothrow @nogc:
 
+    /// Provider callback. Null makes this reference invalid.
     LogPrefix prefix;
+    /// Opaque borrowed provider context; may be null when the provider supports it.
     void* context;
 
-    static LogPrefixRef create(LogPrefix prefix, void* context)
+    /// Creates a provider reference from an opaque callback context.
+    ///
+    /// `prefix` may be null, producing an invalid reference. `context` may be
+    /// null when accepted by `prefix`; otherwise it must point to the context
+    /// type expected by `prefix` and remain valid for every use of this reference.
+    /// The opaque callback/context pairing is a caller-held safety invariant.
+    static LogPrefixRef create(LogPrefix prefix, void* context) @system
     {
         return LogPrefixRef(prefix, context);
     }
@@ -75,7 +92,9 @@ nothrow @nogc:
         return this.prefix !is null;
     }
 
-    bool try_write(LogPrefixWriter* output)
+    /// Invokes the provider. `output` may be null, in which case this fails.
+    /// The stored callback/context pair must satisfy the contract of `create`.
+    bool try_write(scope LogPrefixWriter* output) @system
     {
         return this.valid && output !is null && this.prefix(this.context, output);
     }

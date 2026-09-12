@@ -56,7 +56,7 @@ nothrow @nogc
     }
 }
 
-private bool showcasePrefix(void*, LogPrefixWriter* output)
+private bool showcasePrefix(void*, scope LogPrefixWriter* output)
 nothrow @nogc
 {
     if (output is null)

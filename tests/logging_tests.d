@@ -28,7 +28,7 @@ private struct FixedPrefix
     ANSIStyle style;
 }
 
-private bool writeFixedPrefix(void* context, LogPrefixWriter* output) nothrow @nogc
+private bool writeFixedPrefix(void* context, scope LogPrefixWriter* output) nothrow @nogc
 {
     FixedPrefix* prefix = cast(FixedPrefix*) context;
     return prefix !is null && output !is null &&

@@ -35,7 +35,7 @@ private bool nullSink(void* context, scope const LogSinkEvent* event)
     return true;
 }
 
-private bool benchmarkPrefix(void*, LogPrefixWriter* output)
+private bool benchmarkPrefix(void*, scope LogPrefixWriter* output)
 {
     return output !is null && output.try_write("prefix ");
 }
