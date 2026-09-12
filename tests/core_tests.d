@@ -379,18 +379,18 @@ private noreturn runDeathCase(const(char)* name) nothrow @nogc
     if (cStringEqual(name, "scratch-without-context"))
         cast(void) ScratchScope.acquire();
     if (cStringEqual(name, "thread-logger-null"))
-        ThreadLoggerScope.install(null);
+        cast(void) ThreadLoggerScope.install(null);
     if (cStringEqual(name, "thread-logger-without-context"))
     {
         char[16] storage;
         Logger logger = stderr_logger(storage[]);
-        ThreadLoggerScope.install(&logger);
+        cast(void) ThreadLoggerScope.install(&logger);
     }
     if (cStringEqual(name, "thread-logger-invalid"))
     {
         ThreadContextScope context = ThreadContextScope.acquire();
         Logger logger;
-        ThreadLoggerScope.install(&logger);
+        cast(void) ThreadLoggerScope.install(&logger);
     }
     if (cStringEqual(name, "thread-context-before-logger"))
     {

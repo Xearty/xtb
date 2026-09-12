@@ -2,89 +2,92 @@ module xtb.log.thread_logger;
 
 nothrow @nogc:
 
-import explicitSink = xtb.log.sink;
-import xtb.log.level : LogLevel;
-import xtb.log.logger : Logger;
-import xtb.log.result : LogResult, LogStatus;
-import xtb.log.sink : LogSourceLocation;
+import core.attribute;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.thread_context : ThreadContext, attach_thread_context, current_thread_context, detach_thread_context;
+import xtb.log.level;
+import xtb.log.logger;
+import xtb.log.result;
+import xtb.log.sink;
+import xtb.panic;
+import xtb.thread_context;
 
-private Logger* tlsLogger;
+private Logger* tls_logger;
 
-private template StartsWithLogger(Args...)
+private template starts_with_logger(Args...)
 {
     static if (Args.length == 0)
-        enum StartsWithLogger = false;
+    {
+        enum starts_with_logger = false;
+    }
     else
-        enum StartsWithLogger = is(typeof(cast() Args[0].init) == Logger);
+    {
+        enum starts_with_logger = is(typeof(cast() Args[0].init) == Logger);
+    }
 }
 
 /// Temporarily installs a caller-owned logger in the current thread context.
 /// The logger and its message buffer must outlive this scope.
-struct ThreadLoggerScope
+@mustuse struct ThreadLoggerScope
 {
 nothrow @nogc:
 
-    private ThreadContext* context_;
-    private Logger* installed_;
-    private Logger* previous_;
+    /// Thread-context attachment owned by this scope. Null denotes an inactive scope.
+    ThreadContext* context;
+    /// Logger installed by this scope and borrowed for its lifetime.
+    Logger* installed;
+    /// Previously installed logger restored when this scope ends.
+    Logger* previous;
 
     @disable this(this);
 
-    static ThreadLoggerScope install(Logger* logger)
+    static ThreadLoggerScope install(return scope Logger* logger)
     {
-        version (XTB_Checked)
-        {
-            require(logger !is null, "cannot install a null thread logger");
-            require(logger.valid, "cannot install an invalid thread logger");
-        }
+        require(logger !is null, "cannot install a null thread logger");
+        require(logger.valid, "cannot install an invalid thread logger");
 
         ThreadContext* context = attach_thread_context();
 
         ThreadLoggerScope result;
-        result.context_ = context;
-        result.installed_ = logger;
-        result.previous_ = tlsLogger;
-        tlsLogger = logger;
+        result.context = context;
+        result.installed = logger;
+        result.previous = tls_logger;
+        tls_logger = logger;
         return result;
     }
 
     ~this()
     {
-        if (context_ is null)
-            return;
+        if (this.context is null) return;
 
-        version (XTB_Checked)
-        {
-            require(
-                current_thread_context() is context_,
-                "thread logger destroyed outside its thread context",
-            );
-            require(
-                tlsLogger is installed_,
-                "thread loggers destroyed out of order",
-            );
-        }
-        tlsLogger = previous_;
-        detach_thread_context(context_);
-        context_ = null;
-        installed_ = null;
-        previous_ = null;
+        require(
+            current_thread_context() is this.context,
+            "thread logger destroyed outside its thread context",
+        );
+        require(
+            tls_logger is this.installed,
+            "thread loggers destroyed out of order",
+        );
+
+        tls_logger = this.previous;
+        detach_thread_context(this.context);
+        this.context = null;
+        this.installed = null;
+        this.previous = null;
     }
 }
 
 /// Returns the logger currently installed for this thread, or null when the
 /// thread has no context or no logger has been installed in that context.
-Logger* currentLogger()
+/// The returned pointer is borrowed and remains valid only while its installing
+/// `ThreadLoggerScope` is active.
+Logger* current_logger()
 {
-    return current_thread_context() is null ? null : tlsLogger;
+    return current_thread_context() is null ? null : tls_logger;
 }
 
 bool enabled(LogLevel level)
 {
-    Logger* logger = currentLogger();
+    Logger* logger = current_logger();
     return logger !is null && (*logger).enabled(level);
 }
 
@@ -94,7 +97,7 @@ LogResult log(Args...)(
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
 )
 {
-    return logAt!Args(level, callsite, args);
+    return log_at!Args(level, callsite, args);
 }
 
 LogResult logf(string pattern, Args...)(
@@ -103,185 +106,193 @@ LogResult logf(string pattern, Args...)(
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
 )
 {
-    return logfAt!(pattern, Args)(level, callsite, args);
+    return logf_at!(pattern, Args)(level, callsite, args);
 }
 
-private LogResult logAt(Args...)(
-    LogLevel level,
-    LogSourceLocation callsite,
-    auto ref Args args,
-)
+private LogResult log_at(Args...)(LogLevel level, LogSourceLocation callsite, auto ref Args args)
 {
-    Logger* logger = currentLogger();
-    if (logger is null)
-        return LogResult(LogStatus.invalid_logger, 0, 0);
+    Logger* logger = current_logger();
+    if (logger is null) return LogResult(LogStatus.invalid_logger, 0, 0);
+
     return (*logger).log_at!Args(level, callsite, args);
 }
 
-private LogResult logfAt(string pattern, Args...)(
+private LogResult logf_at(string pattern, Args...)(
     LogLevel level,
     LogSourceLocation callsite,
     auto ref Args args,
 )
 {
-    Logger* logger = currentLogger();
-    if (logger is null)
-        return LogResult(LogStatus.invalid_logger, 0, 0);
+    Logger* logger = current_logger();
+    if (logger is null) return LogResult(LogStatus.invalid_logger, 0, 0);
+
     return (*logger).logf_at!(pattern, Args)(level, callsite, args);
 }
 
 LogResult trace(Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logAt!Args(LogLevel.trace, callsite, args);
+    return log_at!Args(LogLevel.trace, callsite, args);
 }
 
 LogResult tracef(string pattern, Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logfAt!(pattern, Args)(LogLevel.trace, callsite, args);
+    return logf_at!(pattern, Args)(LogLevel.trace, callsite, args);
 }
 
 LogResult debug_(Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logAt!Args(LogLevel.debug_, callsite, args);
+    return log_at!Args(LogLevel.debug_, callsite, args);
 }
 
 LogResult debugf(string pattern, Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logfAt!(pattern, Args)(LogLevel.debug_, callsite, args);
+    return logf_at!(pattern, Args)(LogLevel.debug_, callsite, args);
 }
 
 LogResult info(Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logAt!Args(LogLevel.info, callsite, args);
+    return log_at!Args(LogLevel.info, callsite, args);
 }
 
 LogResult infof(string pattern, Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logfAt!(pattern, Args)(LogLevel.info, callsite, args);
+    return logf_at!(pattern, Args)(LogLevel.info, callsite, args);
 }
 
 LogResult warning(Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logAt!Args(LogLevel.warning, callsite, args);
+    return log_at!Args(LogLevel.warning, callsite, args);
 }
 
 LogResult warningf(string pattern, Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logfAt!(pattern, Args)(LogLevel.warning, callsite, args);
+    return logf_at!(pattern, Args)(LogLevel.warning, callsite, args);
 }
 
 LogResult error(Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logAt!Args(LogLevel.error, callsite, args);
+    return log_at!Args(LogLevel.error, callsite, args);
 }
 
 LogResult errorf(string pattern, Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logfAt!(pattern, Args)(LogLevel.error, callsite, args);
+    return logf_at!(pattern, Args)(LogLevel.error, callsite, args);
 }
 
 LogResult fatal(Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logAt!Args(LogLevel.fatal, callsite, args);
+    return log_at!Args(LogLevel.fatal, callsite, args);
 }
 
 LogResult fatalf(string pattern, Args...)(
     auto ref Args args,
     LogSourceLocation callsite = LogSourceLocation(__FUNCTION__, __LINE__),
-) if (!StartsWithLogger!Args)
+)
+if (!starts_with_logger!Args)
 {
-    return logfAt!(pattern, Args)(LogLevel.fatal, callsite, args);
+    return logf_at!(pattern, Args)(LogLevel.fatal, callsite, args);
 }
 
-bool flushLogger()
+bool try_flush_logger()
 {
-    Logger* logger = currentLogger();
+    Logger* logger = current_logger();
     return logger !is null && (*logger).try_flush();
 }
 
 version (unittest)
 {
-    import xtb.types : String;
+    import xtb.fmt.writer;
+    import xtb.string;
+    import xtb.types;
 
     private struct Capture
     {
     nothrow @nogc:
 
         char[128] bytes;
-        size_t length;
+        usize length;
         char[16] label;
-        size_t labelLength;
-        size_t flushCount;
+        usize label_length;
+        usize flush_count;
 
-        String labelText() const return @trusted
+        String label_text() const return @trusted
         {
-            return label[0 .. labelLength];
+            return this.label[0 .. this.label_length];
         }
     }
 
-    private bool captureSink(
-        void* context,
-        scope const explicitSink.LogSinkEvent* event,
-    )
+    private bool try_capture_sink(void* context, scope const LogSinkEvent* event) @system
     {
         Capture* capture = cast(Capture*) context;
-        if (event.kind == explicitSink.LogSinkEventKind.message_chunk)
+        if (event.kind == LogSinkEventKind.message_chunk)
         {
-            if (event.bytes.length > capture.bytes.length - capture.length)
-                return false;
+            if (event.bytes.length > capture.bytes.length - capture.length) return false;
+
             foreach (index, value; event.bytes)
                 capture.bytes[capture.length + index] = value;
+
             capture.length += event.bytes.length;
         }
-        else if (event.kind == explicitSink.LogSinkEventKind.text &&
+        else if (event.kind == LogSinkEventKind.text &&
             event.bytes.length >= 2 && event.bytes[0] == '[')
         {
-            if (event.bytes.length > capture.label.length)
-                return false;
-            capture.labelLength = event.bytes.length;
+            if (event.bytes.length > capture.label.length) return false;
+
+            capture.label_length = event.bytes.length;
             foreach (index, value; event.bytes)
                 capture.label[index] = value;
         }
         return true;
     }
 
-    private bool captureFlush(void* context)
+    private bool try_capture_flush(void* context) @system
     {
         Capture* capture = cast(Capture*) context;
-        ++capture.flushCount;
+        ++capture.flush_count;
         return true;
     }
 
@@ -289,186 +300,179 @@ version (unittest)
     {
     nothrow @nogc:
 
-        char[128] functionName;
-        size_t functionNameLength;
-        size_t line;
+        char[128] function_name;
+        usize function_name_length;
+        usize line;
 
-        String functionText() const return @trusted
+        String function_text() const return @trusted
         {
-            return functionName[0 .. functionNameLength];
+            return this.function_name[0 .. this.function_name_length];
         }
     }
 
-    private bool acceptAllSink(
-        void*,
-        scope const explicitSink.LogSinkEvent* event,
-    )
+    private bool try_accept_all_sink(void*, scope const LogSinkEvent* event)
     {
         return event !is null;
     }
 
-    private explicitSink.LogRecordRef captureSourceResolver(
+    private LogRecordRef capture_source_resolver(
         void* context,
-        scope return const ref explicitSink.LogRecordInfo info,
-        scope return const(explicitSink.LogSourceLocation)* callsite,
-    )
+        scope return const ref LogRecordInfo info,
+        scope return const(LogSourceLocation)* callsite,
+    ) @system
     {
         SourceCapture* capture = cast(SourceCapture*) context;
         if (capture is null || callsite is null ||
-            callsite.function_name.length > capture.functionName.length)
-            return explicitSink.LogRecordRef.init;
+            callsite.function_name.length > capture.function_name.length)
+            return LogRecordRef.init;
 
-        capture.functionNameLength = callsite.function_name.length;
+        capture.function_name_length = callsite.function_name.length;
         foreach (index, value; callsite.function_name)
-            capture.functionName[index] = value;
+            capture.function_name[index] = value;
+
         capture.line = callsite.line;
 
-        auto child = explicitSink.LogSinkRef.create(&acceptAllSink, null);
+        LogSinkRef child = LogSinkRef.create(&try_accept_all_sink, null);
         return child.begin_record(info, callsite);
     }
 }
 
 unittest
 {
-    import xtb.fmt.writer : Writer;
-    import xtb.string;
-    import xtb.thread_context : ThreadContextScope;
-
-    assert(currentLogger() is null);
+    assert(current_logger() is null);
     assert(!enabled(LogLevel.info));
     assert(log(LogLevel.info, "missing").status == LogStatus.invalid_logger);
-    assert(!flushLogger());
+    assert(!try_flush_logger());
 
     ThreadContextScope context = ThreadContextScope.acquire();
-    assert(currentLogger() is null);
+    assert(current_logger() is null);
 
     struct FormatProbe
     {
     nothrow @nogc:
 
-        size_t* calls;
+        usize* calls;
 
         void format_to(ref Writer writer)
         {
-            ++*calls;
+            ++*this.calls;
             writer.put("probe");
         }
     }
 
-    Capture outerCapture;
-    char[32] outerStorage;
+    Capture outer_capture;
+    char[32] outer_storage;
     Logger outer = Logger.create(
-        &captureSink,
-        &outerCapture,
-        outerStorage[],
+        &try_capture_sink,
+        &outer_capture,
+        outer_storage[],
         LogLevel.info,
-        &captureFlush,
+        &try_capture_flush,
     );
     {
-        ThreadLoggerScope outerScope = ThreadLoggerScope.install(&outer);
-        assert(currentLogger() is &outer);
+        ThreadLoggerScope outer_scope = ThreadLoggerScope.install(&outer);
+        assert(current_logger() is &outer);
         assert(!enabled(LogLevel.debug_));
         assert(enabled(LogLevel.info));
-        size_t formatCalls;
-        FormatProbe probe = FormatProbe(&formatCalls);
+        usize format_calls;
+        FormatProbe probe = FormatProbe(&format_calls);
         assert(log(LogLevel.debug_, probe).status == LogStatus.filtered);
-        assert(formatCalls == 0);
+        assert(format_calls == 0);
         assert(logf!"value={}"(LogLevel.info, 17).delivered);
-        assert(outerCapture.bytes[0 .. outerCapture.length].equal("value=17"));
-        assert(flushLogger());
-        assert(outerCapture.flushCount == 1);
+        assert(outer_capture.bytes[0 .. outer_capture.length].equal("value=17"));
+        assert(try_flush_logger());
+        assert(outer_capture.flush_count == 1);
 
         outer.minimum_level = LogLevel.trace;
-        outerCapture.length = 0;
-        assert(trace("trace").delivered && outerCapture.labelText.equal("[trace]"));
+        outer_capture.length = 0;
+        assert(trace("trace").delivered && outer_capture.label_text.equal("[trace]"));
         assert(tracef!"{}"("tracef").delivered &&
-                outerCapture.labelText.equal("[trace]"));
-        assert(debug_("debug").delivered && outerCapture.labelText.equal("[debug]"));
+            outer_capture.label_text.equal("[trace]"));
+        assert(debug_("debug").delivered && outer_capture.label_text.equal("[debug]"));
         assert(debugf!"{}"("debugf").delivered &&
-                outerCapture.labelText.equal("[debug]"));
-        assert(info("info").delivered && outerCapture.labelText.equal("[info]"));
+            outer_capture.label_text.equal("[debug]"));
+        assert(info("info").delivered && outer_capture.label_text.equal("[info]"));
         assert(infof!"{}"("infof").delivered &&
-                outerCapture.labelText.equal("[info]"));
+            outer_capture.label_text.equal("[info]"));
         assert(warning("warning").delivered &&
-                outerCapture.labelText.equal("[warning]"));
+            outer_capture.label_text.equal("[warning]"));
         assert(warningf!"{}"("warningf").delivered &&
-                outerCapture.labelText.equal("[warning]"));
-        assert(error("error").delivered && outerCapture.labelText.equal("[error]"));
+            outer_capture.label_text.equal("[warning]"));
+        assert(error("error").delivered && outer_capture.label_text.equal("[error]"));
         assert(errorf!"{}"("errorf").delivered &&
-                outerCapture.labelText.equal("[error]"));
-        assert(fatal("fatal").delivered &&
-                outerCapture.labelText.equal("[fatal]"));
+            outer_capture.label_text.equal("[error]"));
+        assert(fatal("fatal").delivered && outer_capture.label_text.equal("[fatal]"));
         assert(fatalf!"{}"("fatalf").delivered &&
-                outerCapture.labelText.equal("[fatal]"));
-        outerCapture.length = 0;
+            outer_capture.label_text.equal("[fatal]"));
+        outer_capture.length = 0;
 
         // TLS helpers preserve the application caller through both the thread
         // wrapper and the explicit logger wrapper when callsites are enabled.
-        SourceCapture sourceCapture;
-        char[32] sourceStorage;
-        Logger sourceLogger = Logger.create(
-            explicitSink.LogSinkRef.create(&captureSourceResolver, &sourceCapture),
-            sourceStorage[],
+        SourceCapture source_capture;
+        char[32] source_storage;
+        Logger source_logger = Logger.create(
+            LogSinkRef.create(&capture_source_resolver, &source_capture),
+            source_storage[],
             LogLevel.trace,
         );
-        sourceLogger.callsites_enabled = true;
+        source_logger.callsites_enabled = true;
         {
-            ThreadLoggerScope sourceScope = ThreadLoggerScope.install(&sourceLogger);
-            const sourceFunction = cast(String) __FUNCTION__;
+            ThreadLoggerScope source_scope = ThreadLoggerScope.install(&source_logger);
+            const String source_function = cast(String) __FUNCTION__;
 
-            const directLine = __LINE__ + 1;
+            const usize direct_line = __LINE__ + 1;
             assert(log(LogLevel.info, "direct").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
-            assert(sourceCapture.line == directLine);
+            assert(source_capture.function_text.equal(source_function));
+            assert(source_capture.line == direct_line);
 
             assert(logf!"{}"(LogLevel.info, "formatted").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(trace("trace").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(tracef!"{}"("tracef").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(debug_("debug").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(debugf!"{}"("debugf").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(info("info").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(infof!"{}"("infof").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(warning("warning").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(warningf!"{}"("warningf").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(error("error").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(errorf!"{}"("errorf").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(fatal("fatal").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
             assert(fatalf!"{}"("fatalf").delivered);
-            assert(sourceCapture.functionText.equal(sourceFunction));
+            assert(source_capture.function_text.equal(source_function));
         }
-        assert(currentLogger() is &outer);
+        assert(current_logger() is &outer);
 
-        Capture nestedCapture;
-        char[32] nestedStorage;
+        Capture nested_capture;
+        char[32] nested_storage;
         Logger nested = Logger.create(
-            &captureSink,
-            &nestedCapture,
-            nestedStorage[],
+            &try_capture_sink,
+            &nested_capture,
+            nested_storage[],
             LogLevel.trace,
         );
         {
-            ThreadLoggerScope nestedScope = ThreadLoggerScope.install(&nested);
-            assert(currentLogger() is &nested);
+            ThreadLoggerScope nested_scope = ThreadLoggerScope.install(&nested);
+            assert(current_logger() is &nested);
             assert(log(LogLevel.trace, "nested").delivered);
-            assert(nestedCapture.bytes[0 .. nestedCapture.length].equal("nested"));
+            assert(nested_capture.bytes[0 .. nested_capture.length].equal("nested"));
         }
 
-        assert(currentLogger() is &outer);
+        assert(current_logger() is &outer);
         assert(log(LogLevel.warning, "!").delivered);
-        assert(outerCapture.bytes[0 .. outerCapture.length].equal("!"));
+        assert(outer_capture.bytes[0 .. outer_capture.length].equal("!"));
     }
 
-    assert(currentLogger() is null);
+    assert(current_logger() is null);
 }

@@ -473,7 +473,7 @@ extern (C) int main() nothrow @nogc
 
         const selectedLevel = LogLevel.warning;
         log(selectedLevel, "dynamic level: selected at runtime");
-        if (!flushLogger())
+        if (!try_flush_logger())
             return 1;
     }
 
