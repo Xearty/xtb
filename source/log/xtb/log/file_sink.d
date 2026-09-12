@@ -2,8 +2,13 @@ module xtb.log.file_sink;
 
 nothrow @nogc:
 
-import core.stdc.stdio : FILE, fflush, fwrite, stderr, stdout;
-import core.stdc.string : memchr;
+import core.stdc.stdio;
+import core.stdc.string;
+
+version (Posix)
+{
+    import core.sys.posix.stdio;
+}
 
 import xtb.ansi;
 import xtb.log.internal.sgr;
@@ -19,7 +24,7 @@ enum LogStyle : u8
     ansi,
 }
 
-private bool try_write_all(FILE* file, String value)
+private bool try_write_all(FILE* file, scope String value)
 {
     return value.length == 0 || fwrite(value.ptr, 1, value.length, file) == value.length;
 }
@@ -168,8 +173,6 @@ private void lock_file(FILE* file)
 {
     version (Posix)
     {
-        import core.sys.posix.stdio : flockfile;
-
         flockfile(file);
     }
 }
@@ -178,8 +181,6 @@ private void unlock_file(FILE* file)
 {
     version (Posix)
     {
-        import core.sys.posix.stdio : funlockfile;
-
         funlockfile(file);
     }
 }
@@ -197,7 +198,7 @@ private bool try_file_flush(void* context) @system
 /// known ANSI-free logger framing takes the direct-write path. `file` may be
 /// null, in which case sink operations fail. A non-null `file` must remain valid
 /// while the returned sink reference is used.
-LogSinkRef plain_file_log_sink(FILE* file) @system
+LogSinkRef plain_file_log_sink(return scope FILE* file) @system
 {
     return LogSinkRef.create(&try_plain_file_sink_event, cast(void*) file, &try_file_flush);
 }
@@ -209,7 +210,7 @@ LogSinkRef plain_file_log_sink(FILE* file) @system
 /// semantic style for that span; known ANSI-free logger framing avoids the SGR
 /// scan. `file` may be null, in which case sink operations fail. A non-null
 /// `file` must remain valid while the returned sink reference is used.
-LogSinkRef ansi_file_log_sink(FILE* file) @system
+LogSinkRef ansi_file_log_sink(return scope FILE* file) @system
 {
     return LogSinkRef.create(&try_ansi_file_sink_event, cast(void*) file, &try_file_flush);
 }
@@ -219,7 +220,7 @@ LogSinkRef ansi_file_log_sink(FILE* file) @system
 /// `file` may be null, in which case sink operations fail. A non-null `file`
 /// must remain valid while the returned logger is used.
 Logger file_logger(
-    FILE* file,
+    return scope FILE* file,
     return scope char[] message_buffer,
     LogLevel minimum_level = LogLevel.info,
     LogStyle style = LogStyle.plain,
