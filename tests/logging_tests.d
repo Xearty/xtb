@@ -113,7 +113,7 @@ extern (C) int main() nothrow @nogc
         probe,
         " suffix",
     );
-    if (!result.delivered || formatCalls != 1 || !logger.flush())
+    if (!result.delivered || formatCalls != 1 || !logger.try_flush())
         return 1;
 
     char[4_096] terminalBytes;
@@ -162,10 +162,10 @@ extern (C) int main() nothrow @nogc
     );
     char[256] sourceStorage;
     Logger sourceLogger = Logger.create(sourceOutputs.sink_ref(), sourceStorage[]);
-    sourceLogger.setCallsitesEnabled(true);
+    sourceLogger.callsites_enabled = true;
     const sourceFunction = cast(String) __FUNCTION__;
     const sourceLine = __LINE__ + 1;
-    if (!sourceLogger.error("callsite routing").delivered || !sourceLogger.flush())
+    if (!sourceLogger.error("callsite routing").delivered || !sourceLogger.try_flush())
         return 1;
 
     char[1_024] sourceTerminalBytes;

@@ -248,12 +248,12 @@ extern (C) int main(int argc, char** argv)
     elapsed = benchmarkNormalSmall(nullLogger, iterations);
     printResult("normal small", elapsed, iterations, nullProbe);
 
-    nullLogger.setCallsitesEnabled(true);
+    nullLogger.callsites_enabled = true;
     warmUp(nullLogger, iterations / 20 + 1);
     nullProbe = SinkProbe.init;
     elapsed = benchmarkNormalSmall(nullLogger, iterations);
     printResult("normal small + callsite", elapsed, iterations, nullProbe);
-    nullLogger.setCallsitesEnabled(false);
+    nullLogger.callsites_enabled = false;
 
     nullProbe = SinkProbe.init;
     elapsed = benchmarkStreamSmall(nullLogger, iterations);
@@ -287,24 +287,24 @@ extern (C) int main(int argc, char** argv)
     char[1024] plainBuffer;
     Logger plain = Logger.create(plainFileLogSink(devNull), plainBuffer[]);
     warmUp(plain, iterations / 100 + 1);
-    plain.flush();
+    plain.try_flush();
     elapsed = benchmarkNormalSmall(plain, iterations / 4 + 1);
-    plain.flush();
+    plain.try_flush();
     printTiming("normal small", elapsed, iterations / 4 + 1);
     elapsed = benchmarkStreamLargeBorrowed(plain, payload, largeIterations);
-    plain.flush();
+    plain.try_flush();
     printTiming("stream 64 KiB borrowed", elapsed, largeIterations);
 
     printf("\nANSI FILE sink -> /dev/null\n");
     char[1024] ansiBuffer;
     Logger ansi = Logger.create(ansiFileLogSink(devNull), ansiBuffer[]);
     warmUp(ansi, iterations / 100 + 1);
-    ansi.flush();
+    ansi.try_flush();
     elapsed = benchmarkNormalSmall(ansi, iterations / 4 + 1);
-    ansi.flush();
+    ansi.try_flush();
     printTiming("normal small", elapsed, iterations / 4 + 1);
     elapsed = benchmarkStreamLargeBorrowed(ansi, payload, largeIterations);
-    ansi.flush();
+    ansi.try_flush();
     printTiming("stream 64 KiB borrowed", elapsed, largeIterations);
 
     printf("\nTee null -> null + null\n");
@@ -330,7 +330,7 @@ extern (C) int main(int argc, char** argv)
     TeeLogSink callsiteTee = TeeLogSink.create(firstWithoutCallsite.sink_ref(), second);
     char[1024] callsiteTeeBuffer;
     Logger callsiteTeeLogger = Logger.create(callsiteTee.sink_ref(), callsiteTeeBuffer[]);
-    callsiteTeeLogger.setCallsitesEnabled(true);
+    callsiteTeeLogger.callsites_enabled = true;
     warmUp(callsiteTeeLogger, iterations / 20 + 1);
     firstProbe = SinkProbe.init;
     secondProbe = SinkProbe.init;

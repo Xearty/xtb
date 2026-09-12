@@ -13,7 +13,7 @@ Logger logger = stderrLogger(storage[], LogLevel.info);
 logger.info("server started on port ", 8080);
 logger.warningf!"retry {}/{}"(2, 3);
 logger.error(i"request $(requestId) failed");
-logger.flush(); // Optional: flushes underlying stdio buffers.
+logger.try_flush(); // Optional: flushes underlying stdio buffers.
 ```
 
 Filtering happens before message formatting. Use `enabled(level)` when producing
@@ -72,10 +72,10 @@ TeeLogSink sinks = TeeLogSink.create(
 
 char[512] storage;
 Logger logger = Logger.create(sinks.sink_ref(), storage[], LogLevel.info);
-logger.setCallsitesEnabled(true);
+logger.callsites_enabled = true;
 
 logger.info("server started");
-logger.flush(); // Optional: flushes underlying stdio buffers.
+logger.try_flush(); // Optional: flushes underlying stdio buffers.
 ```
 
 Callsite capture is enabled once on the logger, then removed only from the
@@ -83,9 +83,11 @@ terminal branch by `WithoutCallsiteLogSink`. Likewise, the timestamp decorates
 only the file branch. The plain file sink strips ANSI styling while the terminal
 sink renders it.
 
-`setMinimumLevel`, `setPalette`, `setLevelLabels`,
-`setMessageAlignmentEnabled`, and `setCallsitesEnabled` change logger policy
-without rebuilding the sink graph.
+Assign `minimum_level`, `palette`, `message_alignment_enabled`, and
+`callsites_enabled` directly to change ordinary logger policy. Use `set_palette`
+for a built-in palette preset and `set_level_labels` when changing labels so the
+cached alignment width stays synchronized. None of these changes rebuilds the
+sink graph.
 
 Sink decorators borrow their children. Stateful decorators such as
 `PrefixLogSink` and `TeeLogSink` must remain at a stable address and outlive any

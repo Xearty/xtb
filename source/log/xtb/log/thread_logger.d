@@ -2,7 +2,6 @@ module xtb.log.thread_logger;
 
 nothrow @nogc:
 
-import explicitLogger = xtb.log.logger;
 import explicitSink = xtb.log.sink;
 import xtb.log.level : LogLevel;
 import xtb.log.logger : Logger;
@@ -86,7 +85,7 @@ Logger* currentLogger()
 bool enabled(LogLevel level)
 {
     Logger* logger = currentLogger();
-    return logger !is null && explicitLogger.enabled(*logger, level);
+    return logger !is null && (*logger).enabled(level);
 }
 
 LogResult log(Args...)(
@@ -116,7 +115,7 @@ private LogResult logAt(Args...)(
     Logger* logger = currentLogger();
     if (logger is null)
         return LogResult(LogStatus.invalid_logger, 0, 0);
-    return explicitLogger.logAt!Args(*logger, level, callsite, args);
+    return (*logger).log_at!Args(level, callsite, args);
 }
 
 private LogResult logfAt(string pattern, Args...)(
@@ -128,7 +127,7 @@ private LogResult logfAt(string pattern, Args...)(
     Logger* logger = currentLogger();
     if (logger is null)
         return LogResult(LogStatus.invalid_logger, 0, 0);
-    return explicitLogger.logfAt!(pattern, Args)(*logger, level, callsite, args);
+    return (*logger).logf_at!(pattern, Args)(level, callsite, args);
 }
 
 LogResult trace(Args...)(
@@ -230,7 +229,7 @@ LogResult fatalf(string pattern, Args...)(
 bool flushLogger()
 {
     Logger* logger = currentLogger();
-    return logger !is null && explicitLogger.flush(*logger);
+    return logger !is null && (*logger).try_flush();
 }
 
 version (unittest)
@@ -379,7 +378,7 @@ unittest
         assert(flushLogger());
         assert(outerCapture.flushCount == 1);
 
-        explicitLogger.setMinimumLevel(outer, LogLevel.trace);
+        outer.minimum_level = LogLevel.trace;
         outerCapture.length = 0;
         assert(trace("trace").delivered && outerCapture.labelText.equal("[trace]"));
         assert(tracef!"{}"("tracef").delivered &&
@@ -412,7 +411,7 @@ unittest
             sourceStorage[],
             LogLevel.trace,
         );
-        explicitLogger.setCallsitesEnabled(sourceLogger, true);
+        sourceLogger.callsites_enabled = true;
         {
             ThreadLoggerScope sourceScope = ThreadLoggerScope.install(&sourceLogger);
             const sourceFunction = cast(String) __FUNCTION__;

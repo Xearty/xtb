@@ -291,7 +291,7 @@ version (unittest)
         if (!capture.swapped && event.kind == LogSinkEventKind.begin_record)
         {
             capture.swapped = true;
-            (*capture.logger).setSink(capture.replacement);
+            (*capture.logger).sink = capture.replacement;
         }
         return captureSink(capture.current, event);
     }
@@ -650,7 +650,7 @@ unittest
     assertEvent(capture, 7, LogSinkEventKind.end_message);
     assertEvent(capture, 8, LogSinkEventKind.text, "\n");
     assertEvent(capture, 9, LogSinkEventKind.end_record);
-    assert(logger.flush());
+    assert(logger.try_flush());
     assert(capture.flushCount == 1);
 
     capture.clear();
@@ -1160,7 +1160,7 @@ unittest
         LogLevel.debug_,
     );
     assert(logger.valid);
-    assert(logger.minimumLevel == LogLevel.debug_);
+    assert(logger.minimum_level == LogLevel.debug_);
 
     assert(logger.log(LogLevel.trace, "hidden").status == LogStatus.filtered);
     assert(capture.count == 0);
@@ -1181,7 +1181,7 @@ unittest
     assert(capture.count == 8);
     assert(capture.events[4].kind == LogSinkEventKind.message_chunk);
     assert(capture.events[4].length == result.written);
-    assert(logger.flush());
+    assert(logger.try_flush());
     assert(capture.flushCount == 1);
 
     capture.clear();
@@ -1197,7 +1197,7 @@ unittest
     // Messages align after the closing level bracket by default. The labels
     // keep their natural spellings; disabling alignment restores one separator
     // space without changing the rest of the record framing.
-    assert(logger.messageAlignmentEnabled);
+    assert(logger.message_alignment_enabled);
     capture.clear();
     result = logger.fatal("aligned");
     assert(result.delivered);
@@ -1208,8 +1208,8 @@ unittest
         defaults.fatal.message,
     );
 
-    logger.setMessageAlignmentEnabled(false);
-    assert(!logger.messageAlignmentEnabled);
+    logger.message_alignment_enabled = false;
+    assert(!logger.message_alignment_enabled);
     capture.clear();
     result = logger.info("unaligned");
     assert(result.delivered);
@@ -1220,13 +1220,13 @@ unittest
         defaults.info.message,
         false,
     );
-    logger.setMessageAlignmentEnabled(true);
+    logger.message_alignment_enabled = true;
 
     // Label spelling is independent from severity styling and alignment. The
     // built-in three-letter set needs no alignment padding beyond one space.
-    assert(logger.levelLabels == LogLevelLabels.defaults());
-    logger.setLevelLabels(LogLevelLabelPreset.three_letter);
-    assert(logger.levelLabels == LogLevelLabels.preset(LogLevelLabelPreset.three_letter));
+    assert(logger.level_labels == LogLevelLabels.defaults());
+    logger.set_level_labels(LogLevelLabelPreset.three_letter);
+    assert(logger.level_labels == LogLevelLabels.preset(LogLevelLabelPreset.three_letter));
     capture.clear();
     result = logger.info("compact label");
     assert(result.delivered);
@@ -1249,8 +1249,8 @@ unittest
     customLabels.warning = "<W>";
     customLabels.error = "<E>";
     customLabels.fatal = "<F>";
-    logger.setLevelLabels(customLabels);
-    assert(logger.levelLabels == customLabels);
+    logger.set_level_labels(customLabels);
+    assert(logger.level_labels == customLabels);
     capture.clear();
     result = logger.info("custom label");
     assert(result.delivered);
@@ -1271,7 +1271,7 @@ unittest
     LogLevelLabels wideLabels = LogLevelLabels.defaults();
     wideLabels.debug_ = wideLabelStorage[];
     wideLabels.info = "[I]";
-    logger.setLevelLabels(wideLabels);
+    logger.set_level_labels(wideLabels);
     capture.clear();
     result = logger.info("wide padding");
     assert(result.delivered);
@@ -1288,17 +1288,17 @@ unittest
     assertEvent(capture, 4, LogSinkEventKind.begin_message);
     assertEvent(capture, 5, LogSinkEventKind.message_chunk, "wide padding");
 
-    logger.setLevelLabels(LogLevelLabelPreset.full);
-    assert(logger.levelLabels == LogLevelLabels.defaults());
+    logger.set_level_labels(LogLevelLabelPreset.full);
+    assert(logger.level_labels == LogLevelLabels.defaults());
 
     // Callsite capture is opt-in at the logger. Public variadic wrappers keep
     // the original caller metadata by explicitly forwarding the already-deduced
     // message Args tuple rather than allowing the source location to become one
     // more formatted argument.
-    assert(!logger.callsitesEnabled);
-    logger.setCallsitesEnabled(true);
-    assert(logger.callsitesEnabled);
-    logger.setMinimumLevel(LogLevel.trace);
+    assert(!logger.callsites_enabled);
+    logger.callsites_enabled = true;
+    assert(logger.callsites_enabled);
+    logger.minimum_level = LogLevel.trace;
     const wrapperFunction = cast(String) __FUNCTION__;
 
     capture.clear();
@@ -1381,7 +1381,7 @@ unittest
     );
     char[64] splitBuffer;
     Logger splitLogger = Logger.create(splitCallsite.sink_ref(), splitBuffer[]);
-    splitLogger.setCallsitesEnabled(true);
+    splitLogger.callsites_enabled = true;
     const splitFunction = cast(String) __FUNCTION__;
     const splitLine = __LINE__ + 1;
     const splitResult = splitLogger.error("split");
@@ -1415,7 +1415,7 @@ unittest
     );
     char[64] failingSplitBuffer;
     Logger failingSplitLogger = Logger.create(failingSplit.sink_ref(), failingSplitBuffer[]);
-    failingSplitLogger.setCallsitesEnabled(true);
+    failingSplitLogger.callsites_enabled = true;
     const failingSplitFunction = cast(String) __FUNCTION__;
     const failingSplitLine = __LINE__ + 1;
     const failingSplitResult = failingSplitLogger.error("survives sibling failure");
@@ -1448,7 +1448,7 @@ unittest
     );
     char[64] outerBuffer;
     Logger outerLogger = Logger.create(suppressAll.sink_ref(), outerBuffer[]);
-    outerLogger.setCallsitesEnabled(true);
+    outerLogger.callsites_enabled = true;
     assert(outerLogger.warning("all hidden").delivered);
     outerFirst.assertSuccessfulRecord(
         "[warning]",
@@ -1480,7 +1480,7 @@ unittest
         prefixedSuppressed.sink_ref(),
         prefixedSuppressedBuffer[],
     );
-    prefixedSuppressedLogger.setCallsitesEnabled(true);
+    prefixedSuppressedLogger.callsites_enabled = true;
     assert(prefixedSuppressedLogger.info("nested").delivered);
     assert(suppressedPrefixProbe.calls == 1);
     assertEvent(prefixedSuppressedCapture, 0, LogSinkEventKind.begin_record);
@@ -1508,7 +1508,7 @@ unittest
         prefixOutsideSuppression.sink_ref(),
         suppressionInsidePrefixBuffer[],
     );
-    suppressionInsidePrefixLogger.setCallsitesEnabled(true);
+    suppressionInsidePrefixLogger.callsites_enabled = true;
     assert(suppressionInsidePrefixLogger.info("reverse nested").delivered);
     assert(outerPrefixProbe.calls == 1);
     assertEvent(suppressionInsidePrefixCapture, 1, LogSinkEventKind.text, "prefix");
@@ -1540,8 +1540,8 @@ unittest
     );
 
     // Turning capture back off restores the exact legacy framing.
-    logger.setCallsitesEnabled(false);
-    assert(!logger.callsitesEnabled);
+    logger.callsites_enabled = false;
+    assert(!logger.callsites_enabled);
     capture.clear();
     assert(logger.info("disabled").delivered);
     capture.assertSuccessfulRecord(
@@ -1581,7 +1581,7 @@ unittest
     assertEvent(streamCapture, 8, LogSinkEventKind.end_record);
 
     streamCapture.clear();
-    streamLogger.setCallsitesEnabled(true);
+    streamLogger.callsites_enabled = true;
     const streamFunction = cast(String) __FUNCTION__;
     const streamLine = __LINE__ + 1;
     result = streamLogger.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
@@ -1597,7 +1597,7 @@ unittest
         streamFunction,
         streamLine,
     );
-    streamLogger.setCallsitesEnabled(false);
+    streamLogger.callsites_enabled = false;
 
     // `scope auto ref` keeps stateful/non-copyable producers usable without
     // manufacturing an extra callable copy.
@@ -1616,7 +1616,7 @@ unittest
     );
 
     streamCapture.clear();
-    streamLogger.setMinimumLevel(LogLevel.fatal);
+    streamLogger.minimum_level = LogLevel.fatal;
     result = streamLogger.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
         ++streamProducerCalls;
         writer.write("must not run");
@@ -1689,7 +1689,7 @@ unittest
         LogSinkRef.create(&captureSink, &failedCallsite),
         failedCallsiteBuffer[],
     );
-    failedCallsiteLogger.setCallsitesEnabled(true);
+    failedCallsiteLogger.callsites_enabled = true;
     const failedCallsiteResult = failedCallsiteLogger.info("payload");
     assert(failedCallsiteResult.status == LogStatus.sink_failed);
     assert(failedCallsiteResult.written == "payload".length);
@@ -1723,7 +1723,7 @@ unittest
     Capture replacementStreamCapture;
     guardedCapture.clear();
     result = guardedLogger.stream(LogLevel.info, (scope ref LogMessageWriter writer) {
-        guardedLogger.setSink(LogSinkRef.create(&captureSink, &replacementStreamCapture));
+        guardedLogger.sink = LogSinkRef.create(&captureSink, &replacementStreamCapture);
         writer.write("current");
     });
     assert(result.status == LogStatus.delivered);
@@ -1768,7 +1768,7 @@ unittest
     assertEvent(healthyBranch, 8, LogSinkEventKind.end_record);
     assertEvent(failedBranch, failedBranch.count - 1, LogSinkEventKind.end_record);
 
-    logger.setMinimumLevel(LogLevel.trace);
+    logger.minimum_level = LogLevel.trace;
 
     capture.clear();
     assert(logger.trace("trace").delivered);
@@ -1815,7 +1815,7 @@ unittest
     LogPalette palette = defaults;
     palette.warning.label = ANSIStyle.foreground(ANSIColor.rgb(1, 20, 255)).underline;
     palette.warning.message = ANSIStyle.foreground(ANSIColor.bright_black).dim;
-    logger.setPalette(palette);
+    logger.palette = palette;
     capture.clear();
     assert(logger.warning("styled").delivered);
     capture.assertSuccessfulRecord(
@@ -1825,7 +1825,7 @@ unittest
         palette.warning.message,
     );
 
-    logger.setPalette(LogPalettePreset.true_color);
+    logger.set_palette(LogPalettePreset.true_color);
     const trueColor = LogPalette.preset(LogPalettePreset.true_color);
     capture.clear();
     assert(logger.error("preset").delivered);
@@ -1838,13 +1838,13 @@ unittest
 
     Capture replacement;
     replacement.flushAccepted = true;
-    logger.setSink(LogSinkRef.create(&captureSink, &replacement, &captureFlush));
+    logger.sink = LogSinkRef.create(&captureSink, &replacement, &captureFlush);
     capture.clear();
     assert(logger.info("replacement").delivered);
     assert(capture.count == 0);
     assert(replacement.count != 0);
     replacement.clear();
-    logger.setSink(&captureSink, &replacement, &captureFlush);
+    logger.set_sink(&captureSink, &replacement, &captureFlush);
     assert(logger.info("raw overload").delivered);
     assert(replacement.count != 0);
 
@@ -1878,7 +1878,7 @@ unittest
 
     Logger invalid;
     assert(invalid.log(LogLevel.info, "ignored").status == LogStatus.invalid_logger);
-    assert(!invalid.flush());
+    assert(!invalid.try_flush());
 
     Capture rejected;
     rejected.flushAccepted = false;
@@ -1893,7 +1893,7 @@ unittest
     assertEvent(rejected, 4, LogSinkEventKind.message_chunk, "rejected");
     assertEvent(rejected, 5, LogSinkEventKind.end_message);
     assertEvent(rejected, 6, LogSinkEventKind.end_record);
-    assert(!rejecting.flush());
+    assert(!rejecting.try_flush());
     assert(rejected.flushCount == 1);
 
     Capture rejectBegin;
@@ -1939,7 +1939,7 @@ unittest
         LogSinkRef.create(&captureSink, &noFlush),
         messageBuffer[],
     );
-    assert(noFlushLogger.flush());
+    assert(noFlushLogger.try_flush());
 
     RecursiveCapture recursive;
     recursive.events.flushAccepted = true;
@@ -1968,7 +1968,7 @@ unittest
             LogStyle.plain,
         );
         assert(plain.info("plain message").delivered);
-        assert(plain.flush());
+        assert(plain.try_flush());
         char[64] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal("[info]    plain message\n"));
@@ -1988,14 +1988,14 @@ unittest
         );
         char[64] fileMessage;
         Logger located = Logger.create(prefixed.sink_ref(), fileMessage[]);
-        located.setCallsitesEnabled(true);
+        located.callsites_enabled = true;
         const callsiteFunction = cast(String) __FUNCTION__;
         const callsiteLine = __LINE__ + 1;
         const callsiteResult = located.info("plain callsite");
         assert(callsiteResult.delivered);
         assert(callsiteResult.written == "plain callsite".length);
         assert(callsiteResult.required == "plain callsite".length);
-        assert(located.flush());
+        assert(located.try_flush());
 
         char[256] output;
         const length = readFileContents(file, output[]);
@@ -2021,11 +2021,11 @@ unittest
             LogStyle.ansi,
             LogPalette.preset(LogPalettePreset.extended),
         );
-        located.setCallsitesEnabled(true);
+        located.callsites_enabled = true;
         const callsiteFunction = cast(String) __FUNCTION__;
         const callsiteLine = __LINE__ + 1;
         assert(located.info("ansi callsite").delivered);
-        assert(located.flush());
+        assert(located.try_flush());
 
         char[512] output;
         const length = readFileContents(file, output[]);
@@ -2051,7 +2051,7 @@ unittest
             LogStyle.ansi,
         );
         assert(colored.info("default colors").delivered);
-        assert(colored.flush());
+        assert(colored.try_flush());
         char[96] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2078,7 +2078,7 @@ unittest
                 writer.write("1mred");
                 writer.write("\x1b[0m!");
             }).delivered);
-        assert(plain.flush());
+        assert(plain.try_flush());
         char[64] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal("[info]    red!\n"));
@@ -2100,7 +2100,7 @@ unittest
                 writer.write("1mred");
                 writer.write("\x1b[0m!");
             }).delivered);
-        assert(colored.flush());
+        assert(colored.try_flush());
         char[96] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2132,7 +2132,7 @@ unittest
             custom,
         );
         assert(colored.warning("colored message").delivered);
-        assert(colored.flush());
+        assert(colored.try_flush());
         char[128] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2157,7 +2157,7 @@ unittest
             custom,
         );
         assert(plain.error("plain ignores styles").delivered);
-        assert(plain.flush());
+        assert(plain.try_flush());
         char[64] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal("[error]   plain ignores styles\n"));
@@ -2189,7 +2189,7 @@ unittest
         );
 
         assert(prefixedLogger.info("body").delivered);
-        assert(prefixedLogger.flush());
+        assert(prefixedLogger.try_flush());
 
         char[192] ansiOutput;
         const ansiLength = readFileContents(ansiFile, ansiOutput[]);
@@ -2273,7 +2273,7 @@ unittest
                 " ordinary ",
                 styled("green", ANSIStyle.foreground(ANSIColor.green)),
         ).delivered);
-        assert(plain.flush());
+        assert(plain.try_flush());
         char[128] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2303,7 +2303,7 @@ unittest
                 styled("styled", embedded),
                 " ordinary",
         ).delivered);
-        assert(ansi.flush());
+        assert(ansi.try_flush());
         char[160] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2334,7 +2334,7 @@ unittest
                 "\x1b[39m",
                 "default foreground",
         ).delivered);
-        assert(ansi.flush());
+        assert(ansi.try_flush());
         char[256] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2417,7 +2417,7 @@ unittest
         assert(ansi.warning().delivered);
         assert(ansi.error().delivered);
         assert(ansi.fatal().delivered);
-        assert(ansi.flush());
+        assert(ansi.try_flush());
         char[256] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2450,7 +2450,7 @@ unittest
         assert(largeResult.status == LogStatus.delivered);
         assert(largeResult.written == message.length);
         assert(largeResult.required == message.length);
-        assert(plain.flush());
+        assert(plain.try_flush());
 
         char[1100] output;
         const length = readFileContents(file, output[]);
@@ -2540,7 +2540,7 @@ unittest
         const truncationResult = ansi.info("abc", rgbSequence.view, "tail");
         assert(truncationResult.status == LogStatus.truncated);
         assert(truncationResult.written == 3);
-        assert(ansi.flush());
+        assert(ansi.try_flush());
         char[96] output;
         const length = readFileContents(file, output[]);
         assert(output[0 .. length].equal(
@@ -2601,7 +2601,7 @@ unittest
         ];
         foreach (index, branch; expectedBranches)
             assert(order.events[index].branch == branch);
-        assert(logger.flush());
+        assert(logger.try_flush());
         assert(first.flushCount == 1);
         assert(second.flushCount == 1);
     }
@@ -3079,7 +3079,7 @@ unittest
                 styled("green", ANSIStyle.foreground(ANSIColor.green)),
                 " base",
         ).delivered);
-        assert(logger.flush());
+        assert(logger.try_flush());
 
         char[256] terminalOutput;
         const terminalLength = readFileContents(terminal, terminalOutput[]);

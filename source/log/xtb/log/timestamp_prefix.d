@@ -349,7 +349,7 @@ unittest
     import core.stdc.stdio : FILE, fclose, fread, rewind, tmpfile;
     import xtb.log.file_sink : ansiFileLogSink, plainFileLogSink;
     import xtb.log.level : LogLevel;
-    import xtb.log.logger : Logger, flush, info;
+    import xtb.log.logger : Logger;
     import xtb.log.prefix_sink : PrefixLogSink;
     import xtb.log.tee_sink : TeeLogSink;
     import xtb.string;
@@ -390,7 +390,7 @@ unittest
         LogLevel.info,
     );
     assert(sharedLogger.info("started").delivered);
-    assert(sharedLogger.flush());
+    assert(sharedLogger.try_flush());
 
     char[256] ansiBytes;
     char[256] plainBytes;
@@ -429,7 +429,7 @@ unittest
         LogLevel.info,
     );
     assert(splitLogger.info("file only").delivered);
-    assert(splitLogger.flush());
+    assert(splitLogger.try_flush());
 
     char[128] terminalBytes;
     char[128] logBytes;

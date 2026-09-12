@@ -125,9 +125,9 @@ nothrow @nogc
         LogLevel.trace,
         LogPalette.preset(preset),
     );
-    logger.setCallsitesEnabled(true);
+    logger.callsites_enabled = true;
 
-    return logger.logEveryLevel(paletteName) && logger.flush();
+    return logger.logEveryLevel(paletteName) && logger.try_flush();
 }
 
 extern (C) int main() nothrow @nogc
@@ -154,7 +154,7 @@ extern (C) int main() nothrow @nogc
             ANSIStyle.foreground(ANSIColor.bright_red).bold,
         ),
         " but the text remains",
-        ).delivered || !plain.flush())
+        ).delivered || !plain.try_flush())
         return 1;
 
     char[512] terminalStorage;
@@ -168,8 +168,8 @@ extern (C) int main() nothrow @nogc
     // variadic values, and custom `format_to` values all share the same path.
     if (!terminalSection(terminalFile, "levels and formatting"))
         return 1;
-    terminal.setCallsitesEnabled(true);
-    terminal.setPalette(LogPalettePreset.basic);
+    terminal.callsites_enabled = true;
+    terminal.set_palette(LogPalettePreset.basic);
     if (!terminal.logEveryLevel("basic preset"))
         return 1;
 
@@ -177,26 +177,26 @@ extern (C) int main() nothrow @nogc
     // option can be disabled when compact, unpadded output is preferred.
     if (!terminalSection(terminalFile, "message alignment"))
         return 1;
-    terminal.setCallsitesEnabled(false);
+    terminal.callsites_enabled = false;
     if (!terminal.info("aligned message").delivered ||
         !terminal.warning("aligned message")
             .delivered ||
             !terminal.fatal("aligned message").delivered)
         return 1;
-    terminal.setMessageAlignmentEnabled(false);
+    terminal.message_alignment_enabled = false;
     if (!terminal.info("unaligned message").delivered ||
         !terminal.warning("unaligned message")
             .delivered ||
             !terminal.fatal("unaligned message").delivered)
         return 1;
-    terminal.setMessageAlignmentEnabled(true);
+    terminal.message_alignment_enabled = true;
 
     // Level spelling is independent from severity colors and message alignment.
     // The compact preset uses equal-width three-letter labels, while custom
     // labels are complete presentation tokens and may use arbitrary spellings.
     if (!terminalSection(terminalFile, "level label presets and customization"))
         return 1;
-    terminal.setLevelLabels(LogLevelLabelPreset.three_letter);
+    terminal.set_level_labels(LogLevelLabelPreset.three_letter);
     if (!terminal.logEveryLevel("three-letter labels"))
         return 1;
 
@@ -207,28 +207,28 @@ extern (C) int main() nothrow @nogc
     customLabels.warning = "{warning}";
     customLabels.error = "{error}";
     customLabels.fatal = "{FATAL}";
-    terminal.setLevelLabels(customLabels);
+    terminal.set_level_labels(customLabels);
     if (!terminal.logEveryLevel("custom labels"))
         return 1;
 
-    terminal.setLevelLabels(LogLevelLabelPreset.full);
-    terminal.setCallsitesEnabled(true);
+    terminal.set_level_labels(LogLevelLabelPreset.full);
+    terminal.callsites_enabled = true;
 
     // Enhanced palettes style both the level and message. Presets are normal
     // values, so callers can customize individual severities before use.
     if (!terminalSection(terminalFile, "palette presets"))
         return 1;
-    terminal.setPalette(LogPalettePreset.extended);
+    terminal.set_palette(LogPalettePreset.extended);
     if (!terminal.logEveryLevel("extended preset"))
         return 1;
-    terminal.setPalette(LogPalettePreset.true_color);
+    terminal.set_palette(LogPalettePreset.true_color);
     if (!terminal.logEveryLevel("true-color preset"))
         return 1;
 
     LogPalette palette = LogPalette.preset(LogPalettePreset.true_color);
     palette.warning.label = ANSIStyle.foreground(ANSIColor.bright_magenta).bold;
     palette.warning.message = ANSIStyle.foreground(ANSIColor.rgb(210, 215, 225));
-    terminal.setPalette(palette);
+    terminal.palette = palette;
     if (!terminal.warning("custom palette: warning label and message override").delivered)
         return 1;
 
@@ -263,10 +263,10 @@ extern (C) int main() nothrow @nogc
     // at the logging call. The trailing context stays neutral/dim on ANSI TTYs.
     if (!terminalSection(terminalFile, "optional callsites"))
         return 1;
-    terminal.setCallsitesEnabled(false);
+    terminal.callsites_enabled = false;
     if (!terminal.info("callsites disabled").delivered)
         return 1;
-    terminal.setCallsitesEnabled(true);
+    terminal.callsites_enabled = true;
     if (!terminal.info("callsites enabled").delivered)
         return 1;
 
@@ -275,7 +275,7 @@ extern (C) int main() nothrow @nogc
     // configured base message style for the remainder of that message.
     if (!terminalSection(terminalFile, "message ANSI and base-style restoration"))
         return 1;
-    terminal.setPalette(LogPalettePreset.extended);
+    terminal.set_palette(LogPalettePreset.extended);
     if (!terminal.info(
             "message styling: ",
             styled(
@@ -291,7 +291,7 @@ extern (C) int main() nothrow @nogc
     // cheap decision for guarding application work that should not be computed.
     if (!terminalSection(terminalFile, "filtering"))
         return 1;
-    terminal.setMinimumLevel(LogLevel.warning);
+    terminal.minimum_level = LogLevel.warning;
     size_t formatCalls;
     FormatProbe probe = FormatProbe(&formatCalls);
     const filtered = terminal.info(probe);
@@ -302,7 +302,7 @@ extern (C) int main() nothrow @nogc
             formatCalls,
         ).delivered)
         return 1;
-    terminal.setMinimumLevel(LogLevel.trace);
+    terminal.minimum_level = LogLevel.trace;
 
     // Ordinary logging is bounded by the caller-provided message buffer. The
     // result reports both the safely delivered prefix and the formatter demand.
@@ -315,7 +315,7 @@ extern (C) int main() nothrow @nogc
         LogLevel.info,
         LogPalette.preset(LogPalettePreset.basic),
     );
-    bounded.setCallsitesEnabled(true);
+    bounded.callsites_enabled = true;
     const truncated = bounded.warning(
         "this bounded message is deliberately longer than twenty-four bytes",
     );
@@ -340,7 +340,7 @@ extern (C) int main() nothrow @nogc
         LogLevel.info,
         LogPalette.preset(LogPalettePreset.extended),
     );
-    streaming.setCallsitesEnabled(true);
+    streaming.callsites_enabled = true;
     int[12] attemptHistory;
     foreach (index, ref attemptNumber; attemptHistory)
         attemptNumber = cast(int) index + 1;
@@ -376,9 +376,9 @@ extern (C) int main() nothrow @nogc
         prefixStorage[],
         LogLevel.info,
     );
-    prefixLogger.setCallsitesEnabled(true);
+    prefixLogger.callsites_enabled = true;
     if (!prefixLogger.info("prefixes are emitted before the level").delivered ||
-        !prefixLogger.flush())
+        !prefixLogger.try_flush())
         return 1;
 
     // The OS layer provides a ready-made allocation-free timestamp prefix.
@@ -402,9 +402,9 @@ extern (C) int main() nothrow @nogc
         timestampStorage[],
         LogLevel.info,
     );
-    timestampLogger.setCallsitesEnabled(true);
+    timestampLogger.callsites_enabled = true;
     if (!timestampLogger.info("timestamped terminal record").delivered ||
-        !timestampLogger.flush())
+        !timestampLogger.try_flush())
         return 1;
 
     // A tee resolves each branch once. Callsite capture remains enabled on the
@@ -436,9 +436,9 @@ extern (C) int main() nothrow @nogc
         teeStorage[],
         LogLevel.info,
     );
-    teeLogger.setCallsitesEnabled(true);
+    teeLogger.callsites_enabled = true;
     if (!teeLogger.info("terminal branch suppresses this callsite").delivered ||
-        !teeLogger.flush())
+        !teeLogger.try_flush())
         return 1;
 
     if (!writeTerminal(terminalFile, "captured plain sibling branch:\n") ||
@@ -450,8 +450,8 @@ extern (C) int main() nothrow @nogc
     // a level selected dynamically at runtime.
     if (!terminalSection(terminalFile, "current-thread logger"))
         return 1;
-    terminal.setPalette(LogPalettePreset.basic);
-    terminal.setCallsitesEnabled(true);
+    terminal.set_palette(LogPalettePreset.basic);
+    terminal.callsites_enabled = true;
     ThreadContextScope context = ThreadContextScope.acquire();
     {
         ThreadLoggerScope logging = ThreadLoggerScope.install(&terminal);
@@ -477,7 +477,7 @@ extern (C) int main() nothrow @nogc
             return 1;
     }
 
-    if (!terminal.flush())
+    if (!terminal.try_flush())
         return 1;
     return 0;
 }
