@@ -35,7 +35,14 @@ nothrow @nogc:
 
     @disable this(this);
 
-    package static LogMessageWriter create(LogRecordRef* record, return scope char[] staging)
+    /// Creates a message writer over a resolved record and caller-owned staging storage.
+    ///
+    /// A null record creates an already-failed writer. Both borrowed inputs must
+    /// outlive the returned writer.
+    package static LogMessageWriter create(
+        return scope LogRecordRef* record,
+        return scope char[] staging,
+    ) @safe
     {
         LogMessageWriter result;
         result.record = record;
@@ -79,7 +86,9 @@ nothrow @nogc:
     /// staging and SGR-safe message chunk boundaries.
     Writer writer() return @trusted
     {
-        return Writer.from_sink(&log_message_writer_sink, cast(void*)&this);
+        // The callback and context are paired here, and `return` keeps the
+        // returned writer from outliving this message writer.
+        return Writer.from_sink(&log_message_writer_sink, &this);
     }
 
     /// Emits every currently safe staged prefix.
@@ -234,7 +243,9 @@ nothrow @nogc:
     }
 }
 
-private usize log_message_writer_sink(void* context, scope const(u8)[] bytes) @trusted
+// `context` must point to a live `LogMessageWriter`; `writer()` establishes
+// that callback/context pairing and lifetime.
+private usize log_message_writer_sink(void* context, scope const(u8)[] bytes) @system
 {
     LogMessageWriter* writer = cast(LogMessageWriter*) context;
     if (writer is null || writer.failed) return 0;
