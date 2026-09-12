@@ -9,7 +9,7 @@ import xtb.log.result : LogResult, LogStatus;
 import xtb.log.internal.sgr : safe_sgr_prefix_length;
 import xtb.log.sink : LogFlush, LogRecordInfo, LogRecordRef, LogSink, LogSinkRef,
     LogSourceLocation;
-import xtb.log.message_writer : LogMessageWriter, createLogMessageWriter;
+import xtb.log.message_writer : LogMessageWriter;
 import xtb.fmt.fixed_buffer : BufferWriteResult, format_buffer, write_buffer;
 import xtb.types : String;
 
@@ -298,12 +298,12 @@ LogResult stream(Producer)(
     size_t written;
     if (payloadAccepted)
     {
-        auto writer = createLogMessageWriter(
+        auto writer = LogMessageWriter.create(
             &record,
             logger.messageBuffer_,
         );
         producer(writer);
-        payloadAccepted = writer.finish();
+        payloadAccepted = writer.try_finish();
         written = writer.written;
     }
 

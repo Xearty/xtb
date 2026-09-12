@@ -2,12 +2,12 @@ module xtb.log.message_writer;
 
 nothrow @nogc:
 
-import xtb.log.internal.sgr : SGRParseKind, max_supported_sgr_length,
-    parse_sgr_prefix, safe_sgr_prefix_length;
-import xtb.log.sink : LogRecordRef;
-import xtb.fmt.writer : Writer;
-import xtb.types : String;
-import xtb.types : u8;
+import core.attribute;
+
+import xtb.fmt.writer;
+import xtb.log.internal.sgr;
+import xtb.log.sink;
+import xtb.types;
 
 /// A synchronous, allocation-free writer for one already-begun log message.
 ///
@@ -19,25 +19,34 @@ import xtb.types : u8;
 /// explicitly finished.
 ///
 /// The writer owns neither its resolved record nor its staging storage. A valid
-/// writer is created by the logging package for the duration of a synchronous message
-/// producer and must not escape that producer.
-struct LogMessageWriter
+/// writer is created by the logging package for the duration of a synchronous
+/// message producer and must not escape that producer.
+@mustuse struct LogMessageWriter
 {
 nothrow @nogc:
 
-    private LogRecordRef* record_;
-    private char[] staging_;
-    private char[max_supported_sgr_length] sgrCarry_;
-    private size_t staged_;
-    private size_t sgrCarryLength_;
-    private size_t written_;
-    private bool failed_;
+    LogRecordRef* record;
+    char[] staging;
+    char[max_supported_sgr_length] sgr_carry;
+    usize staged;
+    usize sgr_carry_length;
+    usize written;
+    bool write_failed;
 
     @disable this(this);
 
+    package static LogMessageWriter create(LogRecordRef* record, return scope char[] staging)
+    {
+        LogMessageWriter result;
+        result.record = record;
+        result.staging = staging;
+        result.write_failed = record is null || !(*record).valid;
+        return result;
+    }
+
     bool failed() const pure @safe
     {
-        return failed_ || record_ is null || !(*record_).valid;
+        return this.write_failed || this.record is null || !(*this.record).valid;
     }
 
     /// Appends borrowed message bytes synchronously.
@@ -47,19 +56,18 @@ nothrow @nogc:
     /// writes are no-ops.
     void write(scope String text)
     {
-        if (failed || text.length == 0)
-            return;
+        if (this.failed || text.length == 0) return;
 
-        size_t offset;
-        while (offset < text.length && !failed_)
+        usize offset;
+        while (offset < text.length && !this.write_failed)
         {
-            if (sgrCarryLength_ != 0)
+            if (this.sgr_carry_length != 0)
             {
-                resolveSgrCarry(text, &offset);
+                this.resolve_sgr_carry(text, &offset);
                 continue;
             }
 
-            writeWithoutCarry(text, &offset);
+            this.write_without_carry(text, &offset);
         }
     }
 
@@ -71,194 +79,166 @@ nothrow @nogc:
     /// staging and SGR-safe message chunk boundaries.
     Writer writer() return @trusted
     {
-        return Writer.from_sink(
-            &logMessageWriterSink,
-            cast(void*)&this,
-        );
+        return Writer.from_sink(&log_message_writer_sink, cast(void*)&this);
     }
 
     /// Emits every currently safe staged prefix.
     ///
     /// A trailing incomplete supported SGR sequence is deliberately retained so
     /// a later `write` can complete it without creating an unsafe chunk boundary.
-    bool flush()
+    bool try_flush()
     {
-        if (failed)
-            return false;
-        flushStaging();
-        return !failed_;
-    }
+        if (this.failed) return false;
 
-    package size_t written() const pure @safe
-    {
-        return written_;
+        this.flush_staging();
+        return !this.write_failed;
     }
 
     /// Finishes the producer side of the message.
     ///
-    /// Unlike `flush`, the final incomplete SGR suffix is emitted literally: no
-    /// later chunk can complete it, so doing so does not split a sequence across
-    /// chunk boundaries.
-    package bool finish()
+    /// Unlike `try_flush`, the final incomplete SGR suffix is emitted literally:
+    /// no later chunk can complete it, so doing so does not split a sequence
+    /// across chunk boundaries.
+    package bool try_finish()
     {
-        if (failed)
-            return false;
+        if (this.failed) return false;
 
-        flushStaging();
-        if (failed_)
-            return false;
+        this.flush_staging();
+        if (this.write_failed) return false;
 
-        if (sgrCarryLength_ != 0)
+        if (this.sgr_carry_length != 0)
         {
-            emitChunk(sgrCarry_[0 .. sgrCarryLength_]);
-            sgrCarryLength_ = 0;
+            this.emit_chunk(this.sgr_carry[0 .. this.sgr_carry_length]);
+            this.sgr_carry_length = 0;
         }
-        return !failed_;
+
+        return !this.write_failed;
     }
 
-    private void writeWithoutCarry(scope String text, size_t* offset)
+    private void write_without_carry(scope String text, usize* offset)
     {
         const remaining = text[*offset .. $];
 
-        if (staging_.length == 0)
+        if (this.staging.length == 0)
         {
-            emitDirect(remaining, offset);
+            this.emit_direct(remaining, offset);
             return;
         }
 
         // Preserve the zero-copy path for a large borrowed slice instead of
         // filling the remainder of a partially occupied staging buffer first.
-        if (staged_ != 0 && remaining.length >= staging_.length)
+        if (this.staged != 0 && remaining.length >= this.staging.length)
         {
-            flushStaging();
+            this.flush_staging();
             return;
         }
 
-        if (staged_ == 0 && remaining.length >= staging_.length)
+        if (this.staged == 0 && remaining.length >= this.staging.length)
         {
-            emitDirect(remaining, offset);
+            this.emit_direct(remaining, offset);
             return;
         }
 
-        const available = staging_.length - staged_;
+        const available = this.staging.length - this.staged;
         const amount = available < remaining.length ? available : remaining.length;
         foreach (index; 0 .. amount)
-            staging_[staged_ + index] = remaining[index];
-        staged_ += amount;
+            this.staging[this.staged + index] = remaining[index];
+
+        this.staged += amount;
         *offset += amount;
 
-        if (staged_ == staging_.length)
-            flushStaging();
+        if (this.staged == this.staging.length) this.flush_staging();
     }
 
-    private void emitDirect(scope String text, size_t* offset)
+    private void emit_direct(scope String text, usize* offset)
     {
-        const safeLength = safe_sgr_prefix_length(text);
-        if (safeLength != 0)
-            emitChunk(text[0 .. safeLength]);
-        if (failed_)
-            return;
+        const usize safe_length = safe_sgr_prefix_length(text);
+        if (safe_length != 0) this.emit_chunk(text[0 .. safe_length]);
+        if (this.write_failed) return;
 
-        *offset += safeLength;
-        if (safeLength == text.length)
-            return;
+        *offset += safe_length;
+        if (safe_length == text.length) return;
 
-        const suffix = text[safeLength .. $];
-        if (!storeSgrCarry(suffix))
-            return;
+        const suffix = text[safe_length .. $];
+        if (!this.try_store_sgr_carry(suffix)) return;
+
         *offset += suffix.length;
     }
 
-    private void flushStaging()
+    private void flush_staging()
     {
-        if (failed_ || staged_ == 0)
+        if (this.write_failed || this.staged == 0) return;
+
+        const bytes = cast(String) this.staging[0 .. this.staged];
+        const usize safe_length = safe_sgr_prefix_length(bytes);
+        if (safe_length != this.staged && !this.try_store_sgr_carry(bytes[safe_length .. $]))
             return;
 
-        const bytes = cast(String) staging_[0 .. staged_];
-        const safeLength = safe_sgr_prefix_length(bytes);
-        if (safeLength != staged_ && !storeSgrCarry(bytes[safeLength .. $]))
-            return;
-
-        if (safeLength != 0)
-            emitChunk(bytes[0 .. safeLength]);
-        staged_ = 0;
+        if (safe_length != 0) this.emit_chunk(bytes[0 .. safe_length]);
+        this.staged = 0;
     }
 
-    private bool storeSgrCarry(scope String suffix)
+    private bool try_store_sgr_carry(scope String suffix)
     {
-        if (sgrCarryLength_ != 0 || suffix.length > sgrCarry_.length)
+        if (this.sgr_carry_length != 0 || suffix.length > this.sgr_carry.length)
         {
-            failed_ = true;
+            this.write_failed = true;
             return false;
         }
 
         foreach (index; 0 .. suffix.length)
-            sgrCarry_[index] = suffix[index];
-        sgrCarryLength_ = suffix.length;
+            this.sgr_carry[index] = suffix[index];
+
+        this.sgr_carry_length = suffix.length;
         return true;
     }
 
-    private void resolveSgrCarry(scope String text, size_t* offset)
+    private void resolve_sgr_carry(scope String text, usize* offset)
     {
-        while (*offset < text.length && !failed_ && sgrCarryLength_ != 0)
+        while (*offset < text.length && !this.write_failed && this.sgr_carry_length != 0)
         {
-            if (sgrCarryLength_ == sgrCarry_.length)
+            if (this.sgr_carry_length == this.sgr_carry.length)
             {
-                failed_ = true;
+                this.write_failed = true;
                 return;
             }
 
-            sgrCarry_[sgrCarryLength_++] = text[(*offset)++];
-            const parsed = parse_sgr_prefix(sgrCarry_[0 .. sgrCarryLength_]);
-            if (parsed.kind == SGRParseKind.incomplete)
-                continue;
+            this.sgr_carry[this.sgr_carry_length++] = text[(*offset)++];
+            const SGRParseResult parsed = parse_sgr_prefix(
+                this.sgr_carry[0 .. this.sgr_carry_length],
+            );
+            if (parsed.kind == SGRParseKind.incomplete) continue;
 
-            emitChunk(sgrCarry_[0 .. sgrCarryLength_]);
-            sgrCarryLength_ = 0;
+            this.emit_chunk(this.sgr_carry[0 .. this.sgr_carry_length]);
+            this.sgr_carry_length = 0;
         }
     }
 
-    private void emitChunk(scope String bytes)
+    private void emit_chunk(scope String bytes)
     {
-        if (failed_ || bytes.length == 0)
-            return;
-        if (bytes.length > size_t.max - written_)
+        if (this.write_failed || bytes.length == 0) return;
+
+        if (bytes.length > usize.max - this.written)
         {
-            failed_ = true;
+            this.write_failed = true;
             return;
         }
 
-        if (!(*record_).try_message_chunk(bytes))
+        if (!(*this.record).try_message_chunk(bytes))
         {
-            failed_ = true;
+            this.write_failed = true;
             return;
         }
-        written_ += bytes.length;
+
+        this.written += bytes.length;
     }
 }
 
-private size_t logMessageWriterSink(
-    void* context,
-    scope const(u8)[] bytes,
-)
-@trusted
+private usize log_message_writer_sink(void* context, scope const(u8)[] bytes) @trusted
 {
     LogMessageWriter* writer = cast(LogMessageWriter*) context;
-    if (writer is null || writer.failed)
-        return 0;
+    if (writer is null || writer.failed) return 0;
 
     writer.write(cast(String) bytes);
     return writer.failed ? 0 : bytes.length;
-}
-
-package LogMessageWriter createLogMessageWriter(
-    LogRecordRef* record,
-    return scope char[] staging,
-)
-{
-    LogMessageWriter result;
-    result.record_ = record;
-    result.staging_ = staging;
-    result.failed_ = record is null || !(*record).valid;
-    return result;
 }

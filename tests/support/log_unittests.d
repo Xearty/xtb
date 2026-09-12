@@ -7,7 +7,6 @@ import xtb.ansi : ANSIColor, ANSIStyle, ansi_reset_sequence, ansi_sequence;
 import xtb.log;
 import xtb.log.internal.sgr : SGRParseKind, max_supported_sgr_length, parse_sgr_prefix, safe_sgr_prefix_length;
 import xtb.log.file_sink : fileFlush;
-import xtb.log.message_writer : createLogMessageWriter;
 import xtb.string;
 import xtb.types : String;
 
@@ -120,7 +119,7 @@ version (unittest)
     {
         if (!beginTestMessage(sink, info, record))
             return LogMessageWriter.init;
-        return createLogMessageWriter(record, staging);
+        return LogMessageWriter.create(record, staging);
     }
 
     private struct ChunkCounter
@@ -758,7 +757,7 @@ unittest
     writer.write("ab");
     writer.write("cd");
     assert(capture.count == 0);
-    assert(writer.flush());
+    assert(writer.try_flush());
     assert(capture.count == 1);
     assertEvent(capture, 0, LogSinkEventKind.message_chunk, "abcd");
     assert(capture.events[0].style == style);
@@ -776,7 +775,7 @@ unittest
     assertEvent(capture, 2, LogSinkEventKind.message_chunk, large);
     assert(capture.events[2].source is large.ptr);
     assert(writer.written == 12 + large.length);
-    assert(writer.finish());
+    assert(writer.try_finish());
     assert(!writer.failed);
 }
 
@@ -804,7 +803,7 @@ unittest
     assertEvent(capture, 0, LogSinkEventKind.message_chunk, "ab");
     assertEvent(capture, 1, LogSinkEventKind.message_chunk, large);
     assert(capture.events[1].source is large.ptr);
-    assert(writer.finish());
+    assert(writer.try_finish());
 }
 
 // Streaming remains useful with no staging storage: complete borrowed text is
@@ -827,14 +826,14 @@ unittest
 
     writer.write("\x1b[3");
     assert(capture.count == 1);
-    assert(writer.flush());
+    assert(writer.try_flush());
     assert(capture.count == 1);
 
     writer.write("1mred");
     assert(capture.count == 3);
     assertEvent(capture, 1, LogSinkEventKind.message_chunk, "\x1b[31m");
     assertEvent(capture, 2, LogSinkEventKind.message_chunk, "red");
-    assert(writer.finish());
+    assert(writer.try_finish());
 }
 
 // Buffer flushes also preserve SGR sequences when the artificial staging
@@ -854,12 +853,12 @@ unittest
     );
 
     writer.write("\x1b[3");
-    assert(writer.flush());
+    assert(writer.try_flush());
     assert(capture.count == 0);
     writer.write("1mX");
     assert(capture.count == 1);
     assertEvent(capture, 0, LogSinkEventKind.message_chunk, "\x1b[31m");
-    assert(writer.finish());
+    assert(writer.try_finish());
     assert(capture.count == 2);
     assertEvent(capture, 1, LogSinkEventKind.message_chunk, "X");
 
@@ -872,7 +871,7 @@ unittest
         staging[],
     );
     finalWriter.write("A\x1b[");
-    assert(finalWriter.finish());
+    assert(finalWriter.try_finish());
     assert(capture.count == 2);
     assertEvent(capture, 0, LogSinkEventKind.message_chunk, "A");
     assertEvent(capture, 1, LogSinkEventKind.message_chunk, "\x1b[");
@@ -893,14 +892,14 @@ unittest
         staging[],
     );
     writer.write("");
-    assert(writer.finish());
+    assert(writer.try_finish());
     assert(writer.written == 0);
     assert(capture.count == 0);
 
     LogMessageWriter invalid;
     assert(invalid.failed);
     invalid.write("ignored");
-    assert(!invalid.flush());
+    assert(!invalid.try_flush());
     assert(capture.count == 0);
 }
 
@@ -931,8 +930,8 @@ unittest
     assert(capture.count == 2);
 
     writer.write("ignored");
-    assert(!writer.flush());
-    assert(!writer.finish());
+    assert(!writer.try_flush());
+    assert(!writer.try_finish());
     assert(capture.count == 2);
 }
 
@@ -964,7 +963,7 @@ unittest
     formatter.write(StreamFormatProbe(7));
 
     assert(capture.count == 0);
-    assert(writer.finish());
+    assert(writer.try_finish());
     assert(capture.count == 1);
     assertEvent(
         capture,
@@ -1003,7 +1002,7 @@ unittest
     assert(counter.bytes == borrowed.length);
     assert(counter.source is borrowed.ptr);
     assert(writer.written == borrowed.length);
-    assert(writer.finish());
+    assert(writer.try_finish());
 }
 
 // A rejection reached through the print adapter becomes the same sticky writer
@@ -1035,7 +1034,7 @@ unittest
     formatter.write(42);
     writer.write("ignored");
     assert(counter.calls == 1);
-    assert(!writer.finish());
+    assert(!writer.try_finish());
 }
 
 // Pretty printing needs no logging-specific formatter. `PrettyValue.format_to`
@@ -1106,7 +1105,7 @@ unittest
     formatter.write(probe.pretty(options));
 
     assert(formatter.ok);
-    assert(writer.finish());
+    assert(writer.try_finish());
     assert(!writer.failed);
     assert(counter.calls == 1);
     assert(counter.bytes == payload.length);
