@@ -47,7 +47,7 @@ nothrow @nogc:
         result.minimumLevel_ = minimumLevel;
         result.palette_ = palette;
         result.levelLabels_ = LogLevelLabels.defaults();
-        result.maximumLevelLabelWidth_ = result.levelLabels_.maximumWidth;
+        result.maximumLevelLabelWidth_ = result.levelLabels_.maximum_width;
         result.messageAlignmentEnabled_ = true;
         return result;
     }
@@ -140,7 +140,7 @@ void setPalette(ref Logger logger, LogPalettePreset preset)
 void setLevelLabels(ref Logger logger, LogLevelLabels labels)
 {
     logger.levelLabels_ = labels;
-    logger.maximumLevelLabelWidth_ = labels.maximumWidth;
+    logger.maximumLevelLabelWidth_ = labels.maximum_width;
 }
 
 /// Selects a built-in level-label set.
@@ -186,7 +186,7 @@ private LogRecordInfo recordInfo(ref const Logger logger, LogLevel level)
 pure @safe
 {
     const style = logger.palette_.styleFor(level);
-    const label = logger.levelLabels_.labelFor(level);
+    const label = logger.levelLabels_.label_for(level);
     return LogRecordInfo(
         level,
         label,

@@ -196,7 +196,7 @@ extern (C) int main() nothrow @nogc
     // labels are complete presentation tokens and may use arbitrary spellings.
     if (!terminalSection(terminalFile, "level label presets and customization"))
         return 1;
-    terminal.setLevelLabels(LogLevelLabelPreset.threeLetter);
+    terminal.setLevelLabels(LogLevelLabelPreset.three_letter);
     if (!terminal.logEveryLevel("three-letter labels"))
         return 1;
 

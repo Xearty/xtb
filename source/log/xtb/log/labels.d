@@ -2,17 +2,17 @@ module xtb.log.labels;
 
 nothrow @nogc:
 
-import xtb.log.level : LogLevel;
-import xtb.types : String;
+import xtb.log.level;
+import xtb.types;
 
 /// Built-in level-label spellings.
 ///
-/// `full` uses the ordinary lowercase level names. `threeLetter` uses compact
+/// `full` uses the ordinary lowercase level names. `three_letter` uses compact
 /// uppercase abbreviations. Each preset includes the surrounding brackets.
-enum LogLevelLabelPreset : ubyte
+enum LogLevelLabelPreset : u8
 {
     full,
-    threeLetter,
+    three_letter,
 }
 
 /// Complete presentation labels selected by log level.
@@ -32,8 +32,7 @@ nothrow @nogc:
     String fatal;
 
     /// Returns one of the built-in label sets.
-    static LogLevelLabels preset(LogLevelLabelPreset preset)
-    pure @safe
+    static LogLevelLabels preset(LogLevelLabelPreset preset) pure @safe
     {
         final switch (preset)
         {
@@ -46,60 +45,46 @@ nothrow @nogc:
                     "[error]",
                     "[fatal]",
                 );
-            case LogLevelLabelPreset.threeLetter:
-                return LogLevelLabels(
-                    "[TRC]",
-                    "[DBG]",
-                    "[INF]",
-                    "[WRN]",
-                    "[ERR]",
-                    "[FTL]",
-                );
+            case LogLevelLabelPreset.three_letter:
+                return LogLevelLabels("[TRC]", "[DBG]", "[INF]", "[WRN]", "[ERR]", "[FTL]");
         }
     }
 
     /// Returns the ordinary full-name label set.
-    static LogLevelLabels defaults()
-    pure @safe
+    static LogLevelLabels defaults() pure @safe
     {
-        return preset(LogLevelLabelPreset.full);
+        return LogLevelLabels.preset(LogLevelLabelPreset.full);
     }
 
-    String labelFor(LogLevel level) const
-    pure @safe
+    String label_for(LogLevel level) const pure @safe
     {
         final switch (level)
         {
             case LogLevel.trace:
-                return trace;
+                return this.trace;
             case LogLevel.debug_:
-                return debug_;
+                return this.debug_;
             case LogLevel.info:
-                return info;
+                return this.info;
             case LogLevel.warning:
-                return warning;
+                return this.warning;
             case LogLevel.error:
-                return error;
+                return this.error;
             case LogLevel.fatal:
-                return fatal;
+                return this.fatal;
         }
     }
 
     /// Returns the widest configured label in bytes.
-    size_t maximumWidth() const
-    pure @safe
+    usize maximum_width() const pure @safe
     {
-        size_t result = trace.length;
-        if (debug_.length > result)
-            result = debug_.length;
-        if (info.length > result)
-            result = info.length;
-        if (warning.length > result)
-            result = warning.length;
-        if (error.length > result)
-            result = error.length;
-        if (fatal.length > result)
-            result = fatal.length;
+        usize result = this.trace.length;
+        if (this.debug_.length > result) result = this.debug_.length;
+        if (this.info.length > result) result = this.info.length;
+        if (this.warning.length > result) result = this.warning.length;
+        if (this.error.length > result) result = this.error.length;
+        if (this.fatal.length > result) result = this.fatal.length;
+
         return result;
     }
 }
@@ -109,16 +94,16 @@ unittest
     import xtb.string;
 
     const full = LogLevelLabels.defaults();
-    assert(full.labelFor(LogLevel.trace).equal("[trace]"));
-    assert(full.labelFor(LogLevel.fatal).equal("[fatal]"));
-    assert(full.maximumWidth == "[warning]".length);
+    assert(full.label_for(LogLevel.trace).equal("[trace]"));
+    assert(full.label_for(LogLevel.fatal).equal("[fatal]"));
+    assert(full.maximum_width == "[warning]".length);
 
-    const compact = LogLevelLabels.preset(LogLevelLabelPreset.threeLetter);
-    assert(compact.labelFor(LogLevel.trace).equal("[TRC]"));
-    assert(compact.labelFor(LogLevel.debug_).equal("[DBG]"));
-    assert(compact.labelFor(LogLevel.info).equal("[INF]"));
-    assert(compact.labelFor(LogLevel.warning).equal("[WRN]"));
-    assert(compact.labelFor(LogLevel.error).equal("[ERR]"));
-    assert(compact.labelFor(LogLevel.fatal).equal("[FTL]"));
-    assert(compact.maximumWidth == "[TRC]".length);
+    const compact = LogLevelLabels.preset(LogLevelLabelPreset.three_letter);
+    assert(compact.label_for(LogLevel.trace).equal("[TRC]"));
+    assert(compact.label_for(LogLevel.debug_).equal("[DBG]"));
+    assert(compact.label_for(LogLevel.info).equal("[INF]"));
+    assert(compact.label_for(LogLevel.warning).equal("[WRN]"));
+    assert(compact.label_for(LogLevel.error).equal("[ERR]"));
+    assert(compact.label_for(LogLevel.fatal).equal("[FTL]"));
+    assert(compact.maximum_width == "[TRC]".length);
 }

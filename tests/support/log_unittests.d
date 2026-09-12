@@ -1226,8 +1226,8 @@ unittest
     // Label spelling is independent from severity styling and alignment. The
     // built-in three-letter set needs no alignment padding beyond one space.
     assert(logger.levelLabels == LogLevelLabels.defaults());
-    logger.setLevelLabels(LogLevelLabelPreset.threeLetter);
-    assert(logger.levelLabels == LogLevelLabels.preset(LogLevelLabelPreset.threeLetter));
+    logger.setLevelLabels(LogLevelLabelPreset.three_letter);
+    assert(logger.levelLabels == LogLevelLabels.preset(LogLevelLabelPreset.three_letter));
     capture.clear();
     result = logger.info("compact label");
     assert(result.delivered);
@@ -1261,7 +1261,7 @@ unittest
         defaults.info.label,
         defaults.info.message,
         true,
-        customLabels.maximumWidth,
+        customLabels.maximum_width,
     );
 
     // Padding is not capped by the static block used for each framing write.
