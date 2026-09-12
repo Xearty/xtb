@@ -36,17 +36,17 @@ nothrow @nogc:
     {
         final switch (preset)
         {
-            case LogLevelLabelPreset.full:
-                return LogLevelLabels(
-                    "[trace]",
-                    "[debug]",
-                    "[info]",
-                    "[warning]",
-                    "[error]",
-                    "[fatal]",
-                );
-            case LogLevelLabelPreset.three_letter:
-                return LogLevelLabels("[TRC]", "[DBG]", "[INF]", "[WRN]", "[ERR]", "[FTL]");
+        case LogLevelLabelPreset.full:
+            return LogLevelLabels(
+                "[trace]",
+                "[debug]",
+                "[info]",
+                "[warning]",
+                "[error]",
+                "[fatal]",
+            );
+        case LogLevelLabelPreset.three_letter:
+            return LogLevelLabels("[TRC]", "[DBG]", "[INF]", "[WRN]", "[ERR]", "[FTL]");
         }
     }
 
@@ -60,18 +60,18 @@ nothrow @nogc:
     {
         final switch (level)
         {
-            case LogLevel.trace:
-                return this.trace;
-            case LogLevel.debug_:
-                return this.debug_;
-            case LogLevel.info:
-                return this.info;
-            case LogLevel.warning:
-                return this.warning;
-            case LogLevel.error:
-                return this.error;
-            case LogLevel.fatal:
-                return this.fatal;
+        case LogLevel.trace:
+            return this.trace;
+        case LogLevel.debug_:
+            return this.debug_;
+        case LogLevel.info:
+            return this.info;
+        case LogLevel.warning:
+            return this.warning;
+        case LogLevel.error:
+            return this.error;
+        case LogLevel.fatal:
+            return this.fatal;
         }
     }
 
