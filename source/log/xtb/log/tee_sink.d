@@ -2,196 +2,193 @@ module xtb.log.tee_sink;
 
 nothrow @nogc:
 
-import xtb.log.sink : LogRecordInfo, LogRecordRef,
-    LogSinkEvent, LogSinkEventKind, LogSinkRef, LogSourceLocation;
+import xtb.log.sink;
 
 /// A stateful two-way fan-out sink over borrowed child sink references.
 ///
 /// Each child graph is resolved exactly once when a record begins. The tee then
 /// remains in the record path only because fan-out itself is genuine per-write
-/// work. Branch failures are remembered until `end_record`: a failed branch
+/// work. Branch failures are remembered until `try_end_record`: a failed branch
 /// stops receiving ordinary payload, while a healthy branch continues the
 /// record and every branch that successfully began a message/record still
 /// receives the matching finalization operation.
 ///
-/// `TeeLogSink` owns no child sink or destination. Once `sinkRef()` has been
+/// `TeeLogSink` owns no child sink or destination. Once `sink_ref()` has been
 /// taken, the tee value must remain at a stable address and outlive every use of
 /// that reference.
 struct TeeLogSink
 {
 nothrow @nogc:
 
-    private LogSinkRef first_;
-    private LogSinkRef second_;
-    private LogRecordRef firstRecord_;
-    private LogRecordRef secondRecord_;
-    private bool inRecord_;
-    private bool firstRecordBegan_;
-    private bool secondRecordBegan_;
-    private bool firstHealthy_;
-    private bool secondHealthy_;
-    private bool recordFailed_;
+    // Child references are borrowed; active record state is valid only while
+    // `in_record` is true and is reset when that record is finalized.
+    LogSinkRef first;
+    LogSinkRef second;
+    LogRecordRef first_record;
+    LogRecordRef second_record;
+    bool in_record;
+    bool first_record_began;
+    bool second_record_began;
+    bool first_healthy;
+    bool second_healthy;
+    bool record_failed;
 
     @disable this(this);
 
-    static TeeLogSink create(LogSinkRef first, LogSinkRef second)
+    static TeeLogSink create(LogSinkRef first, LogSinkRef second) @safe
     {
         TeeLogSink result;
-        result.first_ = first;
-        result.second_ = second;
+        result.first = first;
+        result.second = second;
         return result;
     }
 
     bool valid() const pure @safe
     {
-        return first_.valid && second_.valid;
+        return this.first.valid && this.second.valid;
     }
 
     /// Returns a borrowed sink reference backed by this tee.
-    LogSinkRef sinkRef() return @trusted
+    LogSinkRef sink_ref() return @trusted
     {
+        // All @system callbacks receive exactly &this as their opaque context.
+        // `return` prevents the resulting sink reference from outliving this tee.
         return LogSinkRef.create(
-            &resolveTeeRecord,
-            cast(void*)&this,
-            &teeLogFlushCallback,
+            &resolve_tee_record,
+            &this,
+            &try_flush_tee,
         );
     }
 }
 
-private LogRecordRef resolveTeeRecord(
+private LogRecordRef resolve_tee_record(
     void* context,
-    scope return const ref LogRecordInfo info,
-    scope return const(LogSourceLocation)* callsite,
-)
+    return scope const ref LogRecordInfo info,
+    return scope const(LogSourceLocation)* callsite,
+) @system
 {
     TeeLogSink* tee = cast(TeeLogSink*) context;
-    if (tee is null || !tee.valid || tee.inRecord_)
-        return LogRecordRef.init;
+    if (tee is null || !tee.valid || tee.in_record) return LogRecordRef.init;
 
-    tee.inRecord_ = true;
-    tee.recordFailed_ = false;
+    tee.in_record = true;
+    tee.record_failed = false;
 
-    tee.firstRecord_ = tee.first_.begin_record(info, callsite);
-    tee.firstRecordBegan_ = tee.firstRecord_.valid;
-    tee.firstHealthy_ = tee.firstRecordBegan_;
-    tee.secondRecord_ = tee.second_.begin_record(info, callsite);
-    tee.secondRecordBegan_ = tee.secondRecord_.valid;
-    tee.secondHealthy_ = tee.secondRecordBegan_;
-    tee.recordFailed_ = !tee.firstHealthy_ || !tee.secondHealthy_;
+    tee.first_record = tee.first.begin_record(info, callsite);
+    tee.first_record_began = tee.first_record.valid;
+    tee.first_healthy = tee.first_record_began;
+    tee.second_record = tee.second.begin_record(info, callsite);
+    tee.second_record_began = tee.second_record.valid;
+    tee.second_healthy = tee.second_record_began;
+    tee.record_failed = !tee.first_healthy || !tee.second_healthy;
 
-    // Child setup failures are deliberately deferred until end_record so a
+    // Child setup failures are deliberately deferred until try_end_record so a
     // healthy branch still receives the complete logical record.
     return LogRecordRef.create(
-        &teeRecordCallback,
-        cast(void*) tee,
+        &try_tee_record_event,
+        tee,
         info,
         callsite,
     );
 }
 
-private bool teeRecordCallback(void* context, scope const LogSinkEvent* event)
+private bool try_tee_record_event(void* context, scope const LogSinkEvent* event) @system
 {
     TeeLogSink* tee = cast(TeeLogSink*) context;
-    if (tee is null || event is null || !tee.inRecord_)
-        return false;
+    if (tee is null || event is null || !tee.in_record) return false;
 
     final switch (event.kind)
     {
-        case LogSinkEventKind.begin_record:
-            return false;
-        case LogSinkEventKind.text:
-        case LogSinkEventKind.message_chunk:
+    case LogSinkEventKind.begin_record:
+        return false;
+    case LogSinkEventKind.text:
+    case LogSinkEventKind.message_chunk:
+    {
+        bool first_accepted = true;
+        if (tee.first_healthy)
         {
-            bool firstAccepted = true;
-            if (tee.firstHealthy_)
-            {
-                firstAccepted = event.kind == LogSinkEventKind.message_chunk
-                    ? tee.firstRecord_.try_message_chunk(event.bytes)
-                    : tee.firstRecord_.try_submit(event);
-                if (!firstAccepted)
-                    tee.firstHealthy_ = false;
-            }
+            first_accepted = event.kind == LogSinkEventKind.message_chunk
+                ? tee.first_record.try_message_chunk(event.bytes)
+                : tee.first_record.try_submit(event);
+            if (!first_accepted) tee.first_healthy = false;
+        }
 
-            bool secondAccepted = true;
-            if (tee.secondHealthy_)
-            {
-                secondAccepted = event.kind == LogSinkEventKind.message_chunk
-                    ? tee.secondRecord_.try_message_chunk(event.bytes)
-                    : tee.secondRecord_.try_submit(event);
-                if (!secondAccepted)
-                    tee.secondHealthy_ = false;
-            }
+        bool second_accepted = true;
+        if (tee.second_healthy)
+        {
+            second_accepted = event.kind == LogSinkEventKind.message_chunk
+                ? tee.second_record.try_message_chunk(event.bytes)
+                : tee.second_record.try_submit(event);
+            if (!second_accepted) tee.second_healthy = false;
+        }
 
-            tee.recordFailed_ = tee.recordFailed_ || !firstAccepted || !secondAccepted;
-            return true;
-        }
-        case LogSinkEventKind.begin_message:
+        tee.record_failed = tee.record_failed || !first_accepted || !second_accepted;
+        return true;
+    }
+    case LogSinkEventKind.begin_message:
+    {
+        if (tee.first_healthy && !tee.first_record.try_begin_message())
         {
-            if (tee.firstHealthy_ && !tee.firstRecord_.try_begin_message())
-            {
-                tee.firstHealthy_ = false;
-                tee.recordFailed_ = true;
-            }
-            if (tee.secondHealthy_ && !tee.secondRecord_.try_begin_message())
-            {
-                tee.secondHealthy_ = false;
-                tee.recordFailed_ = true;
-            }
-            return true;
+            tee.first_healthy = false;
+            tee.record_failed = true;
         }
-        case LogSinkEventKind.end_message:
+        if (tee.second_healthy && !tee.second_record.try_begin_message())
         {
-            if (tee.firstRecordBegan_ && tee.firstRecord_.message_open)
-            {
-                if (!tee.firstRecord_.try_end_message())
-                {
-                    tee.firstHealthy_ = false;
-                    tee.recordFailed_ = true;
-                }
-            }
-            if (tee.secondRecordBegan_ && tee.secondRecord_.message_open)
-            {
-                if (!tee.secondRecord_.try_end_message())
-                {
-                    tee.secondHealthy_ = false;
-                    tee.recordFailed_ = true;
-                }
-            }
-            return true;
+            tee.second_healthy = false;
+            tee.record_failed = true;
         }
-        case LogSinkEventKind.end_record:
+        return true;
+    }
+    case LogSinkEventKind.end_message:
+    {
+        if (tee.first_record_began && tee.first_record.message_open)
         {
-            if (tee.firstRecordBegan_)
+            if (!tee.first_record.try_end_message())
             {
-                if (!tee.firstRecord_.try_end_record())
-                    tee.recordFailed_ = true;
-                tee.firstRecordBegan_ = false;
+                tee.first_healthy = false;
+                tee.record_failed = true;
             }
-            if (tee.secondRecordBegan_)
+        }
+        if (tee.second_record_began && tee.second_record.message_open)
+        {
+            if (!tee.second_record.try_end_message())
             {
-                if (!tee.secondRecord_.try_end_record())
-                    tee.recordFailed_ = true;
-                tee.secondRecordBegan_ = false;
+                tee.second_healthy = false;
+                tee.record_failed = true;
             }
+        }
+        return true;
+    }
+    case LogSinkEventKind.end_record:
+    {
+        if (tee.first_record_began)
+        {
+            if (!tee.first_record.try_end_record()) tee.record_failed = true;
+            tee.first_record_began = false;
+        }
+        if (tee.second_record_began)
+        {
+            if (!tee.second_record.try_end_record()) tee.record_failed = true;
+            tee.second_record_began = false;
+        }
 
-            const accepted = !tee.recordFailed_;
-            tee.inRecord_ = false;
-            tee.firstHealthy_ = false;
-            tee.secondHealthy_ = false;
-            tee.recordFailed_ = false;
-            tee.firstRecord_ = LogRecordRef.init;
-            tee.secondRecord_ = LogRecordRef.init;
-            return accepted;
-        }
+        const bool accepted = !tee.record_failed;
+        tee.in_record = false;
+        tee.first_healthy = false;
+        tee.second_healthy = false;
+        tee.record_failed = false;
+        tee.first_record = LogRecordRef.init;
+        tee.second_record = LogRecordRef.init;
+        return accepted;
+    }
     }
 }
 
-private bool teeLogFlushCallback(void* context)
+private bool try_flush_tee(void* context) @system
 {
     TeeLogSink* tee = cast(TeeLogSink*) context;
-    if (tee is null)
-        return false;
-    const firstAccepted = tee.first_.try_flush();
-    const secondAccepted = tee.second_.try_flush();
-    return firstAccepted && secondAccepted;
+    if (tee is null) return false;
+
+    const bool first_accepted = tee.first.try_flush();
+    const bool second_accepted = tee.second.try_flush();
+    return first_accepted && second_accepted;
 }

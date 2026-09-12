@@ -380,7 +380,7 @@ unittest
         plainFileLogSink(plainFile),
     );
     PrefixLogSink sharedPrefix = PrefixLogSink.create(
-        sharedOutputs.sinkRef(),
+        sharedOutputs.sink_ref(),
         sharedTimestamp.prefixRef(),
     );
     char[128] storage;
@@ -424,7 +424,7 @@ unittest
         timestampedFile.sink_ref(),
     );
     Logger splitLogger = Logger.create(
-        splitOutputs.sinkRef(),
+        splitOutputs.sink_ref(),
         storage[],
         LogLevel.info,
     );

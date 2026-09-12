@@ -432,7 +432,7 @@ extern (C) int main() nothrow @nogc
     );
     char[256] teeStorage;
     Logger teeLogger = Logger.create(
-        tee.sinkRef(),
+        tee.sink_ref(),
         teeStorage[],
         LogLevel.info,
     );

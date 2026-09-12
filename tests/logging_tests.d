@@ -80,14 +80,14 @@ extern (C) int main() nothrow @nogc
     );
     TeeLogSink outputs = TeeLogSink.create(
         ansiFileLogSink(terminal),
-        plainFiles.sinkRef(),
+        plainFiles.sink_ref(),
     );
     FixedPrefix sharedPrefix = FixedPrefix(
         "shared ",
         ANSIStyle.foreground(ANSIColor.bright_black).dim,
     );
     PrefixLogSink sharedOutput = PrefixLogSink.create(
-        outputs.sinkRef(),
+        outputs.sink_ref(),
         LogPrefixRef.create(&writeFixedPrefix, &sharedPrefix),
     );
 
@@ -161,7 +161,7 @@ extern (C) int main() nothrow @nogc
         plainFileLogSink(sourceFile),
     );
     char[256] sourceStorage;
-    Logger sourceLogger = Logger.create(sourceOutputs.sinkRef(), sourceStorage[]);
+    Logger sourceLogger = Logger.create(sourceOutputs.sink_ref(), sourceStorage[]);
     sourceLogger.setCallsitesEnabled(true);
     const sourceFunction = cast(String) __FUNCTION__;
     const sourceLine = __LINE__ + 1;

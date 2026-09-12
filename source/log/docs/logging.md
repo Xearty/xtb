@@ -71,7 +71,7 @@ TeeLogSink sinks = TeeLogSink.create(
 );
 
 char[512] storage;
-Logger logger = Logger.create(sinks.sinkRef(), storage[], LogLevel.info);
+Logger logger = Logger.create(sinks.sink_ref(), storage[], LogLevel.info);
 logger.setCallsitesEnabled(true);
 
 logger.info("server started");

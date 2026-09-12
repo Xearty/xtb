@@ -314,7 +314,7 @@ extern (C) int main(int argc, char** argv)
     LogSinkRef second = LogSinkRef.create(&nullSink, &secondProbe);
     TeeLogSink tee = TeeLogSink.create(first, second);
     char[1024] teeBuffer;
-    Logger teeLogger = Logger.create(tee.sinkRef(), teeBuffer[]);
+    Logger teeLogger = Logger.create(tee.sink_ref(), teeBuffer[]);
     warmUp(teeLogger, iterations / 20 + 1);
     firstProbe = SinkProbe.init;
     secondProbe = SinkProbe.init;
@@ -329,7 +329,7 @@ extern (C) int main(int argc, char** argv)
     WithoutCallsiteLogSink firstWithoutCallsite = WithoutCallsiteLogSink.create(first);
     TeeLogSink callsiteTee = TeeLogSink.create(firstWithoutCallsite.sink_ref(), second);
     char[1024] callsiteTeeBuffer;
-    Logger callsiteTeeLogger = Logger.create(callsiteTee.sinkRef(), callsiteTeeBuffer[]);
+    Logger callsiteTeeLogger = Logger.create(callsiteTee.sink_ref(), callsiteTeeBuffer[]);
     callsiteTeeLogger.setCallsitesEnabled(true);
     warmUp(callsiteTeeLogger, iterations / 20 + 1);
     firstProbe = SinkProbe.init;
@@ -342,7 +342,7 @@ extern (C) int main(int argc, char** argv)
 
     printf("\nPrefix -> tee null + null\n");
     PrefixLogSink prefixedTee = PrefixLogSink.create(
-        tee.sinkRef(),
+        tee.sink_ref(),
         LogPrefixRef.create(&benchmarkPrefix, null),
     );
     char[1024] prefixBuffer;

@@ -702,7 +702,7 @@ unittest
         LogSinkRef.create(&captureSink, &second),
     );
     PrefixLogSink prefixed = PrefixLogSink.create(
-        tee.sinkRef(),
+        tee.sink_ref(),
         LogPrefixRef.create(&prefixProbe, &probe),
     );
     LogSinkRef sink = prefixed.sink_ref();
@@ -1380,7 +1380,7 @@ unittest
         LogSinkRef.create(&captureSink, &locatedCapture),
     );
     char[64] splitBuffer;
-    Logger splitLogger = Logger.create(splitCallsite.sinkRef(), splitBuffer[]);
+    Logger splitLogger = Logger.create(splitCallsite.sink_ref(), splitBuffer[]);
     splitLogger.setCallsitesEnabled(true);
     const splitFunction = cast(String) __FUNCTION__;
     const splitLine = __LINE__ + 1;
@@ -1414,7 +1414,7 @@ unittest
         LogSinkRef.create(&captureSink, &healthyLocatedCapture),
     );
     char[64] failingSplitBuffer;
-    Logger failingSplitLogger = Logger.create(failingSplit.sinkRef(), failingSplitBuffer[]);
+    Logger failingSplitLogger = Logger.create(failingSplit.sink_ref(), failingSplitBuffer[]);
     failingSplitLogger.setCallsitesEnabled(true);
     const failingSplitFunction = cast(String) __FUNCTION__;
     const failingSplitLine = __LINE__ + 1;
@@ -1444,7 +1444,7 @@ unittest
         LogSinkRef.create(&captureSink, &outerSecond),
     );
     WithoutCallsiteLogSink suppressAll = WithoutCallsiteLogSink.create(
-        locatedChildren.sinkRef(),
+        locatedChildren.sink_ref(),
     );
     char[64] outerBuffer;
     Logger outerLogger = Logger.create(suppressAll.sink_ref(), outerBuffer[]);
@@ -1752,7 +1752,7 @@ unittest
         LogSinkRef.create(&captureSink, &healthyBranch),
     );
     char[4] teeStreamBuffer;
-    Logger teeStreamLogger = Logger.create(streamTee.sinkRef(), teeStreamBuffer[]);
+    Logger teeStreamLogger = Logger.create(streamTee.sink_ref(), teeStreamBuffer[]);
     result = teeStreamLogger.stream(LogLevel.warning, (scope ref LogMessageWriter writer) {
         writer.write("ab");
         writer.write("cd");
@@ -2178,7 +2178,7 @@ unittest
             plainFileLogSink(plainFile),
         );
         PrefixLogSink prefixed = PrefixLogSink.create(
-            tee.sinkRef(),
+            tee.sink_ref(),
             LogPrefixRef.create(&coloredPrefix, null),
         );
         char[64] messageStorage;
@@ -2575,7 +2575,7 @@ unittest
             LogSinkRef.create(&orderedSink, &secondBranch, &orderedFlush),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[], LogLevel.info);
+        Logger logger = Logger.create(tee.sink_ref(), storage[], LogLevel.info);
         assert(logger.info("healthy").status == LogStatus.delivered);
         first.assertSuccessfulRecord(
             "[info]",
@@ -2617,7 +2617,7 @@ unittest
             LogSinkRef.create(&captureSink, &first),
             LogSinkRef.create(&captureSink, &second),
         );
-        LogSinkRef sink = tee.sinkRef();
+        LogSinkRef sink = tee.sink_ref();
         const info = testRecordInfo();
         LogRecordRef record = sink.begin_record(info);
         assert(record.valid);
@@ -2653,7 +2653,7 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         assert(logger.info("first fails").status == LogStatus.sink_failed);
         assert(first.count == 7);
         assertEvent(first, 4, LogSinkEventKind.message_chunk, "first fails");
@@ -2680,7 +2680,7 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         assert(logger.info("fails once").status == LogStatus.sink_failed);
         first.clear();
         second.clear();
@@ -2711,7 +2711,7 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         assert(logger.info("second fails").status == LogStatus.sink_failed);
         first.assertSuccessfulRecord(
             "[info]",
@@ -2745,7 +2745,7 @@ unittest
                 LogSinkRef.create(&captureSink, &second),
             );
             char[64] storage;
-            Logger logger = Logger.create(tee.sinkRef(), storage[]);
+            Logger logger = Logger.create(tee.sink_ref(), storage[]);
             assert(logger.info("failure matrix").status == LogStatus.sink_failed);
 
             const(Capture)* failed = failFirst ? &first : &second;
@@ -2811,7 +2811,7 @@ unittest
         palette.info.message = ANSIStyle.foreground(ANSIColor.green);
         char[64] storage;
         Logger logger = Logger.create(
-            tee.sinkRef(),
+            tee.sink_ref(),
             storage[],
             LogLevel.info,
             palette,
@@ -2853,7 +2853,7 @@ unittest
         );
         assert(!tee.valid);
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         assert(logger.info("invalid peer").status == LogStatus.sink_failed);
         healthy.assertSuccessfulRecord(
             "[info]",
@@ -2877,7 +2877,7 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         assert(logger.info("both fail").status == LogStatus.sink_failed);
         assert(first.count == 7);
         assert(second.count == 7);
@@ -2900,7 +2900,7 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         assert(logger.info("begin failure").status == LogStatus.sink_failed);
         assert(first.count == 1);
         assertEvent(first, 0, LogSinkEventKind.begin_record);
@@ -2922,7 +2922,7 @@ unittest
             LogSinkRef.create(&captureSink, &first, &captureFlush),
             LogSinkRef.create(&captureSink, &second, &captureFlush),
         );
-        LogSinkRef sink = tee.sinkRef();
+        LogSinkRef sink = tee.sink_ref();
         assert(!sink.try_flush());
         assert(first.flushCount == 1);
         assert(second.flushCount == 1);
@@ -2945,11 +2945,11 @@ unittest
             LogSinkRef.create(&orderedSink, &secondBranch),
         );
         TeeLogSink outer = TeeLogSink.create(
-            inner.sinkRef(),
+            inner.sink_ref(),
             LogSinkRef.create(&orderedSink, &thirdBranch),
         );
         char[64] storage;
-        Logger logger = Logger.create(outer.sinkRef(), storage[]);
+        Logger logger = Logger.create(outer.sink_ref(), storage[]);
         assert(logger.info("nested order").delivered);
         assert(order.count == 24);
         const ubyte[24] expectedBranches = [
@@ -2980,11 +2980,11 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         TeeLogSink outer = TeeLogSink.create(
-            inner.sinkRef(),
+            inner.sink_ref(),
             LogSinkRef.create(&captureSink, &third),
         );
         char[64] storage;
-        Logger logger = Logger.create(outer.sinkRef(), storage[]);
+        Logger logger = Logger.create(outer.sink_ref(), storage[]);
         assert(logger.info("nested").status == LogStatus.sink_failed);
         first.assertSuccessfulRecord(
             "[info]",
@@ -3012,7 +3012,7 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         size_t calls;
         FormatOnceProbe probe = FormatOnceProbe(&calls);
         assert(logger.info(probe).delivered);
@@ -3042,7 +3042,7 @@ unittest
             LogSinkRef.create(&captureSink, &second),
         );
         char[64] storage;
-        Logger logger = Logger.create(tee.sinkRef(), storage[], LogLevel.error);
+        Logger logger = Logger.create(tee.sink_ref(), storage[], LogLevel.error);
         size_t calls;
         FormatOnceProbe probe = FormatOnceProbe(&calls);
         assert(logger.info(probe).status == LogStatus.filtered);
@@ -3069,7 +3069,7 @@ unittest
         );
         char[192] storage;
         Logger logger = Logger.create(
-            tee.sinkRef(),
+            tee.sink_ref(),
             storage[],
             LogLevel.warning,
             palette,
@@ -3109,7 +3109,7 @@ unittest
             LogSinkRef.create(&recursiveSink, &recursive),
             LogSinkRef.create(&captureSink, &second),
         );
-        Logger logger = Logger.create(tee.sinkRef(), storage[]);
+        Logger logger = Logger.create(tee.sink_ref(), storage[]);
         recursive.logger = &logger;
         assert(logger.info("outer").delivered);
         assert(recursive.nestedStatus == LogStatus.recursive);
@@ -3201,7 +3201,7 @@ unittest
                 LogSinkRef.create(&captureSink, &healthy),
             );
             char[64] storage;
-            Logger logger = Logger.create(tee.sinkRef(), storage[]);
+            Logger logger = Logger.create(tee.sink_ref(), storage[]);
             assert(logger.info("unlock after failure").status == LogStatus.sink_failed);
             assert(failure.rejected);
             assertEvent(healthy, 7, LogSinkEventKind.end_record);
