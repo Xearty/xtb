@@ -91,7 +91,7 @@ extern (C) int main() nothrow @nogc
         LogPrefixRef.create(&writeFixedPrefix, &sharedPrefix),
     );
 
-    LogPalette palette = LogPalette.preset(LogPalettePreset.trueColor);
+    LogPalette palette = LogPalette.preset(LogPalettePreset.true_color);
 
     char[2_048] storage;
     Logger logger = Logger.create(

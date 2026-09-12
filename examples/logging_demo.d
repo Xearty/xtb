@@ -221,11 +221,11 @@ extern (C) int main() nothrow @nogc
     terminal.setPalette(LogPalettePreset.extended);
     if (!terminal.logEveryLevel("extended preset"))
         return 1;
-    terminal.setPalette(LogPalettePreset.trueColor);
+    terminal.setPalette(LogPalettePreset.true_color);
     if (!terminal.logEveryLevel("true-color preset"))
         return 1;
 
-    LogPalette palette = LogPalette.preset(LogPalettePreset.trueColor);
+    LogPalette palette = LogPalette.preset(LogPalettePreset.true_color);
     palette.warning.label = ANSIStyle.foreground(ANSIColor.bright_magenta).bold;
     palette.warning.message = ANSIStyle.foreground(ANSIColor.rgb(210, 215, 225));
     terminal.setPalette(palette);
@@ -253,7 +253,7 @@ extern (C) int main() nothrow @nogc
             "extended timestamp",
         ) || !logTimestampPalette(
             terminalPresentation,
-            LogPalettePreset.trueColor,
+            LogPalettePreset.true_color,
             ANSIStyle.foreground(ANSIColor.rgb(130, 170, 190)).dim,
             "true-color timestamp",
         ))

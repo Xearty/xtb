@@ -1826,8 +1826,8 @@ unittest
         palette.warning.message,
     );
 
-    logger.setPalette(LogPalettePreset.trueColor);
-    const trueColor = LogPalette.preset(LogPalettePreset.trueColor);
+    logger.setPalette(LogPalettePreset.true_color);
+    const trueColor = LogPalette.preset(LogPalettePreset.true_color);
     capture.clear();
     assert(logger.error("preset").delivered);
     capture.assertSuccessfulRecord(

@@ -185,7 +185,7 @@ void setSink(
 private LogRecordInfo recordInfo(ref const Logger logger, LogLevel level)
 pure @safe
 {
-    const style = logger.palette_.styleFor(level);
+    const style = logger.palette_.style_for(level);
     const label = logger.levelLabels_.label_for(level);
     return LogRecordInfo(
         level,
