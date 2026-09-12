@@ -427,7 +427,7 @@ extern (C) int main() nothrow @nogc
         fileTimestamp.prefixRef(),
     );
     TeeLogSink tee = TeeLogSink.create(
-        terminalWithoutCallsite.sinkRef(),
+        terminalWithoutCallsite.sink_ref(),
         timestampedFile.sinkRef(),
     );
     char[256] teeStorage;

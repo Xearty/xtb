@@ -1376,7 +1376,7 @@ unittest
         LogSinkRef.create(&captureSink, &suppressedCapture),
     );
     TeeLogSink splitCallsite = TeeLogSink.create(
-        suppressed.sinkRef(),
+        suppressed.sink_ref(),
         LogSinkRef.create(&captureSink, &locatedCapture),
     );
     char[64] splitBuffer;
@@ -1410,7 +1410,7 @@ unittest
         LogSinkRef.create(&captureSink, &failingSuppressedCapture),
     );
     TeeLogSink failingSplit = TeeLogSink.create(
-        failingSuppressed.sinkRef(),
+        failingSuppressed.sink_ref(),
         LogSinkRef.create(&captureSink, &healthyLocatedCapture),
     );
     char[64] failingSplitBuffer;
@@ -1447,7 +1447,7 @@ unittest
         locatedChildren.sinkRef(),
     );
     char[64] outerBuffer;
-    Logger outerLogger = Logger.create(suppressAll.sinkRef(), outerBuffer[]);
+    Logger outerLogger = Logger.create(suppressAll.sink_ref(), outerBuffer[]);
     outerLogger.setCallsitesEnabled(true);
     assert(outerLogger.warning("all hidden").delivered);
     outerFirst.assertSuccessfulRecord(
@@ -1477,7 +1477,7 @@ unittest
     );
     char[64] prefixedSuppressedBuffer;
     Logger prefixedSuppressedLogger = Logger.create(
-        prefixedSuppressed.sinkRef(),
+        prefixedSuppressed.sink_ref(),
         prefixedSuppressedBuffer[],
     );
     prefixedSuppressedLogger.setCallsitesEnabled(true);
@@ -1500,7 +1500,7 @@ unittest
     );
     PrefixProbe outerPrefixProbe;
     PrefixLogSink prefixOutsideSuppression = PrefixLogSink.create(
-        suppressionInsidePrefix.sinkRef(),
+        suppressionInsidePrefix.sink_ref(),
         LogPrefixRef.create(&prefixProbe, &outerPrefixProbe),
     );
     char[64] suppressionInsidePrefixBuffer;
@@ -1528,7 +1528,7 @@ unittest
     );
     char[64] disabledSuppressedBuffer;
     Logger disabledSuppressedLogger = Logger.create(
-        disabledSuppressed.sinkRef(),
+        disabledSuppressed.sink_ref(),
         disabledSuppressedBuffer[],
     );
     assert(disabledSuppressedLogger.info("already absent").delivered);

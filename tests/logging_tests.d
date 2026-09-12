@@ -157,7 +157,7 @@ extern (C) int main() nothrow @nogc
         ansiFileLogSink(sourceTerminal),
     );
     TeeLogSink sourceOutputs = TeeLogSink.create(
-        terminalWithoutCallsite.sinkRef(),
+        terminalWithoutCallsite.sink_ref(),
         plainFileLogSink(sourceFile),
     );
     char[256] sourceStorage;

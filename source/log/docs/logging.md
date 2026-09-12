@@ -66,7 +66,7 @@ PrefixLogSink fileSink = PrefixLogSink.create(
 );
 
 TeeLogSink sinks = TeeLogSink.create(
-    terminalSink.sinkRef(),
+    terminalSink.sink_ref(),
     fileSink.sinkRef(),
 );
 

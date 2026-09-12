@@ -327,7 +327,7 @@ extern (C) int main(int argc, char** argv)
 
     printf("\nCallsite -> tee without-callsite + null\n");
     WithoutCallsiteLogSink firstWithoutCallsite = WithoutCallsiteLogSink.create(first);
-    TeeLogSink callsiteTee = TeeLogSink.create(firstWithoutCallsite.sinkRef(), second);
+    TeeLogSink callsiteTee = TeeLogSink.create(firstWithoutCallsite.sink_ref(), second);
     char[1024] callsiteTeeBuffer;
     Logger callsiteTeeLogger = Logger.create(callsiteTee.sinkRef(), callsiteTeeBuffer[]);
     callsiteTeeLogger.setCallsitesEnabled(true);
