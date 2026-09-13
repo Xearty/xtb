@@ -593,8 +593,8 @@ Matrix4 rotation_x(f32 angle)
 {
     require(angle.is_finite, "rotation angle must be finite");
 
-    const cosine = xtb.math.scalar.cos(angle);
-    const sine = xtb.math.scalar.sin(angle);
+    const cosine = cos(angle);
+    const sine = sin(angle);
     return Matrix4(
         Vector4(1, 0, 0, 0),
         Vector4(0, cosine, sine, 0),
@@ -608,8 +608,8 @@ Matrix4 rotation_y(f32 angle)
 {
     require(angle.is_finite, "rotation angle must be finite");
 
-    const cosine = xtb.math.scalar.cos(angle);
-    const sine = xtb.math.scalar.sin(angle);
+    const cosine = cos(angle);
+    const sine = sin(angle);
     return Matrix4(
         Vector4(cosine, 0, -sine, 0),
         Vector4(0, 1, 0, 0),
@@ -623,8 +623,8 @@ Matrix4 rotation_z(f32 angle)
 {
     require(angle.is_finite, "rotation angle must be finite");
 
-    const cosine = xtb.math.scalar.cos(angle);
-    const sine = xtb.math.scalar.sin(angle);
+    const cosine = cos(angle);
+    const sine = sin(angle);
     return Matrix4(
         Vector4(cosine, sine, 0, 0),
         Vector4(-sine, cosine, 0, 0),
@@ -641,8 +641,8 @@ Matrix4 rotation(Vector3 axis, f32 angle)
     axis = axis.normalized;
     if (axis == Vector3.init) return Matrix4.identity;
 
-    const cosine = xtb.math.scalar.cos(angle);
-    const sine = xtb.math.scalar.sin(angle);
+    const cosine = cos(angle);
+    const sine = sin(angle);
     const one_minus_cosine = 1 - cosine;
     const axis_x = axis.x;
     const axis_y = axis.y;
@@ -739,7 +739,7 @@ Matrix4 perspective(f32 vertical_fov, f32 aspect, f32 near, f32 far)
         "perspective aspect and clipping planes are invalid",
     );
 
-    const focal_scale = 1 / xtb.math.scalar.tan(vertical_fov / 2);
+    const focal_scale = 1 / tan(vertical_fov / 2);
     return Matrix4(
         Vector4(focal_scale / aspect, 0, 0, 0),
         Vector4(0, focal_scale, 0, 0),

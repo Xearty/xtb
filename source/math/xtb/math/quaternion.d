@@ -11,14 +11,14 @@ struct Quaternion
 {
     nothrow @nogc @safe:
 
-    f32 x = 0;
-    f32 y = 0;
-    f32 z = 0;
-    f32 w = 0;
+    f32 x = 0.0f;
+    f32 y = 0.0f;
+    f32 z = 0.0f;
+    f32 w = 1.0f;
 
     static Quaternion identity() pure
     {
-        return Quaternion(0, 0, 0, 1);
+        return Quaternion.init;
     }
 
     /// Creates a rotation of `angle` radians around `axis`.
@@ -32,8 +32,8 @@ struct Quaternion
         if (axis == Vector3.init) return identity();
 
         const half_angle = angle / 2;
-        const sine = xtb.math.scalar.sin(half_angle);
-        const cosine = xtb.math.scalar.cos(half_angle);
+        const sine = sin(half_angle);
+        const cosine = cos(half_angle);
         return Quaternion(axis.x * sine, axis.y * sine, axis.z * sine, cosine);
     }
 
@@ -137,10 +137,10 @@ struct Quaternion
                 : f32.infinity;
         }
 
-        const absolute_x = xtb.math.scalar.abs(this.x);
-        const absolute_y = xtb.math.scalar.abs(this.y);
-        const absolute_z = xtb.math.scalar.abs(this.z);
-        const absolute_w = xtb.math.scalar.abs(this.w);
+        const absolute_x = abs(this.x);
+        const absolute_y = abs(this.y);
+        const absolute_z = abs(this.z);
+        const absolute_w = abs(this.w);
         const scale = xtb.math.scalar.max(
             xtb.math.scalar.max(absolute_x, absolute_y),
             xtb.math.scalar.max(absolute_z, absolute_w),
@@ -148,7 +148,7 @@ struct Quaternion
         if (scale == 0) return 0;
 
         const scaled = this / scale;
-        return scale * xtb.math.scalar.sqrt(scaled.length_squared);
+        return scale * sqrt(scaled.length_squared);
     }
 
     Quaternion normalized() const
@@ -156,18 +156,18 @@ struct Quaternion
         if (!this.is_finite)
             return Quaternion(f32.nan, f32.nan, f32.nan, f32.nan);
 
-        const absolute_x = xtb.math.scalar.abs(this.x);
-        const absolute_y = xtb.math.scalar.abs(this.y);
-        const absolute_z = xtb.math.scalar.abs(this.z);
-        const absolute_w = xtb.math.scalar.abs(this.w);
+        const absolute_x = abs(this.x);
+        const absolute_y = abs(this.y);
+        const absolute_z = abs(this.z);
+        const absolute_w = abs(this.w);
         const scale = xtb.math.scalar.max(
             xtb.math.scalar.max(absolute_x, absolute_y),
             xtb.math.scalar.max(absolute_z, absolute_w),
         );
-        if (scale == 0) return Quaternion.init;
+        if (scale == 0) return Quaternion(0.0f, 0.0f, 0.0f, 0.0f);
 
         const scaled = this / scale;
-        return scaled / xtb.math.scalar.sqrt(scaled.length_squared);
+        return scaled / sqrt(scaled.length_squared);
     }
 
     Quaternion conjugated() const pure
@@ -183,10 +183,10 @@ struct Quaternion
         require(output !is null, "quaternion inverse output pointer is null");
         if (!this.is_finite) return false;
 
-        const absolute_x = xtb.math.scalar.abs(this.x);
-        const absolute_y = xtb.math.scalar.abs(this.y);
-        const absolute_z = xtb.math.scalar.abs(this.z);
-        const absolute_w = xtb.math.scalar.abs(this.w);
+        const absolute_x = abs(this.x);
+        const absolute_y = abs(this.y);
+        const absolute_z = abs(this.z);
+        const absolute_w = abs(this.w);
         const scale = xtb.math.scalar.max(
             xtb.math.scalar.max(absolute_x, absolute_y),
             xtb.math.scalar.max(absolute_z, absolute_w),
@@ -220,7 +220,7 @@ struct Quaternion
         require(this.is_unit, "rotation quaternion must be unit length");
 
         const canonical = this.w < 0 ? -this : this;
-        const sine_half_angle = xtb.math.scalar.sqrt(
+        const sine_half_angle = sqrt(
             xtb.math.scalar.max(0, 1 - canonical.w * canonical.w),
         );
         if (sine_half_angle <= rotation_epsilon) return Vector3(1, 0, 0);
@@ -232,8 +232,8 @@ struct Quaternion
     f32 angle() const
     {
         require(this.is_unit, "rotation quaternion must be unit length");
-        return 2 * xtb.math.scalar.acos(
-            xtb.math.scalar.clamp(xtb.math.scalar.abs(this.w), 0, 1),
+        return 2 * acos(
+            xtb.math.scalar.clamp(abs(this.w), 0, 1),
         );
     }
 
@@ -282,10 +282,10 @@ Quaternion slerp(Quaternion a, Quaternion b, f32 t)
     cosine = xtb.math.scalar.clamp(cosine, -1, 1);
     if (cosine > 0.9995f) return nlerp(a, b, t);
 
-    const angle = xtb.math.scalar.acos(cosine);
-    const sine = xtb.math.scalar.sin(angle);
-    const a_weight = xtb.math.scalar.sin((1 - t) * angle) / sine;
-    const b_weight = xtb.math.scalar.sin(t * angle) / sine;
+    const angle = acos(cosine);
+    const sine = sin(angle);
+    const a_weight = sin((1 - t) * angle) / sine;
+    const b_weight = sin(t * angle) / sine;
     return a * a_weight + b * b_weight;
 }
 
@@ -326,6 +326,7 @@ bool approximately_equal(
 unittest
 {
     const identity = Quaternion.identity;
+    assert(Quaternion.init == identity);
     assert(identity == Quaternion(0, 0, 0, 1));
     assert(identity.length_squared == 1);
     assert(identity.is_finite);
@@ -370,7 +371,7 @@ unittest
     assert(approximately_equal(rotation * inverse, Quaternion.identity, 1e-5f, 1e-5f));
 
     Quaternion unchanged = Quaternion.identity;
-    assert(!Quaternion.init.try_inverse(&unchanged));
+    assert(!Quaternion(0.0f, 0.0f, 0.0f, 0.0f).try_inverse(&unchanged));
     assert(unchanged == Quaternion.identity);
 
     const tiny = Quaternion(1e-20f, 0, 0, 0);
@@ -391,7 +392,7 @@ unittest
     const halfway = slerp(identity, quarter_turn, 0.5f);
     assert(xtb.math.vector.approximately_equal(
         halfway.rotated(Vector3(1, 0, 0)),
-        Vector3(xtb.math.scalar.sqrt(0.5f), xtb.math.scalar.sqrt(0.5f), 0),
+        Vector3(sqrt(0.5f), sqrt(0.5f), 0),
         1e-5f,
         1e-5f,
     ));
