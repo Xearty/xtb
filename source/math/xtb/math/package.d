@@ -19,4 +19,4 @@ alias lerp = xtb.math.scalar.lerp;
 alias lerp = xtb.math.vector.lerp;
 
 alias is_finite = xtb.math.scalar.is_finite;
-alias is_finite = xtb.math.vector.isFinite;
+alias is_finite = xtb.math.vector.is_finite;

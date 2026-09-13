@@ -6,8 +6,8 @@ import core.stdc.math : cosf, sinf, tanf;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.math.scalar : pi;
-import xtb.math.vector : Vector2, Vector3, Vector4, cross, dot, isFinite,
-    length, normalized, withW, xyz;
+import xtb.math.vector : Vector2, Vector3, Vector4, cross, dot, is_finite,
+    length, normalized, with_w, xyz;
 
 struct Matrix2
 {
@@ -263,18 +263,18 @@ private pure bool finite(float value)
 
 private pure bool finite(Matrix2 value)
 {
-    return value.c0.isFinite && value.c1.isFinite;
+    return value.c0.is_finite && value.c1.is_finite;
 }
 
 private pure bool finite(Matrix3 value)
 {
-    return value.c0.isFinite && value.c1.isFinite && value.c2.isFinite;
+    return value.c0.is_finite && value.c1.is_finite && value.c2.is_finite;
 }
 
 private pure bool finite(Matrix4 value)
 {
-    return value.c0.isFinite && value.c1.isFinite &&
-        value.c2.isFinite && value.c3.isFinite;
+    return value.c0.is_finite && value.c1.is_finite &&
+        value.c2.is_finite && value.c3.is_finite;
 }
 
 private pure float maximum(float left, float right)
@@ -339,15 +339,15 @@ pure bool isAffine(Matrix4 m)
     if (!Matrix3(m.c0.xyz, m.c1.xyz, m.c2.xyz).tryInverse(&linearInverse))
         return false;
     const translation = -(linearInverse * m.c3.xyz);
-    *output = Matrix4(linearInverse.c0.withW(0), linearInverse.c1.withW(0),
-        linearInverse.c2.withW(0), translation.withW(1));
+    *output = Matrix4(linearInverse.c0.with_w(0), linearInverse.c1.with_w(0),
+        linearInverse.c2.with_w(0), translation.with_w(1));
     return true;
 }
 
 pure Matrix4 translation(Vector3 offset)
 {
     Matrix4 result = Matrix4.identity;
-    result.c3 = offset.withW(1);
+    result.c3 = offset.with_w(1);
     return result;
 }
 
@@ -392,7 +392,7 @@ Matrix4 rotationZ(float angle)
 Matrix4 rotation(Vector3 axis, float angle)
 {
     version (XTB_Checked)
-        require(axis.isFinite && finite(angle),
+        require(axis.is_finite && finite(angle),
             "rotation axis and angle must be finite");
     axis = axis.normalized;
     if (axis == Vector3.init)
@@ -505,7 +505,7 @@ Matrix4 perspective(float verticalFov, float aspect, float near, float far)
 {
     version (XTB_Checked)
         require(output !is null, "look-at output pointer is null");
-    if (!eye.isFinite || !target.isFinite || !up.isFinite)
+    if (!eye.is_finite || !target.is_finite || !up.is_finite)
         return false;
     const forward = (target - eye).normalized;
     if (forward == Vector3.init)
@@ -562,9 +562,9 @@ private pure bool close(Matrix4 a, Matrix4 b, float epsilon = 0.0001f)
     const m = Matrix3(Vector3(2, 0, 0), Vector3(0, 4, 0), Vector3(0, 0, 5));
     assert(m.tryInverse(&inverse));
     const matrix3Identity = m * inverse;
-    assert(close(matrix3Identity.c0.withW(0), Vector4(1, 0, 0, 0)));
-    assert(close(matrix3Identity.c1.withW(0), Vector4(0, 1, 0, 0)));
-    assert(close(matrix3Identity.c2.withW(0), Vector4(0, 0, 1, 0)));
+    assert(close(matrix3Identity.c0.with_w(0), Vector4(1, 0, 0, 0)));
+    assert(close(matrix3Identity.c1.with_w(0), Vector4(0, 1, 0, 0)));
+    assert(close(matrix3Identity.c2.with_w(0), Vector4(0, 0, 1, 0)));
 
     Matrix2 matrix2Inverse = Matrix2.identity;
     const nearSingular = Matrix2(
@@ -609,14 +609,14 @@ private pure bool close(Matrix4 a, Matrix4 b, float epsilon = 0.0001f)
 
     import xtb.math.random : Random;
     import xtb.math.scalar : radians;
-    import xtb.math.vector : directionFromDegrees;
+    import xtb.math.vector : direction_from_degrees;
 
     const yaw = 35.0f, pitch = -20.0f;
-    const expectedDirection = directionFromDegrees(yaw, pitch);
+    const expectedDirection = direction_from_degrees(yaw, pitch);
     const rotatedDirection = (rotationYawPitchRoll(
             radians(yaw), radians(pitch), 0,
     ) * Vector4(0, 0, -1, 0)).xyz;
-    assert(close(rotatedDirection.withW(0), expectedDirection.withW(0)));
+    assert(close(rotatedDirection.with_w(0), expectedDirection.with_w(0)));
 
     const base = scaling(2);
     const pre = base.preTranslated(Vector3(1, 0, 0));
