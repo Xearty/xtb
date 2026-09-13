@@ -9,6 +9,7 @@ through static members such as `Quaternion.from_axis_angle` and
 as T * R * S, so scale acts first when transforming a column vector.
 
 Most operations are allocation-free; `ValueNoise1D` owns allocator-backed
-lattice storage.
+lattice storage. `Random.between` uses half-open `[lower, upper)` ranges for its
+integer overloads, and `Random.chance` accepts probabilities in `[0, 1]`.
 
 See [`math_demo.d`](../../examples/math_demo.d).

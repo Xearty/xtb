@@ -68,7 +68,7 @@ import xtb.types;
 
         auto random = Random.seeded(seed, stream);
         foreach (index; 0 .. period)
-            temporary.values[index] = random.between(-1, 1);
+            temporary.values[index] = random.between(-1.0f, 1.0f);
 
         move_emplace(temporary, *output);
         return true;

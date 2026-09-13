@@ -976,19 +976,19 @@ unittest
     foreach (_; 0 .. 64)
     {
         const offset = Vector3(
-            random.between(-10, 10),
-            random.between(-10, 10),
-            random.between(-10, 10),
+            random.between(-10.0f, 10.0f),
+            random.between(-10.0f, 10.0f),
+            random.between(-10.0f, 10.0f),
         );
         const factors = Vector3(
-            random.between(0.5f, 3),
-            random.between(0.5f, 3),
-            random.between(0.5f, 3),
+            random.between(0.5f, 3.0f),
+            random.between(0.5f, 3.0f),
+            random.between(0.5f, 3.0f),
         );
         auto axis = Vector3(
-            random.between(-1, 1),
-            random.between(-1, 1),
-            random.between(-1, 1),
+            random.between(-1.0f, 1.0f),
+            random.between(-1.0f, 1.0f),
+            random.between(-1.0f, 1.0f),
         );
         if (axis == Vector3.init) axis.x = 1;
 
