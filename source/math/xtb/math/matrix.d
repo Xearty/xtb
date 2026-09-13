@@ -811,11 +811,11 @@ unittest
 
 unittest
 {
-    const yaw = 35.0f;
-    const pitch = -20.0f;
-    const expected_direction = direction_from_degrees(yaw, pitch);
+    const yaw = radians(35.0f);
+    const pitch = radians(-20.0f);
+    const expected_direction = direction_from_yaw_pitch(yaw, pitch);
     const rotated_direction = (
-        rotation_yaw_pitch_roll(radians(yaw), radians(pitch), 0)
+        rotation_yaw_pitch_roll(yaw, pitch, 0)
             * Vector4(0, 0, -1, 0)
     ).xyz;
     assert(close(rotated_direction.with_w(0), expected_direction.with_w(0)));

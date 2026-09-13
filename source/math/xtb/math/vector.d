@@ -2,8 +2,6 @@ module xtb.math.vector;
 
 nothrow @nogc @safe:
 
-import core.stdc.math;
-
 import xtb.math.scalar;
 import xtb.panic;
 import xtb.types;
@@ -84,26 +82,28 @@ struct Vector2
     {
         if (this.x != this.x || this.y != this.y) return f32.nan;
 
-        const absolute_x = fabsf(this.x);
-        const absolute_y = fabsf(this.y);
+        const absolute_x = xtb.math.scalar.abs(this.x);
+        const absolute_y = xtb.math.scalar.abs(this.y);
         const scale = xtb.math.scalar.max(absolute_x, absolute_y);
         if (scale == 0) return 0;
         if (scale == f32.infinity) return f32.infinity;
 
         const scaled_x = absolute_x / scale;
         const scaled_y = absolute_y / scale;
-        return scale * sqrtf(scaled_x * scaled_x + scaled_y * scaled_y);
+        return scale * xtb.math.scalar.sqrt(scaled_x * scaled_x + scaled_y * scaled_y);
     }
 
     Vector2 normalized() const
     {
         if (!this.is_finite) return Vector2(f32.nan, f32.nan);
 
-        const scale = xtb.math.scalar.max(fabsf(this.x), fabsf(this.y));
+        const absolute_x = xtb.math.scalar.abs(this.x);
+        const absolute_y = xtb.math.scalar.abs(this.y);
+        const scale = xtb.math.scalar.max(absolute_x, absolute_y);
         if (scale == 0) return Vector2.init;
 
         const scaled = this / scale;
-        return scaled / sqrtf(dot(scaled, scaled));
+        return scaled / xtb.math.scalar.sqrt(dot(scaled, scaled));
     }
 
     f32 projection_length(Vector2 onto) const
@@ -126,6 +126,17 @@ struct Vector2
     Vector2 reflected(Vector2 unit_normal) const pure
     {
         return this - unit_normal * (2 * dot(this, unit_normal));
+    }
+
+    /// Returns this vector rotated counterclockwise by `angle` radians.
+    Vector2 rotated(f32 angle) const pure
+    {
+        const cosine = xtb.math.scalar.cos(angle);
+        const sine = xtb.math.scalar.sin(angle);
+        return Vector2(
+            this.x * cosine - this.y * sine,
+            this.x * sine + this.y * cosine,
+        );
     }
 }
 
@@ -213,9 +224,9 @@ struct Vector3
     {
         if (this.x != this.x || this.y != this.y || this.z != this.z) return f32.nan;
 
-        const absolute_x = fabsf(this.x);
-        const absolute_y = fabsf(this.y);
-        const absolute_z = fabsf(this.z);
+        const absolute_x = xtb.math.scalar.abs(this.x);
+        const absolute_y = xtb.math.scalar.abs(this.y);
+        const absolute_z = xtb.math.scalar.abs(this.z);
         const scale = xtb.math.scalar.max(
             absolute_x,
             xtb.math.scalar.max(absolute_y, absolute_z),
@@ -226,7 +237,7 @@ struct Vector3
         const scaled_x = absolute_x / scale;
         const scaled_y = absolute_y / scale;
         const scaled_z = absolute_z / scale;
-        return scale * sqrtf(
+        return scale * xtb.math.scalar.sqrt(
             scaled_x * scaled_x + scaled_y * scaled_y + scaled_z * scaled_z,
         );
     }
@@ -235,14 +246,14 @@ struct Vector3
     {
         if (!this.is_finite) return Vector3(f32.nan, f32.nan, f32.nan);
 
-        const scale = xtb.math.scalar.max(
-            fabsf(this.x),
-            xtb.math.scalar.max(fabsf(this.y), fabsf(this.z)),
-        );
+        const absolute_x = xtb.math.scalar.abs(this.x);
+        const absolute_y = xtb.math.scalar.abs(this.y);
+        const absolute_z = xtb.math.scalar.abs(this.z);
+        const scale = xtb.math.scalar.max(absolute_x, xtb.math.scalar.max(absolute_y, absolute_z));
         if (scale == 0) return Vector3.init;
 
         const scaled = this / scale;
-        return scaled / sqrtf(dot(scaled, scaled));
+        return scaled / xtb.math.scalar.sqrt(dot(scaled, scaled));
     }
 
     f32 projection_length(Vector3 onto) const
@@ -355,10 +366,10 @@ struct Vector4
         if (this.x != this.x || this.y != this.y || this.z != this.z || this.w != this.w)
             return f32.nan;
 
-        const absolute_x = fabsf(this.x);
-        const absolute_y = fabsf(this.y);
-        const absolute_z = fabsf(this.z);
-        const absolute_w = fabsf(this.w);
+        const absolute_x = xtb.math.scalar.abs(this.x);
+        const absolute_y = xtb.math.scalar.abs(this.y);
+        const absolute_z = xtb.math.scalar.abs(this.z);
+        const absolute_w = xtb.math.scalar.abs(this.w);
         const scale = xtb.math.scalar.max(
             xtb.math.scalar.max(absolute_x, absolute_y),
             xtb.math.scalar.max(absolute_z, absolute_w),
@@ -370,7 +381,7 @@ struct Vector4
         const scaled_y = absolute_y / scale;
         const scaled_z = absolute_z / scale;
         const scaled_w = absolute_w / scale;
-        return scale * sqrtf(
+        return scale * xtb.math.scalar.sqrt(
             scaled_x * scaled_x + scaled_y * scaled_y + scaled_z * scaled_z + scaled_w * scaled_w,
         );
     }
@@ -379,14 +390,18 @@ struct Vector4
     {
         if (!this.is_finite) return Vector4(f32.nan, f32.nan, f32.nan, f32.nan);
 
+        const absolute_x = xtb.math.scalar.abs(this.x);
+        const absolute_y = xtb.math.scalar.abs(this.y);
+        const absolute_z = xtb.math.scalar.abs(this.z);
+        const absolute_w = xtb.math.scalar.abs(this.w);
         const scale = xtb.math.scalar.max(
-            xtb.math.scalar.max(fabsf(this.x), fabsf(this.y)),
-            xtb.math.scalar.max(fabsf(this.z), fabsf(this.w)),
+            xtb.math.scalar.max(absolute_x, absolute_y),
+            xtb.math.scalar.max(absolute_z, absolute_w),
         );
         if (scale == 0) return Vector4.init;
 
         const scaled = this / scale;
-        return scaled / sqrtf(dot(scaled, scaled));
+        return scaled / xtb.math.scalar.sqrt(dot(scaled, scaled));
     }
 }
 
@@ -450,7 +465,7 @@ f32 angle(Vector2 a, Vector2 b)
     const unit_b = b.normalized;
     return unit_a == Vector2.init || unit_b == Vector2.init
         ? 0
-        : acosf(xtb.math.scalar.clamp(dot(unit_a, unit_b), -1, 1));
+        : xtb.math.scalar.acos(xtb.math.scalar.clamp(dot(unit_a, unit_b), -1, 1));
 }
 
 f32 angle(Vector3 a, Vector3 b)
@@ -459,7 +474,36 @@ f32 angle(Vector3 a, Vector3 b)
     const unit_b = b.normalized;
     return unit_a == Vector3.init || unit_b == Vector3.init
         ? 0
-        : acosf(xtb.math.scalar.clamp(dot(unit_a, unit_b), -1, 1));
+        : xtb.math.scalar.acos(xtb.math.scalar.clamp(dot(unit_a, unit_b), -1, 1));
+}
+
+/// Returns the signed counterclockwise angle from `from` to `to`, in radians.
+f32 signed_angle(Vector2 from, Vector2 to)
+{
+    const unit_from = from.normalized;
+    const unit_to = to.normalized;
+    if (unit_from == Vector2.init || unit_to == Vector2.init) return 0;
+
+    const sine = unit_from.x * unit_to.y - unit_from.y * unit_to.x;
+    const cosine = xtb.math.scalar.clamp(dot(unit_from, unit_to), -1, 1);
+    return xtb.math.scalar.atan2(sine, cosine);
+}
+
+/// Returns the signed angle from `from` to `to` around `axis`, in radians.
+///
+/// The input vectors are projected onto the plane perpendicular to `axis`.
+f32 signed_angle(Vector3 from, Vector3 to, Vector3 axis)
+{
+    const unit_axis = axis.normalized;
+    if (unit_axis == Vector3.init) return 0;
+
+    const unit_from = from.rejected_from(unit_axis).normalized;
+    const unit_to = to.rejected_from(unit_axis).normalized;
+    if (unit_from == Vector3.init || unit_to == Vector3.init) return 0;
+
+    const sine = dot(unit_axis, cross(unit_from, unit_to));
+    const cosine = xtb.math.scalar.clamp(dot(unit_from, unit_to), -1, 1);
+    return xtb.math.scalar.atan2(sine, cosine);
 }
 
 Vector2 lerp(Vector2 a, Vector2 b, f32 t) pure
@@ -558,19 +602,146 @@ Vector4 clamp(Vector4 v, Vector4 lower, Vector4 upper) pure
     return max(lower, min(v, upper));
 }
 
-Vector3 direction_from_degrees(f32 yaw, f32 pitch)
+bool approximately_equal(
+    Vector2 a,
+    Vector2 b,
+    f32 absolute_tolerance,
+    f32 relative_tolerance,
+)
+{
+    const x_equal = xtb.math.scalar.approximately_equal(
+        a.x,
+        b.x,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    const y_equal = xtb.math.scalar.approximately_equal(
+        a.y,
+        b.y,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    return x_equal && y_equal;
+}
+
+bool approximately_equal(
+    Vector3 a,
+    Vector3 b,
+    f32 absolute_tolerance,
+    f32 relative_tolerance,
+)
+{
+    const x_equal = xtb.math.scalar.approximately_equal(
+        a.x,
+        b.x,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    const y_equal = xtb.math.scalar.approximately_equal(
+        a.y,
+        b.y,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    const z_equal = xtb.math.scalar.approximately_equal(
+        a.z,
+        b.z,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    return x_equal && y_equal && z_equal;
+}
+
+bool approximately_equal(
+    Vector4 a,
+    Vector4 b,
+    f32 absolute_tolerance,
+    f32 relative_tolerance,
+)
+{
+    const x_equal = xtb.math.scalar.approximately_equal(
+        a.x,
+        b.x,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    const y_equal = xtb.math.scalar.approximately_equal(
+        a.y,
+        b.y,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    const z_equal = xtb.math.scalar.approximately_equal(
+        a.z,
+        b.z,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    const w_equal = xtb.math.scalar.approximately_equal(
+        a.w,
+        b.w,
+        absolute_tolerance,
+        relative_tolerance,
+    );
+    return x_equal && y_equal && z_equal && w_equal;
+}
+
+/// Returns the forward direction for `yaw` and `pitch`, in radians.
+Vector3 direction_from_yaw_pitch(f32 yaw, f32 pitch)
 {
     require(
         xtb.math.scalar.is_finite(yaw) && xtb.math.scalar.is_finite(pitch),
         "direction angles must be finite",
     );
-    const yaw_radians = radians(yaw);
-    const pitch_radians = radians(pitch);
+
+    const yaw_sine = xtb.math.scalar.sin(yaw);
+    const yaw_cosine = xtb.math.scalar.cos(yaw);
+    const pitch_sine = xtb.math.scalar.sin(pitch);
+    const pitch_cosine = xtb.math.scalar.cos(pitch);
     return Vector3(
-        sinf(yaw_radians) * cosf(pitch_radians),
-        sinf(pitch_radians),
-        -cosf(yaw_radians) * cosf(pitch_radians),
+        yaw_sine * pitch_cosine,
+        pitch_sine,
+        -yaw_cosine * pitch_cosine,
     );
+}
+
+unittest
+{
+    const right = Vector2(1, 0);
+    const up = Vector2(0, 1);
+    assert(approximately_equal(right.rotated(pi / 2), up, 1e-6f, 1e-6f));
+    assert(xtb.math.scalar.approximately_equal(signed_angle(right, up), pi / 2, 1e-6f, 1e-6f));
+    assert(xtb.math.scalar.approximately_equal(signed_angle(up, right), -pi / 2, 1e-6f, 1e-6f));
+}
+
+unittest
+{
+    const right = Vector3(1, 0, 0);
+    const up = Vector3(0, 1, 0);
+    const forward = Vector3(0, 0, -1);
+    assert(xtb.math.scalar.approximately_equal(
+        signed_angle(forward, right, up),
+        -pi / 2,
+        1e-6f,
+        1e-6f,
+    ));
+    assert(signed_angle(up, right, up) == 0);
+}
+
+unittest
+{
+    assert(approximately_equal(
+        direction_from_yaw_pitch(pi / 2, 0),
+        Vector3(1, 0, 0),
+        1e-6f,
+        1e-6f,
+    ));
+    assert(approximately_equal(
+        direction_from_yaw_pitch(0, pi / 2),
+        Vector3(0, 1, 0),
+        1e-6f,
+        1e-6f,
+    ));
 }
 
 static assert(Vector2.sizeof == 2 * f32.sizeof);

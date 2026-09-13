@@ -18,4 +18,7 @@ alias clamp = xtb.math.vector.clamp;
 alias lerp = xtb.math.scalar.lerp;
 alias lerp = xtb.math.vector.lerp;
 
+alias approximately_equal = xtb.math.scalar.approximately_equal;
+alias approximately_equal = xtb.math.vector.approximately_equal;
+
 alias is_finite = xtb.math.scalar.is_finite;
