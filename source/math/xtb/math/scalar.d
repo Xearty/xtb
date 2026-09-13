@@ -1,110 +1,105 @@
 module xtb.math.scalar;
 
-@safe nothrow @nogc:
+nothrow @nogc @safe:
 
-import core.stdc.math : floorf;
+import core.stdc.math;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.types : i32;
+import xtb.panic;
+import xtb.types;
 
-enum float pi = 3.14159265358979323846f;
-enum float tau = 2.0f * pi;
-enum float goldenRatio = 1.61803398874989484820f;
+enum f32 pi = 3.14159265358979323846f;
+enum f32 tau = 2.0f * pi;
+enum f32 golden_ratio = 1.61803398874989484820f;
 
-pure float min(float a, float b)
+f32 min(f32 a, f32 b) pure
 {
     return a < b ? a : b;
 }
 
-pure float max(float a, float b)
+f32 max(f32 a, f32 b) pure
 {
     return a > b ? a : b;
 }
 
-float clamp(float value, float lower, float upper)
+f32 clamp(f32 value, f32 lower, f32 upper)
 {
-    version (XTB_Checked)
-        require(lower <= upper, "invalid clamp range");
+    require(lower <= upper, "invalid clamp range");
     return value < lower ? lower : value > upper ? upper : value;
 }
 
-float saturate(float value)
+f32 saturate(f32 value)
 {
     return clamp(value, 0, 1);
 }
 
-pure float lerp(float a, float b, float t)
+f32 lerp(f32 a, f32 b, f32 t) pure
 {
     return a + (b - a) * t;
 }
 
-pure float inverseLerp(float a, float b, float value)
+f32 inverse_lerp(f32 a, f32 b, f32 value) pure
 {
     return a == b ? 0 : (value - a) / (b - a);
 }
 
-float fract(float value)
+f32 fract(f32 value)
 {
     return value - floorf(value);
 }
 
-pure float step(float edge, float value)
+f32 step(f32 edge, f32 value) pure
 {
     return value < edge ? 0 : 1;
 }
 
-pure float sign(float value)
+f32 sign(f32 value) pure
 {
     return value < 0 ? -1 : value > 0 ? 1 : 0;
 }
 
-pure float radians(float degrees)
+f32 radians(f32 angle_degrees) pure
 {
-    return degrees * (pi / 180);
+    return angle_degrees * (pi / 180);
 }
 
-pure float degrees(float radians_)
+f32 degrees(f32 angle_radians) pure
 {
-    return radians_ * (180 / pi);
+    return angle_radians * (180 / pi);
 }
 
-pure bool isFinite(float value)
+bool is_finite(f32 value) pure
 {
-    return value == value && value >= -float.max && value <= float.max;
+    return value == value && value >= -f32.max && value <= f32.max;
 }
 
-float smoothstep(float edge0, float edge1, float value)
+f32 smoothstep(f32 edge_0, f32 edge_1, f32 value)
 {
-    const t = saturate(inverseLerp(edge0, edge1, value));
+    const t = saturate(inverse_lerp(edge_0, edge_1, value));
     return t * t * (3 - 2 * t);
 }
 
-float smootherstep(float edge0, float edge1, float value)
+f32 smootherstep(f32 edge_0, f32 edge_1, f32 value)
 {
-    const t = saturate(inverseLerp(edge0, edge1, value));
+    const t = saturate(inverse_lerp(edge_0, edge_1, value));
     return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
-float repeat(float value, float period)
+f32 repeat(f32 value, f32 period)
 {
-    version (XTB_Checked)
-        require(period > 0 && period.isFinite, "repeat period must be positive and finite");
+    require(period > 0 && period.is_finite, "repeat period must be positive and finite");
     return value - floorf(value / period) * period;
 }
 
 i32 repeat(i32 value, i32 period)
 {
-    version (XTB_Checked)
-        require(period > 0, "repeat period must be positive");
+    require(period > 0, "repeat period must be positive");
     const remainder = value % period;
     return remainder < 0 ? remainder + period : remainder;
 }
 
-float pingPong(float value, float length)
+f32 ping_pong(f32 value, f32 length)
 {
-    version (XTB_Checked)
-        require(length > 0 && length.isFinite,
-            "ping-pong length must be positive and finite");
+    require(length > 0 && length.is_finite, "ping-pong length must be positive and finite");
     const folded = repeat(value, 2 * length);
     return length - (folded > length ? folded - length : length - folded);
 }
@@ -114,7 +109,7 @@ unittest
     assert(fract(2.25f) == 0.25f);
     assert(repeat(-1, 4) == 3);
     assert(repeat(-0.25f, 1) == 0.75f);
-    assert(pingPong(1.25f, 1) == 0.75f);
+    assert(ping_pong(1.25f, 1) == 0.75f);
     assert(smoothstep(0, 1, 0.5f) == 0.5f);
     assert(smootherstep(0, 1, 0.5f) == 0.5f);
 }

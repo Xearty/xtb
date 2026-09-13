@@ -4,7 +4,7 @@ nothrow @safe @nogc:
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.types : u32, u64;
-import xtb.math.scalar : isFinite;
+import xtb.math.scalar : is_finite;
 
 /// Small deterministic PCG-XSH-RR generator. Its sequence is stable API.
 struct Random
@@ -55,7 +55,7 @@ nothrow @safe @nogc:
     float between(float lower, float upper)
     {
         version (XTB_Checked)
-            require(lower.isFinite && upper.isFinite && lower <= upper,
+            require(lower.is_finite && upper.is_finite && lower <= upper,
                 "random range must be finite and ordered");
         if (lower == upper)
             return lower;
@@ -90,7 +90,7 @@ nothrow @safe @nogc unittest
     foreach (_; 0 .. 100)
     {
         const value = range.between(-float.max, float.max);
-        assert(value.isFinite && value >= -float.max && value <= float.max);
+        assert(value.is_finite && value >= -float.max && value <= float.max);
     }
     assert(range.between(7, 7) == 7);
 }

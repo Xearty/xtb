@@ -18,5 +18,5 @@ alias clamp = xtb.math.vector.clamp;
 alias lerp = xtb.math.scalar.lerp;
 alias lerp = xtb.math.vector.lerp;
 
-alias isFinite = xtb.math.scalar.isFinite;
-alias isFinite = xtb.math.vector.isFinite;
+alias is_finite = xtb.math.scalar.is_finite;
+alias is_finite = xtb.math.vector.isFinite;

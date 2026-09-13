@@ -5,7 +5,7 @@ module xtb.math.vector;
 import core.stdc.math : acosf, cosf, fabsf, sinf, sqrtf;
 
 version (XTB_Checked) import xtb.panic : require;
-import xtb.math.scalar : clamp, degrees, isFinite, lerp, max, min, radians;
+import xtb.math.scalar : clamp, degrees, is_finite, lerp, max, min, radians;
 
 struct Vector2
 {
@@ -492,7 +492,7 @@ pure Vector4 clamp(Vector4 v, Vector4 lo, Vector4 hi)
 Vector3 directionFromDegrees(float yaw, float pitch)
 {
     version (XTB_Checked)
-        require(yaw.isFinite && pitch.isFinite,
+        require(yaw.is_finite && pitch.is_finite,
             "direction angles must be finite");
     const y = radians(yaw), p = radians(pitch);
     return Vector3(sinf(y) * cosf(p), sinf(p), -cosf(y) * cosf(p));
