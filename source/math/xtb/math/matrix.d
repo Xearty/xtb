@@ -1,289 +1,460 @@
 module xtb.math.matrix;
 
-@safe nothrow @nogc:
+nothrow @nogc @safe:
 
-import core.stdc.math : cosf, sinf, tanf;
+import core.stdc.math;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.math.scalar : pi;
-import xtb.math.vector : Vector2, Vector3, Vector4, cross, dot;
+import xtb.math.scalar;
+import xtb.math.vector;
+import xtb.panic;
+import xtb.types;
 
 struct Matrix2
 {
-pure nothrow @safe @nogc:
+    nothrow @nogc @safe:
 
     Vector2 c0;
     Vector2 c1;
 
-    static pure Matrix2 identity()
+    static Matrix2 identity() pure
     {
         return Matrix2(Vector2(1, 0), Vector2(0, 1));
     }
 
-    pure Matrix2 opBinary(string op : "*")(float s) const
+    Matrix2 opBinary(string op : "*")(f32 scalar) const pure
     {
-        return Matrix2(c0 * s, c1 * s);
+        return Matrix2(this.c0 * scalar, this.c1 * scalar);
     }
 
-    pure Vector2 opBinary(string op : "*")(Vector2 v) const
+    Vector2 opBinary(string op : "*")(Vector2 vector) const pure
     {
-        return c0 * v.x + c1 * v.y;
+        return this.c0 * vector.x + this.c1 * vector.y;
     }
 
-    pure Matrix2 opBinary(string op : "*")(Matrix2 b) const
+    Matrix2 opBinary(string op : "*")(Matrix2 other) const pure
     {
-        return Matrix2(this * b.c0, this * b.c1);
+        return Matrix2(this * other.c0, this * other.c1);
+    }
+
+    Matrix2 transposed() const pure
+    {
+        return Matrix2(
+            Vector2(this.c0.x, this.c1.x),
+            Vector2(this.c0.y, this.c1.y),
+        );
+    }
+
+    f32 determinant() const pure
+    {
+        return this.c0.x * this.c1.y - this.c1.x * this.c0.y;
+    }
+
+    /**
+     * `output` must not be null.
+     *
+     * On failure, `output` remains unchanged.
+     */
+    bool try_inverse(Matrix2* output) const @system
+    {
+        require(output !is null, "Matrix2 inverse output pointer is null");
+        if (!finite(this)) return false;
+
+        const scale = largest_magnitude(this);
+        if (scale == 0) return false;
+
+        const normalized = this * (1 / scale);
+        const determinant = normalized.determinant;
+        if (absolute(determinant) <= inverse_relative_tolerance) return false;
+
+        *output = Matrix2(
+            Vector2(normalized.c1.y, -normalized.c0.y),
+            Vector2(-normalized.c1.x, normalized.c0.x),
+        ) * (1 / (determinant * scale));
+        return true;
     }
 }
 
 struct Matrix3
 {
-pure nothrow @safe @nogc:
+    nothrow @nogc @safe:
 
     Vector3 c0;
     Vector3 c1;
     Vector3 c2;
 
-    static pure Matrix3 identity()
+    static Matrix3 identity() pure
     {
-        return Matrix3(Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1));
+        return Matrix3(
+            Vector3(1, 0, 0),
+            Vector3(0, 1, 0),
+            Vector3(0, 0, 1),
+        );
     }
 
-    pure Matrix3 opBinary(string op : "*")(float s) const
+    Matrix3 opBinary(string op : "*")(f32 scalar) const pure
     {
-        return Matrix3(c0 * s, c1 * s, c2 * s);
+        return Matrix3(this.c0 * scalar, this.c1 * scalar, this.c2 * scalar);
     }
 
-    pure Vector3 opBinary(string op : "*")(Vector3 v) const
+    Vector3 opBinary(string op : "*")(Vector3 vector) const pure
     {
-        return c0 * v.x + c1 * v.y + c2 * v.z;
+        return this.c0 * vector.x + this.c1 * vector.y + this.c2 * vector.z;
     }
 
-    pure Matrix3 opBinary(string op : "*")(Matrix3 b) const
+    Matrix3 opBinary(string op : "*")(Matrix3 other) const pure
     {
-        return Matrix3(this * b.c0, this * b.c1, this * b.c2);
+        return Matrix3(this * other.c0, this * other.c1, this * other.c2);
+    }
+
+    Matrix3 transposed() const pure
+    {
+        return Matrix3(
+            Vector3(this.c0.x, this.c1.x, this.c2.x),
+            Vector3(this.c0.y, this.c1.y, this.c2.y),
+            Vector3(this.c0.z, this.c1.z, this.c2.z),
+        );
+    }
+
+    f32 determinant() const pure
+    {
+        return dot(this.c0, cross(this.c1, this.c2));
+    }
+
+    /**
+     * `output` must not be null.
+     *
+     * On failure, `output` remains unchanged.
+     */
+    bool try_inverse(Matrix3* output) const @system
+    {
+        require(output !is null, "Matrix3 inverse output pointer is null");
+        if (!finite(this)) return false;
+
+        const scale = largest_magnitude(this);
+        if (scale == 0) return false;
+
+        const normalized = this * (1 / scale);
+        const determinant = normalized.determinant;
+        if (absolute(determinant) <= inverse_relative_tolerance) return false;
+
+        *output = Matrix3(
+            cross(normalized.c1, normalized.c2),
+            cross(normalized.c2, normalized.c0),
+            cross(normalized.c0, normalized.c1),
+        ).transposed * (1 / (determinant * scale));
+        return true;
     }
 }
 
 struct Matrix4
 {
-pure nothrow @safe @nogc:
+    nothrow @nogc @safe:
 
     Vector4 c0;
     Vector4 c1;
     Vector4 c2;
     Vector4 c3;
 
-    static pure Matrix4 identity()
+    static Matrix4 identity() pure
     {
-        return Matrix4(Vector4(1, 0, 0, 0), Vector4(0, 1, 0, 0), Vector4(0, 0,
-                1, 0), Vector4(0, 0, 0, 1));
+        return Matrix4(
+            Vector4(1, 0, 0, 0),
+            Vector4(0, 1, 0, 0),
+            Vector4(0, 0, 1, 0),
+            Vector4(0, 0, 0, 1),
+        );
     }
 
-    pure Matrix4 opBinary(string op : "*")(float s) const
+    Matrix4 opBinary(string op : "*")(f32 scalar) const pure
     {
-        return Matrix4(c0 * s, c1 * s, c2 * s, c3 * s);
+        return Matrix4(
+            this.c0 * scalar,
+            this.c1 * scalar,
+            this.c2 * scalar,
+            this.c3 * scalar,
+        );
     }
 
-    pure Vector4 opBinary(string op : "*")(Vector4 v) const
+    Vector4 opBinary(string op : "*")(Vector4 vector) const pure
     {
-        return c0 * v.x + c1 * v.y + c2 * v.z + c3 * v.w;
+        return this.c0 * vector.x
+            + this.c1 * vector.y
+            + this.c2 * vector.z
+            + this.c3 * vector.w;
     }
 
-    pure Matrix4 opBinary(string op : "*")(Matrix4 b) const
+    Matrix4 opBinary(string op : "*")(Matrix4 other) const pure
     {
-        return Matrix4(this * b.c0, this * b.c1, this * b.c2, this * b.c3);
+        return Matrix4(
+            this * other.c0,
+            this * other.c1,
+            this * other.c2,
+            this * other.c3,
+        );
     }
-}
 
-static assert(Matrix2.sizeof == 4 * float.sizeof);
-static assert(Matrix3.sizeof == 9 * float.sizeof);
-static assert(Matrix4.sizeof == 16 * float.sizeof);
+    Matrix4 transposed() const pure
+    {
+        return Matrix4(
+            Vector4(this.c0.x, this.c1.x, this.c2.x, this.c3.x),
+            Vector4(this.c0.y, this.c1.y, this.c2.y, this.c3.y),
+            Vector4(this.c0.z, this.c1.z, this.c2.z, this.c3.z),
+            Vector4(this.c0.w, this.c1.w, this.c2.w, this.c3.w),
+        );
+    }
 
-enum float inverseRelativeTolerance = 8 * float.epsilon;
+    f32 determinant() const pure
+    {
+        const m00 = this.c0.x;
+        const m01 = this.c1.x;
+        const m02 = this.c2.x;
+        const m03 = this.c3.x;
+        const m10 = this.c0.y;
+        const m11 = this.c1.y;
+        const m12 = this.c2.y;
+        const m13 = this.c3.y;
+        const m20 = this.c0.z;
+        const m21 = this.c1.z;
+        const m22 = this.c2.z;
+        const m23 = this.c3.z;
+        const m30 = this.c0.w;
+        const m31 = this.c1.w;
+        const m32 = this.c2.w;
+        const m33 = this.c3.w;
 
-pure Matrix2 transposed(Matrix2 m)
-{
-    return Matrix2(Vector2(m.c0.x, m.c1.x), Vector2(m.c0.y, m.c1.y));
-}
+        return m00 * (
+            m11 * (m22 * m33 - m23 * m32)
+                - m12 * (m21 * m33 - m23 * m31)
+                + m13 * (m21 * m32 - m22 * m31)
+        ) - m01 * (
+            m10 * (m22 * m33 - m23 * m32)
+                - m12 * (m20 * m33 - m23 * m30)
+                + m13 * (m20 * m32 - m22 * m30)
+        ) + m02 * (
+            m10 * (m21 * m33 - m23 * m31)
+                - m11 * (m20 * m33 - m23 * m30)
+                + m13 * (m20 * m31 - m21 * m30)
+        ) - m03 * (
+            m10 * (m21 * m32 - m22 * m31)
+                - m11 * (m20 * m32 - m22 * m30)
+                + m12 * (m20 * m31 - m21 * m30)
+        );
+    }
 
-pure Matrix3 transposed(Matrix3 m)
-{
-    return Matrix3(Vector3(m.c0.x, m.c1.x, m.c2.x), Vector3(m.c0.y, m.c1.y,
-            m.c2.y), Vector3(m.c0.z, m.c1.z, m.c2.z));
-}
-
-pure Matrix4 transposed(Matrix4 m)
-{
-    return Matrix4(Vector4(m.c0.x, m.c1.x, m.c2.x, m.c3.x), Vector4(m.c0.y,
-            m.c1.y, m.c2.y, m.c3.y), Vector4(m.c0.z, m.c1.z, m.c2.z, m.c3.z),
-        Vector4(m.c0.w, m.c1.w, m.c2.w, m.c3.w));
-}
-
-pure float determinant(Matrix2 m)
-{
-    return m.c0.x * m.c1.y - m.c1.x * m.c0.y;
-}
-
-pure float determinant(Matrix3 m)
-{
-    return dot(m.c0, cross(m.c1, m.c2));
-}
-
-pure float determinant(Matrix4 m)
-{
-    const a = m.c0.x, b = m.c1.x, c = m.c2.x, d = m.c3.x;
-    const e = m.c0.y, f = m.c1.y, g = m.c2.y, h = m.c3.y;
-    const i = m.c0.z, j = m.c1.z, k = m.c2.z, l = m.c3.z;
-    const n = m.c0.w, o = m.c1.w, p = m.c2.w, q = m.c3.w;
-    return a * (f * (k * q - l * p) - g * (j * q - l * o) + h * (j * p - k * o)) - b * (
-        e * (k * q - l * p) - g * (i * q - l * n) + h * (i * p - k * n)) + c * (
-        e * (j * q - l * o) - f * (i * q - l * n) + h * (i * o - j * n)) - d * (
-        e * (j * p - k * o) - f * (i * p - k * n) + g * (i * o - j * n));
-}
-
-@system bool tryInverse(Matrix2 m, Matrix2* output)
-{
-    version (XTB_Checked)
-        require(output !is null, "Matrix2 inverse output pointer is null");
-    if (!finite(m))
-        return false;
-    const scale = largestMagnitude(m);
-    if (scale == 0)
-        return false;
-    const normalized = m * (1 / scale);
-    const d = normalized.determinant;
-    if (absolute(d) <= inverseRelativeTolerance)
-        return false;
-    *output = Matrix2(
-        Vector2(normalized.c1.y, -normalized.c0.y),
-        Vector2(-normalized.c1.x, normalized.c0.x),
-    ) * (1 / (d * scale));
-    return true;
-}
-
-@system bool tryInverse(Matrix3 m, Matrix3* output)
-{
-    version (XTB_Checked)
-        require(output !is null, "Matrix3 inverse output pointer is null");
-    if (!finite(m))
-        return false;
-    const scale = largestMagnitude(m);
-    if (scale == 0)
-        return false;
-    const normalized = m * (1 / scale);
-    const d = normalized.determinant;
-    if (absolute(d) <= inverseRelativeTolerance)
-        return false;
-    *output = Matrix3(
-        cross(normalized.c1, normalized.c2),
-        cross(normalized.c2, normalized.c0),
-        cross(normalized.c0, normalized.c1),
-    ).transposed * (1 / (d * scale));
-    return true;
-}
-
-@system bool tryInverse(Matrix4 m, Matrix4* output)
-{
-    version (XTB_Checked)
+    /**
+     * `output` must not be null.
+     *
+     * On failure, `output` remains unchanged.
+     */
+    bool try_inverse(Matrix4* output) const @system
+    {
         require(output !is null, "Matrix4 inverse output pointer is null");
-    if (!finite(m))
-        return false;
-    const scale = largestMagnitude(m);
-    if (scale == 0)
-        return false;
-    const inverseScale = 1 / scale;
-    float[8][4] rows;
-    rows[0] = [
-        m.c0.x * inverseScale, m.c1.x * inverseScale,
-        m.c2.x * inverseScale, m.c3.x * inverseScale, 1, 0, 0, 0
-    ];
-    rows[1] = [
-        m.c0.y * inverseScale, m.c1.y * inverseScale,
-        m.c2.y * inverseScale, m.c3.y * inverseScale, 0, 1, 0, 0
-    ];
-    rows[2] = [
-        m.c0.z * inverseScale, m.c1.z * inverseScale,
-        m.c2.z * inverseScale, m.c3.z * inverseScale, 0, 0, 1, 0
-    ];
-    rows[3] = [
-        m.c0.w * inverseScale, m.c1.w * inverseScale,
-        m.c2.w * inverseScale, m.c3.w * inverseScale, 0, 0, 0, 1
-    ];
-    foreach (column; 0 .. 4)
-    {
-        size_t pivot = column;
-        float pivotMagnitude = absolute(rows[pivot][column]);
-        foreach (row; column + 1 .. 4)
+        if (!finite(this)) return false;
+
+        const scale = largest_magnitude(this);
+        if (scale == 0) return false;
+
+        const inverse_scale = 1 / scale;
+        f32[8][4] rows;
+        rows[0] = [
+            this.c0.x * inverse_scale,
+            this.c1.x * inverse_scale,
+            this.c2.x * inverse_scale,
+            this.c3.x * inverse_scale,
+            1,
+            0,
+            0,
+            0,
+        ];
+        rows[1] = [
+            this.c0.y * inverse_scale,
+            this.c1.y * inverse_scale,
+            this.c2.y * inverse_scale,
+            this.c3.y * inverse_scale,
+            0,
+            1,
+            0,
+            0,
+        ];
+        rows[2] = [
+            this.c0.z * inverse_scale,
+            this.c1.z * inverse_scale,
+            this.c2.z * inverse_scale,
+            this.c3.z * inverse_scale,
+            0,
+            0,
+            1,
+            0,
+        ];
+        rows[3] = [
+            this.c0.w * inverse_scale,
+            this.c1.w * inverse_scale,
+            this.c2.w * inverse_scale,
+            this.c3.w * inverse_scale,
+            0,
+            0,
+            0,
+            1,
+        ];
+
+        foreach (column; 0 .. 4)
         {
-            const magnitude = absolute(rows[row][column]);
-            if (magnitude > pivotMagnitude)
+            usize pivot = column;
+            f32 pivot_magnitude = absolute(rows[pivot][column]);
+            foreach (row; column + 1 .. 4)
             {
-                pivot = row;
-                pivotMagnitude = magnitude;
+                const magnitude = absolute(rows[row][column]);
+                if (magnitude > pivot_magnitude)
+                {
+                    pivot = row;
+                    pivot_magnitude = magnitude;
+                }
+            }
+
+            if (pivot_magnitude <= inverse_relative_tolerance) return false;
+
+            if (pivot != column)
+            {
+                const temporary = rows[column];
+                rows[column] = rows[pivot];
+                rows[pivot] = temporary;
+            }
+
+            const divisor = rows[column][column];
+            foreach (entry; 0 .. 8)
+                rows[column][entry] /= divisor;
+
+            foreach (row; 0 .. 4)
+            {
+                if (row == column) continue;
+
+                const factor = rows[row][column];
+                foreach (entry; 0 .. 8)
+                    rows[row][entry] -= factor * rows[column][entry];
             }
         }
-        if (pivotMagnitude <= inverseRelativeTolerance)
-            return false;
-        if (pivot != column)
-        {
-            const temporary = rows[column];
-            rows[column] = rows[pivot];
-            rows[pivot] = temporary;
-        }
-        const divisor = rows[column][column];
-        foreach (entry; 0 .. 8)
-            rows[column][entry] /= divisor;
-        foreach (row; 0 .. 4)
-        {
-            if (row == column)
-                continue;
-            const factor = rows[row][column];
-            foreach (entry; 0 .. 8)
-                rows[row][entry] -= factor * rows[column][entry];
-        }
+
+        *output = Matrix4(
+            Vector4(rows[0][4], rows[1][4], rows[2][4], rows[3][4]),
+            Vector4(rows[0][5], rows[1][5], rows[2][5], rows[3][5]),
+            Vector4(rows[0][6], rows[1][6], rows[2][6], rows[3][6]),
+            Vector4(rows[0][7], rows[1][7], rows[2][7], rows[3][7]),
+        ) * inverse_scale;
+        return true;
     }
-    *output = Matrix4(Vector4(rows[0][4], rows[1][4], rows[2][4], rows[3][4]),
-        Vector4(rows[0][5], rows[1][5], rows[2][5], rows[3][5]),
-        Vector4(rows[0][6], rows[1][6], rows[2][6], rows[3][6]),
-        Vector4(rows[0][7], rows[1][7], rows[2][7], rows[3][7])) * inverseScale;
-    return true;
+
+    bool is_affine() const pure
+    {
+        return this.c0.w == 0 && this.c1.w == 0 && this.c2.w == 0 && this.c3.w == 1;
+    }
+
+    /**
+     * `output` must not be null.
+     *
+     * On failure, `output` remains unchanged.
+     */
+    bool try_affine_inverse(Matrix4* output) const @system
+    {
+        require(output !is null, "affine inverse output pointer is null");
+        if (!finite(this) || !this.is_affine) return false;
+
+        Matrix3 linear_inverse;
+        if (!Matrix3(this.c0.xyz, this.c1.xyz, this.c2.xyz).try_inverse(&linear_inverse))
+            return false;
+
+        const translation = -(linear_inverse * this.c3.xyz);
+        *output = Matrix4(
+            linear_inverse.c0.with_w(0),
+            linear_inverse.c1.with_w(0),
+            linear_inverse.c2.with_w(0),
+            translation.with_w(1),
+        );
+        return true;
+    }
+
+    Matrix4 pre_translated(Vector3 offset) const pure
+    {
+        return translation(offset) * this;
+    }
+
+    Matrix4 post_translated(Vector3 offset) const pure
+    {
+        return this * translation(offset);
+    }
+
+    Matrix4 pre_scaled(Vector3 factors) const pure
+    {
+        return scaling(factors) * this;
+    }
+
+    Matrix4 post_scaled(Vector3 factors) const pure
+    {
+        return this * scaling(factors);
+    }
+
+    Matrix4 pre_scaled(f32 factor) const pure
+    {
+        return scaling(factor) * this;
+    }
+
+    Matrix4 post_scaled(f32 factor) const pure
+    {
+        return this * scaling(factor);
+    }
+
+    Matrix4 pre_rotated(Vector3 axis, f32 angle) const
+    {
+        return rotation(axis, angle) * this;
+    }
+
+    Matrix4 post_rotated(Vector3 axis, f32 angle) const
+    {
+        return this * rotation(axis, angle);
+    }
 }
 
-private pure float absolute(float value)
+static assert(Matrix2.sizeof == 4 * f32.sizeof);
+static assert(Matrix3.sizeof == 9 * f32.sizeof);
+static assert(Matrix4.sizeof == 16 * f32.sizeof);
+
+private enum f32 inverse_relative_tolerance = 8 * f32.epsilon;
+
+private f32 absolute(f32 value) pure
 {
     return value < 0 ? -value : value;
 }
 
-private pure bool finite(float value)
+private bool finite(f32 value) pure
 {
-    return value == value && value >= -float.max && value <= float.max;
+    return value == value && value >= -f32.max && value <= f32.max;
 }
 
-private pure bool finite(Matrix2 value)
+private bool finite(Matrix2 value) pure
 {
     return value.c0.is_finite && value.c1.is_finite;
 }
 
-private pure bool finite(Matrix3 value)
+private bool finite(Matrix3 value) pure
 {
     return value.c0.is_finite && value.c1.is_finite && value.c2.is_finite;
 }
 
-private pure bool finite(Matrix4 value)
+private bool finite(Matrix4 value) pure
 {
-    return value.c0.is_finite && value.c1.is_finite &&
-        value.c2.is_finite && value.c3.is_finite;
+    return value.c0.is_finite
+        && value.c1.is_finite
+        && value.c2.is_finite
+        && value.c3.is_finite;
 }
 
-private pure float maximum(float left, float right)
+private f32 maximum(f32 left, f32 right) pure
 {
     return left > right ? left : right;
 }
 
-private pure float largestMagnitude(Matrix2 value)
+private f32 largest_magnitude(Matrix2 value) pure
 {
-    float result;
+    f32 result = 0;
     result = maximum(result, absolute(value.c0.x));
     result = maximum(result, absolute(value.c0.y));
     result = maximum(result, absolute(value.c1.x));
@@ -291,9 +462,9 @@ private pure float largestMagnitude(Matrix2 value)
     return result;
 }
 
-private pure float largestMagnitude(Matrix3 value)
+private f32 largest_magnitude(Matrix3 value) pure
 {
-    float result;
+    f32 result = 0;
     result = maximum(result, absolute(value.c0.x));
     result = maximum(result, absolute(value.c0.y));
     result = maximum(result, absolute(value.c0.z));
@@ -306,12 +477,12 @@ private pure float largestMagnitude(Matrix3 value)
     return result;
 }
 
-private pure float largestMagnitude(Matrix4 value)
+private f32 largest_magnitude(Matrix4 value) pure
 {
-    float result = largestMagnitude(Matrix3(
-            value.c0.xyz,
-            value.c1.xyz,
-            value.c2.xyz,
+    f32 result = largest_magnitude(Matrix3(
+        value.c0.xyz,
+        value.c1.xyz,
+        value.c2.xyz,
     ));
     result = maximum(result, absolute(value.c0.w));
     result = maximum(result, absolute(value.c1.w));
@@ -323,306 +494,355 @@ private pure float largestMagnitude(Matrix4 value)
     return result;
 }
 
-pure bool isAffine(Matrix4 m)
-{
-    return m.c0.w == 0 && m.c1.w == 0 && m.c2.w == 0 && m.c3.w == 1;
-}
-
-@system bool tryAffineInverse(Matrix4 m, Matrix4* output)
-{
-    version (XTB_Checked)
-        require(output !is null, "affine inverse output pointer is null");
-    if (!finite(m) || !m.isAffine)
-        return false;
-    Matrix3 linearInverse;
-    if (!Matrix3(m.c0.xyz, m.c1.xyz, m.c2.xyz).tryInverse(&linearInverse))
-        return false;
-    const translation = -(linearInverse * m.c3.xyz);
-    *output = Matrix4(linearInverse.c0.with_w(0), linearInverse.c1.with_w(0),
-        linearInverse.c2.with_w(0), translation.with_w(1));
-    return true;
-}
-
-pure Matrix4 translation(Vector3 offset)
+Matrix4 translation(Vector3 offset) pure
 {
     Matrix4 result = Matrix4.identity;
     result.c3 = offset.with_w(1);
     return result;
 }
 
-pure Matrix4 scaling(Vector3 factors)
+Matrix4 scaling(Vector3 factors) pure
 {
-    return Matrix4(Vector4(factors.x, 0, 0, 0), Vector4(0, factors.y, 0, 0),
-        Vector4(0, 0, factors.z, 0), Vector4(0, 0, 0, 1));
+    return Matrix4(
+        Vector4(factors.x, 0, 0, 0),
+        Vector4(0, factors.y, 0, 0),
+        Vector4(0, 0, factors.z, 0),
+        Vector4(0, 0, 0, 1),
+    );
 }
 
-pure Matrix4 scaling(float factor)
+Matrix4 scaling(f32 factor) pure
 {
     return scaling(Vector3(factor, factor, factor));
 }
 
-Matrix4 rotationX(float angle)
+Matrix4 rotation_x(f32 angle)
 {
-    version (XTB_Checked)
-        require(finite(angle), "rotation angle must be finite");
-    const c = cosf(angle), s = sinf(angle);
-    return Matrix4(Vector4(1, 0, 0, 0), Vector4(0, c, s, 0), Vector4(0, -s, c,
-            0), Vector4(0, 0, 0, 1));
+    require(finite(angle), "rotation angle must be finite");
+
+    const cosine = cosf(angle);
+    const sine = sinf(angle);
+    return Matrix4(
+        Vector4(1, 0, 0, 0),
+        Vector4(0, cosine, sine, 0),
+        Vector4(0, -sine, cosine, 0),
+        Vector4(0, 0, 0, 1),
+    );
 }
 
-Matrix4 rotationY(float angle)
+Matrix4 rotation_y(f32 angle)
 {
-    version (XTB_Checked)
-        require(finite(angle), "rotation angle must be finite");
-    const c = cosf(angle), s = sinf(angle);
-    return Matrix4(Vector4(c, 0, -s, 0), Vector4(0, 1, 0, 0), Vector4(s, 0, c,
-            0), Vector4(0, 0, 0, 1));
+    require(finite(angle), "rotation angle must be finite");
+
+    const cosine = cosf(angle);
+    const sine = sinf(angle);
+    return Matrix4(
+        Vector4(cosine, 0, -sine, 0),
+        Vector4(0, 1, 0, 0),
+        Vector4(sine, 0, cosine, 0),
+        Vector4(0, 0, 0, 1),
+    );
 }
 
-Matrix4 rotationZ(float angle)
+Matrix4 rotation_z(f32 angle)
 {
-    version (XTB_Checked)
-        require(finite(angle), "rotation angle must be finite");
-    const c = cosf(angle), s = sinf(angle);
-    return Matrix4(Vector4(c, s, 0, 0), Vector4(-s, c, 0, 0), Vector4(0, 0, 1,
-            0), Vector4(0, 0, 0, 1));
+    require(finite(angle), "rotation angle must be finite");
+
+    const cosine = cosf(angle);
+    const sine = sinf(angle);
+    return Matrix4(
+        Vector4(cosine, sine, 0, 0),
+        Vector4(-sine, cosine, 0, 0),
+        Vector4(0, 0, 1, 0),
+        Vector4(0, 0, 0, 1),
+    );
 }
 
-Matrix4 rotation(Vector3 axis, float angle)
+Matrix4 rotation(Vector3 axis, f32 angle)
 {
-    version (XTB_Checked)
-        require(axis.is_finite && finite(angle),
-            "rotation axis and angle must be finite");
+    require(axis.is_finite && finite(angle), "rotation axis and angle must be finite");
+
     axis = axis.normalized;
-    if (axis == Vector3.init)
-        return Matrix4.identity;
-    const c = cosf(angle), s = sinf(angle), t = 1 - c, x = axis.x, y = axis.y, z = axis.z;
-    return Matrix4(Vector4(x * x * t + c, y * x * t + z * s, z * x * t - y * s, 0),
-        Vector4(x * y * t - z * s, y * y * t + c, z * y * t + x * s, 0),
-        Vector4(x * z * t + y * s, y * z * t - x * s, z * z * t + c, 0), Vector4(0, 0, 0, 1));
+    if (axis == Vector3.init) return Matrix4.identity;
+
+    const cosine = cosf(angle);
+    const sine = sinf(angle);
+    const one_minus_cosine = 1 - cosine;
+    const axis_x = axis.x;
+    const axis_y = axis.y;
+    const axis_z = axis.z;
+    return Matrix4(
+        Vector4(
+            axis_x * axis_x * one_minus_cosine + cosine,
+            axis_y * axis_x * one_minus_cosine + axis_z * sine,
+            axis_z * axis_x * one_minus_cosine - axis_y * sine,
+            0,
+        ),
+        Vector4(
+            axis_x * axis_y * one_minus_cosine - axis_z * sine,
+            axis_y * axis_y * one_minus_cosine + cosine,
+            axis_z * axis_y * one_minus_cosine + axis_x * sine,
+            0,
+        ),
+        Vector4(
+            axis_x * axis_z * one_minus_cosine + axis_y * sine,
+            axis_y * axis_z * one_minus_cosine - axis_x * sine,
+            axis_z * axis_z * one_minus_cosine + cosine,
+            0,
+        ),
+        Vector4(0, 0, 0, 1),
+    );
 }
 
-Matrix4 rotationYawPitchRoll(float yaw, float pitch, float roll)
+Matrix4 rotation_yaw_pitch_roll(f32 yaw, f32 pitch, f32 roll)
 {
-    version (XTB_Checked)
-        require(finite(yaw) && finite(pitch) && finite(roll),
-            "yaw, pitch, and roll must be finite");
-    return rotationY(-yaw) * rotationX(pitch) * rotationZ(roll);
+    require(
+        finite(yaw) && finite(pitch) && finite(roll),
+        "yaw, pitch, and roll must be finite",
+    );
+    return rotation_y(-yaw) * rotation_x(pitch) * rotation_z(roll);
 }
 
-pure Matrix4 preTranslated(Matrix4 base, Vector3 offset)
+Matrix4 orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
 {
-    return translation(offset) * base;
+    require(
+        finite(left)
+            && finite(right)
+            && finite(bottom)
+            && finite(top)
+            && finite(near)
+            && finite(far),
+        "orthographic bounds must be finite",
+    );
+    require(
+        right != left && top != bottom && far != near,
+        "orthographic bounds must have nonzero extent",
+    );
+
+    return Matrix4(
+        Vector4(2 / (right - left), 0, 0, 0),
+        Vector4(0, 2 / (top - bottom), 0, 0),
+        Vector4(0, 0, -2 / (far - near), 0),
+        Vector4(
+            -(right + left) / (right - left),
+            -(top + bottom) / (top - bottom),
+            -(far + near) / (far - near),
+            1,
+        ),
+    );
 }
 
-pure Matrix4 postTranslated(Matrix4 base, Vector3 offset)
-{
-    return base * translation(offset);
-}
-
-pure Matrix4 preScaled(Matrix4 base, Vector3 factors)
-{
-    return scaling(factors) * base;
-}
-
-pure Matrix4 postScaled(Matrix4 base, Vector3 factors)
-{
-    return base * scaling(factors);
-}
-
-pure Matrix4 preScaled(Matrix4 base, float factor)
-{
-    return scaling(factor) * base;
-}
-
-pure Matrix4 postScaled(Matrix4 base, float factor)
-{
-    return base * scaling(factor);
-}
-
-Matrix4 preRotated(Matrix4 base, Vector3 axis, float angle)
-{
-    return rotation(axis, angle) * base;
-}
-
-Matrix4 postRotated(Matrix4 base, Vector3 axis, float angle)
-{
-    return base * rotation(axis, angle);
-}
-
-Matrix4 orthographic(float left, float right, float bottom, float top, float near, float far)
-{
-    version (XTB_Checked)
-    {
-        require(finite(left) && finite(right) && finite(bottom) && finite(top) &&
-                finite(near) && finite(far), "orthographic bounds must be finite");
-        require(right != left && top != bottom && far != near,
-            "orthographic bounds must have nonzero extent");
-    }
-    return Matrix4(Vector4(2 / (right - left), 0, 0, 0), Vector4(0,
-            2 / (top - bottom), 0, 0), Vector4(0, 0, -2 / (far - near), 0),
-        Vector4(-(right + left) / (right - left),
-            -(top + bottom) / (top - bottom), -(far + near) / (far - near), 1));
-}
-
-Matrix4 orthographic2D(float left, float right, float bottom, float top)
+Matrix4 orthographic_2d(f32 left, f32 right, f32 bottom, f32 top)
 {
     return orthographic(left, right, bottom, top, -1, 1);
 }
 
-Matrix4 screenProjection(float width, float height)
+Matrix4 screen_projection(f32 width, f32 height)
 {
-    version (XTB_Checked)
-        require(finite(width) && finite(height) && width > 0 && height > 0,
-            "screen dimensions must be positive and finite");
-    return orthographic2D(0, width, height, 0);
+    require(
+        finite(width) && finite(height) && width > 0 && height > 0,
+        "screen dimensions must be positive and finite",
+    );
+    return orthographic_2d(0, width, height, 0);
 }
 
-Matrix4 perspective(float verticalFov, float aspect, float near, float far)
+Matrix4 perspective(f32 vertical_fov, f32 aspect, f32 near, f32 far)
 {
-    version (XTB_Checked)
-    {
-        require(finite(verticalFov) && finite(aspect) && finite(near) && finite(far),
-            "perspective arguments must be finite");
-        require(verticalFov > 0 && verticalFov < pi,
-            "perspective field of view must be between zero and pi");
-        require(aspect > 0 && near > 0 && far > near,
-            "perspective aspect and clipping planes are invalid");
-    }
-    const f = 1 / tanf(verticalFov / 2);
-    return Matrix4(Vector4(f / aspect, 0, 0, 0), Vector4(0, f, 0, 0),
-        Vector4(0, 0, (far + near) / (near - far), -1), Vector4(0, 0,
-            (2 * far * near) / (near - far), 0));
+    require(
+        finite(vertical_fov) && finite(aspect) && finite(near) && finite(far),
+        "perspective arguments must be finite",
+    );
+    require(
+        vertical_fov > 0 && vertical_fov < pi,
+        "perspective field of view must be between zero and pi",
+    );
+    require(
+        aspect > 0 && near > 0 && far > near,
+        "perspective aspect and clipping planes are invalid",
+    );
+
+    const focal_scale = 1 / tanf(vertical_fov / 2);
+    return Matrix4(
+        Vector4(focal_scale / aspect, 0, 0, 0),
+        Vector4(0, focal_scale, 0, 0),
+        Vector4(0, 0, (far + near) / (near - far), -1),
+        Vector4(0, 0, (2 * far * near) / (near - far), 0),
+    );
 }
 
-@system bool tryLookAt(
-    Vector3 eye,
-    Vector3 target,
-    Vector3 up,
-    Matrix4* output,
-)
+/**
+ * `output` must not be null.
+ *
+ * On failure, `output` remains unchanged.
+ */
+bool try_look_at(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @system
 {
-    version (XTB_Checked)
-        require(output !is null, "look-at output pointer is null");
-    if (!eye.is_finite || !target.is_finite || !up.is_finite)
-        return false;
+    require(output !is null, "look-at output pointer is null");
+    if (!eye.is_finite || !target.is_finite || !up.is_finite) return false;
+
     const forward = (target - eye).normalized;
-    if (forward == Vector3.init)
-        return false;
-    const unitUp = up.normalized;
-    if (unitUp == Vector3.init)
-        return false;
-    const sideVector = cross(forward, unitUp);
-    const sideLength = sideVector.length;
-    if (!finite(sideLength) || sideLength <= inverseRelativeTolerance)
-        return false;
-    const side = sideVector / sideLength;
-    const correctedUp = cross(side, forward);
-    *output = Matrix4(Vector4(side.x, correctedUp.x, -forward.x, 0),
-        Vector4(side.y, correctedUp.y, -forward.y, 0), Vector4(side.z,
-            correctedUp.z, -forward.z, 0), Vector4(-dot(side, eye),
-            -dot(correctedUp, eye), dot(forward, eye), 1));
+    if (forward == Vector3.init) return false;
+
+    const unit_up = up.normalized;
+    if (unit_up == Vector3.init) return false;
+
+    const side_vector = cross(forward, unit_up);
+    const side_length = side_vector.length;
+    if (!finite(side_length) || side_length <= inverse_relative_tolerance) return false;
+
+    const side = side_vector / side_length;
+    const corrected_up = cross(side, forward);
+    *output = Matrix4(
+        Vector4(side.x, corrected_up.x, -forward.x, 0),
+        Vector4(side.y, corrected_up.y, -forward.y, 0),
+        Vector4(side.z, corrected_up.z, -forward.z, 0),
+        Vector4(-dot(side, eye), -dot(corrected_up, eye), dot(forward, eye), 1),
+    );
     return true;
 }
 
-@trusted Matrix4 lookAt(Vector3 eye, Vector3 target, Vector3 up)
+Matrix4 look_at(Vector3 eye, Vector3 target, Vector3 up) @trusted
 {
     Matrix4 result;
-    const succeeded = tryLookAt(eye, target, up, &result);
-    version (XTB_Checked)
-        require(succeeded, "look-at vectors are non-finite or degenerate");
+    const succeeded = try_look_at(eye, target, up, &result);
+    require(succeeded, "look-at vectors are non-finite or degenerate");
     return result;
 }
 
-private pure bool close(float a, float b, float epsilon = 0.0001f)
+version (unittest)
 {
-    const d = a - b;
-    return d < epsilon && d > -epsilon;
+    import xtb.math.random;
+
+    private bool close(f32 left, f32 right, f32 epsilon = 0.0001f) pure
+    {
+        const difference = left - right;
+        return difference < epsilon && difference > -epsilon;
+    }
+
+    private bool close(Vector4 left, Vector4 right, f32 epsilon = 0.0001f) pure
+    {
+        return close(left.x, right.x, epsilon)
+            && close(left.y, right.y, epsilon)
+            && close(left.z, right.z, epsilon)
+            && close(left.w, right.w, epsilon);
+    }
+
+    private bool close(Matrix4 left, Matrix4 right, f32 epsilon = 0.0001f) pure
+    {
+        return close(left.c0, right.c0, epsilon)
+            && close(left.c1, right.c1, epsilon)
+            && close(left.c2, right.c2, epsilon)
+            && close(left.c3, right.c3, epsilon);
+    }
 }
 
-private pure bool close(Vector4 a, Vector4 b, float epsilon = 0.0001f)
+unittest
 {
-    return close(a.x, b.x, epsilon) && close(a.y, b.y, epsilon) &&
-        close(a.z, b.z, epsilon) && close(a.w, b.w, epsilon);
-}
-
-private pure bool close(Matrix4 a, Matrix4 b, float epsilon = 0.0001f)
-{
-    return close(a.c0, b.c0, epsilon) && close(a.c1, b.c1, epsilon) &&
-        close(a.c2, b.c2, epsilon) && close(a.c3, b.c3, epsilon);
+    const identity = Matrix4.identity;
+    assert(identity * Vector4(1, 2, 3, 1) == Vector4(1, 2, 3, 1));
+    assert(
+        translation(Vector3(2, 3, 4)) * Vector4(1, 1, 1, 1)
+            == Vector4(3, 4, 5, 1),
+    );
 }
 
 @system unittest
 {
     const identity = Matrix4.identity;
-    assert(identity * Vector4(1, 2, 3, 1) == Vector4(1, 2, 3, 1));
-    assert(translation(Vector3(2, 3, 4)) * Vector4(1, 1, 1, 1) == Vector4(3, 4, 5, 1));
-    Matrix3 inverse;
-    const m = Matrix3(Vector3(2, 0, 0), Vector3(0, 4, 0), Vector3(0, 0, 5));
-    assert(m.tryInverse(&inverse));
-    const matrix3Identity = m * inverse;
-    assert(close(matrix3Identity.c0.with_w(0), Vector4(1, 0, 0, 0)));
-    assert(close(matrix3Identity.c1.with_w(0), Vector4(0, 1, 0, 0)));
-    assert(close(matrix3Identity.c2.with_w(0), Vector4(0, 0, 1, 0)));
 
-    Matrix2 matrix2Inverse = Matrix2.identity;
-    const nearSingular = Matrix2(
+    Matrix3 inverse;
+    const matrix3 = Matrix3(
+        Vector3(2, 0, 0),
+        Vector3(0, 4, 0),
+        Vector3(0, 0, 5),
+    );
+    assert(matrix3.try_inverse(&inverse));
+    const matrix3_identity = matrix3 * inverse;
+    assert(close(matrix3_identity.c0.with_w(0), Vector4(1, 0, 0, 0)));
+    assert(close(matrix3_identity.c1.with_w(0), Vector4(0, 1, 0, 0)));
+    assert(close(matrix3_identity.c2.with_w(0), Vector4(0, 0, 1, 0)));
+
+    Matrix2 matrix2_inverse = Matrix2.identity;
+    const near_singular = Matrix2(
         Vector2(1, 0),
-        Vector2(0, inverseRelativeTolerance / 2),
+        Vector2(0, inverse_relative_tolerance / 2),
     );
-    assert(!nearSingular.tryInverse(&matrix2Inverse));
-    assert(matrix2Inverse == Matrix2.identity);
-    const veryLarge = Matrix2(
-        Vector2(float.max, 0),
-        Vector2(0, float.max),
+    assert(!near_singular.try_inverse(&matrix2_inverse));
+    assert(matrix2_inverse == Matrix2.identity);
+
+    const very_large = Matrix2(
+        Vector2(f32.max, 0),
+        Vector2(0, f32.max),
     );
-    assert(veryLarge.tryInverse(&matrix2Inverse));
-    const matrix2Identity = veryLarge * matrix2Inverse;
-    assert(close(matrix2Identity.c0.x, 1) && close(matrix2Identity.c0.y, 0));
-    assert(close(matrix2Identity.c1.x, 0) && close(matrix2Identity.c1.y, 1));
+    assert(very_large.try_inverse(&matrix2_inverse));
+    const matrix2_identity = very_large * matrix2_inverse;
+    assert(close(matrix2_identity.c0.x, 1) && close(matrix2_identity.c0.y, 0));
+    assert(close(matrix2_identity.c1.x, 0) && close(matrix2_identity.c1.y, 1));
 
     inverse = Matrix3.identity;
-    assert(!Matrix3.init.tryInverse(&inverse));
+    assert(!Matrix3.init.try_inverse(&inverse));
     assert(inverse == Matrix3.identity);
-    Matrix4 generalInverse;
-    const general = Matrix4(Vector4(1, 2, 3, 4), Vector4(0, 1, 4, 2),
-        Vector4(5, 6, 0, 1), Vector4(1, 0, 2, 1));
-    assert(general.tryInverse(&generalInverse));
-    const generalIdentity = general * generalInverse;
-    assert(close(generalIdentity, identity, 0.001f));
-    Matrix4 affineInverse;
+
+    Matrix4 general_inverse;
+    const general = Matrix4(
+        Vector4(1, 2, 3, 4),
+        Vector4(0, 1, 4, 2),
+        Vector4(5, 6, 0, 1),
+        Vector4(1, 0, 2, 1),
+    );
+    assert(general.try_inverse(&general_inverse));
+    const general_identity = general * general_inverse;
+    assert(close(general_identity, identity, 0.001f));
+
+    Matrix4 affine_inverse;
     const transform = translation(Vector3(2, 3, 4)) * scaling(Vector3(2, 3, 4));
-    assert(transform.tryAffineInverse(&affineInverse));
-    const restored = affineInverse * (transform * Vector4(1, 2, 3, 1));
+    assert(transform.try_affine_inverse(&affine_inverse));
+    const restored = affine_inverse * (transform * Vector4(1, 2, 3, 1));
     assert(close(restored.x, 1) && close(restored.y, 2) && close(restored.z, 3));
+}
 
+@system unittest
+{
     Matrix4 camera = Matrix4.identity;
-    assert(!tryLookAt(Vector3.init, Vector3.init, Vector3(0, 1, 0), &camera));
+    assert(!try_look_at(Vector3.init, Vector3.init, Vector3(0, 1, 0), &camera));
     assert(camera == Matrix4.identity);
-    assert(!tryLookAt(Vector3.init, Vector3(0, 0, -1),
-            Vector3(0, 0, -2), &camera));
+    assert(!try_look_at(
+        Vector3.init,
+        Vector3(0, 0, -1),
+        Vector3(0, 0, -2),
+        &camera,
+    ));
     assert(camera == Matrix4.identity);
-    assert(tryLookAt(Vector3(0, 0, 3), Vector3.init,
-            Vector3(0, 1, 0), &camera));
-    assert(camera.finite);
+    assert(try_look_at(
+        Vector3(0, 0, 3),
+        Vector3.init,
+        Vector3(0, 1, 0),
+        &camera,
+    ));
+    assert(finite(camera));
+}
 
-    import xtb.math.random : Random;
-    import xtb.math.scalar : radians;
-    import xtb.math.vector : direction_from_degrees;
-
-    const yaw = 35.0f, pitch = -20.0f;
-    const expectedDirection = direction_from_degrees(yaw, pitch);
-    const rotatedDirection = (rotationYawPitchRoll(
-            radians(yaw), radians(pitch), 0,
-    ) * Vector4(0, 0, -1, 0)).xyz;
-    assert(close(rotatedDirection.with_w(0), expectedDirection.with_w(0)));
+unittest
+{
+    const yaw = 35.0f;
+    const pitch = -20.0f;
+    const expected_direction = direction_from_degrees(yaw, pitch);
+    const rotated_direction = (
+        rotation_yaw_pitch_roll(radians(yaw), radians(pitch), 0)
+            * Vector4(0, 0, -1, 0)
+    ).xyz;
+    assert(close(rotated_direction.with_w(0), expected_direction.with_w(0)));
 
     const base = scaling(2);
-    const pre = base.preTranslated(Vector3(1, 0, 0));
-    const post = base.postTranslated(Vector3(1, 0, 0));
-    assert(pre * Vector4(0, 0, 0, 1) == Vector4(1, 0, 0, 1));
-    assert(post * Vector4(0, 0, 0, 1) == Vector4(2, 0, 0, 1));
+    const pre_translated = base.pre_translated(Vector3(1, 0, 0));
+    const post_translated = base.post_translated(Vector3(1, 0, 0));
+    assert(pre_translated * Vector4(0, 0, 0, 1) == Vector4(1, 0, 0, 1));
+    assert(post_translated * Vector4(0, 0, 0, 1) == Vector4(2, 0, 0, 1));
+}
 
+@system unittest
+{
+    const identity = Matrix4.identity;
     Random random = Random.seeded(0xCAFE, 7);
     foreach (_; 0 .. 64)
     {
@@ -636,19 +856,20 @@ private pure bool close(Matrix4 a, Matrix4 b, float epsilon = 0.0001f)
             random.between(0.5f, 3),
             random.between(0.5f, 3),
         );
-        Vector3 axis = Vector3(
+        auto axis = Vector3(
             random.between(-1, 1),
             random.between(-1, 1),
             random.between(-1, 1),
         );
-        if (axis == Vector3.init)
-            axis.x = 1;
-        const value = translation(offset) *
-            rotation(axis, random.between(-pi, pi)) * scaling(factors);
-        Matrix4 valueInverse;
-        assert(value.tryInverse(&valueInverse));
-        assert(close(value * valueInverse, identity, 0.002f));
-        assert(value.tryAffineInverse(&valueInverse));
-        assert(close(value * valueInverse, identity, 0.002f));
+        if (axis == Vector3.init) axis.x = 1;
+
+        const value = translation(offset)
+            * rotation(axis, random.between(-pi, pi))
+            * scaling(factors);
+        Matrix4 value_inverse;
+        assert(value.try_inverse(&value_inverse));
+        assert(close(value * value_inverse, identity, 0.002f));
+        assert(value.try_affine_inverse(&value_inverse));
+        assert(close(value * value_inverse, identity, 0.002f));
     }
 }
