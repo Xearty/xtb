@@ -4,7 +4,6 @@ nothrow @nogc:
 
 import core.attribute;
 import core.internal.traits;
-import core.stdc.math;
 
 import xtb.containers.array;
 import xtb.lifetime;
@@ -96,10 +95,8 @@ import xtb.types;
         require(this.values.length != 0, "cannot sample empty ValueNoise1D");
         require(position.is_finite, "ValueNoise1D position must be finite");
 
-        f32 wrapped = fmodf(position, cast(f32) this.values.length);
-        if (wrapped < 0) wrapped += this.values.length;
-
-        const base = floorf(wrapped);
+        const wrapped = repeat(position, cast(f32) this.values.length);
+        const base = floor(wrapped);
         const fraction = wrapped - base;
         const left = cast(usize) base;
         const right = left + 1 == this.values.length ? 0 : left + 1;

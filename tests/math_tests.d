@@ -40,6 +40,8 @@ version (Posix)
 private bool overload_sets_resolve() nothrow @nogc @safe
 {
     const vector_clamped = clamp(Vector2(3, -2), Vector2(0, 0), Vector2(2, 2));
+    const quarter_turn = Quaternion.from_axis_angle(Vector3(0, 0, 1), pi / 2);
+    const transform = trs(Vector3(1, 2, 3), quarter_turn, Vector3(2, 2, 2));
 
     return min(3.0f, 7.0f) == 3.0f
         && min(Vector2(3, -2), Vector2(1, 4)) == Vector2(1, -2)
@@ -51,6 +53,15 @@ private bool overload_sets_resolve() nothrow @nogc @safe
         && lerp(Vector2(0, 2), Vector2(2, 4), 0.5f) == Vector2(1, 3)
         && approximately_equal(1.0f, 1.000_001f, 1e-5f, 0)
         && approximately_equal(Vector2(1, 2), Vector2(1.000_001f, 2), 1e-5f, 0)
+        && approximately_equal(quarter_turn, quarter_turn, 0, 0)
+        && dot(Vector2(1, 2), Vector2(3, 4)) == 11
+        && dot(Quaternion.identity, Quaternion.identity) == 1
+        && approximately_equal(
+            transform.transform_point(Vector3(1, 0, 0)),
+            Vector3(1, 4, 3),
+            1e-5f,
+            1e-5f,
+        )
         && is_finite(1.0f)
         && Vector2(1, 2).is_finite;
 }
