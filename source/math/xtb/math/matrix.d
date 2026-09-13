@@ -6,8 +6,7 @@ import core.stdc.math : cosf, sinf, tanf;
 
 version (XTB_Checked) import xtb.panic : require;
 import xtb.math.scalar : pi;
-import xtb.math.vector : Vector2, Vector3, Vector4, cross, dot, is_finite,
-    length, normalized, with_w, xyz;
+import xtb.math.vector : Vector2, Vector3, Vector4, cross, dot;
 
 struct Matrix2
 {

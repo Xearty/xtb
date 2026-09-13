@@ -51,7 +51,7 @@ private bool overload_sets_resolve() nothrow @nogc @safe
         && lerp(0.0f, 2.0f, 0.5f) == 1.0f
         && lerp(Vector2(0, 2), Vector2(2, 4), 0.5f) == Vector2(1, 3)
         && is_finite(1.0f)
-        && is_finite(Vector2(1, 2));
+        && Vector2(1, 2).is_finite;
 }
 
 extern (C) int main()
