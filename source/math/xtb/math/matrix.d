@@ -49,17 +49,30 @@ struct Matrix2
         return this.c0.x * this.c1.y - this.c1.x * this.c0.y;
     }
 
-    /**
-     * `output` must not be null.
-     *
-     * On failure, `output` remains unchanged.
-     */
+    private bool is_finite() const pure
+    {
+        return this.c0.is_finite && this.c1.is_finite;
+    }
+
+    private f32 largest_magnitude() const pure
+    {
+        f32 result = 0;
+        result = maximum(result, absolute(this.c0.x));
+        result = maximum(result, absolute(this.c0.y));
+        result = maximum(result, absolute(this.c1.x));
+        result = maximum(result, absolute(this.c1.y));
+        return result;
+    }
+
+    /// `output` must not be null.
+    ///
+    /// On failure, `output` remains unchanged.
     bool try_inverse(Matrix2* output) const @system
     {
         require(output !is null, "Matrix2 inverse output pointer is null");
-        if (!finite(this)) return false;
+        if (!this.is_finite) return false;
 
-        const scale = largest_magnitude(this);
+        const scale = this.largest_magnitude;
         if (scale == 0) return false;
 
         const normalized = this * (1 / scale);
@@ -120,17 +133,35 @@ struct Matrix3
         return dot(this.c0, cross(this.c1, this.c2));
     }
 
-    /**
-     * `output` must not be null.
-     *
-     * On failure, `output` remains unchanged.
-     */
+    private bool is_finite() const pure
+    {
+        return this.c0.is_finite && this.c1.is_finite && this.c2.is_finite;
+    }
+
+    private f32 largest_magnitude() const pure
+    {
+        f32 result = 0;
+        result = maximum(result, absolute(this.c0.x));
+        result = maximum(result, absolute(this.c0.y));
+        result = maximum(result, absolute(this.c0.z));
+        result = maximum(result, absolute(this.c1.x));
+        result = maximum(result, absolute(this.c1.y));
+        result = maximum(result, absolute(this.c1.z));
+        result = maximum(result, absolute(this.c2.x));
+        result = maximum(result, absolute(this.c2.y));
+        result = maximum(result, absolute(this.c2.z));
+        return result;
+    }
+
+    /// `output` must not be null.
+    ///
+    /// On failure, `output` remains unchanged.
     bool try_inverse(Matrix3* output) const @system
     {
         require(output !is null, "Matrix3 inverse output pointer is null");
-        if (!finite(this)) return false;
+        if (!this.is_finite) return false;
 
-        const scale = largest_magnitude(this);
+        const scale = this.largest_magnitude;
         if (scale == 0) return false;
 
         const normalized = this * (1 / scale);
@@ -241,17 +272,36 @@ struct Matrix4
         );
     }
 
-    /**
-     * `output` must not be null.
-     *
-     * On failure, `output` remains unchanged.
-     */
+    private bool is_finite() const pure
+    {
+        return this.c0.is_finite
+            && this.c1.is_finite
+            && this.c2.is_finite
+            && this.c3.is_finite;
+    }
+
+    private f32 largest_magnitude() const pure
+    {
+        f32 result = Matrix3(this.c0.xyz, this.c1.xyz, this.c2.xyz).largest_magnitude;
+        result = maximum(result, absolute(this.c0.w));
+        result = maximum(result, absolute(this.c1.w));
+        result = maximum(result, absolute(this.c2.w));
+        result = maximum(result, absolute(this.c3.x));
+        result = maximum(result, absolute(this.c3.y));
+        result = maximum(result, absolute(this.c3.z));
+        result = maximum(result, absolute(this.c3.w));
+        return result;
+    }
+
+    /// `output` must not be null.
+    ///
+    /// On failure, `output` remains unchanged.
     bool try_inverse(Matrix4* output) const @system
     {
         require(output !is null, "Matrix4 inverse output pointer is null");
-        if (!finite(this)) return false;
+        if (!this.is_finite) return false;
 
-        const scale = largest_magnitude(this);
+        const scale = this.largest_magnitude;
         if (scale == 0) return false;
 
         const inverse_scale = 1 / scale;
@@ -348,15 +398,13 @@ struct Matrix4
         return this.c0.w == 0 && this.c1.w == 0 && this.c2.w == 0 && this.c3.w == 1;
     }
 
-    /**
-     * `output` must not be null.
-     *
-     * On failure, `output` remains unchanged.
-     */
+    /// `output` must not be null.
+    ///
+    /// On failure, `output` remains unchanged.
     bool try_affine_inverse(Matrix4* output) const @system
     {
         require(output !is null, "affine inverse output pointer is null");
-        if (!finite(this) || !this.is_affine) return false;
+        if (!this.is_finite || !this.is_affine) return false;
 
         Matrix3 linear_inverse;
         if (!Matrix3(this.c0.xyz, this.c1.xyz, this.c2.xyz).try_inverse(&linear_inverse))
@@ -429,69 +477,9 @@ private bool finite(f32 value) pure
     return value == value && value >= -f32.max && value <= f32.max;
 }
 
-private bool finite(Matrix2 value) pure
-{
-    return value.c0.is_finite && value.c1.is_finite;
-}
-
-private bool finite(Matrix3 value) pure
-{
-    return value.c0.is_finite && value.c1.is_finite && value.c2.is_finite;
-}
-
-private bool finite(Matrix4 value) pure
-{
-    return value.c0.is_finite
-        && value.c1.is_finite
-        && value.c2.is_finite
-        && value.c3.is_finite;
-}
-
 private f32 maximum(f32 left, f32 right) pure
 {
     return left > right ? left : right;
-}
-
-private f32 largest_magnitude(Matrix2 value) pure
-{
-    f32 result = 0;
-    result = maximum(result, absolute(value.c0.x));
-    result = maximum(result, absolute(value.c0.y));
-    result = maximum(result, absolute(value.c1.x));
-    result = maximum(result, absolute(value.c1.y));
-    return result;
-}
-
-private f32 largest_magnitude(Matrix3 value) pure
-{
-    f32 result = 0;
-    result = maximum(result, absolute(value.c0.x));
-    result = maximum(result, absolute(value.c0.y));
-    result = maximum(result, absolute(value.c0.z));
-    result = maximum(result, absolute(value.c1.x));
-    result = maximum(result, absolute(value.c1.y));
-    result = maximum(result, absolute(value.c1.z));
-    result = maximum(result, absolute(value.c2.x));
-    result = maximum(result, absolute(value.c2.y));
-    result = maximum(result, absolute(value.c2.z));
-    return result;
-}
-
-private f32 largest_magnitude(Matrix4 value) pure
-{
-    f32 result = largest_magnitude(Matrix3(
-        value.c0.xyz,
-        value.c1.xyz,
-        value.c2.xyz,
-    ));
-    result = maximum(result, absolute(value.c0.w));
-    result = maximum(result, absolute(value.c1.w));
-    result = maximum(result, absolute(value.c2.w));
-    result = maximum(result, absolute(value.c3.x));
-    result = maximum(result, absolute(value.c3.y));
-    result = maximum(result, absolute(value.c3.z));
-    result = maximum(result, absolute(value.c3.w));
-    return result;
 }
 
 Matrix4 translation(Vector3 offset) pure
@@ -670,11 +658,9 @@ Matrix4 perspective(f32 vertical_fov, f32 aspect, f32 near, f32 far)
     );
 }
 
-/**
- * `output` must not be null.
- *
- * On failure, `output` remains unchanged.
- */
+/// `output` must not be null.
+///
+/// On failure, `output` remains unchanged.
 bool try_look_at(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @system
 {
     require(output !is null, "look-at output pointer is null");
@@ -704,6 +690,7 @@ bool try_look_at(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @syst
 Matrix4 look_at(Vector3 eye, Vector3 target, Vector3 up) @trusted
 {
     Matrix4 result;
+    // The output pointer targets live local storage, satisfying `try_look_at`'s @system contract.
     const succeeded = try_look_at(eye, target, up, &result);
     require(succeeded, "look-at vectors are non-finite or degenerate");
     return result;
@@ -819,7 +806,7 @@ unittest
         Vector3(0, 1, 0),
         &camera,
     ));
-    assert(finite(camera));
+    assert(camera.is_finite);
 }
 
 unittest
