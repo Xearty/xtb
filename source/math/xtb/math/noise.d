@@ -25,7 +25,7 @@ import xtb.types;
     @disable this(this);
     @disable ref ValueNoise1D opAssign(ValueNoise1D source) return;
 
-    /// `allocator` must point to a valid allocator.
+    /// `allocator` must point to a valid allocator. `period` must be in 1..16_777_216.
     static ValueNoise1D create(Allocator* allocator, usize period, u64 seed, u64 stream = 0)
     {
         ValueNoise1D result;
@@ -35,7 +35,7 @@ import xtb.types;
         return move(result);
     }
 
-    /// `allocator` and `output` must not be null.
+    /// `allocator` and `output` must not be null. `period` must be in 1..16_777_216.
     ///
     /// Any value already owned by `output` is deinitialized before allocation.
     /// On failure, `output` remains `ValueNoise1D.init`.
@@ -53,9 +53,13 @@ import xtb.types;
         require(period <= 16_777_216, "ValueNoise1D period exceeds exact f32 integer range");
 
         output.deinit();
+        // `Array.deinit` releases ownership without zeroing its storage metadata.
+        // Restore the documented failure state before attempting the replacement.
+        ValueNoise1D inert_output;
+        move_emplace(inert_output, *output);
 
         ValueNoise1D temporary;
-        Array!f32 values = Array!f32.create(allocator);
+        auto values = Array!f32.create(allocator);
         move_emplace(values, temporary.values);
         if (!temporary.values.try_resize(period))
         {
@@ -63,7 +67,7 @@ import xtb.types;
             return false;
         }
 
-        Random random = Random.seeded(seed, stream);
+        auto random = Random.seeded(seed, stream);
         foreach (index; 0 .. period)
             temporary.values[index] = random.between(-1, 1);
 
@@ -81,7 +85,8 @@ import xtb.types;
         return this.values.length;
     }
 
-    inout(f32)[] lattice() inout return @system
+    /// Returns a read-only lattice view valid until `values` is reallocated or deinitialized.
+    const(f32)[] lattice() const return @system
     {
         return this.values.slice;
     }
@@ -111,27 +116,27 @@ version (unittest)
 {
     import xtb.allocators.instrumented;
     import xtb.allocators.malloc;
-}
 
-private extern (C) void* rejecting_allocation(
-    void*,
-    usize,
-    void*,
-    usize,
-    usize,
-) @system
-{
-    return null;
+    private extern (C) void* rejecting_allocation(
+        void*,
+        usize,
+        void*,
+        usize,
+        usize,
+    ) @system
+    {
+        return null;
+    }
 }
 
 unittest
 {
     AllocationRecord[4] records;
-    InstrumentedAllocator tracked = InstrumentedAllocator.create(
+    auto tracked = InstrumentedAllocator.create(
         malloc_allocator(),
         records[],
     );
-    ValueNoise1D tracked_noise = ValueNoise1D.create(
+    auto tracked_noise = ValueNoise1D.create(
         tracked.allocator,
         8,
         99,
@@ -147,9 +152,9 @@ unittest
 
 unittest
 {
-    ValueNoise1D a = ValueNoise1D.create(malloc_allocator(), 8, 1234);
+    auto a = ValueNoise1D.create(malloc_allocator(), 8, 1234);
     scope (exit) a.deinit();
-    ValueNoise1D b = ValueNoise1D.create(malloc_allocator(), 8, 1234);
+    auto b = ValueNoise1D.create(malloc_allocator(), 8, 1234);
     scope (exit) b.deinit();
 
     assert(a.period == 8);
