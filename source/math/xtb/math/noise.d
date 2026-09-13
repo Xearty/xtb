@@ -2,91 +2,104 @@ module xtb.math.noise;
 
 nothrow @nogc:
 
-import core.internal.traits : hasElaborateDestructor;
-import core.stdc.math : floorf, fmodf;
-import xtb.containers.array;
-import xtb.lifetime : move, move_emplace, needs_deinit;
-import xtb.memory : Allocator;
-import xtb.panic : panic;
+import core.attribute;
+import core.internal.traits;
+import core.stdc.math;
 
-version (XTB_Checked) import xtb.panic : require;
-import xtb.math.random : Random;
-import xtb.math.scalar : smootherstep;
+import xtb.containers.array;
+import xtb.lifetime;
+import xtb.math.random;
+import xtb.math.scalar;
+import xtb.memory;
+import xtb.panic;
+import xtb.types;
 
 /// Owning, periodic one-dimensional value-noise lattice.
-struct ValueNoise1D
+@mustuse struct ValueNoise1D
 {
-nothrow @nogc:
+    nothrow @nogc:
 
-    private Array!float values_;
+    /// Lattice storage. A live noise value contains 1..16_777_216 samples.
+    Array!f32 values;
 
     @disable this(this);
     @disable ref ValueNoise1D opAssign(ValueNoise1D source) return;
 
-    static ValueNoise1D create(Allocator* allocator, size_t period, ulong seed, ulong stream = 0)
+    /// `allocator` must point to a valid allocator.
+    static ValueNoise1D create(Allocator* allocator, usize period, u64 seed, u64 stream = 0)
     {
         ValueNoise1D result;
-        if (!tryCreate(allocator, period, seed, &result, stream))
+        if (!ValueNoise1D.try_create(allocator, period, seed, &result, stream))
             panic("ValueNoise1D allocation failed");
+
         return move(result);
     }
 
-    static bool tryCreate(Allocator* allocator, size_t period, ulong seed,
-        ValueNoise1D* output, ulong stream = 0)
+    /// `allocator` and `output` must not be null.
+    ///
+    /// Any value already owned by `output` is deinitialized before allocation.
+    /// On failure, `output` remains `ValueNoise1D.init`.
+    static bool try_create(
+        Allocator* allocator,
+        usize period,
+        u64 seed,
+        scope ValueNoise1D* output,
+        u64 stream = 0,
+    )
     {
-        version (XTB_Checked)
-        {
-            require(output !is null, "ValueNoise1D output pointer is null");
-            require(allocator !is null, "ValueNoise1D requires an allocator");
-            require(period != 0, "ValueNoise1D period must be nonzero");
-            require(period <= 16_777_216, "ValueNoise1D period exceeds exact float integer range");
-        }
+        require(output !is null, "ValueNoise1D output pointer is null");
+        require(allocator !is null, "ValueNoise1D requires an allocator");
+        require(period != 0, "ValueNoise1D period must be nonzero");
+        require(period <= 16_777_216, "ValueNoise1D period exceeds exact f32 integer range");
+
         output.deinit();
-        Array!float values = Array!float.create(allocator);
-        move_emplace(values, output.values_);
-        if (!output.values_.try_resize(period))
+
+        ValueNoise1D temporary;
+        Array!f32 values = Array!f32.create(allocator);
+        move_emplace(values, temporary.values);
+        if (!temporary.values.try_resize(period))
         {
-            output.deinit();
+            temporary.deinit();
             return false;
         }
+
         Random random = Random.seeded(seed, stream);
         foreach (index; 0 .. period)
-            output.values_[index] = random.between(-1, 1);
+            temporary.values[index] = random.between(-1, 1);
+
+        move_emplace(temporary, *output);
         return true;
     }
 
     void deinit()
     {
-        values_.deinit();
+        this.values.deinit();
     }
 
-    size_t period() const pure @safe
+    usize period() const pure @safe
     {
-        return values_.length;
+        return this.values.length;
     }
 
-    const(float)[] lattice() const return @system
+    inout(f32)[] lattice() inout return @system
     {
-        return values_.slice;
+        return this.values.slice;
     }
 
-    float sample(float position) const @system
+    f32 sample(f32 position) const @system
     {
-        version (XTB_Checked)
-        {
-            require(values_.length != 0, "cannot sample empty ValueNoise1D");
-            require(position == position && position <= float.max
-                    && position >= -float.max, "ValueNoise1D position must be finite");
-        }
-        float wrapped = fmodf(position, cast(float) values_.length);
-        if (wrapped < 0)
-            wrapped += values_.length;
+        require(this.values.length != 0, "cannot sample empty ValueNoise1D");
+        require(position.is_finite, "ValueNoise1D position must be finite");
+
+        f32 wrapped = fmodf(position, cast(f32) this.values.length);
+        if (wrapped < 0) wrapped += this.values.length;
+
         const base = floorf(wrapped);
         const fraction = wrapped - base;
-        const left = cast(size_t) base;
-        const right = left + 1 == values_.length ? 0 : left + 1;
+        const left = cast(usize) base;
+        const right = left + 1 == this.values.length ? 0 : left + 1;
         const weight = smootherstep(0, 1, fraction);
-        return values_[left] + (values_[right] - values_[left]) * weight;
+        return this.values[left] + (this.values[right] - this.values[left]) * weight;
     }
 }
 
@@ -94,52 +107,55 @@ static assert(!hasElaborateDestructor!ValueNoise1D);
 static assert(needs_deinit!ValueNoise1D);
 static assert(!__traits(isCopyable, ValueNoise1D));
 
-private extern (C) void* rejectingAllocation(
+version (unittest)
+{
+    import xtb.allocators.instrumented;
+    import xtb.allocators.malloc;
+}
+
+private extern (C) void* rejecting_allocation(
     void*,
-    size_t,
+    usize,
     void*,
-    size_t,
-    size_t,
+    usize,
+    usize,
 ) @system
 {
     return null;
 }
 
-private Allocator rejectingAllocator = &rejectingAllocation;
-
 unittest
 {
-    import xtb.allocators.instrumented : AllocationRecord, InstrumentedAllocator;
-    import xtb.allocators.malloc : malloc_allocator;
-
     AllocationRecord[4] records;
     InstrumentedAllocator tracked = InstrumentedAllocator.create(
         malloc_allocator(),
         records[],
     );
-    ValueNoise1D trackedNoise = ValueNoise1D.create(
+    ValueNoise1D tracked_noise = ValueNoise1D.create(
         tracked.allocator,
         8,
         99,
     );
     assert(!tracked.clean());
-    trackedNoise.deinit();
+
+    Allocator rejecting_allocator = &rejecting_allocation;
+    assert(!ValueNoise1D.try_create(&rejecting_allocator, 8, 1, &tracked_noise));
+    assert(tracked_noise.period == 0);
     assert(tracked.clean());
     assert(tracked.stats.invalid_calls == 0);
+}
 
+unittest
+{
     ValueNoise1D a = ValueNoise1D.create(malloc_allocator(), 8, 1234);
-    scope (exit)
-        a.deinit();
+    scope (exit) a.deinit();
     ValueNoise1D b = ValueNoise1D.create(malloc_allocator(), 8, 1234);
-    scope (exit)
-        b.deinit();
+    scope (exit) b.deinit();
+
     assert(a.period == 8);
     foreach (index; 0 .. a.period)
         assert(a.lattice[index] == b.lattice[index]);
     foreach (position; [-9.75f, -1.25f, 0.0f, 3.125f, 17.5f])
-        assert(a.sample(position) == a.sample(position + cast(float) a.period));
+        assert(a.sample(position) == a.sample(position + cast(f32) a.period));
     assert(a.sample(2) == a.lattice[2]);
-    ValueNoise1D rejected;
-    assert(!ValueNoise1D.tryCreate(&rejectingAllocator, 8, 1, &rejected));
-    assert(rejected.period == 0);
 }
