@@ -2,8 +2,7 @@ module xtb.math.matrix;
 
 nothrow @nogc @safe:
 
-import core.stdc.math;
-
+import xtb.math.quaternion;
 import xtb.math.scalar;
 import xtb.math.vector;
 import xtb.panic;
@@ -104,6 +103,27 @@ struct Matrix3
         );
     }
 
+    /// Creates a rotation matrix from a unit quaternion.
+    static Matrix3 from_quaternion(Quaternion rotation)
+    {
+        require(rotation.is_unit, "rotation quaternion must be unit length");
+
+        const xx = rotation.x * rotation.x;
+        const yy = rotation.y * rotation.y;
+        const zz = rotation.z * rotation.z;
+        const xy = rotation.x * rotation.y;
+        const xz = rotation.x * rotation.z;
+        const yz = rotation.y * rotation.z;
+        const wx = rotation.w * rotation.x;
+        const wy = rotation.w * rotation.y;
+        const wz = rotation.w * rotation.z;
+        return Matrix3(
+            Vector3(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy)),
+            Vector3(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx)),
+            Vector3(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy)),
+        );
+    }
+
     Matrix3 opBinary(string op : "*")(f32 scalar) const pure
     {
         return Matrix3(this.c0 * scalar, this.c1 * scalar, this.c2 * scalar);
@@ -192,6 +212,18 @@ struct Matrix4
             Vector4(1, 0, 0, 0),
             Vector4(0, 1, 0, 0),
             Vector4(0, 0, 1, 0),
+            Vector4(0, 0, 0, 1),
+        );
+    }
+
+    /// Creates an affine rotation matrix from a unit quaternion.
+    static Matrix4 from_quaternion(Quaternion rotation)
+    {
+        const linear = Matrix3.from_quaternion(rotation);
+        return Matrix4(
+            linear.c0.with_w(0),
+            linear.c1.with_w(0),
+            linear.c2.with_w(0),
             Vector4(0, 0, 0, 1),
         );
     }
@@ -398,6 +430,42 @@ struct Matrix4
         return this.c0.w == 0 && this.c1.w == 0 && this.c2.w == 0 && this.c3.w == 1;
     }
 
+    /// Transforms a point, including translation.
+    ///
+    /// This matrix must be affine.
+    Vector3 transform_point(Vector3 point) const
+    {
+        require(this.is_affine, "point transform matrix must be affine");
+        return (this * point.with_w(1)).xyz;
+    }
+
+    /// Transforms a direction, excluding translation.
+    ///
+    /// This matrix must be affine.
+    Vector3 transform_direction(Vector3 direction) const
+    {
+        require(this.is_affine, "direction transform matrix must be affine");
+        return (this * direction.with_w(0)).xyz;
+    }
+
+    /// `output` must not be null.
+    ///
+    /// Returns false if this matrix is non-affine or its linear transform is singular.
+    ///
+    /// On failure, `output` remains unchanged.
+    bool try_normal_matrix(scope Matrix3* output) const @system
+    {
+        require(output !is null, "normal matrix output pointer is null");
+        if (!this.is_affine) return false;
+
+        Matrix3 linear_inverse;
+        if (!Matrix3(this.c0.xyz, this.c1.xyz, this.c2.xyz).try_inverse(&linear_inverse))
+            return false;
+
+        *output = linear_inverse.transposed;
+        return true;
+    }
+
     /// `output` must not be null.
     ///
     /// On failure, `output` remains unchanged.
@@ -450,11 +518,13 @@ struct Matrix4
         return this * scaling(factor);
     }
 
+    /// Returns this matrix pre-multiplied by a rotation of `angle` radians around `axis`.
     Matrix4 pre_rotated(Vector3 axis, f32 angle) const
     {
         return rotation(axis, angle) * this;
     }
 
+    /// Returns this matrix post-multiplied by a rotation of `angle` radians around `axis`.
     Matrix4 post_rotated(Vector3 axis, f32 angle) const
     {
         return this * rotation(axis, angle);
@@ -470,11 +540,6 @@ private enum f32 inverse_relative_tolerance = 8 * f32.epsilon;
 private f32 absolute(f32 value) pure
 {
     return value < 0 ? -value : value;
-}
-
-private bool finite(f32 value) pure
-{
-    return value == value && value >= -f32.max && value <= f32.max;
 }
 
 private f32 maximum(f32 left, f32 right) pure
@@ -504,12 +569,32 @@ Matrix4 scaling(f32 factor) pure
     return scaling(Vector3(factor, factor, factor));
 }
 
+/// Creates a translation-rotation-scale matrix that applies scale, then rotation, then translation.
+///
+/// `orientation` must be a unit quaternion and all components must be finite.
+Matrix4 trs(Vector3 position, Quaternion orientation, Vector3 scale)
+{
+    require(
+        position.is_finite && orientation.is_unit && scale.is_finite,
+        "TRS components must be finite and rotation must be unit length",
+    );
+
+    const rotation_matrix = Matrix3.from_quaternion(orientation);
+    return Matrix4(
+        (rotation_matrix.c0 * scale.x).with_w(0),
+        (rotation_matrix.c1 * scale.y).with_w(0),
+        (rotation_matrix.c2 * scale.z).with_w(0),
+        position.with_w(1),
+    );
+}
+
+/// Creates a rotation of `angle` radians around positive X.
 Matrix4 rotation_x(f32 angle)
 {
-    require(finite(angle), "rotation angle must be finite");
+    require(angle.is_finite, "rotation angle must be finite");
 
-    const cosine = cosf(angle);
-    const sine = sinf(angle);
+    const cosine = xtb.math.scalar.cos(angle);
+    const sine = xtb.math.scalar.sin(angle);
     return Matrix4(
         Vector4(1, 0, 0, 0),
         Vector4(0, cosine, sine, 0),
@@ -518,12 +603,13 @@ Matrix4 rotation_x(f32 angle)
     );
 }
 
+/// Creates a rotation of `angle` radians around positive Y.
 Matrix4 rotation_y(f32 angle)
 {
-    require(finite(angle), "rotation angle must be finite");
+    require(angle.is_finite, "rotation angle must be finite");
 
-    const cosine = cosf(angle);
-    const sine = sinf(angle);
+    const cosine = xtb.math.scalar.cos(angle);
+    const sine = xtb.math.scalar.sin(angle);
     return Matrix4(
         Vector4(cosine, 0, -sine, 0),
         Vector4(0, 1, 0, 0),
@@ -532,12 +618,13 @@ Matrix4 rotation_y(f32 angle)
     );
 }
 
+/// Creates a rotation of `angle` radians around positive Z.
 Matrix4 rotation_z(f32 angle)
 {
-    require(finite(angle), "rotation angle must be finite");
+    require(angle.is_finite, "rotation angle must be finite");
 
-    const cosine = cosf(angle);
-    const sine = sinf(angle);
+    const cosine = xtb.math.scalar.cos(angle);
+    const sine = xtb.math.scalar.sin(angle);
     return Matrix4(
         Vector4(cosine, sine, 0, 0),
         Vector4(-sine, cosine, 0, 0),
@@ -546,15 +633,16 @@ Matrix4 rotation_z(f32 angle)
     );
 }
 
+/// Creates a rotation of `angle` radians around `axis`.
 Matrix4 rotation(Vector3 axis, f32 angle)
 {
-    require(axis.is_finite && finite(angle), "rotation axis and angle must be finite");
+    require(axis.is_finite && angle.is_finite, "rotation axis and angle must be finite");
 
     axis = axis.normalized;
     if (axis == Vector3.init) return Matrix4.identity;
 
-    const cosine = cosf(angle);
-    const sine = sinf(angle);
+    const cosine = xtb.math.scalar.cos(angle);
+    const sine = xtb.math.scalar.sin(angle);
     const one_minus_cosine = 1 - cosine;
     const axis_x = axis.x;
     const axis_y = axis.y;
@@ -582,10 +670,11 @@ Matrix4 rotation(Vector3 axis, f32 angle)
     );
 }
 
+/// Creates a yaw-pitch-roll rotation from radian angles.
 Matrix4 rotation_yaw_pitch_roll(f32 yaw, f32 pitch, f32 roll)
 {
     require(
-        finite(yaw) && finite(pitch) && finite(roll),
+        yaw.is_finite && pitch.is_finite && roll.is_finite,
         "yaw, pitch, and roll must be finite",
     );
     return rotation_y(-yaw) * rotation_x(pitch) * rotation_z(roll);
@@ -594,12 +683,12 @@ Matrix4 rotation_yaw_pitch_roll(f32 yaw, f32 pitch, f32 roll)
 Matrix4 orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
 {
     require(
-        finite(left)
-            && finite(right)
-            && finite(bottom)
-            && finite(top)
-            && finite(near)
-            && finite(far),
+        left.is_finite
+            && right.is_finite
+            && bottom.is_finite
+            && top.is_finite
+            && near.is_finite
+            && far.is_finite,
         "orthographic bounds must be finite",
     );
     require(
@@ -628,16 +717,17 @@ Matrix4 orthographic_2d(f32 left, f32 right, f32 bottom, f32 top)
 Matrix4 screen_projection(f32 width, f32 height)
 {
     require(
-        finite(width) && finite(height) && width > 0 && height > 0,
+        width.is_finite && height.is_finite && width > 0 && height > 0,
         "screen dimensions must be positive and finite",
     );
     return orthographic_2d(0, width, height, 0);
 }
 
+/// Creates a perspective projection with `vertical_fov` specified in radians.
 Matrix4 perspective(f32 vertical_fov, f32 aspect, f32 near, f32 far)
 {
     require(
-        finite(vertical_fov) && finite(aspect) && finite(near) && finite(far),
+        vertical_fov.is_finite && aspect.is_finite && near.is_finite && far.is_finite,
         "perspective arguments must be finite",
     );
     require(
@@ -649,7 +739,7 @@ Matrix4 perspective(f32 vertical_fov, f32 aspect, f32 near, f32 far)
         "perspective aspect and clipping planes are invalid",
     );
 
-    const focal_scale = 1 / tanf(vertical_fov / 2);
+    const focal_scale = 1 / xtb.math.scalar.tan(vertical_fov / 2);
     return Matrix4(
         Vector4(focal_scale / aspect, 0, 0, 0),
         Vector4(0, focal_scale, 0, 0),
@@ -674,7 +764,7 @@ bool try_look_at(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @syst
 
     const side_vector = cross(forward, unit_up);
     const side_length = side_vector.length;
-    if (!finite(side_length) || side_length <= inverse_relative_tolerance) return false;
+    if (!side_length.is_finite || side_length <= inverse_relative_tolerance) return false;
 
     const side = side_vector / side_length;
     const corrected_up = cross(side, forward);
@@ -825,6 +915,58 @@ unittest
     const post_translated = base.post_translated(Vector3(1, 0, 0));
     assert(pre_translated * Vector4(0, 0, 0, 1) == Vector4(1, 0, 0, 1));
     assert(post_translated * Vector4(0, 0, 0, 1) == Vector4(2, 0, 0, 1));
+}
+
+unittest
+{
+    const orientation = Quaternion.from_yaw_pitch_roll(
+        radians(35.0f),
+        radians(-20.0f),
+        radians(15.0f),
+    );
+    const vector = Vector3(2, -3, 4);
+    const matrix3 = Matrix3.from_quaternion(orientation);
+    const matrix4 = Matrix4.from_quaternion(orientation);
+
+    assert(close((matrix3 * vector).with_w(0), orientation.rotated(vector).with_w(0)));
+    assert(close(
+        matrix4.transform_direction(vector).with_w(0),
+        orientation.rotated(vector).with_w(0),
+    ));
+    assert(close(
+        Matrix4.from_quaternion(-orientation),
+        matrix4,
+    ));
+    assert(close(
+        rotation_yaw_pitch_roll(radians(35.0f), radians(-20.0f), radians(15.0f)),
+        matrix4,
+    ));
+}
+
+unittest
+{
+    const transform = trs(
+        Vector3(2, 3, 4),
+        Quaternion.from_axis_angle(Vector3(0, 0, 1), pi / 2),
+        Vector3(2, 3, 4),
+    );
+
+    assert(close(transform.transform_point(Vector3(1, 0, 0)).with_w(1), Vector4(2, 5, 4, 1)));
+    assert(close(transform.transform_direction(Vector3(1, 0, 0)).with_w(0), Vector4(0, 2, 0, 0)));
+}
+
+@system unittest
+{
+    Matrix3 normal_matrix = Matrix3.identity;
+    assert(scaling(Vector3(2, 4, 5)).try_normal_matrix(&normal_matrix));
+    assert(close((normal_matrix * Vector3(1, 0, 0)).with_w(0), Vector4(0.5f, 0, 0, 0)));
+    assert(close((normal_matrix * Vector3(0, 1, 0)).with_w(0), Vector4(0, 0.25f, 0, 0)));
+    assert(close((normal_matrix * Vector3(0, 0, 1)).with_w(0), Vector4(0, 0, 0.2f, 0)));
+
+    const singular = scaling(Vector3(1, 0, 1));
+    const unchanged = normal_matrix;
+    assert(!singular.try_normal_matrix(&normal_matrix));
+    assert(normal_matrix == unchanged);
 }
 
 @system unittest
