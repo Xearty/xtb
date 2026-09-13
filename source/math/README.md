@@ -2,7 +2,9 @@
 
 `import xtb.math;` provides scalar, vector, quaternion, matrix, transform,
 projection, random, and noise utilities. Angle-taking APIs use radians; use
-`radians` and `degrees` only when converting at an API boundary. Matrices are
+`radians` and `degrees` only when converting at an API boundary. Vectors provide
+`zero`, `splat`, unit-axis static factories, and compile-time read-only `xyzw`
+swizzles of length two through four. Matrices are
 column-major and multiply column vectors. `Quaternion.init` is the identity
 rotation, and quaternion rotations are constructed through static members such as
 `Quaternion.from_axis_angle` and `Quaternion.from_yaw_pitch_roll`. `trs` composes

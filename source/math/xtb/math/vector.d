@@ -6,12 +6,86 @@ import xtb.math.scalar;
 import xtb.panic;
 import xtb.types;
 
+private bool is_valid_swizzle(string swizzle, string components) pure
+{
+    if (swizzle.length < 2 || swizzle.length > 4) return false;
+
+    foreach (component; swizzle)
+    {
+        bool found = false;
+        foreach (available; components)
+        {
+            if (component != available) continue;
+
+            found = true;
+            break;
+        }
+        if (!found) return false;
+    }
+
+    return true;
+}
+
+private mixin template VectorSwizzles(string components)
+{
+    auto opDispatch(string swizzle)() const pure
+    if (is_valid_swizzle(swizzle, components))
+    {
+        static if (swizzle.length == 2)
+        {
+            return Vector2(
+                mixin("this." ~ swizzle[0 .. 1]),
+                mixin("this." ~ swizzle[1 .. 2]),
+            );
+        }
+        else static if (swizzle.length == 3)
+        {
+            return Vector3(
+                mixin("this." ~ swizzle[0 .. 1]),
+                mixin("this." ~ swizzle[1 .. 2]),
+                mixin("this." ~ swizzle[2 .. 3]),
+            );
+        }
+        else
+        {
+            return Vector4(
+                mixin("this." ~ swizzle[0 .. 1]),
+                mixin("this." ~ swizzle[1 .. 2]),
+                mixin("this." ~ swizzle[2 .. 3]),
+                mixin("this." ~ swizzle[3 .. 4]),
+            );
+        }
+    }
+}
+
 struct Vector2
 {
     nothrow @nogc @safe:
 
     f32 x = 0;
     f32 y = 0;
+
+    mixin VectorSwizzles!"xy";
+
+    static Vector2 zero() pure
+    {
+        return Vector2.init;
+    }
+
+    static Vector2 splat(f32 value) pure
+    {
+        return Vector2(value, value);
+    }
+
+    static Vector2 unit_x() pure
+    {
+        return Vector2(1.0f, 0.0f);
+    }
+
+    static Vector2 unit_y() pure
+    {
+        return Vector2(0.0f, 1.0f);
+    }
 
     Vector2 opUnary(string op : "-")() const pure
     {
@@ -148,6 +222,33 @@ struct Vector3
     f32 y = 0;
     f32 z = 0;
 
+    mixin VectorSwizzles!"xyz";
+
+    static Vector3 zero() pure
+    {
+        return Vector3.init;
+    }
+
+    static Vector3 splat(f32 value) pure
+    {
+        return Vector3(value, value, value);
+    }
+
+    static Vector3 unit_x() pure
+    {
+        return Vector3(1.0f, 0.0f, 0.0f);
+    }
+
+    static Vector3 unit_y() pure
+    {
+        return Vector3(0.0f, 1.0f, 0.0f);
+    }
+
+    static Vector3 unit_z() pure
+    {
+        return Vector3(0.0f, 0.0f, 1.0f);
+    }
+
     Vector3 opUnary(string op : "-")() const pure
     {
         return Vector3(-this.x, -this.y, -this.z);
@@ -196,11 +297,6 @@ struct Vector3
     Vector3 opBinaryRight(string op : "*")(f32 scalar) const pure
     {
         return this * scalar;
-    }
-
-    Vector2 xy() const pure
-    {
-        return Vector2(this.x, this.y);
     }
 
     Vector4 with_w(f32 w) const pure
@@ -288,6 +384,38 @@ struct Vector4
     f32 z = 0;
     f32 w = 0;
 
+    mixin VectorSwizzles!"xyzw";
+
+    static Vector4 zero() pure
+    {
+        return Vector4.init;
+    }
+
+    static Vector4 splat(f32 value) pure
+    {
+        return Vector4(value, value, value, value);
+    }
+
+    static Vector4 unit_x() pure
+    {
+        return Vector4(1.0f, 0.0f, 0.0f, 0.0f);
+    }
+
+    static Vector4 unit_y() pure
+    {
+        return Vector4(0.0f, 1.0f, 0.0f, 0.0f);
+    }
+
+    static Vector4 unit_z() pure
+    {
+        return Vector4(0.0f, 0.0f, 1.0f, 0.0f);
+    }
+
+    static Vector4 unit_w() pure
+    {
+        return Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+
     Vector4 opUnary(string op : "-")() const pure
     {
         return Vector4(-this.x, -this.y, -this.z, -this.w);
@@ -336,16 +464,6 @@ struct Vector4
     Vector4 opBinaryRight(string op : "*")(f32 scalar) const pure
     {
         return this * scalar;
-    }
-
-    Vector2 xy() const pure
-    {
-        return Vector2(this.x, this.y);
-    }
-
-    Vector3 xyz() const pure
-    {
-        return Vector3(this.x, this.y, this.z);
     }
 
     f32 length_squared() const pure
@@ -743,6 +861,56 @@ unittest
         1e-6f,
     ));
 }
+
+unittest
+{
+    assert(Vector2.zero() == Vector2.init);
+    assert(Vector2.splat(3.0f) == Vector2(3.0f, 3.0f));
+    assert(Vector2.unit_x() == Vector2(1.0f, 0.0f));
+    assert(Vector2.unit_y() == Vector2(0.0f, 1.0f));
+
+    assert(Vector3.zero() == Vector3.init);
+    assert(Vector3.splat(3.0f) == Vector3(3.0f, 3.0f, 3.0f));
+    assert(Vector3.unit_x() == Vector3(1.0f, 0.0f, 0.0f));
+    assert(Vector3.unit_y() == Vector3(0.0f, 1.0f, 0.0f));
+    assert(Vector3.unit_z() == Vector3(0.0f, 0.0f, 1.0f));
+
+    assert(Vector4.zero() == Vector4.init);
+    assert(Vector4.splat(3.0f) == Vector4(3.0f, 3.0f, 3.0f, 3.0f));
+    assert(Vector4.unit_x() == Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+    assert(Vector4.unit_y() == Vector4(0.0f, 1.0f, 0.0f, 0.0f));
+    assert(Vector4.unit_z() == Vector4(0.0f, 0.0f, 1.0f, 0.0f));
+    assert(Vector4.unit_w() == Vector4(0.0f, 0.0f, 0.0f, 1.0f));
+}
+
+unittest
+{
+    const vector2 = Vector2(1.0f, 2.0f);
+    assert(vector2.yx == Vector2(2.0f, 1.0f));
+    assert(vector2.xyy == Vector3(1.0f, 2.0f, 2.0f));
+    assert(vector2.yxxy == Vector4(2.0f, 1.0f, 1.0f, 2.0f));
+
+    const vector3 = Vector3(1.0f, 2.0f, 3.0f);
+    assert(vector3.xy == Vector2(1.0f, 2.0f));
+    assert(vector3.zyx == Vector3(3.0f, 2.0f, 1.0f));
+    assert(vector3.xzyz == Vector4(1.0f, 3.0f, 2.0f, 3.0f));
+
+    const vector4 = Vector4(1.0f, 2.0f, 3.0f, 4.0f);
+    assert(vector4.wx == Vector2(4.0f, 1.0f));
+    assert(vector4.yzw == Vector3(2.0f, 3.0f, 4.0f));
+    assert(vector4.wzyx == Vector4(4.0f, 3.0f, 2.0f, 1.0f));
+    assert(vector4.xxxx == Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+}
+
+static assert(!__traits(compiles, Vector2.init.xz));
+static assert(!__traits(compiles, Vector3.init.xw));
+static assert(!__traits(compiles, Vector4.init.xyzwx));
+static assert(!__traits(compiles, Vector4.init.xq));
+static assert(!__traits(compiles, ()
+{
+    Vector3 vector;
+    vector.xy = Vector2(1.0f, 2.0f);
+}));
 
 static assert(Vector2.sizeof == 2 * f32.sizeof);
 static assert(Vector3.sizeof == 3 * f32.sizeof);
