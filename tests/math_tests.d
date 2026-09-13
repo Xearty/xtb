@@ -1,37 +1,41 @@
 module tests.math_tests;
 
-import xtb;
 import xtb.math;
+import xtb.types;
 
 version (Posix)
 {
-    import core.stdc.signal : SIGABRT;
-    import core.sys.posix.fcntl : O_WRONLY, open;
-    import core.sys.posix.sys.wait : waitpid;
-    import core.sys.posix.unistd : STDERR_FILENO, _exit, close, dup2, fork;
+    import core.stdc.signal;
+    import core.sys.posix.fcntl;
+    import core.sys.posix.sys.wait;
+    import core.sys.posix.unistd;
 }
 
-version (Posix) private bool invalidRandomBoundPanics() nothrow @system @nogc
+version (Posix)
 {
-    const process = fork();
-    if (process < 0)
-        return false;
-    if (process == 0)
+    private bool invalid_random_bound_panics() nothrow @nogc @system
     {
-        const sink = open("/dev/null".ptr, O_WRONLY);
-        if (sink >= 0)
-        {
-            cast(void) dup2(sink, STDERR_FILENO);
-            close(sink);
-        }
-        Random random = Random.seeded(1);
-        random.below(0);
-        _exit(0);
-    }
+        const process = fork();
+        if (process < 0) return false;
 
-    int status;
-    return waitpid(process, &status, 0) == process &&
-        (status & 0x7f) == SIGABRT;
+        if (process == 0)
+        {
+            const sink = open("/dev/null".ptr, O_WRONLY);
+            if (sink >= 0)
+            {
+                cast(void) dup2(sink, STDERR_FILENO);
+                close(sink);
+            }
+
+            auto random = Random.seeded(1);
+            random.below(0);
+            _exit(0);
+        }
+
+        i32 status;
+        return waitpid(process, &status, 0) == process
+            && (status & 0x7f) == SIGABRT;
+    }
 }
 
 private bool overload_sets_resolve() nothrow @nogc @safe
@@ -56,10 +60,12 @@ private bool overload_sets_resolve() nothrow @nogc @safe
 
 extern (C) int main()
 {
-    if (!overload_sets_resolve())
-        return 1;
+    if (!overload_sets_resolve()) return 1;
+
     version (Posix)
-        if (!invalidRandomBoundPanics())
-            return 1;
+    {
+        if (!invalid_random_bound_panics()) return 1;
+    }
+
     return 0;
 }
