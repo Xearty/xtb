@@ -562,7 +562,7 @@ static assert(!__traits(compiles, validateBorrowedSchema!IncompleteUnion()));
 static assert(!__traits(compiles, validateSchema!InvalidAdapterDocument()));
 static assert(!__traits(compiles, validateBorrowedSchema!OwnedDocument()));
 static assert(!__traits(compiles, validateOwnedSchema!Settings()));
-static assert(!__traits(compiles, (ref Deserialized!Settings value) {
+static assert(__traits(compiles, (ref Deserialized!Settings value) {
         Deserialized!Settings copy = value;
     }));
 

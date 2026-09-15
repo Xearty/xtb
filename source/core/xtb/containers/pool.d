@@ -43,9 +43,6 @@ private enum usize occupied_bits_per_word = usize.sizeof * 8;
 
     version (XTB_Checked) usize mutation_generation = 1;
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     /// Attempts to create an empty Pool with `capacity` usable slots.
     ///
     /// `output` must point to an inert Pool. Capacity zero succeeds without

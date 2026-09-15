@@ -120,10 +120,11 @@ private MemoryOrder failureOrderForRmw(MemoryOrder order)
 /// fetch operations are available only for non-`bool`, non-enum integral
 /// values.
 ///
-/// The wrapper is non-copyable. `Atomic.init` contains `T.init`; use
-/// `Atomic!T(value)` for explicit non-default initialization. Ordinary
-/// assignment between atomic wrappers is not an atomic operation and is
-/// disabled by the non-copyable type.
+/// `Atomic.init` contains `T.init`; use `Atomic!T(value)` for explicit
+/// non-default initialization. The wrapper may be copied while being assembled
+/// in thread-local state. Ordinary copying is not an atomic operation; once an
+/// atomic is published or may be accessed by another thread, keep it at a
+/// stable address and do not copy or move it.
 ///
 /// LDC requires separate receiver overloads for `shared` and unshared wrapper
 /// objects. Both surfaces operate on the same underlying atomic storage; the
@@ -136,8 +137,6 @@ nothrow @nogc:
         isAtomicTypeSupported!T,
         "Atomic!T v1 supports unqualified 1/2/4/8-byte integral, enum, or pointer types",
     );
-
-    @disable this(this);
 
     /// Whether this atomic type can use the active backend's allocation-free
     /// blocking wait/notification path.
@@ -712,8 +711,6 @@ nothrow @nogc:
 struct AtomicFlag
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Atomic!ubyte state_;
 
     bool testAndSet(
@@ -839,7 +836,7 @@ static assert(__traits(hasMember, Atomic!int, "fetchAdd"));
 static assert(!__traits(hasMember, Atomic!bool, "fetchAdd"));
 static assert(!__traits(hasMember, Atomic!AtomicTestEnum, "fetchAdd"));
 static assert(!__traits(hasMember, Atomic!(int*), "fetchAdd"));
-static assert(!__traits(compiles, () { Atomic!int source; Atomic!int copy = source; }));
+static assert(__traits(compiles, () { Atomic!int source; Atomic!int copy = source; }));
 static assert(__traits(compiles, (shared Atomic!int* value) {
         value.store(1, MemoryOrder.release);
         return value.load(MemoryOrder.acquire);

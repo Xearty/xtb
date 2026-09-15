@@ -16,8 +16,6 @@ import xtb.sync.mutex : Mutex;
 struct WaitGroup
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Mutex stateMutex_;
     private Atomic!size_t count_;
     private GenerationWaitState generation_;
@@ -116,7 +114,7 @@ version (XTB_Checked) private noreturn waitGroupReusedBeforeWaitReturned()
     panic("WaitGroup reused before previous wait returned");
 }
 
-static assert(!__traits(isCopyable, WaitGroup));
+static assert(__traits(isCopyable, WaitGroup));
 
 unittest
 {

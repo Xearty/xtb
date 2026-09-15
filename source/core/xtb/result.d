@@ -26,7 +26,6 @@ private template is_copyable_result_value(T)
     else
     {
         enum bool is_copyable_result_value = __traits(isCopyable, T)
-            && !needs_deinit!T
             && !has_d_destructor!T
             && !hasElaborateCopyConstructor!T;
     }
@@ -135,10 +134,11 @@ nothrow @nogc:
         return *cast(inout(E)*) this.error_storage.ptr;
     }
 
-    /// Replaces this Result by consuming `source`.
+    /// Replaces this Result from `source`.
     ///
-    /// Cleanup-bearing Results require an rvalue/moved source because implicit
-    /// owner copying is disabled.
+    /// Results containing manual-lifetime owners copy shallowly. Results with
+    /// D-destructor or otherwise non-copyable payloads require an rvalue/moved
+    /// source.
     ref Result opAssign(Result source) return
     {
         version (XTB_Checked)

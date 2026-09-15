@@ -12,8 +12,6 @@ import xtb.sync.atomic : Atomic, MemoryOrder;
 package(xtb.sync) struct CountdownState
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Atomic!size_t count_;
     private Atomic!uint wakeEpoch_;
 
@@ -87,4 +85,4 @@ private noreturn unsupportedCountdownWait() @trusted
     panic("countdown wait requires a supported thread parking backend");
 }
 
-static assert(!__traits(isCopyable, CountdownState));
+static assert(__traits(isCopyable, CountdownState));

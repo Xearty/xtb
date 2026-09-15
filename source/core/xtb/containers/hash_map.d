@@ -203,9 +203,6 @@ private struct ProbeResult
     Hasher hasher;
     Equal equal;
 
-    @disable this(this);
-    @disable ref HashMapUnmanaged opAssign(HashMapUnmanaged source) return;
-
     static HashMapUnmanaged with_policies(Hasher hasher, Equal equal)
     {
         HashMapUnmanaged result;
@@ -934,9 +931,6 @@ private struct ProbeResult
         require(&this !is null, "HashMap pointer is null");
     }
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     static Self create(Allocator* allocator) @safe
     {
         require_valid_hash_allocator(allocator);
@@ -1269,9 +1263,6 @@ private struct ProbeResult
     {
         require(&this !is null, "OwnedHashMap pointer is null");
     }
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @safe
     {
@@ -2149,11 +2140,11 @@ unittest
     assert(preallocated.capacity >= 48);
     preallocated.deinit();
 
-    static assert(!__traits(compiles, (ref HashMap!(i32, i32) map)
+    static assert(__traits(compiles, (ref HashMap!(i32, i32) map)
     {
         HashMap!(i32, i32) copy = map;
     }));
-    static assert(!__traits(compiles, (ref HashSet!i32 set)
+    static assert(__traits(compiles, (ref HashSet!i32 set)
     {
         HashSet!i32 copy = set;
     }));
@@ -2168,8 +2159,8 @@ unittest
 
     static assert(IntMap.sizeof == IntMapStorage.sizeof + (Allocator*).sizeof);
     static assert(IntSet.sizeof == IntSetStorage.sizeof + (Allocator*).sizeof);
-    static assert(!__traits(isCopyable, IntMapStorage));
-    static assert(!__traits(compiles, (ref IntMapStorage left, ref IntMapStorage right)
+    static assert(__traits(isCopyable, IntMapStorage));
+    static assert(__traits(compiles, (ref IntMapStorage left, ref IntMapStorage right)
     {
         left = move(right);
     }));
@@ -2179,11 +2170,11 @@ unittest
         CleanupHashPolicy,
         DefaultEqual!i32,
     ).init));
-    static assert(!__traits(isCopyable, IntMap));
-    static assert(!__traits(isCopyable, IntMap.Released));
-    static assert(!__traits(isCopyable, IntSetStorage));
-    static assert(!__traits(isCopyable, IntSet));
-    static assert(!__traits(isCopyable, IntSet.Released));
+    static assert(__traits(isCopyable, IntMap));
+    static assert(__traits(isCopyable, IntMap.Released));
+    static assert(__traits(isCopyable, IntSetStorage));
+    static assert(__traits(isCopyable, IntSet));
+    static assert(__traits(isCopyable, IntSet.Released));
     static assert(__traits(compiles, (scope IntMap* value) @safe
     {
         Allocator* allocator = value.allocator;

@@ -612,12 +612,12 @@ version (unittest)
 }
 
 static assert(__traits(isCopyable, LogSinkRef));
-static assert(!__traits(isCopyable, LogRecordRef));
+static assert(__traits(isCopyable, LogRecordRef));
 static assert(__traits(isCopyable, LogSinkEvent));
 static assert(__traits(isCopyable, LogPrefixRef));
-static assert(!__traits(isCopyable, PrefixLogSink));
-static assert(!__traits(isCopyable, TeeLogSink));
-static assert(!__traits(isCopyable, Logger));
+static assert(__traits(isCopyable, PrefixLogSink));
+static assert(__traits(isCopyable, TeeLogSink));
+static assert(__traits(isCopyable, Logger));
 
 unittest
 {

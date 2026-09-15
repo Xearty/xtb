@@ -100,20 +100,16 @@ nothrow @nogc:
     EntityPool entities;
     VirtualArray!EntityId destroyQueue;
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     static Self create(uint capacity) @system
     {
-        Self result = {
+        return Self(
             positions: PositionPool.create(capacity),
             health: HealthPool.create(capacity),
             renders: RenderPool.create(capacity),
             attacks: AttackPool.create(capacity),
             entities: EntityPool.create(capacity),
             destroyQueue: VirtualArray!EntityId.create(capacity),
-        };
-        return move(result);
+        );
     }
 
     void deinit() @system

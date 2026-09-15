@@ -88,8 +88,9 @@ nothrow @nogc:
 /// One reserved contiguous virtual-address range.
 ///
 /// The reservation owns only address space until pages are committed. It is an
-/// explicit non-copyable owner; call `deinit` when the reservation is no longer
-/// needed. The reservation does not track committed subranges; its internal
+/// explicit manual-lifetime owner; call `deinit` on exactly one shallow copy
+/// when the reservation is no longer needed. The reservation does not track
+/// committed subranges; its internal
 /// consumer owns that policy and bookkeeping.
 package(xtb) struct VirtualMemoryReservation
 {
@@ -103,11 +104,6 @@ nothrow @nogc:
 
     /// Page-rounded size of the reserved address range.
     usize reserved_bytes;
-
-    @disable this(this);
-    @disable ref VirtualMemoryReservation opAssign(
-        VirtualMemoryReservation source,
-    ) return;
 
     bool active() const pure @safe
     {
@@ -324,7 +320,7 @@ unittest
         cast(void) value.try_region(0, 0, &output);
     }));
 
-    static assert(!__traits(isCopyable, VirtualMemoryReservation));
+    static assert(__traits(isCopyable, VirtualMemoryReservation));
     static assert(needs_deinit!VirtualMemoryReservation);
     static assert(__traits(compiles, () nothrow @nogc @system
     {

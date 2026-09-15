@@ -133,9 +133,6 @@ nothrow @nogc:
         require(&this !is null, "StringHashMapUnmanaged pointer is null");
     }
 
-    @disable this(this);
-    @disable ref StringHashMapUnmanaged opAssign(StringHashMapUnmanaged source) return;
-
     static StringHashMapUnmanaged seeded(HashSeed seed)
     {
         OwnedStringHash hasher;
@@ -746,9 +743,6 @@ nothrow @nogc:
         require(&this !is null, "StringHashMap pointer is null");
     }
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     static Self create(Allocator* allocator) @trusted
     {
         require_valid_string_hash_map_allocator(allocator);
@@ -1249,7 +1243,7 @@ version (unittest)
 unittest
 {
     static assert(is(StringViewHashMap!i32 == HashMap!(String, i32)));
-    static assert(!__traits(isCopyable, StringHashMap!i32));
+    static assert(__traits(isCopyable, StringHashMap!i32));
 
     enum unmanaged_assignment_compiles = __traits(
         compiles,
@@ -1258,7 +1252,7 @@ unittest
             left = move(right);
         },
     );
-    static assert(!unmanaged_assignment_compiles);
+    static assert(unmanaged_assignment_compiles);
 
     enum mutable_allocator_access_compiles = __traits(
         compiles,

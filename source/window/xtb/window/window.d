@@ -109,8 +109,6 @@ nothrow @nogc:
     private bool has_fullscreen_restore_position_;
     private bool has_fullscreen_restore_;
 
-    @disable this(this);
-
     package(xtb.window) static WindowResult!(Window*) create(
         WindowSystem* system,
         Allocator* allocator,

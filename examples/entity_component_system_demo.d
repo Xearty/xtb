@@ -67,20 +67,12 @@ private:
     VirtualArray!uint byEntity_;
 
 public:
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     static Self create(uint entityCapacity) @system
     {
-        Pool!Record records = Pool!Record.create(entityCapacity);
-        VirtualArray!uint byEntity = VirtualArray!uint.create(
-            cast(size_t) entityCapacity + 1,
+        return Self(
+            Pool!Record.create(entityCapacity),
+            VirtualArray!uint.create(cast(size_t) entityCapacity + 1),
         );
-
-        Self result;
-        move_emplace(records, result.records_);
-        move_emplace(byEntity, result.byEntity_);
-        return move(result);
     }
 
     void deinit() @system
@@ -226,26 +218,16 @@ private:
     VirtualArray!EntityId destroyQueue_;
 
 public:
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     static Self create(uint maxEntities) @system
     {
-        EntityPool entities = EntityPool.create(maxEntities);
-        ComponentStore!Position positions = ComponentStore!Position.create(maxEntities);
-        ComponentStore!Velocity velocities = ComponentStore!Velocity.create(maxEntities);
-        ComponentStore!Health health = ComponentStore!Health.create(maxEntities);
-        ComponentStore!Projectile projectiles = ComponentStore!Projectile.create(maxEntities);
-        VirtualArray!EntityId destroyQueue = VirtualArray!EntityId.create(maxEntities);
-
-        Self result;
-        move_emplace(entities, result.entities_);
-        move_emplace(positions, result.positions_);
-        move_emplace(velocities, result.velocities_);
-        move_emplace(health, result.health_);
-        move_emplace(projectiles, result.projectiles_);
-        move_emplace(destroyQueue, result.destroyQueue_);
-        return move(result);
+        return Self(
+            EntityPool.create(maxEntities),
+            ComponentStore!Position.create(maxEntities),
+            ComponentStore!Velocity.create(maxEntities),
+            ComponentStore!Health.create(maxEntities),
+            ComponentStore!Projectile.create(maxEntities),
+            VirtualArray!EntityId.create(maxEntities),
+        );
     }
 
     void deinit() @system

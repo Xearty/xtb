@@ -522,9 +522,6 @@ nothrow @nogc:
 
     NativeHandle handle;
 
-    @disable this(this);
-    @disable ref ProcessWatch opAssign(ProcessWatch source) return;
-
     void deinit() @system
     {
         backend.closeProcessWatch(handle);

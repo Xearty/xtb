@@ -14,8 +14,6 @@ import xtb.sync.atomic : Atomic, MemoryOrder;
 package(xtb.sync) struct GenerationWaitState
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Atomic!uint generation_;
     version (XTB_Checked) private Atomic!size_t waiters_;
 
@@ -132,7 +130,7 @@ version (XTB_Checked)
     }
 }
 
-static assert(!__traits(isCopyable, GenerationWaitState));
+static assert(__traits(isCopyable, GenerationWaitState));
 version (XTB_Checked)
     static assert(GenerationWaitState.sizeof >=
             Atomic!uint.sizeof + Atomic!size_t.sizeof);

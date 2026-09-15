@@ -17,8 +17,6 @@ nothrow @nogc:
 
     LogSinkRef child;
 
-    @disable this(this);
-
     static WithoutCallsiteLogSink create(LogSinkRef child) @safe
     {
         WithoutCallsiteLogSink result;

@@ -126,9 +126,6 @@ nothrow @nogc:
     private Array!ExitStatus statuses_;
     private PipelineSuccess success_;
 
-    @disable this(this);
-    @disable ref Pipeline opAssign(Pipeline source) return;
-
     bool empty() const pure @safe
     {
         return children_.length == 0;

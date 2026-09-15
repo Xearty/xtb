@@ -66,6 +66,13 @@ Prefer the managed form for ordinary standalone values. The unmanaged form is
 useful when another type already owns the allocator relationship and wants a
 smaller embedded container.
 
-All owning containers are move-only. Use `move` for ownership transfer; where a
-container exposes `release` / `adopt`, those operations transfer its backing
-storage without copying it.
+Owning containers are shallow-copyable manual-lifetime values. A copy aliases
+the same backing storage; select exactly one alias for further mutation and
+eventual `deinit`. Ordinary copies do not clone storage or elements. Use a
+container's explicit cloning/copying operation when independent storage is
+required, and use `move` only when the source must be reset.
+
+Bulk operations that preserve their input, such as `OwnedArray!T.from_slice`,
+are unavailable when `T` needs finalization unless the API has an explicit
+element-cloning policy. This prevents shallow copyability from silently
+becoming deep duplication of element ownership.

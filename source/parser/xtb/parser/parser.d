@@ -9,7 +9,7 @@ import core.stdc.stdlib : strtod;
 import core.stdc.string : memcpy;
 import xtb.allocators.arena : Arena;
 import xtb.memory : Allocator;
-import xtb.lifetime : has_d_destructor, move, move_emplace, needs_deinit;
+import xtb.lifetime : move, move_emplace, needs_deinit, needs_finalization;
 import xtb.numeric : add_overflows;
 import xtb.option : Option;
 
@@ -515,7 +515,8 @@ public:
         return parserFromNode!T(arena_, node);
     }
 
-    Parser!U replace(U)(U value) @trusted if (__traits(isCopyable, U))
+    Parser!U replace(U)(U value) @trusted
+        if (__traits(isCopyable, U) && !needs_finalization!U)
     {
         ReplaceNode!(T, U) node;
         node.parser = this;
@@ -842,7 +843,8 @@ nothrow @nogc:
     }
 }
 
-package(xtb.parser) struct ArenaList(T) if (__traits(isCopyable, T) && !has_d_destructor!T)
+package(xtb.parser) struct ArenaList(T)
+    if (__traits(isCopyable, T) && !needs_finalization!T)
 {
 nothrow @nogc:
     Arena* arena;
@@ -904,7 +906,7 @@ public:
         return parserFromNode!Unit(parser_.arena_, node);
     }
 
-    static if (__traits(isCopyable, T) && !has_d_destructor!T)
+    static if (__traits(isCopyable, T) && !needs_finalization!T)
     {
         Parser!(T[]) collect() @trusted
         {
@@ -915,7 +917,8 @@ public:
         }
     }
 
-    auto fold(U, alias combine)(U initial) @trusted if (__traits(isCopyable, U))
+    auto fold(U, alias combine)(U initial) @trusted
+        if (__traits(isCopyable, U) && !needs_finalization!U)
     {
         FoldNode!(T, U, combine) node;
         node.parser = parser_;
@@ -963,7 +966,8 @@ nothrow @nogc:
     }
 }
 
-private struct RepeatCollectNode(T) if (__traits(isCopyable, T) && !has_d_destructor!T)
+private struct RepeatCollectNode(T)
+    if (__traits(isCopyable, T) && !needs_finalization!T)
 {
 nothrow @nogc:
     Parser!T parser;
@@ -1061,7 +1065,7 @@ public:
         return parserFromNode!Unit(parser_.arena_, node);
     }
 
-    static if (__traits(isCopyable, T) && !has_d_destructor!T)
+    static if (__traits(isCopyable, T) && !needs_finalization!T)
     {
         Parser!(T[]) collect() @trusted
         {
@@ -1109,7 +1113,8 @@ nothrow @nogc:
     }
 }
 
-private struct SepCollectNode(T, S) if (__traits(isCopyable, T) && !has_d_destructor!T)
+private struct SepCollectNode(T, S)
+    if (__traits(isCopyable, T) && !needs_finalization!T)
 {
 nothrow @nogc:
     Parser!T parser;
@@ -1586,9 +1591,6 @@ private:
     Arena arena_;
 
 public:
-    @disable this(this);
-    @disable ref Grammar opAssign(Grammar source) return;
-
     static Grammar create(
         Allocator* allocator,
         size_t chunkSize = 64 * 1024,
@@ -1798,7 +1800,7 @@ private template allParserTypes(T, Rest...)
 /// Adds trailing trivia consumption to common textual primitives.
 static assert(!hasElaborateDestructor!Grammar);
 static assert(needs_deinit!Grammar);
-static assert(!__traits(isCopyable, Grammar));
+static assert(__traits(isCopyable, Grammar));
 
 struct Tokenizer
 {

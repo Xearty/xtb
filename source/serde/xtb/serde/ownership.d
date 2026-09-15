@@ -27,9 +27,6 @@ nothrow @nogc:
     Allocator* backing;
     AllocationHeader* first;
 
-    @disable this(this);
-    @disable ref AllocationTracker opAssign(AllocationTracker source) return;
-
     void initialize(Allocator* backing)
     {
         version (XTB_Checked)
@@ -72,9 +69,6 @@ nothrow @nogc:
 
     private AllocationTracker tracker_;
     private T* value_;
-
-    @disable this(this);
-    @disable ref Deserialized opAssign(Deserialized source) return;
 
     bool empty() const pure @safe
     {
@@ -122,7 +116,7 @@ nothrow @nogc:
 
 static assert(!hasElaborateDestructor!(Deserialized!int));
 static assert(needs_deinit!(Deserialized!int));
-static assert(!__traits(isCopyable, Deserialized!int));
+static assert(__traits(isCopyable, Deserialized!int));
 
 package(xtb.serde) template isDeserialized(T)
 {

@@ -12,8 +12,6 @@ import xtb.sync.internal.countdown : CountdownState;
 struct Latch
 {
 nothrow @nogc:
-    @disable this(this);
-
     private CountdownState state_;
 
     /// Constructs a latch with the requested outstanding count.
@@ -42,7 +40,7 @@ nothrow @nogc:
     }
 }
 
-static assert(!__traits(isCopyable, Latch));
+static assert(__traits(isCopyable, Latch));
 
 unittest
 {

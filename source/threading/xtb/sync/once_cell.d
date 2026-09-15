@@ -36,12 +36,8 @@ struct OnceCell(T)
 nothrow @nogc:
     static assert(!is(T == void), "OnceCell value type cannot be void");
 
-    @disable this(this);
-
     private Once once_;
     private OnceCellStorage!T storage_;
-
-    @disable ref OnceCell opAssign(OnceCell source) return;
 
     /// Explicitly ends the stored value's lifetime when initialization completed.
     ///
@@ -169,9 +165,9 @@ private bool parameterHasStorageClass(
     return false;
 }
 
-static assert(!__traits(isCopyable, OnceCell!int));
+static assert(__traits(isCopyable, OnceCell!int));
 static assert(needs_deinit!(OnceCell!int));
-static assert(!__traits(compiles, () { OnceCell!int source; OnceCell!int target; target = source; }));
+static assert(__traits(compiles, () { OnceCell!int source; OnceCell!int target; target = source; }));
 
 version (unittest)
 {

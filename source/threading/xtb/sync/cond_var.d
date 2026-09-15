@@ -21,13 +21,13 @@ private struct Waiter
 /// a loop because the API permits spurious wakeups. All concurrent waiters on a
 /// CondVar must use the same predicate mutex in v1.
 ///
-/// The type is non-copyable. Once another thread may access or wait on it, its
-/// address must remain stable until all such access has finished.
+/// Copies made during thread-local construction are independent values. Once
+/// another thread may access or wait on a condition variable, its address must
+/// remain stable and it must not be copied or moved until all such access has
+/// finished.
 struct CondVar
 {
 nothrow @nogc:
-    @disable this(this);
-
     static if (Atomic!uint.waitSupported)
     {
         // Serializes waiter registration/removal and closes the
@@ -199,7 +199,7 @@ private noreturn unsupportedWait() @trusted
     panic("CondVar.wait requires a supported thread parking backend");
 }
 
-static assert(!__traits(isCopyable, CondVar));
+static assert(__traits(isCopyable, CondVar));
 
 unittest
 {

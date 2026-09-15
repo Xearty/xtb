@@ -4,9 +4,9 @@
 strings and UTF-8 helpers, formatting, `Option`, `Result`, `DataStruct`,
 durations, flags, ANSI helpers, and other low-level utilities.
 
-`mixin DataStruct;` gives a data-carrying struct a consuming memberwise
-constructor that requires every field. D's explicit `Type.init` escape hatch
-remains available.
+`mixin DataStruct;` gives a data-carrying struct a by-value memberwise
+constructor that requires every field. Manual-lifetime owners may be passed as
+ordinary lvalues; D's explicit `Type.init` escape hatch remains available.
 
 Useful documentation:
 

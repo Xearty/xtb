@@ -51,6 +51,22 @@ type.
 
 ## Transfers
 
-XTB owners are non-copyable. Use `move` to transfer an ownership obligation;
-the moved-from value is reset to a safely deinitializable state. Owners that
-expose `release`/`adopt` can transfer their backing storage without copying.
+Manual-lifetime XTB owners follow a Zig-style convention: ordinary assignment,
+argument passing, returning, and aggregate initialization make shallow copies
+of the representation. Such copies alias the same resource. Choose exactly one
+alias to keep using and eventually `deinit`; the language does not track that
+choice or invalidate the other aliases.
+
+Use `clone` or `copy` when both results must own independent resources. Use
+`move(source)` only when resetting the source to an inert, safely
+deinitializable state is useful, such as when unconditional scope cleanup is
+already registered. Owners that expose `release`/`adopt` can transfer backing
+storage as a separate representation-level operation.
+
+Overwriting a live owner with ordinary assignment loses its old resource. Call
+`deinit`, `reset`, or a lifetime-aware replacement operation first.
+
+Types whose D destructor performs automatic work remain non-copyable because
+each copy would run that work. Address-sensitive values may be copied during
+construction, but must remain at a stable address after an internal pointer
+escapes or the value is published to another thread.

@@ -25,8 +25,6 @@ private enum uint rwLockReaderGate = rwLockWriterActive | rwLockWriterPending;
 struct RwLock
 {
 nothrow @nogc:
-    @disable this(this);
-
     // The low bits count readers. The high bits close the reader gate when a
     // writer owns or is waiting for the lock. This is also the parking word.
     private Atomic!uint state_;
@@ -332,7 +330,7 @@ private noreturn rwLockWriterWaiterUnderflow() @trusted
     panic("RwLock waiting writer count underflow");
 }
 
-static assert(!__traits(isCopyable, RwLock));
+static assert(__traits(isCopyable, RwLock));
 
 unittest
 {

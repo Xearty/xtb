@@ -456,16 +456,13 @@ private bool strings_overlap(scope String left, scope String right) pure @truste
 /// Growable UTF-8 backing storage without embedded allocator context.
 ///
 /// The value owns its allocation but every allocating or releasing operation
-/// requires the originating allocator explicitly. Copying and generated
-/// assignment are disabled.
+/// requires the originating allocator explicitly. Copies alias the same
+/// allocation, so exactly one copy may be deinitialized or mutated.
 @mustuse struct StringBufUnmanaged
 {
 nothrow @nogc:
 
     ArrayUnmanaged!char bytes;
-
-    @disable this(this);
-    @disable ref StringBufUnmanaged opAssign(StringBufUnmanaged source) return;
 
     static bool try_with_capacity(
         Allocator* allocator,
@@ -1086,9 +1083,6 @@ nothrow @nogc:
     {
         require(&this !is null, "StringBuf pointer is null");
     }
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @trusted
     {
@@ -1987,16 +1981,13 @@ private usize string_buf_writer_sink(
 
 ///
 /// The zero state is valid. Nonempty values must be explicitly deinitialized
-/// with the allocator that created or adopted their storage. Copying is
-/// disabled because a shallow copy would duplicate ownership.
+/// with the allocator that created or adopted their storage. Copies alias the
+/// same bytes, so exactly one copy may be deinitialized.
 @mustuse struct OwnedStringUnmanaged
 {
 nothrow @nogc:
 
     String value;
-
-    @disable this(this);
-    @disable ref OwnedStringUnmanaged opAssign(OwnedStringUnmanaged source) return;
 
     static bool try_from_string(
         Allocator* allocator,
@@ -2150,9 +2141,6 @@ nothrow @nogc:
     {
         require(&this !is null, "OwnedString pointer is null");
     }
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @trusted
     {
@@ -3139,15 +3127,15 @@ unittest
     static assert(StringBufUnmanaged.sizeof == ArrayUnmanaged!char.sizeof);
     static assert(StringBuf.sizeof ==
             StringBufUnmanaged.sizeof + (Allocator*).sizeof);
-    static assert(!__traits(isCopyable, StringBufUnmanaged));
-    static assert(!__traits(isCopyable, StringBuf));
-    static assert(!__traits(isCopyable, StringBuf.Released));
+    static assert(__traits(isCopyable, StringBufUnmanaged));
+    static assert(__traits(isCopyable, StringBuf));
+    static assert(__traits(isCopyable, StringBuf.Released));
     static assert(!hasElaborateDestructor!StringBufUnmanaged);
     static assert(!hasElaborateDestructor!StringBuf);
     static assert(needs_deinit!StringBuf);
-    static assert(!__traits(compiles, (ref StringBufUnmanaged left,
+    static assert(__traits(compiles, (ref StringBufUnmanaged left,
             ref StringBufUnmanaged right) { left = move(right); }));
-    static assert(!__traits(compiles, (ref StringBuf left,
+    static assert(__traits(compiles, (ref StringBuf left,
             ref StringBuf right) { left = move(right); }));
     static assert(__traits(compiles, (scope StringBuf* value) @safe {
             Allocator* allocator = value.allocator;
@@ -3358,14 +3346,14 @@ unittest
     assert(text.equal("hello"));
     assert(text.byte_length == 5);
     assert(text.toHash == hash_value("hello"));
-    static assert(!__traits(isCopyable, OwnedString));
-    static assert(!__traits(isCopyable, OwnedStringUnmanaged));
+    static assert(__traits(isCopyable, OwnedString));
+    static assert(__traits(isCopyable, OwnedStringUnmanaged));
     static assert(!hasElaborateDestructor!OwnedString);
     static assert(!hasElaborateDestructor!OwnedStringUnmanaged);
     static assert(needs_deinit!OwnedString);
-    static assert(!__traits(compiles, (ref OwnedString left,
+    static assert(__traits(compiles, (ref OwnedString left,
             ref OwnedString right) { left = move(right); }));
-    static assert(!__traits(compiles, (ref OwnedStringUnmanaged left,
+    static assert(__traits(compiles, (ref OwnedStringUnmanaged left,
             ref OwnedStringUnmanaged right) { left = move(right); }));
     static assert(!__traits(compiles,
             OwnedStringUnmanaged.adopt_exact(cast(String) "borrowed")));

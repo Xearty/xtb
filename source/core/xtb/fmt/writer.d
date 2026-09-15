@@ -38,10 +38,7 @@ nothrow @nogc:
     usize written;
     bool failed;
 
-    @disable this(this);
-
-    /// Rebinds this writer from an rvalue writer. Copying another live writer
-    /// remains rejected because the copy constructor is disabled.
+    /// Rebinds this writer from another writer value.
     ref Writer opAssign(Writer source) return
     {
         this.sink = source.sink;
@@ -721,14 +718,14 @@ version (unittest)
 
 unittest
 {
-    static assert(!__traits(compiles, () @system
+    static assert(__traits(compiles, () @system
     {
         WriterTestSinkState state;
         auto first = Writer.from_sink(&writer_test_sink, &state);
         auto second = first;
     }));
 
-    static assert(!__traits(compiles, () @system
+    static assert(__traits(compiles, () @system
     {
         WriterTestSinkState state;
         auto first = Writer.from_sink(&writer_test_sink, &state);

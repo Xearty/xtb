@@ -89,9 +89,6 @@ private union ArenaStorage
 /// Tagged backend state. Exactly one union member is live when `kind` is active.
 private struct ArenaStorageState
 {
-    @disable this(this);
-    @disable ref ArenaStorageState opAssign(ArenaStorageState source) return;
-
     ArenaStorageKind kind;
     @tagged_by("kind", ArenaStorageKind.none)
     ArenaStorage data;
@@ -147,9 +144,6 @@ nothrow @nogc:
         usize generation = 1;
         bool poison_rewound_memory;
     }
-
-    @disable this(this);
-    @disable ref Arena opAssign(Arena source) return;
 
     /// Creates a chunk-backed arena. `backing_allocator` must be non-null and
     /// must point to a valid allocator for the arena's lifetime.
@@ -1003,8 +997,6 @@ nothrow @nogc:
     }
     bool active;
 
-    @disable this(this);
-
     /// Returns the active arena. The returned pointer is non-null and borrowed
     /// from the arena that created this temporary scope.
     Arena* arena() return
@@ -1624,7 +1616,7 @@ unittest
     {
         ArenaStats snapshot = value.stats();
     }));
-    static assert(!__traits(compiles, (ref Arena left, ref Arena right)
+    static assert(__traits(compiles, (ref Arena left, ref Arena right)
     {
         left = right;
     }));

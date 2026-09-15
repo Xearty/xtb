@@ -24,9 +24,6 @@ package(xtb.process) struct NativeSpawn
 {
 nothrow @nogc:
 
-    @disable this(this);
-    @disable ref NativeSpawn opAssign(NativeSpawn source) return;
-
     void deinit() pure @safe
     {
     }

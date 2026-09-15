@@ -38,8 +38,6 @@ nothrow @nogc:
     AllocatorStats stats;
     usize successes_before_failure = usize.max;
 
-    @disable this(this);
-
     /// Creates an allocator backed by `backing` and caller-owned record storage.
     /// `backing` and its allocator procedure must not be null.
     /// Both inputs must outlive the result.

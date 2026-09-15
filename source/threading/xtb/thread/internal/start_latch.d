@@ -28,8 +28,6 @@ private noreturn unsupportedStartLatch() @trusted
 package(xtb.thread) struct StartLatch
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Atomic!uint state_;
 
     /// Blocks until the latch has been signaled.
@@ -62,7 +60,7 @@ nothrow @nogc:
 
 static assert(StartLatch.sizeof == Atomic!uint.sizeof);
 static assert(StartLatch.alignof == Atomic!uint.alignof);
-static assert(!__traits(compiles, () { StartLatch first; StartLatch second = first; }));
+static assert(__traits(compiles, () { StartLatch first; StartLatch second = first; }));
 
 version (unittest)
 {

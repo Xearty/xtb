@@ -24,9 +24,9 @@ private template supports_default_initialization(T)
 /// Raw backing allocation detached from an unmanaged array.
 ///
 /// This package-only token owns only the allocation, not logical element
-/// cleanup. It is move-only and requires the originating allocator for
-/// explicit deinitialization. Callers that transfer the storage onward must
-/// consume the token exactly once. Its representation satisfies
+/// cleanup. It requires the originating allocator for explicit
+/// deinitialization. Copies alias the same allocation, so exactly one copy may
+/// be deinitialized or transferred onward. Its representation satisfies
 /// `length <= capacity`, and `data is null` exactly when `capacity == 0`.
 @mustuse package(xtb) struct RawArrayStorage(T)
 {
@@ -35,9 +35,6 @@ private template supports_default_initialization(T)
     T* data;
     usize length;
     usize capacity;
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     package(xtb) static Self adopt(T* data, usize length, usize capacity) @system
     {
@@ -69,9 +66,9 @@ private template supports_default_initialization(T)
 /// Growable backing-allocation owner without embedded allocator context.
 ///
 /// Every operation that may allocate or release storage requires the allocator
-/// explicitly. Copying and generated assignment are disabled; use XTB move
-/// construction for transfer and explicitly deinitialize a live value with the
-/// same allocator context that owns its backing allocation. The public
+/// explicitly. Copies alias the same backing allocation; exactly one alias
+/// must be selected for explicit deinitialization with the allocator context
+/// that owns it. The public
 /// representation must satisfy `length <= capacity` and `data is null` exactly
 /// when `capacity == 0`. Except when releasing an empty value, every allocator
 /// argument must point to a valid allocator.
@@ -82,9 +79,6 @@ private template supports_default_initialization(T)
     T* data;
     usize length;
     usize capacity;
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     /// Attempts to create an empty array with at least `capacity` elements.
     ///
@@ -666,9 +660,6 @@ private template supports_default_initialization(T)
         require(&this !is null, "Array pointer is null");
     }
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     /// Creates an empty managed array bound to `allocator`.
     static Self create(Allocator* allocator) @safe
     {
@@ -978,9 +969,6 @@ private template supports_default_initialization(T)
         "OwnedArray elements must support context-free finalization",
     );
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     static Self create(Allocator* allocator) @safe
     {
         require_valid_allocator(allocator);
@@ -1030,7 +1018,7 @@ private template supports_default_initialization(T)
         }
     }
 
-    static if (__traits(isCopyable, T))
+    static if (__traits(isCopyable, T) && !needs_finalization!T)
     {
         static Self from_slice(Allocator* allocator, scope const(T)[] values) @trusted
         {
@@ -1129,7 +1117,7 @@ private template supports_default_initialization(T)
         this.storage.append_assume_capacity(move(value));
     }
 
-    static if (__traits(isCopyable, T))
+    static if (__traits(isCopyable, T) && !needs_finalization!T)
     {
         bool try_append(scope const(T)[] values) @trusted
         {
@@ -1158,7 +1146,7 @@ private template supports_default_initialization(T)
         this.storage.insert(this.allocator, index, move(value));
     }
 
-    static if (__traits(isCopyable, T))
+    static if (__traits(isCopyable, T) && !needs_finalization!T)
     {
         bool try_insert(usize index, scope const(T)[] values) @trusted
         {
@@ -1355,7 +1343,7 @@ unittest
     static assert(Array!i32.sizeof == ArrayUnmanaged!i32.sizeof + (Allocator*).sizeof);
     static assert(OwnedArray!i32.sizeof == Array!i32.sizeof);
     static assert(needs_deinit!(RawArrayStorage!i32));
-    static assert(!__traits(isCopyable, RawArrayStorage!i32));
+    static assert(__traits(isCopyable, RawArrayStorage!i32));
     static assert(!__traits(compiles, (ref RawArrayStorage!i32 value)
     {
         xtb.lifetime.deinit(value);
@@ -1364,7 +1352,7 @@ unittest
     {
         xtb.lifetime.deinit(value, allocator);
     }));
-    static assert(!__traits(isCopyable, ArrayUnmanaged!i32));
+    static assert(__traits(isCopyable, ArrayUnmanaged!i32));
     static assert(needs_deinit!(ArrayUnmanaged!i32));
     static assert(!__traits(compiles, (ref ArrayUnmanaged!i32 value)
     {
@@ -1374,28 +1362,28 @@ unittest
     {
         xtb.lifetime.deinit(value, allocator);
     }));
-    static assert(!__traits(compiles, ()
+    static assert(__traits(compiles, ()
     {
         ArrayUnmanaged!i32 left;
         ArrayUnmanaged!i32 right;
         left = move(right);
     }));
-    static assert(!__traits(isCopyable, Array!i32));
-    static assert(!__traits(isCopyable, OwnedArray!i32));
-    static assert(!__traits(isCopyable, Array!i32.Released));
-    static assert(!__traits(compiles, ()
+    static assert(__traits(isCopyable, Array!i32));
+    static assert(__traits(isCopyable, OwnedArray!i32));
+    static assert(__traits(isCopyable, Array!i32.Released));
+    static assert(__traits(compiles, ()
     {
         Array!i32 left;
         Array!i32 right;
         left = move(right);
     }));
-    static assert(!__traits(compiles, ()
+    static assert(__traits(compiles, ()
     {
         OwnedArray!i32 left;
         OwnedArray!i32 right;
         left = move(right);
     }));
-    static assert(!__traits(compiles, ()
+    static assert(__traits(compiles, ()
     {
         Array!i32.Released left;
         Array!i32.Released right;
@@ -1639,18 +1627,29 @@ unittest
         CopyableOwner(7, &deinits),
         CopyableOwner(8, &deinits),
     ];
-    auto values = OwnedArray!CopyableOwner.from_slice(malloc_allocator(), source[]);
-    values.append(source[]);
-    values.shrink_to_fit();
-    values.append(values.slice[0 .. 2]);
-    values.remove_range(1, 2);
-    assert(deinits == 2);
-    values.deinit();
-    assert(deinits == 6);
-    foreach_reverse (ref value; source)
-        xtb.lifetime.deinit(value);
+    static assert(!__traits(compiles,
+            OwnedArray!CopyableOwner.from_slice(malloc_allocator(), source[])));
+    static assert(!__traits(compiles, (ref OwnedArray!CopyableOwner values)
+    {
+        values.append(source[]);
+    }));
 
-    assert(deinits == 8);
+    auto values = OwnedArray!CopyableOwner.with_capacity(malloc_allocator(), 2);
+    values.append(source[0]);
+    values.append(source[1]);
+    values.deinit();
+    assert(deinits == 2);
+
+    struct ArrayHolder
+    {
+        Array!i32 values;
+    }
+
+    auto held_values = Array!i32.from_slice(malloc_allocator(), [1, 2, 3]);
+    ArrayHolder holder = ArrayHolder(held_values);
+    assert(holder.values.slice == [1, 2, 3]);
+    assert(holder.values.storage.data is held_values.storage.data);
+    holder.values.deinit();
 
     AllocationRecord[16] records;
     auto tracked = InstrumentedAllocator.create(malloc_allocator(), records[]);

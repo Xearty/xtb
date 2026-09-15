@@ -6,10 +6,10 @@ import xtb.log;
 
 static assert(__traits(isCopyable, LogSinkRef));
 static assert(__traits(isCopyable, LogPrefixRef));
-static assert(!__traits(isCopyable, PrefixLogSink));
-static assert(!__traits(isCopyable, WithoutCallsiteLogSink));
-static assert(!__traits(isCopyable, TeeLogSink));
-static assert(!__traits(isCopyable, Logger));
+static assert(__traits(isCopyable, PrefixLogSink));
+static assert(__traits(isCopyable, WithoutCallsiteLogSink));
+static assert(__traits(isCopyable, TeeLogSink));
+static assert(__traits(isCopyable, Logger));
 
 private struct FormatProbe
 {

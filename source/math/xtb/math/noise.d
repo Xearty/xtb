@@ -21,9 +21,6 @@ import xtb.types;
     /// Lattice storage. A live noise value contains 1..16_777_216 samples.
     Array!f32 values;
 
-    @disable this(this);
-    @disable ref ValueNoise1D opAssign(ValueNoise1D source) return;
-
     /// `allocator` must point to a valid allocator. `period` must be in 1..16_777_216.
     static ValueNoise1D create(Allocator* allocator, usize period, u64 seed, u64 stream = 0)
     {
@@ -107,7 +104,7 @@ import xtb.types;
 
 static assert(!hasElaborateDestructor!ValueNoise1D);
 static assert(needs_deinit!ValueNoise1D);
-static assert(!__traits(isCopyable, ValueNoise1D));
+static assert(__traits(isCopyable, ValueNoise1D));
 
 version (unittest)
 {

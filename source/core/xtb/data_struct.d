@@ -1,10 +1,11 @@
 module xtb.data_struct;
 
-/// Generates a consuming memberwise constructor that requires every field.
+/// Generates a by-value memberwise constructor that requires every field.
 ///
 /// Fields with declaration-site defaults remain required. The constructor
-/// moves each by-value parameter into its corresponding field, allowing the
-/// struct to contain move-only owners.
+/// moves each by-value parameter into its corresponding field. Manual-lifetime
+/// owners may be passed as ordinary lvalues; their caller-side aliases remain
+/// governed by the one-deinit ownership convention.
 ///
 /// `Type.init` remains available because it is an intrinsic property of every
 /// D type. Do not add constructors that bypass the complete-field requirement.

@@ -21,8 +21,6 @@ nothrow @nogc:
     int id;
     size_t* deinits;
 
-    @disable this(this);
-
     static HeapOwner create(
         Allocator* allocator,
         int id,
@@ -155,8 +153,6 @@ nothrow @nogc:
 
     int id;
     size_t* deinits;
-
-    @disable this(this);
 
     void deinit()
     {
@@ -294,21 +290,21 @@ private alias DestructorOwnerSet = OwnedHashSet!(
 
 static assert(__traits(compiles, StringBufOwnerMap.create(malloc_allocator())));
 static assert(__traits(compiles, StringBufOwnerSet.create(malloc_allocator())));
-static assert(!__traits(isCopyable, OwnerMap));
-static assert(!__traits(compiles,
+static assert(__traits(isCopyable, OwnerMap));
+static assert(__traits(compiles,
         (ref HashMapUnmanaged!(int, int) left, ref HashMapUnmanaged!(int, int) right) {
         left = move(right);
     }));
-static assert(!__traits(compiles,
+static assert(__traits(compiles,
         (ref HashSetUnmanaged!int left, ref HashSetUnmanaged!int right) { left = move(right); }));
-static assert(!__traits(isCopyable, OwnerSet));
+static assert(__traits(isCopyable, OwnerSet));
 static assert(__traits(compiles, (ref OwnerMap map, HeapOwner* key, HeapOwner* value) {
         map.try_add(key, value);
     }));
 static assert(!__traits(compiles, (ref OwnerMap map, HeapOwner key, HeapOwner value) {
         map.try_add(move(key), move(value));
     }));
-static assert(!__traits(compiles, (ref OwnerMap left, ref OwnerMap right) { left = move(right); }));
+static assert(__traits(compiles, (ref OwnerMap left, ref OwnerMap right) { left = move(right); }));
 static assert(!__traits(hasMember, OwnerMap, "release"));
 static assert(!__traits(hasMember, OwnerSet, "release"));
 static assert(!is(StringHashMap!HeapOwner == OwnedStringHashMap!HeapOwner));

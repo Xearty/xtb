@@ -56,8 +56,6 @@ nothrow @nogc:
     int id;
     size_t* deinits;
 
-    @disable this(this);
-
     static HeapOwner create(Allocator* allocator, int id, size_t* deinits)
     {
         HeapOwner result;
@@ -181,7 +179,7 @@ private void testOptionOwners(Allocator* allocator)
     assert(deinits == 3);
 
     static assert(needs_deinit!(Option!HeapOwner));
-    static assert(!__traits(compiles,
+    static assert(__traits(compiles,
             (ref Option!HeapOwner value) { Option!HeapOwner copy = value; }));
     static assert(!__traits(compiles,
             (Option!HeapOwner value) { return value.map!(item => item.id); }));
@@ -241,7 +239,7 @@ private void testResultTransitions(Allocator* allocator)
     assert(deinits == 8);
 
     static assert(needs_deinit!(Result!(HeapOwner, HeapOwner)));
-    static assert(!__traits(compiles,
+    static assert(__traits(compiles,
             (ref Result!(HeapOwner, HeapOwner) value) { Result!(HeapOwner, HeapOwner) copy = value; }));
     static assert(!__traits(compiles,
             (Result!(HeapOwner, int) value) { return value.map!(item => item.id); }));

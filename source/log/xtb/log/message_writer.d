@@ -33,8 +33,6 @@ nothrow @nogc:
     usize written;
     bool write_failed;
 
-    @disable this(this);
-
     /// Creates a message writer over a resolved record and caller-owned staging storage.
     ///
     /// A null record creates an already-failed writer. Both borrowed inputs must

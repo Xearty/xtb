@@ -56,8 +56,6 @@ nothrow @nogc:
     /// prefix references created from this provider are used.
     LogTimestampOptions options;
 
-    @disable this(this);
-
     static TimestampLogPrefix create(
         return scope const LogTimestampOptions options = LogTimestampOptions.defaults(),
     ) @safe
@@ -246,7 +244,7 @@ version (unittest)
 
 unittest
 {
-    static assert(!__traits(isCopyable, TimestampLogPrefix));
+    static assert(__traits(isCopyable, TimestampLogPrefix));
 
     const default_options = LogTimestampOptions.defaults();
     assert(default_options.zone == LogTimestampZone.local);

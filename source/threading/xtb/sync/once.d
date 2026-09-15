@@ -21,8 +21,6 @@ private enum uint onceInitialized = 2;
 struct Once
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Atomic!uint state_;
     version (XTB_Checked) private Atomic!ulong initializingOwner_;
 
@@ -166,7 +164,7 @@ private noreturn unsupportedOnceWait() @trusted
     panic("contended callOnce requires a supported thread parking backend");
 }
 
-static assert(!__traits(isCopyable, Once));
+static assert(__traits(isCopyable, Once));
 version (XTB_Checked)
     static assert(Once.sizeof >= Atomic!uint.sizeof + Atomic!ulong.sizeof);
 else

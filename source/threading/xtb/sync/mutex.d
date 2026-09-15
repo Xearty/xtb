@@ -17,8 +17,9 @@ private enum uint mutexActiveSpinRounds = 7;
 ///
 /// `Mutex.init` is unlocked. Once a mutex may be accessed or waited on by
 /// another thread, its address must remain stable until all such access has
-/// finished. The type is therefore non-copyable; moving a published mutex is a
-/// programming error even though D cannot diagnose every relocation.
+/// finished; copying or moving a published mutex is a programming error.
+/// Copies made during thread-local construction are independent values and
+/// must be published at their final address.
 ///
 /// Acquisition uses acquire ordering and `unlock()` uses release ordering.
 /// Under contention the implementation performs a bounded exponential
@@ -27,8 +28,6 @@ private enum uint mutexActiveSpinRounds = 7;
 struct Mutex
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Atomic!uint state_;
 
     version (XTB_Checked) private Atomic!ulong owner_;
@@ -205,7 +204,7 @@ private noreturn unlockUnlockedMutex() @trusted
     panic("cannot unlock an unlocked Mutex");
 }
 
-static assert(!__traits(isCopyable, Mutex));
+static assert(__traits(isCopyable, Mutex));
 version (XTB_Checked)
     static assert(Mutex.sizeof >= Atomic!uint.sizeof + Atomic!ulong.sizeof);
 else

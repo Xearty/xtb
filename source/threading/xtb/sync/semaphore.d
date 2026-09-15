@@ -27,13 +27,12 @@ private struct SemaphoreWaiter
 ///
 /// Blocking waiters use one stack-backed wait word each. The semaphore never
 /// reuses a shared finite-width wait generation, so its blocking protocol has no
-/// wake-counter wrap/ABA case. The type is non-copyable and must remain at a
-/// stable address once another thread may access or wait on it.
+/// wake-counter wrap/ABA case. Copies made during thread-local construction are
+/// independent values. Once another thread may access or wait on a semaphore,
+/// it must remain at a stable address and must not be copied or moved.
 struct Semaphore
 {
 nothrow @nogc:
-    @disable this(this);
-
     // Available, unreserved permits. A queued waiter has no permit represented
     // here: release hands a permit directly to that waiter instead.
     private Atomic!size_t permits_;
@@ -257,7 +256,7 @@ private noreturn unsupportedAcquire() @trusted
     panic("Semaphore.acquire requires a supported thread parking backend when no permit is available");
 }
 
-static assert(!__traits(isCopyable, Semaphore));
+static assert(__traits(isCopyable, Semaphore));
 
 unittest
 {

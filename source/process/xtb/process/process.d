@@ -453,9 +453,6 @@ nothrow @nogc:
     private PipeReader stdoutPipe_;
     private PipeReader stderrPipe_;
 
-    @disable this(this);
-    @disable ref ChildProcess opAssign(ChildProcess source) return;
-
     bool ownsProcess() const pure @safe
     {
         return processId_.valid;

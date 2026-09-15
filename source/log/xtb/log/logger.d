@@ -31,8 +31,6 @@ nothrow @nogc:
     /// Reentrancy guard used only while a record is being delivered.
     bool delivering;
 
-    @disable this(this);
-
     /// Creates a logger borrowing both `sink` and `message_buffer`.
     ///
     /// `message_buffer` bounds the complete message produced by `log` / `logf`

@@ -33,8 +33,6 @@ nothrow @nogc:
     bool second_healthy;
     bool record_failed;
 
-    @disable this(this);
-
     static TeeLogSink create(LogSinkRef first, LogSinkRef second) @safe
     {
         TeeLogSink result;

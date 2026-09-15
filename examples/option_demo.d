@@ -149,22 +149,22 @@ private void demonstrateCopyingAndNesting()
 private void demonstrateOwningValues(Allocator* allocator)
 {
     StringBuf source = StringBuf.from_string(allocator, "alpha");
-    Option!StringBuf text = some(move(source));
+    Option!StringBuf text = some(source);
 
-    // Moving transfers ownership and leaves the source at StringBuf.init.
-    assert(source.allocator is null);
+    // The ordinary copy is shallow. Select `text` as the owner and do not use
+    // or deinitialize the source alias afterward.
     text.value.append("-beta");
     writeln("owned option: ", text.value);
 
-    // An Option is non-copyable when T is non-copyable.
-    static assert(!__traits(compiles,
+    // Manual-lifetime payloads remain shallow-copyable through Option.
+    static assert(__traits(compiles,
             (ref Option!StringBuf value) { Option!StringBuf copy = value; }));
 
     StringBuf extracted = text.take();
     assert(text.is_none && extracted == "alpha-beta");
 
-    // some(...) takes its value by value. Pass move(...) for an owning T.
-    text = some(move(extracted));
+    // By-value APIs do not require ceremonial move calls.
+    text = some(extracted);
     text.reset();
     assert(text.is_none);
 }

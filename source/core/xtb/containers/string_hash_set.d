@@ -39,9 +39,6 @@ nothrow @nogc:
         require(&this !is null, "StringHashSetUnmanaged pointer is null");
     }
 
-    @disable this(this);
-    @disable ref StringHashSetUnmanaged opAssign(StringHashSetUnmanaged source) return;
-
     static StringHashSetUnmanaged seeded(HashSeed seed) @trusted
     {
         StringHashSetUnmanaged result;
@@ -278,9 +275,6 @@ nothrow @nogc:
     {
         require(&this !is null, "StringHashSet pointer is null");
     }
-
-    @disable this(this);
-    @disable ref StringHashSet opAssign(StringHashSet source) return;
 
     static StringHashSet create(Allocator* allocator) @trusted
     {
@@ -629,8 +623,8 @@ version (unittest)
 unittest
 {
     static assert(is(StringViewHashSet == HashSet!String));
-    static assert(!__traits(isCopyable, StringHashSet));
-    static assert(!__traits(isCopyable, StringHashSetUnmanaged));
+    static assert(__traits(isCopyable, StringHashSet));
+    static assert(__traits(isCopyable, StringHashSetUnmanaged));
     enum unmanaged_assignment_compiles = __traits(
         compiles,
         (ref StringHashSetUnmanaged left, ref StringHashSetUnmanaged right)
@@ -638,7 +632,7 @@ unittest
             left = move(right);
         },
     );
-    static assert(!unmanaged_assignment_compiles);
+    static assert(unmanaged_assignment_compiles);
 
     enum mutable_allocator_access_compiles = __traits(
         compiles,

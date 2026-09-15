@@ -67,9 +67,6 @@ nothrow @nogc:
     /// A valid handle has single ownership and must be closed before replacement.
     void* directory;
 
-    @disable this(this);
-    @disable ref DirectoryIterator opAssign(DirectoryIterator source) return;
-
     /// Closes this iterator if it is open and reports any native close error.
     OsError close() @system
     {

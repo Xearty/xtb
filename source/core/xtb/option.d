@@ -53,11 +53,10 @@ nothrow @nogc:
     bool present;
     align(T.alignof) u8[T.sizeof] storage;
 
-    // A cleanup-bearing payload must never acquire implicit owner copying just
-    // because its representation happens to be copyable.
+    // Preserve D's own copy restrictions. Manual-lifetime payloads remain
+    // shallow-copyable by convention.
     static if (
         !__traits(isCopyable, T)
-        || needs_deinit!T
         || has_d_destructor!T
         || hasElaborateCopyConstructor!T
     )
@@ -70,11 +69,11 @@ nothrow @nogc:
     {
     }
 
-    /// Replaces this Option by consuming `source`.
+    /// Replaces this Option from `source`.
     ///
-    /// Copyable, cleanup-free Options may also pass an lvalue here through the
-    /// normal value copy into `source`. Cleanup-bearing Options require an
-    /// rvalue/moved source because their copy constructor is disabled.
+    /// Copyable Options may pass an lvalue here through the normal shallow copy
+    /// into `source`. D-destructor and otherwise non-copyable payloads require
+    /// an rvalue/moved source.
     ref Option opAssign(Option source) return
     {
         this.reset();
@@ -502,7 +501,7 @@ unittest
 
 unittest
 {
-    static assert(!__traits(compiles,
+    static assert(__traits(compiles,
         (ref Option!StringBuf value)
         {
             Option!StringBuf copy = value;

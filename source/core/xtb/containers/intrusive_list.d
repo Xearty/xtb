@@ -97,8 +97,6 @@ struct IntrusiveList(Node, string hook_member = "list_hook")
     Node* front;
     Node* back;
 
-    @disable this(this);
-
     bool empty() const pure @safe
     {
         return this.front is null;
@@ -385,8 +383,6 @@ struct IntrusiveForwardList(Node, string hook_member = "forward_list_hook")
     Node* front;
     Node* back;
 
-    @disable this(this);
-
     bool empty() const pure @safe
     {
         return this.front is null;
@@ -638,8 +634,6 @@ struct IntrusiveQueue(Node, string hook_member = "forward_list_hook")
 
     IntrusiveForwardList!(Node, hook_member) list;
 
-    @disable this(this);
-
     bool empty() const pure @safe
     {
         return this.list.empty;
@@ -700,8 +694,6 @@ struct IntrusiveStack(Node, string hook_member = "forward_list_hook")
     );
 
     Node* top;
-
-    @disable this(this);
 
     bool empty() const pure @safe
     {

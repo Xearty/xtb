@@ -149,8 +149,8 @@ pure @safe
 /// A short-lived, allocation-free output path for one already-resolved record.
 ///
 /// A record reference is produced by `LogSinkRef.begin_record` and remains valid
-/// only until its matching `try_end_record`. It is deliberately non-copyable because
-/// it represents one active lifecycle. Direct sinks use one callback and
+/// only until its matching `try_end_record`. Copies represent the same active
+/// lifecycle, so exactly one copy may be ended. Direct sinks use one callback and
 /// context. Composite sinks may return a callback backed by stable state in the
 /// composite object. Setup-only decorators may return a child's record
 /// unchanged and therefore disappear from repeated message writes.
@@ -165,8 +165,6 @@ nothrow @nogc:
     bool frames_message;
     bool message_began;
     bool deferred_failure;
-
-    @disable this(this);
 
     /// Creates an unframed resolved record layer for a compositional sink.
     ///

@@ -127,9 +127,9 @@ static assert(__traits(compiles,
         (ref StringBufUnmanaged value, Allocator* allocator) { deinit(value, allocator); }));
 static assert(__traits(compiles,
         (ref OwnedStringUnmanaged value, Allocator* allocator) { deinit(value, allocator); }));
-static assert(!__traits(compiles,
+static assert(__traits(compiles,
         (ref StringBuf left, ref StringBuf right) { left = move(right); }));
-static assert(!__traits(compiles,
+static assert(__traits(compiles,
         (ref OwnedString left, ref OwnedString right) { left = move(right); }));
 static assert(!__traits(compiles,
         (ref StringBuf value) { value.try_replace("a", "b"); }));
@@ -141,9 +141,9 @@ static assert(!__traits(compiles,
         (Allocator* allocator, ref StringBuf value) {
         auto result = OwnedString.from_stringBuf(allocator, &value);
     }));
-static assert(!__traits(compiles,
+static assert(__traits(compiles,
         (ref StringBufUnmanaged left, ref StringBufUnmanaged right) { left = move(right); }));
-static assert(!__traits(compiles,
+static assert(__traits(compiles,
         (ref OwnedStringUnmanaged left, ref OwnedStringUnmanaged right) { left = move(right); }));
 static assert(needs_deinit!(Option!StringBuf));
 static assert(needs_deinit!(Option!OwnedString));

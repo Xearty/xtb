@@ -510,7 +510,7 @@ if (!decode_into(input, &decoded))
     return false;
 }
 
-*output = move(decoded);
+*output = decoded;
 return true;
 ```
 
@@ -532,17 +532,118 @@ String message = message_buffer.view();
 process(message);
 ```
 
-Make ownership transfer visible with an established operation such as `move`,
-`take`, `release`, or `adopt`. Passing an owner by value means consumption and
-uses an explicit move at the call site:
+Manual-lifetime owners follow value syntax. Passing one by value copies its
+representation; when the receiving API consumes ownership, the caller treats
+the source as relinquished without requiring a `move` expression:
 
 ```d
 StringBuf message = load_message(allocator);
-consume(move(message));
+consume(message);
 ```
 
-Do not use an ordinary-looking assignment or a mechanical naming prefix as the
-only indication that ownership changed.
+After the call, `message` still contains the copied representation, but it is no
+longer an owner and must not be used or deinitialized. The language and library
+do not track which representation retains the cleanup obligation.
+
+## Manual-lifetime ownership and copying
+
+A struct whose resources are released only by an explicit `deinit` call uses
+ordinary D value copying. Do not disable its copy constructor or generated
+assignment merely because copying duplicates an owning handle. This follows
+the same model as Zig: copying a representation does not clone its resource,
+reset the source, or create another independent cleanup obligation.
+
+Exactly one live representation is responsible for eventually deinitializing
+each resource. After using an ordinary copy as an ownership transfer, abandon
+the source. Calling `deinit` through two aliases, using an alias after another
+alias releases the resource, or overwriting a live owner without first
+deinitializing it violates the ownership contract:
+
+```d
+Array!i32 values = Array!i32.create(allocator);
+values.append(1);
+
+Config config = Config(values: values);
+// `config.values` owns the allocation; do not use or deinitialize `values`.
+```
+
+Use an explicitly named `clone` or `copy` operation when both results must
+remain independently usable. Such an operation supplies any required allocator
+and reports or handles allocation failure according to its API.
+
+`move(source)` remains an optional source-resetting operation. Use it when the
+source must become safely reusable or when cleanup already registered for the
+source will still execute. Do not require it merely to pass, return, or place a
+manual-lifetime owner in another aggregate. Do not register unconditional
+scope-exit cleanup for a local owner that will be returned or transferred;
+release it explicitly on reported failure paths instead:
+
+```d
+bool try_load_values(Allocator* allocator, Array!i32* output)
+{
+    Array!i32 result = Array!i32.create(allocator);
+    if (!try_populate(&result))
+    {
+        result.deinit();
+        return false;
+    }
+
+    *output = result;
+    return true;
+}
+```
+
+When several reported-failure paths share cleanup, use an explicitly
+initialized commit flag with `scope (exit)`:
+
+```d
+Array!i32 result = Array!i32.create(allocator);
+bool committed = false;
+scope (exit)
+{
+    if (!committed) result.deinit();
+}
+
+if (!try_read_values(&result)) return false;
+if (!try_validate_values(result.slice)) return false;
+
+*output = result;
+committed = true;
+return true;
+```
+
+Alternatively, when unconditional cleanup is already registered, moving the
+successful result resets the local owner and makes that cleanup harmless:
+
+```d
+Array!i32 result = Array!i32.create(allocator);
+scope (exit) result.deinit();
+
+if (!try_populate(&result)) return false;
+
+*output = move(result);
+return true;
+```
+
+Keep copying disabled for a value whose D destructor performs automatic work.
+Copies of an RAII scope, lock guard, thread obligation, or similar value would
+cause that work to run more than once. Manual-lifetime values do not acquire a
+destructor solely to recover copy enforcement.
+
+Generic code must distinguish transferring one value from duplicating values.
+A by-value parameter may receive a manual owner under the convention above.
+An operation that preserves its input while producing independently cleaned
+elements, such as constructing a deep-owning container from a borrowed slice,
+is unavailable when `needs_finalization!T` is true unless it has an explicit
+element-cloning policy. Use the existing lifetime traits for that local
+constraint; do not introduce a separate general ownership or duplication type
+system.
+
+Address-sensitive structs may be copied while being assembled but must remain
+at a stable address after a pointer to embedded state escapes or the value is
+published to another thread. State this restriction on the type or on the
+operation that exposes its address. Ordinary copy syntax does not weaken that
+caller obligation.
 
 ## Defaults, overloads, and options
 
@@ -596,9 +697,11 @@ WindowConfig config = WindowConfig(width: 800, height: 600, title: "XTB OpenGL")
 ```
 
 Declaration-site field defaults remain required constructor arguments. The
-constructor consumes its arguments, so move owning lvalues explicitly and give
-an owning data struct its appropriate handwritten `deinit` behavior. Do not add
-alternate constructors that bypass the complete-field requirement.
+constructor initializes fields from its by-value arguments. A manual-lifetime
+owner may be passed as an ordinary lvalue under the ownership-transfer
+convention; give an owning data struct its appropriate handwritten `deinit`
+behavior. Do not add alternate constructors that bypass the complete-field
+requirement.
 
 `Type.init` remains available because D defines it intrinsically for every
 type. Use it deliberately for zero-state storage or output initialization; do
@@ -1183,9 +1286,9 @@ Introduce a named local when it exposes important intermediate state, supports
 validation or cleanup, or avoids deeply nested calls. Do not create a local
 solely to satisfy a universal single-return or direct-return rule.
 
-Use the established XTB move operations when returning an ownership-bearing
-value requires an explicit move. Do not let a preference for direct returns
-obscure ownership transfer.
+Return a manual-lifetime owner directly without adding `move` solely to mark the
+transfer. Use `move` when resetting the source is operationally necessary, and
+for non-copyable RAII values whose established API requires it.
 
 ## Must-use types
 

@@ -37,9 +37,6 @@ private struct SetMarker
         DefaultHashMapElementOps!SetMarker,
     ) map;
 
-    @disable this(this);
-    @disable ref HashSetUnmanaged opAssign(HashSetUnmanaged source) return;
-
     static HashSetUnmanaged with_policies(Hasher hasher, Equal equal)
     {
         HashSetUnmanaged result;
@@ -287,9 +284,6 @@ private struct SetMarker
     Allocator* allocator;
     /// Backing set storage owned through `allocator` while this value is live.
     Storage storage;
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @safe
     {
@@ -570,9 +564,6 @@ private struct SetMarker
     Allocator* allocator;
     /// Backing set storage and elements owned through `allocator`.
     Storage storage;
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     static Self create(Allocator* allocator) @safe
     {

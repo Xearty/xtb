@@ -64,11 +64,18 @@ protocol; attempting to `deinit` them is a compile-time error.
 `finalize` is primarily for generic/container code. Ordinary XTB owners should
 use their explicit `deinit` contract.
 
-## Moving owners
+## Copying and moving owners
 
-`move(source)` transfers a live owner and resets the source to a safely
-deinitializable state. `move_emplace` transfers into dead/uninitialized storage;
-`move_assign` first deinitializes a live destination and then replaces it.
+Manual-lifetime owners are ordinarily shallow-copyable. Passing, returning, or
+placing one in an aggregate copies its representation; it does not clone the
+resource. The program must select exactly one alias for continued ownership and
+eventual `deinit`.
+
+`move(source)` is optional and resets the source to a safely deinitializable
+state. It is useful when cleanup is already registered for the source.
+`move_emplace` transfers into dead/uninitialized storage; `move_assign` first
+deinitializes a live destination and then replaces it. Use `clone` or `copy`
+when both values must remain independently owned.
 
 See [Ownership and lifetimes](ownership.md) for the higher-level borrowed,
 owned, arena, and container lifetime rules.

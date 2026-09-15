@@ -94,9 +94,6 @@ private:
     align(childStorageAlignment!T) ubyte[childStorageSize!T] childStorage_;
 
 public:
-    @disable this(this);
-    @disable ref ParsedCommand opAssign(ParsedCommand source) return;
-
     /// Returns the selected direct child, or null when another/no child is active.
     ParsedCommand!Child* command(Child)() return @system if (isDirectCommand!(T, Child))
     {
@@ -169,9 +166,6 @@ private:
     ParsedCommand!T invocation_;
 
 public:
-    @disable this(this);
-    @disable ref CliParseResult opAssign(CliParseResult source) return;
-
     bool hasInvocation() const pure @safe
     {
         return outcome_ == CliOutcomeKind.invocation;

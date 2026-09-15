@@ -54,9 +54,10 @@ private usize public_deinit_count(Storage)()
     return result;
 }
 
-/// Move-only explicit owner used while transferring allocator-bound unmanaged
-/// storage out of a managed container. Call free `deinit` if ownership is not
-/// transferred onward with `extract`/adopt.
+/// Explicit owner used while transferring allocator-bound unmanaged storage
+/// out of a managed container. Copies alias the same storage, so call free
+/// `deinit` on exactly one alias if ownership is not transferred onward with
+/// `extract`/adopt.
 @mustuse struct ReleasedStorage(Storage)
 {
 nothrow @nogc:
@@ -67,10 +68,6 @@ nothrow @nogc:
     /// Unmanaged storage owned by this token until extracted or deinitialized.
     Storage storage;
 
-    static assert(
-        !__traits(isCopyable, Storage),
-        "ReleasedStorage requires non-copyable unmanaged storage",
-    );
     static assert(
         !has_d_destructor!Storage,
         "ReleasedStorage storage must not have an elaborate destructor",
@@ -112,9 +109,6 @@ nothrow @nogc:
     {
         static assert(false, "unmanaged storage must provide deinit");
     }
-
-    @disable this(this);
-    @disable ref ReleasedStorage opAssign(ReleasedStorage source) return;
 
     /// Explicitly releases the owned allocator/storage pair.
     void deinit() @trusted

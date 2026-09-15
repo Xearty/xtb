@@ -119,8 +119,6 @@ nothrow @nogc:
     LogSinkRef child;
     LogPrefixRef prefix;
 
-    @disable this(this);
-
     static PrefixLogSink create(LogSinkRef child, LogPrefixRef prefix)
     {
         PrefixLogSink result;

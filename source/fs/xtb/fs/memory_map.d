@@ -38,9 +38,6 @@ nothrow @nogc:
     /// Length in bytes of the mapping starting at `address`.
     usize length;
 
-    @disable this(this);
-    @disable ref MappedFile opAssign(MappedFile source) return;
-
     /// Explicitly ends this mapping's owning lifetime.
     ///
     /// Unmap errors are discarded; call `unmap` directly when they matter.

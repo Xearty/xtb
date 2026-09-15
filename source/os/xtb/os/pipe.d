@@ -58,9 +58,6 @@ nothrow @nogc:
 
     private NativeHandle handle_;
 
-    @disable this(this);
-    @disable ref PipeReader opAssign(PipeReader source) return;
-
     /// Explicitly ends this pipe endpoint's owning lifetime.
     ///
     /// Close errors are discarded; call `close` directly when they matter.
@@ -85,9 +82,6 @@ struct PipeWriter
 nothrow @nogc:
 
     private NativeHandle handle_;
-
-    @disable this(this);
-    @disable ref PipeWriter opAssign(PipeWriter source) return;
 
     /// Explicitly ends this pipe endpoint's owning lifetime.
     ///
@@ -114,9 +108,6 @@ nothrow @nogc:
 
     PipeReader reader;
     PipeWriter writer;
-
-    @disable this(this);
-    @disable ref Pipe opAssign(Pipe source) return;
 
     bool valid() const pure @safe
     {

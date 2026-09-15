@@ -100,8 +100,6 @@ nothrow @nogc:
     private size_t window_count_;
     private WindowSystemEventHandler event_handler_;
 
-    @disable this(this);
-
     /// Initializes the process GLFW window system. XTB exclusively owns the
     /// process-global GLFW lifecycle while a WindowSystem is alive: GLFW must
     /// not already be initialized by application code or another library, and

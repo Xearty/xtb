@@ -60,9 +60,6 @@ private enum u32 generation_mask = active_bit - 1;
 
     version (XTB_Checked) usize mutation_generation = 1;
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     /// Attempts to create an empty generational pool with `capacity` usable
     /// slots.
     ///

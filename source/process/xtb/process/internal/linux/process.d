@@ -53,9 +53,6 @@ nothrow @nogc:
     private bool attributesActive;
     private int[3] stagedDescriptors = [-1, -1, -1];
 
-    @disable this(this);
-    @disable ref NativeSpawn opAssign(NativeSpawn source) return;
-
     void deinit() @system
     {
         foreach (ref descriptor; stagedDescriptors)

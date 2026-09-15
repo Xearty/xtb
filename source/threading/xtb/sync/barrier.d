@@ -20,8 +20,6 @@ import xtb.sync.mutex : Mutex;
 struct Barrier
 {
 nothrow @nogc:
-    @disable this(this);
-
     private Mutex stateMutex_;
     private size_t remaining_;
     private size_t nextExpected_;
@@ -104,7 +102,7 @@ private noreturn barrierIsPermanentlyComplete() @trusted
     panic("cannot arrive at an inert or permanently complete Barrier");
 }
 
-static assert(!__traits(isCopyable, Barrier));
+static assert(__traits(isCopyable, Barrier));
 
 unittest
 {

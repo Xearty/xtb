@@ -83,9 +83,6 @@ nothrow @nogc:
     /// A valid handle has single ownership and must be closed before replacement.
     NativeHandle handle;
 
-    @disable this(this);
-    @disable ref File opAssign(File source) return;
-
     /// Closes this file if it is open and reports any native close error.
     OsError close() @safe
     {

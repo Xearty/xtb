@@ -43,9 +43,6 @@ private template supports_default_initialization(T)
     usize committed_bytes;
     usize commit_granularity;
 
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
-
     /// Attempts to create an empty fixed-capacity array.
     ///
     /// The complete typed capacity is reserved but starts inaccessible. `output`
@@ -369,9 +366,9 @@ static assert(needs_deinit!(VirtualArray!u8));
 /// region.
 ///
 /// A view never releases its underlying mapping and never constructs or
-/// finalizes `T`. It owns only its local provision/commit bookkeeping, so it is
-/// deliberately non-copyable. `deinit` ends that local borrow and resets the
-/// view without touching the parent reservation. The representation fields
+/// finalizes `T`. It owns only its local provision/commit bookkeeping. Copies
+/// alias the same region, so exactly one copy may call `deinit`, which ends that
+/// local borrow without touching the parent reservation. The representation fields
 /// describe one coupled state: `data` is the base of `region`,
 /// `provisioned_length <= capacity`, and the provisioned prefix is accessible.
 /// Direct field mutation must preserve those relationships.
@@ -385,9 +382,6 @@ package(xtb.containers) struct VirtualArrayView(T)
     usize provisioned_length;
     usize committed_bytes;
     usize commit_granularity;
-
-    @disable this(this);
-    @disable ref Self opAssign(Self source) return;
 
     /// Attempts to bind an inert view to `region`.
     ///
@@ -776,7 +770,7 @@ unittest
         }
     }
 
-    static assert(!__traits(isCopyable, VirtualArray!i32));
+    static assert(__traits(isCopyable, VirtualArray!i32));
     static assert(needs_deinit!(VirtualArray!i32));
     static assert(__traits(compiles, () nothrow @nogc @system
     {
@@ -1033,7 +1027,7 @@ unittest
 
 unittest
 {
-    static assert(!__traits(isCopyable, VirtualArrayView!i32));
+    static assert(__traits(isCopyable, VirtualArrayView!i32));
     static assert(needs_deinit!(VirtualArrayView!i32));
     static assert(__traits(compiles, () nothrow @nogc @safe
     {

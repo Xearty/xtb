@@ -37,9 +37,6 @@ nothrow @nogc:
     usize pending;
     bool failed;
 
-    @disable this(this);
-    @disable ref BufferedWriter opAssign(BufferedWriter source) return;
-
     /// Creates a buffering decorator over `destination` using caller-owned storage.
     ///
     /// `destination` must be non-null. Both `destination` and `staging` must
@@ -203,7 +200,7 @@ version (unittest)
 
 unittest
 {
-    static assert(!__traits(compiles, () @system
+    static assert(__traits(compiles, () @system
     {
         BufferedWriterTestSinkState state;
         auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
@@ -212,7 +209,7 @@ unittest
         auto second = first;
     }));
 
-    static assert(!__traits(compiles, () @system
+    static assert(__traits(compiles, () @system
     {
         BufferedWriterTestSinkState state;
         auto destination = Writer.from_sink(&buffered_writer_test_destination_sink, &state);
