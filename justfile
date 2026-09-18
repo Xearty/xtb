@@ -226,22 +226,6 @@ targets:
 clean:
     rm -rf .dub build
 
-# Format every D source file in place.
-format:
-    @dfmt --config . --inplace {{ d_files }}
-
-# Verify formatting without modifying the working tree.
-[script]
-format-check:
-    status=0
-    for file in {{ d_files }}; do
-        if ! dfmt --config . "$file" | cmp -s "$file" -; then
-            echo "not formatted: $file" >&2
-            status=1
-        fi
-    done
-    exit "$status"
-
 # Run compiler semantic checks and D-Scanner policy checks.
 [script]
 lint:
@@ -331,7 +315,7 @@ check-zero-cost:
         build/zero-cost/contract_tests
 
 # Run the routine local verification matrix.
-check: format-check lint _check-build-debug _check-build-release-safe _check-build-release-fast _check-compose-diagnostics test test-optimized test-release-safe test-release-fast test-sanitize run-examples
+check: lint _check-build-debug _check-build-release-safe _check-build-release-fast _check-compose-diagnostics test test-optimized test-release-safe test-release-fast test-sanitize run-examples
 
 # Run routine checks plus application-template validation before committing.
 pre-commit: check check-template

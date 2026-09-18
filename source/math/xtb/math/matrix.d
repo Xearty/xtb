@@ -2,6 +2,7 @@ module xtb.math.matrix;
 
 nothrow @nogc @safe:
 
+import xtb.math.coordinate_system;
 import xtb.math.quaternion;
 import xtb.math.scalar;
 import xtb.math.vector;
@@ -670,14 +671,23 @@ Matrix4 rotation(Vector3 axis, f32 angle)
     );
 }
 
-/// Creates a yaw-pitch-roll rotation from radian angles.
-Matrix4 rotation_yaw_pitch_roll(f32 yaw, f32 pitch, f32 roll)
+/// Creates an intrinsic yaw-pitch-roll rotation for `coordinates`.
+/// `coordinates` must be valid, and all angles must be finite.
+Matrix4 rotation_matrix_from_yaw_pitch_roll(
+    CoordinateSystem coordinates,
+    f32 yaw,
+    f32 pitch,
+    f32 roll,
+)
 {
-    require(
-        yaw.is_finite && pitch.is_finite && roll.is_finite,
-        "yaw, pitch, and roll must be finite",
+    return Matrix4.from_quaternion(
+        xtb.math.quaternion.quaternion_from_yaw_pitch_roll(
+            coordinates,
+            yaw,
+            pitch,
+            roll,
+        ),
     );
-    return rotation_y(-yaw) * rotation_x(pitch) * rotation_z(roll);
 }
 
 Matrix4 orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
@@ -748,10 +758,11 @@ Matrix4 perspective(f32 vertical_fov, f32 aspect, f32 near, f32 far)
     );
 }
 
-/// `output` must not be null.
+/// Attempts to create a right-handed view matrix.
 ///
-/// On failure, `output` remains unchanged.
-bool try_look_at(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @system
+/// Returns false when an input is non-finite or the vectors cannot form a view basis.
+/// On failure, `output` remains unchanged. `output` must not be null.
+bool try_look_at_rh(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @system
 {
     require(output !is null, "look-at output pointer is null");
     if (!eye.is_finite || !target.is_finite || !up.is_finite) return false;
@@ -777,11 +788,58 @@ bool try_look_at(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @syst
     return true;
 }
 
-Matrix4 look_at(Vector3 eye, Vector3 target, Vector3 up) @trusted
+/// Attempts to create a left-handed view matrix.
+///
+/// Returns false when an input is non-finite or the vectors cannot form a view basis.
+/// On failure, `output` remains unchanged. `output` must not be null.
+bool try_look_at_lh(Vector3 eye, Vector3 target, Vector3 up, Matrix4* output) @system
+{
+    require(output !is null, "look-at output pointer is null");
+    if (!eye.is_finite || !target.is_finite || !up.is_finite) return false;
+
+    const forward = (target - eye).normalized;
+    if (forward == Vector3.init) return false;
+
+    const unit_up = up.normalized;
+    if (unit_up == Vector3.init) return false;
+
+    const side_vector = cross(unit_up, forward);
+    const side_length = side_vector.length;
+    if (!side_length.is_finite || side_length <= inverse_relative_tolerance) return false;
+
+    const side = side_vector / side_length;
+    const corrected_up = cross(forward, side);
+    *output = Matrix4(
+        Vector4(side.x, corrected_up.x, forward.x, 0),
+        Vector4(side.y, corrected_up.y, forward.y, 0),
+        Vector4(side.z, corrected_up.z, forward.z, 0),
+        Vector4(-dot(side, eye), -dot(corrected_up, eye), -dot(forward, eye), 1),
+    );
+    return true;
+}
+
+/// Creates a right-handed view matrix.
+///
+/// Inputs must be finite. `eye` and `target` must differ, and `up` must be nonzero and
+/// not parallel or nearly parallel to the viewing direction.
+Matrix4 look_at_rh(Vector3 eye, Vector3 target, Vector3 up) @trusted
 {
     Matrix4 result;
-    // The output pointer targets live local storage, satisfying `try_look_at`'s @system contract.
-    const succeeded = try_look_at(eye, target, up, &result);
+    // The output pointer targets live local storage, satisfying the @system contract.
+    const succeeded = try_look_at_rh(eye, target, up, &result);
+    require(succeeded, "look-at vectors are non-finite or degenerate");
+    return result;
+}
+
+/// Creates a left-handed view matrix.
+///
+/// Inputs must be finite. `eye` and `target` must differ, and `up` must be nonzero and
+/// not parallel or nearly parallel to the viewing direction.
+Matrix4 look_at_lh(Vector3 eye, Vector3 target, Vector3 up) @trusted
+{
+    Matrix4 result;
+    // The output pointer targets live local storage, satisfying the @system contract.
+    const succeeded = try_look_at_lh(eye, target, up, &result);
     require(succeeded, "look-at vectors are non-finite or degenerate");
     return result;
 }
@@ -881,31 +939,49 @@ unittest
 @system unittest
 {
     Matrix4 camera = Matrix4.identity;
-    assert(!try_look_at(Vector3.init, Vector3.init, Vector3(0, 1, 0), &camera));
+    assert(!try_look_at_rh(Vector3.init, Vector3.init, Vector3(0, 1, 0), &camera));
     assert(camera == Matrix4.identity);
-    assert(!try_look_at(
+    assert(!try_look_at_rh(
         Vector3.init,
         Vector3(0, 0, -1),
         Vector3(0, 0, -2),
         &camera,
     ));
     assert(camera == Matrix4.identity);
-    assert(try_look_at(
+    assert(try_look_at_rh(
         Vector3(0, 0, 3),
         Vector3.init,
         Vector3(0, 1, 0),
         &camera,
     ));
     assert(camera.is_finite);
+
+    assert(look_at_rh(Vector3.init, Vector3(0, 0, -1), Vector3.unit_y)
+        == Matrix4.identity);
+    assert(look_at_lh(Vector3.init, Vector3.unit_z, Vector3.unit_y)
+        == Matrix4.identity);
+
+    camera = Matrix4.identity;
+    assert(!try_look_at_lh(Vector3.init, Vector3.init, Vector3.unit_y, &camera));
+    assert(camera == Matrix4.identity);
 }
 
 unittest
 {
     const yaw = radians(35.0f);
     const pitch = radians(-20.0f);
-    const expected_direction = direction_from_yaw_pitch(yaw, pitch);
+    const expected_direction = direction_from_yaw_pitch(
+        rh_y_up_negative_z_forward,
+        yaw,
+        pitch,
+    );
     const rotated_direction = (
-        rotation_yaw_pitch_roll(yaw, pitch, 0)
+        rotation_matrix_from_yaw_pitch_roll(
+            rh_y_up_negative_z_forward,
+            yaw,
+            pitch,
+            0,
+        )
             * Vector4(0, 0, -1, 0)
     ).xyz;
     assert(close(rotated_direction.with_w(0), expected_direction.with_w(0)));
@@ -919,7 +995,8 @@ unittest
 
 unittest
 {
-    const orientation = Quaternion.from_yaw_pitch_roll(
+    const orientation = quaternion_from_yaw_pitch_roll(
+        rh_y_up_negative_z_forward,
         radians(35.0f),
         radians(-20.0f),
         radians(15.0f),
@@ -938,7 +1015,12 @@ unittest
         matrix4,
     ));
     assert(close(
-        rotation_yaw_pitch_roll(radians(35.0f), radians(-20.0f), radians(15.0f)),
+        rotation_matrix_from_yaw_pitch_roll(
+            rh_y_up_negative_z_forward,
+            radians(35.0f),
+            radians(-20.0f),
+            radians(15.0f),
+        ),
         matrix4,
     ));
 }

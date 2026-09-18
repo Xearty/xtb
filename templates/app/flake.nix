@@ -144,7 +144,6 @@
           pkgs.dub
           pkgs.pkg-config
           pkgs.dscanner
-          pkgs.dformat
           pkgs.just
         ];
         buildInputs = [xtbSource xtbLibraries];

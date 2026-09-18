@@ -47,22 +47,6 @@ targets:
 clean:
     rm -rf .dub build
 
-# Format every D source file in place.
-format:
-    @dfmt --config . --inplace {{ d_files }}
-
-# Verify formatting without modifying the worktree.
-[script]
-format-check:
-    status=0
-    for file in {{ d_files }}; do
-        if ! dfmt --config . "$file" | cmp -s "$file" -; then
-            echo "not formatted: $file" >&2
-            status=1
-        fi
-    done
-    exit "$status"
-
 # Run compiler semantic checks and D-Scanner policy checks.
 [script]
 lint:
@@ -71,8 +55,8 @@ lint:
     dub build {{ dub_options }} --build=syntax --d-version=XTB_Checked
     dscanner lint --config dscanner.ini --styleCheck {{ d_files }}
 
-# Check formatting, semantics, every build, and every unittest configuration.
-check: format-check lint _check-build-debug _check-test-debug _check-build-release-safe _check-test-release-safe _check-build-release-fast _check-test-release-fast
+# Check semantics, every build, and every unittest configuration.
+check: lint _check-build-debug _check-test-debug _check-build-release-safe _check-test-release-safe _check-build-release-fast _check-test-release-fast
 
 _check-build-debug: (_dub "build" "debug")
 _check-test-debug: (_dub "test" "debug")

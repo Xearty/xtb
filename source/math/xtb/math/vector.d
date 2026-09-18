@@ -804,25 +804,6 @@ bool approximately_equal(
     return x_equal && y_equal && z_equal && w_equal;
 }
 
-/// Returns the forward direction for `yaw` and `pitch`, in radians.
-Vector3 direction_from_yaw_pitch(f32 yaw, f32 pitch)
-{
-    require(
-        xtb.math.scalar.is_finite(yaw) && xtb.math.scalar.is_finite(pitch),
-        "direction angles must be finite",
-    );
-
-    const yaw_sine = sin(yaw);
-    const yaw_cosine = cos(yaw);
-    const pitch_sine = sin(pitch);
-    const pitch_cosine = cos(pitch);
-    return Vector3(
-        yaw_sine * pitch_cosine,
-        pitch_sine,
-        -yaw_cosine * pitch_cosine,
-    );
-}
-
 unittest
 {
     const right = Vector2(1, 0);
@@ -844,22 +825,6 @@ unittest
         1e-6f,
     ));
     assert(signed_angle(up, right, up) == 0);
-}
-
-unittest
-{
-    assert(approximately_equal(
-        direction_from_yaw_pitch(pi / 2, 0),
-        Vector3(1, 0, 0),
-        1e-6f,
-        1e-6f,
-    ));
-    assert(approximately_equal(
-        direction_from_yaw_pitch(0, pi / 2),
-        Vector3(0, 1, 0),
-        1e-6f,
-        1e-6f,
-    ));
 }
 
 unittest

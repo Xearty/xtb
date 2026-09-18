@@ -2,6 +2,7 @@ module xtb.math.quaternion;
 
 nothrow @nogc @safe:
 
+import xtb.math.coordinate_system;
 import xtb.math.scalar;
 import xtb.math.vector;
 import xtb.panic;
@@ -29,30 +30,13 @@ struct Quaternion
         require(axis.is_finite && angle.is_finite, "rotation axis and angle must be finite");
 
         axis = axis.normalized;
+
         if (axis == Vector3.init) return identity();
 
         const half_angle = angle / 2;
         const sine = sin(half_angle);
         const cosine = cos(half_angle);
         return Quaternion(axis.x * sine, axis.y * sine, axis.z * sine, cosine);
-    }
-
-    /// Creates a yaw-pitch-roll rotation from radian angles.
-    ///
-    /// Yaw rotates around negative Y, pitch around positive X, and roll around positive Z.
-    /// The result is `yaw_rotation * pitch_rotation * roll_rotation`, so roll acts first
-    /// when the quaternion is applied to a vector.
-    static Quaternion from_yaw_pitch_roll(f32 yaw, f32 pitch, f32 roll)
-    {
-        require(
-            yaw.is_finite && pitch.is_finite && roll.is_finite,
-            "yaw, pitch, and roll must be finite",
-        );
-
-        const yaw_rotation = from_axis_angle(Vector3(0, -1, 0), yaw);
-        const pitch_rotation = from_axis_angle(Vector3(1, 0, 0), pitch);
-        const roll_rotation = from_axis_angle(Vector3(0, 0, 1), roll);
-        return yaw_rotation * pitch_rotation * roll_rotation;
     }
 
     Quaternion opUnary(string op : "-")() const pure
@@ -145,6 +129,7 @@ struct Quaternion
             xtb.math.scalar.max(absolute_x, absolute_y),
             xtb.math.scalar.max(absolute_z, absolute_w),
         );
+
         if (scale == 0) return 0;
 
         const scaled = this / scale;
@@ -164,6 +149,7 @@ struct Quaternion
             xtb.math.scalar.max(absolute_x, absolute_y),
             xtb.math.scalar.max(absolute_z, absolute_w),
         );
+
         if (scale == 0) return Quaternion(0.0f, 0.0f, 0.0f, 0.0f);
 
         const scaled = this / scale;
@@ -181,6 +167,7 @@ struct Quaternion
     bool try_inverse(Quaternion* output) const @system
     {
         require(output !is null, "quaternion inverse output pointer is null");
+
         if (!this.is_finite) return false;
 
         const absolute_x = abs(this.x);
@@ -191,11 +178,13 @@ struct Quaternion
             xtb.math.scalar.max(absolute_x, absolute_y),
             xtb.math.scalar.max(absolute_z, absolute_w),
         );
+
         if (scale == 0) return false;
 
         const scaled = this / scale;
         const scaled_length_squared = scaled.length_squared;
         const result = (scaled.conjugated / scaled_length_squared) / scale;
+
         if (!result.is_finite) return false;
 
         *output = result;
@@ -223,6 +212,7 @@ struct Quaternion
         const sine_half_angle = sqrt(
             xtb.math.scalar.max(0, 1 - canonical.w * canonical.w),
         );
+
         if (sine_half_angle <= rotation_epsilon) return Vector3(1, 0, 0);
 
         return Vector3(canonical.x, canonical.y, canonical.z) / sine_half_angle;
@@ -255,6 +245,89 @@ private enum f32 unit_absolute_tolerance = 1e-5f;
 private enum f32 unit_relative_tolerance = 1e-5f;
 private enum f32 rotation_epsilon = 1e-6f;
 
+private struct YawPitchRollAxes
+{
+    Vector3 yaw_axis;
+    Vector3 pitch_axis;
+    Vector3 roll_axis;
+}
+
+/// Creates an intrinsic yaw-pitch-roll rotation for `coordinates`.
+///
+/// Yaw turns around world up, pitch around local right after yaw, and roll around local forward
+/// after yaw and pitch. Positive yaw turns forward toward right, positive pitch turns forward
+/// toward up, and positive roll turns right toward up.
+/// `coordinates` must be valid, and all angles must be finite.
+Quaternion quaternion_from_yaw_pitch_roll(
+    CoordinateSystem coordinates,
+    f32 yaw,
+    f32 pitch,
+    f32 roll,
+)
+{
+    require(
+        yaw.is_finite && pitch.is_finite && roll.is_finite,
+        "yaw, pitch, and roll must be finite",
+    );
+
+    const axes = derive_yaw_pitch_roll_axes(coordinates);
+    return quaternion_from_yaw_pitch_roll_axes(axes, yaw, pitch, roll);
+}
+
+/// Creates an intrinsic yaw-pitch-roll rotation for a compile-time coordinate convention.
+/// All angles must be finite.
+package(xtb.math) Quaternion quaternion_from_yaw_pitch_roll(CoordinateSystem coordinates)(
+    f32 yaw,
+    f32 pitch,
+    f32 roll,
+)
+{
+    enum axes = derive_yaw_pitch_roll_axes(coordinates);
+    return quaternion_from_yaw_pitch_roll_axes(axes, yaw, pitch, roll);
+}
+
+private YawPitchRollAxes derive_yaw_pitch_roll_axes(CoordinateSystem coordinates)
+{
+    const forward_axis = get_world_forward(coordinates);
+    const right_axis = get_world_right(coordinates);
+    const up_axis = get_world_up(coordinates);
+
+    if (coordinates.handedness == Handedness.right)
+    {
+        return YawPitchRollAxes(
+            yaw_axis: -up_axis,
+            pitch_axis: right_axis,
+            roll_axis: -forward_axis,
+        );
+    }
+    else
+    {
+        return YawPitchRollAxes(
+            yaw_axis: up_axis,
+            pitch_axis: -right_axis,
+            roll_axis: forward_axis,
+        );
+    }
+}
+
+private Quaternion quaternion_from_yaw_pitch_roll_axes(
+    YawPitchRollAxes axes,
+    f32 yaw,
+    f32 pitch,
+    f32 roll,
+)
+{
+    require(
+        yaw.is_finite && pitch.is_finite && roll.is_finite,
+        "yaw, pitch, and roll must be finite",
+    );
+
+    const yaw_rotation = Quaternion.from_axis_angle(axes.yaw_axis, yaw);
+    const pitch_rotation = Quaternion.from_axis_angle(axes.pitch_axis, pitch);
+    const roll_rotation = Quaternion.from_axis_angle(axes.roll_axis, roll);
+    return yaw_rotation * pitch_rotation * roll_rotation;
+}
+
 f32 dot(Quaternion a, Quaternion b) pure
 {
     return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
@@ -273,6 +346,7 @@ Quaternion slerp(Quaternion a, Quaternion b, f32 t)
     require(a.is_unit && b.is_unit, "interpolated quaternions must be unit length");
 
     f32 cosine = dot(a, b);
+
     if (cosine < 0)
     {
         b = -b;
@@ -280,6 +354,7 @@ Quaternion slerp(Quaternion a, Quaternion b, f32 t)
     }
 
     cosine = xtb.math.scalar.clamp(cosine, -1, 1);
+
     if (cosine > 0.9995f) return nlerp(a, b, t);
 
     const angle = acos(cosine);
@@ -335,6 +410,58 @@ unittest
     assert(identity.conjugated == identity);
     assert(identity.axis == Vector3(1, 0, 0));
     assert(identity.angle == 0);
+}
+
+unittest
+{
+    const quarter_turn = pi / 2;
+    const rh_yaw = quaternion_from_yaw_pitch_roll(rh_z_up_y_forward, quarter_turn, 0, 0);
+    const rh_pitch = quaternion_from_yaw_pitch_roll(rh_z_up_y_forward, 0, quarter_turn, 0);
+    const rh_roll = quaternion_from_yaw_pitch_roll(rh_z_up_y_forward, 0, 0, quarter_turn);
+    assert(xtb.math.vector.approximately_equal(
+        rh_yaw.rotated(get_world_forward(rh_z_up_y_forward)),
+        get_world_right(rh_z_up_y_forward),
+        1e-5f,
+        1e-5f,
+    ));
+    assert(xtb.math.vector.approximately_equal(
+        rh_pitch.rotated(get_world_forward(rh_z_up_y_forward)),
+        get_world_up(rh_z_up_y_forward),
+        1e-5f,
+        1e-5f,
+    ));
+    assert(xtb.math.vector.approximately_equal(
+        rh_roll.rotated(get_world_right(rh_z_up_y_forward)),
+        get_world_up(rh_z_up_y_forward),
+        1e-5f,
+        1e-5f,
+    ));
+
+    const lh_yaw = quaternion_from_yaw_pitch_roll(lh_y_up_z_forward, quarter_turn, 0, 0);
+    assert(xtb.math.vector.approximately_equal(
+        lh_yaw.rotated(get_world_forward(lh_y_up_z_forward)),
+        get_world_right(lh_y_up_z_forward),
+        1e-5f,
+        1e-5f,
+    ));
+}
+
+unittest
+{
+    const yaw = radians(35.0f);
+    const pitch = radians(-20.0f);
+    const combined = quaternion_from_yaw_pitch_roll(rh_z_up_y_forward, yaw, pitch, 0);
+    const expected = Quaternion.from_axis_angle(-get_world_up(rh_z_up_y_forward), yaw).rotated(
+        Quaternion.from_axis_angle(get_world_right(rh_z_up_y_forward), pitch).rotated(
+            get_world_forward(rh_z_up_y_forward),
+        ),
+    );
+    assert(xtb.math.vector.approximately_equal(
+        combined.rotated(get_world_forward(rh_z_up_y_forward)),
+        expected,
+        1e-5f,
+        1e-5f,
+    ));
 }
 
 unittest
@@ -404,25 +531,40 @@ unittest
 unittest
 {
     const yaw = pi / 2;
-    const yaw_rotation = Quaternion.from_yaw_pitch_roll(yaw, 0, 0);
+    const yaw_rotation = quaternion_from_yaw_pitch_roll(
+        rh_y_up_negative_z_forward,
+        yaw,
+        0,
+        0,
+    );
     assert(xtb.math.vector.approximately_equal(
         yaw_rotation.rotated(Vector3(0, 0, -1)),
-        direction_from_yaw_pitch(yaw, 0),
+        direction_from_yaw_pitch(rh_y_up_negative_z_forward, yaw, 0),
         1e-5f,
         1e-5f,
     ));
 
     const pitch = pi / 2;
-    const pitch_rotation = Quaternion.from_yaw_pitch_roll(0, pitch, 0);
+    const pitch_rotation = quaternion_from_yaw_pitch_roll(
+        rh_y_up_negative_z_forward,
+        0,
+        pitch,
+        0,
+    );
     assert(xtb.math.vector.approximately_equal(
         pitch_rotation.rotated(Vector3(0, 0, -1)),
-        direction_from_yaw_pitch(0, pitch),
+        direction_from_yaw_pitch(rh_y_up_negative_z_forward, 0, pitch),
         1e-5f,
         1e-5f,
     ));
 
     const roll = pi / 7;
-    const combined = Quaternion.from_yaw_pitch_roll(yaw, pitch, roll);
+    const combined = quaternion_from_yaw_pitch_roll(
+        rh_y_up_negative_z_forward,
+        yaw,
+        pitch,
+        roll,
+    );
     const vector = Vector3(0.25f, -0.5f, 1);
     const sequential = Quaternion.from_axis_angle(Vector3(0, -1, 0), yaw).rotated(
         Quaternion.from_axis_angle(Vector3(1, 0, 0), pitch).rotated(

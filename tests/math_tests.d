@@ -3,6 +3,19 @@ module tests.math_tests;
 import xtb.math;
 import xtb.types;
 
+import lh_math = tests.support.math_lh_y_up;
+import lh_math_consumer = tests.support.math_lh_y_up_consumer;
+import rh_math = tests.support.math_rh_z_up;
+import rh_math_consumer = tests.support.math_rh_z_up_consumer;
+
+static assert(!__traits(compiles, Quaternion.from_yaw_pitch_roll(0, 0, 0)));
+static assert(!__traits(compiles, rotation_yaw_pitch_roll(0, 0, 0)));
+static assert(!__traits(compiles, look_at(Vector3.init, Vector3.unit_z, Vector3.unit_y)));
+static assert(!__traits(compiles, direction_from_yaw_pitch(0.0f, 0.0f)));
+static assert(!__traits(compiles, ConfiguredMath!rh_z_up_y_forward));
+static assert(!__traits(compiles, world_forward(rh_z_up_y_forward)));
+static assert(!__traits(compiles, rh_math.world_forward()));
+
 version (Posix)
 {
     import core.stdc.signal;
@@ -66,9 +79,101 @@ private bool overload_sets_resolve() nothrow @nogc @safe
         && Vector2(1, 2).is_finite;
 }
 
+private bool configured_coordinate_systems_resolve() nothrow @nogc @safe
+{
+    const quarter_turn = pi / 2;
+    const rh_forward = rh_math_consumer.configured_world_forward();
+    const lh_forward = lh_math_consumer.configured_world_forward();
+    const rh_yaw = rh_math_consumer.configured_yaw(quarter_turn);
+    const lh_yaw = lh_math_consumer.configured_yaw(quarter_turn);
+    const rh_direction = rh_math_consumer.configured_direction(quarter_turn, 0);
+    const lh_direction = lh_math_consumer.configured_direction(quarter_turn, 0);
+    const explicit_lh_yaw = rh_math.quaternion_from_yaw_pitch_roll(
+        lh_y_up_z_forward,
+        quarter_turn,
+        0,
+        0,
+    );
+    const rh_yaw_matrix = rh_math_consumer.configured_yaw_matrix(quarter_turn);
+    const explicit_lh_yaw_matrix = rh_math.rotation_matrix_from_yaw_pitch_roll(
+        lh_y_up_z_forward,
+        quarter_turn,
+        0,
+        0,
+    );
+    const rh_view = rh_math_consumer.configured_view(Vector3.init, rh_forward);
+    const lh_view = lh_math_consumer.configured_view(
+        Vector3.init,
+        lh_forward,
+        lh_math_consumer.configured_world_up(),
+    );
+
+    return rh_math_consumer.configured_world_right() == Vector3.unit_x
+        && rh_forward == Vector3.unit_y
+        && rh_math_consumer.configured_world_up() == Vector3.unit_z
+        && lh_math_consumer.configured_world_right() == Vector3.unit_x
+        && lh_forward == Vector3.unit_z
+        && lh_math_consumer.configured_world_up() == Vector3.unit_y
+        && approximately_equal(
+            rh_direction,
+            rh_math_consumer.configured_world_right(),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            lh_direction,
+            lh_math_consumer.configured_world_right(),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            rh_yaw.rotated(rh_forward),
+            rh_math_consumer.configured_world_right(),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            lh_yaw.rotated(lh_forward),
+            lh_math_consumer.configured_world_right(),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            explicit_lh_yaw.rotated(lh_forward),
+            lh_math_consumer.configured_world_right(),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            rh_yaw_matrix.transform_direction(rh_forward),
+            rh_math_consumer.configured_world_right(),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            explicit_lh_yaw_matrix.transform_direction(lh_forward),
+            lh_math_consumer.configured_world_right(),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            rh_view.transform_direction(rh_forward),
+            Vector3(0, 0, -1),
+            1e-5f,
+            1e-5f,
+        )
+        && approximately_equal(
+            lh_view.transform_direction(lh_forward),
+            Vector3(0, 0, 1),
+            1e-5f,
+            1e-5f,
+        );
+}
+
 extern (C) int main()
 {
     if (!overload_sets_resolve()) return 1;
+    if (!configured_coordinate_systems_resolve()) return 1;
 
     version (Posix)
     {

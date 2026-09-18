@@ -1,5 +1,6 @@
 module xtb.math;
 
+public import xtb.math.coordinate_system;
 public import xtb.math.matrix;
 public import xtb.math.noise;
 public import xtb.math.quaternion;

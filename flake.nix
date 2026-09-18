@@ -144,7 +144,6 @@
           pkgs.dub
           pkgs.just
           pkgs.dscanner
-          pkgs.dformat
         ];
         buildInputs =
           [pkgs.glfw]
@@ -177,7 +176,6 @@
           ldc
           dub
           dscanner
-          dformat
           just
           pkg-config
           clang-tools

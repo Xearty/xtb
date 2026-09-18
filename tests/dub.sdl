@@ -125,6 +125,8 @@ configuration "test-math" {
     targetName "math_tests"
     targetPath "../build/test/$XTB_TEST_MODE"
     mainSourceFile "math_tests.d"
+    sourceFiles "support/math_lh_y_up.d" "support/math_lh_y_up_consumer.d"
+    sourceFiles "support/math_rh_z_up.d" "support/math_rh_z_up_consumer.d"
     dependency "xtb" path=".."
 }
 
