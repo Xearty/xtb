@@ -2,6 +2,7 @@ module xtb.math.matrix;
 
 nothrow @nogc @safe:
 
+import xtb.data_struct;
 import xtb.math.coordinate_system;
 import xtb.math.quaternion;
 import xtb.math.scalar;
@@ -196,6 +197,16 @@ struct Matrix3
         ).transposed * (1 / (determinant * scale));
         return true;
     }
+}
+
+/// Components of a translation-rotation-scale transform.
+struct TRSDecomposition
+{
+    Vector3 position;
+    Quaternion orientation;
+    Vector3 scale = Vector3(1, 1, 1);
+
+    mixin DataStruct;
 }
 
 struct Matrix4
@@ -431,6 +442,72 @@ struct Matrix4
         return this.c0.w == 0 && this.c1.w == 0 && this.c2.w == 0 && this.c3.w == 1;
     }
 
+    /// Decomposes this matrix into translation, rotation, and diagonal scale.
+    ///
+    /// This matrix must be finite, affine, nonsingular, and contain no shear. Reflections are
+    /// represented with a negative X scale; the original distribution of negative scale signs
+    /// is not recoverable.
+    TRSDecomposition decompose_trs() const @trusted
+    {
+        TRSDecomposition result = TRSDecomposition.init;
+        const succeeded = this.try_decompose_trs(&result);
+        require(succeeded, "matrix must be a decomposable TRS transform");
+        return result;
+    }
+
+    /// Attempts to decompose this matrix into translation, rotation, and diagonal scale.
+    ///
+    /// Returns false if this matrix is non-finite, non-affine, singular, or contains shear.
+    /// Reflections are represented with a negative X scale; the original distribution of
+    /// negative scale signs is not recoverable. `output` must not be null and remains unchanged
+    /// on failure.
+    bool try_decompose_trs(scope TRSDecomposition* output) const @system
+    {
+        require(output !is null, "decomposition output pointer is null");
+        if (!this.is_finite || !this.is_affine) return false;
+
+        f32 scale_x = this.c0.xyz.length;
+        const scale_y = this.c1.xyz.length;
+        const scale_z = this.c2.xyz.length;
+        if (!scale_x.is_finite || !scale_y.is_finite || !scale_z.is_finite) return false;
+
+        if (scale_x == 0 || scale_y == 0 || scale_z == 0) return false;
+
+        auto axis_x = this.c0.xyz / scale_x;
+        const axis_y = this.c1.xyz / scale_y;
+        const axis_z = this.c2.xyz / scale_z;
+        if (absolute(dot(axis_x, axis_y)) > decomposition_tolerance
+            || absolute(dot(axis_x, axis_z)) > decomposition_tolerance
+            || absolute(dot(axis_y, axis_z)) > decomposition_tolerance)
+        {
+            return false;
+        }
+
+        const basis_determinant = dot(axis_x, cross(axis_y, axis_z));
+        if (!basis_determinant.is_finite
+            || absolute(absolute(basis_determinant) - 1) > decomposition_tolerance)
+        {
+            return false;
+        }
+
+        if (basis_determinant < 0)
+        {
+            axis_x = -axis_x;
+            scale_x = -scale_x;
+        }
+
+        const orientation = quaternion_from_rotation_basis(axis_x, axis_y, axis_z);
+        if (!orientation.is_unit) return false;
+
+        const result = TRSDecomposition(
+            position: this.c3.xyz,
+            orientation: orientation,
+            scale: Vector3(scale_x, scale_y, scale_z),
+        );
+        *output = result;
+        return true;
+    }
+
     /// Transforms a point, including translation.
     ///
     /// This matrix must be affine.
@@ -536,6 +613,7 @@ static assert(Matrix2.sizeof == 4 * f32.sizeof);
 static assert(Matrix3.sizeof == 9 * f32.sizeof);
 static assert(Matrix4.sizeof == 16 * f32.sizeof);
 
+private enum f32 decomposition_tolerance = 1e-5f;
 private enum f32 inverse_relative_tolerance = 8 * f32.epsilon;
 
 private f32 absolute(f32 value) pure
@@ -546,6 +624,63 @@ private f32 absolute(f32 value) pure
 private f32 maximum(f32 left, f32 right) pure
 {
     return left > right ? left : right;
+}
+
+private Quaternion quaternion_from_rotation_basis(
+    Vector3 axis_x,
+    Vector3 axis_y,
+    Vector3 axis_z,
+)
+{
+    Quaternion result;
+    const trace = axis_x.x + axis_y.y + axis_z.z;
+    if (trace > 0)
+    {
+        const root = sqrt(trace + 1);
+        const inverse = 0.5f / root;
+        result = Quaternion(
+            (axis_y.z - axis_z.y) * inverse,
+            (axis_z.x - axis_x.z) * inverse,
+            (axis_x.y - axis_y.x) * inverse,
+            0.5f * root,
+        );
+    }
+    else if (axis_x.x > axis_y.y && axis_x.x > axis_z.z)
+    {
+        const root = sqrt(1 + axis_x.x - axis_y.y - axis_z.z);
+        const inverse = 0.5f / root;
+        result = Quaternion(
+            0.5f * root,
+            (axis_y.x + axis_x.y) * inverse,
+            (axis_z.x + axis_x.z) * inverse,
+            (axis_y.z - axis_z.y) * inverse,
+        );
+    }
+    else if (axis_y.y > axis_z.z)
+    {
+        const root = sqrt(1 + axis_y.y - axis_x.x - axis_z.z);
+        const inverse = 0.5f / root;
+        result = Quaternion(
+            (axis_y.x + axis_x.y) * inverse,
+            0.5f * root,
+            (axis_z.y + axis_y.z) * inverse,
+            (axis_z.x - axis_x.z) * inverse,
+        );
+    }
+    else
+    {
+        const root = sqrt(1 + axis_z.z - axis_x.x - axis_y.y);
+        const inverse = 0.5f / root;
+        result = Quaternion(
+            (axis_z.x + axis_x.z) * inverse,
+            (axis_z.y + axis_y.z) * inverse,
+            0.5f * root,
+            (axis_x.y - axis_y.x) * inverse,
+        );
+    }
+
+    result = result.normalized;
+    return result.w < 0 ? -result : result;
 }
 
 Matrix4 translation(Vector3 offset) pure
@@ -1039,6 +1174,79 @@ unittest
 
 @system unittest
 {
+    const identity_decomposition = TRSDecomposition.init;
+    assert(trs(
+        identity_decomposition.position,
+        identity_decomposition.orientation,
+        identity_decomposition.scale,
+    ) == Matrix4.identity);
+
+    const position = Vector3(2, -3, 4);
+    const orientation = Quaternion.from_axis_angle(Vector3(1, 2, -3), radians(67.0f));
+    const factors = Vector3(2, 3, 4);
+    const transform = trs(position, orientation, factors);
+
+    TRSDecomposition decomposition = transform.decompose_trs();
+    assert(close(
+        trs(decomposition.position, decomposition.orientation, decomposition.scale),
+        transform,
+    ));
+
+    decomposition = TRSDecomposition.init;
+    assert(transform.try_decompose_trs(&decomposition));
+    assert(close(decomposition.position.with_w(0), position.with_w(0)));
+    assert(close(decomposition.scale.with_w(0), factors.with_w(0)));
+    assert(close(
+        trs(decomposition.position, decomposition.orientation, decomposition.scale),
+        transform,
+    ));
+
+    const reflected = trs(position, orientation, Vector3(2, -3, 4));
+    assert(reflected.try_decompose_trs(&decomposition));
+    assert(decomposition.scale.x < 0);
+    assert(close(
+        trs(decomposition.position, decomposition.orientation, decomposition.scale),
+        reflected,
+    ));
+
+    const double_reflected = trs(position, orientation, Vector3(-2, -3, 4));
+    assert(double_reflected.try_decompose_trs(&decomposition));
+    assert(close(
+        trs(decomposition.position, decomposition.orientation, decomposition.scale),
+        double_reflected,
+    ));
+}
+
+@system unittest
+{
+    const unchanged = TRSDecomposition(
+        position: Vector3(7, 8, 9),
+        orientation: Quaternion.identity,
+        scale: Vector3(2, 3, 4),
+    );
+    TRSDecomposition decomposition = unchanged;
+
+    auto sheared = Matrix4.identity;
+    sheared.c1.x = 0.25f;
+    assert(!sheared.try_decompose_trs(&decomposition));
+    assert(decomposition == unchanged);
+
+    assert(!scaling(Vector3(1, 0, 1)).try_decompose_trs(&decomposition));
+    assert(decomposition == unchanged);
+
+    auto non_affine = Matrix4.identity;
+    non_affine.c0.w = 1;
+    assert(!non_affine.try_decompose_trs(&decomposition));
+    assert(decomposition == unchanged);
+
+    auto non_finite = Matrix4.identity;
+    non_finite.c0.x = f32.infinity;
+    assert(!non_finite.try_decompose_trs(&decomposition));
+    assert(decomposition == unchanged);
+}
+
+@system unittest
+{
     Matrix3 normal_matrix = Matrix3.identity;
     assert(scaling(Vector3(2, 4, 5)).try_normal_matrix(&normal_matrix));
     assert(close((normal_matrix * Vector3(1, 0, 0)).with_w(0), Vector4(0.5f, 0, 0, 0)));
@@ -1082,5 +1290,13 @@ unittest
         assert(close(value * value_inverse, identity, 0.002f));
         assert(value.try_affine_inverse(&value_inverse));
         assert(close(value * value_inverse, identity, 0.002f));
+
+        TRSDecomposition decomposition = TRSDecomposition.init;
+        assert(value.try_decompose_trs(&decomposition));
+        assert(close(
+            trs(decomposition.position, decomposition.orientation, decomposition.scale),
+            value,
+            0.002f,
+        ));
     }
 }

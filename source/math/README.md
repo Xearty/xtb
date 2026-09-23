@@ -9,7 +9,9 @@ column-major and multiply column vectors. `Quaternion.init` is the identity
 rotation, and axis-angle rotations are constructed with `Quaternion.from_axis_angle`.
 `trs` composes
 translation, rotation, and scale as T * R * S, so scale acts first when transforming
-a column vector.
+a column vector. `Matrix4.decompose_trs` recovers translation, rotation, and diagonal
+scale when the matrix is known to be compatible; `try_decompose_trs` reports singular
+or sheared transforms.
 
 Coordinate-independent operations remain generic. Convention-sensitive code can use
 `CoordinateSystem` presets with explicit operations such as
