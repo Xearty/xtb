@@ -79,6 +79,34 @@ private bool overload_sets_resolve() nothrow @nogc @safe
         && Vector2(1, 2).is_finite;
 }
 
+private bool arithmetic_resolves() pure nothrow @nogc @safe
+{
+    const direction = Vector3(Vector2(2, 3), 4);
+    const point = Vector4(direction, 1);
+    const matrix = Matrix2(Vector2(1, 2), Vector2(3, 4));
+
+    auto vector = Vector3(2);
+    vector += 1;
+    vector *= direction;
+
+    Matrix2 product = matrix;
+    product *= product;
+
+    auto orientation = Quaternion(1, 2, 3, 4);
+    orientation *= orientation;
+
+    return Vector2(2) == Vector2(2, 2)
+        && vector == Vector3(6, 9, 12)
+        && point == Vector4(2, 3, 4, 1)
+        && 12 / direction == Vector3(6, 4, 3)
+        && hadamard_product(direction, Vector3(2)) == Vector3(4, 6, 8)
+        && hadamard_product(matrix, matrix) == Matrix2(Vector2(1, 4), Vector2(9, 16))
+        && product == Matrix2(Vector2(7, 10), Vector2(15, 22))
+        && Vector2(2, 3) * matrix == Vector2(8, 18)
+        && 2 * matrix / 2 == matrix
+        && orientation == Quaternion(8, 16, 24, 2);
+}
+
 private bool configured_coordinate_systems_resolve() nothrow @nogc @safe
 {
     const quarter_turn = pi / 2;
@@ -173,6 +201,7 @@ private bool configured_coordinate_systems_resolve() nothrow @nogc @safe
 extern (C) int main()
 {
     if (!overload_sets_resolve()) return 1;
+    if (!arithmetic_resolves()) return 1;
     if (!configured_coordinate_systems_resolve()) return 1;
 
     version (Posix)

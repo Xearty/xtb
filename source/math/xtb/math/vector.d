@@ -67,14 +67,26 @@ struct Vector2
 
     mixin VectorSwizzles!"xy";
 
+    /// Broadcasts `value` to every component.
+    this(f32 value) pure
+    {
+        this(value, value);
+    }
+
+    this(f32 x, f32 y) pure
+    {
+        this.x = x;
+        this.y = y;
+    }
+
+    this(Vector2 value) pure
+    {
+        this(value.x, value.y);
+    }
+
     static Vector2 zero() pure
     {
         return Vector2.init;
-    }
-
-    static Vector2 splat(f32 value) pure
-    {
-        return Vector2(value, value);
     }
 
     static Vector2 unit_x() pure
@@ -132,9 +144,24 @@ struct Vector2
         return Vector2(this.x - scalar, this.y - scalar);
     }
 
-    Vector2 opBinaryRight(string op : "*")(f32 scalar) const pure
+    Vector2 opBinaryRight(string op)(f32 scalar) const pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
     {
-        return this * scalar;
+        return Vector2(scalar).opBinary!op(this);
+    }
+
+    ref Vector2 opOpAssign(string op)(Vector2 other) return pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
+    {
+        this = this.opBinary!op(other);
+        return this;
+    }
+
+    ref Vector2 opOpAssign(string op)(f32 scalar) return pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
+    {
+        this = this.opBinary!op(scalar);
+        return this;
     }
 
     Vector3 with_z(f32 z) const pure
@@ -224,14 +251,37 @@ struct Vector3
 
     mixin VectorSwizzles!"xyz";
 
+    /// Broadcasts `value` to every component.
+    this(f32 value) pure
+    {
+        this(value, value, value);
+    }
+
+    this(f32 x, f32 y, f32 z) pure
+    {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    this(Vector3 value) pure
+    {
+        this(value.x, value.y, value.z);
+    }
+
+    this(Vector2 xy, f32 z) pure
+    {
+        this(xy.x, xy.y, z);
+    }
+
+    this(f32 x, Vector2 yz) pure
+    {
+        this(x, yz.x, yz.y);
+    }
+
     static Vector3 zero() pure
     {
         return Vector3.init;
-    }
-
-    static Vector3 splat(f32 value) pure
-    {
-        return Vector3(value, value, value);
     }
 
     static Vector3 unit_x() pure
@@ -294,9 +344,24 @@ struct Vector3
         return Vector3(this.x - scalar, this.y - scalar, this.z - scalar);
     }
 
-    Vector3 opBinaryRight(string op : "*")(f32 scalar) const pure
+    Vector3 opBinaryRight(string op)(f32 scalar) const pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
     {
-        return this * scalar;
+        return Vector3(scalar).opBinary!op(this);
+    }
+
+    ref Vector3 opOpAssign(string op)(Vector3 other) return pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
+    {
+        this = this.opBinary!op(other);
+        return this;
+    }
+
+    ref Vector3 opOpAssign(string op)(f32 scalar) return pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
+    {
+        this = this.opBinary!op(scalar);
+        return this;
     }
 
     Vector4 with_w(f32 w) const pure
@@ -386,14 +451,58 @@ struct Vector4
 
     mixin VectorSwizzles!"xyzw";
 
+    /// Broadcasts `value` to every component.
+    this(f32 value) pure
+    {
+        this(value, value, value, value);
+    }
+
+    this(f32 x, f32 y, f32 z, f32 w) pure
+    {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.w = w;
+    }
+
+    this(Vector4 value) pure
+    {
+        this(value.x, value.y, value.z, value.w);
+    }
+
+    this(Vector3 xyz, f32 w) pure
+    {
+        this(xyz.x, xyz.y, xyz.z, w);
+    }
+
+    this(f32 x, Vector3 yzw) pure
+    {
+        this(x, yzw.x, yzw.y, yzw.z);
+    }
+
+    this(Vector2 xy, Vector2 zw) pure
+    {
+        this(xy.x, xy.y, zw.x, zw.y);
+    }
+
+    this(Vector2 xy, f32 z, f32 w) pure
+    {
+        this(xy.x, xy.y, z, w);
+    }
+
+    this(f32 x, Vector2 yz, f32 w) pure
+    {
+        this(x, yz.x, yz.y, w);
+    }
+
+    this(f32 x, f32 y, Vector2 zw) pure
+    {
+        this(x, y, zw.x, zw.y);
+    }
+
     static Vector4 zero() pure
     {
         return Vector4.init;
-    }
-
-    static Vector4 splat(f32 value) pure
-    {
-        return Vector4(value, value, value, value);
     }
 
     static Vector4 unit_x() pure
@@ -461,9 +570,24 @@ struct Vector4
         return Vector4(this.x - scalar, this.y - scalar, this.z - scalar, this.w - scalar);
     }
 
-    Vector4 opBinaryRight(string op : "*")(f32 scalar) const pure
+    Vector4 opBinaryRight(string op)(f32 scalar) const pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
     {
-        return this * scalar;
+        return Vector4(scalar).opBinary!op(this);
+    }
+
+    ref Vector4 opOpAssign(string op)(Vector4 other) return pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
+    {
+        this = this.opBinary!op(other);
+        return this;
+    }
+
+    ref Vector4 opOpAssign(string op)(f32 scalar) return pure
+    if (op == "+" || op == "-" || op == "*" || op == "/")
+    {
+        this = this.opBinary!op(scalar);
+        return this;
     }
 
     f32 length_squared() const pure
@@ -521,6 +645,24 @@ struct Vector4
         const scaled = this / scale;
         return scaled / sqrt(dot(scaled, scaled));
     }
+}
+
+/// Returns the component-wise product.
+Vector2 hadamard_product(Vector2 a, Vector2 b) pure
+{
+    return a * b;
+}
+
+/// ditto
+Vector3 hadamard_product(Vector3 a, Vector3 b) pure
+{
+    return a * b;
+}
+
+/// ditto
+Vector4 hadamard_product(Vector4 a, Vector4 b) pure
+{
+    return a * b;
 }
 
 f32 dot(Vector2 a, Vector2 b) pure
@@ -806,6 +948,98 @@ bool approximately_equal(
 
 unittest
 {
+    static assert(Vector2(2) == Vector2(2, 2));
+    static assert(Vector3(2) == Vector3(2, 2, 2));
+    static assert(Vector4(2) == Vector4(2, 2, 2, 2));
+
+    assert(Vector2() == Vector2.init);
+    assert(Vector3() == Vector3.init);
+    assert(Vector4() == Vector4.init);
+    assert(Vector2(x: 1, y: 2) == Vector2(1, 2));
+    assert(Vector3(z: 3, x: 1, y: 2) == Vector3(1, 2, 3));
+    assert(Vector4(w: 4, z: 3, y: 2, x: 1) == Vector4(1, 2, 3, 4));
+
+    const pair = Vector2(1, 2);
+    const triple = Vector3(1, 2, 3);
+    const quadruple = Vector4(1, 2, 3, 4);
+    assert(Vector2(pair) == pair);
+    assert(Vector3(triple) == triple);
+    assert(Vector4(quadruple) == quadruple);
+    assert(Vector3(pair, 3) == triple);
+    assert(Vector3(1, Vector2(2, 3)) == triple);
+    assert(Vector4(triple, 4) == quadruple);
+    assert(Vector4(1, Vector3(2, 3, 4)) == quadruple);
+    assert(Vector4(pair, Vector2(3, 4)) == quadruple);
+    assert(Vector4(pair, 3, 4) == quadruple);
+    assert(Vector4(1, Vector2(2, 3), 4) == quadruple);
+    assert(Vector4(1, 2, Vector2(3, 4)) == quadruple);
+    assert(Vector4(triple, 0).xyz == triple);
+
+    static assert(!__traits(compiles, Vector2(x: 1)));
+    static assert(!__traits(compiles, Vector3(1, 2)));
+    static assert(!__traits(compiles, Vector3(x: 1, y: 2)));
+    static assert(!__traits(compiles, Vector4(1, 2)));
+    static assert(!__traits(compiles, Vector4(1, 2, 3)));
+    static assert(!__traits(compiles, Vector3(Vector2(1, 2))));
+    static assert(!__traits(compiles, Vector3(Vector4(1, 2, 3, 4))));
+    static assert(!__traits(compiles, Vector4(Vector3(1, 2, 3))));
+    static assert(!__traits(compiles, Vector4(Vector3(1, 2, 3), Vector2(4, 5))));
+    static assert(!__traits(compiles, Vector2.splat(1)));
+    static assert(!__traits(compiles, Vector3.splat(1)));
+    static assert(!__traits(compiles, Vector4.splat(1)));
+}
+
+version (unittest)
+{
+    private void check_vector_arithmetic(V)() pure
+    {
+        const a = V(2);
+        const b = V(8);
+        assert(3 + a == V(5));
+        assert(3 - a == V(1));
+        assert(3 * a == V(6));
+        assert(8 / a == V(4));
+        assert(-a == V(-2));
+        assert(hadamard_product(a, b) == a * b);
+
+        V value = a;
+        value += b;
+        assert(value == V(10));
+        value -= b;
+        assert(value == a);
+        value *= b;
+        assert(value == V(16));
+        value /= b;
+        assert(value == a);
+        value += 2;
+        value -= 1;
+        value *= 4;
+        value /= 2;
+        assert(value == V(6));
+        assert((value += a) == b);
+
+        value *= value;
+        assert(value == V(64));
+        value /= value;
+        assert(value == V(1));
+    }
+}
+
+unittest
+{
+    check_vector_arithmetic!Vector2();
+    check_vector_arithmetic!Vector3();
+    check_vector_arithmetic!Vector4();
+    assert(12 / Vector3(2, 3, 4) == Vector3(6, 4, 3));
+    assert(5 - Vector4(1, 2, 3, 4) == Vector4(4, 3, 2, 1));
+    assert(hadamard_product(Vector2(2, 3), Vector2(4, 5)) == Vector2(8, 15));
+
+    static assert(!__traits(compiles, Vector2(1) + Vector3(1)));
+    static assert(!__traits(compiles, Vector3(1) * Vector4(1)));
+}
+
+unittest
+{
     const right = Vector2(1, 0);
     const up = Vector2(0, 1);
     assert(approximately_equal(right.rotated(pi / 2), up, 1e-6f, 1e-6f));
@@ -830,18 +1064,18 @@ unittest
 unittest
 {
     assert(Vector2.zero() == Vector2.init);
-    assert(Vector2.splat(3.0f) == Vector2(3.0f, 3.0f));
+    assert(Vector2(3.0f) == Vector2(3.0f, 3.0f));
     assert(Vector2.unit_x() == Vector2(1.0f, 0.0f));
     assert(Vector2.unit_y() == Vector2(0.0f, 1.0f));
 
     assert(Vector3.zero() == Vector3.init);
-    assert(Vector3.splat(3.0f) == Vector3(3.0f, 3.0f, 3.0f));
+    assert(Vector3(3.0f) == Vector3(3.0f, 3.0f, 3.0f));
     assert(Vector3.unit_x() == Vector3(1.0f, 0.0f, 0.0f));
     assert(Vector3.unit_y() == Vector3(0.0f, 1.0f, 0.0f));
     assert(Vector3.unit_z() == Vector3(0.0f, 0.0f, 1.0f));
 
     assert(Vector4.zero() == Vector4.init);
-    assert(Vector4.splat(3.0f) == Vector4(3.0f, 3.0f, 3.0f, 3.0f));
+    assert(Vector4(3.0f) == Vector4(3.0f, 3.0f, 3.0f, 3.0f));
     assert(Vector4.unit_x() == Vector4(1.0f, 0.0f, 0.0f, 0.0f));
     assert(Vector4.unit_y() == Vector4(0.0f, 1.0f, 0.0f, 0.0f));
     assert(Vector4.unit_z() == Vector4(0.0f, 0.0f, 1.0f, 0.0f));

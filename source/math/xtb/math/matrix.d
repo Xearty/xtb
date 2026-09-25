@@ -22,6 +22,21 @@ struct Matrix2
         return Matrix2(Vector2(1, 0), Vector2(0, 1));
     }
 
+    Matrix2 opUnary(string op : "-")() const pure
+    {
+        return Matrix2(-this.c0, -this.c1);
+    }
+
+    Matrix2 opBinary(string op : "+")(Matrix2 other) const pure
+    {
+        return Matrix2(this.c0 + other.c0, this.c1 + other.c1);
+    }
+
+    Matrix2 opBinary(string op : "-")(Matrix2 other) const pure
+    {
+        return Matrix2(this.c0 - other.c0, this.c1 - other.c1);
+    }
+
     Matrix2 opBinary(string op : "*")(f32 scalar) const pure
     {
         return Matrix2(this.c0 * scalar, this.c1 * scalar);
@@ -35,6 +50,36 @@ struct Matrix2
     Matrix2 opBinary(string op : "*")(Matrix2 other) const pure
     {
         return Matrix2(this * other.c0, this * other.c1);
+    }
+
+    Matrix2 opBinary(string op : "/")(f32 scalar) const pure
+    {
+        return Matrix2(this.c0 / scalar, this.c1 / scalar);
+    }
+
+    Matrix2 opBinaryRight(string op : "*")(f32 scalar) const pure
+    {
+        return this * scalar;
+    }
+
+    /// Multiplies a row vector by this matrix.
+    Vector2 opBinaryRight(string op : "*")(Vector2 vector) const pure
+    {
+        return Vector2(dot(vector, this.c0), dot(vector, this.c1));
+    }
+
+    ref Matrix2 opOpAssign(string op)(Matrix2 other) return pure
+    if (op == "+" || op == "-" || op == "*")
+    {
+        this = this.opBinary!op(other);
+        return this;
+    }
+
+    ref Matrix2 opOpAssign(string op)(f32 scalar) return pure
+    if (op == "*" || op == "/")
+    {
+        this = this.opBinary!op(scalar);
+        return this;
     }
 
     Matrix2 transposed() const pure
@@ -126,6 +171,21 @@ struct Matrix3
         );
     }
 
+    Matrix3 opUnary(string op : "-")() const pure
+    {
+        return Matrix3(-this.c0, -this.c1, -this.c2);
+    }
+
+    Matrix3 opBinary(string op : "+")(Matrix3 other) const pure
+    {
+        return Matrix3(this.c0 + other.c0, this.c1 + other.c1, this.c2 + other.c2);
+    }
+
+    Matrix3 opBinary(string op : "-")(Matrix3 other) const pure
+    {
+        return Matrix3(this.c0 - other.c0, this.c1 - other.c1, this.c2 - other.c2);
+    }
+
     Matrix3 opBinary(string op : "*")(f32 scalar) const pure
     {
         return Matrix3(this.c0 * scalar, this.c1 * scalar, this.c2 * scalar);
@@ -139,6 +199,36 @@ struct Matrix3
     Matrix3 opBinary(string op : "*")(Matrix3 other) const pure
     {
         return Matrix3(this * other.c0, this * other.c1, this * other.c2);
+    }
+
+    Matrix3 opBinary(string op : "/")(f32 scalar) const pure
+    {
+        return Matrix3(this.c0 / scalar, this.c1 / scalar, this.c2 / scalar);
+    }
+
+    Matrix3 opBinaryRight(string op : "*")(f32 scalar) const pure
+    {
+        return this * scalar;
+    }
+
+    /// Multiplies a row vector by this matrix.
+    Vector3 opBinaryRight(string op : "*")(Vector3 vector) const pure
+    {
+        return Vector3(dot(vector, this.c0), dot(vector, this.c1), dot(vector, this.c2));
+    }
+
+    ref Matrix3 opOpAssign(string op)(Matrix3 other) return pure
+    if (op == "+" || op == "-" || op == "*")
+    {
+        this = this.opBinary!op(other);
+        return this;
+    }
+
+    ref Matrix3 opOpAssign(string op)(f32 scalar) return pure
+    if (op == "*" || op == "/")
+    {
+        this = this.opBinary!op(scalar);
+        return this;
     }
 
     Matrix3 transposed() const pure
@@ -240,6 +330,31 @@ struct Matrix4
         );
     }
 
+    Matrix4 opUnary(string op : "-")() const pure
+    {
+        return Matrix4(-this.c0, -this.c1, -this.c2, -this.c3);
+    }
+
+    Matrix4 opBinary(string op : "+")(Matrix4 other) const pure
+    {
+        return Matrix4(
+            this.c0 + other.c0,
+            this.c1 + other.c1,
+            this.c2 + other.c2,
+            this.c3 + other.c3,
+        );
+    }
+
+    Matrix4 opBinary(string op : "-")(Matrix4 other) const pure
+    {
+        return Matrix4(
+            this.c0 - other.c0,
+            this.c1 - other.c1,
+            this.c2 - other.c2,
+            this.c3 - other.c3,
+        );
+    }
+
     Matrix4 opBinary(string op : "*")(f32 scalar) const pure
     {
         return Matrix4(
@@ -266,6 +381,41 @@ struct Matrix4
             this * other.c2,
             this * other.c3,
         );
+    }
+
+    Matrix4 opBinary(string op : "/")(f32 scalar) const pure
+    {
+        return Matrix4(this.c0 / scalar, this.c1 / scalar, this.c2 / scalar, this.c3 / scalar);
+    }
+
+    Matrix4 opBinaryRight(string op : "*")(f32 scalar) const pure
+    {
+        return this * scalar;
+    }
+
+    /// Multiplies a row vector by this matrix.
+    Vector4 opBinaryRight(string op : "*")(Vector4 vector) const pure
+    {
+        return Vector4(
+            dot(vector, this.c0),
+            dot(vector, this.c1),
+            dot(vector, this.c2),
+            dot(vector, this.c3),
+        );
+    }
+
+    ref Matrix4 opOpAssign(string op)(Matrix4 other) return pure
+    if (op == "+" || op == "-" || op == "*")
+    {
+        this = this.opBinary!op(other);
+        return this;
+    }
+
+    ref Matrix4 opOpAssign(string op)(f32 scalar) return pure
+    if (op == "*" || op == "/")
+    {
+        this = this.opBinary!op(scalar);
+        return this;
     }
 
     Matrix4 transposed() const pure
@@ -607,6 +757,24 @@ struct Matrix4
     {
         return this * rotation(axis, angle);
     }
+}
+
+/// Returns the component-wise product, unlike algebraic matrix multiplication with `*`.
+Matrix2 hadamard_product(Matrix2 a, Matrix2 b) pure
+{
+    return Matrix2(a.c0 * b.c0, a.c1 * b.c1);
+}
+
+/// ditto
+Matrix3 hadamard_product(Matrix3 a, Matrix3 b) pure
+{
+    return Matrix3(a.c0 * b.c0, a.c1 * b.c1, a.c2 * b.c2);
+}
+
+/// ditto
+Matrix4 hadamard_product(Matrix4 a, Matrix4 b) pure
+{
+    return Matrix4(a.c0 * b.c0, a.c1 * b.c1, a.c2 * b.c2, a.c3 * b.c3);
 }
 
 static assert(Matrix2.sizeof == 4 * f32.sizeof);
@@ -981,6 +1149,58 @@ Matrix4 look_at_lh(Vector3 eye, Vector3 target, Vector3 up) @trusted
 
 version (unittest)
 {
+    private void check_matrix_arithmetic(M, V)(M a, M b, V vector) pure
+    {
+        assert(a + b - b == a);
+        assert(a - a == M.init);
+        assert(-a + a == M.init);
+        assert(2 * a == a * 2);
+        assert(a / 2 == a * 0.5f);
+        assert(vector * a == a.transposed * vector);
+
+        M value = a;
+        value += b;
+        assert(value == a + b);
+        value -= b;
+        assert(value == a);
+        value *= b;
+        assert(value == a * b);
+        value *= 2;
+        value /= 2;
+        assert(value == a * b);
+        assert((value += a) == a * b + a);
+
+        value = a;
+        value *= value;
+        assert(value == a * a);
+        value += value;
+        assert(value == 2 * (a * a));
+        value -= value;
+        assert(value == M.init);
+
+        const product = hadamard_product(a, b);
+        assert(product.c0 == a.c0 * b.c0);
+        assert(product.c1 == a.c1 * b.c1);
+
+        static if (is(M == Matrix3) || is(M == Matrix4))
+        {
+            assert(product.c2 == a.c2 * b.c2);
+        }
+
+        static if (is(M == Matrix4))
+        {
+            assert(product.c3 == a.c3 * b.c3);
+        }
+
+        static assert(!__traits(compiles, a / b));
+        static assert(!__traits(compiles, a + 1));
+        static assert(!__traits(compiles, 1 + a));
+        static assert(!__traits(compiles, a - 1));
+        static assert(!__traits(compiles, 1 - a));
+        static assert(!__traits(compiles, 1 / a));
+        static assert(!__traits(compiles, value /= b));
+    }
+
     import xtb.math.random;
 
     private bool close(f32 left, f32 right, f32 epsilon = 0.0001f) pure
@@ -1004,6 +1224,37 @@ version (unittest)
             && close(left.c2, right.c2, epsilon)
             && close(left.c3, right.c3, epsilon);
     }
+}
+
+unittest
+{
+    const matrix2 = Matrix2(Vector2(1, 2), Vector2(3, 4));
+    const other2 = Matrix2(Vector2(2, 3), Vector2(4, 5));
+    check_matrix_arithmetic!(Matrix2, Vector2)(matrix2, other2, Vector2(2, 3));
+    assert(matrix2 * Vector2(2, 3) == Vector2(11, 16));
+    assert(Vector2(2, 3) * matrix2 == Vector2(8, 18));
+    assert(matrix2 * other2 == Matrix2(Vector2(11, 16), Vector2(19, 28)));
+    assert(hadamard_product(matrix2, other2) == Matrix2(Vector2(2, 6), Vector2(12, 20)));
+
+    const matrix3 = Matrix3(Vector3(1, 2, 3), Vector3(4, 5, 6), Vector3(7, 8, 9));
+    const other3 = Matrix3(Vector3(2, 3, 4), Vector3(5, 6, 7), Vector3(8, 9, 10));
+    check_matrix_arithmetic!(Matrix3, Vector3)(matrix3, other3, Vector3(2, 3, 4));
+    assert(Vector3(2, 3, 4) * matrix3 == Vector3(20, 47, 74));
+
+    const matrix4 = Matrix4(
+        Vector4(1, 2, 3, 4),
+        Vector4(5, 6, 7, 8),
+        Vector4(9, 10, 11, 12),
+        Vector4(13, 14, 15, 16),
+    );
+    const other4 = Matrix4(
+        Vector4(2, 3, 4, 5),
+        Vector4(6, 7, 8, 9),
+        Vector4(10, 11, 12, 13),
+        Vector4(14, 15, 16, 17),
+    );
+    check_matrix_arithmetic!(Matrix4, Vector4)(matrix4, other4, Vector4(2, 3, 4, 5));
+    assert(Vector4(2, 3, 4, 5) * matrix4 == Vector4(40, 96, 152, 208));
 }
 
 unittest

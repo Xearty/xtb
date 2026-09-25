@@ -99,6 +99,20 @@ struct Quaternion
         return this * scalar;
     }
 
+    ref Quaternion opOpAssign(string op)(Quaternion other) return pure
+    if (op == "+" || op == "-" || op == "*")
+    {
+        this = this.opBinary!op(other);
+        return this;
+    }
+
+    ref Quaternion opOpAssign(string op)(f32 scalar) return pure
+    if (op == "*" || op == "/")
+    {
+        this = this.opBinary!op(scalar);
+        return this;
+    }
+
     f32 length_squared() const pure
     {
         return this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w;
@@ -396,6 +410,33 @@ bool approximately_equal(
             absolute_tolerance,
             relative_tolerance,
         );
+}
+
+unittest
+{
+    const a = Quaternion(1, 2, 3, 4);
+    const b = Quaternion(5, 6, 7, 8);
+    Quaternion value = a;
+    value += b;
+    assert(value == a + b);
+    value -= b;
+    assert(value == a);
+    value *= b;
+    assert(value == Quaternion(24, 48, 48, -6));
+    value *= 2;
+    value /= 2;
+    assert(value == a * b);
+    assert((value += a) == a * b + a);
+
+    value = a;
+    value *= value;
+    assert(value == a * a);
+    value -= value;
+    assert(value == Quaternion(0, 0, 0, 0));
+
+    static assert(!__traits(compiles, value /= b));
+    static assert(!__traits(compiles, value += 1));
+    static assert(!__traits(compiles, value -= 1));
 }
 
 unittest

@@ -3,9 +3,21 @@
 `import xtb.math;` provides scalar, vector, quaternion, matrix, transform,
 projection, random, and noise utilities. Angle-taking APIs use radians; use
 `radians` and `degrees` only when converting at an API boundary. Vectors provide
-`zero`, `splat`, unit-axis static factories, and compile-time read-only `xyzw`
-swizzles of length two through four. Matrices are
-column-major and multiply column vectors. `Quaternion.init` is the identity
+zero initialization, scalar broadcast (`Vector3(2)`), and composable construction
+(`Vector4(position, 1)`). Apart from zero construction and scalar broadcast,
+arguments must supply exactly the required number of components. Vectors also
+provide `zero`, unit-axis static factories, and compile-time read-only `xyzw`
+swizzles of length two through four. Vector arithmetic is component-wise and
+accepts scalars on either side of `+`, `-`, `*`, and `/`.
+
+Matrices are column-major: `matrix * vector` transforms a column vector;
+`vector * matrix` multiplies a row vector. Matrix `*` is algebraic multiplication;
+`hadamard_product` gives component-wise multiplication for matrices or vectors.
+Matrices support addition, subtraction, negation, scalar multiplication on either
+side, and scalar division. Vectors, matrices, and quaternions support compound
+assignment for their corresponding arithmetic operations.
+
+`Quaternion.init` is the identity
 rotation, and axis-angle rotations are constructed with `Quaternion.from_axis_angle`.
 `trs` composes
 translation, rotation, and scale as T * R * S, so scale acts first when transforming
