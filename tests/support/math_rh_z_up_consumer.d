@@ -22,6 +22,16 @@ static assert(__traits(compiles, quaternion_from_yaw_pitch_roll(
 )));
 static assert(hadamard_product(Vector3(2), Vector3(3)) == Vector3(6));
 static assert(hadamard_product(Matrix3.identity, Matrix3.identity) == Matrix3.identity);
+static assert(Vector4.component_count == 4);
+static assert(()
+{
+    auto vector = Vector4(1, 2, 3, 4);
+    auto color = vector.bgr;
+    color.r += 1;
+    vector[3] = 5;
+    static assert(!__traits(compiles, vector.rgb = Vector3(1)));
+    return vector == Vector4(1, 2, 3, 5) && color == Vector3(4, 2, 1);
+}());
 
 Vector3 configured_world_forward()
 {

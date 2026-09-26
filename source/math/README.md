@@ -6,9 +6,25 @@ projection, random, and noise utilities. Angle-taking APIs use radians; use
 zero initialization, scalar broadcast (`Vector3(2)`), and composable construction
 (`Vector4(position, 1)`). Apart from zero construction and scalar broadcast,
 arguments must supply exactly the required number of components. Vectors also
-provide `zero`, unit-axis static factories, and compile-time read-only `xyzw`
-swizzles of length two through four. Vector arithmetic is component-wise and
-accepts scalars on either side of `+`, `-`, `*`, and `/`.
+provide `zero`, unit-axis static factories, `component_count`, and mutable indexed
+access in `xyzw` order. Indexes must be less than `component_count`; indexed
+references preserve the receiver's `const` or `immutable` qualifier. Vector
+arithmetic is component-wise and accepts scalars on either side of `+`, `-`,
+`*`, and `/`.
+
+Named components remain actual fields and overlap an `elements` array without
+increasing vector size. Use named fields or `v[index]` in compile-time code;
+`elements` is a runtime storage view. Field reflection (`.tupleof`) includes that
+overlapping array too, so component-only formatting or serialization must select
+the named components explicitly.
+
+Vectors provide getter-only `xyzw` and `rgba` swizzles. Each swizzle uses one
+naming family and may repeat components. Reads return independent, mutable vector
+values: `auto part = v.xy; part += delta;` leaves `v` unchanged. Multi-component
+assignment such as `v.xy = delta` is rejected. Do not mutate a swizzle expression
+directly: D can accept `v.xy += delta` or `v.xy.x = 1` and modify only a temporary.
+Write through named fields or indexed access instead. Single color components
+alias the corresponding fields and remain writable, including compound assignment.
 
 Matrices are column-major: `matrix * vector` transforms a column vector;
 `vector * matrix` multiplies a row vector. Matrix `*` is algebraic multiplication;

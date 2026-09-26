@@ -6,55 +6,116 @@ import xtb.math.scalar;
 import xtb.panic;
 import xtb.types;
 
-private bool is_valid_swizzle(string swizzle, string components) pure
+private bool is_valid_swizzle(String swizzle, String components) pure
 {
     if (swizzle.length < 2 || swizzle.length > 4) return false;
 
+    bool position_family = true;
+    bool color_family = true;
+
     foreach (component; swizzle)
     {
-        bool found = false;
-        foreach (available; components)
-        {
-            if (component != available) continue;
+        bool position_found = false;
+        bool color_found = false;
 
-            found = true;
-            break;
+        foreach (index, available; components)
+        {
+            position_found |= component == available;
+            color_found |= component == "rgba"[index];
         }
-        if (!found) return false;
+
+        position_family &= position_found;
+        color_family &= color_found;
     }
 
-    return true;
+    return position_family || color_family;
 }
 
-private mixin template VectorSwizzles(string components)
+private template SwizzleValue(usize count)
 {
-    auto opDispatch(string swizzle)() const pure
+    static if (count == 2)
+    {
+        alias SwizzleValue = Vector2;
+    }
+    else static if (count == 3)
+    {
+        alias SwizzleValue = Vector3;
+    }
+    else static if (count == 4)
+    {
+        alias SwizzleValue = Vector4;
+    }
+}
+
+private mixin template VectorComponents(String components)
+{
+    enum usize component_count = components.length;
+
+    alias r = x;
+    alias g = y;
+
+    static if (components.length >= 3)
+    {
+        alias b = z;
+    }
+
+    static if (components.length == 4)
+    {
+        alias a = w;
+    }
+
+    /// Borrows a component in `xyzw` order. `index` must be less than `component_count`.
+    // Instantiate in the caller so unchecked contracts also disappear across modules.
+    pragma(inline, true)
+    ref inout(f32) opIndex()(usize index) inout return
+    {
+        require(index < components.length, "vector component index is out of bounds");
+
+        // CTFE cannot reinterpret named fields through the overlapping array.
+        if (__ctfe)
+        {
+            static foreach (position; 0 .. components.length)
+            {
+                if (index == position)
+                    return __traits(getMember, this, components[position .. position + 1]);
+            }
+
+            panic("vector component index is out of bounds");
+        }
+
+        return this.elements[index];
+    }
+
+    /// Compares components numerically, including ordinary floating-point NaN semantics.
+    pragma(inline, true)
+    bool opEquals(typeof(this) other) const pure
+    {
+        // Compare only named fields, not the duplicate union view (including in CTFE).
+        static foreach (position; 0 .. components.length)
+        {
+            if (__traits(getMember, this, components[position .. position + 1])
+                != __traits(getMember, other, components[position .. position + 1]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// Returns an independent vector value. Swizzles are getter-only and use only `xyzw` or `rgba`.
+    @property auto opDispatch(String swizzle)() const pure
     if (is_valid_swizzle(swizzle, components))
     {
-        static if (swizzle.length == 2)
+        SwizzleValue!(swizzle.length) result;
+
+        static foreach (index; 0 .. swizzle.length)
         {
-            return Vector2(
-                mixin("this." ~ swizzle[0 .. 1]),
-                mixin("this." ~ swizzle[1 .. 2]),
-            );
+            __traits(getMember, result, "xyzw"[index .. index + 1]) =
+                __traits(getMember, this, swizzle[index .. index + 1]);
         }
-        else static if (swizzle.length == 3)
-        {
-            return Vector3(
-                mixin("this." ~ swizzle[0 .. 1]),
-                mixin("this." ~ swizzle[1 .. 2]),
-                mixin("this." ~ swizzle[2 .. 3]),
-            );
-        }
-        else
-        {
-            return Vector4(
-                mixin("this." ~ swizzle[0 .. 1]),
-                mixin("this." ~ swizzle[1 .. 2]),
-                mixin("this." ~ swizzle[2 .. 3]),
-                mixin("this." ~ swizzle[3 .. 4]),
-            );
-        }
+
+        return result;
     }
 }
 
@@ -62,10 +123,19 @@ struct Vector2
 {
     nothrow @nogc @safe:
 
-    f32 x = 0;
-    f32 y = 0;
+    union
+    {
+        struct
+        {
+            f32 x = 0;
+            f32 y = 0;
+        }
 
-    mixin VectorSwizzles!"xy";
+        /// Runtime array view of the named fields; use `vector[index]` for CTFE support.
+        f32[2] elements;
+    }
+
+    mixin VectorComponents!"xy";
 
     /// Broadcasts `value` to every component.
     this(f32 value) pure
@@ -245,11 +315,20 @@ struct Vector3
 {
     nothrow @nogc @safe:
 
-    f32 x = 0;
-    f32 y = 0;
-    f32 z = 0;
+    union
+    {
+        struct
+        {
+            f32 x = 0;
+            f32 y = 0;
+            f32 z = 0;
+        }
 
-    mixin VectorSwizzles!"xyz";
+        /// Runtime array view of the named fields; use `vector[index]` for CTFE support.
+        f32[3] elements;
+    }
+
+    mixin VectorComponents!"xyz";
 
     /// Broadcasts `value` to every component.
     this(f32 value) pure
@@ -444,12 +523,21 @@ struct Vector4
 {
     nothrow @nogc @safe:
 
-    f32 x = 0;
-    f32 y = 0;
-    f32 z = 0;
-    f32 w = 0;
+    union
+    {
+        struct
+        {
+            f32 x = 0;
+            f32 y = 0;
+            f32 z = 0;
+            f32 w = 0;
+        }
 
-    mixin VectorSwizzles!"xyzw";
+        /// Runtime array view of the named fields; use `vector[index]` for CTFE support.
+        f32[4] elements;
+    }
+
+    mixin VectorComponents!"xyzw";
 
     /// Broadcasts `value` to every component.
     this(f32 value) pure
@@ -946,6 +1034,28 @@ bool approximately_equal(
     return x_equal && y_equal && z_equal && w_equal;
 }
 
+// Named fields and indexed storage must describe exactly the same packed floats.
+static assert(Vector2.sizeof == f32[2].sizeof);
+static assert(Vector2.alignof == f32[2].alignof);
+static assert(Vector2.elements.offsetof == 0);
+static assert(Vector2.x.offsetof == 0);
+static assert(Vector2.y.offsetof == f32.sizeof);
+
+static assert(Vector3.sizeof == f32[3].sizeof);
+static assert(Vector3.alignof == f32[3].alignof);
+static assert(Vector3.elements.offsetof == 0);
+static assert(Vector3.x.offsetof == 0);
+static assert(Vector3.y.offsetof == f32.sizeof);
+static assert(Vector3.z.offsetof == 2 * f32.sizeof);
+
+static assert(Vector4.sizeof == f32[4].sizeof);
+static assert(Vector4.alignof == f32[4].alignof);
+static assert(Vector4.elements.offsetof == 0);
+static assert(Vector4.x.offsetof == 0);
+static assert(Vector4.y.offsetof == f32.sizeof);
+static assert(Vector4.z.offsetof == 2 * f32.sizeof);
+static assert(Vector4.w.offsetof == 3 * f32.sizeof);
+
 unittest
 {
     static assert(Vector2(2) == Vector2(2, 2));
@@ -1105,15 +1215,281 @@ static assert(!__traits(compiles, Vector2.init.xz));
 static assert(!__traits(compiles, Vector3.init.xw));
 static assert(!__traits(compiles, Vector4.init.xyzwx));
 static assert(!__traits(compiles, Vector4.init.xq));
-static assert(!__traits(compiles, ()
-{
-    Vector3 vector;
-    vector.xy = Vector2(1.0f, 2.0f);
-}));
 
-static assert(Vector2.sizeof == 2 * f32.sizeof);
-static assert(Vector3.sizeof == 3 * f32.sizeof);
-static assert(Vector4.sizeof == 4 * f32.sizeof);
+version (unittest)
+{
+    private bool check_component_access(V)()
+    {
+        auto value = V(0);
+
+        foreach (index; 0 .. V.component_count)
+        {
+            value[index] = cast(f32)(index + 1);
+            assert(value[index] == index + 1);
+            value[index] += 4;
+            assert(value[index] == index + 5);
+        }
+
+        assert(&value[0] is &value.x);
+        assert(&value[1] is &value.y);
+        assert(&value.r is &value.x);
+        assert(&value.g is &value.y);
+
+        static if (V.component_count >= 3)
+        {
+            assert(&value[2] is &value.z);
+            assert(&value.b is &value.z);
+        }
+
+        static if (V.component_count == 4)
+        {
+            assert(&value[3] is &value.w);
+            assert(&value.a is &value.w);
+        }
+
+        const snapshot = value;
+        immutable frozen = V(3);
+        static assert(is(typeof(value[0]) == f32));
+        static assert(is(typeof(snapshot[0]) == const(f32)));
+        static assert(is(typeof(frozen[0]) == immutable(f32)));
+
+        foreach (index; 0 .. V.component_count)
+        {
+            assert(snapshot[index] == index + 5);
+            assert(frozen[index] == 3);
+        }
+
+        static assert(!__traits(compiles, snapshot[0] = 1));
+        static assert(!__traits(compiles, frozen[0] = 1));
+
+        static assert(!__traits(compiles, ()
+        {
+            enum invalid = V.init[V.component_count];
+        }));
+        static assert(!__traits(compiles, ()
+        {
+            enum invalid = V.init[usize.max];
+        }));
+
+        static assert(!__traits(compiles, () @safe
+        {
+            V local;
+            return &local[0];
+        }));
+
+        return true;
+    }
+
+    private void check_runtime_component_storage(V)()
+    {
+        // The extra reflected field is a storage alias, not another component.
+        static assert(V.tupleof.length == V.component_count + 1);
+        static assert(__traits(identifier, V.tupleof[$ - 1]) == "elements");
+
+        V value;
+
+        foreach (index; 0 .. V.component_count)
+        {
+            assert(value.elements[index] == 0);
+            assert(&value.elements[index] is &value[index]);
+            value.elements[index] = cast(f32)(index + 1);
+        }
+
+        static foreach (position; 0 .. V.component_count)
+        {
+            assert(__traits(getMember, value, "xyzw"[position .. position + 1]) == position + 1);
+            __traits(getMember, value, "xyzw"[position .. position + 1]) += 5;
+            assert(value.elements[position] == position + 6);
+        }
+
+        const copy = value;
+        assert(copy == value);
+        value.elements[0] = -1;
+        assert(copy.x == 6);
+        assert(value.x == -1);
+        assert(copy != value);
+    }
+
+    private bool check_component_equality(V)() pure
+    {
+        assert(V(0.0f) == V(-0.0f));
+        assert(V(-0.0f) == V(0.0f));
+        assert(V(f32.infinity) == V(f32.infinity));
+        assert(V(-f32.infinity) == V(-f32.infinity));
+        assert(V(f32.infinity) != V(-f32.infinity));
+
+        static foreach (position; 0 .. V.component_count)
+        {{
+            auto value = V(1);
+            __traits(getMember, value, "xyzw"[position .. position + 1]) = 2;
+            assert(value != V(1));
+            assert(V(1) != value);
+
+            __traits(getMember, value, "xyzw"[position .. position + 1]) = f32.nan;
+            const copy = value;
+            assert(value != value);
+            assert(value != copy);
+            assert(copy != value);
+        }}
+
+        return true;
+    }
+}
+
+unittest
+{
+    static assert(Vector2.component_count == 2);
+    static assert(Vector3.component_count == 3);
+    static assert(Vector4.component_count == 4);
+    static assert(check_component_access!Vector2());
+    static assert(check_component_access!Vector3());
+    static assert(check_component_access!Vector4());
+    assert(check_component_access!Vector2());
+    assert(check_component_access!Vector3());
+    assert(check_component_access!Vector4());
+}
+
+unittest
+{
+    check_runtime_component_storage!Vector2();
+    check_runtime_component_storage!Vector3();
+    check_runtime_component_storage!Vector4();
+}
+
+unittest
+{
+    static assert(check_component_equality!Vector2());
+    static assert(check_component_equality!Vector3());
+    static assert(check_component_equality!Vector4());
+    assert(check_component_equality!Vector2());
+    assert(check_component_equality!Vector3());
+    assert(check_component_equality!Vector4());
+}
+
+unittest
+{
+    const pair = Vector2(1, 2);
+    const triple = Vector3(1, 2, 3);
+    immutable quadruple = Vector4(1, 2, 3, 4);
+    assert(pair.r == 1 && pair.g == 2);
+    assert(pair.gr == Vector2(2, 1));
+    assert(pair.rgr == Vector3(1, 2, 1));
+    assert(pair.ggrr == Vector4(2, 2, 1, 1));
+    assert(triple.rgb == triple);
+    assert(triple.b == 3);
+    assert(triple.bgr == Vector3(3, 2, 1));
+    assert(quadruple.a == 4);
+    assert(quadruple.abgr == Vector4(4, 3, 2, 1));
+    assert(quadruple.aaaa == Vector4(4));
+
+    static assert(is(typeof(pair.gr) == Vector2));
+    static assert(is(typeof(triple.bgr) == Vector3));
+    static assert(is(typeof(quadruple.abgr) == Vector4));
+    auto copy = quadruple.rgb;
+    copy.x = 9;
+    assert(quadruple.r == 1);
+    assert(copy == Vector3(9, 2, 3));
+}
+
+version (unittest)
+{
+    private bool check_swizzle_values(V)() pure
+    {
+        auto value = V(1);
+        value.y = 2;
+        const original = value;
+        auto pair = value.yx;
+        auto triple = value.xyy;
+        auto quadruple = value.grrg;
+
+        static assert(is(typeof(pair) == Vector2));
+        static assert(is(typeof(triple) == Vector3));
+        static assert(is(typeof(quadruple) == Vector4));
+        assert(pair == Vector2(2, 1));
+        assert(triple == Vector3(1, 2, 2));
+        assert(quadruple == Vector4(2, 1, 1, 2));
+        assert(value.xy.yx == pair);
+
+        pair += Vector2(3, 4);
+        triple.b = 9;
+        quadruple *= 2;
+        assert(value == original);
+
+        value.x = 7;
+        assert(pair == Vector2(5, 5));
+        assert(triple == Vector3(1, 2, 9));
+        assert(quadruple == Vector4(4, 2, 2, 4));
+
+        static assert(!__traits(compiles, value.xy = Vector2(1)));
+        static assert(!__traits(compiles, value.rg = Vector2(1)));
+        static assert(!__traits(compiles, value.xyy = Vector3(1)));
+        static assert(!__traits(compiles, value.grrg = Vector4(1)));
+        return true;
+    }
+}
+
+unittest
+{
+    static assert(check_swizzle_values!Vector2());
+    static assert(check_swizzle_values!Vector3());
+    static assert(check_swizzle_values!Vector4());
+    assert(check_swizzle_values!Vector2());
+    assert(check_swizzle_values!Vector3());
+    assert(check_swizzle_values!Vector4());
+}
+
+unittest
+{
+    auto pair = Vector2(1, 2);
+    pair.r = 3;
+    pair.g += 4;
+    assert(pair == Vector2(3, 6));
+
+    auto triple = Vector3(1, 2, 3);
+    triple.b *= 2;
+    assert(triple == Vector3(1, 2, 6));
+
+    auto quadruple = Vector4(1, 2, 3, 4);
+    quadruple.a = 9;
+    assert(quadruple == Vector4(1, 2, 3, 9));
+}
+
+unittest
+{
+    static assert(!__traits(compiles, Vector2.init.b));
+    static assert(!__traits(compiles, Vector3.init.a));
+    static assert(!__traits(compiles, Vector2.init.rb));
+    static assert(!__traits(compiles, Vector3.init.rgba));
+    static assert(!__traits(compiles, Vector4.init.xr));
+    static assert(!__traits(compiles, Vector4.init.xg));
+    static assert(!__traits(compiles, Vector4.init.st));
+    static assert(!__traits(compiles, Vector4.init.rgbaa));
+    static assert(!__traits(compiles, Vector2.init.xyz));
+    static assert(!__traits(compiles, Vector4.init.s));
+
+    Vector4 value;
+    static assert(!__traits(compiles, value.xy = Vector2(1)));
+    static assert(!__traits(compiles, value.xyz = Vector3(1)));
+    static assert(!__traits(compiles, value.xyzw = Vector4(1)));
+    static assert(!__traits(compiles, value.rgba = Vector4(1)));
+    static assert(!__traits(compiles, value.xy.yx = Vector2(1)));
+    static assert(!__traits(compiles, value.xx = Vector2(1)));
+    static assert(!__traits(compiles, value.rr = Vector2(1)));
+    static assert(!__traits(compiles, value.xyxy = Vector4(1)));
+    static assert(!__traits(compiles, value.xg = Vector2(1)));
+    static assert(!__traits(compiles, value.xy = Vector3(1)));
+    static assert(!__traits(compiles, value.xyz = Vector2(1)));
+    static assert(!__traits(compiles, value.rgb = 1));
+    static assert(!__traits(compiles, value.xyzw = Vector3(1)));
+    static assert(!__traits(compiles, value.a = Vector2(1)));
+
+    const snapshot = value;
+    immutable frozen = Vector4(1);
+    static assert(!__traits(compiles, snapshot.xy = Vector2(1)));
+    static assert(!__traits(compiles, frozen.rgb = Vector3(1)));
+    static assert(!__traits(compiles, snapshot.r = 1));
+    static assert(!__traits(compiles, frozen.a = 1));
+}
 
 unittest
 {

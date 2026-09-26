@@ -26,6 +26,29 @@ version (Posix)
 
 version (Posix)
 {
+    private bool invalid_vector_index_panics(V)(usize index) nothrow @nogc
+    {
+        const process = fork();
+        if (process < 0) return false;
+
+        if (process == 0)
+        {
+            const sink = open("/dev/null".ptr, O_WRONLY);
+            if (sink >= 0)
+            {
+                cast(void) dup2(sink, STDERR_FILENO);
+                close(sink);
+            }
+
+            auto vector = V(1);
+            vector[index] = 2;
+            _exit(0);
+        }
+
+        i32 status;
+        return waitpid(process, &status, 0) == process && (status & 0x7f) == SIGABRT;
+    }
+
     private bool invalid_random_bound_panics() nothrow @nogc
     {
         const process = fork();
@@ -105,6 +128,34 @@ private bool arithmetic_resolves() pure nothrow @nogc @safe
         && Vector2(2, 3) * matrix == Vector2(8, 18)
         && 2 * matrix / 2 == matrix
         && orientation == Quaternion(8, 16, 24, 2);
+}
+
+private bool component_access_resolves() nothrow @nogc @safe
+{
+    auto vector = Vector4(1, 2, 3, 4);
+    auto pair = vector.yx;
+    auto color = vector.bgr;
+    pair += 1;
+    color *= 2;
+    if (pair != Vector2(3, 2) || color != Vector3(6, 4, 2)) return false;
+    if (vector != Vector4(1, 2, 3, 4)) return false;
+
+    static assert(!__traits(compiles, vector.xy = Vector2(1)));
+    static assert(!__traits(compiles, vector.rgb = Vector3(1)));
+
+    vector.a += 1;
+    vector[0] += vector[Vector4.component_count - 1];
+    if (vector != Vector4(6, 2, 3, 5)) return false;
+
+    foreach (index; 0 .. Vector4.component_count)
+        vector[index] *= 2;
+
+    const snapshot = vector;
+    immutable frozen = Vector3(2, 3, 4);
+    return snapshot[0] == 12
+        && snapshot.rgba == Vector4(12, 4, 6, 10)
+        && frozen[2] == 4
+        && frozen.bgr == Vector3(4, 3, 2);
 }
 
 private bool configured_coordinate_systems_resolve() nothrow @nogc @safe
@@ -202,11 +253,22 @@ extern (C) int main()
 {
     if (!overload_sets_resolve()) return 1;
     if (!arithmetic_resolves()) return 1;
+    if (!component_access_resolves()) return 1;
     if (!configured_coordinate_systems_resolve()) return 1;
 
     version (Posix)
     {
         if (!invalid_random_bound_panics()) return 1;
+
+        version (XTB_Checked)
+        {
+            if (!invalid_vector_index_panics!Vector2(Vector2.component_count)) return 1;
+            if (!invalid_vector_index_panics!Vector3(Vector3.component_count)) return 1;
+            if (!invalid_vector_index_panics!Vector4(Vector4.component_count)) return 1;
+            if (!invalid_vector_index_panics!Vector2(usize.max)) return 1;
+            if (!invalid_vector_index_panics!Vector3(usize.max)) return 1;
+            if (!invalid_vector_index_panics!Vector4(usize.max)) return 1;
+        }
     }
 
     return 0;

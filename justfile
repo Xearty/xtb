@@ -313,6 +313,11 @@ check-zero-cost:
         --config=contracts
     bash tests/zero_cost/verify_contracts.sh \
         build/zero-cost/contract_tests
+    dub build :zero-cost-tests {{ dub_options }} --parallel \
+        --build=zero-cost-release-fast \
+        --config=vector-indexing
+    bash tests/zero_cost/verify_vector_indexing.sh \
+        build/zero-cost/vector_indexing_tests
 
 # Run the routine local verification matrix.
 check: lint _check-build-debug _check-build-release-safe _check-build-release-fast _check-compose-diagnostics test test-optimized test-release-safe test-release-fast test-sanitize run-examples

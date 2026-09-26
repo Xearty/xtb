@@ -18,3 +18,11 @@ configuration "contracts" {
     mainSourceFile "contracts.d"
     dependency "xtb:core" version="*"
 }
+
+configuration "vector-indexing" {
+    targetType "executable"
+    targetName "vector_indexing_tests"
+    targetPath "../../build/zero-cost"
+    mainSourceFile "vector_indexing.d"
+    dependency "xtb:math" version="*"
+}
